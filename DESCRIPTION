@@ -1,0 +1,49 @@
+Package: RoBMA
+Title: Robust Bayesian Meta-Analyses
+Version: 0.0.0.9000
+Authors@R: c( 
+    person(given   = "František",
+           family  = "Bartoš",
+           role    = c("aut", "cre"),
+           email   = "f.bartos96@gmail.com",
+           comment = c(ORCID = "0000-0002-0018-5573")),
+    person(given   = "Maximilian",
+           family  = "Maier",
+           role    = "aut",
+           email   = "maximilianmaier0401@gmail.com",
+           comment = c(ORCID = "0000-0002-0018-5573")),
+    person(given   = "Eric-Jan",
+           family  = "Wagenmakers",
+           role    = "ths",
+           email   = "EJ.Wagenmakers@gmail.com",
+           comment = c(ORCID = "0000-0003-1596-1034"))
+           )
+Description: The package estimates an ensemble of Bayesian model-averaged 
+    meta-analytical models (assuming either presence or absence of the 
+    effect, heterogeneity, and publication bias). The ensemble uses Bayes 
+    Factors to test for presence of absence of the individual components 
+    and model-averages parameter estimates based on posterior model 
+    probabilities. The user can define a wide range of non-informative 
+    or informative priors for the effect size, heterogeneity, and weight 
+    functions. The package provides convenient functions for summary, 
+    visualizations, and fit diagnostics.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.0.2
+Imports:
+    runjags,
+    bridgesampling,
+    rjags,
+    coda,
+    psych,
+    stats,
+    graphics,
+    extraDistr,
+    scales,
+    DPQ
+Suggests:
+    ggplot2,
+    rstan,
+    metaBMA
