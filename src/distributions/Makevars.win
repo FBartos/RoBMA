@@ -1,2 +1,0 @@
-PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" 
-PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4
