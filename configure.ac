@@ -1,4 +1,5 @@
-AC_INIT([rjags], [4])
+#Based configure.ac from rjags 4.9 (2020-04-29)
+AC_INIT([RoBMA], [4])
 
 if test -z "${R_HOME}"; then
    AC_MSG_ERROR("R_HOME is not defined")
