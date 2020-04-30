@@ -3,4 +3,5 @@
 .libs
 *.o
 *.so
-
+*.dll
+*.dylib

@@ -1,5 +1,12 @@
+#Set a default value for JAGS_ROOT in case the user hasn't set it, this location was specified by the CRAN-team (according to runjags, where I copied this from)
+JAGS_ROOT ?= c:/progra~1/JAGS/JAGS-4.3.0
+
+## Use the old ABI to match JAGS 4.x compilation on Windows:
+PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0
+
 PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" 
 PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -ljrmath-0
 
+# Actual sources and objects for RoBMA
 SOURCES= $(wildcard *.cc) $(wildcard */*.cc)
 OBJECTS=$(SOURCES:.cc=.o)
