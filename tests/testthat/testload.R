@@ -1,7 +1,8 @@
 #Ok so this test is pretty stupid but should at least tell me it can (a) load the jags-module and (b) get the same output as before
 #Where is the module?
-hereIsTheModule <- sub("/Meta.*", '', attr(packageDescription("RoBMA"), "file"))
-rjags::load.module("RoBMA", path = paste0(hereIsTheModule, "/libs") )
+hereIsTheModule <- sub("/DESCRIPTION", '', sub("/Meta.*", '', attr(packageDescription("RoBMA"), "file")))
+
+rjags::load.module("RoBMA", path = paste0(hereIsTheModule, "/libs", Sys.getenv("R_ARCH")) )
 
 model_syntax <- '
 model{
