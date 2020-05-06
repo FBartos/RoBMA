@@ -27,6 +27,7 @@ Authors:
 Other contributors:
 \itemize{
   \item Eric-Jan Wagenmakers \email{EJ.Wagenmakers@gmail.com} (\href{https://orcid.org/0000-0003-1596-1034}{ORCID}) [thesis advisor]
+  \item Joris Goosen \email{j.c.goosen@uva.nl} [contributor]
 }
 
 }

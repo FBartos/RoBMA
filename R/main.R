@@ -146,33 +146,6 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
   object$control <- .set_control(control, chains, iter, burnin, thin)
 
 
-  ### fit the models and compute marginal likelihoods
-  for(i in 1:length(object$models)){
-    object$models[[i]]$fit      <- .fit_RoBMA(object$data, object$models[[i]]$priors, object$control, seed)
-    object$models[[i]]$marg_lik <- .marglik_RoBMA(object$data, object$models[[i]]$fit, object$models[[i]]$priors, object$control$bridge_max_iter, seed)
-  }
-
-
-  # deal with non-converged the converged models
-  converged <- .get_converged_models(object)
-  if(object$control$balance_prob & any(!converged))object <- .balance_prob(object, converged)
-
-
-  ### compute the model-space results
-  object$RoBMA         <- .model_inference(object$models, object$data, converged, ifelse(!is.null(r), mu_transform, FALSE), seed)
-  object$coefficients  <- .compute_coeficients(object$RoBMA)
-
-
-  ### remove model posteriors if asked to
-  if(save == "min"){
-    for(i in 1:length(object$models)){
-      if(length(object$models[[1]]$fit) != 1){
-        object$models[[i]]$fit$mcmc <- NULL
-      }
-    }
-  }
-
-
   ### add additional information
   object$add_info <- list(
     t            = t,
@@ -187,12 +160,51 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
     mu_transform = if(object$data$effect_size == "r")mu_transform,
     test_type    = test_type,
     study_names  = study_names,
-    converged    = converged,
     seed         = seed,
     save         = save
   )
 
-  if(sum(!converged) > 0)warning(paste0(sum(!converged), ifelse(sum(!converged) == 1, " model", " models"), " failed to converge."))
+
+  ### fit the models and compute marginal likelihoods
+  if(object$control$JASP)startProgressbar(length(object$models))
+  for(i in 1:length(object$models)){
+    object <- .fit_RoBMA(object, i)
+    object <- .marglik_RoBMA(object, i)
+    if(object$control$JASP)progressbarTick()
+  }
+
+
+  # deal with non-converged the converged models
+  object$add_info$converged <- .get_converged_models(object)
+
+
+  # create ensemble only if at least one model converges
+  if(any(object$add_info$converged)){
+
+    # balance probability of non-converged models
+    if(object$control$balance_prob & any(!object$add_info$converged))object <- .balance_prob(object, object$add_info$converged)
+
+
+    ### compute the model-space results
+    object$RoBMA         <- .model_inference(object$models, object$data, object$add_info$converged, ifelse(!is.null(r), mu_transform, FALSE), seed)
+    object$coefficients  <- .compute_coeficients(object$RoBMA)
+  }
+
+
+  ### remove model posteriors if asked to
+  if(save == "min"){
+    for(i in 1:length(object$models)){
+      if(length(object$models[[1]]$fit) != 1){
+        object$models[[i]]$fit$mcmc <- NULL
+      }
+    }
+  }
+
+
+  if(!is.null(object$add_info$warnings)){
+    for(w in object$add_info$warnings)warning(w)
+  }
+  if(sum(!object$add_info$converged) > 0)warning(paste0(sum(!object$add_info$converged), ifelse(sum(!object$add_info$converged) == 1, " model", " models"), " failed to converge."))
 
   class(object) <- "RoBMA"
   return(object)
@@ -262,14 +274,16 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       tau   = .set_parameter_priors(prior_tau_null,   prior_tau,   "tau"),
       omega = .set_parameter_priors(prior_omega_null, prior_omega, "omega")
     ))
-    if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds <- prior_odds
+    if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds     <- prior_odds
+    if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds_set <- prior_odds
 
   }else if(!is.null(prior_odds)){
 
     what_to_do <- "update_prior_odds"
     if(length(prior_odds) != length(object$models))stop("The number of newly specified prior odds does not match the number of models. See '?update.RoBMA' for more details.")
     for(i in 1:length(fit$models)){
-      fit$models[[i]]$prior_odds <- prior_odds[i]
+      fit$models[[i]]$prior_odds     <- prior_odds[i]
+      fit$models[[i]]$prior_odds_set <- prior_odds[i]
     }
 
   }else if(refit_failed){
@@ -297,28 +311,36 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   ### do the stuff
   if(what_to_do == "fit_new_model"){
 
-    object$models[[length(object$models)]]$fit      <- .fit_RoBMA(object$data, object$models[[length(object$models)]]$priors, object$control, object$add_info$seed)
-    object$models[[length(object$models)]]$marg_lik <- .marglik_RoBMA(object$data, object$models[[length(object$models)]]$fit, object$models[[length(object$models)]]$priors, object$control$bridge_max_iter, object$add_info$seed)
+    object <- .fit_RoBMA(object, length(object$models))
+    object <- .marglik_RoBMA(object, length(object$models))
 
   }else if(what_to_do == "refit_failed_models"){
 
     converged_models <- .get_converged_models(object)
+    if(object$control$JASP)startProgressbar(sum(!converged_models))
     for(i in c(1:length(object$models))[!converged_models]){
-      object$models[[i]]$fit      <- .fit_RoBMA(object$data, object$models[[i]]$priors, object$control, object$add_info$seed)
-      object$models[[i]]$marg_lik <- .marglik_RoBMA(object$data, object$models[[i]]$fit, object$models[[i]]$priors, object$control$bridge_max_iter, object$add_info$seed)
+      object <- .fit_RoBMA(object, i)
+      object <- .marglik_RoBMA(object, i)
+      if(object$control$JASP)progressbarTick()
     }
 
   }
 
 
   # deal with non-converged the converged models
-  converged <- .get_converged_models(object)
-  if(object$control$balance_prob & any(!converged))object <- .balance_prob(object, converged)
+  object$add_info$converged <- .get_converged_models(object)
+
+  # create ensemble only if at least one model converges
+  if(any(object$add_info$converged)){
+
+    # balance probability of non-converged models
+    if(object$control$balance_prob & any(!object$add_info$converged))object <- .balance_prob(object, object$add_info$converged)
 
 
-  ### compute the model-space results
-  object$RoBMA         <- .model_inference(object$models, object$data, converged, ifelse(!is.null(object$add_info$r), object$add_info$mu_transform, FALSE), object$add_info$seed)
-  object$coefficients  <- .compute_coeficients(object$RoBMA)
+    ### compute the model-space results
+    object$RoBMA         <- .model_inference(object$models, object$data, object$add_info$converged, ifelse(!is.null(object$add_info$r), object$add_info$mu_transform, FALSE), object$add_info$seed)
+    object$coefficients  <- .compute_coeficients(object$RoBMA)
+  }
 
 
   ### remove model posteriors if asked to
@@ -331,10 +353,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
 
-  ### update additional information
-  object$add_info$converged <- converged
-
-  if(sum(!converged) > 0)warning(paste0(sum(!converged), ifelse(sum(!converged) == 1, " model", " models"), " failed to converge."))
+  if(sum(!object$add_info$converged) > 0)warning(paste0(sum(!object$add_info$converged), ifelse(sum(!object$add_info$converged) == 1, " model", " models"), " failed to converge."))
 
   return(object)
 }
@@ -441,7 +460,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
 ### fitting function
-.fit_RoBMA             <- function(data, priors, control, seed){
+.fit_RoBMA             <- function(object, i){
+
+  priors   <- object$models[[i]]$priors
+  control  <- object$control
+  new_warn <- NULL
 
   # don't sample the complete null model
   if(!(priors$mu$distribution == "point" &
@@ -453,8 +476,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
     # remove unneccessary objects from data to mittigate warnings
-    fit_data          <- .fit_data(data, priors)
-    fit_inits         <- .fit_inits(priors, control$chains, seed)
+    fit_data          <- .fit_data(object$data, priors)
+    fit_inits         <- .fit_inits(priors, control$chains, object$add_info$seed)
     monitor_variables <- .to_monitor(priors)
 
 
@@ -462,36 +485,38 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(control$silent){
       invisible(utils::capture.output(
         fit <- tryCatch(runjags::autorun.jags(
-          model       = model_syntax,
-          data        = fit_data,
-          inits       = fit_inits,
-          monitor     = monitor_variables,
-          n.chains    = control$chains,
-          startburnin = control$burnin,
-          startsample = control$iter,
-          adapt       = control$adapt,
-          thin        = control$thin,
-          psrf.target = if(control$autofit)control$max_rhat,
-          max.time    = if(control$autofit)control$max_time,
-          summarise   = TRUE,
-          silent.jags = control$silent
+          model           = model_syntax,
+          data            = fit_data,
+          inits           = fit_inits,
+          monitor         = monitor_variables,
+          n.chains        = control$chains,
+          startburnin     = control$burnin,
+          startsample     = control$iter,
+          adapt           = control$adapt,
+          thin            = control$thin,
+          raftery.options = control$autofit,
+          psrf.target     = if(control$autofit)control$max_rhat else Inf,
+          max.time        = if(control$autofit)control$max_time else Inf,
+          summarise       = TRUE,
+          silent.jags     = control$silent
         ), error = function(e)e)
       ))
     }else{
       fit <- tryCatch(runjags::autorun.jags(
-        model       = model_syntax,
-        data        = fit_data,
-        inits       = fit_inits,
-        monitor     = monitor_variables,
-        n.chains    = control$chains,
-        startburnin = control$burnin,
-        startsample = control$iter,
-        adapt       = control$adapt,
-        thin        = control$thin,
-        psrf.target = if(control$autofit)control$max_rhat,
-        max.time    = if(control$autofit)control$max_time,
-        summarise   = TRUE,
-        silent.jags = control$silent
+        model           = model_syntax,
+        data            = fit_data,
+        inits           = fit_inits,
+        monitor         = monitor_variables,
+        n.chains        = control$chains,
+        startburnin     = control$burnin,
+        startsample     = control$iter,
+        adapt           = control$adapt,
+        thin            = control$thin,
+        raftery.options = control$autofit,
+        psrf.target     = if(control$autofit)control$max_rhat else Inf,
+        max.time        = if(control$autofit)control$max_time else Inf,
+        summarise       = TRUE,
+        silent.jags     = control$silent
       ), error = function(e)e)
     }
 
@@ -518,46 +543,47 @@ update.RoBMA <- function(object, refit_failed = TRUE,
           }
         }
 
-        warning("Initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
+        new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
 
         if(control$silent){
           invisible(utils::capture.output(
             fit <- tryCatch(runjags::autorun.jags(
-              model       = model_syntax,
-              data        = fit_data,
-              inits       = fit_inits,
-              monitor     = monitor_variables,
-              n.chains    = control$chains,
-              startburnin = control$burnin,
-              startsample = control$iter,
-              adapt       = control$adapt,
-              thin        = control$thin,
-              psrf.target = if(control$autofit)control$max_rhat,
-              max.time    = if(control$autofit)control$max_time,
-              summarise   = TRUE,
-              silent.jags = control$silent
+              model           = model_syntax,
+              data            = fit_data,
+              inits           = fit_inits,
+              monitor         = monitor_variables,
+              n.chains        = control$chains,
+              startburnin     = control$burnin,
+              startsample     = control$iter,
+              adapt           = control$adapt,
+              thin            = control$thin,
+              raftery.options = control$autofit,
+              psrf.target     = if(control$autofit)control$max_rhat else Inf,
+              max.time        = if(control$autofit)control$max_time else Inf,
+              summarise       = TRUE,
+              silent.jags     = control$silent
             ), error = function(e)e)
           ))
         }else{
           fit <- tryCatch(runjags::autorun.jags(
-            model       = model_syntax,
-            data        = fit_data,
-            inits       = fit_inits,
-            monitor     = monitor_variables,
-            n.chains    = control$chains,
-            startburnin = control$burnin,
-            startsample = control$iter,
-            adapt       = control$adapt,
-            thin        = control$thin,
-            psrf.target = if(control$autofit)control$max_rhat,
-            max.time    = if(control$autofit)control$max_time,
-            summarise   = TRUE,
-            silent.jags = control$silent
+            model           = model_syntax,
+            data            = fit_data,
+            inits           = fit_inits,
+            monitor         = monitor_variables,
+            n.chains        = control$chains,
+            startburnin     = control$burnin,
+            startsample     = control$iter,
+            adapt           = control$adapt,
+            thin            = control$thin,
+            raftery.options = control$autofit,
+            psrf.target     = if(control$autofit)control$max_rhat else Inf,
+            max.time        = if(control$autofit)control$max_time else Inf,
+            summarise       = TRUE,
+            silent.jags     = control$silent
           ), error = function(e)e)
         }
 
       }
-
 
     }
 
@@ -566,10 +592,18 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     fit  <- NULL
   }
 
-  return(fit)
+
+  object$models[[i]]$fit   <- fit
+  object$add_info$warnings <- c(object$add_info$warnings, new_warn)
+
+  return(object)
 
 }
-.marglik_RoBMA         <- function(data, fit, priors, bridge_max_iter, seed){
+.marglik_RoBMA         <- function(object, i){
+
+  fit      <- object$models[[i]]$fit
+  priors   <- object$models[[i]]$priors
+  new_warn <- NULL
 
   # don't sample the complete null model
   if(!(priors$mu$distribution == "point" &
@@ -579,31 +613,48 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     # deal failed model
     if(any(class(fit) %in% c("simpleError", "error"))){
-      warning(paste0("One of the models failed with the following errors: ", paste(fit, collapse = "")))
-      return(.marglik_fail())
+      new_warn <- paste0("Model ",i," failed with the following error: ", fit$message)
+
+      object$models[[i]]$marg_lik <- .marglik_fail()
+      object$add_info$warnings    <- c(object$add_info$warnings, new_warn)
+
+      return(object)
     }
 
 
     # compute marginal likelihood
-    marglik_samples <- .marglik_prepare_data(fit, priors, data)
-    fit_data        <- .fit_data(data, priors)
-    if(!is.null(seed))set.seed(seed)
-    marg_lik        <- tryCatch(bridgesampling::bridge_sampler(samples = marglik_samples$samples, data = fit_data,
-                                                               log_posterior = .marglik_function, priors = priors,
-                                                               lb = marglik_samples$lb,ub = marglik_samples$ub,
-                                                               maxiter = bridge_max_iter, silent = TRUE),
-                                error = function(e){
-                                  warning(paste0("One of the marginal likelihood calculations failed with the following errors: ", e, collapse = ""))
-                                  return(.marglik_fail())
-                                })
+    marglik_samples <- .marglik_prepare_data(fit, priors, object$data)
+    fit_data        <- .fit_data(object$data, priors)
+
+    if(!is.null(object$control$seed))set.seed(object$control$seed)
+    marg_lik        <- tryCatch(bridgesampling::bridge_sampler(
+      samples       = marglik_samples$samples,
+      data          = fit_data,
+      log_posterior = .marglik_function,
+      priors        = priors,
+      lb            = marglik_samples$lb,
+      ub            = marglik_samples$ub,
+      maxiter       = object$control$bridge_max_iter,
+      silent        = TRUE),
+      error = function(e)return(e))
 
   }else{
     # easy calculation of the marginal likelihood in case of null model
-    marg_lik <- .marglik_null(data)
+    marg_lik <- .marglik_null(object$data)
   }
 
+  # handle errors
+  if(any(class(marg_lik) %in% c("simpleError", "error"))){
 
-  return(marg_lik)
+    marg_lik <- .marglik_fail()
+    new_warn <- paste0("Model ",i," failed with the following error: ", marg_lik$message)
+
+  }
+
+  object$models[[i]]$marg_lik <- marg_lik
+  object$add_info$warnings    <- c(object$add_info$warnings, new_warn)
+
+  return(object)
 }
 .generate_model_syntax <- function(priors){
 
@@ -1493,7 +1544,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
        (if(object$models[[i]]$priors$tau$distribution == "point"){object$models[[i]]$priors$tau$parameters$location == 0}else{FALSE}) &
        object$models[[i]]$priors$omega$distribution == "point")){
 
-      if(any(class(object$models[[i]]$fit) %in% c("simpleError", "error")) | is.infinite(object$models[[i]]$marg_lik$logml)){
+      if(any(class(object$models[[i]]$fit) %in% c("simpleError", "error")) | is.infinite(object$models[[i]]$marg_lik$logml) | is.na(object$models[[i]]$marg_lik$logml)){
         converged <- c(converged, FALSE)
       }else{
         converged <- c(converged, TRUE)
@@ -1533,7 +1584,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   mm_mu      <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "mu"))
   mm_tau     <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "tau"))
   mm_omega   <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "omega"))
-  prior_odds <- sapply(object$models, function(m)m$prior_odds)
+  prior_odds <- sapply(object$models, function(m)m$prior_odds_set)
 
   # check whether there is a comparable model for each non-converged models
   for(i in c(1:length(object$models))[!converged_models]){
@@ -1671,7 +1722,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       tau   = prior_tau,
       omega = priors_omega
     ),
-    prior_odds = prior_odds
+    prior_odds     = prior_odds,
+    prior_odds_set = prior_odds
   )
   class(model) <- "RoBMA.model"
 
@@ -1697,6 +1749,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     control$balance_prob    <- TRUE
 
     control$silent          <- FALSE
+    control$JASP            <- FALSE
 
   }else{
     if(is.null(control$max_rhat)){
@@ -1711,7 +1764,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(is.null(control$adapt)){
       control$adapt           <- 1000
     }
-    if(is.null(control$bridge_maxiter)){
+    if(is.null(control$bridge_max_iter)){
       control$bridge_max_iter <- 10000
     }
     if(is.null(control$allow_inc_theta)){
@@ -1722,6 +1775,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
     if(is.null(control$silent)){
       control$silent          <- FALSE
+    }
+    if(is.null(control$JASP)){
+      control$JASP            <- FALSE
     }
   }
 

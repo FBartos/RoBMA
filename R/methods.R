@@ -50,6 +50,13 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
                                 probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
                                 digits_estimates = 3, digits_BF = 3,...){
 
+  # print diagnostics if all models fail to converge
+  if(!any(object$add_info$converged)){
+    if(substr(type,1,1) != "m" & !diagnostics)warnings("All models failed to converge. Model diagnostics were printed instead.")
+    type        <- "models"
+    diagnostics <- TRUE
+  }
+
   if(substr(type,1,1) == "e"){
 
     ### model estimates
@@ -204,8 +211,8 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
     priors_omega   <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$omega, silent = TRUE))
     prior_odds     <- sapply(1:length(object$models), function(i)object$models[[i]]$prior_odds)
     prior_prob     <- prior_odds / sum(prior_odds)
-    posterior_prob <- object$RoBMA$posterior_prob$all
     marg_lik       <- sapply(1:length(object$models), function(i)object$models[[i]]$marg_lik$logml)
+    posterior_prob <- bridgesampling::post_prob(marg_lik, prior_prob = prior_prob)
     BF             <- sapply(1:length(object$models), function(i){
       temp_mm <- rep(FALSE, length(object$models))
       temp_mm[i] <- TRUE

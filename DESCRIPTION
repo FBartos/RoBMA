@@ -18,7 +18,11 @@ Authors@R: c(
            family  = "Wagenmakers",
            role    = "ths",
            email   = "EJ.Wagenmakers@gmail.com",
-           comment = c(ORCID = "0000-0003-1596-1034"))
+           comment = c(ORCID = "0000-0003-1596-1034")),
+    person(given   = "Joris",
+           family  = "Goosen",
+           role    = "ctb",
+           email   = "j.c.goosen@uva.nl")
            )
 Description: The package estimates an ensemble of Bayesian model-averaged 
     meta-analytical models (assuming either presence or absence of the 

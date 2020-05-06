@@ -8,8 +8,3 @@
 ## usethis namespace: end
 NULL
 
-
-.onLoad <- function(libname, pkgname) {
-  requireNamespace("runjags")
-  # load the DWT JAGS module
-}

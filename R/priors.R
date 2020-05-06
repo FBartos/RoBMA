@@ -1191,11 +1191,10 @@ check_setup <- function(priors_mu    = prior(distribution = "normal",   paramete
   overview[,1]  <- paste0(overview[,1],"/",length(object$models))
   overview[,2]  <- format(round(overview[,2], 3), nsmall = 3)
 
-  output <- list(
-    overview = overview_tab,
-    add_info = list(
-      n_models = length(object$models)
-    )
+
+  object$overview <- overview_tab
+  object$add_info <- list(
+    n_models = length(object$models)
   )
 
 
@@ -1214,7 +1213,7 @@ check_setup <- function(priors_mu    = prior(distribution = "normal",   paramete
     models_print      <- models_tab
     models_print[,4]  <- format(round(models_print[,4], 3), nsmall = 3)
 
-    output$models <- models_tab
+    object$models <- models_tab
   }
 
 
@@ -1228,7 +1227,7 @@ check_setup <- function(priors_mu    = prior(distribution = "normal",   paramete
   }
 
 
-  return(invisible(output))
+  return(invisible(object))
 
 }
 
