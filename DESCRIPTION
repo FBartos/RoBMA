@@ -53,4 +53,5 @@ Suggests:
     ggplot2,
     rstan,
     metaBMA,
-    testthat
+    testthat,
+    jaspResults

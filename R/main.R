@@ -144,6 +144,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
   )
   object$models  <- .get_models(object$priors)
   object$control <- .set_control(control, chains, iter, burnin, thin)
+  if(object$control$JASP)
 
 
   ### add additional information
@@ -166,11 +167,11 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
 
   ### fit the models and compute marginal likelihoods
-  if(object$control$JASP)startProgressbar(length(object$models))
+  if(object$control$JASP)jaspResults::startProgressbar(length(object$models))
   for(i in 1:length(object$models)){
     object <- .fit_RoBMA(object, i)
     object <- .marglik_RoBMA(object, i)
-    if(object$control$JASP)progressbarTick()
+    if(object$control$JASP)jaspResults::progressbarTick()
   }
 
 
@@ -317,11 +318,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }else if(what_to_do == "refit_failed_models"){
 
     converged_models <- .get_converged_models(object)
-    if(object$control$JASP)startProgressbar(sum(!converged_models))
+    if(object$control$JASP)jaspResults::startProgressbar(sum(!converged_models))
     for(i in c(1:length(object$models))[!converged_models]){
       object <- .fit_RoBMA(object, i)
       object <- .marglik_RoBMA(object, i)
-      if(object$control$JASP)progressbarTick()
+      if(object$control$JASP)jaspResults::progressbarTick()
     }
 
   }
@@ -1786,6 +1787,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   control$iter      <- iter
   control$burnin    <- burnin
   control$thin      <- thin
+
+  if(control$JASP)requireNamespace("jaspResults")
 
   return(control)
 }

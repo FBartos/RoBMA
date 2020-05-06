@@ -41,15 +41,15 @@ bool DWT2::checkParameterValue(vector<double const *> const &par,
 
   // all crit_t must be non-negative
   for(int i = 1; i < n_crit_t(len); ++i){
-    crit_t_OK = crit_t_OK && crit_t(par)[i] >= 0.0;
+    crit_t_OK = crit_t_OK && ( crit_t(par)[i] >= 0.0 );
   }
 
   // all omegas are within [0, 1] and the last omega == 1
   for(int j = 0; j < (n_omega(len)-1); ++j){
-    omega_OK = omega_OK && omega(par)[j] >= 0.0 && omega(par)[j] <= 1.0;
+    omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
   }
   // numerical imprecission for last omega is not a problem since it's assumed to be 1 later on
-  omega_OK = omega_OK && (fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001); 
+  omega_OK = omega_OK && ( fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001 ); 
 
   // df are positive
   df_OK = *par[0] > 0.0;
@@ -81,7 +81,7 @@ double DWT2::logDensity(double const *x, unsigned int length, PDFType type,
     w = log(omega(par)[0]);
   }else{
     for(int i = 1; i < n_omega(len); ++i){
-      if(abs_x < crit_t(par)[i] & abs_x >= crit_t(par)[i-1]){
+      if( ( abs_x < crit_t(par)[i] ) && ( abs_x >= crit_t(par)[i-1]) ){
         w = log(omega(par)[i]);
         break;
       }
