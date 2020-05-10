@@ -1,0 +1,15 @@
+Spike(1)
+Normal(0, 1)[-Inf, Inf]
+Normal(1, 1)[0, 2]
+Cauchy(1, 1)[0, 2]
+Cauchy(1, 1)[0, 2]
+gen. Student-t(1, 1, 5)[-2, 2]
+Gamma(1, 2)[1, Inf]
+Gamma(1, 2)[1, Inf]
+InvGamma(1, 0.15)[0, Inf]
+Uniform(2, 3)
+Two-sided((0.05), (1, 1))
+Two-sided((0.1, 0.05), (1, 1, 1))
+Two-sided((0.8, 0.1, 0.05), (10, 5, 3, 1))
+One-sided((0.1, 0.05), (1, 1, 1))
+One-sided((0.8, 0.1, 0.05), (1, 1, 1), (1, 1))
