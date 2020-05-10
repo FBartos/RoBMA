@@ -349,7 +349,8 @@ rwt <- function(n, df, ncp, steps = if(!is.null(crit_t)) NULL, omega, crit_t = i
         (exp(.pwt(x, df, ncp, omega, crit_t, type, lower.tail)) - p)^2
     },p = p, df = df, ncp = ncp, omega = matrix(omega, nrow = 1), crit_t = matrix(crit_t, nrow = 1), type = type, lower.tail = lower.tail,
     method = "L-BFGS-B",
-    lower = -Inf, upper = Inf)$par)
+    lower = -Inf, upper = Inf,
+    control = list(factr = 1e-12))$par)
 }
 
 .Xwt_check_input <- function(df, ncp, steps, omega, crit_t, type){

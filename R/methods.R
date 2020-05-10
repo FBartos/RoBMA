@@ -71,16 +71,16 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
         averaged_q <- rbind(
           mu     = if(length(object$RoBMA$samples$averaged$mu)  == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$averaged$mu,  probs)),
           tau    = if(length(object$RoBMA$samples$averaged$tau) == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$averaged$tau, probs)))
-        if(ncol(object$RoBMA$samples$averaged$omega) != 0)averaged_q <- rbind(averaged_q, t(apply(object$RoBMA$samples$averaged$omega, 2, stats::quantile, probs = probs)))
-        if(include_theta & nrow(object$RoBMA$samples$averaged$theta) != 0)averaged_q <- rbind(averaged_q, t(apply(object$RoBMA$samples$averaged$theta, 2, stats::quantile, probs = probs)))
+        if(ncol(object$RoBMA$samples$averaged$omega) != 0)averaged_q <- rbind(averaged_q, matrix(apply(object$RoBMA$samples$averaged$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
+        if(include_theta & nrow(object$RoBMA$samples$averaged$theta) != 0)averaged_q <- rbind(averaged_q, matrix(apply(object$RoBMA$samples$averaged$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
 
 
         # conditional mean estimates
         conditional_q <- rbind(
           mu     = if(length(object$RoBMA$samples$conditional$mu)  == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$conditional$mu,  probs)),
           tau    = if(length(object$RoBMA$samples$conditional$tau) == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$conditional$tau, probs)))
-        if(ncol(object$RoBMA$samples$averaged$omega) != 0)conditional_q <- rbind(conditional_q, t(apply(object$RoBMA$samples$conditional$omega, 2, stats::quantile, probs = probs)))
-        if(include_theta & nrow(object$RoBMA$samples$conditional$theta) != 0)conditional_q <- rbind(conditional_q, t(apply(object$RoBMA$samples$averaged$theta, 2, stats::quantile, probs = probs)))
+        if(ncol(object$RoBMA$samples$averaged$omega) != 0)conditional_q <- rbind(conditional_q, matrix(apply(object$RoBMA$samples$conditional$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
+        if(include_theta & nrow(object$RoBMA$samples$conditional$theta) != 0)conditional_q <- rbind(conditional_q, matrix(apply(object$RoBMA$samples$conditional$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
 
 
         colnames(averaged_q)    <- probs
@@ -246,13 +246,13 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
 
         temp_x <- object$models[[i]]$fit
 
-        if(length(temp_x) == 0){
+        if(length(temp_x) == 0 | any(class(object$models[[i]]$fit) %in% c("simpleError","error"))){
 
           return(c(NA, NA))
 
         }else{
 
-          s.x <- summary(temp_x)
+          s.x <- object$models[[i]]$fit_summary
           names.omegas <- rownames(s.x)[grepl("omega", rownames(s.x))]
           names.omegas <- names.omegas[-length(names.omegas)] # remove the last one since it's fixed
           if(include_theta){
@@ -326,13 +326,13 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
 
     for(i in 1:length(object$models)){
 
-      if(length(object$models[[i]]$fit) == 0){
+      if(length(object$models[[i]]$fit) == 0 |  any(class(object$models[[i]]$fit) %in% c("simpleError","error"))){
 
         s.x <- NULL
 
       }else{
 
-        s.x <- summary(object$models[[i]]$fit)
+        s.x <- object$models[[i]]$fit_summary
 
         names.omegas <- rownames(s.x)[grepl("omega", rownames(s.x))]
         if(include_theta){
@@ -343,7 +343,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
 
         if(length(dim(s.x)) == 0){
           s.x <- data.frame(matrix(s.x, ncol = 11))
-          rownames(s.x) <- rownames(summary(object$models[[i]]$fit))[rownames(summary(object$models[[i]]$fit)) %in% c("mu", "tau", names.omegas, if(include_theta)names.thetas)]
+          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", names.omegas, if(include_theta)names.thetas)]
         }else{
           s.x <- data.frame(s.x)
         }

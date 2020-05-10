@@ -38,7 +38,7 @@
 #'   Dirichlet distribution which which cumulative sum is used for
 #'   the weights omega.}
 #'   \item{\code{"uniform"}}{for a uniform distribution defined on a
-#'   range from \code{a} to \code{b}}S
+#'   range from \code{a} to \code{b}}
 #' }
 #' @param parameters list of appropriate parameters for a given
 #' \code{distribution}.
@@ -127,7 +127,7 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
 
     # add the values to the output
     output$distribution <- "t"
-    output$parameters   <- list(df = 1, location = parameters$location, scale = parameters$scale) # pass as t-distribution
+    output$parameters   <- list(location = parameters$location, scale = parameters$scale, df = 1) # pass as t-distribution
     output$truncation   <- truncation
 
   }else if(distribution %in% c("invgamma", "inversegamma", "inverse-gamma", "inverse gamma")){
@@ -885,7 +885,7 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       }
     }
     if(!is.infinite(with_trunc$to)){
-      if(any(df[[1]]$x < with_trunc$to)){
+      if(any(df[[1]]$x > with_trunc$to)){
         df[[1]]$y[df[[1]]$x > with_trunc$to] <- 0
       }else if(!x_range_passed){
         df[[1]] <- rbind(df[[1]], c(with_trunc$to, 0))
@@ -984,7 +984,7 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
       if(weights){
         prob[[length(prior$parameters$alpha) - (i-1)]] <- FALSE
-        temp_d    <- stats::density(omega[,i], from = 0, to = 1)
+        temp_d    <- stats::density(omega[,i], from = 0, to = 1, n = points)
         df[[length(prior$parameters$alpha) - (i-1)]]   <- data.frame(
           x = temp_d$x,
           y = temp_d$y

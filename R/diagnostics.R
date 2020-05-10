@@ -39,7 +39,7 @@
 #' \link[rstan]{stan_plot} function and its color schemes.
 #' @export diagnostics
 #' @seealso [RoBMA()], [summary.RoBMA()]
-diagnostics <- function(fit, parameter, type = c("chains", "autocorrelation", "densities"), plot_type = "base",
+diagnostics <- function(fit, parameter, type, plot_type = "base",
                   show_figures = if(parameter == "omega") -1 else NULL, show_models = NULL, par_transform = TRUE,
                   lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 

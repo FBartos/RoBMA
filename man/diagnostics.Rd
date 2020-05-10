@@ -7,7 +7,7 @@
 diagnostics(
   fit,
   parameter,
-  type = c("chains", "autocorrelation", "densities"),
+  type,
   plot_type = "base",
   show_figures = if (parameter == "omega") -1 else NULL,
   show_models = NULL,

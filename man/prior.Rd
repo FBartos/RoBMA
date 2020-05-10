@@ -47,7 +47,7 @@ one-sided weight function. The \code{alpha} / \code{alpha1} and
 Dirichlet distribution which which cumulative sum is used for
 the weights omega.}
 \item{\code{"uniform"}}{for a uniform distribution defined on a
-range from \code{a} to \code{b}}S
+range from \code{a} to \code{b}}
 }}
 
 \item{parameters}{list of appropriate parameters for a given

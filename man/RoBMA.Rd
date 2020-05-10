@@ -134,6 +134,8 @@ included into model removal decision. Defaults to \code{NULL} - only
 should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to
 \code{TRUE}.}
+\item{silent}{Whether all fitting messages should be suppressed. Defaults
+to \code{FALSE}.}
 }}
 
 \item{save}{whether all models posterior distributions should be kept

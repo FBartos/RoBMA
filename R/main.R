@@ -84,6 +84,8 @@
 #'   should be redistributed to other models with the same type if possible
 #'    (crossing of effect / heterogeneity / publication bias). Defaults to
 #'    \code{TRUE}.}
+#'   \item{silent}{Whether all fitting messages should be suppressed. Defaults
+#'   to \code{FALSE}.}
 #' }
 #' @param save whether all models posterior distributions should be kept
 #' after obtaining a model-averaged result. Defaults to \code{"all"} which
@@ -144,7 +146,6 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
   )
   object$models  <- .get_models(object$priors)
   object$control <- .set_control(control, chains, iter, burnin, thin)
-  if(object$control$JASP)
 
 
   ### add additional information
@@ -167,11 +168,11 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
 
   ### fit the models and compute marginal likelihoods
-  if(object$control$JASP)jaspResults::startProgressbar(length(object$models))
+  if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_start))
   for(i in 1:length(object$models)){
     object <- .fit_RoBMA(object, i)
     object <- .marglik_RoBMA(object, i)
-    if(object$control$JASP)jaspResults::progressbarTick()
+    if(!is.null(object$control$progress_tick))eval(parse(text = object$control$progress_tick))
   }
 
 
@@ -187,7 +188,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
 
     ### compute the model-space results
-    object$RoBMA         <- .model_inference(object$models, object$data, object$add_info$converged, ifelse(!is.null(r), mu_transform, FALSE), seed)
+    object$RoBMA         <- .model_inference(object$models, object$data, object$add_info$converged, ifelse(!is.null(object$add_info$r), object$add_info$mu_transform, FALSE), object$add_info$seed)
     object$coefficients  <- .compute_coeficients(object$RoBMA)
   }
 
@@ -264,6 +265,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
                          prior_mu_null = NULL, prior_tau_null = NULL, prior_omega_null = NULL,
                          control = NULL, chains = NULL, iter = NULL, burnin = NULL, thin = NULL, ...){
 
+  if(object$add_info$save == "min")stop("Models cannot be updated because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' in while fitting the model (see ?RoBMA for more details).")
   ### choose proper action based on the supplied input
   if((!is.null(prior_mu)    | !is.null(prior_mu_null))  &
      (!is.null(prior_tau)   | !is.null(prior_tau_null)) &
@@ -282,9 +284,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     what_to_do <- "update_prior_odds"
     if(length(prior_odds) != length(object$models))stop("The number of newly specified prior odds does not match the number of models. See '?update.RoBMA' for more details.")
-    for(i in 1:length(fit$models)){
-      fit$models[[i]]$prior_odds     <- prior_odds[i]
-      fit$models[[i]]$prior_odds_set <- prior_odds[i]
+    for(i in 1:length(object$models)){
+      object$models[[i]]$prior_odds     <- prior_odds[i]
+      object$models[[i]]$prior_odds_set <- prior_odds[i]
     }
 
   }else if(refit_failed){
@@ -299,14 +301,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   ### update control settings if any change is specified
-  if(!(is.null(control) & is.null(chains) & is.null(iter) & is.null(burnin) & is.null(thin))){
-    object$control <- .set_control(
-      control = if(is.null(control)) object$control else control,
-      chains  = if(is.null(chains))  object$chains  else chains,
-      iter    = if(is.null(iter))    object$iter    else iter,
-      burnin  = if(is.null(burnin))  object$burnin  else burnin,
-      thin    = if(is.null(thin))    object$thin    else thin)
-  }
+  object$control <- .update_control(object$control, control, chains, iter, burnin, thin)
 
 
   ### do the stuff
@@ -318,11 +313,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }else if(what_to_do == "refit_failed_models"){
 
     converged_models <- .get_converged_models(object)
-    if(object$control$JASP)jaspResults::startProgressbar(sum(!converged_models))
+    if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_start))
     for(i in c(1:length(object$models))[!converged_models]){
       object <- .fit_RoBMA(object, i)
       object <- .marglik_RoBMA(object, i)
-      if(object$control$JASP)jaspResults::progressbarTick()
+      if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_tick))
     }
 
   }
@@ -334,8 +329,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # create ensemble only if at least one model converges
   if(any(object$add_info$converged)){
 
-    # balance probability of non-converged models
-    if(object$control$balance_prob & any(!object$add_info$converged))object <- .balance_prob(object, object$add_info$converged)
+    # balance probability
+    object <- .balance_prob(object, object$add_info$converged)
 
 
     ### compute the model-space results
@@ -483,43 +478,21 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
     # fit the model - the silent option should be done better
-    if(control$silent){
-      invisible(utils::capture.output(
-        fit <- tryCatch(runjags::autorun.jags(
-          model           = model_syntax,
-          data            = fit_data,
-          inits           = fit_inits,
-          monitor         = monitor_variables,
-          n.chains        = control$chains,
-          startburnin     = control$burnin,
-          startsample     = control$iter,
-          adapt           = control$adapt,
-          thin            = control$thin,
-          raftery.options = control$autofit,
-          psrf.target     = if(control$autofit)control$max_rhat else Inf,
-          max.time        = if(control$autofit)control$max_time else Inf,
-          summarise       = TRUE,
-          silent.jags     = control$silent
-        ), error = function(e)e)
-      ))
-    }else{
-      fit <- tryCatch(runjags::autorun.jags(
-        model           = model_syntax,
-        data            = fit_data,
-        inits           = fit_inits,
-        monitor         = monitor_variables,
-        n.chains        = control$chains,
-        startburnin     = control$burnin,
-        startsample     = control$iter,
-        adapt           = control$adapt,
-        thin            = control$thin,
-        raftery.options = control$autofit,
-        psrf.target     = if(control$autofit)control$max_rhat else Inf,
-        max.time        = if(control$autofit)control$max_time else Inf,
-        summarise       = TRUE,
-        silent.jags     = control$silent
-      ), error = function(e)e)
-    }
+    fit <- tryCatch(runjags::autorun.jags(
+      model           = model_syntax,
+      data            = fit_data,
+      inits           = fit_inits,
+      monitor         = monitor_variables,
+      n.chains        = control$chains,
+      startburnin     = control$burnin,
+      startsample     = control$iter,
+      adapt           = control$adapt,
+      thin            = control$thin,
+      raftery.options = control$autofit,
+      psrf.target     = if(control$autofit)control$max_rhat else Inf,
+      max.time        = if(control$autofit)control$max_time else Inf,
+      summarise       = FALSE
+    ), error = function(e)e)
 
     # deal with some fixable errors
     if(all(class(fit) %in% c("simpleError", "error", "condition"))){
@@ -535,54 +508,32 @@ update.RoBMA <- function(object, refit_failed = TRUE,
         }
 
         if(any(names(unlist(fit_inits)) == "mu")){
-          for(i in 1:length(fit_inits)){
-            fit_inits[[i]]$mu <- new_mu
+          for(p in 1:length(fit_inits)){
+            fit_inits[[p]]$mu <- new_mu
           }
         }else if(any(names(unlist(fit_inits)) == "inv_mu")){
-          for(i in 1:length(fit_inits)){
-            fit_inits[[i]]$mu <- 1/new_mu
+          for(p in 1:length(fit_inits)){
+            fit_inits[[p]]$mu <- 1/new_mu
           }
         }
 
         new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
 
-        if(control$silent){
-          invisible(utils::capture.output(
-            fit <- tryCatch(runjags::autorun.jags(
-              model           = model_syntax,
-              data            = fit_data,
-              inits           = fit_inits,
-              monitor         = monitor_variables,
-              n.chains        = control$chains,
-              startburnin     = control$burnin,
-              startsample     = control$iter,
-              adapt           = control$adapt,
-              thin            = control$thin,
-              raftery.options = control$autofit,
-              psrf.target     = if(control$autofit)control$max_rhat else Inf,
-              max.time        = if(control$autofit)control$max_time else Inf,
-              summarise       = TRUE,
-              silent.jags     = control$silent
-            ), error = function(e)e)
-          ))
-        }else{
-          fit <- tryCatch(runjags::autorun.jags(
-            model           = model_syntax,
-            data            = fit_data,
-            inits           = fit_inits,
-            monitor         = monitor_variables,
-            n.chains        = control$chains,
-            startburnin     = control$burnin,
-            startsample     = control$iter,
-            adapt           = control$adapt,
-            thin            = control$thin,
-            raftery.options = control$autofit,
-            psrf.target     = if(control$autofit)control$max_rhat else Inf,
-            max.time        = if(control$autofit)control$max_time else Inf,
-            summarise       = TRUE,
-            silent.jags     = control$silent
-          ), error = function(e)e)
-        }
+        fit <- tryCatch(runjags::autorun.jags(
+          model           = model_syntax,
+          data            = fit_data,
+          inits           = fit_inits,
+          monitor         = monitor_variables,
+          n.chains        = control$chains,
+          startburnin     = control$burnin,
+          startsample     = control$iter,
+          adapt           = control$adapt,
+          thin            = control$thin,
+          raftery.options = control$autofit,
+          psrf.target     = if(control$autofit)control$max_rhat else Inf,
+          max.time        = if(control$autofit)control$max_time else Inf,
+          summarise       = FALSE
+        ), error = function(e)e)
 
       }
 
@@ -594,7 +545,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
 
-  object$models[[i]]$fit   <- fit
+  object$models[[i]]$fit <- fit
+  if(!is.null(fit)){
+    object$models[[i]]$fit_summary <- summary(fit)
+  }
   object$add_info$warnings <- c(object$add_info$warnings, new_warn)
 
   return(object)
@@ -647,8 +601,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # handle errors
   if(any(class(marg_lik) %in% c("simpleError", "error"))){
 
+    new_warn <- paste0("Marginal likelihood computation of model ",i," failed with the following error: ", marg_lik$message)
     marg_lik <- .marglik_fail()
-    new_warn <- paste0("Model ",i," failed with the following error: ", marg_lik$message)
+
+  }else if(is.na(marg_lik$logml)){
+
+    new_warn <- paste0("Marginal likelihood computation of model ",i," couldn't be completed within the specified number of iterations.")
+    marg_lik <- .marglik_fail()
 
   }
 
@@ -1521,6 +1480,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # fix omega names
   all_cuts                <- .get_omega_mapping(models, cuts_only = TRUE)
   if(!is.null(all_cuts))colnames(samples$omega) <- sapply(1:(length(all_cuts)-1), function(i)paste0("omega[",all_cuts[i],",",all_cuts[i+1],"]"))
+  # fix theta names
+  colnames(samples$theta) <- paste0("theta[", 1:ncol(samples$theta), "]")
 
   return(samples)
 }
@@ -1733,9 +1694,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .set_control           <- function(control, chains, iter, burnin, thin){
 
-  # stop if there is not enough samples planned for autojags package
-  if(iter/thin < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
-
   # set the control list
   if(is.null(control)){
     control$max_rhat        <- 1.05
@@ -1750,7 +1708,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     control$balance_prob    <- TRUE
 
     control$silent          <- FALSE
-    control$JASP            <- FALSE
 
   }else{
     if(is.null(control$max_rhat)){
@@ -1777,9 +1734,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(is.null(control$silent)){
       control$silent          <- FALSE
     }
-    if(is.null(control$JASP)){
-      control$JASP            <- FALSE
-    }
   }
 
   # add the main MCMC settings
@@ -1788,11 +1742,52 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   control$burnin    <- burnin
   control$thin      <- thin
 
-  if(control$JASP)requireNamespace("jaspResults")
+  .check_control(control)
+  return(control)
+}
+.update_control        <- function(control, control_new, chains, iter, burnin, thin){
+
+  if(!is.null(control_new)){
+    for(n in names(control_new)){
+      control[[n]] <- control_new[[n]]
+    }
+  }
+
+  if(!is.null(chains))  control$chains <- chains
+  if(!is.null(iter))    control$iter   <- iter
+  if(!is.null(burnin))  control$burnin <- burnin
+  if(!is.null(thin))    control$thin   <- thin
+
+  # stop if there is not enough samples planned for autojags package
+  .check_control(control)
 
   return(control)
 }
+.check_control         <- function(control){
+  # check whether only known controls were supplied
+  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_rhat", "max_time", "bridge_max_iter", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick")
+  if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
+  # check whether essential controls were supplied
+  if(is.null(control$chains)) stop("Number of chains must be defined.")
+  if(is.null(control$iter))   stop("Number of iterations must be set.")
+  if(is.null(control$burnin)) stop("Number of burnin samples must be set.")
+  if(is.null(control$adapt))  stop("Number of adaptation samples must be set.")
+  if(is.null(control$thin))   stop("Thinning of the posterior samples must be set.")
+
+  if(!is.numeric(control$chains) | !control$chains >= 1) stop("At least one chains must be set.")
+  if(!is.numeric(control$iter)   | !control$iter >= 1)   stop("Number of iterations must be a positive number")
+  if(!is.numeric(control$burnin) | !control$burnin >= 1) stop("Number of burnin samples must be a positive number")
+  if(!is.numeric(control$adapt)  | !control$adapt >= 1)  stop("Number of adaptation samples must be a positive number.")
+  if(!is.numeric(control$thin)   | !control$thin >= 1)   stop("Thinning of the posterior samples must be a positive number")
+
+  # stop if there is not enough samples planned for autojags package
+  if(control$iter/control$thin < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
+  if(!control$chains >= 2)stop("The number of chains must be at least 2 so that convergence can be assessed.")
+
+  # why can't I change both from the runjags interface directly?
+  runjags::runjags.options(silent.jags = control$silent, silent.runjags = control$silent)
+}
 
 # general helper functions
 .is_parameter_null <- function(priors, par){
@@ -1966,3 +1961,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(out)
 }
 
+saveObject <- function(object){
+  saveRDS(object, file = "D:/Projects/jasp/jasp-R-debug/object.RDS")
+}

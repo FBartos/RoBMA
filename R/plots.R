@@ -143,15 +143,9 @@ plot.RoBMA <- function(x, parameter,
   # get the parameter values & density
   y  <- fit$RoBMA$samples[[type]][[par]]
   if(length(y) == 0)stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameter or models with the parameter did not converge.")
-  if(par == "omega"){
-    omega_ind <- .get_omega_mapping(fit$models)
-    if(type == "conditional")omega_ind <- omega_ind[mm_par]
-    if(is.null(omega_ind))stop("The ensemble does not cointain any converged model adjusting for publication bias.")
-  }
 
   # make sure that the parameter is in a matrix
   if(length(dim(y)) == 0)y <- matrix(y, ncol = 1)
-
 
   # obtain model information
   fit_models   <- fit$models[fit$add_info$converged]
@@ -174,6 +168,14 @@ plot.RoBMA <- function(x, parameter,
     trunc_lower  <- if(!all(is.null(trunc_lower))) min(trunc_lower) else -Inf
     trunc_upper  <- if(!all(is.null(trunc_upper))) max(trunc_upper) else  Inf
   }
+
+  # get the indicies
+  if(par == "omega"){
+    omega_ind <- .get_omega_mapping(fit$models)
+    if(type == "conditional")omega_ind <- omega_ind[mm_par]
+    if(is.null(omega_ind))stop("The ensemble does not cointain any converged model adjusting for publication bias.")
+  }
+
 
   # transform values to correlations if needed
   if(fit$add_info$effect_size == "r" & par == "mu"){
@@ -440,7 +442,7 @@ plot.RoBMA <- function(x, parameter,
       }
 
       graphics::plot(NA, bty = "n", las = 1, xlim = temp_xlim, ylim = temp_ylim, xlab = "", ylab = "", main = "", type = "l",
-           yaxt = if(!any_density) "n")
+                     yaxt = if(!any_density) "n")
       graphics::mtext(par_names[[i]], side = 1, line = 2.5, cex = 1.25)
       # add axis
       if(any_density){
@@ -513,11 +515,11 @@ plot.RoBMA <- function(x, parameter,
       }
 
       # add densities
-      if(prior)if(!is.null(prior_den[[i]]))temp_plot <- temp_plot + ggplot2::geom_line(
+      if(prior)if(length(prior_den[[i]]) != 0)temp_plot <- temp_plot + ggplot2::geom_line(
         data  = prior_den[[i]],
         ggplot2::aes_string(x = "x", y = "y"),
         color = "grey50", linetype = 2, size = 1.25)
-      if(!is.null(res_den[[i]]))temp_plot <- temp_plot + ggplot2::geom_line(
+      if(length(res_den[[i]]) != 0)temp_plot <- temp_plot + ggplot2::geom_line(
         data  = res_den[[i]],
         ggplot2::aes_string(x = "x", y = "y"),
         color = "black", linetype = 1, size = 1.25)
@@ -560,7 +562,7 @@ plot.RoBMA <- function(x, parameter,
             name   = "Probability",
             breaks = seq(0, temp_ylim[2], length.out = 5),
             labels = c("0", ".25", ".50", ".75", "1"))
-          )
+        )
       }else if(any_density){
         temp_plot <- temp_plot + ggplot2::scale_y_continuous(
           name   = "Density",
@@ -629,7 +631,7 @@ plot.RoBMA <- function(x, parameter,
     }
 
     graphics::plot(y1, y2, bty = "n", las = 1, pch = 16, col = scales::alpha("black", 0.4),
-         xlab = "", ylab = "", main = "")
+                   xlab = "", ylab = "", main = "")
     graphics::mtext(par_names[[1]], side = 1, line = 2.5, cex = 1.25)
     graphics::mtext(par_names[[2]], side = 2, line = 2.5, cex = 1.25)
 
@@ -655,10 +657,11 @@ plot.RoBMA <- function(x, parameter,
 }
 .plot.RoBMA_weightf <- function(fit, type, plot_type, mean, median, CI, prior, ...){
 
-  all_cuts  <- .get_omega_mapping(fit$models, cuts_only = TRUE)
-
   # deal with only null models
-  if(is.null(all_cuts))stop("The ensemble cointains no model adjusting for publication bias.")
+  if(all(sapply(fit$models,function(m).is_parameter_null(m$priors, "omega"))) & type == "conditional")stop("The ensemble cointains no non-null model adjusting for publication bias.")
+  if(all(sapply(fit$models,function(m)m$priors$omega$distribution == "point")))stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameter or models with the parameter did not converge.")
+
+  all_cuts  <- .get_omega_mapping(fit$models, cuts_only = TRUE)
 
   # get the x-axis coordinate order
   coord_order <- sort(rep(1:(length(all_cuts)-1),2), decreasing = TRUE)
@@ -716,7 +719,7 @@ plot.RoBMA <- function(x, parameter,
     }
 
     graphics::plot(NA, type = "n", xlim = c(0, 1), ylim = c(0,1), xaxt = "n", yaxt = "n", bty = "n",
-         xlab = "", ylab = "", main = "")
+                   xlab = "", ylab = "", main = "")
     graphics::axis(1, at = rev(all_cuts), labels = x_labes)
     graphics::axis(2, at = seq(0,1,.1),   labels = y_labes, las = 1)
     graphics::mtext(x_text, side = 1, line = 2.5, cex = 1.25)
@@ -786,7 +789,7 @@ plot.RoBMA <- function(x, parameter,
 
   # get the parameter values
   mu     <- fit$RoBMA$samples[[type]][["mu"]]
-  if(is.null(mu))stop("The parameter could not be plotted because it is not in the model. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
+  if(length(mu) == 0)stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
   mu_est <- if(median) stats::median(mu) else if(mean) base::mean(mu)
   mu_CI  <- unname(stats::quantile(mu, probs = c((1-CI)/2, 1-(1-CI)/2)))
 
@@ -860,17 +863,17 @@ plot.RoBMA <- function(x, parameter,
   if(length(par) == 2){
     est_info <- c(est_info, sapply(1:nrow(results_orig), function(i){
       c(paste0(
-          if(round(results_orig$est[i], digits_estimates) >= 0)" ",
-          format(round(results_orig$est[i], digits_estimates), nsmall = digits_estimates),
-          if(CI)paste0(" [",format(round(results_orig$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
-                       format(round(results_orig$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
-        ),
-        paste0(
-          if(round(results_est$est[i], digits_estimates) >= 0)" ",
-          format(round(results_est$est[i], digits_estimates), nsmall = digits_estimates),
-          if(CI)paste0(" [",format(round(results_est$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
-                       format(round(results_est$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
-        )
+        if(round(results_orig$est[i], digits_estimates) >= 0)" ",
+        format(round(results_orig$est[i], digits_estimates), nsmall = digits_estimates),
+        if(CI)paste0(" [",format(round(results_orig$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
+                     format(round(results_orig$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
+      ),
+      paste0(
+        if(round(results_est$est[i], digits_estimates) >= 0)" ",
+        format(round(results_est$est[i], digits_estimates), nsmall = digits_estimates),
+        if(CI)paste0(" [",format(round(results_est$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
+                     format(round(results_est$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
+      )
       )
 
     }))
@@ -910,7 +913,7 @@ plot.RoBMA <- function(x, parameter,
     # set up margins
     if(length(list(...)) == 0){
       graphics::par(mar = c(4,max(sapply(as.character(if(length(par) == 2) results_est$name else results$name), nchar))*12/25,
-                  2,max(sapply(as.character(est_info), nchar))*10/25))
+                            2,max(sapply(as.character(est_info), nchar))*10/25))
     }else{
       graphics::par(list(...))
     }
@@ -1044,7 +1047,7 @@ plot.RoBMA <- function(x, parameter,
 
   # individual model estimates
   if(par == "omega"){
-    if(is.null(omega_ind))stop("The ensemble cointains no model adjusting for publication bias.")
+    if(is.null(omega_ind))stop("The ensemble cointains no non-null model adjusting for publication bias.")
     mod_est   <- vector(mode = "list", length = ncol(do.call(rbind,omega_ind)))
     mod_CI    <- vector(mode = "list", length = ncol(do.call(rbind,omega_ind)))
   }else{
@@ -1060,60 +1063,59 @@ plot.RoBMA <- function(x, parameter,
   }else if(type == "averaged"){
     model_ind <- c(1:length(sum_ind))
   }
-  if(length(model_ind) == 0)stop("The ensemble contains no model with the specified parameter.")
+  if(length(model_ind) == 0)stop("The ensemble contains no non-null model with the specified parameter.")
 
   for(i in model_ind){
 
-    if(!is.null(sum_ind[[i]]$tab)){
-      if(any(grepl(par, rownames(sum_ind[[i]]$tab)))){
+    if(fit$models[[i]]$priors[[par]]$distribution != "point"){
 
-        # add the estimates values
-        if(par == "omega"){
+      # add the estimates values
+      if(par == "omega"){
 
-          for(j in 1:length(omega_ind[[i]])){
-            mod_est[[j]] <- c(mod_est[[j]], sum_ind[[i]]$tab[rev(rownames(sum_ind[[i]]$tab)[grepl("omega",rownames(sum_ind[[i]]$tab))])[omega_ind[[i]][j]], c("Mean", "Median")[c(mean, median)]])
-            mod_CI[[j]]  <- rbind(mod_CI[[j]], unlist(sum_ind[[i]]$tab[rev(rownames(sum_ind[[i]]$tab)[grepl("omega",rownames(sum_ind[[i]]$tab))])[omega_ind[[i]][j]], c(3, 5)]))
-          }
-
-        }else{
-
-          mod_est <- c(mod_est,    sum_ind[[i]]$tab[rownames(sum_ind[[i]]$tab) == par, c("Mean", "Median")[c(mean, median)]])
-          mod_CI  <- rbind(mod_CI, unlist(sum_ind[[i]]$tab[rownames(sum_ind[[i]]$tab) == par, c(3, 5)]))
-
+        for(j in 1:length(omega_ind[[i]])){
+          mod_est[[j]] <- c(mod_est[[j]], sum_ind[[i]]$tab[rev(rownames(sum_ind[[i]]$tab)[grepl("omega",rownames(sum_ind[[i]]$tab))])[omega_ind[[i]][j]], c("Mean", "Median")[c(mean, median)]])
+          mod_CI[[j]]  <- rbind(mod_CI[[j]], unlist(sum_ind[[i]]$tab[rev(rownames(sum_ind[[i]]$tab)[grepl("omega",rownames(sum_ind[[i]]$tab))])[omega_ind[[i]][j]], c(3, 5)]))
         }
 
       }else{
 
-        # add the estimates null values
-        if(par == "omega"){
-          for(j in 1:ncol(do.call(rbind,omega_ind))){
-            mod_est[[j]] <- c(mod_est[[j]],    1)
-            mod_CI[[j]]  <- rbind(mod_CI[[j]], c(1,1))
-          }
-        }else{
-          mod_est <- c(mod_est,        fit$models[[i]]$priors[[par]]$parameters$location)
-          mod_CI  <- rbind(mod_CI, rep(fit$models[[i]]$priors[[par]]$parameters$location, 2))
-        }
+        mod_est <- c(mod_est,    sum_ind[[i]]$tab[rownames(sum_ind[[i]]$tab) == par, c("Mean", "Median")[c(mean, median)]])
+        mod_CI  <- rbind(mod_CI, unlist(sum_ind[[i]]$tab[rownames(sum_ind[[i]]$tab) == par, c(3, 5)]))
 
       }
 
-      # marglik information
-      mod_marglik    <- c(mod_marglik, fit$models[[i]]$marg_lik$logml)
-      mod_prior      <- c(mod_prior,   fit$models[[i]]$prior_odds)
+    }else{
 
-      # prior names
-      mod_names <- c(mod_names, list(
-        list(
-          mu    = print(fit$models[[i]]$priors$mu,    silent = TRUE, plot = TRUE),
-          tau   = print(fit$models[[i]]$priors$tau,   silent = TRUE, plot = TRUE),
-          omega = print(fit$models[[i]]$priors$omega, silent = TRUE, plot = TRUE))
-      ))
+      # add the estimates null values
+      if(par == "omega"){
+        for(j in 1:ncol(do.call(rbind,omega_ind))){
+          mod_est[[j]] <- c(mod_est[[j]],    1)
+          mod_CI[[j]]  <- rbind(mod_CI[[j]], c(1,1))
+        }
+      }else{
+        mod_est <- c(mod_est,        fit$models[[i]]$priors[[par]]$parameters$location)
+        mod_CI  <- rbind(mod_CI, rep(fit$models[[i]]$priors[[par]]$parameters$location, 2))
+      }
+
     }
+
+    # marglik information
+    mod_marglik    <- c(mod_marglik, fit$models[[i]]$marg_lik$logml)
+    mod_prior      <- c(mod_prior,   fit$models[[i]]$prior_odds)
+
+    # prior names
+    mod_names <- c(mod_names, list(
+      list(
+        mu    = print(fit$models[[i]]$priors$mu,    silent = TRUE, plot = TRUE),
+        tau   = print(fit$models[[i]]$priors$tau,   silent = TRUE, plot = TRUE),
+        omega = print(fit$models[[i]]$priors$omega, silent = TRUE, plot = TRUE))
+    ))
+    #}
 
   }
 
   # compute posterior prob
-  if(all(mod_prior == 0) | length(mod_prior) == 0)stop("The parameter could not be plotted because it is not in the model. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
+  if(all(mod_prior == 0) | length(mod_prior) == 0)stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
   mod_prior <- mod_prior/sum(mod_prior)
   mod_post  <- bridgesampling::post_prob(mod_marglik, prior_prob = mod_prior)
 
@@ -1202,7 +1204,7 @@ plot.RoBMA <- function(x, parameter,
       paste0(
         format(round(mod_res[[i]]$est[j], digits_estimates), nsmall = digits_estimates),
         paste0(" [",format(round(mod_res[[i]]$lCI[j], digits_estimates), nsmall = digits_estimates),", ",
-                 format(round(mod_res[[i]]$uCI[j], digits_estimates), nsmall = digits_estimates),"]\n",
+               format(round(mod_res[[i]]$uCI[j], digits_estimates), nsmall = digits_estimates),"]\n",
                format(round(mod_post[j], digits_estimates), nsmall = digits_estimates),
                " (",format(round(mod_prior[j], digits_estimates), nsmall = digits_estimates),")")
       )
@@ -1230,6 +1232,11 @@ plot.RoBMA <- function(x, parameter,
     x_range <- c(min(mod_res[[i]]$lCI), max(mod_res[[i]]$uCI))
     x_range[1] <- x_range[1] - (x_range[2] - x_range[1])*.05
     x_range[2] <- x_range[2] + (x_range[2] - x_range[1])*.05
+
+    if(all(x_range == 0)){
+      if(par == "mu")x_range <- c(-.5, .5)
+      if(par == "tau")x_range <- c(0, .5)
+    }
   }
 
   for(i in plots_ind){
@@ -1238,7 +1245,7 @@ plot.RoBMA <- function(x, parameter,
       # set up margins
       if(length(list(...)) == 0){
         graphics::par(mar = c(4,max(sapply(as.character(mod_names), nchar))*1/5,
-                    0,max(sapply(as.character(est_info[[i]]), nchar))*2/7))
+                              0,max(sapply(as.character(est_info[[i]]), nchar))*2/7))
       }else{
         graphics::par(list(...))
       }
@@ -1287,7 +1294,7 @@ plot.RoBMA <- function(x, parameter,
         data = data.frame(
           xx = c(par_est[i], par_CI[i, 1],  par_est[i], par_CI[i, 2]),
           yy = c(.025, .05, .075, .05)
-          ),
+        ),
         ggplot2::aes_string(
           x = "xx",
           y = "yy"),
@@ -1298,13 +1305,13 @@ plot.RoBMA <- function(x, parameter,
       y_at_lab <- y_at_lab + c(-1,0,1)*(y_at[2] - y_at[1])/4
 
       temp_plot <- temp_plot + ggplot2::scale_y_continuous("",
-                                               breaks   = c(0.05, y_at_lab, 1.00),
-                                               labels   = rev(c("Model:",mod_names, est_name)),
-                                               limits   = c(0, 1.00),
-                                               sec.axis = ggplot2::sec_axis(
-                                                 ~ .,
-                                                 breaks = c(0.05, y_at, 1.00),
-                                                 labels = rev(est_info[[i]]))
+                                                           breaks   = c(0.05, y_at_lab, 1.00),
+                                                           labels   = rev(c("Model:",mod_names, est_name)),
+                                                           limits   = c(0, 1.00),
+                                                           sec.axis = ggplot2::sec_axis(
+                                                             ~ .,
+                                                             breaks = c(0.05, y_at, 1.00),
+                                                             labels = rev(est_info[[i]]))
       )
 
       if(par != "omega")temp_plot <- temp_plot + ggplot2::geom_line(
@@ -1324,16 +1331,16 @@ plot.RoBMA <- function(x, parameter,
 
       temp_plot <- temp_plot + ggplot2::scale_x_continuous(
         name   = par_names[[i]],
-        limits = range(pretty(x_range)),
+        limits = if(par == "omega") c(-.01, 1.01) else range(pretty(x_range)),
         breaks = pretty(x_range),
         labels = pretty(x_range))
       temp_plot <- temp_plot + ggplot2::theme(axis.title.y      = ggplot2::element_blank(),
-                                  axis.line.y       = ggplot2::element_blank(),
-                                  axis.ticks.y      = ggplot2::element_blank(),
-                                  axis.text.y       = ggplot2::element_text(
-                                    hjust = 0,
-                                    color = "black"),
-                                  axis.text.y.right = ggplot2::element_text(hjust = 1))
+                                              axis.line.y       = ggplot2::element_blank(),
+                                              axis.ticks.y      = ggplot2::element_blank(),
+                                              axis.text.y       = ggplot2::element_text(
+                                                hjust = 0,
+                                                color = "black"),
+                                              axis.text.y.right = ggplot2::element_text(hjust = 1))
 
       plots <- c(plots, list(temp_plot))
     }
