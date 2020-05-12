@@ -120,6 +120,33 @@ results by specifying new \code{control} argument and setting
 \details{
 See \code{\link[=RoBMA]{RoBMA()}} for more details.
 }
+\examples{
+\donttest{
+# using the example data from Anderson et al. 2010 and fitting the default model
+# (note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+
+# the update function allows us to change the prior model probability of each model
+fit1 <- update(fit, prior_odds = c(10,1,1,1,1,1,1,1,1,1,1,1))
+
+# add an additional model with different priors specification (see '?prior' for more information)
+fit2 <- update(fit,
+               priors_mu_null = prior("point", parameters = list(location = 0)),
+               priors_tau = prior("normal",
+                                  parameters = list(mean = 0, sd = 1),
+                                  truncation = list(lower = 0, upper = Inf)),
+               priors_omega = prior("one-sided",
+                                    parameters = list(cuts = c(.05), alpha = c(1, 1))))
+
+# change the model convergence criteria to mark models with ESS lower than 2000 as non-covergent
+fit3 <- update(fit, control = list(allow_min_ESS = 2000))
+
+# and refit them failed models with increased number of burnin iterations
+fit4 <- update(fit3, burnin = 10000)
+
+}
+
+}
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=prior]{prior()}}, \code{\link[=check_setup]{check_setup()}}
 }

@@ -1,0 +1,11 @@
+citHeader("To cite the RoBMA package in publications use:")
+
+note <- sprintf("R package version %s", meta$Version)
+
+bibentry(bibtype = "misc",
+         title = "RoBMA: An R Package for Robust Bayesian Meta-Analyses",
+         author = c(person("František",  "Bartoš"),
+                    person("Maximilian", "Maier")),
+         year = 2020,
+         note = note,
+         url = "https://CRAN.R-project.org/package=RoBMA")

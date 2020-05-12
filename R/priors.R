@@ -53,13 +53,21 @@
 #' distributions for each of the model parameters (mu, tau, omega), and
 #' sets the model priors odds to the product of its prior distributions.
 #'
-#' @examples # create a standart normal prior distribution
+#' @examples \donttest{
+#' # create a standart normal prior distribution
 #' p1 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1))
 #'
 #' # create a half-normal standart normal prior distribution
 #' p2 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1),
 #' truncation = list(lower = 0, upper = Inf))
 #'
+#' # or a prior for one-sided weight function
+#' p3 <- prior("one-sided", parameters = list(cuts = c(.05, .10), alpha = c(1, 1, 1)))
+#'
+#' # the prior distribution can be visualized using the plot function
+#' # (see ?plot.prior.RoBMA for all options)
+#' plot(p1)
+#' }
 #'
 #' @export  prior
 #' @rawNamespace S3method(print, RoBMA.prior)

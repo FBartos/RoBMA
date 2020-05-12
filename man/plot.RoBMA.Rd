@@ -95,6 +95,34 @@ where automatic margins might cut out parts of the labels.}
 different \code{"RoBMA"} object parameters in various
 ways. See \code{type} for the different model types.
 }
+\examples{
+\donttest{
+# using the example data from Anderson et al. 2010 and fitting the default model
+(note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+
+### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
+# plot function allows to visualize the results of a fitted RoBMA object, for example,
+# the model-averaged mean parameter estimate
+plot(fit, parameter = "mu")
+
+# or show both the prior and posterior distribution
+plot(fit, parameter = "mu", prior = TRUE)
+
+# condtional plots might by obtained by specifying
+plot(fit, parameter = "mu", type = "conditional")
+
+# plotting function also allows to visualize the weight function (or individual weights by adding 'weights = TRUE')
+plot(fit, parameter = "omega")
+
+# or the forest plot (the estimated study effects can be shown by setting 'parameter = "theta"')
+plot(fit, parameter = "forest")
+
+# it is also possible to compare the individual model estimates, and order them by the posterior probability
+plot(fit, parameter = "mu", type = "individual", order = "prob")
+
+}
+}
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}
 }

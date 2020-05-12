@@ -37,6 +37,26 @@
 #' \link[graphics]{par} if \code{plot_type = "base"}.
 #' @details The visualization functions are based on
 #' \link[rstan]{stan_plot} function and its color schemes.
+#'
+#' @examples \donttest{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' ### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
+#' # diagnostics function allows to visualize diagnostics of a fitted RoBMA object, for example,
+#' # the trace plot for the mean parameter in each model model
+#' diagnostics(fit, parameter = "mu", type = "chain")
+#'
+#' # in order to show the trace plot only for the 11th model, add show_models parameter
+#' diagnostics(fit, parameter = "mu", type = "chain", show_models = 11)
+#'
+#' # furthermore, the autocorrelations
+#' diagnostics(fit, parameter = "mu", type = "autocorrelation")
+#'
+#' # and overlying densities for each plot can also be visualize
+#' diagnostics(fit, parameter = "mu", type = "densities")
+#' }
 #' @export diagnostics
 #' @seealso [RoBMA()], [summary.RoBMA()]
 diagnostics <- function(fit, parameter, type, plot_type = "base",

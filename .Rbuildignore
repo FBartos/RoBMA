@@ -2,3 +2,4 @@
 ^\.Rproj\.user$
 ^trash$
 ^tests$
+^..Rcheck

@@ -110,8 +110,54 @@
 #' See [prior()] for more information about possible prior specifications options.
 #'
 #' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
-#' @export RoBMA
 #'
+#' @examples \donttest{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' # in order to speed up the process, we can reduce the default number of chains, iteration,
+#' # and disable the autofit functionality (see ?RoBMA for all possible settings)
+#' fit_faster <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
+#' chains = 2, iter = 5000, control = list(autofit = FALSE))
+#'
+#' # RoBMA function allows to use different prior specifications
+#' # for example, change the prior for tau to be half normal and specify one-sided selection only
+#' # on significant p-values (see '?.prior' for all options regarding prior distributions)
+#' fit1 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
+#'               priors_tau = prior("normal",
+#'                                  parameters = list(mean = 0, sd = 1),
+#'                                  truncation = list(lower = 0, upper = Inf)),
+#'               priors_omega = prior("one-sided",
+#'                                    parameters = list(cuts = c(.05), alpha = c(1, 1))))
+#'
+#' # the priors for the null models can be modified or even omited in a similar manner,
+#' # allowing to test different (non-nill-null) hypotheses
+#' fit2 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
+#'               priors_mu_null  = prior("normal",
+#'                                  parameters = list(mean = 0, sd = .1),
+#'                                  truncation = list(lower = -0.1, upper = 0.1)))
+#'
+#' # an already fitted RoBMA model can be further updated or modified by using the update function
+#' # for example, the prior model probabilities can be changed after the fitting by
+#' # (but see '?update.RoBMA' for other posibilities including refitting or adding more models)
+#' fit3 <- update(fit2, prior_odds = c(10,1,1,1,1,1,1,1,1,1,1,1))
+#'
+#' # we can get a quick overview of the model coefficients just by printing the model
+#' fit
+#'
+#' # a more detailed overview using the summary function (see '?summary.RoBMA' for all options)
+#' summary(fit)
+#'
+#' # results of the models can be visualized using the plot function (see ?plot.RoBMA for all options)
+#' # for example, the model-averaged mean estimate
+#' plot(fit, parameter = "mu")
+#'
+#' # diagnostics for the individual parameters in individual models can be obtained using diagnostics
+#' # function (see 'diagnostics' for all options)
+#' diagnostics(fit, parameter = "mu", type = "chains")
+#' }
+#' @export RoBMA
 #' @seealso [summary.RoBMA()], [update.RoBMA()], [prior()], [check_setup()]
 RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n1 = NULL, n2 = NULL,
                   test_type = "two.sample", study_names = NULL,
@@ -254,6 +300,30 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 #' @details See [RoBMA()] for more details.
 #'
 #' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
+#' @examples \donttest{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' # the update function allows us to change the prior model probability of each model
+#' fit1 <- update(fit, prior_odds = c(10,1,1,1,1,1,1,1,1,1,1,1))
+#'
+#' # add an additional model with different priors specification (see '?prior' for more information)
+#' fit2 <- update(fit,
+#'                priors_mu_null = prior("point", parameters = list(location = 0)),
+#'                priors_tau = prior("normal",
+#'                                   parameters = list(mean = 0, sd = 1),
+#'                                   truncation = list(lower = 0, upper = Inf)),
+#'                priors_omega = prior("one-sided",
+#'                                     parameters = list(cuts = c(.05), alpha = c(1, 1))))
+#'
+#' # change the model convergence criteria to mark models with ESS lower than 2000 as non-covergent
+#' fit3 <- update(fit, control = list(allow_min_ESS = 2000))
+#'
+#' # and refit them failed models with increased number of burnin iterations
+#' fit4 <- update(fit3, burnin = 10000)
+#'
+#' }
 #'
 #' @method update RoBMA
 #' @export update.RoBMA
@@ -289,7 +359,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       object$models[[i]]$prior_odds_set <- prior_odds[i]
     }
 
-  }else if(refit_failed){
+  }else if(refit_failed & any(!object$add_info$converged)){
 
     what_to_do <- "refit_failed_models"
 

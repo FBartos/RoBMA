@@ -59,6 +59,33 @@
 #' useful for \code{parameter == "theta"},
 #' \code{parameter == "forest"} or \code{type = "individual"}
 #' where automatic margins might cut out parts of the labels.
+#'
+#' @examples \donttest{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' ### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
+#' # plot function allows to visualize the results of a fitted RoBMA object, for example,
+#' # the model-averaged mean parameter estimate
+#' plot(fit, parameter = "mu")
+#'
+#' # or show both the prior and posterior distribution
+#' plot(fit, parameter = "mu", prior = TRUE)
+#'
+#' # condtional plots might by obtained by specifying
+#' plot(fit, parameter = "mu", type = "conditional")
+#'
+#' # plotting function also allows to visualize the weight function (or individual weights by adding 'weights = TRUE')
+#' plot(fit, parameter = "omega")
+#'
+#' # or the forest plot (the estimated study effects can be shown by setting 'parameter = "theta"')
+#' plot(fit, parameter = "forest")
+#'
+#' # it is also possible to compare the individual model estimates, and order them by the posterior probability
+#' plot(fit, parameter = "mu", type = "individual", order = "prob")
+#'
+#' }
 #' @export  plot.RoBMA
 #' @rawNamespace S3method(plot, RoBMA)
 #' @seealso [RoBMA()]
@@ -1143,13 +1170,13 @@ plot.RoBMA <- function(x, parameter,
       if(any(order == "marglik")){
         if(any(order == "ascending")){
           mod_res[[i]] <- mod_res[[i]][order(mod_marglik, decreasing = TRUE),]
-        }else if(any(order == "descending")){
+        }else{
           mod_res[[i]] <- mod_res[[i]][order(mod_marglik, decreasing = FALSE),]
         }
       }else if(any(order == "prob")){
         if(any(order == "ascending")){
           mod_res[[i]] <- mod_res[[i]][order(mod_post, decreasing = TRUE),]
-        }else if(any(order == "descending")){
+        }else{
           mod_res[[i]] <- mod_res[[i]][order(mod_post, decreasing = FALSE),]
         }
       }else{

@@ -172,6 +172,54 @@ The fitted model can be further updated or modified by \code{\link[=update.RoBMA
 
 See \code{\link[=prior]{prior()}} for more information about possible prior specifications options.
 }
+\examples{
+\donttest{
+# using the example data from Anderson et al. 2010 and fitting the default model
+# (note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+
+# in order to speed up the process, we can reduce the default number of chains, iteration,
+# and disable the autofit functionality (see ?RoBMA for all possible settings)
+fit_faster <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
+chains = 2, iter = 5000, control = list(autofit = FALSE))
+
+# RoBMA function allows to use different prior specifications
+# for example, change the prior for tau to be half normal and specify one-sided selection only
+# on significant p-values (see '?.prior' for all options regarding prior distributions)
+fit1 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
+              priors_tau = prior("normal",
+                                 parameters = list(mean = 0, sd = 1),
+                                 truncation = list(lower = 0, upper = Inf)),
+              priors_omega = prior("one-sided",
+                                   parameters = list(cuts = c(.05), alpha = c(1, 1))))
+
+# the priors for the null models can be modified or even omited in a similar manner,
+# allowing to test different (non-nill-null) hypotheses
+fit2 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
+              priors_mu_null  = prior("normal",
+                                 parameters = list(mean = 0, sd = .1),
+                                 truncation = list(lower = -0.1, upper = 0.1)))
+
+# an already fitted RoBMA model can be further updated or modified by using the update function
+# for example, the prior model probabilities can be changed after the fitting by
+# (but see '?update.RoBMA' for other posibilities including refitting or adding more models)
+fit3 <- update(fit2, prior_odds = c(10,1,1,1,1,1,1,1,1,1,1,1))
+
+# we can get a quick overview of the model coefficients just by printing the model
+fit
+
+# a more detailed overview using the summary function (see '?summary.RoBMA' for all options)
+summary(fit)
+
+# results of the models can be visualized using the plot function (see ?plot.RoBMA for all options)
+# for example, the model-averaged mean estimate
+plot(fit, parameter = "mu")
+
+# diagnostics for the individual parameters in individual models can be obtained using diagnostics
+# function (see 'diagnostics' for all options)
+diagnostics(fit, parameter = "mu", type = "chains")
+}
+}
 \seealso{
 \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}, \code{\link[=prior]{prior()}}, \code{\link[=check_setup]{check_setup()}}
 }

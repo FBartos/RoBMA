@@ -40,7 +40,30 @@ print.RoBMA <- function(x, ...){
 #' @param ... additional arguments
 #'
 #' @return summary of a RoBMA object
+#' @examples \donttest{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
 #'
+#' # summary can provide many details about the model
+#' summary(fit)
+#'
+#' # note that the summary function contains additional arguments that allow to obtain specific output
+#' # i.e, the conditional estimates (assuming that the non-null models are true) can be obtained
+#' summary(fit, conditional = TRUE)
+#'
+#' # overview of the models and their prior and posterior probability, marginal likelihood,
+#' # and inclusion Bayes factor:
+#' summary(fit, type = "models")
+#'
+#' # and the model diagnostics overview, containing maximum R-hat and minimum ESS across parameters
+#' # but see '?diagnostics' for diagnostics plots for individual model parameters
+#' summary(fit, type = "models", diagnostics = TRUE)
+#'
+#' # summary of individual models and their parameters can be further obtained by
+#' summary(fit, type = "individual")
+#'
+#' }
 #' @note See [diagnostics()] for visual convergence checks of the individual models.
 #' @method summary RoBMA
 #' @export summary.RoBMA

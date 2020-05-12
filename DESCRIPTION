@@ -48,10 +48,12 @@ Imports:
     graphics,
     extraDistr,
     scales,
-    DPQ
+    DPQ,
+    Rdpack
 Suggests:
     ggplot2,
     rstan,
     metaBMA,
     testthat,
     vdiffr
+RdMacros: Rdpack

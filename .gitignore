@@ -6,3 +6,4 @@
 *.dll
 *.dylib
 trash/
+..Rcheck
