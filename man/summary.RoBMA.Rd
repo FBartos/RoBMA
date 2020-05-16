@@ -6,7 +6,7 @@
 \usage{
 \method{summary}{RoBMA}(
   object,
-  type = "ensemble",
+  type = if (diagnostics) "models" else "ensemble",
   conditional = FALSE,
   diagnostics = FALSE,
   include_theta = FALSE,
@@ -63,7 +63,7 @@ See \code{\link[=diagnostics]{diagnostics()}} for visual convergence checks of t
 \examples{
 \donttest{
 # using the example data from Anderson et al. 2010 and fitting the default model
-(note that the model can take a while to fit)
+# (note that the model can take a while to fit)
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
 
 # summary can provide many details about the model

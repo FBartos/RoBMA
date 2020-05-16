@@ -59,8 +59,9 @@
 #' \describe{
 #'   \item{autofit}{Whether the models should be refitted until convergence.
 #'   Defaults to \code{TRUE}}
-#'   \item{max_rhat}{The maximum acceptable Gelman-Rubin convergence
-#'   diagnostic (sometimes referred to as psrf). Defaults to \code{1.05}}
+#'   \item{max_error}{The target MCMC error for the autofit function. The
+#'   argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
+#'   \code{.01}}.
 #'   \item{max_time}{A string specifying the maximum fitting time in case
 #'   of autofit. Defaults to \code{Inf}. Can be specified as a number and
 #'   a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
@@ -69,6 +70,10 @@
 #'   to \code{1000}.}
 #'   \item{bridge_max_iter}{Maximum number of iterations for the
 #'   \link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
+#'   \item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
+#'   into consideration. Model will be removed from the ensemble if it fails to
+#'   achieve the set MCMC error. Defaults to \code{NULL} - no model will be
+#'   removed based on MCMC error.}
 #'   \item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
 #'   consideration. Model will be removed from the ensemble if it fails to
 #'   achieve the set Rhat. Defaults to \code{NULL} - no model will be removed
@@ -76,7 +81,7 @@
 #'   \item{allow_min_ESS}{Minimum allowed ESS for a model to be taken into
 #'   consideration. Model will be removed from the ensemble if it fails to
 #'   achieve the set ESS. Defaults to \code{NULL} - no model will be removed
-#'   based on ESS}
+#'   based on ESS.}
 #'   \item{allow_inc_theta}{Whether the diagnostics for theta should be
 #'   included into model removal decision. Defaults to \code{NULL} - only
 #'   'mu', 'tau', and 'omega' estimates will be taken into account.}
@@ -363,7 +368,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     what_to_do <- "refit_failed_models"
 
-  }else if(!refit_failed){
+  }else{
 
     what_to_do <- "update_settings"
 
@@ -504,15 +509,15 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   }else if(!is.null(y) & !is.null(se)){
     # for an effect sizes and standard errors
-    if(is.numeric(y)  & !is.vector(d))stop("'y' must be a numeric vector.")
+    if(is.numeric(y)  & !is.vector(y))stop("'y' must be a numeric vector.")
     if(is.numeric(se) & !is.vector(se))stop("'se' must be a numeric vector.")
     if(!all(se > 0))stop("The standard errors 'se' must be positive.")
 
     # convert to z-statistics (and treat as t-statistics with df = Inf followingly)
     data$K       <- length(y)
-    data$t       <- data$y / data$se
-    data$df      <- Inf
-    data$ncp_mlp <- 1 / data$se
+    data$t       <- y / se
+    data$df      <- rep(999999, length(y)) # should be Inf, but JAGS have problem with that for some reason
+    data$ncp_mlp <- 1 / se
 
     data$effect_size <- "y"
 
@@ -547,7 +552,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     monitor_variables <- .to_monitor(priors)
 
 
-    # fit the model - the silent option should be done better
+    # fit the model - it would be nice to ignore the impression warnings
     fit <- tryCatch(runjags::autorun.jags(
       model           = model_syntax,
       data            = fit_data,
@@ -558,9 +563,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       startsample     = control$iter,
       adapt           = control$adapt,
       thin            = control$thin,
-      raftery.options = control$autofit,
-      psrf.target     = if(control$autofit)control$max_rhat else Inf,
-      max.time        = if(control$autofit)control$max_time else Inf,
+      raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
+      max.time        = if(control$autofit) control$max_time else Inf,
       summarise       = FALSE
     ), error = function(e)e)
 
@@ -599,9 +603,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
           startsample     = control$iter,
           adapt           = control$adapt,
           thin            = control$thin,
-          raftery.options = control$autofit,
-          psrf.target     = if(control$autofit)control$max_rhat else Inf,
-          max.time        = if(control$autofit)control$max_time else Inf,
+          raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
+          max.time        = if(control$autofit) control$max_time else Inf,
           summarise       = FALSE
         ), error = function(e)e)
 
@@ -1590,21 +1593,23 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   object$models <- object$models[converged]
 
   # remove models with unsatisfactory performance
-  if(!is.null(object$control$allow_max_rhat) | !is.null(object$control$allow_min_ESS)){
+  if(!is.null(object$control$allow_max_error) |!is.null(object$control$allow_max_rhat) | !is.null(object$control$allow_min_ESS)){
     diagnostics_summary <- summary.RoBMA(object, type = "models", diagnostics = TRUE, include_theta = object$control$allow_inc_theta)$diagnostics
 
     # deal with NAs for null models
-    diagnostics_summary$"max(Rhat)"[is.na(diagnostics_summary$"max(Rhat)")] <- 0
-    diagnostics_summary$"min(ESS)"[is.na(diagnostics_summary$"min(ESS)")]   <- Inf
+    diagnostics_summary$"max(MCMC error)"[is.na(diagnostics_summary$"max(MCMC error)")] <- 0
+    diagnostics_summary$"max(Rhat)"[is.na(diagnostics_summary$"max(Rhat)")]             <- 0
+    diagnostics_summary$"min(ESS)"[is.na(diagnostics_summary$"min(ESS)")]               <- Inf
 
-    if(!is.null(object$control$allow_max_rhat) & !is.null(object$control$allow_min_ESS)){
-      converged[converged] <-
-        diagnostics_summary$"max(Rhat)" < object$control$allow_max_rhat &
-        diagnostics_summary$"min(ESS)"  > object$control$allow_min_ESS
-    }else if(!is.null(object$control$allow_max_rhat)){
-      converged[converged] <- diagnostics_summary$"max(Rhat)" < object$control$allow_max_rhat
-    }else if(!is.null(object$control$allow_min_ESS)){
-      converged[converged]  <- diagnostics_summary$"min(ESS)"  > object$control$allow_min_ESS
+
+    if(!is.null(object$control$allow_max_error)){
+      converged <- converged & (diagnostics_summary$"max(MCMC error)" < object$control$allow_max_error)
+    }
+    if(!is.null(object$control$allow_max_Rhat)){
+      converged <- converged & diagnostics_summary$"max(Rhat)" < object$control$allow_max_rhat
+    }
+    if(!is.null(object$control$allow_min_ESS)){
+      converged <- converged & diagnostics_summary$"min(ESS)"  > object$control$allow_min_ESS
     }
   }
 
@@ -1766,12 +1771,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # set the control list
   if(is.null(control)){
-    control$max_rhat        <- 1.05
+    control$max_error       <- .01
     control$max_time        <- Inf
     control$autofit         <- TRUE
     control$adapt           <- 1000
     control$bridge_max_iter <- 10000
 
+    control$allow_max_error <- NULL
     control$allow_max_rhat  <- NULL
     control$allow_min_ESS   <- NULL
     control$allow_inc_theta <- FALSE
@@ -1780,8 +1786,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     control$silent          <- FALSE
 
   }else{
-    if(is.null(control$max_rhat)){
-      control$max_rhat        <- 1.05
+    if(is.null(control$max_error)){
+      control$max_error       <- .01
     }
     if(is.null(control$max_time)){
       control$max_time        <- Inf
@@ -1794,6 +1800,15 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
     if(is.null(control$bridge_max_iter)){
       control$bridge_max_iter <- 10000
+    }
+    if(is.null(control$allow_max_error)){
+      control$allow_max_error <- NULL
+    }
+    if(is.null(control$allow_max_rhat)){
+      control$allow_max_rhat  <- NULL
+    }
+    if(is.null(control$allow_min_ESS)){
+      control$allow_min_ESS   <- NULL
     }
     if(is.null(control$allow_inc_theta)){
       control$allow_inc_theta <- FALSE
@@ -1835,7 +1850,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .check_control         <- function(control){
   # check whether only known controls were supplied
-  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_rhat", "max_time", "bridge_max_iter", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick")
+  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick")
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
   # check whether essential controls were supplied
@@ -1854,6 +1869,12 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # stop if there is not enough samples planned for autojags package
   if(control$iter/control$thin < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
   if(!control$chains >= 2)stop("The number of chains must be at least 2 so that convergence can be assessed.")
+
+  # check convergence criteria
+  if(control$autofit)if(control$max_error >= 1 | control$max_error <= 0)stop("The target maximum MCMC error must be within 0 and 1.")
+  if(!is.null(control$allow_max_error))if(control$allow_max_error >= 1 | control$allow_max_error <= 0)stop("The maximum allowed MCMC error must be within 0 and 1.")
+  if(!is.null(control$allow_max_rhat))if(control$allow_max_rhat <= 1)stop("The maximum allowed R-hat must be higher than 1.")
+  if(!is.null(control$allow_min_ESS))if(control$allow_min_ESS <= 0)stop("The minimum allowed ESS must be higher than 0.")
 
   # why can't I change both from the runjags interface directly?
   runjags::runjags.options(silent.jags = control$silent, silent.runjags = control$silent)

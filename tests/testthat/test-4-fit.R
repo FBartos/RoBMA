@@ -22,7 +22,7 @@ t <- psych::r2t(r, n - 2)
 
 
 # fit default priors model configuration
-fit_default <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666)
+fit_default <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666)
 
 test_that("Default model fit works", {
   fit_default <- remove_time(fit_default)
@@ -95,6 +95,7 @@ fit_fail1  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, it
 fit_fail2  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 2000), seed = 666, save = "min",
                     priors_tau = NULL, priors_omega = NULL,
                     priors_mu  = prior("uniform", parameters = list(a = 10, b = 11))))
+
 
 test_that("Error handling works", {
 
@@ -223,14 +224,16 @@ test_that("Model preview works", {
 
 
 #### creating / updating the test settings ####
-# saved_fits <- list(fit_default, fit_custom1, fit_custom2, fit_custom3, fit_custom4, fit_custom5, fit_fail1, fit_fail2)
-# for(i in 1:6){
-#  saved_fits[[i]] <- remove_time(saved_fits[[i]])
-# }
-# saveRDS(saved_fits, file = "tests/testthat/saved_fits.RDS", compress  = "xz")
-#
-# updated_fits <- list(fit_update1a, fit_update2, fit_update3)
-# for(i in 1:3){
-#   updated_fits[[i]] <- remove_time(updated_fits[[i]])
-# }
-# saveRDS(updated_fits, file = "tests/testthat/updated_fits.RDS", compress  = "xz")
+if(FALSE){
+  saved_fits <- list(fit_default, fit_custom1, fit_custom2, fit_custom3, fit_custom4, fit_custom5, fit_fail1, fit_fail2)
+  for(i in 1:length(saved_fits)){
+    saved_fits[[i]] <- remove_time(saved_fits[[i]])
+  }
+  saveRDS(saved_fits, file = "tests/testthat/saved_fits.RDS", compress  = "xz")
+
+  updated_fits <- list(fit_update1a, fit_update2, fit_update3)
+  for(i in 1:3){
+    updated_fits[[i]] <- remove_time(updated_fits[[i]])
+  }
+  saveRDS(updated_fits, file = "tests/testthat/updated_fits.RDS", compress  = "xz")
+}

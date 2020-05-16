@@ -69,16 +69,17 @@ print.RoBMA <- function(x, ...){
 #' @export summary.RoBMA
 #' @rawNamespace S3method(summary, RoBMA)
 #' @seealso [RoBMA()] [diagnostics()]
-summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, diagnostics = FALSE, include_theta = FALSE,
+summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "ensemble", conditional = FALSE, diagnostics = FALSE, include_theta = FALSE,
                                 probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
                                 digits_estimates = 3, digits_BF = 3,...){
 
   # print diagnostics if all models fail to converge
   if(!any(object$add_info$converged)){
-    if(substr(type,1,1) != "m" & !diagnostics)warnings("All models failed to converge. Model diagnostics were printed instead.")
+    if(substr(type,1,1) != "m" & !diagnostics)warning("All models failed to converge. Model diagnostics were printed instead.")
     type        <- "models"
     diagnostics <- TRUE
   }
+
 
   if(substr(type,1,1) == "e"){
 
@@ -271,7 +272,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
 
         if(length(temp_x) == 0 | any(class(object$models[[i]]$fit) %in% c("simpleError","error"))){
 
-          return(c(NA, NA))
+          return(c(NA, NA, NA))
 
         }else{
 
@@ -285,21 +286,24 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
 
           if(length(dim(s.x)) == 2){
             return(c(
-              Rhat = max(s.x[,11]), # psrf
-              ESS  = min(s.x[, 9])  # SSeff
+              MCerr = max(s.x[, 7]),
+              Rhat  = max(s.x[,11]),
+              ESS   = min(s.x[, 9])
             ))
           }else{
             return(c(
-              Rhat = max(s.x[11]), # psrf
-              ESS  = min(s.x[ 9])  # SSeff
+              MCerr = max(s.x[ 7]),
+              Rhat  = max(s.x[11]),
+              ESS   = min(s.x[ 9])
             ))
           }
 
         }
        })
 
-      diagnostics_tab$"min(ESS)"  <- diag_sum[2,]
-      diagnostics_tab$"max(Rhat)" <- diag_sum[1,]
+      diagnostics_tab$"max(MCMC error)"  <- diag_sum[1,]
+      diagnostics_tab$"min(ESS)"         <- diag_sum[3,]
+      diagnostics_tab$"max(Rhat)"        <- diag_sum[2,]
     }
 
 
@@ -373,7 +377,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE, 
         s.x <- s.x[,c(4, 5, 1, 2, 3, 7, 8, 9, 11)]
 
 
-        colnames(s.x) <- c("Mean", "SD", ".025", "Median", ".975", "MCMC Error", "Error % of SD", "ESS", "Rhat")
+        colnames(s.x) <- c("Mean", "SD", ".025", "Median", ".975", "MCMC error", "Error % of SD", "ESS", "Rhat")
 
         if(object$models[[i]]$priors$omega$distribution != "point"){
           # rename omegas
@@ -479,8 +483,9 @@ print.summary.RoBMA <- function(x, ...){
 
     if(!is.null(x$diagnostics)){
       diagnostics     <- x$diagnostics
-      diagnostics[,4] <- round(diagnostics[,4])
-      diagnostics[,5] <- format(round(diagnostics[,5], x$add_info$digits_estimates), nsmall = x$add_info$digits_estimates)
+      diagnostics[,4] <- format(round(diagnostics[,4], x$add_info$digits_estimates), nsmall = x$add_info$digits_estimates)
+      diagnostics[,5] <- round(diagnostics[,5])
+      diagnostics[,6] <- format(round(diagnostics[,6], x$add_info$digits_estimates), nsmall = x$add_info$digits_estimates)
     }
   }else if(x$add_info$type == "individual"){
 

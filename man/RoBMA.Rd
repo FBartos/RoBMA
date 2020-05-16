@@ -109,8 +109,9 @@ Possible options are:
 \describe{
 \item{autofit}{Whether the models should be refitted until convergence.
 Defaults to \code{TRUE}}
-\item{max_rhat}{The maximum acceptable Gelman-Rubin convergence
-diagnostic (sometimes referred to as psrf). Defaults to \code{1.05}}
+\item{max_error}{The target MCMC error for the autofit function. The
+argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
+\code{.01}}.
 \item{max_time}{A string specifying the maximum fitting time in case
 of autofit. Defaults to \code{Inf}. Can be specified as a number and
 a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
@@ -119,6 +120,10 @@ a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’d
 to \code{1000}.}
 \item{bridge_max_iter}{Maximum number of iterations for the
 \link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
+\item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
+into consideration. Model will be removed from the ensemble if it fails to
+achieve the set MCMC error. Defaults to \code{NULL} - no model will be
+removed based on MCMC error.}
 \item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
 consideration. Model will be removed from the ensemble if it fails to
 achieve the set Rhat. Defaults to \code{NULL} - no model will be removed
@@ -126,7 +131,7 @@ based on Rhat.}
 \item{allow_min_ESS}{Minimum allowed ESS for a model to be taken into
 consideration. Model will be removed from the ensemble if it fails to
 achieve the set ESS. Defaults to \code{NULL} - no model will be removed
-based on ESS}
+based on ESS.}
 \item{allow_inc_theta}{Whether the diagnostics for theta should be
 included into model removal decision. Defaults to \code{NULL} - only
 'mu', 'tau', and 'omega' estimates will be taken into account.}
