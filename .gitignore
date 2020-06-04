@@ -7,3 +7,5 @@
 *.dylib
 trash/
 ..Rcheck
+src-x64
+src-i386

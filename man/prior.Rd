@@ -35,7 +35,7 @@ parameter.}
 \item{\code{"two.sided"}}{for a two-sided weight function
 characterized by a vector \code{steps} and vector \code{alpha}
 parameters. The \code{alpha} parameter determines an alpha
-parameter of Dirichlet distribution which which cumulative sum
+parameter of Dirichlet distribution which cumulative sum
 is used for the weights omega.}
 \item{\code{"one.sided"}}{for a one-sided weight function
 characterized by a either a vector \code{steps} and vector

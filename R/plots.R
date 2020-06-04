@@ -1091,6 +1091,7 @@ plot.RoBMA <- function(x, parameter,
     model_ind <- c(1:length(sum_ind))
   }
   if(length(model_ind) == 0)stop("The ensemble contains no non-null model with the specified parameter.")
+  if(length(model_ind) == 1)stop("At least two modes containing the specified parameter are required for this plot.")
 
   for(i in model_ind){
 

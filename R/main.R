@@ -212,7 +212,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
     effect_size  = object$data$effect_size,
     mu_transform = if(object$data$effect_size == "r")mu_transform,
     test_type    = test_type,
-    study_names  = study_names,
+    study_names  = as.character(study_names),
     seed         = seed,
     save         = save
   )
@@ -565,7 +565,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       thin            = control$thin,
       raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
       max.time        = if(control$autofit) control$max_time else Inf,
-      summarise       = FALSE
+      summarise       = TRUE
     ), error = function(e)e)
 
     # deal with some fixable errors
@@ -605,7 +605,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
           thin            = control$thin,
           raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
           max.time        = if(control$autofit) control$max_time else Inf,
-          summarise       = FALSE
+          summarise       = TRUE
         ), error = function(e)e)
 
       }
@@ -1046,8 +1046,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
   # tau
-  if(priors$tau$distribution != "point"){
-
+  if(priors$tau$distribution == "point"){
+    if(priors$tau$parameters$location != 0){
+      tau      <- priors$tau$parameters$location
+      theta    <- samples.row[ paste0("theta[", 1:data$K, "]") ]
+    }
+    ncp <- mu*data$ncp_mlp
+  }else{
     theta    <- samples.row[ paste0("theta[", 1:data$K, "]") ]
     if(priors$tau$distribution == "invgamma"){
       inv_tau <- samples.row[[ "inv_tau" ]]
@@ -1056,11 +1061,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       tau <- samples.row[[ "tau" ]]
     }
     ncp <- theta*data$ncp_mlp
-
-  }else{
-
-    ncp <- mu*data$ncp_mlp
-
   }
 
   # omega
@@ -1177,7 +1177,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # the true effect sizes (in case of heterogeneity)
-  if(priors$tau$distribution != "point"){
+  if(priors$tau$distribution == "point"){
+    if(priors$tau$parameters$location != 0){
+      log_lik <- log_lik + sum(stats::dnorm(theta, mean = mu, sd = tau, log = TRUE))
+    }
+  }else{
     log_lik <- log_lik + sum(stats::dnorm(theta, mean = mu, sd = tau, log = TRUE))
   }
 
@@ -1229,9 +1233,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # tau
-  if(priors$tau$distribution != "point"){
-
-    # add parameters and truncation
+  if(priors$tau$distribution == "point"){
+    if(priors$tau$parameters$location != 0){
+      pars <- c(pars, paste0("theta[", 1:data$K, "]"))
+      lb   <- c(lb, rep(-Inf, data$K))
+      ub   <- c(ub, rep( Inf, data$K))
+    }
+  }else{
     pars <- c(pars, paste0("theta[", 1:data$K, "]"))
     if(priors$tau$distribution == "invgamma"){
       pars <- c(pars, "inv_tau")
@@ -1786,37 +1794,37 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     control$silent          <- FALSE
 
   }else{
-    if(is.null(control$max_error)){
+    if(is.null(control[["max_error"]])){
       control$max_error       <- .01
     }
-    if(is.null(control$max_time)){
+    if(is.null(control[["max_time"]])){
       control$max_time        <- Inf
     }
-    if(is.null(control$autofit)){
+    if(is.null(control[["autofit"]])){
       control$autofit         <- TRUE
     }
-    if(is.null(control$adapt)){
+    if(is.null(control[["adapt"]])){
       control$adapt           <- 1000
     }
-    if(is.null(control$bridge_max_iter)){
+    if(is.null(control[["bridge_max_iter"]])){
       control$bridge_max_iter <- 10000
     }
-    if(is.null(control$allow_max_error)){
+    if(is.null(control[["allow_max_error"]])){
       control$allow_max_error <- NULL
     }
-    if(is.null(control$allow_max_rhat)){
+    if(is.null(control[["allow_max_rhat"]])){
       control$allow_max_rhat  <- NULL
     }
-    if(is.null(control$allow_min_ESS)){
+    if(is.null(control[["allow_min_ESS"]])){
       control$allow_min_ESS   <- NULL
     }
-    if(is.null(control$allow_inc_theta)){
+    if(is.null(control[["allow_inc_theta"]])){
       control$allow_inc_theta <- FALSE
     }
-    if(is.null(control$balance_prob)){
+    if(is.null(control[["balance_prob"]])){
       control$balance_prob    <- TRUE
     }
-    if(is.null(control$silent)){
+    if(is.null(control[["silent"]])){
       control$silent          <- FALSE
     }
   }
@@ -1838,10 +1846,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
   }
 
-  if(!is.null(chains))  control$chains <- chains
-  if(!is.null(iter))    control$iter   <- iter
-  if(!is.null(burnin))  control$burnin <- burnin
-  if(!is.null(thin))    control$thin   <- thin
+  if(!is.null(chains))  control[["chains"]] <- chains
+  if(!is.null(iter))    control[["iter"]]   <- iter
+  if(!is.null(burnin))  control[["burnin"]] <- burnin
+  if(!is.null(thin))    control[["thin"]]   <- thin
 
   # stop if there is not enough samples planned for autojags package
   .check_control(control)
@@ -1854,17 +1862,17 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
   # check whether essential controls were supplied
-  if(is.null(control$chains)) stop("Number of chains must be defined.")
-  if(is.null(control$iter))   stop("Number of iterations must be set.")
-  if(is.null(control$burnin)) stop("Number of burnin samples must be set.")
-  if(is.null(control$adapt))  stop("Number of adaptation samples must be set.")
-  if(is.null(control$thin))   stop("Thinning of the posterior samples must be set.")
+  if(is.null(control[["chains"]])) stop("Number of chains must be defined.")
+  if(is.null(control[["iter"]]))   stop("Number of iterations must be set.")
+  if(is.null(control[["burnin"]])) stop("Number of burnin samples must be set.")
+  if(is.null(control[["adapt"]]))  stop("Number of adaptation samples must be set.")
+  if(is.null(control[["thin"]]))   stop("Thinning of the posterior samples must be set.")
 
-  if(!is.numeric(control$chains) | !control$chains >= 1) stop("At least one chains must be set.")
-  if(!is.numeric(control$iter)   | !control$iter >= 1)   stop("Number of iterations must be a positive number")
-  if(!is.numeric(control$burnin) | !control$burnin >= 1) stop("Number of burnin samples must be a positive number")
-  if(!is.numeric(control$adapt)  | !control$adapt >= 1)  stop("Number of adaptation samples must be a positive number.")
-  if(!is.numeric(control$thin)   | !control$thin >= 1)   stop("Thinning of the posterior samples must be a positive number")
+  if(!is.numeric(control[["chains"]]) | !control[["chains"]] >= 1) stop("At least one chains must be set.")
+  if(!is.numeric(control[["iter"]])   | !control[["iter"]] >= 1)   stop("Number of iterations must be a positive number")
+  if(!is.numeric(control[["burnin"]]) | !control[["burnin"]] >= 1) stop("Number of burnin samples must be a positive number")
+  if(!is.numeric(control[["adapt"]])  | !control[["adapt"]] >= 1)  stop("Number of adaptation samples must be a positive number.")
+  if(!is.numeric(control[["thin"]])   | !control[["thin"]] >= 1)   stop("Thinning of the posterior samples must be a positive number")
 
   # stop if there is not enough samples planned for autojags package
   if(control$iter/control$thin < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
