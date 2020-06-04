@@ -1,0 +1,5 @@
+PKG_CPPFLAGS=@JAGS_CFLAGS@ 
+PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@
+
+SOURCES= $(wildcard *.cc) $(wildcard */*.cc)
+OBJECTS=$(SOURCES:.cc=.o)
