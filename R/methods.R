@@ -575,3 +575,13 @@ print.summary.RoBMA <- function(x, ...){
   }
 
 }
+
+#' @title Reports whether x is a RoBMA object
+#'
+#' @param x an object to test
+#' @param ... additional arguments
+#' @export is.RoBMA
+is.RoBMA            <- function(x){
+  inherits(x, "RoBMA")
+}
+

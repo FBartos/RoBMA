@@ -61,7 +61,7 @@
 #'   Defaults to \code{TRUE}}
 #'   \item{max_error}{The target MCMC error for the autofit function. The
 #'   argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
-#'   \code{.01}}.
+#'   \code{.01}.}
 #'   \item{max_time}{A string specifying the maximum fitting time in case
 #'   of autofit. Defaults to \code{Inf}. Can be specified as a number and
 #'   a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
@@ -2002,22 +2002,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 .get_n_for_d       <- function(d, se){
 
   # according to https://stats.stackexchange.com/questions/144084/variance-of-cohens-d-statistic
-  n <- sapply(1:length(d), function(i){
-    stats::optim(
-      par    = 1,
-      fn     = function(x, d, se){
-        y <- numeric(1)
-        y <- x/(x/2)^2 + d^2/(2*x) - se^2
-        return(y^2)
-      },
-      lower  = 0,
-      d      = d[i],
-      se     = se[i],
-      method = "L-BFGS-B")$par
-  })
+  n <- (d^2 + 8) / (2 * se^2)
+
+  if(any(n < 1))stop("The computed sample size of one of the original studies was lower than 1 (based on the Cohen's d and sample size). This does not seem to be correct. Please, check your input.")
 
   return(n)
-
 }
 .get_effect_and_ci <- function(add_info, CI){
 
@@ -2060,6 +2049,3 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(out)
 }
 
-saveObject <- function(object){
-  saveRDS(object, file = "D:/Projects/jasp/jasp-R-debug/object.RDS")
-}
