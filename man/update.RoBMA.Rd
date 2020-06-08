@@ -14,6 +14,7 @@
   prior_mu_null = NULL,
   prior_tau_null = NULL,
   prior_omega_null = NULL,
+  study_names = NULL,
   control = NULL,
   chains = NULL,
   iter = NULL,
@@ -52,6 +53,8 @@ will be treated as belonging to the null hypothesis.}
 \item{prior_omega_null}{a prior weight function for the \code{omega} parameter
 that will be treated as belonging to the null hypothesis.}
 
+\item{study_names}{an optional argument with names of the studies.}
+
 \item{control}{a list of additional arguments for the MCMC algorithm.
 Possible options are:
 \describe{
@@ -59,7 +62,7 @@ Possible options are:
 Defaults to \code{TRUE}}
 \item{max_error}{The target MCMC error for the autofit function. The
 argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
-\code{.01}}.
+\code{.01}.}
 \item{max_time}{A string specifying the maximum fitting time in case
 of autofit. Defaults to \code{Inf}. Can be specified as a number and
 a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,

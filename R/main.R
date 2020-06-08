@@ -447,6 +447,18 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # some general input checks
   if(sum(c(!is.null(t), !is.null(d), !is.null(r), !is.null(y))) != 1)stop("One effect size measure needs to be specified.")
   if(is.null(r) & !is.null(mu_transform))stop("'mu_transform' is available only if correlations are supplied as input.")
+  if(!is.null(r))if(!mu_transform %in% c("cohens_d","fishers_z"))stop("'mu_transform' must be either 'cohens_d' or 'fishers_z'")
+  if(!is.null(test_type))if(!test_type %in% c("one.sample","two.sample"))stop("'test_type' must be either 'one.sample' or 'two.sample'.")
+
+  # check for NA or Inf
+  if(!is.null(t))if(any(is.na(t))   | any(is.infinite(t)))stop("NAs or Inf are not allowed in 't'.")
+  if(!is.null(d))if(any(is.na(d))   | any(is.infinite(d)))stop("NAs or Inf are not allowed in 'd'.")
+  if(!is.null(r))if(any(is.na(r))   | any(is.infinite(r)))stop("NAs or Inf are not allowed in 'r'.")
+  if(!is.null(y))if(any(is.na(y))   | any(is.infinite(y)))stop("NAs or Inf are not allowed in 'y'.")
+  if(!is.null(se))if(any(is.na(se)) | any(is.infinite(se)))stop("NAs or Inf are not allowed in 'se'.")
+  if(!is.null(n))if(any(is.na(n))   | any(is.infinite(n)))stop("NAs or Inf are not allowed in 'n'.")
+  if(!is.null(n1))if(any(is.na(n1)) | any(is.infinite(n1)))stop("NAs or Inf are not allowed in 'n1'.")
+  if(!is.null(n2))if(any(is.na(n2)) | any(is.infinite(n2)))stop("NAs or Inf are not allowed in 'n2'.")
 
 
   if((!is.null(t) | !is.null(d)) & ( !is.null(n) | (!is.null(n1) & !is.null(n2)) | !is.null(se) ) ){

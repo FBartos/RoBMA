@@ -111,7 +111,7 @@ Possible options are:
 Defaults to \code{TRUE}}
 \item{max_error}{The target MCMC error for the autofit function. The
 argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
-\code{.01}}.
+\code{.01}.}
 \item{max_time}{A string specifying the maximum fitting time in case
 of autofit. Defaults to \code{Inf}. Can be specified as a number and
 a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,

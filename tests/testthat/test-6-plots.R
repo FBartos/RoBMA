@@ -135,7 +135,7 @@ test_that("Individual model plots works", {
     if(i %in% c(2, 4, 5, 6)){
       expect_error(plot(saved_fits[[i]], "mu", type = c("individual", "conditional"), plot_type = "ggplot"),"The ensemble contains no non-null model with the specified parameter.")
     }else if(i %in% c(7, 8)){
-      expect_error(plot(saved_fits[[i]], "mu", type = c("individual", "conditional"), plot_type = "ggplot"),"The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
+      expect_error(plot(saved_fits[[i]], "mu", type = c("individual", "conditional"), plot_type = "ggplot"),"At least two modes containing the specified parameter are required for this plot.")
     }else{
       expect_doppelganger(paste0("plot_individual_mu3_",i),plot(saved_fits[[i]], "mu", type = c("individual", "conditional"), plot_type = "ggplot"))
     }
