@@ -186,7 +186,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
   ### prepare & check the data
   object$data <- .prepare_data(t, d, r, y, se, n, n1, n2, test_type, mu_transform)
-  if(!is.null(study_names))if(length(study_names) != length(object$data$t))stop("The study names do not match the length of supplied data.")
+  study_names <- .get_study_names(study_names, n_studies = length(object$data$t))
 
 
   ### prepare and check the settings
@@ -338,9 +338,18 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 update.RoBMA <- function(object, refit_failed = TRUE,
                          prior_mu = NULL, prior_tau = NULL, prior_omega = NULL, prior_odds = NULL,
                          prior_mu_null = NULL, prior_tau_null = NULL, prior_omega_null = NULL,
+                         study_names = NULL,
                          control = NULL, chains = NULL, iter = NULL, burnin = NULL, thin = NULL, ...){
 
   if(object$add_info$save == "min")stop("Models cannot be updated because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' in while fitting the model (see ?RoBMA for more details).")
+
+  # add study names if supplied
+  if(!is.null(study_names)){
+    if(length(study_names) != length(object$data$t))stop("The study names do not match the length of supplied data.")
+    object$add_info$study_names <-  as.character(study_names)
+  }
+
+
   ### choose proper action based on the supplied input
   if((!is.null(prior_mu)    | !is.null(prior_mu_null))  &
      (!is.null(prior_tau)   | !is.null(prior_tau_null)) &
@@ -2049,4 +2058,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(out)
 }
+.get_study_names   <- function(study_names, n_studies){
 
+  if(!is.null(study_names))if(length(study_names) != n_studies)stop("The study names do not match the length of supplied data.")
+  if(is.null(study_names))study_names <- paste("Study", 1:n_studies)
+
+  return(study_names)
+
+}

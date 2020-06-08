@@ -123,8 +123,14 @@ test_that("Individual model plots works", {
 
   for(i in 1:length(saved_fits)){
 
-    expect_doppelganger(paste0("plot_individual_mu1_",i),plot(saved_fits[[i]], "mu", type = "individual", plot_type = "ggplot"))
-    expect_doppelganger(paste0("plot_individual_mu2_",i),plot(saved_fits[[i]], "mu", type = "individual", order = "prob", plot_type = "ggplot"))
+    if(i == 2){
+      expect_error(plot(saved_fits[[i]], "mu", type = "individual", plot_type = "ggplot"),"At least two modes containing the specified parameter are required for this plot.")
+      expect_error(plot(saved_fits[[i]], "mu", type = "individual", order = "prob", plot_type = "ggplot"),"At least two modes containing the specified parameter are required for this plot.")
+    }else{
+      expect_doppelganger(paste0("plot_individual_mu1_",i),plot(saved_fits[[i]], "mu", type = "individual", plot_type = "ggplot"))
+      expect_doppelganger(paste0("plot_individual_mu2_",i),plot(saved_fits[[i]], "mu", type = "individual", order = "prob", plot_type = "ggplot"))
+    }
+
 
     if(i %in% c(2, 4, 5, 6)){
       expect_error(plot(saved_fits[[i]], "mu", type = c("individual", "conditional"), plot_type = "ggplot"),"The ensemble contains no non-null model with the specified parameter.")
@@ -138,8 +144,13 @@ test_that("Individual model plots works", {
 
   for(i in 1:length(saved_fits)){
 
-    expect_doppelganger(paste0("plot_individual_tau1_",i),plot(saved_fits[[i]], "tau", type = "individual", plot_type = "ggplot"))
-    expect_doppelganger(paste0("plot_individual_tau2_",i),plot(saved_fits[[i]], "tau", type = "individual", order = "prob", plot_type = "ggplot"))
+    if(i == 2){
+      expect_error(plot(saved_fits[[i]], "tau", type = "individual", plot_type = "ggplot"),"At least two modes containing the specified parameter are required for this plot.")
+      expect_error(plot(saved_fits[[i]], "tau", type = "individual", order = "prob", plot_type = "ggplot"),"At least two modes containing the specified parameter are required for this plot.")
+    }else{
+      expect_doppelganger(paste0("plot_individual_tau1_",i),plot(saved_fits[[i]], "tau", type = "individual", plot_type = "ggplot"))
+      expect_doppelganger(paste0("plot_individual_tau2_",i),plot(saved_fits[[i]], "tau", type = "individual", order = "prob", plot_type = "ggplot"))
+    }
 
     if(i %in% c(2, 4, 5, 7, 8)){
       expect_error(plot(saved_fits[[i]], "tau", type = c("individual", "conditional"), plot_type = "ggplot"),"The ensemble contains no non-null model with the specified parameter.")
