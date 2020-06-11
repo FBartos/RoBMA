@@ -201,7 +201,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
   ### add additional information
   object$add_info <- list(
-    t            = t,
+    t            = object$data$t,
     d            = d,
     r            = r,
     y            = y,
@@ -2047,13 +2047,14 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # compute the mean and CI
   if(effect_size == "d"){
+    if(is.null(n))n <- .get_n_for_d(d, se)
     if(test_type == "one.sample"){
       out <- psych::d.ci(psych::t2d(t = t, n1 = n), n1 = n, alpha = 1 - CI)
     }else if(test_type == "two.sample"){
-      if(!is.null(n)){
-        out <- psych::d.ci(psych::t2d(t = t, n = n), n = n, alpha = 1 - CI)
-      }else if(!is.null(n1) & !is.null(n2)){
+      if(!is.null(n1) & !is.null(n2)){
         out <- psych::d.ci(psych::t2d(t = t, n1 = n1, n2 = n2), n1 = n1, n2 = n2, alpha = 1 - CI)
+      }else{
+        out <- psych::d.ci(psych::t2d(t = t, n = n), n = n, alpha = 1 - CI)
       }
     }
   }else if(effect_size == "r"){
