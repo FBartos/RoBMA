@@ -60,3 +60,4 @@ if(FALSE){
   )
   saveRDS(saved_methods, file = "tests/testthat/saved_methods.RDS")
 }
+

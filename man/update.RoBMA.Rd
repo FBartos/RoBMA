@@ -91,7 +91,9 @@ should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to
 \code{TRUE}.}
 \item{silent}{Whether all fitting messages should be suppressed. Defaults
-to \code{FALSE}.}
+to \code{FALSE}. Ideal for getting rid of the "full precision may not have
+been achieved in pnt{final}'" warning that cannot be suppresed in any
+other way.}
 }}
 
 \item{chains}{a number of chains of the MCMC algorithm.}

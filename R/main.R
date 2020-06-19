@@ -90,7 +90,9 @@
 #'    (crossing of effect / heterogeneity / publication bias). Defaults to
 #'    \code{TRUE}.}
 #'   \item{silent}{Whether all fitting messages should be suppressed. Defaults
-#'   to \code{FALSE}.}
+#'   to \code{FALSE}. Ideal for getting rid of the "full precision may not have
+#'   been achieved in pnt{final}'" warning that cannot be suppresed in any
+#'   other way.}
 #' }
 #' @param save whether all models posterior distributions should be kept
 #' after obtaining a model-averaged result. Defaults to \code{"all"} which
@@ -573,21 +575,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     monitor_variables <- .to_monitor(priors)
 
 
-    # fit the model - it would be nice to ignore the impression warnings
-    fit <- tryCatch(runjags::autorun.jags(
-      model           = model_syntax,
-      data            = fit_data,
-      inits           = fit_inits,
-      monitor         = monitor_variables,
-      n.chains        = control$chains,
-      startburnin     = control$burnin,
-      startsample     = control$iter,
-      adapt           = control$adapt,
-      thin            = control$thin,
-      raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
-      max.time        = if(control$autofit) control$max_time else Inf,
-      summarise       = TRUE
-    ), error = function(e)e)
+    # fit the model
+    fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
+
 
     # deal with some fixable errors
     if(all(class(fit) %in% c("simpleError", "error", "condition"))){
@@ -614,20 +604,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
 
-        fit <- tryCatch(runjags::autorun.jags(
-          model           = model_syntax,
-          data            = fit_data,
-          inits           = fit_inits,
-          monitor         = monitor_variables,
-          n.chains        = control$chains,
-          startburnin     = control$burnin,
-          startsample     = control$iter,
-          adapt           = control$adapt,
-          thin            = control$thin,
-          raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
-          max.time        = if(control$autofit) control$max_time else Inf,
-          summarise       = TRUE
-        ), error = function(e)e)
+        fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
 
       }
 
@@ -647,6 +624,49 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(object)
 
+}
+.fit_model_RoBMA_wrap  <- function(model_syntax, fit_data, fit_inits, monitor_variables, control, seed){
+  if(control$silent){
+    fit <- callr::r(
+      .fit_model_RoBMA,
+      args = list(
+        model_syntax      = model_syntax,
+        fit_data          = fit_data,
+        fit_inits         = fit_inits,
+        monitor_variables = monitor_variables,
+        control           = control,
+        seed              = seed
+      )
+    )
+  }else{
+    if(!is.null(seed))set.seed(seed)
+    fit <- .fit_model_RoBMA(
+      model_syntax      = model_syntax,
+      fit_data          = fit_data,
+      fit_inits         = fit_inits,
+      monitor_variables = monitor_variables,
+      control           = control
+    )
+  }
+  return(fit)
+}
+.fit_model_RoBMA       <- function(model_syntax, fit_data, fit_inits, monitor_variables, control, seed){
+  requireNamespace("RoBMA")
+  if(!is.null(seed))set.seed(seed)
+  tryCatch(runjags::autorun.jags(
+    model           = model_syntax,
+    data            = fit_data,
+    inits           = fit_inits,
+    monitor         = monitor_variables,
+    n.chains        = control$chains,
+    startburnin     = control$burnin,
+    startsample     = control$iter,
+    adapt           = control$adapt,
+    thin            = control$thin,
+    raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
+    max.time        = if(control$autofit) control$max_time else Inf,
+    summarise       = TRUE
+  ), error = function(e)e)
 }
 .marglik_RoBMA         <- function(object, i){
 
@@ -675,7 +695,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     marglik_samples <- .marglik_prepare_data(fit, priors, object$data)
     fit_data        <- .fit_data(object$data, priors)
 
-    if(!is.null(object$control$seed))set.seed(object$control$seed)
+    if(!is.null(object$add_info$seed))set.seed(object$add_info$seed)
     marg_lik        <- tryCatch(bridgesampling::bridge_sampler(
       samples       = marglik_samples$samples,
       data          = fit_data,
@@ -1905,8 +1925,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(!is.null(control$allow_max_rhat))if(control$allow_max_rhat <= 1)stop("The maximum allowed R-hat must be higher than 1.")
   if(!is.null(control$allow_min_ESS))if(control$allow_min_ESS <= 0)stop("The minimum allowed ESS must be higher than 0.")
 
-  # why can't I change both from the runjags interface directly?
-  runjags::runjags.options(silent.jags = control$silent, silent.runjags = control$silent)
+  # now taken care of by the evaluation outside of R
+  # runjags::runjags.options(silent.jags = control$silent, silent.runjags = control$silent)
 }
 
 

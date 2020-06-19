@@ -1144,7 +1144,8 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 #' configuration prior to fitting all of the models.
 #'
 #' @inheritParams RoBMA
-#' @param models should the models details be printed
+#' @param models should the models details be printed.
+#' @param silent do not print the results.
 #' @export check_setup
 #' @seealso [RoBMA()], [prior()]
 check_setup <- function(priors_mu    = prior(distribution = "normal",   parameters = list(mean = 0, sd = 1)),
@@ -1156,7 +1157,7 @@ check_setup <- function(priors_mu    = prior(distribution = "normal",   paramete
                         priors_mu_null    = prior(distribution = "point", parameters = list(location = 0)),
                         priors_tau_null   = prior(distribution = "point", parameters = list(location = 0)),
                         priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
-                        models = FALSE){
+                        models = FALSE, silent = FALSE){
 
   object <- list()
   object$priors  <- list(
@@ -1225,15 +1226,15 @@ check_setup <- function(priors_mu    = prior(distribution = "normal",   paramete
   }
 
 
+  if(!silent){
+    cat("Robust Bayesian Meta-Analysis (Set-Up)\n")
+    print(overview, quote = FALSE, right = TRUE)
 
-  cat("Robust Bayesian Meta-Analysis (Set-Up)\n")
-  print(overview, quote = FALSE, right = TRUE)
-
-  if(models){
-    cat("\nModels Overview\n")
-    print(models_print, quote = FALSE, right = TRUE)
+    if(models){
+      cat("\nModels Overview\n")
+      print(models_print, quote = FALSE, right = TRUE)
+    }
   }
-
 
   return(invisible(object))
 

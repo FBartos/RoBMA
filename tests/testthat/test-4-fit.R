@@ -26,7 +26,7 @@ fit_default <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, contr
 
 test_that("Default model fit works", {
   fit_default <- remove_time(fit_default)
-  expect_equal(saved_fits[[1]], remove_time(fit_default))
+  expect_equal(saved_fits[[1]], fit_default)
 })
 
 
@@ -83,7 +83,6 @@ test_that("Custom models works", {
   expect_equal(saved_fits[[4]], fit_custom3)
   expect_equal(saved_fits[[5]], fit_custom4)
   expect_equal(saved_fits[[6]], fit_custom5)
-
 })
 
 

@@ -49,6 +49,7 @@ Imports:
     extraDistr,
     scales,
     DPQ,
+    callr,
     Rdpack
 Suggests:
     ggplot2,

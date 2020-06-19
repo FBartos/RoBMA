@@ -14,7 +14,8 @@ check_setup(
   priors_mu_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_tau_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
-  models = FALSE
+  models = FALSE,
+  silent = FALSE
 )
 }
 \arguments{
@@ -48,7 +49,9 @@ that will be treated as belonging to the null hypothesis. Defaults to point
 distribution with location at 1 (
 \code{prior(distribution = "point", parameters = list(location = 0))}).}
 
-\item{models}{should the models details be printed}
+\item{models}{should the models details be printed.}
+
+\item{silent}{do not print the results.}
 }
 \description{
 \code{check_setup} prints summary of \code{"RoBMA"} model
