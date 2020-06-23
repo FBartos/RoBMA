@@ -2046,7 +2046,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # according to https://stats.stackexchange.com/questions/144084/variance-of-cohens-d-statistic
   n <- (d^2 + 8) / (2 * se^2)
 
-  if(any(n < 1))stop("The computed sample size of at least on of the original studies was lower than 1 (based on the Cohen's d and standard error). This does not seem to be correct. Please, check your input.")
+  if(any(n < 1))stop("The computed sample size of at least one of the original studies was lower than 1 (based on the Cohen's d and standard error). This does not seem to be correct. Please, check your input.")
 
   return(n)
 }
