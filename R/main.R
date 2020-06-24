@@ -639,13 +639,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       )
     )
   }else{
-    if(!is.null(seed))set.seed(seed)
     fit <- .fit_model_RoBMA(
       model_syntax      = model_syntax,
       fit_data          = fit_data,
       fit_inits         = fit_inits,
       monitor_variables = monitor_variables,
-      control           = control
+      control           = control,
+      seed              = seed
     )
   }
   return(fit)
