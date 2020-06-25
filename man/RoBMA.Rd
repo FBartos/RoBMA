@@ -108,7 +108,7 @@ Defaults to \code{5000}.}
 Possible options are:
 \describe{
 \item{autofit}{Whether the models should be refitted until convergence.
-Defaults to \code{TRUE}}
+Defaults to \code{FALSE}}
 \item{max_error}{The target MCMC error for the autofit function. The
 argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
 \code{.01}.}

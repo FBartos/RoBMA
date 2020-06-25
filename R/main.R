@@ -58,7 +58,7 @@
 #' Possible options are:
 #' \describe{
 #'   \item{autofit}{Whether the models should be refitted until convergence.
-#'   Defaults to \code{TRUE}}
+#'   Defaults to \code{FALSE}}
 #'   \item{max_error}{The target MCMC error for the autofit function. The
 #'   argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
 #'   \code{.01}.}
@@ -1822,7 +1822,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(is.null(control)){
     control$max_error       <- .01
     control$max_time        <- Inf
-    control$autofit         <- TRUE
+    control$autofit         <- FALSE
     control$adapt           <- 1000
     control$bridge_max_iter <- 10000
 

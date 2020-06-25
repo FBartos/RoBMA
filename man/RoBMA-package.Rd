@@ -6,15 +6,15 @@
 \alias{_PACKAGE}
 \title{RoBMA: Robust Bayesian Meta-Analyses}
 \description{
-The package estimates an ensemble of Bayesian model-averaged 
-    meta-analytical models (assuming either presence or absence of the 
-    effect, heterogeneity, and publication bias). The ensemble uses Bayes 
-    Factors to test for presence of absence of the individual components 
-    and model-averages parameter estimates based on posterior model 
-    probabilities. The user can define a wide range of non-informative 
-    or informative priors for the effect size, heterogeneity, and weight 
-    functions. The package provides convenient functions for summary, 
-    visualizations, and fit diagnostics.
+This package estimates and ensemble of meta-analytical models 
+    (assuming either presence or absence of the effect, heterogeneity, and 
+    publication bias) and uses Bayesian model averaging to combine them. The 
+    ensemble uses Bayes Factors to test for the presence of absence of the 
+    individual components (e.g., effect vs no effect) and model-averages 
+    parameter estimates based on posterior model probabilities. The user can 
+    define a wide range of non-informative or informative priors for the 
+    effect size, heterogeneity, and weight functions. The package provides 
+    convenient functions for summary, visualizations, and fit diagnostics.
 }
 \author{
 \strong{Maintainer}: František Bartoš \email{f.bartos96@gmail.com} (\href{https://orcid.org/0000-0002-0018-5573}{ORCID})
