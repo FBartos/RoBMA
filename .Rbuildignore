@@ -1,5 +1,6 @@
 ^RoBMA\.Rproj$
 ^\.Rproj\.user$
 ^trash$
+^prefitted$
 ^tests$
 ^..Rcheck

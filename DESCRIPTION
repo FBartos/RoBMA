@@ -24,15 +24,15 @@ Authors@R: c(
            role    = "ctb",
            email   = "j.c.goosen@uva.nl")
            )
-Description: The package estimates an ensemble of Bayesian model-averaged 
-    meta-analytical models (assuming either presence or absence of the 
-    effect, heterogeneity, and publication bias). The ensemble uses Bayes 
-    Factors to test for presence of absence of the individual components 
-    and model-averages parameter estimates based on posterior model 
-    probabilities. The user can define a wide range of non-informative 
-    or informative priors for the effect size, heterogeneity, and weight 
-    functions. The package provides convenient functions for summary, 
-    visualizations, and fit diagnostics.
+Description: This package estimates and ensemble of meta-analytical models 
+    (assuming either presence or absence of the effect, heterogeneity, and 
+    publication bias) and uses Bayesian model averaging to combine them. The 
+    ensemble uses Bayes Factors to test for the presence of absence of the 
+    individual components (e.g., effect vs no effect) and model-averages 
+    parameter estimates based on posterior model probabilities. The user can 
+    define a wide range of non-informative or informative priors for the 
+    effect size, heterogeneity, and weight functions. The package provides 
+    convenient functions for summary, visualizations, and fit diagnostics.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
