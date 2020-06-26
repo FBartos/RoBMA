@@ -21,21 +21,13 @@ implementation, examples, and simulation studies.
 
 ## Installation
 
-The development version can be installed from
-[GitHub](https://github.com/) with:
+As of now, the only reliable way of installing the package is from
+source using the following file and commands:
+[RoBMA.tar.gz](https://drive.google.com/file/d/11rlNum7YpsjzaF0aRqzi3XjedmRLjwX9/view?usp=sharing).
 
 ``` r
-# install.packages("devtools")
-devtools::install_github("FBartos/RoBMA")
-```
-
-In case of compilations problems, please, install the package from
-source using the following
-[RoBMA.tar.gz](https://drive.google.com/file/d/11rlNum7YpsjzaF0aRqzi3XjedmRLjwX9/view?usp=sharing)
-
-``` r
-# install.packages("devtools")
-install.packages("RoBMA.tar.gz", repos = NULL, type="source")
+install.packages(c("runjags", "bridgesampling", "rjags", "coda", "psych", "extraDistr", "DPQ"))
+install.packages("RoBMA.tar.gz", type = "source", repos = NULL)
 ```
 
 ## Example
