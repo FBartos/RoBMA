@@ -55,47 +55,6 @@ that will be treated as belonging to the null hypothesis.}
 
 \item{study_names}{an optional argument with names of the studies.}
 
-\item{control}{a list of additional arguments for the MCMC algorithm.
-Possible options are:
-\describe{
-\item{autofit}{Whether the models should be refitted until convergence.
-Defaults to \code{FALSE}}
-\item{max_error}{The target MCMC error for the autofit function. The
-argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
-\code{.01}.}
-\item{max_time}{A string specifying the maximum fitting time in case
-of autofit. Defaults to \code{Inf}. Can be specified as a number and
-a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
-’weeks’, or the first letter(s) of each), i.e. \code{"1hr"}.}
-\item{adapt}{A number of iterations used for MCMC adaptation. Defaults
-to \code{1000}.}
-\item{bridge_max_iter}{Maximum number of iterations for the
-\link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
-\item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
-into consideration. Model will be removed from the ensemble if it fails to
-achieve the set MCMC error. Defaults to \code{NULL} - no model will be
-removed based on MCMC error.}
-\item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
-consideration. Model will be removed from the ensemble if it fails to
-achieve the set Rhat. Defaults to \code{NULL} - no model will be removed
-based on Rhat.}
-\item{allow_min_ESS}{Minimum allowed ESS for a model to be taken into
-consideration. Model will be removed from the ensemble if it fails to
-achieve the set ESS. Defaults to \code{NULL} - no model will be removed
-based on ESS.}
-\item{allow_inc_theta}{Whether the diagnostics for theta should be
-included into model removal decision. Defaults to \code{NULL} - only
-'mu', 'tau', and 'omega' estimates will be taken into account.}
-\item{balance_prob}{Whether the prior probability of removed model
-should be redistributed to other models with the same type if possible
-(crossing of effect / heterogeneity / publication bias). Defaults to
-\code{TRUE}.}
-\item{silent}{Whether all fitting messages should be suppressed. Defaults
-to \code{FALSE}. Ideal for getting rid of the "full precision may not have
-been achieved in pnt{final}'" warning that cannot be suppresed in any
-other way.}
-}}
-
 \item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{iter}{a number of sampling iterations of the MCMC algorithm.

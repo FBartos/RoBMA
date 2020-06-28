@@ -93,6 +93,11 @@
 #'   to \code{FALSE}. Ideal for getting rid of the "full precision may not have
 #'   been achieved in pnt{final}'" warning that cannot be suppresed in any
 #'   other way.}
+#'   \item{boost}Whether the likelihood functions implemented using the boost
+#'   C++ library should be used as the first option. The higher precision of
+#'   boost allows to estimate models in difficult cases. Defaults to \code{FALSE}
+#'   - the R distributions are used as default and boost is used only if they fail.
+#'   Warning: the estimation using boost takes about twice as long.}
 #' }
 #' @param save whether all models posterior distributions should be kept
 #' after obtaining a model-averaged result. Defaults to \code{"all"} which
@@ -566,7 +571,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
        priors$omega$distribution == "point")){
 
     # genrate the model syntax
-    model_syntax <- .generate_model_syntax(priors)
+    model_syntax <- .generate_model_syntax(priors, control$boost)
 
 
     # remove unneccessary objects from data to mittigate warnings
@@ -583,7 +588,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(all(class(fit) %in% c("simpleError", "error", "condition"))){
 
       # create a new, data-tuned starting values if there is an outlier that fails the sampling
-      if(grepl("Node inconsistent with parents", fit$message, fixed = TRUE) & any(names(unlist(fit_inits)) %in% c("mu", "inv_mu"))){
+      if(any(names(unlist(fit_inits)) %in% c("mu", "inv_mu"))){
 
         new_mu <- mean(psych::t2d(fit_data$t, fit_data$df))
         if(new_mu < priors$mu$truncation$lower){
@@ -606,6 +611,22 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
 
+      }
+
+      # try boost library (if it wasn't the primary option)
+      if(all(class(fit) %in% c("simpleError", "error", "condition"))){
+        if(!control$boost){
+
+          if(is.null(new_warn)){
+            new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). The model was refitted using boost likelihood function.")
+          }else{
+            new_warn <- c(new_warn, paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data and the model was refitted using boost likelihood function."))
+          }
+
+          model_syntax <- .generate_model_syntax(priors, TRUE)
+          fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
+
+        }
       }
 
     }
@@ -730,7 +751,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(object)
 }
-.generate_model_syntax <- function(priors){
+.generate_model_syntax <- function(priors, boost){
 
   # generate model syntax
   model_syntax <- "model{"
@@ -863,36 +884,36 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     if(priors$tau$distribution == "point"){
       if(priors$tau$parameters$location > 0){
-        model_syntax <- paste0(model_syntax, "t[i] ~ dnt(theta[i]*ncp_mlp[i], 1, df[i])\n")
+        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(theta[i]*ncp_mlp[i], 1, df[i])\n")
       }else{
-        model_syntax <- paste0(model_syntax, "t[i] ~ dnt(mu*ncp_mlp[i], 1, df[i])\n")
+        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(mu*ncp_mlp[i], 1, df[i])\n")
       }
     }else{
-      model_syntax <- paste0(model_syntax, "t[i] ~ dnt(theta[i]*ncp_mlp[i], 1, df[i])\n")
+      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(theta[i]*ncp_mlp[i], 1, df[i])\n")
     }
 
   }else if(priors$omega$distribution == "one.sided"){
 
     if(priors$tau$distribution == "point"){
       if(priors$tau$parameters$location > 0){
-        model_syntax <- paste0(model_syntax, "t[i] ~ dwt_1s(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
+        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
       }else{
-        model_syntax <- paste0(model_syntax, "t[i] ~ dwt_1s(df[i], mu*ncp_mlp[i], crit_t[i,], omega) \n")
+        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], mu*ncp_mlp[i], crit_t[i,], omega) \n")
       }
     }else{
-      model_syntax <- paste0(model_syntax, "t[i] ~ dwt_1s(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
+      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
     }
 
   }else if(priors$omega$distribution == "two.sided"){
 
     if(priors$tau$distribution == "point"){
       if(priors$tau$parameters$location > 0){
-        model_syntax <- paste0(model_syntax, "t[i] ~ dwt_2s(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
+        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
       }else{
-        model_syntax <- paste0(model_syntax, "t[i] ~ dwt_2s(df[i], mu*ncp_mlp[i], crit_t[i,], omega) \n")
+        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], mu*ncp_mlp[i], crit_t[i,], omega) \n")
       }
     }else{
-      model_syntax <- paste0(model_syntax, "t[i] ~ dwt_2s(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
+      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
     }
 
   }
@@ -1833,6 +1854,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     control$balance_prob    <- TRUE
 
     control$silent          <- FALSE
+    control$boost           <- FALSE
 
   }else{
     if(is.null(control[["max_error"]])){
@@ -1868,6 +1890,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(is.null(control[["silent"]])){
       control$silent          <- FALSE
     }
+    if(is.null(control[["boost"]])){
+      control$boost           <- FALSE
+    }
   }
 
   # add the main MCMC settings
@@ -1899,7 +1924,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .check_control         <- function(control){
   # check whether only known controls were supplied
-  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick")
+  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost")
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
   # check whether essential controls were supplied

@@ -58,3 +58,4 @@ Suggests:
     testthat,
     vdiffr
 RdMacros: Rdpack
+LinkingTo: BH
