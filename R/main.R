@@ -607,26 +607,20 @@ update.RoBMA <- function(object, refit_failed = TRUE,
           }
         }
 
-        new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
+        new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
 
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
 
       }
 
       # try boost library (if it wasn't the primary option)
-      if(all(class(fit) %in% c("simpleError", "error", "condition"))){
-        if(!control$boost){
+      if(all(class(fit) %in% c("simpleError", "error", "condition")) & !control$boost){
 
-          if(is.null(new_warn)){
-            new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). The model was refitted using boost likelihood function.")
-          }else{
-            new_warn <- c(new_warn, paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precission of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data and the model was refitted using boost likelihood function."))
-          }
+        new_warn <- c(new_warn, paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). The model was refitted using boost likelihood function."))
 
-          model_syntax <- .generate_model_syntax(priors, TRUE)
-          fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
+        model_syntax <- .generate_model_syntax(priors, TRUE)
+        fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
 
-        }
       }
 
     }
@@ -717,7 +711,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     fit_data        <- .fit_data(object$data, priors)
 
     if(!is.null(object$add_info$seed))set.seed(object$add_info$seed)
-    marg_lik        <- tryCatch(bridgesampling::bridge_sampler(
+    marg_lik        <- tryCatch(suppressWarnings(bridgesampling::bridge_sampler(
       samples       = marglik_samples$samples,
       data          = fit_data,
       log_posterior = .marglik_function,
@@ -725,7 +719,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       lb            = marglik_samples$lb,
       ub            = marglik_samples$ub,
       maxiter       = object$control$bridge_max_iter,
-      silent        = TRUE),
+      silent        = TRUE)),
       error = function(e)return(e))
 
   }else{
@@ -1703,9 +1697,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(length(temp_same) >= 1){
       prior_odds[temp_same] <- prior_odds[temp_same] + prior_odds[i] / length(temp_same)
       prior_odds[i] <- 0
+      object$add_info$warnings <- c(object$add_info$warnings, "Some of the models failed to converge. However, there were other models with the same combination of presence/absence of effect/heterogeneity/publication bias and their prior probability was increased to account for the failed models.")
     }else{
       prior_odds[i] <- 0
-      warning("Prior probability couldn't be balanced over models with same combination of presence/absence of effect/heterogeneity/publication bias since they don't exist.")
+      object$add_info$warnings <- c(object$add_info$warnings, "Some of the models failed to converge and their prior probability couldn't be balanced over models with the same combination of presence/absence of effect/heterogeneity/publication bias since they don't exist.")
     }
   }
 
