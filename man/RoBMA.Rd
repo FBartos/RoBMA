@@ -104,6 +104,52 @@ Defaults to \code{5000}.}
 \item{thin}{a thinning of the chains of the MCMC algorithm. Defaults to
 \code{1}.}
 
+\item{control}{a list of additional arguments for the MCMC algorithm.
+Possible options are:
+\describe{
+\item{autofit}{Whether the models should be refitted until convergence.
+Defaults to \code{FALSE}}
+\item{max_error}{The target MCMC error for the autofit function. The
+argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
+\code{.01}.}
+\item{max_time}{A string specifying the maximum fitting time in case
+of autofit. Defaults to \code{Inf}. Can be specified as a number and
+a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
+’weeks’, or the first letter(s) of each), i.e. \code{"1hr"}.}
+\item{adapt}{A number of iterations used for MCMC adaptation. Defaults
+to \code{1000}.}
+\item{bridge_max_iter}{Maximum number of iterations for the
+\link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
+\item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
+into consideration. Model will be removed from the ensemble if it fails to
+achieve the set MCMC error. Defaults to \code{NULL} - no model will be
+removed based on MCMC error.}
+\item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
+consideration. Model will be removed from the ensemble if it fails to
+achieve the set Rhat. Defaults to \code{NULL} - no model will be removed
+based on Rhat.}
+\item{allow_min_ESS}{Minimum allowed ESS for a model to be taken into
+consideration. Model will be removed from the ensemble if it fails to
+achieve the set ESS. Defaults to \code{NULL} - no model will be removed
+based on ESS.}
+\item{allow_inc_theta}{Whether the diagnostics for theta should be
+included into model removal decision. Defaults to \code{NULL} - only
+'mu', 'tau', and 'omega' estimates will be taken into account.}
+\item{balance_prob}{Whether the prior probability of removed model
+should be redistributed to other models with the same type if possible
+(crossing of effect / heterogeneity / publication bias). Defaults to
+\code{TRUE}.}
+\item{silent}{Whether all fitting messages should be suppressed. Defaults
+to \code{FALSE}. Ideal for getting rid of the "full precision may not have
+been achieved in pnt{final}'" warning that cannot be suppresed in any
+other way.}
+\item{boost}{Whether the likelihood functions implemented using the boost
+C++ library should be used as the first option. The higher precision of
+boost allows to estimate models in difficult cases. Defaults to \code{FALSE}.
+The R distributions are used as default and boost is used only if they fail.
+Warning: the estimation using boost takes about twice as long.}
+}}
+
 \item{save}{whether all models posterior distributions should be kept
 after obtaining a model-averaged result. Defaults to \code{"all"} which
 does not remove anything. Set to \code{"min"} to significantly reduce

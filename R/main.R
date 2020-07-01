@@ -93,10 +93,10 @@
 #'   to \code{FALSE}. Ideal for getting rid of the "full precision may not have
 #'   been achieved in pnt{final}'" warning that cannot be suppresed in any
 #'   other way.}
-#'   \item{boost}Whether the likelihood functions implemented using the boost
+#'   \item{boost}{Whether the likelihood functions implemented using the boost
 #'   C++ library should be used as the first option. The higher precision of
-#'   boost allows to estimate models in difficult cases. Defaults to \code{FALSE}
-#'   - the R distributions are used as default and boost is used only if they fail.
+#'   boost allows to estimate models in difficult cases. Defaults to \code{FALSE}.
+#'   The R distributions are used as default and boost is used only if they fail.
 #'   Warning: the estimation using boost takes about twice as long.}
 #' }
 #' @param save whether all models posterior distributions should be kept

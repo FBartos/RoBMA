@@ -458,7 +458,12 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
           col = "grey80", border = NA
         )
       }
-      graphics::lines(plot_data$df[[i]]$x, plot_data$df[[i]]$y, lwd = 2)
+
+      if(x$distribution == "point"){
+        graphics::arrows(x0 = plot_data$df[[i]]$x[1], y0 = plot_data$df[[i]]$y[1], y1 = plot_data$df[[i]]$y[2], lwd = 3, lty = 1)
+      }else{
+        graphics::lines(plot_data$df[[i]]$x, plot_data$df[[i]]$y, lwd = 2)
+      }
 
 
       plots <- NULL
@@ -480,7 +485,20 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
         )
       }
 
-      temp_plot <- temp_plot + ggplot2::geom_line(ggplot2::aes_string(x = "x", y = "y"), size = 1.25)
+
+      if(x$distribution == "point"){
+        temp_plot <- temp_plot + ggplot2::geom_segment(
+          data = data.frame(
+            x       = plot_data$df[[i]]$x[1],
+            y_start = plot_data$df[[i]]$y[1],
+            y_end   = plot_data$df[[i]]$y[2]),
+          ggplot2::aes_string(x = "x", xend = "x", y = "y_start", yend = "y_end"),
+          arrow = ggplot2::arrow(length = ggplot2::unit(0.5, "cm")),
+          color = "black", size = 1.25)
+      }else{
+        temp_plot <- temp_plot + ggplot2::geom_line(ggplot2::aes_string(x = "x", y = "y"), size = 1.25)
+      }
+
 
       if((x$distribution %in% c("two.sided", "one.sided") | par_name == "omega") & !weights){
         temp_plot <- temp_plot + ggplot2::scale_x_continuous(
