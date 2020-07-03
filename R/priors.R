@@ -363,7 +363,10 @@ print.RoBMA.prior <- function(x, ...){
 
   if(plot){
     if(!x$distribution %in% c("point","one.sided","two.sided","uniform")){
-      output <- bquote(italic(.(name))*.(paste0("(",paste(parameters, collapse = ", "),")"))[~"["~.(x$truncation$lower)*", "*.(x$truncation$upper)~"]"])
+
+      output <- bquote(italic(.(name))*.(paste0("(",paste(parameters, collapse = ", "),")"))[~"["~
+                      .(if(is.infinite(x$truncation$lower)){bquote(-infinity)}else{x$truncation$lower})*", "*
+                      .(if(is.infinite(x$truncation$upper)){bquote( infinity)}else{x$truncation$upper})~"]"])
     }else{
       output <- bquote(italic(.(name))*.(paste0("(",paste(parameters, collapse = ", "),")")))
     }
@@ -371,7 +374,7 @@ print.RoBMA.prior <- function(x, ...){
   }else{
     output <- paste0(name,"(",paste(parameters, collapse = ", "),")")
     if(!x$distribution %in% c("point","one.sided","two.sided","uniform")){
-      output <- paste0(output, "[", x$truncation$lower, ", ", x$truncation$upper, "]")
+      output <- paste0(output, "[",x$truncation$lower, ", ",x$truncation$upper, "]")
     }
   }
 
