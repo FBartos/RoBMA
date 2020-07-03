@@ -555,9 +555,12 @@ print.summary.RoBMA <- function(x, ...){
     for(i in 1:length(overview)){
 
       cat(paste0("Model: ", i, "\n"))
-      cat(paste0("Prior prob.:\t",         overview[[i]]$prior_prob,     "\t\t","Prior mu:\t",print(overview[[i]]$priors$mu, silent = T),"\n"))
-      cat(paste0("log(MargLik):\t",        overview[[i]]$marg_lik,       "\t\t","Prior tau:\t",print(overview[[i]]$priors$tau, silent = T),"\n"))
-      cat(paste0("Post. prob.:\t",         overview[[i]]$posterior_prob, "\t\t","Prior omega:\t",print(overview[[i]]$priors$omega, silent = T),"\n"))
+      cat(paste0("Prior prob.:\t",         overview[[i]]$prior_prob,     "\t\t",
+                                              "Prior mu:\t",print(overview[[i]]$priors$mu, silent = T),"\n"))
+      cat(paste0("log(MargLik):\t",        overview[[i]]$marg_lik,       ifelse(nchar(as.character(overview[[i]]$marg_lik)) < 8, "\t\t", "\t"),
+                                              "Prior tau:\t",print(overview[[i]]$priors$tau, silent = T),"\n"))
+      cat(paste0("Post. prob.:\t",        overview[[i]]$posterior_prob, "\t\t",
+                                              "Prior omega:\t",print(overview[[i]]$priors$omega, silent = T),"\n"))
       cat(paste0(x$add_info$BF_type,":\t", overview[[i]]$BF,        "\t\t","\n"))
 
       cat("\nModel Coefficients:\n")

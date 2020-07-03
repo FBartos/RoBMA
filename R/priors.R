@@ -288,6 +288,8 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
 #'   \item{silent}{to silently return the print message.}
 #'   \item{plot}{to return \link[base]{bquote} formatted
 #'   prior name for plotting.}
+#'   \item{digits_estimates}{number of decimals to be displayed
+#'   for printed parameters.}
 #'  }
 #' @export  print.RoBMA.prior
 #' @rawNamespace S3method(print, RoBMA.prior)
@@ -295,9 +297,20 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
 print.RoBMA.prior <- function(x, ...){
 
   dots <- list(...)
-  silent <- if(is.null(dots$silent)) FALSE else as.logical(dots$silent)
-  plot   <- if(is.null(dots$plot))   FALSE else as.logical(dots$plot)
+  silent            <- if(is.null(dots$silent))            FALSE else as.logical(dots$silent)
+  plot              <- if(is.null(dots$plot))              FALSE else as.logical(dots$plot)
+  digits_estimates  <- if(is.null(dots$digits_estimates))  2     else as.numeric(dots$digits_estimates)
   if(plot)silent <- TRUE
+
+
+  # round the parameters and truncation for printing
+  for(i in seq_along(x$parameters)){
+    x$parameters[[i]] <- round(x$parameters[[i]], digits_estimates)
+  }
+  for(i in seq_along(x$truncation)){
+    x$truncation[[i]] <- round(x$truncation[[i]], digits_estimates)
+  }
+
 
   name <- switch(x$distribution,
                  "normal"    = "Normal",

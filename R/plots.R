@@ -42,7 +42,7 @@
 #' \code{c("ascending", "prob")}, or marginal likelihood
 #' \code{c("descending", "marglik")}
 #' by marginal likelihood.
-#' @param digits_estimates number of decimals to be displays for
+#' @param digits_estimates number of decimals to be displayed for
 #' \code{parameter = "theta"}, \code{parameter = "forest"}, and
 #' \code{type = "individual"} plot.
 #' @param show_figures which figures should be returned in case when
