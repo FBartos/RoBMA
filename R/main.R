@@ -1567,7 +1567,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       # theta
       if(!is.null(weights$mu[i])){
         samples$theta <- rbind(samples$theta,
-                               if(mm_tau[[i]]){
+                               if(mm_mu[[i]]){
                                  if(models[[i]]$priors$tau$distribution == "point"){
                                    if(models[[i]]$priors$tau$parameter$location == 0){
                                      if(models[[i]]$priors$mu$distribution == "point"){
