@@ -1573,7 +1573,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
                                      if(models[[i]]$priors$mu$distribution == "point"){
                                        matrix(models[[i]]$priors$mu$parameter$location, ncol = data$K, nrow = round(n_samples * weights$mu[i]))
                                      }else{
-                                       matrix(model_samples[sample(nrow(model_samples), round(n_samples * weights$tau[i]), replace = TRUE),"mu"], ncol = data$K, nrow = round(n_samples * weights$mu[i]))
+                                       matrix(model_samples[sample(nrow(model_samples), round(n_samples * weights$mu[i]), replace = TRUE),"mu"], ncol = data$K, nrow = round(n_samples * weights$mu[i]))
                                      }
                                    }else{
                                      model_samples[sample(nrow(model_samples), round(n_samples * weights$mu[i]), replace = TRUE), paste0("theta[",1:data$K,"]")]
