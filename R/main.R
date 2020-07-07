@@ -11,15 +11,20 @@
 #' @param r a vector of effect sizes measured as correlations.
 #' @param y a vector of unspecified effect sizes.
 #' @param se a vector of standard errors of the effect sizes.
+#' @param OR a vector of odds ratios.
 #' @param n a vector of overall sample sizes.
 #' @param n1 a vector of sample sizes for first group.
 #' @param n2 a vector of sample sizes for second group.
+#' @param lCI a vector of lower bounds of confidence intervals.
+#' @param uCI a vector of upper bounds of confidence intervals.
 #' @param test_type a type of test used in the original studies. Options
 #' are \code{"two.sample"} (default) and \code{"one.sample"}. Only available
 #' if \code{d} is supplied.
 #' @param mu_transform transformation to be applied to the supplied
-#' effect sizes before fitting the individual models. Defaults to
-#' \code{"cohens_d"} for correlations (another options \code{"fishers_z"}).
+#' effect sizes before fitting the individual models. Only available if
+#' correlations or odds ratios are supplied as input. Defaults to
+#' \code{"cohens_d"} for correlations (another options is \code{"fishers_z"})
+#' and \code{"log_OR"} for odds ratios (another options is \code{"cohens_d"}).
 #' Note that priors are specified on the transformed scale and
 #' estimates are transformed back (apart from tau).
 #' @param study_names an optional argument with names of the studies.
@@ -123,7 +128,7 @@
 #'
 #' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
 #'
-#' @examples \donttest{
+#' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
 #' # (note that the model can take a while to fit)
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
@@ -171,9 +176,9 @@
 #' }
 #' @export RoBMA
 #' @seealso [summary.RoBMA()], [update.RoBMA()], [prior()], [check_setup()]
-RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n1 = NULL, n2 = NULL,
+RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, n = NULL, n1 = NULL, n2 = NULL, lCI = NULL, uCI = NULL,
                   test_type = "two.sample", study_names = NULL,
-                  mu_transform  = if(!is.null(r)) "cohens_d" else NULL,
+                  mu_transform  = if(!is.null(r)) "cohens_d" else if (!is.null(OR)) "log_OR" else NULL,
                   priors_mu    = prior(distribution = "normal",   parameters = list(mean = 0, sd = 1)),
                   priors_tau   = prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15)),
                   priors_omega = list(
@@ -192,7 +197,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
 
   ### prepare & check the data
-  object$data <- .prepare_data(t, d, r, y, se, n, n1, n2, test_type, mu_transform)
+  object$data <- .prepare_data(t, d, r, y, OR, se, n, n1, n2, lCI, uCI, test_type, mu_transform)
   study_names <- .get_study_names(study_names, n_studies = length(object$data$t))
 
 
@@ -212,12 +217,15 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
     d            = d,
     r            = r,
     y            = y,
+    OR           = OR,
     n            = n,
     n1           = n1,
     n2           = n2,
     se           = se,
+    lCI          = lCI,
+    uCI          = uCI,
     effect_size  = object$data$effect_size,
-    mu_transform = if(object$data$effect_size == "r")mu_transform,
+    mu_transform = if(object$data$effect_size %in% c("r","OR"))mu_transform,
     test_type    = test_type,
     study_names  = as.character(study_names),
     seed         = seed,
@@ -246,7 +254,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 
 
     ### compute the model-space results
-    object$RoBMA         <- .model_inference(object$models, object$data, object$add_info$converged, ifelse(!is.null(object$add_info$r), object$add_info$mu_transform, FALSE), object$add_info$seed)
+    object$RoBMA         <- .model_inference(object)
     object$coefficients  <- .compute_coeficients(object$RoBMA)
   }
 
@@ -312,7 +320,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, se = NULL, n = NULL, n
 #' @details See [RoBMA()] for more details.
 #'
 #' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
-#' @examples \donttest{
+#' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
 #' # (note that the model can take a while to fit)
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
@@ -425,7 +433,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
     ### compute the model-space results
-    object$RoBMA         <- .model_inference(object$models, object$data, object$add_info$converged, ifelse(!is.null(object$add_info$r), object$add_info$mu_transform, FALSE), object$add_info$seed)
+    object$RoBMA         <- .model_inference(object)
     object$coefficients  <- .compute_coeficients(object$RoBMA)
   }
 
@@ -447,38 +455,55 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
 ### data preparation
-.prepare_data          <- function(t, d, r, y, se, n, n1, n2, test_type, mu_transform){
+.prepare_data          <- function(t, d, r, y, OR, se, n, n1, n2, lCI, uCI, test_type, mu_transform){
 
   data <- list()
 
   # some general input checks
-  if(sum(c(!is.null(t), !is.null(d), !is.null(r), !is.null(y))) != 1)stop("One effect size measure needs to be specified.")
-  if(is.null(r) & !is.null(mu_transform))stop("'mu_transform' is available only if correlations are supplied as input.")
-  if(!is.null(r))if(!mu_transform %in% c("cohens_d","fishers_z"))stop("'mu_transform' must be either 'cohens_d' or 'fishers_z'")
+  if(sum(c(!is.null(t), !is.null(d), !is.null(r), !is.null(y), !is.null(OR))) != 1)stop("One effect size measure needs to be specified.")
+  if((is.null(r) & is.null(OR)) & !is.null(mu_transform))stop("'mu_transform' is available only if correlations or odds ratios are supplied as input.")
+  if(!is.null(r))if(!mu_transform %in% c("cohens_d","fishers_z"))stop("'mu_transform' must be either 'cohens_d' or 'fishers_z' for correlations.")
+  if(!is.null(OR))if(!mu_transform %in% c("cohens_d","log_OR"))stop("'mu_transform' must be either 'log_OR' or 'cohens_d' for odds ratios")
   if(!is.null(test_type))if(!test_type %in% c("one.sample","two.sample"))stop("'test_type' must be either 'one.sample' or 'two.sample'.")
+  if((!is.null(lCI) & is.null(uCI)) | is.null(lCI) & !is.null(uCI))stop("Both bounds of the confidence intervals 'lCI' and 'uCI' needs to be supplied together.")
+
 
   # check for NA or Inf
-  if(!is.null(t))if(any(is.na(t))   | any(is.infinite(t)))stop("NAs or Inf are not allowed in 't'.")
-  if(!is.null(d))if(any(is.na(d))   | any(is.infinite(d)))stop("NAs or Inf are not allowed in 'd'.")
-  if(!is.null(r))if(any(is.na(r))   | any(is.infinite(r)))stop("NAs or Inf are not allowed in 'r'.")
-  if(!is.null(y))if(any(is.na(y))   | any(is.infinite(y)))stop("NAs or Inf are not allowed in 'y'.")
-  if(!is.null(se))if(any(is.na(se)) | any(is.infinite(se)))stop("NAs or Inf are not allowed in 'se'.")
-  if(!is.null(n))if(any(is.na(n))   | any(is.infinite(n)))stop("NAs or Inf are not allowed in 'n'.")
-  if(!is.null(n1))if(any(is.na(n1)) | any(is.infinite(n1)))stop("NAs or Inf are not allowed in 'n1'.")
-  if(!is.null(n2))if(any(is.na(n2)) | any(is.infinite(n2)))stop("NAs or Inf are not allowed in 'n2'.")
+  if(!is.null(t))if(any(is.na(t))     | any(is.infinite(t)))stop("NAs or Inf are not allowed in 't'.")
+  if(!is.null(d))if(any(is.na(d))     | any(is.infinite(d)))stop("NAs or Inf are not allowed in 'd'.")
+  if(!is.null(r))if(any(is.na(r))     | any(is.infinite(r)))stop("NAs or Inf are not allowed in 'r'.")
+  if(!is.null(y))if(any(is.na(y))     | any(is.infinite(y)))stop("NAs or Inf are not allowed in 'y'.")
+  if(!is.null(OR))if(any(is.na(OR))   | any(is.infinite(OR)))stop("NAs or Inf are not allowed in 'y'.")
+  if(!is.null(se))if(any(is.na(se))   | any(is.infinite(se)))stop("NAs or Inf are not allowed in 'se'.")
+  if(!is.null(n))if(any(is.na(n))     | any(is.infinite(n)))stop("NAs or Inf are not allowed in 'n'.")
+  if(!is.null(n1))if(any(is.na(n1))   | any(is.infinite(n1)))stop("NAs or Inf are not allowed in 'n1'.")
+  if(!is.null(n2))if(any(is.na(n2))   | any(is.infinite(n2)))stop("NAs or Inf are not allowed in 'n2'.")
+  if(!is.null(lCI))if(any(is.na(lCI)) | any(is.infinite(lCI)))stop("NAs or Inf are not allowed in 'lCI'.")
+  if(!is.null(uCI))if(any(is.na(uCI)) | any(is.infinite(uCI)))stop("NAs or Inf are not allowed in 'uCI'.")
+
+  # check formating
+  if(!is.null(t))if(!is.numeric(t)     | !is.vector(t))stop("'t' must be a numeric vector.")
+  if(!is.null(d))if(!is.numeric(d)     | !is.vector(d))stop("'d' must be a numeric vector.")
+  if(!is.null(r))if(!is.numeric(r)     | !is.vector(r))stop("'r' must be a numeric vector.")
+  if(!is.null(y))if(!is.numeric(y)     | !is.vector(y))stop("'y' must be a numeric vector.")
+  if(!is.null(OR))if(!is.numeric(OR)   | !is.vector(OR))stop("'OR' must be a numeric vector.")
+  if(!is.null(se))if(!is.numeric(se)   | !is.vector(se))stop("'se' must be a numeric vector.")
+  if(!is.null(n))if(!is.numeric(n)     | !is.vector(n))stop("'n' must be a numeric vector.")
+  if(!is.null(n1))if(!is.numeric(n1)   | !is.vector(n1))stop("'n1' must be a numeric vector.")
+  if(!is.null(n2))if(!is.numeric(n2)   | !is.vector(n2))stop("'n2' must be a numeric vector.")
+  if(!is.null(lCI))if(!is.numeric(uCI) | !is.vector(uCI))stop("'uCI' must be a numeric vector.")
+  if(!is.null(uCI))if(!is.numeric(lCI) | !is.vector(lCI))stop("'lCI' must be a numeric vector.")
+
+  # some logical checks
+  if(!is.null(r))if(!(all(r > -1) & all(r < 1)))stop("The correlation coefficients 'r' must be in range (-1, 1).")
+  if(!is.null(n))if(!all(n > 1))stop("The sample sizes 'n' must be positive.")
+  if(!is.null(n1))if(!all(n1 > 0))stop("The sample sizes 'n1' must be positive.")
+  if(!is.null(n2))if(!all(n2 > 0))stop("The sample sizes 'n2' must be positive.")
+  if(!is.null(se))if(!all(se > 0))stop("The standard errors 'se' must be positive.")
+  if(!is.null(lCI) & !is.null(uCI))if(!all(uCI - lCI > 0))stop("The upper confidence intervals bounds 'uCI' must be higher than the lower confidence interval 'lCI' bounds.")
 
 
-  if((!is.null(t) | !is.null(d)) & ( !is.null(n) | (!is.null(n1) & !is.null(n2)) | !is.null(se) ) ){
-    # for either t-statistics or Cohen's d and a sample size
-    if(!is.null(t))if(!is.numeric(t)  & !is.vector(t))stop("'t' must be a numeric vector.")
-    if(!is.null(d))if(!is.numeric(d)  & !is.vector(d))stop("'d' must be a numeric vector.")
-    if(!is.null(n))if(!is.numeric(n)  & !is.vector(n))stop("'n' must be a numeric vector.")
-    if(!is.null(n1))if(!is.numeric(n1) & !is.vector(n1))stop("'n1' must be a numeric vector.")
-    if(!is.null(n2))if(!is.numeric(n2) & !is.vector(n2))stop("'n2' must be a numeric vector.")
-    if(!is.null(n))if(!all(n > 1))stop("The sample sizes 'n' must be positive.")
-    if(!is.null(n1))if(!all(n1 > 0))stop("The sample sizes 'n1' must be positive.")
-    if(!is.null(n2))if(!all(n2 > 0))stop("The sample sizes 'n2' must be positive.")
-    if(!is.null(se))if(!all(se > 0))stop("The standard errors 'se' must be positive.")
+  if((!is.null(t) | !is.null(d)) & ( !is.null(n) | (!is.null(n1) & !is.null(n2)) | !is.null(se) |  (!is.null(lCI) & !is.null(uCI))) ){
 
     # obtain test statistics and the ncp multiplactors
     if(!is.null(n)){
@@ -495,7 +520,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       if(is.null(t))t <- psych::d2t(d = d, n1 = n1, n2 = n2)
       data$ncp_mlp    <- 1/sqrt(1/n1 + 1/n2)
       data$df         <- n1 + n2 - ifelse(test_type == "two.sample", 2, 1)
-    }else if(!is.null(se)){
+    }else if(!is.null(se) | (!is.null(lCI) & !is.null(uCI))){
+      if(!is.null(lCI) & !is.null(uCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
       n               <- .get_n_for_d(d, se)
       if(is.null(t))t <- d/se
       data$df         <- n - 2
@@ -507,40 +533,58 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     data$effect_size <- "d"
 
-  }else if(!is.null(r) & !is.null(n)){
+  }else if(!is.null(r) & ((!is.null(n)) | (!is.null(lCI) & !is.null(uCI)))){
 
-    # using correlation and sample sizes
-    if(!is.numeric(r) & !is.vector(r))stop("'r' must be a numeric vector.")
-    if(!is.numeric(n) & !is.vector(n))stop("'n' must be a numeric vector.")
-    if(!all(n > 1))stop("The sample sizes 'n' must be positive.")
-    if(!(all(r > -1) & all(r < 1)))stop("The correlation coefficients 'r' must be in range (-1, 1).")
+    if(!is.null(r) & !is.null(n)){
+      if(mu_transform == "cohens_d"){
 
-    if(mu_transform == "cohens_d"){
+        # convert to cohen's d and compute it's test statistic
+        # using n-2 leads to the actual t-statistic corresponding to the cor.test
+        data$t       <- psych::d2t(psych::r2d(r), n = n-2)
+        data$ncp_mlp <- sqrt(n-2)/2
+        data$df      <- n - 2
+        data$K       <- length(n)
 
-      # convert to cohen's d and compute it's test statistic
-      # using n-2 leads to the actual t-statistic corresponding to the cor.test
-      data$t       <- psych::d2t(psych::r2d(r), n = n-2)
-      data$ncp_mlp <- sqrt(n-2)/2
-      data$df      <- n - 2
-      data$K       <- length(n)
+      }else if(mu_transform == "fishers_z"){
 
-    }else if(mu_transform == "fishers_z"){
+        # convert to fisher's z and compute it's test statistic
+        data$t       <- psych::fisherz(r) / (1/sqrt(n-3))
+        data$ncp_mlp <- sqrt(n-3)
+        data$df      <- n - 2
+        data$K       <- length(n)
 
-      # convert to fisher's z and compute it's test statistic
-      data$t       <- psych::fisherz(r) / (1/sqrt(n-3))
-      data$ncp_mlp <- sqrt(n-3)
-      data$df      <- n - 2
-      data$K       <- length(n)
+      }
+    }else if(!is.null(r) & !is.null(lCI) & !is.null(uCI)){
+      if(mu_transform == "cohens_d"){
 
+        # convert to cohen's d and se
+        d               <- psych::r2d(r)
+        se              <- (psych::r2d(uCI) - psych::r2d(lCI))/(2*stats::qnorm(.975))
+        n               <- .get_n_for_d(d, se)
+        if(is.null(t))t <- d/se
+        data$df         <- n - 2
+        data$ncp_mlp    <- sqrt(n)/2
+        data$K          <- length(n)
+
+      }else if(mu_transform == "fishers_z"){
+
+        # convert to fisher's z and compute it's test statistic
+        d               <- psych::r2d(r)
+        se              <- (psych::r2d(uCI) - psych::r2d(lCI))/(2*stats::qnorm(.975))
+        n               <- .get_n_for_d(d, se)
+        data$t          <- psych::fisherz(r) / (1/sqrt(n-3))
+        data$ncp_mlp    <- sqrt(n-3)
+        data$df         <- n - 2
+        data$K          <- length(n)
+
+      }
     }
+
     data$effect_size <- "r"
 
-  }else if(!is.null(y) & !is.null(se)){
-    # for an effect sizes and standard errors
-    if(is.numeric(y)  & !is.vector(y))stop("'y' must be a numeric vector.")
-    if(is.numeric(se) & !is.vector(se))stop("'se' must be a numeric vector.")
-    if(!all(se > 0))stop("The standard errors 'se' must be positive.")
+  }else if(!is.null(y) & (!is.null(se) | (!is.null(lCI) & !is.null(uCI)))){
 
+    if(!is.null(lCI) & !is.null(uCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
     # convert to z-statistics (and treat as t-statistics with df = Inf followingly)
     data$K       <- length(y)
     data$t       <- y / se
@@ -549,8 +593,33 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     data$effect_size <- "y"
 
+  }else if(!is.null(OR) & !is.null(lCI) & !is.null(uCI)){
+
+    if(mu_transform == "log_OR"){
+
+      se               <- (log(uCI) - log(lCI))/(2*stats::qnorm(.975))
+      data$t           <- log(OR)/se
+      data$df          <- rep(999999, length(OR))
+      data$ncp_mlp     <- 1/se
+      data$K           <- length(OR)
+
+    }else if(mu_transform == "cohens_d"){
+      # transform to Cohen's d
+      # https://www.meta-analysis.com/downloads/Meta-analysis%20Converting%20among%20effect%20sizes.pdf
+      d                <- log(OR) * (sqrt(3)/pi)
+      se               <- (log(uCI) * (sqrt(3)/pi) - log(lCI) * (sqrt(3)/pi))/(2*stats::qnorm(.975))
+      n                <- .get_n_for_d(d, se)
+      data$t           <- d/se
+      data$df          <- n - 2
+      data$ncp_mlp     <- sqrt(n)/2
+      data$K           <- length(OR)
+    }
+
+
+    data$effect_size <- "OR"
+
   }else{
-    stop("Insufficient input provided. Specify either the 't' / 'sd' and 'n' / 'n1' & 'n2' / 'se', or, 'r' and 'n', or 'y' and 'se'.")
+    stop("Insufficient input provided. Specify either the 't' / 'd' and 'n' / 'n1' & 'n2' / 'se' / 'lCI' & 'uCI', or, 'r' and 'n' / 'lCI' & 'uCI', or 'y' and 'se' / 'lCI' & 'uCU', or 'OR' and 'lCI' & 'uCI'.")
   }
 
 
@@ -1371,7 +1440,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
 ### model inference functions
-.model_inference       <- function(models, data, converged, mu_transform, seed, n_samples = 10000){
+.model_inference       <- function(object, n_samples = 10000){
+
+  models    <- object$models
+  data      <- object$data
+  add_info  <- object$add_info
+  converged <- object$add_info$converged
+  seed      <- object$add_info$seed
 
   # extract marginal likelihoods
   marg_liks <- sapply(models, function(x)x$marg_lik$logml)
@@ -1423,8 +1498,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   ### sample and mix the individual posteriors
   if(!is.null(seed))set.seed(seed)
   samples <- NULL
-  samples$averaged    <- .mix_samples(models, weights_all, data, converged, mu_transform, n_samples)
-  samples$conditional <- .mix_samples(models, list(mu = weights_mu, tau = weights_tau, omega = weights_omega), data, converged, mu_transform, n_samples)
+  samples$averaged    <- .mix_samples(models, weights_all, data, converged, add_info, n_samples)
+  samples$conditional <- .mix_samples(models, list(mu = weights_mu, tau = weights_tau, omega = weights_omega), data, converged, add_info, n_samples)
 
 
   ### edit names
@@ -1451,7 +1526,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   )
   return(output)
 }
-.mix_samples           <- function(models, weights, data, converged, mu_transform, n_samples){
+.mix_samples           <- function(models, weights, data, converged, add_info, n_samples){
 
   # metadata about model type
   mm_mu     <- sapply(models, function(m)!.is_parameter_null(m$priors, "mu"))
@@ -1604,14 +1679,23 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # convert the transformed correlations back if needed
-  if(!isFALSE(mu_transform)){
-    if(mu_transform == "cohens_d"){
+  if(add_info$effect_size == "r"){
+    if(add_info$mu_transform == "cohens_d"){
       samples$mu    <- psych::d2r(samples$mu)
       samples$theta <- psych::d2r(samples$theta)
-    }else if(mu_transform == "fishers_z"){
+    }else if(add_info$mu_transform == "fishers_z"){
       samples$mu    <- psych::fisherz2r(samples$mu)
       samples$theta <- psych::fisherz2r(samples$theta)
     }
+  }else if(add_info$effect_size == "OR"){
+    if(add_info$mu_transform == "log_OR"){
+      samples$mu    <- exp(samples$mu)
+      samples$theta <- exp(samples$theta)
+    }else if(add_info$mu_transform == "cohens_d"){
+      samples$mu    <- .d2OR(samples$mu)
+      samples$theta <- .d2OR(samples$theta)
+    }
+
   }
 
   # fix omega names
@@ -2077,17 +2161,23 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   d  <- add_info$d
   r  <- add_info$r
   y  <- add_info$y
+  OR <- add_info$OR
   n  <- add_info$n
   n1 <- add_info$n1
   n2 <- add_info$n2
   se <- add_info$se
+  lCI<- add_info$lCI
+  uCI<- add_info$uCI
   effect_size <- add_info$effect_size
   test_type   <- add_info$test_type
   study_names <- add_info$study_names
 
   # compute the mean and CI
   if(effect_size == "d"){
-    if(is.null(n))n <- .get_n_for_d(d, se)
+
+    if(!is.null(uCI) & !is.null(lCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
+    if(is.null(n) & !is.null(d) & !is.null(se))n <- .get_n_for_d(d, se)
+
     if(test_type == "one.sample"){
       out <- psych::d.ci(psych::t2d(t = t, n1 = n), n1 = n, alpha = 1 - CI)
     }else if(test_type == "two.sample"){
@@ -2098,10 +2188,25 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       }
     }
   }else if(effect_size == "r"){
-    out <- matrix(suppressWarnings(psych::r.con(r = r, n = n, p = CI, twotailed = TRUE)), ncol = 2)
-    out <- cbind(out[,1], r, out[,2])
+
+    if(!is.null(uCI) & !is.null(lCI)){
+      out <- cbind(lCI, r, uCI)
+    }else{
+      out <- matrix(suppressWarnings(psych::r.con(r = r, n = n, p = CI, twotailed = TRUE)), ncol = 2)
+      out <- cbind(out[,1], r, out[,2])
+    }
+
   }else if(effect_size == "y"){
-    out <- cbind(y + stats::qnorm((1-CI)/2) * se, y, y - stats::qnorm((1-CI)/2) * se)
+
+    if(!is.null(uCI) & !is.null(lCI)){
+      out <- cbind(lCI, y, uCI)
+    }else{
+      out <- cbind(y + stats::qnorm((1-CI)/2) * se, y, y - stats::qnorm((1-CI)/2) * se)
+    }
+  }else if(effect_size == "OR"){
+
+    out <- cbind(lCI, OR, uCI)
+
   }
 
   if(is.null(study_names))study_names <- paste0("Study ", 1:nrow(out))
@@ -2118,4 +2223,24 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(study_names)
 
+}
+.d2OR              <- function(d)exp(d*pi/sqrt(3))
+.transform         <- function(x, effect_size, mu_transform){
+  if(!is.null(effect_size)){
+    if(effect_size == "r"){
+      if(mu_transform == "cohens_d"){
+        x   <- psych::d2r(x)
+      }else if(mu_transform == "fishers_z"){
+        x   <- psych::fisherz2r(x)
+        x[is.nan(x)] <- ifelse(x[is.nan(x)] > 0, 1, -1)
+      }
+    }else if(effect_size == "OR"){
+      if(mu_transform == "log_OR"){
+        x   <- exp(x)
+      }else if(mu_transform == "cohens_d"){
+        x   <- .d2OR(x)
+      }
+    }
+  }
+  return(x)
 }

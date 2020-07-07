@@ -70,7 +70,7 @@ sets the model priors odds to the product of its prior distributions.}
 a RoBMA model. The prior can be visualized by a \code{plot} function.
 }
 \examples{
-\donttest{
+\dontrun{
 # create a standart normal prior distribution
 p1 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1))
 

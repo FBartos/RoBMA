@@ -53,7 +53,7 @@
 #' distributions for each of the model parameters (mu, tau, omega), and
 #' sets the model priors odds to the product of its prior distributions.
 #'
-#' @examples \donttest{
+#' @examples \dontrun{
 #' # create a standart normal prior distribution
 #' p1 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1))
 #'
@@ -390,12 +390,17 @@ print.RoBMA.prior <- function(x, ...){
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot2"} for plotting. The later
 #' requires \pkg{ggplot2} package to be installed.
+#' @param effect_size what type of effect size is supposed to
+#' be plotted. Only relevant if the mu parameter needs to be
+#' transformed (\code{"r"} for correlation coefficients or \code{"OR"}
+#' for odds ratios).
 #' @param mu_transform whether and how should the prior distribution
 #' be transformed. If the prior distribution is constructed for
-#' effect sizes supplied as correlations, the prior for mu paraparameter
+#' effect sizes supplied as correlations, the prior for mu parameter
 #' is not defined on the correlation scale directly, but transformed into
-#' it. Only possible if the \code{par_name = "mu"}. Defaults to
-#' \code{NULL}. Other options are \code{"cohens_d"} and \code{"fishers_z"}.
+#' it. Only possible if the \code{effect_size == "r", par_name = "mu"}.
+#' Defaults to \code{NULL}. Other options are \code{"cohens_d"} and
+#' \code{"fishers_z"}.
 #' @param weights whether the weights or weight function should
 #' be returned. Only applicable for priors on the omega parameter.
 #' Defaults to \code{FALSE} - the weight function is plotted.
@@ -414,8 +419,8 @@ print.RoBMA.prior <- function(x, ...){
 #' @export  plot.RoBMA.prior
 #' @rawNamespace S3method(plot, RoBMA.prior)
 #' @seealso [prior()]
-plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
-                             show_figures = -1, weights = FALSE, par_name = NULL,
+plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_transform = NULL,
+                             show_figures = -1, weights = FALSE, par_name = "mu",
                              samples = 1e6, points = 1000, ...){
 
   # check input
@@ -428,10 +433,21 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
   }
 
 
-  # get plotting data
+  # get plotting data - this parameter passing is a little bit retarded
   if(is.null(par_name))par_name <- ""
-  if(par_name == "mu" & !is.null(mu_transform))par_name <- "rho"
-  plot_data <- .plot.prior_data(x, samples, points, weights, par_name, mu_transform)
+  if(!is.null(effect_size)){
+    if(par_name == "mu" & effect_size == "r"){
+      par_name  <- "rho"
+      if(is.null(mu_transform))mu_transform <- "cohens_d"
+    }
+    if(par_name == "mu" & effect_size == "d")par_name  <- "d"
+    if(par_name == "mu" & effect_size == "OR"){
+      par_name     <- "OR"
+      if(is.null(mu_transform)) mu_transform <- "log_OR"
+    }
+    if(par_name == "mu" & effect_size == "y")par_name  <- "y"
+  }
+  plot_data <- .plot.prior_data(x, samples, points, weights, par_name, effect_size, mu_transform)
 
 
   # do the plotting
@@ -526,8 +542,8 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
         temp_plot <- temp_plot + ggplot2::scale_x_continuous(
           name   = plot_data$x_lab[[i]],
           limits = range(pretty(range(c(0,plot_data$x_range)))),
-          breaks = pretty(range(c(0,plot_data$x_range))),
-          labels = pretty(range(c(0,plot_data$x_range))))
+          breaks = pretty(range(c(ifelse(par_name == "OR", 1, 0),plot_data$x_range))),
+          labels = pretty(range(c(ifelse(par_name == "OR", 1, 0),plot_data$x_range))))
       }
 
       temp_plot <- temp_plot + ggplot2::scale_y_continuous(
@@ -552,7 +568,7 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 }
 
 ### helper functions for generating data required for plotting
-.plot.prior_data <- function(prior, samples = 1e6, points = 1000, weights = FALSE, par_name = "", mu_transform = NULL, x_range = NULL){
+.plot.prior_data <- function(prior, samples = 1e6, points = 1000, weights = FALSE, par_name = "", effect_size = NULL, mu_transform = NULL, x_range = NULL, temp_x = NULL){
 
   df      <- list()
   names   <- list()
@@ -560,38 +576,68 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
   x_lab   <- list()
   y_lab   <- list()
   y_range <- list()
+  sampling<- FALSE
 
   x_range_passed <- !is.null(x_range)
 
-  # prepare density truncation if needed
-  if(!is.null(mu_transform)){
-    if(prior$distribution == "point"){
-      with_trunc <- list(
-        from = -1,
-        to   = 1
-      )
-    }else{
-      if(mu_transform == "cohens_d"){
-        with_trunc <- list(
-          from = if(!is.infinite(prior$truncation$lower)) psych::d2r(prior$truncation$lower) else -1,
-          to   = if(!is.infinite(prior$truncation$upper)) psych::d2r(prior$truncation$upper) else  1
+  # prepare density truncation on the transformed scale
+  if(!is.null(effect_size) & !par_name %in% c("tau", "omega")){
+    if(effect_size == "r"){
+      if(prior$distribution == "point"){
+        transformed_trunc <- list(
+          from = -1,
+          to   = 1
         )
-      }else if(mu_transform == "fishers_z"){
-        with_trunc <- list(
-          from = if(!is.infinite(prior$truncation$lower)) psych::fisherz2r(prior$truncation$lower) else -1,
-          to   = if(!is.infinite(prior$truncation$upper)) psych::fisherz2r(prior$truncation$upper) else  1
+      }else{
+        transformed_trunc <- list(
+          from = if(!is.infinite(prior$truncation$lower)) .transform(prior$truncation$lower, effect_size, mu_transform) else -1,
+          to   = if(!is.infinite(prior$truncation$upper)) .transform(prior$truncation$upper, effect_size, mu_transform) else  1
         )
       }
+    }else if(effect_size == "OR"){
+      if(prior$distribution == "point"){
+        transformed_trunc <- list(
+          from = 0,
+          to   = Inf
+        )
+      }else{
+        transformed_trunc <- list(
+          from = if(!is.infinite(prior$truncation$lower)) .transform(prior$truncation$lower, effect_size, mu_transform) else  0,
+          to   = if(!is.infinite(prior$truncation$upper)) .transform(prior$truncation$upper, effect_size, mu_transform) else  Inf
+        )
+      }
+    }else{
+      transformed_trunc <- list(
+        from = prior$truncation$lower,
+        to   = prior$truncation$upper
+      )
     }
   }else{
-    with_trunc <- list(
+    transformed_trunc <- list(
       from = prior$truncation$lower,
       to   = prior$truncation$upper
     )
   }
 
 
-  if(prior$distribution == "one.sided" & all(names(prior$parameters) %in% c("alpha1", "alpha2", "steps"))){
+
+  if(!is.null(temp_x)){
+
+    # for the inner usage from plot function - re-uses already generated samples
+    prob[[1]] <- FALSE
+    sampling  <- TRUE
+    if(is.null(x_range)){
+      x_range <- c(
+        if(!is.infinite(transformed_trunc$from))transformed_trunc$from else min(temp_x),
+        if(!is.infinite(transformed_trunc$to))  transformed_trunc$to   else max(temp_x))
+    }
+    temp_den  <- .plot_prior_data_density(temp_x, x_range[1], x_range[2], points)
+    df[[1]]   <- data.frame(
+      x = temp_den$x,
+      y = temp_den$y
+    )
+
+  }else if(prior$distribution == "one.sided" & all(names(prior$parameters) %in% c("alpha1", "alpha2", "steps"))){
 
     x_range <- c(0,1)
     if(weights){
@@ -666,7 +712,7 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
   }else if(prior$distribution == "point"){
 
-    if(par_name == "omega"){
+    if(par_name == "omega" & !weights){
       df[[1]]  <- data.frame(
         x   = c(0, 1),
         y   = c(1, 1),
@@ -679,33 +725,27 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       prob[[1]] <- TRUE
       x_range   <- c(max(c(prior$truncation$lower, prior$parameters$location - .5)),
                      min(c(prior$truncation$upper, prior$parameters$location + .5)))
+
+      temp_x    <- rep(prior$parameters$location, 2)
+      temp_x    <- .transform(temp_x, effect_size, mu_transform)
       df[[1]]   <- data.frame(
-        x = rep(prior$parameters$location, 2),
+        x = temp_x,
         y = c(0, 1)
       )
-
-      if(!is.null(mu_transform)){
-        if(mu_transform == "cohens_d"){
-          df[[1]]$x   <- psych::d2r(df[[1]]$x)
-        }else if(mu_transform == "fishers_z"){
-          df[[1]]$x   <- psych::fisherz2r(df[[1]]$x)
-        }
-      }
-
     }
-
 
   }else if(prior$distribution == "normal"){
 
     prob[[1]] <- FALSE
     if(is.null(mu_transform)){
-      # analytical for non-transformed parameters
+      # get the plotting range
       if(is.null(x_range)){
         x_range <- c(
-          if(!is.infinite(prior$truncation$lower)) prior$truncation$lower else prior$parameters$mean - 3*prior$parameters$sd,
-          if(!is.infinite(prior$truncation$upper)) prior$truncation$upper else prior$parameters$mean + 3*prior$parameters$sd
+          if(!is.infinite(transformed_trunc$from)) transformed_trunc$from else prior$parameters$mean - 3*prior$parameters$sd,
+          if(!is.infinite(transformed_trunc$to))   transformed_trunc$to   else prior$parameters$mean + 3*prior$parameters$sd
         )
       }
+      # analytical for non-transformed parameters
       temp_x <- seq(x_range[1], x_range[2], length.out = points)
       df[[1]] <- data.frame(
         x = temp_x,
@@ -717,22 +757,19 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       )
     }else{
       # sampling for transformed parameters
-      x_range <- c(with_trunc$from, with_trunc$to)
+      sampling<- TRUE
       temp_x  <- NULL
       while(length(temp_x) < samples){
         new_temp_x <- stats::rnorm(samples, mean = prior$parameters$mean, sd = prior$parameters$sd)
         new_temp_x <- new_temp_x[new_temp_x > prior$truncation$lower & new_temp_x < prior$truncation$upper]
         temp_x     <- c(temp_x, new_temp_x)
       }
-      # transform
-      if(mu_transform == "cohens_d"){
-        temp_x   <- psych::d2r(temp_x)
-      }else if(mu_transform == "fishers_z"){
-        temp_x   <- psych::fisherz2r(temp_x)
-        temp_x[is.nan(temp_x)] <- ifelse(temp_x[is.nan(temp_x)] > 0, 1, -1)
-      }
-      temp_den <- stats::density(temp_x, from = with_trunc$from, to = with_trunc$to, n = points)
-      temp_den$y[c(1, length(temp_den$y))] <- 0
+
+      # transform, get range and compute density
+      temp_x   <- .transform(temp_x, effect_size, mu_transform)
+      x_range  <- .plot_prior_data_range(temp_x, transformed_trunc$from, transformed_trunc$to)
+      temp_den <- .plot_prior_data_density(temp_x, x_range[1], x_range[2], points)
+
       df[[1]] <- data.frame(
         x = temp_den$x,
         y = temp_den$y
@@ -762,22 +799,19 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       )
     }else{
       # sampling for transformed parameters
-      x_range <- c(with_trunc$from, with_trunc$to)
+      sampling<- TRUE
       temp_x  <- NULL
       while(length(temp_x) < samples){
         new_temp_x <- extraDistr::rlst(samples, df = prior$parameters$df, mu = prior$parameters$location, sigma = prior$parameters$scale)
         new_temp_x <- new_temp_x[new_temp_x > prior$truncation$lower & new_temp_x < prior$truncation$upper]
         temp_x     <- c(temp_x, new_temp_x)
       }
-      # transform
-      if(mu_transform == "cohens_d"){
-        temp_x   <- psych::d2r(temp_x)
-      }else if(mu_transform == "fishers_z"){
-        temp_x   <- psych::fisherz2r(temp_x)
-        temp_x[is.nan(temp_x)] <- ifelse(temp_x[is.nan(temp_x)] > 0, 1, -1)
-      }
-      temp_den <- stats::density(temp_x, from = with_trunc$from, to = with_trunc$to, n = points)
-      temp_den$y[c(1, length(temp_den$y))] <- 0
+
+      # transform, get range and compute density
+      temp_x   <- .transform(temp_x, effect_size, mu_transform)
+      x_range  <- .plot_prior_data_range(temp_x, transformed_trunc$from, transformed_trunc$to)
+      temp_den <- .plot_prior_data_density(temp_x, x_range[1], x_range[2], points)
+
       df[[1]] <- data.frame(
         x = temp_den$x,
         y = temp_den$y
@@ -794,8 +828,8 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
           if(!is.infinite(prior$truncation$lower)) prior$truncation$lower else stats::qgamma(.01, shape = prior$parameters$shape, rate = prior$parameters$rate),
           if(!is.infinite(prior$truncation$upper)) prior$truncation$upper else stats::qgamma(.95, shape = prior$parameters$shape, rate = prior$parameters$rate)
         )
+        if(prior$truncation$lower == 0 & x_range[1] < .5)x_range[1] <- 0
       }
-      if(prior$truncation$lower == 0 & x_range[1] < .5)x_range[1] <- 0
       temp_x <- seq(x_range[1], x_range[2], length.out = points)
       df[[1]] <- data.frame(
         x = temp_x,
@@ -808,22 +842,19 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       if(df[[1]]$x[1] == 0)df[[1]]$y[1] <- 0
     }else{
       # sampling for transformed parameters
-      x_range <- c(with_trunc$from, with_trunc$to)
+      sampling<- TRUE
       temp_x  <- NULL
       while(length(temp_x) < samples){
         new_temp_x <- stats::rgamma(samples, shape = prior$parameters$shape, rate = prior$parameters$rate)
         new_temp_x <- new_temp_x[new_temp_x > prior$truncation$lower & new_temp_x < prior$truncation$upper]
         temp_x     <- c(temp_x, new_temp_x)
       }
-      # transform
-      if(mu_transform == "cohens_d"){
-        temp_x   <- psych::d2r(temp_x)
-      }else if(mu_transform == "fishers_z"){
-        temp_x   <- psych::fisherz2r(temp_x)
-        temp_x[is.nan(temp_x)] <- ifelse(temp_x[is.nan(temp_x)] > 0, 1, -1)
-      }
-      temp_den <- stats::density(temp_x, from = with_trunc$from, to = with_trunc$to, n = points)
-      temp_den$y[c(1, length(temp_den$y))] <- 0
+
+      # transform, get range and compute density
+      temp_x   <- .transform(temp_x, effect_size, mu_transform)
+      x_range  <- .plot_prior_data_range(temp_x, transformed_trunc$from, transformed_trunc$to)
+      temp_den <- .plot_prior_data_density(temp_x, x_range[1], x_range[2], points)
+
       df[[1]] <- data.frame(
         x = temp_den$x,
         y = temp_den$y
@@ -840,8 +871,8 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
           if(!is.infinite(prior$truncation$lower)) prior$truncation$lower else extraDistr::qinvgamma(.01, alpha = prior$parameters$shape, beta = prior$parameters$scale),
           if(!is.infinite(prior$truncation$upper)) prior$truncation$upper else extraDistr::qinvgamma(.95, alpha = prior$parameters$shape, beta = prior$parameters$scale)
         )
+        if(prior$truncation$lower == 0 & x_range[1] < .5)x_range[1] <- 0
       }
-      if(prior$truncation$lower == 0 & x_range[1] < .5)x_range[1] <- 0
       temp_x <- seq(x_range[1], x_range[2], length.out = points)
       df[[1]] <- data.frame(
         x = temp_x,
@@ -855,22 +886,19 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
     }else{
       # sampling for transformed parameters
-      x_range <- c(with_trunc$from, with_trunc$to)
+      sampling<- TRUE
       temp_x  <- NULL
       while(length(temp_x) < samples){
         new_temp_x <- extraDistr::rinvgamma(samples, alpha = prior$parameters$shape, beta = prior$parameters$scale)
         new_temp_x <- new_temp_x[new_temp_x > prior$truncation$lower & new_temp_x < prior$truncation$upper]
         temp_x     <- c(temp_x, new_temp_x)
       }
-      # transform
-      if(mu_transform == "cohens_d"){
-        temp_x   <- psych::d2r(temp_x)
-      }else if(mu_transform == "fishers_z"){
-        temp_x   <- psych::fisherz2r(temp_x)
-        temp_x[is.nan(temp_x)] <- ifelse(temp_x[is.nan(temp_x)] > 0, 1, -1)
-      }
-      temp_den <- stats::density(temp_x, from = with_trunc$from, to = with_trunc$to, n = points)
-      temp_den$y[c(1, length(temp_den$y))] <- 0
+
+      # transform, get range and compute density
+      temp_x   <- .transform(temp_x, effect_size, mu_transform)
+      x_range  <- .plot_prior_data_range(temp_x, transformed_trunc$from, transformed_trunc$to)
+      temp_den <- .plot_prior_data_density(temp_x, x_range[1], x_range[2], points)
+
       df[[1]] <- data.frame(
         x = temp_den$x,
         y = temp_den$y
@@ -897,18 +925,14 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       if(x_range[2] == prior$parameters$b)df[[1]] <- rbind(df[[1]], c(x = prior$parameters$b, y = 0))
     }else{
       # sampling for transformed parameters
-      x_range <- c(with_trunc$from, with_trunc$to)
+      sampling<- TRUE
       temp_x  <- stats::runif(samples, min = prior$parameters$a, max = prior$parameters$b)
 
-      # transform
-      if(mu_transform == "cohens_d"){
-        temp_x   <- psych::d2r(temp_x)
-      }else if(mu_transform == "fishers_z"){
-        temp_x   <- psych::fisherz2r(temp_x)
-        temp_x[is.nan(temp_x)] <- ifelse(temp_x[is.nan(temp_x)] > 0, 1, -1)
-      }
-      temp_den <- stats::density(temp_x, from = with_trunc$from, to = with_trunc$to, n = points)
-      temp_den$y[c(1, length(temp_den$y))] <- 0
+      # transform, get range and compute density
+      temp_x   <- .transform(temp_x, effect_size, mu_transform)
+      x_range  <- .plot_prior_data_range(temp_x, transformed_trunc$from, transformed_trunc$to)
+      temp_den <- .plot_prior_data_density(temp_x, x_range[1], x_range[2], points)
+
       df[[1]] <- data.frame(
         x = temp_den$x,
         y = temp_den$y
@@ -919,18 +943,18 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
   # add vertical edges to truncations, and correct all values above truncation for forced range variables
   if(prior$distribution %in% c("normal", "t", "gamma", "invgamma", "uniform")){
-    if(!is.infinite(prior$truncation$lower)){
-      if(any(df[[1]]$x < with_trunc$from)){
-        df[[1]]$y[df[[1]]$x < with_trunc$from] <- 0
+    if(!is.infinite(transformed_trunc$from)){
+      if(any(df[[1]]$x < transformed_trunc$from)){
+        df[[1]]$y[df[[1]]$x < transformed_trunc$from] <- 0
       }else if(!x_range_passed){
-        df[[1]] <- rbind(c(with_trunc$from, 0), df[[1]])
+        df[[1]] <- rbind(c(transformed_trunc$from, 0), df[[1]])
       }
     }
-    if(!is.infinite(with_trunc$to)){
-      if(any(df[[1]]$x > with_trunc$to)){
-        df[[1]]$y[df[[1]]$x > with_trunc$to] <- 0
+    if(!is.infinite(transformed_trunc$to)){
+      if(any(df[[1]]$x > transformed_trunc$to)){
+        df[[1]]$y[df[[1]]$x > transformed_trunc$to] <- 0
       }else if(!x_range_passed){
-        df[[1]] <- rbind(df[[1]], c(with_trunc$to, 0))
+        df[[1]] <- rbind(df[[1]], c(transformed_trunc$to, 0))
       }
     }
   }
@@ -944,12 +968,18 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
       names[[1]] <- bquote(~mu~"~"~.(print(prior, plot = TRUE)))
     }else if(par_name == "tau"){
       names[[1]] <- bquote(~tau~"~"~.(print(prior, plot = TRUE)))
+    }else if(par_name == "omega"){
+      names[[1]] <- bquote(~omega~"~"~.(print(prior, plot = TRUE)))
     }else if(par_name == "rho"){
       names[[1]] <- bquote(~rho~"~"~.(print(prior, plot = TRUE)))
+    }else if(par_name == "OR"){
+      names[[1]] <- bquote(~italic("OR")~"~"~.(print(prior, plot = TRUE)))
+    }else if(par_name == "y"){
+      names[[1]] <- bquote(~y~"~"~.(print(prior, plot = TRUE)))
     }
   }
 
-  # compute some suplementary plotting info
+  # add some suplementary plotting info
   for(i in 1:length(df)){
 
     if((prior$distribution %in% c("two.sided", "one.sided") | par_name == "omega") & !weights){
@@ -979,16 +1009,17 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
 
   return(list(
-    df      = df,
-    x_range = x_range,
-    y_range = y_range,
-    x_lab   = x_lab,
-    y_lab   = y_lab,
-    names   = names,
-    prob    = prob
+    df       = df,
+    x_range  = x_range,
+    y_range  = y_range,
+    x_lab    = x_lab,
+    y_lab    = y_lab,
+    names    = names,
+    prob     = prob,
+    samples  = if(sampling)temp_x
   ))
 }
-.plot_prior_data_omega <- function(prior, samples, points, weights, return_samples = FALSE){
+.plot_prior_data_omega       <- function(prior, samples, points, weights, return_samples = FALSE){
 
   prob <- list()
   if(!weights){
@@ -1131,7 +1162,7 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
     df   = df
   ))
 }
-.plot.prior_data_joint_omega <- function(models, type, samples = 1e6){
+.plot_prior_data_joint_omega <- function(models, type, samples = 1e6){
 
   omega_ind  <- .get_omega_mapping(models)
   priors     <- sapply(models, function(m)m$priors$omega, simplify = FALSE)
@@ -1149,6 +1180,7 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
   omega_samples <- matrix(nrow = 0, ncol = ncol(do.call(rbind,omega_ind)))
 
+  cached_priors <- vector("list", length(priors))
   for(i in 1:length(priors)){
 
     if(round(samples * prior_prob[i]) < 1)next
@@ -1158,7 +1190,21 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
     }else{
 
-      temp_out <- .plot_prior_data_omega(priors[[i]], round(samples * prior_prob[i]), NA, TRUE, TRUE)
+      # check whether the prior was already computed
+      if(i > 1){
+        temp_same_priors <- sapply(priors[1:(i-1)], function(x)isTRUE(all.equal(priors[[i]], x)))
+      }else{
+        temp_same_priors <- FALSE
+      }
+
+      if(any(temp_same_priors)){
+        temp_out           <- cached_priors[[which.max(temp_same_priors)]]
+      }else{
+        # use the already computed samples if possible
+        cached_priors[[i]] <- .plot_prior_data_omega(priors[[i]], round(samples * prior_prob[i]), NA, TRUE, TRUE)
+        temp_out           <- cached_priors[[i]]
+      }
+
       temp_sam <- NULL
       for(j in omega_ind[[i]]){
         temp_sam <- cbind(temp_sam, temp_out[,j])
@@ -1170,7 +1216,26 @@ plot.RoBMA.prior <- function(x, plot_type = "base", mu_transform = NULL,
 
   return(omega_samples)
 }
+.plot_prior_data_range       <- function(temp_x, from, to){
+  x_range  <- c(
+    if(!is.infinite(from))from else min(temp_x),
+    if(!is.infinite(to))  to   else max(temp_x))
+  return(x_range)
+}
+.plot_prior_data_density     <- function(temp_x, from, to, points = 1000){
 
+  add_arguments <- list(
+    x    = temp_x,
+    n    = points
+  )
+  if(!is.infinite(from))add_arguments$from <- from
+  if(!is.infinite(to))add_arguments$to     <- to
+
+  temp_den <- do.call(stats::density, add_arguments)
+  temp_den$y[c(1, length(temp_den$y))] <- 0
+
+  return(temp_den)
+}
 #' @title Prints summary of \code{"RoBMA"} model implied by the specified priors
 #'
 #' @description \code{check_setup} prints summary of \code{"RoBMA"} model

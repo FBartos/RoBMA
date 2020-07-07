@@ -69,7 +69,7 @@ The visualization functions are based on
 \link[rstan]{stan_plot} function and its color schemes.
 }
 \examples{
-\donttest{
+\dontrun{
 # using the example data from Anderson et al. 2010 and fitting the default model
 # (note that the model can take a while to fit)
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)

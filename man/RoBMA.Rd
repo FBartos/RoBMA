@@ -9,13 +9,16 @@ RoBMA(
   d = NULL,
   r = NULL,
   y = NULL,
+  OR = NULL,
   se = NULL,
   n = NULL,
   n1 = NULL,
   n2 = NULL,
+  lCI = NULL,
+  uCI = NULL,
   test_type = "two.sample",
   study_names = NULL,
-  mu_transform = if (!is.null(r)) "cohens_d" else NULL,
+  mu_transform = if (!is.null(r)) "cohens_d" else if (!is.null(OR)) "log_OR" else NULL,
   priors_mu = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
   priors_tau = prior(distribution = "invgamma", parameters = list(shape = 1, scale =
     0.15)),
@@ -43,6 +46,8 @@ RoBMA(
 
 \item{y}{a vector of unspecified effect sizes.}
 
+\item{OR}{a vector of odds ratios.}
+
 \item{se}{a vector of standard errors of the effect sizes.}
 
 \item{n}{a vector of overall sample sizes.}
@@ -51,6 +56,10 @@ RoBMA(
 
 \item{n2}{a vector of sample sizes for second group.}
 
+\item{lCI}{a vector of lower bounds of confidence intervals.}
+
+\item{uCI}{a vector of upper bounds of confidence intervals.}
+
 \item{test_type}{a type of test used in the original studies. Options
 are \code{"two.sample"} (default) and \code{"one.sample"}. Only available
 if \code{d} is supplied.}
@@ -58,8 +67,10 @@ if \code{d} is supplied.}
 \item{study_names}{an optional argument with names of the studies.}
 
 \item{mu_transform}{transformation to be applied to the supplied
-effect sizes before fitting the individual models. Defaults to
-\code{"cohens_d"} for correlations (another options \code{"fishers_z"}).
+effect sizes before fitting the individual models. Only available if
+correlations or odds ratios are supplied as input. Defaults to
+\code{"cohens_d"} for correlations (another options is \code{"fishers_z"})
+and \code{"log_OR"} for odds ratios (another options is \code{"cohens_d"}).
 Note that priors are specified on the transformed scale and
 estimates are transformed back (apart from tau).}
 
@@ -185,7 +196,7 @@ The fitted model can be further updated or modified by \code{\link[=update.RoBMA
 See \code{\link[=prior]{prior()}} for more information about possible prior specifications options.
 }
 \examples{
-\donttest{
+\dontrun{
 # using the example data from Anderson et al. 2010 and fitting the default model
 # (note that the model can take a while to fit)
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)

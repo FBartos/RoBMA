@@ -38,7 +38,7 @@
 #' @details The visualization functions are based on
 #' \link[rstan]{stan_plot} function and its color schemes.
 #'
-#' @examples \donttest{
+#' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
 #' # (note that the model can take a while to fit)
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
@@ -342,38 +342,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
 
     # create parameter names
-    if(par == "mu"){
-      if(par_transform){
-        if(fit$add_info$effect_size == "r")par_names <- list(bquote(~rho))
-        if(fit$add_info$effect_size == "d")par_names <- list(bquote("Cohen's"~italic(d)))
-        if(fit$add_info$effect_size == "y")par_names <- list(bquote(~mu))
-      }else{
-        par_names <- list(bquote(~mu))
-      }
-    }else if(par == "tau"){
-      if(fit$add_info$effect_size == "r"){
-        if(fit$add_info$mu_transform == "cohens_d"){
-          par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale)"))
-        }else if(fit$add_info$mu_transform == "fishers_z"){
-          par_names <- list(bquote(~tau~"(Fisher's"~italic(z)~ "scale)"))
-        }
-      }else{
-        par_names <- list(bquote(~tau))
-      }
-    }else if(par == "omega"){
-      par_names <- sapply(1:(length(fit$models[[model]]$priors$omega$parameters$steps)+1), function(j){
-        bquote(~omega[.(paste0(" [",c(0,rev(fit$models[[model]]$priors$omega$parameters$steps))[j],"; ",c(rev(fit$models[[model]]$priors$omega$parameters$steps),1)[j],"]"))])
-      })
-    }else if(par == "theta"){
-      if(par_transform){
-        par_names <- sapply(1:ncol(fit$RoBMA$samples$averaged$theta), function(j){
-          bquote(.(if(fit$add_info$effect_size == "r"){~rho}else if(fit$add_info$effect_size == "d"){"Cohen's"~italic(d)}else{theta})
-                 ["["*.(if(!is.null(fit$add_info$study_names)) fit$add_info$study_names[j] else paste0("Study ",j))*"]"])})
-      }else{
-        par_names <- sapply(1:ncol(fit$RoBMA$samples$averaged$theta), function(j){
-          bquote(~theta[" ["*.(if(!is.null(fit$add_info$study_names)) fit$add_info$study_names[j] else paste0("Study ",j))*"]"])})
-      }
-    }
+    par_names <- .plot.RoBMA_par_names(par, fit)
 
 
     plot_data <- list()
@@ -398,18 +367,8 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
     # transform the values if requested
     if(par_transform){
-      if(par == "mu"){
-        if(fit$add_info$effect_size == "r"){
-          if(fit$add_info$mu_transform == "cohens_d")plot_data[[1]]$samp$value <- psych::d2r(plot_data[[1]]$samp$value)
-          if(fit$add_info$mu_transform == "fishers_z")plot_data[[1]]$samp$value <- psych::fisherz2r(plot_data[[1]]$samp$value)
-        }
-      }else if(par == "theta"){
-        if(fit$add_info$effect_size == "r"){
-          for(i in 1:length(plot_data)){
-            if(fit$add_info$mu_transform == "cohens_d")plot_data[[i]]$samp$value <- psych::d2r(plot_data[[1]]$samp$value)
-            if(fit$add_info$mu_transform == "fishers_z")plot_data[[i]]$samp$value <- psych::fisherz2r(plot_data[[1]]$samp$value)
-          }
-        }
+      if(par %in% c("mu", "theta") & fit$add_info$effect_size %in% c("r", "OR")){
+        plot_data[[1]]$samp$value <- .transform(plot_data[[1]]$samp$value, fit$add_info$effect_size, fit$add_info$mu_transform)
       }
     }
 

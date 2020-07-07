@@ -69,7 +69,7 @@ models can be ordered either \code{"ascending"} or
 \code{c("descending", "marglik")}
 by marginal likelihood.}
 
-\item{digits_estimates}{number of decimals to be displays for
+\item{digits_estimates}{number of decimals to be displayed for
 \code{parameter = "theta"}, \code{parameter = "forest"}, and
 \code{type = "individual"} plot.}
 
@@ -96,7 +96,7 @@ different \code{"RoBMA"} object parameters in various
 ways. See \code{type} for the different model types.
 }
 \examples{
-\donttest{
+\dontrun{
 # using the example data from Anderson et al. 2010 and fitting the default model
 # (note that the model can take a while to fit)
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)

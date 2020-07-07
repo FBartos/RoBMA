@@ -7,10 +7,11 @@
 \method{plot}{RoBMA.prior}(
   x,
   plot_type = "base",
+  effect_size = NULL,
   mu_transform = NULL,
   show_figures = -1,
   weights = FALSE,
-  par_name = NULL,
+  par_name = "mu",
   samples = 1e+06,
   points = 1000,
   ...
@@ -23,12 +24,18 @@
 or ggplot2 \code{"ggplot2"} for plotting. The later
 requires \pkg{ggplot2} package to be installed.}
 
+\item{effect_size}{what type of effect size is supposed to
+be plotted. Only relevant if the mu parameter needs to be
+transformed (\code{"r"} for correlation coefficients or \code{"OR"}
+for odds ratios).}
+
 \item{mu_transform}{whether and how should the prior distribution
 be transformed. If the prior distribution is constructed for
-effect sizes supplied as correlations, the prior for mu paraparameter
+effect sizes supplied as correlations, the prior for mu parameter
 is not defined on the correlation scale directly, but transformed into
-it. Only possible if the \code{par_name = "mu"}. Defaults to
-\code{NULL}. Other options are \code{"cohens_d"} and \code{"fishers_z"}.}
+it. Only possible if the \code{effect_size == "r", par_name = "mu"}.
+Defaults to \code{NULL}. Other options are \code{"cohens_d"} and
+\code{"fishers_z"}.}
 
 \item{show_figures}{which figures should be returned in case of
 multiple plots are generated. Useful when priors for the omega

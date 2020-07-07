@@ -6,7 +6,7 @@
 \alias{pwt}
 \alias{qwt}
 \alias{rwt}
-\title{The Weighted t Distribution}
+\title{Weighted t distribution}
 \usage{
 dwt(
   x,

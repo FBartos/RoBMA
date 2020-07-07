@@ -14,6 +14,8 @@
 \item{silent}{to silently return the print message.}
 \item{plot}{to return \link[base]{bquote} formatted
 prior name for plotting.}
+\item{digits_estimates}{number of decimals to be displayed
+for printed parameters.}
 }}
 }
 \description{

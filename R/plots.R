@@ -60,7 +60,7 @@
 #' \code{parameter == "forest"} or \code{type = "individual"}
 #' where automatic margins might cut out parts of the labels.
 #'
-#' @examples \donttest{
+#' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
 #' # (note that the model can take a while to fit)
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
@@ -205,16 +205,10 @@ plot.RoBMA <- function(x, parameter,
 
 
   # transform values to correlations if needed
-  if(fit$add_info$effect_size == "r" & par == "mu"){
-    if(fit$add_info$mu_transform == "cohens_d"){
-      spikes_loc <- psych::d2r(spikes_loc)
-      trunc_lower = if(!is.infinite(trunc_lower)) psych::d2r(trunc_lower) else -Inf
-      trunc_upper = if(!is.infinite(trunc_upper)) psych::d2r(trunc_upper) else  Inf
-    }else if(fit$add_info$mu_transform == "fishers_z"){
-      spikes_loc <- psych::fisherz2r(spikes_loc)
-      trunc_lower = if(!is.infinite(trunc_lower)) psych::fisherz2r(trunc_lower) else -Inf
-      trunc_upper = if(!is.infinite(trunc_upper)) psych::fisherz2r(trunc_upper) else  Inf
-    }
+  if(fit$add_info$effect_size %in% c("r", "OR") & par == "mu"){
+    spikes_loc  <- .transform(spikes_loc, fit$add_info$effect_size, fit$add_info$mu_transform)
+    trunc_lower <- if(!is.infinite(trunc_lower)) .transform(trunc_lower, fit$add_info$effect_size, fit$add_info$mu_transform) else -Inf
+    trunc_upper <- if(!is.infinite(trunc_upper)) .transform(trunc_upper, fit$add_info$effect_size, fit$add_info$mu_transform) else -Inf
   }
 
 
@@ -231,11 +225,12 @@ plot.RoBMA <- function(x, parameter,
     res_spikes[[i]] <- list()
     if(length(spikes_loc) > 0){
       for(j in 1:length(spikes_loc)){
+        temp_spikes_loc <- abs(temp_y - spikes_loc[j]) < sqrt(.Machine$double.eps)
         res_spikes[[i]][[j]] <- data.frame(
           x = rep(spikes_loc[j], 2),
-          y = c(0, sum(temp_y == spikes_loc[j])/nrow(y))
+          y = c(0, mean(temp_spikes_loc))
         )
-        temp_y  <- temp_y[temp_y != spikes_loc[j]]
+        temp_y  <- temp_y[!temp_spikes_loc]
       }
     }
 
@@ -281,8 +276,9 @@ plot.RoBMA <- function(x, parameter,
   if(prior){
 
     # get the plotting data
-    prior_den    <- list()
-    prior_spikes <- list()
+    prior_den      <- list()
+    prior_spikes   <- list()
+    temp_prior_dat <- vector("list", length(model_priors))
 
     # get range
     if(par != "omega"){
@@ -291,10 +287,26 @@ plot.RoBMA <- function(x, parameter,
         if(model_priors[[j]]$distribution == "point"){
           x_range <- rbind(x_range, rep(model_priors[[j]]$parameters$location,2))
         }else{
-          x_range <- rbind(x_range, .plot.prior_data(
-            prior        = model_priors[[j]],
-            mu_transform = if(fit$add_info$effect_size == "r" & par == "mu")fit$add_info$mu_transform,
-            samples      = 100)$x_range)
+
+          # only generate data for not already computed priors
+          if(j > 1){
+            temp_same_priors <- sapply(model_priors[1:(j-1)], function(x)isTRUE(all.equal(model_priors[[j]], x)))
+          }else{
+            temp_same_priors <- FALSE
+          }
+
+          if(any(temp_same_priors)){
+            temp_prior_dat[[j]] <- temp_prior_dat[[which.max(temp_same_priors)]]
+          }else{
+            temp_prior_dat[[j]] <- .plot.prior_data(
+              prior        = model_priors[[j]],
+              par_name     = par,
+              effect_size  = if(par == "mu")fit$add_info$effect_size,
+              mu_transform = if(fit$add_info$effect_size %in% c("r","OR") & par == "mu")fit$add_info$mu_transform,
+              weights      = par == "omega")
+          }
+
+          x_range <- rbind(x_range, temp_prior_dat[[j]]$x_range)
         }
       }
       x_range <- c(min(c(x_range[,1], res_den[[1]]$x)), max(c(x_range[,2], res_den[[1]]$x)))
@@ -302,14 +314,30 @@ plot.RoBMA <- function(x, parameter,
       x_range <- c(0, 1)
     }
 
-    # get the data
-    temp_prior_dat <- list()
+    # recompute the densities with the same range
     for(j in 1:length(model_priors)){
-      temp_prior_dat[[j]] <- .plot.prior_data(
-        prior        = model_priors[[j]],
-        x_range      = x_range,
-        mu_transform = if(fit$add_info$effect_size == "r" & par == "mu")fit$add_info$mu_transform,
-        weights      = TRUE)
+
+      if(j > 1){
+        temp_same_priors <- sapply(model_priors[1:(j-1)], function(x)isTRUE(all.equal(model_priors[[j]], x)))
+      }else{
+        temp_same_priors <- FALSE
+      }
+
+      if(any(temp_same_priors)){
+        temp_prior_dat[[j]] <- temp_prior_dat[[which.max(temp_same_priors)]]
+      }else{
+        # use the already used samples if possible
+        temp_prior_dat[[j]] <- .plot.prior_data(
+          prior        = model_priors[[j]],
+          temp_x       = if(!is.null(temp_prior_dat[[j]]$samples)) temp_prior_dat[[j]]$samples,
+          x_range      = x_range,
+          par_name     = par,
+          effect_size  = if(par == "mu")fit$add_info$effect_size,
+          mu_transform = if(fit$add_info$effect_size %in% c("r","OR") & par == "mu")fit$add_info$mu_transform,
+          weights      = par == "omega")
+      }
+
+
     }
 
     for(i in 1:ncol(y)){
@@ -364,29 +392,7 @@ plot.RoBMA <- function(x, parameter,
 
 
   # get parameter names
-  if(par == "mu"){
-    if(fit$add_info$effect_size == "r")par_names <- list(bquote(~rho~.(paste0("(",type,")"))))
-    if(fit$add_info$effect_size == "d")par_names <- list(bquote("Cohen's"~italic(d)~.(paste0("(",type,")"))))
-    if(fit$add_info$effect_size == "y")par_names <- list(bquote(~mu~.(paste0("(",type,")"))))
-  }else if(par == "tau"){
-    if(fit$add_info$effect_size == "r"){
-      if(fit$add_info$mu_transform == "cohens_d"){
-        par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale;"~.(paste0(type,")"))))
-      }else if(fit$add_info$mu_transform == "fishers_z"){
-        par_names <- list(bquote(~tau~"(Fisher's"~italic(z)~ "scale;"~.(paste0(type,")"))))
-      }
-    }else{
-      par_names <- list(bquote(~tau~.(paste0("(",type,")"))))
-    }
-  }else if(par == "omega"){
-
-    summary_info <- summary(fit, conditional = type == "conditional")
-    sum_all <- summary_info[[type]]
-
-    par_names <- sapply(rownames(sum_all)[grepl(par, rownames(sum_all))], function(x){
-      bquote(~omega[~.(substr(x,6,nchar(x)))]~.(paste0("(",summary_info$add_info$weight_type, ")")))
-    })
-  }
+  par_names <- .plot.RoBMA_par_names(par, fit, type)
 
 
   # create appropriate plot
@@ -625,26 +631,10 @@ plot.RoBMA <- function(x, parameter,
   y1     <- fit$RoBMA$samples[["averaged"]][[par[1]]]
   y2     <- fit$RoBMA$samples[["averaged"]][[par[2]]]
 
-
   par_names <- list()
   for(p in 1:length(par)){
-    if(par[p] == "mu"){
-      if(fit$add_info$effect_size == "r")par_names[[p]] <- bquote(~rho~"(averaged)")
-      if(fit$add_info$effect_size == "d")par_names[[p]] <- bquote("Cohen's"~italic(d)~"(averaged)")
-      if(fit$add_info$effect_size == "y")par_names[[p]] <- bquote(~mu~"(averaged)")
-    }else if(par[p] == "tau"){
-      if(fit$add_info$effect_size == "r"){
-        if(fit$add_info$mu_transform == "cohens_d"){
-          par_names[[p]] <- bquote(~tau~"(Cohen's"~italic(d)~ "scale; averaged)")
-        }else if(fit$add_info$mu_transform == "fishers_z"){
-          par_names[[p]] <- bquote(~tau~"(Fisher's"~italic(z)~ "scale; averaged)")
-        }
-      }else{
-        par_names[[p]] <- bquote(~tau~"(averaged)")
-      }
-    }
+    par_names[p] <- .plot.RoBMA_par_names(par[p], "averaged", fit)
   }
-
 
 
   # create appropriate plot
@@ -708,7 +698,7 @@ plot.RoBMA <- function(x, parameter,
 
 
   if(prior){
-    prior_samples <- .plot.prior_data_joint_omega(fit$models[fit$add_info$converged], type)
+    prior_samples <- .plot_prior_data_joint_omega(fit$models[fit$add_info$converged], type)
     if(is.null(prior_samples))prior_samples <- matrix(1, ncol = 1, nrow = 1)
 
     if(mean){
@@ -1121,8 +1111,14 @@ plot.RoBMA <- function(x, parameter,
           mod_CI[[j]]  <- rbind(mod_CI[[j]], c(1,1))
         }
       }else{
-        mod_est <- c(mod_est,        fit$models[[i]]$priors[[par]]$parameters$location)
-        mod_CI  <- rbind(mod_CI, rep(fit$models[[i]]$priors[[par]]$parameters$location, 2))
+
+        temp_prior_location <- fit$models[[i]]$priors[[par]]$parameters$location
+        if(par == "mu"){
+          temp_prior_location <- .transform(temp_prior_location, fit$add_info$effect_size, fit$add_info$mu_transform)
+        }
+
+        mod_est <- c(mod_est,        temp_prior_location)
+        mod_CI  <- rbind(mod_CI, rep(temp_prior_location, 2))
       }
 
     }
@@ -1138,7 +1134,6 @@ plot.RoBMA <- function(x, parameter,
         tau   = print(fit$models[[i]]$priors$tau,   silent = TRUE, plot = TRUE),
         omega = print(fit$models[[i]]$priors$omega, silent = TRUE, plot = TRUE))
     ))
-    #}
 
   }
 
@@ -1201,26 +1196,9 @@ plot.RoBMA <- function(x, parameter,
       bquote(~omega~"~"~.(mod_names[[i]]$omega)))
   }))
 
+
   # x axis names
-  if(par == "mu"){
-    if(fit$add_info$effect_size == "r")par_names <- list(bquote(~rho))
-    if(fit$add_info$effect_size == "d")par_names <- list(bquote("Cohen's"~italic(d)))
-    if(fit$add_info$effect_size == "y")par_names <- list(bquote(~mu))
-  }else if(par == "tau"){
-    if(fit$add_info$effect_size == "r"){
-      if(fit$add_info$mu_transform == "cohens_d"){
-        par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale)"))
-      }else if(fit$add_info$mu_transform == "fishers_z"){
-        par_names <- list(bquote(~tau~"(Fisher's"~italic(z)~ "scale"))
-      }
-    }else{
-      par_names <- list(bquote(~tau))
-    }
-  }else if(par == "omega"){
-    par_names <- sapply(rownames(sum_all)[grepl(par, rownames(sum_all))], function(x){
-      bquote(~omega[~.(substr(x,6,nchar(x)))]~.(paste0("(",summary_info$add_info$weight_type, ")")))
-    })
-  }
+  par_names <- .plot.RoBMA_par_names(par, fit)
 
 
   # estimate information
@@ -1291,7 +1269,7 @@ plot.RoBMA <- function(x, parameter,
       graphics::axis(4, at = c(0.05, y_at, 1), labels = rev(est_info[[i]]), las = 1, col = NA, hadj = 0)
 
 
-      if(par != "omega")graphics::lines(c(0, 0), c(0, 1), lty = 3)
+      if(par != "omega")graphics::lines(if(par == "mu" & fit$add_info$effect_size == "OR") c(1,1) else c(0,0), c(0, 1), lty = 3)
       if(par == "omega")graphics::lines(c(1, 1), c(0, 1), lty = 3)
 
       for(j in 1:nrow(mod_res[[i]])){
@@ -1344,7 +1322,7 @@ plot.RoBMA <- function(x, parameter,
 
       if(par != "omega")temp_plot <- temp_plot + ggplot2::geom_line(
         data = data.frame(
-          xl = c(0,0),
+          xl = if(par == "mu" & fit$add_info$effect_size == "OR") c(1,1) else c(0,0),
           yl = c(0,1)
         ),
         ggplot2::aes_string(x = "xl", y = "yl"),
@@ -1377,4 +1355,54 @@ plot.RoBMA <- function(x, parameter,
   if(length(plots) == 1)plots <- plots[[1]]
 
   return(plots)
+}
+.plot.RoBMA_par_names <- function(par, fit, type = NULL){
+
+  if(par == "mu"){
+    add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
+    if(fit$add_info$effect_size == "r")par_names <- list(bquote(~rho~.(add_type)))
+    if(fit$add_info$effect_size == "d")par_names <- list(bquote("Cohen's"~italic(d)~.(add_type)))
+    if(fit$add_info$effect_size == "y")par_names <- list(bquote(~mu~.(add_type)))
+    if(fit$add_info$effect_size == "OR")par_names<- list(bquote(~italic("OR")~.(add_type)))
+  }else if(par == "tau"){
+    if(fit$add_info$effect_size == "r"){
+      add_type <- if(!is.null(type)) paste0("; ",type,")") else ")"
+      if(fit$add_info$mu_transform == "cohens_d"){
+        par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale"*.(add_type)))
+      }else if(fit$add_info$mu_transform == "fishers_z"){
+        par_names <- list(bquote(~tau~"(Fisher's"~italic(z)~ "scale"*.(add_type)))
+      }
+    }else if(fit$add_info$effect_size == "OR"){
+      add_type <- if(!is.null(type)) paste0("; ",type,")") else ")"
+      if(fit$add_info$mu_transform == "log_OR"){
+        par_names <- list(bquote(~tau~"("~italic("log(OR)")~ "scale"*.(add_type)))
+      }else if(fit$add_info$mu_transform == "cohens_d"){
+        par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale"*.(add_type)))
+      }
+    }else{
+      add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
+      par_names <- list(bquote(~tau~.(add_type)))
+    }
+  }else if(par == "omega"){
+
+    summary_info <- summary(fit)
+    sum_all      <- summary_info[["averaged"]]
+    omega_names  <- rownames(sum_all)[grepl(par, rownames(sum_all))]
+    par_names    <- vector("list", length = length(omega_names))
+    for(i in 1:length(par_names)){
+      par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
+    }
+
+  }else if(par == "theta"){
+    add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
+    par_names <- vector("list", length = length(fit$add_info$study_names))
+    for(i in 1:length(par_names)){
+      if(fit$add_info$effect_size == "r")par_names[i] <- list(bquote(~rho[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
+      if(fit$add_info$effect_size == "d")par_names[i] <- list(bquote("Cohen's"~italic(d)[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
+      if(fit$add_info$effect_size == "y")par_names[i] <- list(bquote(~theta[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
+      if(fit$add_info$effect_size == "OR")par_names[i]<- list(bquote(~italic("OR")[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
+    }
+  }
+
+  return(par_names)
 }

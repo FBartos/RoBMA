@@ -40,7 +40,7 @@ print.RoBMA <- function(x, ...){
 #' @param ... additional arguments
 #'
 #' @return summary of a RoBMA object
-#' @examples \donttest{
+#' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
 #' # (note that the model can take a while to fit)
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
@@ -214,7 +214,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
         weight_type      = if(is.null(.get_omega_mapping(object$models, cuts_only = TRUE))) "none" else if(any(sapply(object$models, function(m)m$priors$omega$distribution) == "one.sided"))"one-sided" else "two-sided",
         n_models         = length(object$models),
         effect_size      = object$add_info$effect_size,
-        mu_transform      = if(object$add_info$effect_size == "r")object$add_info$mu_transform,
+        mu_transform      = if(object$add_info$effect_size %in% c("r","OR"))object$add_info$mu_transform,
         digits_estimates = digits_estimates,
         digits_BF        = digits_BF,
         study_names      = object$add_info$study_names,
@@ -315,7 +315,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
         digits_estimates = digits_estimates,
         digits_BF        = digits_BF,
         effect_size      = object$add_info$effect_size,
-        mu_transform      = if(object$add_info$effect_size == "r")object$add_info$mu_transform,
+        mu_transform      = if(object$add_info$effect_size %in% c("r","OR"))object$add_info$mu_transform,
         study_names      = object$add_info$study_names,
         type             = "models"
       )
@@ -389,14 +389,9 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
           s.x[c(1:nrow(s.x))[grepl("omega", rownames(s.x))],] <- s.x[rev(c(1:nrow(s.x))[grepl("omega", rownames(s.x))]),]
         }
 
-        if(object$add_info$effect_size == "r"){
-          if(object$add_info$mu_transform == "cohens_d"){
-            s.x[grepl("mu", rownames(s.x)),1:6]    <- psych::d2r(s.x[grepl("mu",    rownames(s.x)),1:6])
-            s.x[grepl("theta", rownames(s.x)),1:6] <- psych::d2r(s.x[grepl("theta", rownames(s.x)),1:6])
-          }else if(object$add_info$mu_transform == "cohens_d"){
-            s.x[grepl("mu", rownames(s.x)),1:6]    <- psych::fisherz2r(s.x[grepl("mu",    rownames(s.x)),1:6])
-            s.x[grepl("theta", rownames(s.x)),1:6] <- psych::fisherz2r(s.x[grepl("theta", rownames(s.x)),1:6])
-          }
+        if(object$add_info$effect_size %in%  c("r", "OR")){
+          s.x[grepl("mu",    rownames(s.x)),1:6] <- .transform(s.x[grepl("mu",    rownames(s.x)),1:6], object$add_info$effect_size, object$add_info$mu_transform)
+          s.x[grepl("theta", rownames(s.x)),1:6] <- .transform(s.x[grepl("theta", rownames(s.x)),1:6], object$add_info$effect_size, object$add_info$mu_transform)
         }
       }
 
@@ -415,7 +410,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
         add_info   = list(
           weight_type   = if(object$models[[i]]$priors$omega$distribution == "point") "none" else if(object$models[[i]]$priors$omega$distribution == "one.sided")"one-sided" else "two-sided",
           effect_size   = object$add_info$effect_size,
-          mu_transform  = if(object$add_info$effect_size == "r")object$add_info$mu_transform,
+          mu_transform  = if(object$add_info$effect_size %in% c("r","OR"))object$add_info$mu_transform,
           study_names   = object$add_info$study_names,
           BF_type       = paste0("Incl. ", if(logBF)"log(",if(BF01)"1/","BF",if(logBF)")")
         )
@@ -431,7 +426,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
         digits_estimates = digits_estimates,
         digits_BF        = digits_BF,
         effect_size      = object$add_info$effect_size,
-        mu_transform      = if(object$add_info$effect_size == "r")object$add_info$mu_transform,
+        mu_transform      = if(object$add_info$effect_size %in% c("r","OR"))object$add_info$mu_transform,
         BF_type          = paste0("Incl. ", if(logBF)"log(",if(BF01)"1/","BF",if(logBF)")"),
         study_names      = object$add_info$study_names,
         type             = "individual"
@@ -522,6 +517,8 @@ print.summary.RoBMA <- function(x, ...){
     print(averaged, quote = FALSE, right = TRUE)
     if(x$add_info$effect_size == "r"){
       cat(paste0("(Tau is on ", if(x$add_info$mu_transform == "cohens_d") "Cohen's d" else if(x$add_info$mu_transform == "fishers_z") "Fisher's z", " scale.)\n"))
+    }else if(x$add_info$effect_size == "OR"){
+      cat(paste0("(Tau is on ", if(x$add_info$mu_transform == "log_OR") "log(OR)" else if(x$add_info$mu_transform == "cohens_d") "Cohen's d", " scale.)\n"))
     }
     if(x$add_info$weight_type != "none")cat(paste0("(Estimated omegas correspond to ", x$add_info$weight_type, " p-values)\n"))
     if(x$add_info$failed != 0)cat(paste0("\033[0;31m",x$add_info$failed, ifelse(x$add_info$failed == 1, " model", " models"), " failed to converge and ",ifelse(x$add_info$failed == 1, "was", "were")," omited from the summary.\033[0m\n"))
@@ -533,6 +530,8 @@ print.summary.RoBMA <- function(x, ...){
       print(conditional, quote = FALSE, right = TRUE)
       if(x$add_info$effect_size == "r"){
         cat(paste0("(Tau is on ", if(x$add_info$mu_transform == "cohens_d") "Cohen's d" else if(x$add_info$mu_transform == "fishers_z") "Fisher's z", " scale.)\n"))
+      }else if(x$add_info$effect_size == "OR"){
+        cat(paste0("(Tau is on ", if(x$add_info$mu_transform == "log_OR") "log(OR)" else if(x$add_info$mu_transform == "cohens_d") "Cohen's d", " scale.)\n"))
       }
       if(x$add_info$weight_type != "none")cat(paste0("(Estimated omegas correspond to ", x$add_info$weight_type, " p-values)\n"))
     }
@@ -568,6 +567,8 @@ print.summary.RoBMA <- function(x, ...){
       if(any(rownames(overview[[i]]$tab) == "tau")){
         if(x$add_info$effect_size == "r"){
           cat(paste0("(Tau is on ", if(x$add_info$mu_transform == "cohens_d") "Cohen's d" else if(x$add_info$mu_transform == "fishers_z") "Fisher's z", " scale.)\n"))
+        }else if(x$add_info$effect_size == "OR"){
+          cat(paste0("(Tau is on ", if(x$add_info$mu_transform == "log_OR") "log(OR)" else if(x$add_info$mu_transform == "cohens_d") "Cohen's d", " scale.)\n"))
         }
       }
       if(any(grepl("omega", rownames(overview[[i]]$tab)))){

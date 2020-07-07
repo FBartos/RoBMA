@@ -61,7 +61,7 @@ summary of the RoBMA object.
 See \code{\link[=diagnostics]{diagnostics()}} for visual convergence checks of the individual models.
 }
 \examples{
-\donttest{
+\dontrun{
 # using the example data from Anderson et al. 2010 and fitting the default model
 # (note that the model can take a while to fit)
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)

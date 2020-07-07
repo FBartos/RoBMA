@@ -1,4 +1,4 @@
-#' @title The Weighted t Distribution
+#' @title Weighted t distribution
 #'
 #' @description Density, distribution function, quantile function
 #' and random generation for the weighted t distribution with

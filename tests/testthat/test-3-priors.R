@@ -52,10 +52,14 @@ test_that("Priors plots work", {
     expect_doppelganger(paste0("prior_plot_",i),plot(fitted_priors[[i]], plot_type = "ggplot", samples = 1000, points = 100))
   }
 
-  expect_doppelganger("prior_plot_transformed_1", plot(fitted_priors[[2]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "cohens_d"))
-  expect_doppelganger("prior_plot_transformed_2", plot(fitted_priors[[3]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "cohens_d"))
-  expect_doppelganger("prior_plot_transformed_3", plot(fitted_priors[[2]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "fishers_z"))
-  expect_doppelganger("prior_plot_transformed_4", plot(fitted_priors[[3]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "fishers_z"))
+  expect_doppelganger("prior_plot_transformed_1", plot(fitted_priors[[2]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "cohens_d", parameter = "mu", effect_size = "r"))
+  expect_doppelganger("prior_plot_transformed_2", plot(fitted_priors[[3]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "cohens_d", parameter = "mu", effect_size = "r"))
+  expect_doppelganger("prior_plot_transformed_3", plot(fitted_priors[[2]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "fishers_z", parameter = "mu", effect_size = "r"))
+  expect_doppelganger("prior_plot_transformed_4", plot(fitted_priors[[3]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "fishers_z", parameter = "mu", effect_size = "r"))
+  expect_doppelganger("prior_plot_transformed_5", plot(fitted_priors[[2]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "cohens_d", parameter = "mu", effect_size = "OR"))
+  expect_doppelganger("prior_plot_transformed_6", plot(fitted_priors[[3]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "cohens_d", parameter = "mu", effect_size = "OR"))
+  expect_doppelganger("prior_plot_transformed_7", plot(fitted_priors[[2]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "log_OR", parameter = "mu", effect_size = "OR"))
+  expect_doppelganger("prior_plot_transformed_8", plot(fitted_priors[[3]],  plot_type = "ggplot", samples = 10000, points = 100, mu_transform = "log_OR", parameter = "mu", effect_size = "OR"))
 
   plot_weights1 <- plot(fitted_priors[[14]], plot_type = "ggplot", samples = 1000, points = 100, weights = T)
   plot_weights2 <- plot(fitted_priors[[15]], plot_type = "ggplot", samples = 1000, points = 100, weights = T)
