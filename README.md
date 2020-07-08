@@ -23,11 +23,11 @@ We also prepared multiple vignettes that illustrate functionality of the
 package:
 
   - [Explanation and dealing with warnings and
-    errors](articles/WarningsAndErrors.html)
+    errors](https://fbartos.github.io/RoBMA/articles/WarningsAndErrors.html)
   - [Reproducing Bayesian Model-Averaged Meta-Analysis
-    (BMA)](articles/ReproducingBMA.html)
+    (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
   - [Fitting custom meta-analytic
-    ensembles](articles/CustomEnsembles.html)
+    ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
 
 ## Installation
 

@@ -34,7 +34,7 @@ Description: A framework for estimatin ensembles of meta-analytic models
     define a wide range of non-informative or informative priors for the 
     effect size, heterogeneity, and weight functions. The package provides 
     convenient functions for summary, visualizations, and fit diagnostics.
-URL: https://github.com/FBartos/RoBMA
+URL: https://fbartos.github.io/RoBMA/
 BugReports: https://github.com/FBartos/RoBMA/issues
 License: GPL-3
 Encoding: UTF-8

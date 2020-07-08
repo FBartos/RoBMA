@@ -26,9 +26,9 @@ See our preprint, Maier, Bartoš, & Wagenmakers (2020) at https://doi.org/10.312
 
 We also prepared multiple vignettes that illustrate functionality of the package:
 
- - [Explanation and dealing with warnings and errors](articles/WarningsAndErrors.html)
- - [Reproducing Bayesian Model-Averaged Meta-Analysis (BMA)](articles/ReproducingBMA.html)
- - [Fitting custom meta-analytic ensembles](articles/CustomEnsembles.html)
+ - [Explanation and dealing with warnings and errors](https://fbartos.github.io/RoBMA/articles/WarningsAndErrors.html)
+ - [Reproducing Bayesian Model-Averaged Meta-Analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
+ - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
 
 
 ## Installation
