@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 0.0.0.9000
+Version: 1.0.0
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Author: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
@@ -24,15 +24,18 @@ Authors@R: c(
            role    = "ctb",
            email   = "j.c.goosen@uva.nl")
            )
-Description: This package estimates and ensemble of meta-analytical models 
+Description: A framework for estimatin ensembles of meta-analytic models 
     (assuming either presence or absence of the effect, heterogeneity, and 
-    publication bias) and uses Bayesian model averaging to combine them. The 
+    publication bias) and using Bayesian model averaging to combine them. The 
     ensemble uses Bayes Factors to test for the presence of absence of the 
-    individual components (e.g., effect vs no effect) and model-averages 
-    parameter estimates based on posterior model probabilities. The user can 
+    individual components (e.g., effect vs. no effect) and model-averages 
+    parameter estimates based on posterior model probabilities 
+    (Maier, Bartoš & Wagenmakers, 2020, <doi:10.31234/osf.io/u4cns>). The user can 
     define a wide range of non-informative or informative priors for the 
     effect size, heterogeneity, and weight functions. The package provides 
     convenient functions for summary, visualizations, and fit diagnostics.
+URL: https://github.com/FBartos/RoBMA
+BugReports: https://github.com/FBartos/RoBMA/issues
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
@@ -56,6 +59,9 @@ Suggests:
     rstan,
     metaBMA,
     testthat,
-    vdiffr
+    vdiffr,
+    knitr,
+    rmarkdown
 RdMacros: Rdpack
 LinkingTo: BH
+VignetteBuilder: knitr

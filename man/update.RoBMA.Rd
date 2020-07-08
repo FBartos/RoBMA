@@ -53,7 +53,7 @@ will be treated as belonging to the null hypothesis.}
 \item{prior_omega_null}{a prior weight function for the \code{omega} parameter
 that will be treated as belonging to the null hypothesis.}
 
-\item{study_names}{an optional argument with names of the studies.}
+\item{study_names}{an optional argument with the names of the studies.}
 
 \item{control}{a list of additional arguments for the MCMC algorithm.
 Possible options are:
@@ -72,7 +72,7 @@ to \code{1000}.}
 \item{bridge_max_iter}{Maximum number of iterations for the
 \link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
 \item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
-into consideration. Model will be removed from the ensemble if it fails to
+into consideration. The model will be removed from the ensemble if it fails to
 achieve the set MCMC error. Defaults to \code{NULL} - no model will be
 removed based on MCMC error.}
 \item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
@@ -86,13 +86,13 @@ based on ESS.}
 \item{allow_inc_theta}{Whether the diagnostics for theta should be
 included into model removal decision. Defaults to \code{NULL} - only
 'mu', 'tau', and 'omega' estimates will be taken into account.}
-\item{balance_prob}{Whether the prior probability of removed model
+\item{balance_prob}{Whether the prior probability of the removed model
 should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to
 \code{TRUE}.}
 \item{silent}{Whether all fitting messages should be suppressed. Defaults
 to \code{FALSE}. Ideal for getting rid of the "full precision may not have
-been achieved in pnt{final}'" warning that cannot be suppresed in any
+been achieved in pnt{final}'" warning that cannot be suppressed in any
 other way.}
 \item{boost}{Whether the likelihood functions implemented using the boost
 C++ library should be used as the first option. The higher precision of
@@ -104,7 +104,7 @@ Warning: the estimation using boost takes about twice as long.}
 \item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{iter}{a number of sampling iterations of the MCMC algorithm.
-Defaults to \code{10000}, with minimum of \code{4000}.}
+Defaults to \code{10000}, with a minimum of \code{4000}.}
 
 \item{burnin}{a number of burnin iterations of the MCMC algorithm.
 Defaults to \code{5000}.}
@@ -122,7 +122,8 @@ Defaults to \code{5000}.}
 \enumerate{
 \item{add an additional model to an existing \code{"RoBMA"} object by
 specifying either a null or alternative prior for each parameter
-and the prior odds of the model (\code{prior_odds}),}
+and the prior odds of the model (\code{prior_odds}), see the
+\code{vignette("CustomEnsembles")} vignette,}
 \item{change the prior odds of fitted models by specifying a vector
 \code{prior_odds} of the same length as the fitted models,}
 \item{refitting models that failed to converge with updated settings

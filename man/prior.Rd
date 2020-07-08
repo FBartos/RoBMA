@@ -38,13 +38,13 @@ parameters. The \code{alpha} parameter determines an alpha
 parameter of Dirichlet distribution which cumulative sum
 is used for the weights omega.}
 \item{\code{"one.sided"}}{for a one-sided weight function
-characterized by a either a vector \code{steps} and vector
+characterized by either a vector \code{steps} and vector
 \code{alpha} parameter, leading to a monotonic one-sided
-function, or by a a vector \code{steps}, vector \code{alpha1},
+function, or by a vector \code{steps}, vector \code{alpha1},
 and vector \code{alpha2} parameters leading non-monotonic
 one-sided weight function. The \code{alpha} / \code{alpha1} and
 \code{alpha2} parameters determine an alpha parameter of
-Dirichlet distribution which which cumulative sum is used for
+Dirichlet distribution which cumulative sum is used for
 the weights omega.}
 \item{\code{"uniform"}}{for a uniform distribution defined on a
 range from \code{a} to \code{b}}

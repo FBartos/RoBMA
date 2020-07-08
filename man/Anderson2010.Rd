@@ -11,7 +11,7 @@ Anderson2010
 }
 \description{
 The dataset contains correlational coefficients, sample
-sizes and labels for 27 experimental studies focusing on effect of
+sizes, and labels for 27 experimental studies focusing on the effect of
 violent videogames on aggressive behavior. The full original data can
 found at https://github.com/Joe-Hilgard/Anderson-meta.
 }

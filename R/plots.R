@@ -10,7 +10,7 @@
 #' \code{"omega"}. A bivariate plot for model-averaged
 #' estimates of "mu" and "tau" can be obtained by
 #' \code{c("mu","tau")} if \code{type = "averaged"}. In
-#' addition a forest plot with the original estimates can
+#' addition, a forest plot with the original estimates can
 #' be obtained by \code{"forest"} or added to the theta
 #' estimates by \code{c("theta", "forest")}.
 #' @param type what type of estimates should be plotted.
@@ -45,8 +45,8 @@
 #' @param digits_estimates number of decimals to be displayed for
 #' \code{parameter = "theta"}, \code{parameter = "forest"}, and
 #' \code{type = "individual"} plot.
-#' @param show_figures which figures should be returned in case when
-#' multiple plots are generated. Useful when
+#' @param show_figures which figures should be returned in the case
+#' when multiple plots are generated. Useful when
 #' \code{parameter = "omega", type = "individual"} which generates
 #' a figure for each weights cut-off. Defaults to \code{-1} which
 #' omits the first weight. Set to \code{NULL} to show all figures
@@ -76,13 +76,15 @@
 #' # condtional plots might by obtained by specifying
 #' plot(fit, parameter = "mu", type = "conditional")
 #'
-#' # plotting function also allows to visualize the weight function (or individual weights by adding 'weights = TRUE')
+#' # plotting function also allows to visualize the weight function
+#' # (or individual weights by adding 'weights = TRUE')
 #' plot(fit, parameter = "omega")
 #'
 #' # or the forest plot (the estimated study effects can be shown by setting 'parameter = "theta"')
 #' plot(fit, parameter = "forest")
 #'
-#' # it is also possible to compare the individual model estimates, and order them by the posterior probability
+#' # it is also possible to compare the individual model estimates
+#' # and order them by the posterior probability
 #' plot(fit, parameter = "mu", type = "individual", order = "prob")
 #'
 #' }

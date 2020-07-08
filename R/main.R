@@ -13,8 +13,8 @@
 #' @param se a vector of standard errors of the effect sizes.
 #' @param OR a vector of odds ratios.
 #' @param n a vector of overall sample sizes.
-#' @param n1 a vector of sample sizes for first group.
-#' @param n2 a vector of sample sizes for second group.
+#' @param n1 a vector of sample sizes for the first group.
+#' @param n2 a vector of sample sizes for the second group.
 #' @param lCI a vector of lower bounds of confidence intervals.
 #' @param uCI a vector of upper bounds of confidence intervals.
 #' @param test_type a type of test used in the original studies. Options
@@ -27,7 +27,7 @@
 #' and \code{"log_OR"} for odds ratios (another options is \code{"cohens_d"}).
 #' Note that priors are specified on the transformed scale and
 #' estimates are transformed back (apart from tau).
-#' @param study_names an optional argument with names of the studies.
+#' @param study_names an optional argument with the names of the studies.
 #' @param priors_mu list of prior distributions for the \code{mu} parameter that
 #' will be treated as belonging to the alternative hypothesis. Defaults to \code{
 #' prior(distribution = "normal",   parameters = list(mean = 0, sd = 1))}.
@@ -54,7 +54,7 @@
 #' \code{prior(distribution = "point", parameters = list(location = 0))}).
 #' @param chains a number of chains of the MCMC algorithm.
 #' @param iter a number of sampling iterations of the MCMC algorithm.
-#' Defaults to \code{10000}, with minimum of \code{4000}.
+#' Defaults to \code{10000}, with a minimum of \code{4000}.
 #' @param burnin a number of burnin iterations of the MCMC algorithm.
 #' Defaults to \code{5000}.
 #' @param thin a thinning of the chains of the MCMC algorithm. Defaults to
@@ -76,7 +76,7 @@
 #'   \item{bridge_max_iter}{Maximum number of iterations for the
 #'   \link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
 #'   \item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
-#'   into consideration. Model will be removed from the ensemble if it fails to
+#'   into consideration. The model will be removed from the ensemble if it fails to
 #'   achieve the set MCMC error. Defaults to \code{NULL} - no model will be
 #'   removed based on MCMC error.}
 #'   \item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
@@ -90,13 +90,13 @@
 #'   \item{allow_inc_theta}{Whether the diagnostics for theta should be
 #'   included into model removal decision. Defaults to \code{NULL} - only
 #'   'mu', 'tau', and 'omega' estimates will be taken into account.}
-#'   \item{balance_prob}{Whether the prior probability of removed model
+#'   \item{balance_prob}{Whether the prior probability of the removed model
 #'   should be redistributed to other models with the same type if possible
 #'    (crossing of effect / heterogeneity / publication bias). Defaults to
 #'    \code{TRUE}.}
 #'   \item{silent}{Whether all fitting messages should be suppressed. Defaults
 #'   to \code{FALSE}. Ideal for getting rid of the "full precision may not have
-#'   been achieved in pnt{final}'" warning that cannot be suppresed in any
+#'   been achieved in pnt{final}'" warning that cannot be suppressed in any
 #'   other way.}
 #'   \item{boost}{Whether the likelihood functions implemented using the boost
 #'   C++ library should be used as the first option. The higher precision of
@@ -113,18 +113,24 @@
 #' computation, and posterior mixing for exact results reproducibility. Defaults
 #' to \code{NULL} - no seed is set.
 #'
-#' @details The RoBMA function first generates models from combination of the
-#' provided priors for each of the model parameter. Then, the individual models
+#' @details The default settings with either t-statistics / Cohen's d effect
+#' sizes and sample sizes / standard errors correspond to the ensemble proposed by
+#' \insertCite{maier2020}{RoBMA}. The \code{vignette("CustomEnsembles")} and
+#' \code{vignette("ReproducingBMA")} vignettes describe how to use [RoBMA()] to fit
+#' custom meta-analytic ensembles (see [prior()] for more information about prior
+#' distributions). To get help with the error and warning messages,
+#' see \code{vignette("WarningsAndErrors")}.
+#'
+#' The RoBMA function first generates models from a combination of the
+#' provided priors for each of the model parameters. Then, the individual models
 #' are fitted using \link[runjags]{autorun.jags} function. A marginal likelihood
 #' is computed using \link[bridgesampling]{bridge_sampler} function. The individual
-#' models are then combined into an ensemble using posterior model probabilities.
+#' models are then combined into an ensemble using the posterior model probabilities.
 #'
 #' Generic [summary.RoBMA()], [print.RoBMA()], and [plot.RoBMA()] functions are
 #' provided to facilitate manipulation with the ensemble. A visual check of the
 #' individual model diagnostics can be obtained using the [diagnostics()] function.
 #' The fitted model can be further updated or modified by [update.RoBMA()] function.
-#'
-#' See [prior()] for more information about possible prior specifications options.
 #'
 #' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
 #'
@@ -174,6 +180,9 @@
 #' # function (see 'diagnostics' for all options)
 #' diagnostics(fit, parameter = "mu", type = "chains")
 #' }
+#'
+#' @references
+#' \insertAllCited{}
 #' @export RoBMA
 #' @seealso [summary.RoBMA()], [update.RoBMA()], [prior()], [check_setup()]
 RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, n = NULL, n1 = NULL, n2 = NULL, lCI = NULL, uCI = NULL,
@@ -284,7 +293,8 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
 #' \enumerate{
 #'   \item{add an additional model to an existing \code{"RoBMA"} object by
 #'    specifying either a null or alternative prior for each parameter
-#'    and the prior odds of the model (\code{prior_odds}),}
+#'    and the prior odds of the model (\code{prior_odds}), see the
+#'    \code{vignette("CustomEnsembles")} vignette,}
 #'   \item{change the prior odds of fitted models by specifying a vector
 #'   \code{prior_odds} of the same length as the fitted models,}
 #'   \item{refitting models that failed to converge with updated settings

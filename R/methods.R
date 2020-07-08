@@ -20,7 +20,7 @@ print.RoBMA <- function(x, ...){
 #'
 #' @param object a fitted RoBMA object.
 #' @param type whether to show the overall RoBMA results (\code{"ensemble"}),
-#' overview of the individual models (\code{"models"}) or detailed summary
+#' an overview of the individual models (\code{"models"}), or detailed summary
 #' for the individual models (\code{"individual"}).
 #' @param conditional show the conditional estimates (assuming that the
 #' alternative is true). Defaults to \code{FALSE}. Only available for
@@ -32,7 +32,7 @@ print.RoBMA <- function(x, ...){
 #' @param probs quantiles of the posterior samples to be displayed.
 #' Defaults to \code{c(.025, .50, .975)}
 #' @param logBF show log of the BFs. Defaults to \code{FALSE}.
-#' @param BF01 show BF in support of the null hypotheses. . Defaults to
+#' @param BF01 show BF in support of the null hypotheses. Defaults to
 #' \code{FALSE}.
 #' @param digits_estimates a number of decimals for rounding the estimates.
 #' Defaults to \code{3}.
@@ -48,7 +48,7 @@ print.RoBMA <- function(x, ...){
 #' # summary can provide many details about the model
 #' summary(fit)
 #'
-#' # note that the summary function contains additional arguments that allow to obtain specific output
+#' # note that the summary function contains additional arguments that allow to obtain a specific output
 #' # i.e, the conditional estimates (assuming that the non-null models are true) can be obtained
 #' summary(fit, conditional = TRUE)
 #'
@@ -583,7 +583,6 @@ print.summary.RoBMA <- function(x, ...){
 #' @title Reports whether x is a RoBMA object
 #'
 #' @param x an object to test
-#' @param ... additional arguments
 #' @export is.RoBMA
 is.RoBMA            <- function(x){
   inherits(x, "RoBMA")

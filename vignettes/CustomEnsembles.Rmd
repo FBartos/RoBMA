@@ -1,0 +1,166 @@
+---
+title: "Fitting custom meta-analytic ensembles"
+author: "František Bartoš"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+vignette: >
+  %\VignetteIndexEntry{Fitting custom meta-analytic ensembles}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+is_check <- ("CheckExEnv" %in% search()) || any(c("_R_CHECK_TIMINGS_",
+             "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) || !file.exists("../prefitted/Bem_update1.RDS") 
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = !is_check
+)
+```
+
+By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model odds being equal to the product of prior distributions' prior odds. This results in the 12 meta-analytic models using the default settings or can be utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017] as shown in [another vignette](ReproducingBMA.html). However, the package was built in a way that it can be used as a framework for estimating highly customized model ensembles. Here, we are going to illustrate how to do exactly that. 
+
+Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that it can perform as intended, a priori to drawing inference from it. The following sections are only illustrating the functionality of the package.
+
+### The dataset
+
+To illustrate the custom model building procedure, we use data from the infamous @bem2011 "Feeling the future" paper. We use a coding of the results as presented by the original author [@bem2011reply]. According to the original papers, participants showed statistically significant signs of precognition (predicting the future) in 8/9 experiments. However, there are many issues with the paper [@wagenmakers2011bemReply; @rouder2011bemReply; @schimmack2018bem], which are not important for this vignette.
+
+```{r}
+Bem2011 <- data.frame(
+  study = c( "1",  "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9"),
+  t     = c(2.51, 2.39, 2.55, 2.03, 2.23, 2.41, 1.31, 1.92, 2.96),
+  N     = c( 100,  150,   97,   99,  100,  150,  200,  100,   50)
+)
+```
+
+### The custom ensemble
+
+Consider the following scenarios as plaussible explanations for the data, and include those into the meta-analytic ensemble:
+
+  1) there is absolutely no precognition effect - a fixed effects model assuming the effect size to be zero ($H_{0}^{\overline{\omega}f}$)
+  2) the experiments measured the same underlying precognition effect - a fixed effects model ($H_{1}^{\overline{\omega}f}$)
+  3) each of the experiments measured a slightly different precognition effect - a random effects model ($H_{1}^{\overline{\omega}r}$)
+  4) there is absolutely no precognition effect and the results occurred just due to the publication bias - a fixed effects model assuming the effect size to be zero and publication bias ($H_{1}^{{\omega}f}$)
+  5) the experiments measured the same underlying precognition effect and the results were inflated due to the publication bias - a fixed effects model assuming publication bias ($H_{1}^{{\omega}f}$)
+  6) each of the experiments measured a slightly different precognition effect and the results were inflated due to the publication bias - a random effects model assuming publication bias ($H_{1}^{{\omega}r}$)
+  
+If we were to fit the ensemble using the `RoBMA()` function and specifying all of the priors, we would have ended with two more models than requested (the random effects model assuming the effect size to be zero ($H_{0}^{\overline{\omega}r}$) and the random effects model assuming the effect size to be zero and publication bias ($H_{0}^{{\omega}r}$)). Furthermore, we could not specify different parameters for the prior distributions for each model, which the following process allows (but we do not utilize it).
+
+We start with fitting only the first model using the `RoBMA()` function and we will continuously update the fitted object to include all of the models. We explicitly specify prior distributions for all parameters using the `prior()` function and we set the priors to be treated as the null priors for all parameters. We also add `silent = TRUE` to the `control` argument (to suppress the fitting messages) and set seed to ensure reproducibility of the results.
+
+```{r}
+library(RoBMA)
+
+fit <- RoBMA(t = Bem2011$t, n = Bem2011$N, study_names = Bem2011$study,
+             priors_mu = NULL, priors_tau = NULL, priors_omega = NULL,
+             priors_mu_null    = prior("spike", parameters = list(location = 0)),
+             priors_tau_null   = prior("spike", parameters = list(location = 0)),
+             priors_omega_null = prior("spike", parameters = list(location = 1)),
+             control = list(silent = TRUE), seed = 666)
+```
+
+Before we add the second model to the ensemble, we need to decide on the prior distribution for the mean parameter. If precognition were to exist, the effect would be small since all casinos would be bankrupted otherwise. Also, negative precognition does not make a lot of sense. Therefore, we decide to use a normal distribution with mean = .15 and standard deviation 0.10, setting most of the probability around the small effect sizes. To get a better grasp of the prior distribution, we visualize it using the `plot.prior()` function (the figure can be created using the ggplot2 package by adding `plot_type == "ggplot"` argument).
+
+```{r fig.height = 3.25, fig.width = 4, fig.align = "center"}
+plot(prior("normal", parameters = list(mean = .15, sd = .10)))
+```
+
+We add the second model to the ensemble using the `update.RoBMA()` function. The function can also be used to many other purposes - updating settings, prior model probabilities, and refitting failed models. Here, we supply the fitted ensemble object and add an argument specifying the prior distribution of each parameter for the additional model. Since we want to add model 2 - we set the prior for the mu parameter to be treated as an alternative prior and the remaining priors treated as null priors. If we wanted, we could also specify `prior_odds` argument, to change the prior probability of the fitted model but we do not utilize this option here to keep the default value, which sets the prior odds for the new model to `1`. (Note that the arguments for specifying prior distributions in `update.RoBMA()` function are `prior_X` - in singular, in comparison to `RoBMA()` function that uses `priors_X` in plural.)
+
+```{r include = FALSE}
+# these fits are relatively fast, but we reduce the knitting time considerably
+fit <- readRDS(file = "../prefitted/Bem_update1.RDS")
+```
+```r
+fit <- update(fit,
+              prior_mu         = prior("normal", parameters = list(mean = .15, sd = .10)),
+              prior_tau_null   = prior("spike",  parameters = list(location = 0)),
+              prior_omega_null = prior("spike",  parameters = list(location = 1)))
+```
+
+We can inspect the updated ensemble to verify that it contains both models by adding `type = "models"` argument to the `summary.RoBMA()` function. We can also inspect the individual model estimates by changing the `type` argument to `type = "individual"`.
+
+```{r}
+summary(fit, type = "models")
+
+summary(fit, type = "individual")
+```
+
+We also need to decide on the prior distribution for the remaining models. We use the usual inverse-gamma(1, .15) prior distribution based on empirical heterogeneities [@vanErp2017] for the heterogeneity parameter tau in the random effects models (3, 6). For models assuming publication bias (4-6), we specify one-sided three-step weight function differentiating between marginally significant and significant *p*-values which we visualize bellow.
+
+```{r fig.height = 3.25, fig.width = 4, fig.align = "center"}
+plot(prior("one.sided", parameters = list(steps = c(0.05, .10), alpha = c(1,1,1))))
+```
+
+Now, we just need to add the remaining models to the ensemble using the `update.RoBMA()` function as previously illustrated.
+
+```r
+### adding model 3
+fit <- update(fit,
+              prior_mu         = prior("normal",   parameters = list(mean = .15, sd = .10)),
+              prior_tau        = prior("invgamma", parameters = list(shape = 1, scale = .15)),
+              prior_omega_null = prior("spike",    parameters = list(location = 1)))
+
+### adding model 4             
+fit <- update(fit,
+              prior_mu         = prior("spike",     parameters = list(location = 0)),
+              prior_tau        = prior("spike",     parameters = list(location = 0)),
+              prior_omega      = prior("one.sided", parameters = list(steps = c(0.05, .10), alpha = c(1,1,1))))
+              
+### adding model 5             
+fit <- update(fit,
+              prior_mu         = prior("normal",    parameters = list(mean = .15, sd = .10)),
+              prior_tau        = prior("spike",     parameters = list(location = 0)),
+              prior_omega      = prior("one.sided", parameters = list(steps = c(0.05, .10), alpha = c(1,1,1))))
+              
+### adding model 6             
+fit <- update(fit,
+              prior_mu         = prior("normal",    parameters = list(mean = .15, sd = .10)),
+              prior_tau        = prior("invgamma",  parameters = list(shape = 1, scale = .15)),
+              prior_omega      = prior("one.sided", parameters = list(steps = c(0.05, .10), alpha = c(1,1,1))))
+```
+```{r include = FALSE}
+fit <- readRDS(file = "../prefitted/Bem_update2.RDS")
+```
+
+We verify that all of the requested models are included in the ensemble using the `summary.RoBMA()` function with `type = "models"` argument.
+
+```{r}
+summary(fit, type = "models")
+```
+
+### Using the fitted ensemble
+
+Finally, we use the `summary.RoBMA()` function to inspect the model results.
+
+```{r}
+summary(fit)
+```
+
+The finalized ensemble can be treated as any other `RoBMA` using the `summary.RoBMA()`, `plot.RoBMA()`, and `diagnostics()` function. The results from our ensemble indicate support for presence of the effect, $BF_{10} = 8.48e+08$, heterogeneity, $BF_{rf} = 46.60$ , and publication bias, $BF_{\omega{\overline{\omega}}} = 70.72$. 
+
+For example, we can use the `plot.RoBMA()` with the `parameter = "mu", prior = TRUE` arguments to plot the prior (grey) and posterior distribution (black) for the effect size.
+
+```{r fig.height = 3.25, fig.width = 4, fig.align = "center"}
+plot(fit, parameter = "mu", prior = TRUE)
+```
+
+Or change the parameter argument to `parameter = "omega"` to plot the prior (grey dashed lines) and posterior (black lines, with gray area filling the 95% CI) distribution for the weight function.
+
+```{r fig.height = 3.25, fig.width = 4, fig.align = "center"}
+plot(fit, parameter = "omega", prior = TRUE)
+```
+
+### Final words
+
+As pointed out at the beginning of the vignette, the intention of this example was not to draw inference about the results of @bem2011 studies. Furthermore, selection models and their ensembles implemented in `RoBMA` are only able to control and correct for publication bias. Using a simulation study, we showed that the `RoBMA` default 12 model meta-analytic ensemble is capable of testing and estimating parameters under different conditions assuming that the publication bias operates on *p*-values. However, we also showed that `RoBMA`, as well as most of the other methods, fail to recover the true effect sizes in cases with severe p-hacking [@maier2020]. 
+
+### References
+

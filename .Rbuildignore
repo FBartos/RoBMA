@@ -5,3 +5,5 @@
 ^tests$
 ^..Rcheck
 ^.*\.o
+^doc$
+^Meta$

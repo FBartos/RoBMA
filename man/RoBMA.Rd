@@ -52,9 +52,9 @@ RoBMA(
 
 \item{n}{a vector of overall sample sizes.}
 
-\item{n1}{a vector of sample sizes for first group.}
+\item{n1}{a vector of sample sizes for the first group.}
 
-\item{n2}{a vector of sample sizes for second group.}
+\item{n2}{a vector of sample sizes for the second group.}
 
 \item{lCI}{a vector of lower bounds of confidence intervals.}
 
@@ -64,7 +64,7 @@ RoBMA(
 are \code{"two.sample"} (default) and \code{"one.sample"}. Only available
 if \code{d} is supplied.}
 
-\item{study_names}{an optional argument with names of the studies.}
+\item{study_names}{an optional argument with the names of the studies.}
 
 \item{mu_transform}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Only available if
@@ -107,7 +107,7 @@ distribution with location at 1 (
 \item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{iter}{a number of sampling iterations of the MCMC algorithm.
-Defaults to \code{10000}, with minimum of \code{4000}.}
+Defaults to \code{10000}, with a minimum of \code{4000}.}
 
 \item{burnin}{a number of burnin iterations of the MCMC algorithm.
 Defaults to \code{5000}.}
@@ -132,7 +132,7 @@ to \code{1000}.}
 \item{bridge_max_iter}{Maximum number of iterations for the
 \link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
 \item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
-into consideration. Model will be removed from the ensemble if it fails to
+into consideration. The model will be removed from the ensemble if it fails to
 achieve the set MCMC error. Defaults to \code{NULL} - no model will be
 removed based on MCMC error.}
 \item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
@@ -146,13 +146,13 @@ based on ESS.}
 \item{allow_inc_theta}{Whether the diagnostics for theta should be
 included into model removal decision. Defaults to \code{NULL} - only
 'mu', 'tau', and 'omega' estimates will be taken into account.}
-\item{balance_prob}{Whether the prior probability of removed model
+\item{balance_prob}{Whether the prior probability of the removed model
 should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to
 \code{TRUE}.}
 \item{silent}{Whether all fitting messages should be suppressed. Defaults
 to \code{FALSE}. Ideal for getting rid of the "full precision may not have
-been achieved in pnt{final}'" warning that cannot be suppresed in any
+been achieved in pnt{final}'" warning that cannot be suppressed in any
 other way.}
 \item{boost}{Whether the likelihood functions implemented using the boost
 C++ library should be used as the first option. The higher precision of
@@ -182,18 +182,24 @@ effect sizes (\code{d}) and standard errors (\code{se}) can be
 used to estimate the model.
 }
 \details{
-The RoBMA function first generates models from combination of the
-provided priors for each of the model parameter. Then, the individual models
+The default settings with either t-statistics / Cohen's d effect
+sizes and sample sizes / standard errors correspond to the ensemble proposed by
+\insertCite{maier2020}{RoBMA}. The \code{vignette("CustomEnsembles")} and
+\code{vignette("ReproducingBMA")} vignettes describe how to use \code{\link[=RoBMA]{RoBMA()}} to fit
+custom meta-analytic ensembles (see \code{\link[=prior]{prior()}} for more information about prior
+distributions). To get help with the error and warning messages,
+see \code{vignette("WarningsAndErrors")}.
+
+The RoBMA function first generates models from a combination of the
+provided priors for each of the model parameters. Then, the individual models
 are fitted using \link[runjags]{autorun.jags} function. A marginal likelihood
 is computed using \link[bridgesampling]{bridge_sampler} function. The individual
-models are then combined into an ensemble using posterior model probabilities.
+models are then combined into an ensemble using the posterior model probabilities.
 
 Generic \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=print.RoBMA]{print.RoBMA()}}, and \code{\link[=plot.RoBMA]{plot.RoBMA()}} functions are
 provided to facilitate manipulation with the ensemble. A visual check of the
 individual model diagnostics can be obtained using the \code{\link[=diagnostics]{diagnostics()}} function.
 The fitted model can be further updated or modified by \code{\link[=update.RoBMA]{update.RoBMA()}} function.
-
-See \code{\link[=prior]{prior()}} for more information about possible prior specifications options.
 }
 \examples{
 \dontrun{
@@ -242,6 +248,10 @@ plot(fit, parameter = "mu")
 # function (see 'diagnostics' for all options)
 diagnostics(fit, parameter = "mu", type = "chains")
 }
+
+}
+\references{
+\insertAllCited{}
 }
 \seealso{
 \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}, \code{\link[=prior]{prior()}}, \code{\link[=check_setup]{check_setup()}}

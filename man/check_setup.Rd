@@ -2,7 +2,7 @@
 % Please edit documentation in R/priors.R
 \name{check_setup}
 \alias{check_setup}
-\title{Prints summary of \code{"RoBMA"} model implied by the specified priors}
+\title{Prints summary of \code{"RoBMA"} ensemble implied by the specified priors}
 \usage{
 check_setup(
   priors_mu = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
@@ -49,14 +49,14 @@ that will be treated as belonging to the null hypothesis. Defaults to point
 distribution with location at 1 (
 \code{prior(distribution = "point", parameters = list(location = 0))}).}
 
-\item{models}{should the models details be printed.}
+\item{models}{should the models' details be printed.}
 
 \item{silent}{do not print the results.}
 }
 \description{
-\code{check_setup} prints summary of \code{"RoBMA"} model
-implied by the specified priors. It is useful for checking the ensemble
-configuration prior to fitting all of the models.
+\code{check_setup} prints summary of \code{"RoBMA"} ensemble
+implied by the specified prior distributions. It is useful for checking
+the ensemble configuration prior to fitting all of the models.
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=prior]{prior()}}

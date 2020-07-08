@@ -1,0 +1,13 @@
+# version 1.0.0 (vs the osf version)
+Fixes:
+- incorrectly weighted theta estimates
+- models with non-zero point prior distribution incorrectly plotted using when "models" option in case that the mu parameter was transformed
+
+Additional features:
+- analyzing OR
+- distributions implemented using boost library (helps with convergence issues)
+- ability to mute the non-suppressible "precision not achieved" warning messages by using "silent" = TRUE inside of the control argument
+- vignettes
+
+Notable changes:
+- the way how the seed is set before model fitting (the simulation study will not be reproducible with the new version of the package)

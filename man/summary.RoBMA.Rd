@@ -22,7 +22,7 @@
 \item{object}{a fitted RoBMA object.}
 
 \item{type}{whether to show the overall RoBMA results (\code{"ensemble"}),
-overview of the individual models (\code{"models"}) or detailed summary
+an overview of the individual models (\code{"models"}), or detailed summary
 for the individual models (\code{"individual"}).}
 
 \item{conditional}{show the conditional estimates (assuming that the
@@ -40,7 +40,7 @@ Defaults to \code{c(.025, .50, .975)}}
 
 \item{logBF}{show log of the BFs. Defaults to \code{FALSE}.}
 
-\item{BF01}{show BF in support of the null hypotheses. . Defaults to
+\item{BF01}{show BF in support of the null hypotheses. Defaults to
 \code{FALSE}.}
 
 \item{digits_estimates}{a number of decimals for rounding the estimates.
@@ -69,7 +69,7 @@ fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$
 # summary can provide many details about the model
 summary(fit)
 
-# note that the summary function contains additional arguments that allow to obtain specific output
+# note that the summary function contains additional arguments that allow to obtain a specific output
 # i.e, the conditional estimates (assuming that the non-null models are true) can be obtained
 summary(fit, conditional = TRUE)
 
