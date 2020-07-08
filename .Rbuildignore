@@ -4,3 +4,4 @@
 ^prefitted$
 ^tests$
 ^..Rcheck
+^.*\.o
