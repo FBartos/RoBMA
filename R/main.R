@@ -282,6 +282,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
     for(w in object$add_info$warnings)warning(w)
   }
   if(sum(!object$add_info$converged) > 0)warning(paste0(sum(!object$add_info$converged), ifelse(sum(!object$add_info$converged) == 1, " model", " models"), " failed to converge."))
+  if(!is.null(OR))warning("Analyzing odds ratios is an experimental feature. The performance of default prior distributions was not evaluated.")
 
   class(object) <- "RoBMA"
   return(object)
