@@ -2,37 +2,24 @@ Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
 Version: 1.0.0
 Maintainer: František Bartoš <f.bartos96@gmail.com>
-Author: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
-    person(given   = "František",
-           family  = "Bartoš",
-           role    = c("aut", "cre"),
-           email   = "f.bartos96@gmail.com",
-           comment = c(ORCID = "0000-0002-0018-5573")),
-    person(given   = "Maximilian",
-           family  = "Maier",
-           role    = "aut",
-           email   = "maximilianmaier0401@gmail.com",
-           comment = c(ORCID = "0000-0002-0018-5573")),
-    person(given   = "Eric-Jan",
-           family  = "Wagenmakers",
-           role    = "ths",
-           email   = "EJ.Wagenmakers@gmail.com",
-           comment = c(ORCID = "0000-0003-1596-1034")),
-    person(given   = "Joris",
-           family  = "Goosen",
-           role    = "ctb",
-           email   = "j.c.goosen@uva.nl")
-           )
-Description: A framework for estimatin ensembles of meta-analytic models 
-    (assuming either presence or absence of the effect, heterogeneity, and 
-    publication bias) and using Bayesian model averaging to combine them. The 
-    ensemble uses Bayes Factors to test for the presence of absence of the 
-    individual components (e.g., effect vs. no effect) and model-averages 
-    parameter estimates based on posterior model probabilities 
-    (Maier, Bartoš & Wagenmakers, 2020, <doi:10.31234/osf.io/u4cns>). The user can 
-    define a wide range of non-informative or informative priors for the 
-    effect size, heterogeneity, and weight functions. The package provides 
+    person("František", "Bartoš",     role = c("aut", "cre"),
+    email   = "f.bartos96@gmail.com", comment = c(ORCID = "0000-0002-0018-5573")),
+    person("Maximilian", "Maier",     role = "aut",
+    email   = "maximilianmaier0401@gmail.com", comment = c(ORCID = "0000-0002-9873-6096")),
+    person("Eric-Jan", "Wagenmakers", role = "ths",
+    comment = c(ORCID = "0000-0003-1596-1034")),
+    person("Joris", "Goosen",         role = "ctb")
+    )
+Description: A framework for estimating ensembles of meta-analytic models
+    (assuming either presence or absence of the effect, heterogeneity, and
+    publication bias) and using Bayesian model averaging to combine them. The
+    ensembles use Bayes Factors to test for the presence or absence of the
+    individual components (e.g., effect vs. no effect) and model-averages
+    parameter estimates based on posterior model probabilities
+    (Maier, Bartoš & Wagenmakers, 2020, <doi:10.31234/osf.io/u4cns>). The user can
+    define a wide range of non-informative or informative priors for the
+    effect size, heterogeneity, and weight functions. The package provides
     convenient functions for summary, visualizations, and fit diagnostics.
 URL: https://fbartos.github.io/RoBMA/
 BugReports: https://github.com/FBartos/RoBMA/issues

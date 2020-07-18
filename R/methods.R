@@ -48,8 +48,9 @@ print.RoBMA <- function(x, ...){
 #' # summary can provide many details about the model
 #' summary(fit)
 #'
-#' # note that the summary function contains additional arguments that allow to obtain a specific output
-#' # i.e, the conditional estimates (assuming that the non-null models are true) can be obtained
+#' # note that the summary function contains additional arguments
+#' # that allow to obtain a specific output, i.e, the conditional estimates
+#' # (assuming that the non-null models are true) can be obtained
 #' summary(fit, conditional = TRUE)
 #'
 #' # overview of the models and their prior and posterior probability, marginal likelihood,
