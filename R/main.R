@@ -713,7 +713,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   object$models[[i]]$fit <- fit
   if(!is.null(fit)){
-    object$models[[i]]$fit_summary <- summary(fit)
+    object$models[[i]]$fit_summary <- .runjags.summary(fit)
   }
   object$add_info$warnings <- c(object$add_info$warnings, new_warn)
 
@@ -2254,4 +2254,16 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
   }
   return(x)
+}
+.runjags.summary   <- function(fit){
+  # the only reason for this function is that runjags summary function returns HPD instead of quantile intervals
+  summary_fit   <- summary(fit)
+  model_samples <- suppressWarnings(coda::as.mcmc(fit))
+
+  for(i in 1:nrow(summary_fit)){
+    summary_fit[i, "Lower95"] <- stats::quantile(model_samples[,i], .025)
+    summary_fit[i, "Upper95"] <- stats::quantile(model_samples[,i], .975)
+  }
+
+  return(summary_fit)
 }

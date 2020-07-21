@@ -1,3 +1,7 @@
+# version 1.0.2
+Fixes:
+- the summary and plot function now shows quantile based confidence intervals for individual models instead of the HPD provided before (this affects only 'summary'/'plot' with 'type = "individual"', all other confidence intervals were quantile based before)
+
 # version 1.0.1
 Fixes:
 - summary function returning median instead of mean
