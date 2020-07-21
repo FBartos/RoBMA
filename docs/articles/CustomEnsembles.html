@@ -68,7 +68,14 @@
   <a href="../news/index.html">Changelog</a>
 </li>
       </ul>
-<ul class="nav navbar-nav navbar-right"></ul>
+<ul class="nav navbar-nav navbar-right">
+<li>
+  <a href="https://github.com/FBartos/RoBMA/">
+    <span class="fab fa fab fa-github fa-lg"></span>
+     
+  </a>
+</li>
+      </ul>
 </div>
 <!--/.nav-collapse -->
   </div>
@@ -84,9 +91,9 @@
       <h1 data-toc-skip>Fitting custom meta-analytic ensembles</h1>
                         <h4 class="author">František Bartoš</h4>
             
-            <h4 class="date">2020-07-08</h4>
+            <h4 class="date">2020-07-21</h4>
       
-      
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/CustomEnsembles.Rmd"><code>vignettes/CustomEnsembles.Rmd</code></a></small>
       <div class="hidden name"><code>CustomEnsembles.Rmd</code></div>
 
     </div>
@@ -266,11 +273,11 @@
 <span class="co">#&gt; </span>
 <span class="co">#&gt; Model-averaged estimates</span>
 <span class="co">#&gt;                  Mean Median 0.025 0.975</span>
-<span class="co">#&gt; mu              0.221  0.221 0.000 0.362</span>
-<span class="co">#&gt; tau             0.000  0.000 0.000 0.189</span>
+<span class="co">#&gt; mu              0.215  0.221 0.000 0.362</span>
+<span class="co">#&gt; tau             0.027  0.000 0.000 0.189</span>
 <span class="co">#&gt; omega[0,0.05]   1.000  1.000 1.000 1.000</span>
-<span class="co">#&gt; omega[0.05,0.1] 0.491  0.491 0.087 0.984</span>
-<span class="co">#&gt; omega[0.1,1]    0.048  0.048 0.001 0.523</span>
+<span class="co">#&gt; omega[0.05,0.1] 0.511  0.491 0.087 0.984</span>
+<span class="co">#&gt; omega[0.1,1]    0.101  0.048 0.001 0.523</span>
 <span class="co">#&gt; (Estimated omegas correspond to one-sided p-values)</span></pre></body></html></div>
 <p>The finalized ensemble can be treated as any other <code>RoBMA</code> using the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code>, <code><a href="../reference/plot.RoBMA.html">plot.RoBMA()</a></code>, and <code><a href="../reference/diagnostics.html">diagnostics()</a></code> function. The results from our ensemble indicate support for presence of the effect, <span class="math inline">\(BF_{10} = 8.48e+08\)</span>, heterogeneity, <span class="math inline">\(BF_{rf} = 46.60\)</span> , and publication bias, <span class="math inline">\(BF_{\omega{\overline{\omega}}} = 70.72\)</span>.</p>
 <p>For example, we can use the <code><a href="../reference/plot.RoBMA.html">plot.RoBMA()</a></code> with the <code>parameter = "mu", prior = TRUE</code> arguments to plot the prior (grey) and posterior distribution (black) for the effect size.</p>

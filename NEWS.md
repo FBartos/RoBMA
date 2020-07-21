@@ -1,3 +1,7 @@
+# version 1.0.1
+Fixes:
+- summary function returning median instead of mean
+
 # version 1.0.0 (vs the osf version)
 Fixes:
 - incorrectly weighted theta estimates

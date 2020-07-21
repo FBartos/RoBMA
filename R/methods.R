@@ -153,7 +153,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
     )
 
     # create estimates tables
-    averaged_tab    <- cbind.data.frame(Mean = averaged_m,    Median = averaged_m,    averaged_q)
+    averaged_tab    <- cbind.data.frame(Mean = averaged_e,    Median = averaged_m,    averaged_q)
     conditional_tab <- cbind.data.frame(Mean = conditional_e, Median = conditional_m, conditional_q)
 
     ### model types overview
