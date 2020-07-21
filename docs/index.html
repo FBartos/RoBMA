@@ -40,7 +40,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.1</span>
       </span>
     </div>
 
@@ -181,11 +181,11 @@
 <span class="co">#&gt; </span>
 <span class="co">#&gt; Model-averaged estimates</span>
 <span class="co">#&gt;                  Mean Median 0.025 0.975</span>
-<span class="co">#&gt; mu              0.151  0.151 0.092 0.205</span>
-<span class="co">#&gt; tau             0.000  0.000 0.000 0.099</span>
+<span class="co">#&gt; mu              0.150  0.151 0.092 0.205</span>
+<span class="co">#&gt; tau             0.010  0.000 0.000 0.099</span>
 <span class="co">#&gt; omega[0,0.05]   1.000  1.000 1.000 1.000</span>
-<span class="co">#&gt; omega[0.05,0.1] 0.497  0.497 0.100 0.969</span>
-<span class="co">#&gt; omega[0.1,1]    0.096  0.096 0.021 0.367</span>
+<span class="co">#&gt; omega[0.05,0.1] 0.514  0.497 0.100 0.969</span>
+<span class="co">#&gt; omega[0.1,1]    0.121  0.096 0.021 0.367</span>
 <span class="co">#&gt; (Tau is on Cohen's d scale.)</span>
 <span class="co">#&gt; (Estimated omegas correspond to two-sided p-values)</span></pre></div>
 <p>We can visualize the estimated parameters using the <code><a href="reference/plot.RoBMA.html">plot.RoBMA()</a></code> function. In the case of parameter tau, the arrow stands for probability mass at <span class="math inline"><em>τ</em></span> = 0. Weights <span class="math inline"><em>ω</em></span> are by default plotted as the weight function, which can be changed to the individual weights estimates by setting <code>weights = TRUE</code>.</p>

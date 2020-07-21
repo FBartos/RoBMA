@@ -139,11 +139,11 @@ summary(fit)
 #> 
 #> Model-averaged estimates
 #>                  Mean Median 0.025 0.975
-#> mu              0.151  0.151 0.092 0.205
-#> tau             0.000  0.000 0.000 0.099
+#> mu              0.150  0.151 0.092 0.205
+#> tau             0.010  0.000 0.000 0.099
 #> omega[0,0.05]   1.000  1.000 1.000 1.000
-#> omega[0.05,0.1] 0.497  0.497 0.100 0.969
-#> omega[0.1,1]    0.096  0.096 0.021 0.367
+#> omega[0.05,0.1] 0.514  0.497 0.100 0.969
+#> omega[0.1,1]    0.121  0.096 0.021 0.367
 #> (Tau is on Cohen's d scale.)
 #> (Estimated omegas correspond to two-sided p-values)
 ```
