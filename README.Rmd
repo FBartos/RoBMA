@@ -33,7 +33,11 @@ We also prepared multiple vignettes that illustrate functionality of the package
 
 ## Installation
 
-The package requires [JAGS 4.3.0](http://mcmc-jags.sourceforge.net/) to be installed. The development version of the package can be installed from GitHub:
+The package requires [JAGS 4.3.0](http://mcmc-jags.sourceforge.net/) to be installed. The release version can be installed from CRAN:
+``` r
+install.packages("RoBMA")
+```
+and the development version of the package can be installed from GitHub:
 
 ``` r
 devtools::install_github("fbartos/RoBMA")

@@ -94,7 +94,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
   }
 
   # a message with info about muliple plots
-  if(plot_type == "base" & (length(models_ind) > 1 | parameter == "omega"))cat("Multiple plots will be produced. See '?layout' for help with setting multiple plots.")
+  if(plot_type == "base" & (length(models_ind) > 1 | parameter == "omega"))message("Multiple plots will be produced. See '?layout' for help with setting multiple plots.")
 
   for(m in models_ind){
 
@@ -104,7 +104,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
     # deal with no parameter in model
     if(is.null(temp_data)){
       if(length(models_ind) == 1){
-        cat("Selected model does not containt the parameter of interest.")
+        message("Selected model does not containt the parameter of interest.")
         return(invisible(NULL))
       }else{
         out[m] <- temp_out
@@ -148,6 +148,10 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 .diagnostics_plot_trace   <- function(plot_data, plot_type, title, ...){
 
   if(plot_type == "base"){
+
+    # save plotting settings
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(oldpar))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -196,6 +200,10 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 .diagnostics_plot_density <- function(plot_data, plot_type, title, par, ...){
 
   if(plot_type == "base"){
+
+    # save plotting settings
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(oldpar))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -270,6 +278,10 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
   ac_dat   <- .diagnostics_ac_data(dat = plot_data$samp, lags = lags)
 
   if(plot_type == "base"){
+
+    # save plotting settings
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(oldpar))
 
     # set up margins
     if(length(list(...)) == 0){

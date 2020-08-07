@@ -40,12 +40,12 @@ bool DWT2::checkParameterValue(vector<double const *> const &par,
   bool df_OK;
 
   // all crit_t must be non-negative
-  for(int i = 1; i < n_crit_t(len); ++i){
+  for(unsigned i = 1; i < n_crit_t(len); ++i){
     crit_t_OK = crit_t_OK && ( crit_t(par)[i] >= 0.0 );
   }
 
   // all omegas are within [0, 1] and the last omega == 1
-  for(int j = 0; j < (n_omega(len)-1); ++j){
+  for(unsigned j = 0; j < (n_omega(len)-1); ++j){
     omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
   }
   // numerical imprecission for last omega is not a problem since it's assumed to be 1 later on
@@ -80,7 +80,7 @@ double DWT2::logDensity(double const *x, unsigned int length, PDFType type,
   }else if(abs_x < crit_t(par)[0]){
     w = log(omega(par)[0]);
   }else{
-    for(int i = 1; i < n_omega(len); ++i){
+    for(unsigned i = 1; i < n_omega(len); ++i){
       if( ( abs_x < crit_t(par)[i] ) && ( abs_x >= crit_t(par)[i-1]) ){
         w = log(omega(par)[i]);
         break;
@@ -100,7 +100,7 @@ double DWT2::logDensity(double const *x, unsigned int length, PDFType type,
   denom_sum = denoms[0];
   // the ones in the middle
   if(n_omega(len) > 1){
-    for(int j = 1; j < n_omega(len) - 1; ++j){
+    for(unsigned j = 1; j < n_omega(len) - 1; ++j){
       denoms.push_back(pnt(crit_t(par)[j], df, ncp, true, false) -  pnt(-crit_t(par)[j], df, ncp, true, false) - denom_sum);
       if(denoms[j] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecission
         denoms[j] = 0.0;
@@ -115,7 +115,7 @@ double DWT2::logDensity(double const *x, unsigned int length, PDFType type,
   }
 
   // weight and sum the denominators
-  for(int k = 0; k < n_omega(len); ++k){
+  for(unsigned k = 0; k < n_omega(len); ++k){
     denom = denom + exp(log(denoms[k]) + log(omega(par)[k]));
   }
 

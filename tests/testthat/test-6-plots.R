@@ -3,7 +3,7 @@ skip_on_cran()
 
 
 # test objects - assuming that the fit function worked properly
-saved_fits    <- readRDS(file = "saved_fits.RDS")
+saved_fits    <- readRDS(file = "../results/saved_fits.RDS")
 set.seed(1)
 
 test_that("Parameter plots works", {
@@ -64,6 +64,11 @@ test_that("Parameter plots works", {
 
     }
   }
+
+  expect_doppelganger("plot_weight_function1_1_scaleX",plot(saved_fits[[1]], "omega", plot_type = "ggplot", rescale_x = T))
+  expect_doppelganger("plot_weight_function2_1_scaleX",plot(saved_fits[[1]], "omega", prior = TRUE, plot_type = "ggplot", rescale_x = T))
+  expect_doppelganger("plot_weight_function3_1_scaleX",plot(saved_fits[[1]], "omega", type = "conditional", plot_type = "ggplot", rescale_x = T))
+  expect_doppelganger("plot_weight_function4_1_scaleX",plot(saved_fits[[1]], "omega", type = "conditional", prior = TRUE, plot_type = "ggplot", rescale_x = T))
 
   for(i in 1:length(saved_fits)){
 

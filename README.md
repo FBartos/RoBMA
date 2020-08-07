@@ -32,8 +32,13 @@ package:
 ## Installation
 
 The package requires [JAGS 4.3.0](http://mcmc-jags.sourceforge.net/) to
-be installed. The development version of the package can be installed
-from GitHub:
+be installed. The release version can be installed from CRAN:
+
+``` r
+install.packages("RoBMA")
+```
+
+and the development version of the package can be installed from GitHub:
 
 ``` r
 devtools::install_github("fbartos/RoBMA")
@@ -128,22 +133,21 @@ the publication bias.
 ``` r
 summary(fit)
 #> Call:
-#> RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$name, 
-#>     seed = 666)
+#> RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$name)
 #> 
 #> Robust Bayesian Meta-Analysis
 #>               Models Prior prob. Post. prob.     Incl. BF
-#> Effect          6/12       0.500       1.000 11331026.690
-#> Heterogeneity   6/12       0.500       0.138        0.160
-#> Pub. bias       8/12       0.500       0.998      532.592
+#> Effect          6/12       0.500       1.000 11286565.669
+#> Heterogeneity   6/12       0.500       0.131        0.151
+#> Pub. bias       8/12       0.500       0.998      532.522
 #> 
 #> Model-averaged estimates
 #>                  Mean Median 0.025 0.975
-#> mu              0.150  0.151 0.092 0.205
-#> tau             0.010  0.000 0.000 0.099
+#> mu              0.151  0.151 0.094 0.207
+#> tau             0.010  0.000 0.000 0.098
 #> omega[0,0.05]   1.000  1.000 1.000 1.000
-#> omega[0.05,0.1] 0.514  0.497 0.100 0.969
-#> omega[0.1,1]    0.121  0.096 0.021 0.367
+#> omega[0.05,0.1] 0.515  0.502 0.100 0.962
+#> omega[0.1,1]    0.122  0.095 0.020 0.367
 #> (Tau is on Cohen's d scale.)
 #> (Estimated omegas correspond to two-sided p-values)
 ```

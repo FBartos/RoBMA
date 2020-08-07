@@ -3,8 +3,8 @@ skip_on_cran()
 
 
 # test objects
-saved_priors <- readRDS(file = "saved_priors.RDS")
-print_priors <- read.table("print_priors.txt", sep = ";", stringsAsFactors = FALSE)
+saved_priors <- readRDS(file = "../results/saved_priors.RDS")
+print_priors <- read.table("../results/print_priors.txt", sep = ";", stringsAsFactors = FALSE)
 
 # create priors
 p_point        <- prior("point",     parameters = list(location = 1))
@@ -78,13 +78,15 @@ test_that("Priors plots work", {
 
 
 #### creating / updating the test settings ####
-# saved_priors <- list(p_point, p_normal, p_normal_trunc, p_cauchy, p_t_cauchy, p_t, p_gamma1, p_gamma2, p_invgamma, p_uniform, p_two.sided1, p_two.sided2, p_two.sided3, p_one.sided1, p_one.sided2)
-# saveRDS(saved_priors, file = "tests/testthat/saved_priors.RDS")
-# saved_priors <- readRDS(file = "tests/testthat/saved_priors.RDS")
-#
-# sink(file = "tests/testthat/print_priors.txt", append = TRUE)
-# for(i in 1:length(fitted_priors)){
-#   print(fitted_priors[[i]])
-#   cat("\n")
-# }
-# sink(file = NULL)
+if(FALSE){
+  saved_priors <- list(p_point, p_normal, p_normal_trunc, p_cauchy, p_t_cauchy, p_t, p_gamma1, p_gamma2, p_invgamma, p_uniform, p_two.sided1, p_two.sided2, p_two.sided3, p_one.sided1, p_one.sided2)
+  saveRDS(saved_priors, file = "tests/results/saved_priors.RDS")
+  saved_priors <- readRDS(file = "tests/results/saved_priors.RDS")
+
+  sink(file = "tests/results/print_priors.txt", append = TRUE)
+  for(i in 1:length(fitted_priors)){
+    print(fitted_priors[[i]])
+    cat("\n")
+  }
+  sink(file = NULL)
+}

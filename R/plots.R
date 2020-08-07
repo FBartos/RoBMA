@@ -54,6 +54,9 @@
 #' @param weights whether the weights or weight function should
 #' be returned. Only applicable when \code{parameter = "omega"}.
 #' Defaults to \code{FALSE} - the weight function is plotted.
+#' @param rescale_x whether the x-axis should be rescaled in order
+#' to make the x-ticks equally spaced. Available only for the
+#' weightfunction plot. Defaults to \code{FALSE}.
 #' @param ... additional arguments to be passed to
 #' \link[graphics]{par} if \code{plot_type = "base"}. Especially
 #' useful for \code{parameter == "theta"},
@@ -95,7 +98,8 @@ plot.RoBMA <- function(x, parameter,
                        type = "averaged", plot_type = "base",
                        mean = TRUE, median = FALSE, CI = .95, prior = FALSE,
                        order = NULL, digits_estimates = 2,
-                       show_figures = if(parameter == "omega" & (weights | any(type %in% "individual")) ) -1, weights = FALSE, ...){
+                       show_figures = if(parameter == "omega" & (weights | any(type %in% "individual")) ) -1,
+                       weights = FALSE, rescale_x = FALSE, ...){
 
   ### settings
   # deal with misspecified arguments
@@ -151,7 +155,7 @@ plot.RoBMA <- function(x, parameter,
   }else if(parameter %in% c("mu", "tau") | (parameter ==  "omega" & weights)){
     output <- .plot.RoBMA_par(x, parameter, type, plot_type, mean, median, CI, prior, show_figures, ...)
   }else if(parameter == "omega" & !weights){
-    output <- .plot.RoBMA_weightf(x, type, plot_type, mean, median, CI, prior, ...)
+    output <- .plot.RoBMA_weightf(x, type, plot_type, mean, median, CI, prior, rescale_x, ...)
   }else if(parameter %in% c("theta", "forest")){
     output <- .plot.RoBMA_theta(x, parameter, type, plot_type, mean, median, CI, order, digits_estimates, ...)
   }else{
@@ -405,7 +409,7 @@ plot.RoBMA <- function(x, parameter,
     plots_ind <- c(1:ncol(y))[show_figures]
   }
   # a message with info about muliple plots
-  if(plot_type == "base" & length(plots_ind) > 1)cat(paste0(length(plots_ind), " plots will be produced. See '?layout' for help with setting multiple plots."))
+  if(plot_type == "base" & length(plots_ind) > 1)message(paste0(length(plots_ind), " plots will be produced. See '?layout' for help with setting multiple plots."))
 
 
   for(i in plots_ind){
@@ -468,6 +472,10 @@ plot.RoBMA <- function(x, parameter,
 
 
     if(plot_type == "base"){
+
+      # save plotting settings
+      oldpar <- graphics::par(no.readonly = TRUE)
+      on.exit(graphics::par(oldpar))
 
       # set up margins
       if(length(list(...)) == 0){
@@ -642,6 +650,10 @@ plot.RoBMA <- function(x, parameter,
   # create appropriate plot
   if(plot_type == "base"){
 
+    # save plotting settings
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(oldpar))
+
     # set up margins
     if(length(list(...)) == 0){
       graphics::par(mar = c(4,4,2,2))
@@ -674,7 +686,7 @@ plot.RoBMA <- function(x, parameter,
 
   return(out)
 }
-.plot.RoBMA_weightf <- function(fit, type, plot_type, mean, median, CI, prior, ...){
+.plot.RoBMA_weightf <- function(fit, type, plot_type, mean, median, CI, prior, rescale_x, ...){
 
   # deal with only null models
   if(all(sapply(fit$models,function(m).is_parameter_null(m$priors, "omega"))) & type == "conditional")stop("The ensemble cointains no non-null model adjusting for publication bias.")
@@ -684,7 +696,11 @@ plot.RoBMA <- function(x, parameter,
 
   # get the x-axis coordinate order
   coord_order <- sort(rep(1:(length(all_cuts)-1),2), decreasing = TRUE)
-  x           <- all_cuts[rev(c(1, sort(rep(2:(length(all_cuts)-1), 2)), length(all_cuts)))]
+  if(rescale_x){
+    x <- seq(0, 1, length.out = length(all_cuts))[rev(c(1, sort(rep(2:(length(all_cuts)-1), 2)), length(all_cuts)))]
+  }else{
+    x <- all_cuts[rev(c(1, sort(rep(2:(length(all_cuts)-1), 2)), length(all_cuts)))]
+  }
 
   # get the y-axis coordinates
   if(mean){
@@ -726,9 +742,19 @@ plot.RoBMA <- function(x, parameter,
   x_text <- bquote(italic(p)*.(paste0("-value (",ifelse(any(sapply(fit$models, function(m)m$priors$omega$distribution) == "one.sided"),"one-sided", "two-sided"),")")))
   y_text <- bquote("Publication prob. ("*omega*";"~.(ifelse(type == "conditional", "conditional)","averaged)")))
 
+  if(rescale_x){
+    x_breaks <- rev(seq(0, 1, length.out = length(all_cuts)))
+  }else{
+    x_breaks <- rev(all_cuts)
+  }
+
 
   # create appropriate plot
   if(plot_type == "base"){
+
+    # save plotting settings
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(oldpar))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -739,8 +765,8 @@ plot.RoBMA <- function(x, parameter,
 
     graphics::plot(NA, type = "n", xlim = c(0, 1), ylim = c(0,1), xaxt = "n", yaxt = "n", bty = "n",
                    xlab = "", ylab = "", main = "")
-    graphics::axis(1, at = rev(all_cuts), labels = x_labes)
-    graphics::axis(2, at = seq(0,1,.1),   labels = y_labes, las = 1)
+    graphics::axis(1, at = x_breaks,    labels = x_labes)
+    graphics::axis(2, at = seq(0,1,.1), labels = y_labes, las = 1)
     graphics::mtext(x_text, side = 1, line = 2.5, cex = 1.25)
     graphics::mtext(y_text, side = 2, line = 2.5, cex = 1.25)
 
@@ -785,7 +811,7 @@ plot.RoBMA <- function(x, parameter,
       if(mean)out   <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = prior_mean),   size = 1.25, linetype = 2, color = "grey50")
       if(median)out <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = prior_median), size = 1.25, linetype = 2, color = "grey50")
     }
-    out <- out + ggplot2::scale_x_continuous(x_text, breaks = rev(all_cuts), labels = x_labes, limits = c(0,1))
+    out <- out + ggplot2::scale_x_continuous(x_text, breaks = x_breaks,      labels = x_labes, limits = c(0,1))
     out <- out + ggplot2::scale_y_continuous(y_text, breaks = seq(0,1,.1),   labels = y_labes, limits = c(0,1))
 
   }
@@ -928,6 +954,10 @@ plot.RoBMA <- function(x, parameter,
 
   # create appropriate plot
   if(plot_type == "base"){
+
+    # save plotting settings
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(oldpar))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -1232,7 +1262,7 @@ plot.RoBMA <- function(x, parameter,
     plots_ind <- c(1:length(mod_res))[show_figures]
   }
   # a message with info about muliple plots
-  if(plot_type == "base" & length(plots_ind) > 1)cat(paste0(length(plots_ind), " plots will be produced. See '?layout' for help with setting multiple plots."))
+  if(plot_type == "base" & length(plots_ind) > 1)message(paste0(length(plots_ind), " plots will be produced. See '?layout' for help with setting multiple plots."))
 
   if(par == "omega"){
     x_range <- c(0, 1)
@@ -1249,6 +1279,10 @@ plot.RoBMA <- function(x, parameter,
 
   for(i in plots_ind){
     if(plot_type == "base"){
+
+      # save plotting settings
+      oldpar <- graphics::par(no.readonly = TRUE)
+      on.exit(graphics::par(oldpar))
 
       # set up margins
       if(length(list(...)) == 0){

@@ -53,7 +53,7 @@
 #' distributions for each of the model parameters (mu, tau, omega), and
 #' sets the model priors odds to the product of its prior distributions.
 #'
-#' @examples \dontrun{
+#' @examples
 #' # create a standart normal prior distribution
 #' p1 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1))
 #'
@@ -62,12 +62,12 @@
 #' truncation = list(lower = 0, upper = Inf))
 #'
 #' # or a prior for one-sided weight function
-#' p3 <- prior("one-sided", parameters = list(cuts = c(.05, .10), alpha = c(1, 1, 1)))
+#' p3 <- prior("one-sided", parameters = list(steps = c(.05, .10), alpha = c(1, 1, 1)))
 #'
 #' # the prior distribution can be visualized using the plot function
 #' # (see ?plot.prior.RoBMA for all options)
 #' plot(p1)
-#' }
+#'
 #'
 #' @export  prior
 #' @rawNamespace S3method(print, RoBMA.prior)
@@ -271,6 +271,8 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
     output$parameters   <- parameters
     output$truncation   <- list(lower = parameters$a, upper = parameters$b)
 
+  }else{
+    stop(paste0("The specified distribution name '", distribution,"' is not known. Please, see '?prior' for more information about supported prior distributions."))
   }
 
   output$prior_odds <- prior_odds
@@ -463,7 +465,11 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
     if(plot_type == "base"){
 
       # a message with info about muliple plots
-      if(i == 1 & length(plot_data$df) > 1)cat(paste0(length(plot_data$df), " plots will be produced. See '?layout' for help with setting multiple plots."))
+      if(i == 1 & length(plot_data$df) > 1)message(paste0(length(plot_data$df), " plots will be produced. See '?layout' for help with setting multiple plots."))
+
+      # save plotting settings
+      oldpar <- graphics::par(no.readonly = TRUE)
+      on.exit(graphics::par(oldpar))
 
       # set up margins
       if(length(list(...)) == 0){

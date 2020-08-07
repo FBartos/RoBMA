@@ -19,6 +19,7 @@ RoBMA(
   test_type = "two.sample",
   study_names = NULL,
   mu_transform = if (!is.null(r)) "cohens_d" else if (!is.null(OR)) "log_OR" else NULL,
+  effect_direction = "positive",
   priors_mu = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
   priors_tau = prior(distribution = "invgamma", parameters = list(shape = 1, scale =
     0.15)),
@@ -73,6 +74,10 @@ correlations or odds ratios are supplied as input. Defaults to
 and \code{"log_OR"} for odds ratios (another options is \code{"cohens_d"}).
 Note that priors are specified on the transformed scale and
 estimates are transformed back (apart from tau).}
+
+\item{effect_direction}{the expected direction of the effect. The one-sided
+selection sets the weights omega to 1 to significant results in the expted
+direction. Defaults to \code{"positive"} (another oprion is \code{"negative"}).}
 
 \item{priors_mu}{list of prior distributions for the \code{mu} parameter that
 will be treated as belonging to the alternative hypothesis. Defaults to \code{

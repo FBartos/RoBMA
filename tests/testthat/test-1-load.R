@@ -1,4 +1,5 @@
 context("(1) JAGS module functionality")
+skip_on_cran()
 
 hereIsTheModule <- sub("/DESCRIPTION", '', sub("/Meta.*", '', attr(packageDescription("RoBMA"), "file")))
 rjags::load.module("RoBMA", path = paste0(hereIsTheModule, "/libs", Sys.getenv("R_ARCH")) )

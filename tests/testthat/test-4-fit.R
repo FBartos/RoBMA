@@ -3,8 +3,9 @@ skip_on_cran()
 
 
 # test objects
-saved_fits   <- readRDS(file = "saved_fits.RDS")
-updated_fits <- readRDS(file = "updated_fits.RDS")
+saved_fits   <- readRDS(file = "../results/saved_fits.RDS")
+saved_fits2  <- readRDS(file = "../results/saved_fits2.RDS")
+updated_fits <- readRDS(file = "../results/updated_fits.RDS")
 remove_time  <- function(fit){
   for(m in 1:length(fit$models)){
     if(is.null(fit$models[[m]]$fit))next
@@ -15,11 +16,12 @@ remove_time  <- function(fit){
 }
 
 # create mock data
-k <- 3
-n <- rep(20, 3)
-r <- c(.1, .2, .3)
-t <- psych::r2t(r, n - 2)
-
+k  <- 3
+n  <- rep(20, 3)
+r  <- c(.1, .2, .3)
+t  <- psych::r2t(r, n - 2)
+d  <- psych::t2d(t, n)
+se <- c(psych::d.ci(d, n)[,2] - psych::d.ci(d, n)[,1]) / 1.96
 
 # fit default priors model configuration
 fit_default <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666)
@@ -219,6 +221,34 @@ test_that("Model preview works", {
 })
 
 
+# additional model fits (not used for plotting and other tests)
+fit_new1  <- suppressWarnings(RoBMA(OR = c(1.1, 1.05, 1.15), lCI = c(1, 0.95, 1.05), uCI = c(1.20, 1.15, 1.25),
+                   chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
+                   priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
+                   priors_omega = prior("two.sided", parameters = list(steps = c(.20), alpha = c(1,10)))))
+
+fit_new2a <- RoBMA(y = d,  se = se, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
+                   priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
+                   priors_mu    = prior("normal",    parameters = list(mean = 1, sd = 1)),
+                   priors_omega = prior("one.sided", parameters = list(steps = c(.20), alpha = c(1,1))))
+
+fit_new2b <- RoBMA(y = -d, se = se, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
+                   effect_direction = "negative", priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
+                   priors_mu    = prior("normal",    parameters = list(mean = -1, sd = 1)),
+                   priors_omega = prior("one.sided", parameters = list(steps = c(.20), alpha = c(1,1))))
+
+test_that("OR model fit works", {
+  fit_new1 <- remove_time(fit_new1)
+  expect_equal(saved_fits2[[1]], fit_new1)
+})
+
+test_that("Direction change model fit works", {
+  fit_new2a <- remove_time(fit_new2a)
+  fit_new2b <- remove_time(fit_new2b)
+  expect_equal(saved_fits2[[2]], fit_new2a)
+  expect_equal(saved_fits2[[3]], fit_new2b)
+})
+
 
 
 
@@ -228,11 +258,18 @@ if(FALSE){
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])
   }
-  saveRDS(saved_fits, file = "tests/testthat/saved_fits.RDS", compress  = "xz")
+  saveRDS(saved_fits, file = "tests/results/saved_fits.RDS", compress  = "xz")
 
   updated_fits <- list(fit_update1a, fit_update2, fit_update3)
   for(i in 1:3){
     updated_fits[[i]] <- remove_time(updated_fits[[i]])
   }
-  saveRDS(updated_fits, file = "tests/testthat/updated_fits.RDS", compress  = "xz")
+  saveRDS(updated_fits, file = "tests/results/updated_fits.RDS", compress  = "xz")
+
+  saved_fits2 <- list(fit_new1, fit_new2a, fit_new2b)
+  for(i in 1:length(saved_fits2)){
+    saved_fits2[[i]] <- remove_time(saved_fits2[[i]])
+  }
+  saveRDS(saved_fits2, file = "tests/results/saved_fits2.RDS", compress  = "xz")
+
 }

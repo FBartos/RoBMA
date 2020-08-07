@@ -3,7 +3,7 @@ skip_on_cran()
 
 
 # test objects - assuming that the fit function worked properly
-saved_fits    <- readRDS(file = "saved_fits.RDS")
+saved_fits    <- readRDS(file = "../results/saved_fits.RDS")
 set.seed(1)
 
 

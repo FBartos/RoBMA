@@ -70,7 +70,6 @@ sets the model priors odds to the product of its prior distributions.}
 a RoBMA model. The prior can be visualized by a \code{plot} function.
 }
 \examples{
-\dontrun{
 # create a standart normal prior distribution
 p1 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1))
 
@@ -79,12 +78,12 @@ p2 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1),
 truncation = list(lower = 0, upper = Inf))
 
 # or a prior for one-sided weight function
-p3 <- prior("one-sided", parameters = list(cuts = c(.05, .10), alpha = c(1, 1, 1)))
+p3 <- prior("one-sided", parameters = list(steps = c(.05, .10), alpha = c(1, 1, 1)))
 
 # the prior distribution can be visualized using the plot function
 # (see ?plot.prior.RoBMA for all options)
 plot(p1)
-}
+
 
 }
 \seealso{

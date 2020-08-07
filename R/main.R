@@ -27,6 +27,9 @@
 #' and \code{"log_OR"} for odds ratios (another options is \code{"cohens_d"}).
 #' Note that priors are specified on the transformed scale and
 #' estimates are transformed back (apart from tau).
+#' @param effect_direction the expected direction of the effect. The one-sided
+#' selection sets the weights omega to 1 to significant results in the expted
+#' direction. Defaults to \code{"positive"} (another oprion is \code{"negative"}).
 #' @param study_names an optional argument with the names of the studies.
 #' @param priors_mu list of prior distributions for the \code{mu} parameter that
 #' will be treated as belonging to the alternative hypothesis. Defaults to \code{
@@ -188,6 +191,7 @@
 RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, n = NULL, n1 = NULL, n2 = NULL, lCI = NULL, uCI = NULL,
                   test_type = "two.sample", study_names = NULL,
                   mu_transform  = if(!is.null(r)) "cohens_d" else if (!is.null(OR)) "log_OR" else NULL,
+                  effect_direction = "positive",
                   priors_mu    = prior(distribution = "normal",   parameters = list(mean = 0, sd = 1)),
                   priors_tau   = prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15)),
                   priors_omega = list(
@@ -210,36 +214,39 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
   study_names <- .get_study_names(study_names, n_studies = length(object$data$t))
 
 
+  ### add additional information
+  object$add_info <- list(
+    t                = object$data$t,
+    d                = d,
+    r                = r,
+    y                = y,
+    OR               = OR,
+    n                = n,
+    n1               = n1,
+    n2               = n2,
+    se               = se,
+    lCI              = lCI,
+    uCI              = uCI,
+    effect_size      = object$data$effect_size,
+    effect_direction = effect_direction,
+    mu_transform     = if(object$data$effect_size %in% c("r","OR"))mu_transform,
+    test_type        = test_type,
+    study_names      = as.character(study_names),
+    seed             = seed,
+    save             = save,
+    warnings         = NULL
+  )
+
+
   ### prepare and check the settings
   object$priors  <- list(
     mu    = .set_parameter_priors(priors_mu_null,    priors_mu,    "mu"),
     tau   = .set_parameter_priors(priors_tau_null,   priors_tau,   "tau"),
     omega = .set_parameter_priors(priors_omega_null, priors_omega, "omega")
   )
-  object$models  <- .get_models(object$priors)
-  object$control <- .set_control(control, chains, iter, burnin, thin)
-
-
-  ### add additional information
-  object$add_info <- list(
-    t            = object$data$t,
-    d            = d,
-    r            = r,
-    y            = y,
-    OR           = OR,
-    n            = n,
-    n1           = n1,
-    n2           = n2,
-    se           = se,
-    lCI          = lCI,
-    uCI          = uCI,
-    effect_size  = object$data$effect_size,
-    mu_transform = if(object$data$effect_size %in% c("r","OR"))mu_transform,
-    test_type    = test_type,
-    study_names  = as.character(study_names),
-    seed         = seed,
-    save         = save
-  )
+  object$models   <- .get_models(object$priors)
+  object$control  <- .set_control(control, chains, iter, burnin, thin)
+  object$add_info <- .check_effect_direction(object)
 
 
   ### fit the models and compute marginal likelihoods
@@ -390,6 +397,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds     <- prior_odds
     if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds_set <- prior_odds
 
+
   }else if(!is.null(prior_odds)){
 
     what_to_do <- "update_prior_odds"
@@ -411,8 +419,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   ### update control settings if any change is specified
-  object$control <- .update_control(object$control, control, chains, iter, burnin, thin)
-
+  object$control  <- .update_control(object$control, control, chains, iter, burnin, thin)
+  object$add_info <- .check_effect_direction(object)
 
   ### do the stuff
   if(what_to_do == "fit_new_model"){
@@ -633,6 +641,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     stop("Insufficient input provided. Specify either the 't' / 'd' and 'n' / 'n1' & 'n2' / 'se' / 'lCI' & 'uCI', or, 'r' and 'n' / 'lCI' & 'uCI', or 'y' and 'se' / 'lCI' & 'uCU', or 'OR' and 'lCI' & 'uCI'.")
   }
 
+  if(length(data$t) != data$K | length(data$df) != data$K | length(data$ncp_mlp) != data$K)stop("The length of specified data input does not match.")
 
   return(data)
 }
@@ -651,11 +660,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
        priors$omega$distribution == "point")){
 
     # genrate the model syntax
-    model_syntax <- .generate_model_syntax(priors, control$boost)
+    model_syntax <- .generate_model_syntax(priors, control$boost, object$add_info$effect_direction)
 
 
     # remove unneccessary objects from data to mittigate warnings
-    fit_data          <- .fit_data(object$data, priors)
+    fit_data          <- .fit_data(object$data, priors, object$add_info$effect_direction)
     fit_inits         <- .fit_inits(priors, control$chains, object$add_info$seed)
     monitor_variables <- .to_monitor(priors)
 
@@ -666,6 +675,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     # deal with some fixable errors
     if(all(class(fit) %in% c("simpleError", "error", "condition"))){
+
+      # problem with installing the RoBMA JAGS module
+      if(grepl("Unknown distribution", fit$message)){
+        stop("The RoBMA JAGS distributions could not be found. Please, check that the RoBMA package is properly installed.")
+      }
 
       # create a new, data-tuned starting values if there is an outlier that fails the sampling
       if(any(names(unlist(fit_inits)) %in% c("mu", "inv_mu"))){
@@ -698,7 +712,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         new_warn <- c(new_warn, paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). The model was refitted using boost likelihood function."))
 
-        model_syntax <- .generate_model_syntax(priors, TRUE)
+        model_syntax <- .generate_model_syntax(priors, TRUE, object$add_info$effect_direction)
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
 
       }
@@ -710,7 +724,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     fit  <- NULL
   }
 
-
+  # add the fit and summary to the main object
   object$models[[i]]$fit <- fit
   if(!is.null(fit)){
     object$models[[i]]$fit_summary <- .runjags.summary(fit)
@@ -746,6 +760,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(fit)
 }
 .fit_model_RoBMA       <- function(model_syntax, fit_data, fit_inits, monitor_variables, control, seed){
+  # requires namespace in case that the fit is estimated in a separate R process (for the silent mode)
   requireNamespace("RoBMA")
   if(!is.null(seed))set.seed(seed)
   tryCatch(runjags::autorun.jags(
@@ -788,23 +803,24 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     # compute marginal likelihood
     marglik_samples <- .marglik_prepare_data(fit, priors, object$data)
-    fit_data        <- .fit_data(object$data, priors)
+    fit_data        <- .fit_data(object$data, priors, object$add_info$effect_direction)
 
     if(!is.null(object$add_info$seed))set.seed(object$add_info$seed)
     marg_lik        <- tryCatch(suppressWarnings(bridgesampling::bridge_sampler(
-      samples       = marglik_samples$samples,
-      data          = fit_data,
-      log_posterior = .marglik_function,
-      priors        = priors,
-      lb            = marglik_samples$lb,
-      ub            = marglik_samples$ub,
-      maxiter       = object$control$bridge_max_iter,
-      silent        = TRUE)),
+      samples          = marglik_samples$samples,
+      data             = fit_data,
+      log_posterior    = .marglik_function,
+      priors           = priors,
+      effect_direction = object$add_info$effect_direction,
+      lb               = marglik_samples$lb,
+      ub               = marglik_samples$ub,
+      maxiter          = object$control$bridge_max_iter,
+      silent           = TRUE)),
       error = function(e)return(e))
 
   }else{
     # easy calculation of the marginal likelihood in case of null model
-    marg_lik <- .marglik_null(object$data)
+    marg_lik <- .marglik_null(object$data, priors)
   }
 
   # handle errors
@@ -825,7 +841,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(object)
 }
-.generate_model_syntax <- function(priors, boost){
+.generate_model_syntax <- function(priors, boost, effect_direction){
 
   # generate model syntax
   model_syntax <- "model{"
@@ -870,6 +886,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # transformations
   if(priors$mu$distribution == "invgamma"){
     model_syntax <- paste0(model_syntax, "mu = pow(inv_mu, -1)\n")
+  }
+  if(effect_direction == "negative"){
+    model_syntax <- paste0(model_syntax, "mu_neg = - mu\n")
   }
 
 
@@ -949,57 +968,52 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   ### model
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
+
+  # random effects
   if(priors$tau$distribution != "point"){
-    model_syntax <- paste0(model_syntax, "theta[i] ~ dnorm(mu, pow(tau, -2))\n")
+    model_syntax <- paste0(model_syntax, ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]")," ~ dnorm(",ifelse(effect_direction == "negative", "mu_neg", "mu"),", pow(tau, -2))\n")
+    if(effect_direction == "negative"){
+      model_syntax <- paste0(model_syntax, "theta[i] = - theta_neg[i]\n")
+    }
   }else if(priors$tau$parameters$location > 0){
-    model_syntax <- paste0(model_syntax, "theta[i] ~ dnorm(mu, pow(tau, -2))\n")
+    model_syntax <- paste0(model_syntax, ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]")," ~ dnorm(",ifelse(effect_direction == "negative", "mu_neg", "mu"),", pow(tau, -2))\n")
+    if(effect_direction == "negative"){
+      model_syntax <- paste0(model_syntax, "theta[i] = - theta_neg[i]\n")
+    }
   }
+
+  # the ncp parameters
+  if(priors$tau$distribution == "point"){
+    if(priors$tau$parameters$location > 0){
+      ncp <- paste0(ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]"),"*ncp_mlp[i]")
+    }else{
+      ncp <- paste0(ifelse(effect_direction == "negative", "mu_neg", "mu"),"*ncp_mlp[i]")
+    }
+  }else{
+    ncp <- paste0(ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]"),"*ncp_mlp[i]")
+  }
+  # the observed data
   if(priors$omega$distribution == "point"){
-
-    if(priors$tau$distribution == "point"){
-      if(priors$tau$parameters$location > 0){
-        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(theta[i]*ncp_mlp[i], 1, df[i])\n")
-      }else{
-        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(mu*ncp_mlp[i], 1, df[i])\n")
-      }
-    }else{
-      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(theta[i]*ncp_mlp[i], 1, df[i])\n")
-    }
-
+    model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(", ncp, ", 1, df[i])\n")
   }else if(priors$omega$distribution == "one.sided"){
-
-    if(priors$tau$distribution == "point"){
-      if(priors$tau$parameters$location > 0){
-        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
-      }else{
-        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], mu*ncp_mlp[i], crit_t[i,], omega) \n")
-      }
-    }else{
-      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
-    }
-
+    model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
   }else if(priors$omega$distribution == "two.sided"){
-
-    if(priors$tau$distribution == "point"){
-      if(priors$tau$parameters$location > 0){
-        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
-      }else{
-        model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], mu*ncp_mlp[i], crit_t[i,], omega) \n")
-      }
-    }else{
-      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], theta[i]*ncp_mlp[i], crit_t[i,], omega) \n")
-    }
-
+    model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
   }
   model_syntax <- paste0(model_syntax, "}\n")
   model_syntax <- paste0(model_syntax, "}")
 
   return(model_syntax)
 }
-.fit_data              <- function(data, priors){
+.fit_data              <- function(data, priors, effect_direction){
 
   # remove unneccessary stuff
   data$effect_size <- NULL
+
+  # change the effect size direction (important for one-sided selection)
+  if(effect_direction == "negative"){
+    data$t <- - data$t
+  }
 
   ### add settings for prior distribution
   for(var in names(priors)){
@@ -1166,7 +1180,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(variables)
 }
-.marglik_function      <- function(samples.row, data, priors){
+.marglik_function      <- function(samples.row, data, priors, effect_direction){
 
   ### get parameteres depending on the model type
   # mu
@@ -1178,8 +1192,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       mu <- samples.row[[ "mu" ]]
     }
   }else{
-    mu <- 0
+    mu <- priors$mu$parameters$location
   }
+
 
   # tau
   if(priors$tau$distribution == "point"){
@@ -1187,7 +1202,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       tau      <- priors$tau$parameters$location
       theta    <- samples.row[ paste0("theta[", 1:data$K, "]") ]
     }
-    ncp <- mu*data$ncp_mlp
+
+    # change the direction for the ncp parameter
+    if(effect_direction == "negative"){
+      ncp <- -mu*data$ncp_mlp
+    }else{
+      ncp <-  mu*data$ncp_mlp
+    }
   }else{
     theta    <- samples.row[ paste0("theta[", 1:data$K, "]") ]
     if(priors$tau$distribution == "invgamma"){
@@ -1196,7 +1217,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }else{
       tau <- samples.row[[ "tau" ]]
     }
-    ncp <- theta*data$ncp_mlp
+
+    # change the direction for the ncp parameter
+    if(effect_direction == "negative"){
+      ncp <- -theta*data$ncp_mlp
+    }else{
+      ncp <-  theta*data$ncp_mlp
+    }
   }
 
   # omega
@@ -1312,7 +1339,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
 
-  # the true effect sizes (in case of heterogeneity)
+  # the true effect sizes (in case of heterogeneity) (the normal is symetric, so it doesn't matter whether we use theta~N(mu,tau) or theta_neg~N(mu_neg,tau))
   if(priors$tau$distribution == "point"){
     if(priors$tau$parameters$location != 0){
       log_lik <- log_lik + sum(stats::dnorm(theta, mean = mu, sd = tau, log = TRUE))
@@ -1417,6 +1444,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # keep only the samples needed for the bridge sampling function
   samples <- samples[,pars]
+
   # and make cure that they are in a matrix format
   if(!is.matrix(samples)){
     samples           <- matrix(samples, ncol = 1)
@@ -1434,10 +1462,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   )
   return(out)
 }
-.marglik_null          <- function(data){
+.marglik_null          <- function(data, priors){
 
   marg_lik        <- NULL
-  marg_lik$logml  <- sum(stats::dt(data$t, data$df, 0, log = TRUE))
+  marg_lik$logml  <- sum(stats::dt(data$t, data$df, priors$mu$parameters$location, log = TRUE))
   class(marg_lik) <- "bridge"
 
   return(marg_lik)
@@ -1808,7 +1836,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
 ### helper functions for settings
-.set_parameter_priors  <- function(priors_null, priors_alt, parameter){
+.set_parameter_priors   <- function(priors_null, priors_alt, parameter){
 
   # check that at least one prior is specified (either null or alternative)
   if(is.null(priors_null) & is.null(priors_alt))stop(paste0("At least one prior needs to be specified for the ", parameter," parameter (either null or alternative)."))
@@ -1894,7 +1922,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(priors)
 
 }
-.get_models            <- function(priors){
+.get_models             <- function(priors){
 
   # create models according to the set priors
   models <- NULL
@@ -1911,7 +1939,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(models)
 }
-.create_model          <- function(prior_mu, prior_tau, priors_omega, prior_odds){
+.create_model           <- function(prior_mu, prior_tau, priors_omega, prior_odds){
 
   model <- list(
     priors = list(
@@ -1927,7 +1955,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(model)
 
 }
-.set_control           <- function(control, chains, iter, burnin, thin){
+.set_control            <- function(control, chains, iter, burnin, thin){
 
   # set the control list
   if(is.null(control)){
@@ -1994,7 +2022,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   .check_control(control)
   return(control)
 }
-.update_control        <- function(control, control_new, chains, iter, burnin, thin){
+.update_control         <- function(control, control_new, chains, iter, burnin, thin){
 
   if(!is.null(control_new)){
     for(n in names(control_new)){
@@ -2012,7 +2040,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(control)
 }
-.check_control         <- function(control){
+.check_control          <- function(control){
   # check whether only known controls were supplied
   known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost")
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
@@ -2042,6 +2070,22 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # now taken care of by the evaluation outside of R
   # runjags::runjags.options(silent.jags = control$silent, silent.runjags = control$silent)
+}
+.check_effect_direction <- function(object){
+
+  if(!object$add_info$effect_direction %in% c("positive", "negative"))stop("'effect_direction' must be either 'positive' or 'negative'")
+
+  # check whether majority of effect sizes are in expected direction. throw warning if not.
+  if(any(sapply(object$priors$omega, function(p)p$distribution) == "one.sided")){
+    if(stats::median(object$data$t) > 0 & object$add_info$effect_direction == "negative" |
+       stats::median(object$data$t) < 0 & object$add_info$effect_direction == "positive"){
+      object$add_info$warnings <- c(object$add_info$warnings, "The majority of effect sizes is in the oposite direction than expected. The direction of effect sizes is important for the one-sided weight functions. Please, check the 'effect_direction' argument in 'RoBMA' fitting function.")
+    }
+  }
+
+  # the actual effect size direction changes are done prior and after fitting using the '.fit_data' and '.change_direction' functions
+
+  return(object$add_info)
 }
 
 

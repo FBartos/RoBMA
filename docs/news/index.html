@@ -71,7 +71,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.4</span>
       </span>
     </div>
 
@@ -132,9 +132,39 @@
       <small>Source: <a href='https://github.com/FBartos/RoBMA/blob/master/NEWS.md'><code>NEWS.md</code></a></small>
     </div>
 
+    <div id="version-104" class="section level1">
+<h1 class="page-header" data-toc-text="1.0.4">
+<a href="#version-104" class="anchor"></a>version 1.0.4<small> Unreleased </small>
+</h1>
+<p>Fixes:</p>
+<ul>
+<li>inability to run models without the silent = TRUE control</li>
+</ul>
+</div>
+    <div id="version-103" class="section level1">
+<h1 class="page-header" data-toc-text="1.0.3">
+<a href="#version-103" class="anchor"></a>version 1.0.3<small> 2020-08-06 </small>
+</h1>
+<p>Features:</p>
+<ul>
+<li>x-axis rescaling for the weight function plot (by setting ‘rescale_x = TRUE’ in the ‘plot.RoBMA’ function)</li>
+<li>setting expected direction of the effect in for RoBMA function</li>
+</ul>
+<p>Fixes:</p>
+<ul>
+<li>marginal likelihood calculation for models with spike prior distribution on mean parameter which location was not set to 0</li>
+<li>some additional error messages</li>
+</ul>
+<p>CRAM requested changes:</p>
+<ul>
+<li>changing information messages from ‘cat’ to ‘message’ from plot related functions</li>
+<li>saving and returning the ‘par’ settings to the user defined one in the base plot functions</li>
+</ul>
+</div>
     <div id="version-102" class="section level1">
 <h1 class="page-header" data-toc-text="1.0.2">
-<a href="#version-102" class="anchor"></a>version 1.0.2</h1>
+<a href="#version-102" class="anchor"></a>version 1.0.2<small> Unreleased </small>
+</h1>
 <p>Fixes:</p>
 <ul>
 <li>the summary and plot function now shows quantile based confidence intervals for individual models instead of the HPD provided before (this affects only ‘summary’/‘plot’ with ‘type = “individual”’, all other confidence intervals were quantile based before)</li>
@@ -142,7 +172,8 @@
 </div>
     <div id="version-101" class="section level1">
 <h1 class="page-header" data-toc-text="1.0.1">
-<a href="#version-101" class="anchor"></a>version 1.0.1</h1>
+<a href="#version-101" class="anchor"></a>version 1.0.1<small> Unreleased </small>
+</h1>
 <p>Fixes:</p>
 <ul>
 <li>summary function returning median instead of mean</li>
@@ -150,7 +181,8 @@
 </div>
     <div id="version-100-vs-the-osf-version" class="section level1">
 <h1 class="page-header" data-toc-text="1.0.0">
-<a href="#version-100-vs-the-osf-version" class="anchor"></a>version 1.0.0 (vs the osf version)</h1>
+<a href="#version-100-vs-the-osf-version" class="anchor"></a>version 1.0.0 (vs the osf version)<small> Unreleased </small>
+</h1>
 <p>Fixes:</p>
 <ul>
 <li>incorrectly weighted theta estimates</li>

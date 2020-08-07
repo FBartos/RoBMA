@@ -18,6 +18,7 @@
   show_figures = if (parameter == "omega" & (weights | any(type \%in\% "individual")))
     -1,
   weights = FALSE,
+  rescale_x = FALSE,
   ...
 )
 }
@@ -83,6 +84,10 @@ or to \code{c(1,3)} to show only the first and third one.}
 \item{weights}{whether the weights or weight function should
 be returned. Only applicable when \code{parameter = "omega"}.
 Defaults to \code{FALSE} - the weight function is plotted.}
+
+\item{rescale_x}{whether the x-axis should be rescaled in order
+to make the x-ticks equally spaced. Available only for the
+weightfunction plot. Defaults to \code{FALSE}.}
 
 \item{...}{additional arguments to be passed to
 \link[graphics]{par} if \code{plot_type = "base"}. Especially

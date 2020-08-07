@@ -76,7 +76,7 @@ used to estimate the model." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.4</span>
       </span>
     </div>
 
@@ -161,6 +161,7 @@ used to estimate the model.</p>
   <span class='kw'>test_type</span> <span class='kw'>=</span> <span class='st'>"two.sample"</span>,
   <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
   <span class='kw'>mu_transform</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>r</span>)) <span class='st'>"cohens_d"</span> <span class='kw'>else</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>OR</span>)) <span class='st'>"log_OR"</span> <span class='kw'>else</span> <span class='kw'>NULL</span>,
+  <span class='kw'>effect_direction</span> <span class='kw'>=</span> <span class='st'>"positive"</span>,
   <span class='kw'>priors_mu</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"normal"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>mean</span> <span class='kw'>=</span> <span class='fl'>0</span>, <span class='kw'>sd</span> <span class='kw'>=</span> <span class='fl'>1</span>)),
   <span class='kw'>priors_tau</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"invgamma"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>shape</span> <span class='kw'>=</span> <span class='fl'>1</span>, <span class='kw'>scale</span> <span class='kw'>=</span>
     <span class='fl'>0.15</span>)),
@@ -245,6 +246,12 @@ correlations or odds ratios are supplied as input. Defaults to
 and <code>"log_OR"</code> for odds ratios (another options is <code>"cohens_d"</code>).
 Note that priors are specified on the transformed scale and
 estimates are transformed back (apart from tau).</p></td>
+    </tr>
+    <tr>
+      <th>effect_direction</th>
+      <td><p>the expected direction of the effect. The one-sided
+selection sets the weights omega to 1 to significant results in the expted
+direction. Defaults to <code>"positive"</code> (another oprion is <code>"negative"</code>).</p></td>
     </tr>
     <tr>
       <th>priors_mu</th>
