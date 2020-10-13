@@ -392,7 +392,10 @@ print.RoBMA.prior <- function(x, ...){
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot2"} for plotting. The later
 #' requires \pkg{ggplot2} package to be installed.
-#' @param effect_size what type of effect size is supposed to
+#' @param par_name a type of parameter for which the prior is
+#' specified. Only relevant if the prior corresponds to a mu
+#' parameter that needs to be transformed.
+#' @param effect_size type of effect size which is supposed to
 #' be plotted. Only relevant if the mu parameter needs to be
 #' transformed (\code{"r"} for correlation coefficients or \code{"OR"}
 #' for odds ratios).
@@ -400,9 +403,10 @@ print.RoBMA.prior <- function(x, ...){
 #' be transformed. If the prior distribution is constructed for
 #' effect sizes supplied as correlations, the prior for mu parameter
 #' is not defined on the correlation scale directly, but transformed into
-#' it. Only possible if the \code{effect_size == "r", par_name = "mu"}.
-#' Defaults to \code{NULL}. Other options are \code{"cohens_d"} and
-#' \code{"fishers_z"}.
+#' it. Only possible if the \code{effect_size == "r"} or
+#' \code{effect_size == "OR"} and \code{par_name = "mu"}.
+#' Defaults to \code{NULL}. Other options are \code{"cohens_d"},
+#' \code{"fishers_z"}, and \code{"log_OR"}.
 #' @param weights whether the weights or weight function should
 #' be returned. Only applicable for priors on the omega parameter.
 #' Defaults to \code{FALSE} - the weight function is plotted.
@@ -415,8 +419,6 @@ print.RoBMA.prior <- function(x, ...){
 #' to \code{10000}.
 #' @param points how many points should be used for drawing the
 #' density plot. Defaults to \code{1000}.
-#' @param par_name a name of parameter to be included in the x-axis
-#' label
 #' @param ... additional arguments
 #' @export  plot.RoBMA.prior
 #' @rawNamespace S3method(plot, RoBMA.prior)
@@ -427,7 +429,8 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
 
   # check input
   if(plot_type == "ggplot2")plot_type <- "ggplot"
-  if(!plot_type %in% c("base", "ggplot"))stop("The passed plot_type is not supported for plotting. See '?plot.RoBMA' for more details.")
+  if(!par_name %in% c("mu", "tau", "omega", "theta"))stop("The passed 'par_name' is not supported for plotting. See '?plot.RoBMA' for more details.")
+  if(!plot_type %in% c("base", "ggplot"))stop("The passed 'plot_type' is not supported for plotting. See '?plot.RoBMA' for more details.")
 
   # check availability of ggplot
   if(plot_type == "ggplot"){
@@ -436,19 +439,23 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
 
 
   # get plotting data - this parameter passing is a little bit retarded
-  if(is.null(par_name))par_name <- ""
-  if(!is.null(effect_size)){
-    if(par_name == "mu" & effect_size == "r"){
-      par_name  <- "rho"
-      if(is.null(mu_transform))mu_transform <- "cohens_d"
+  if(!is.null(effect_size) & !is.null(par_name)){
+    if(par_name == "mu"){
+      if(effect_size == "r"){
+        if(is.null(mu_transform)) mu_transform <- "cohens_d"
+      }else if(effect_size == "OR"){
+        if(is.null(mu_transform)) mu_transform <- "log_OR"
+      }
     }
-    if(par_name == "mu" & effect_size == "d")par_name  <- "d"
-    if(par_name == "mu" & effect_size == "OR"){
-      par_name     <- "OR"
-      if(is.null(mu_transform)) mu_transform <- "log_OR"
-    }
-    if(par_name == "mu" & effect_size == "y")par_name  <- "y"
   }
+  if(is.null(par_name)){
+    par_name    <- "mu"
+  }
+  if(par_name != "mu"){
+    mu_transform <- NULL
+    effect_size  <- NULL
+  }
+
   plot_data <- .plot.prior_data(x, samples, points, weights, par_name, effect_size, mu_transform)
 
 
@@ -497,7 +504,9 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
         )
       }
 
-      if(x$distribution == "point"){
+      if(x$distribution == "point" & par_name == "omega" & !weights){
+        graphics::lines(plot_data$df[[i]]$x, plot_data$df[[i]]$y, lwd = 2)
+      }else if(x$distribution == "point"){
         graphics::arrows(x0 = plot_data$df[[i]]$x[1], y0 = plot_data$df[[i]]$y[1], y1 = plot_data$df[[i]]$y[2], lwd = 3, lty = 1)
       }else{
         graphics::lines(plot_data$df[[i]]$x, plot_data$df[[i]]$y, lwd = 2)
@@ -524,7 +533,9 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
       }
 
 
-      if(x$distribution == "point"){
+      if(x$distribution == "point" & par_name == "omega" & !weights){
+        temp_plot <- temp_plot + ggplot2::geom_line(ggplot2::aes_string(x = "x", y = "y"), size = 1.25)
+      }else if(x$distribution == "point"){
         temp_plot <- temp_plot + ggplot2::geom_segment(
           data = data.frame(
             x       = plot_data$df[[i]]$x[1],
@@ -547,9 +558,9 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
       }else{
         temp_plot <- temp_plot + ggplot2::scale_x_continuous(
           name   = plot_data$x_lab[[i]],
-          limits = range(pretty(range(c(0,plot_data$x_range)))),
-          breaks = pretty(range(c(ifelse(par_name == "OR", 1, 0),plot_data$x_range))),
-          labels = pretty(range(c(ifelse(par_name == "OR", 1, 0),plot_data$x_range))))
+          limits = range(pretty(range(c(plot_data$x_range, ifelse(effect_size == "OR", 1, 0))))),
+          breaks = pretty(range(c(ifelse(effect_size == "OR", 1, 0),plot_data$x_range))),
+          labels = pretty(range(c(ifelse(effect_size == "OR", 1, 0),plot_data$x_range))))
       }
 
       temp_plot <- temp_plot + ggplot2::scale_y_continuous(
@@ -729,8 +740,8 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
       names[[1]] <- bquote(~omega~"~"~.(print(prior, plot = TRUE)))
     }else{
       prob[[1]] <- TRUE
-      x_range   <- c(max(c(prior$truncation$lower, prior$parameters$location - .5)),
-                     min(c(prior$truncation$upper, prior$parameters$location + .5)))
+      x_range   <- c(max(c(prior$truncation$lower, .transform(prior$parameters$location, effect_size, mu_transform) - .5)),
+                     min(c(prior$truncation$upper, .transform(prior$parameters$location, effect_size, mu_transform) + .5)))
 
       temp_x    <- rep(prior$parameters$location, 2)
       temp_x    <- .transform(temp_x, effect_size, mu_transform)
@@ -968,20 +979,31 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
 
   # add name if not weights
   if(length(names) == 0){
+    names <- vector("list", 1)
     if(par_name == ""){
       names[[1]] <- bquote(~"~"~.(print(prior, plot = TRUE)))
     }else if(par_name == "mu"){
-      names[[1]] <- bquote(~mu~"~"~.(print(prior, plot = TRUE)))
+      if(is.null(effect_size)){
+        names[[1]] <- bquote(~mu~"~"~.(print(prior, plot = TRUE)))
+      }else if(effect_size == "d"){
+        names[[1]] <- bquote("Cohen's"~italic("d")~"~"~.(print(prior, plot = TRUE)))
+      }else if(effect_size == "r"){
+        names[[1]] <- bquote(
+          ~rho~(
+            .(if(mu_transform == "cohens_d") bquote("Cohen's"~italic("d")) else if(mu_transform == "fishers_z") "Fisher's"~italic("z"))
+            ~"~"~.(print(prior, plot = TRUE))))
+      }else if(effect_size == "OR"){
+        names[[1]] <- bquote(
+          ~italic("OR")~(
+            .(if(mu_transform == "cohens_d") bquote("Cohen's"~italic("d")) else if(mu_transform == "log_OR") bquote("log"(italic("OR"))))
+            ~"~"~.(print(prior, plot = TRUE))))
+      }else if(effect_size == "y"){
+        names[[1]] <- bquote(~y~"~"~.(print(prior, plot = TRUE)))
+      }
     }else if(par_name == "tau"){
       names[[1]] <- bquote(~tau~"~"~.(print(prior, plot = TRUE)))
     }else if(par_name == "omega"){
       names[[1]] <- bquote(~omega~"~"~.(print(prior, plot = TRUE)))
-    }else if(par_name == "rho"){
-      names[[1]] <- bquote(~rho~"~"~.(print(prior, plot = TRUE)))
-    }else if(par_name == "OR"){
-      names[[1]] <- bquote(~italic("OR")~"~"~.(print(prior, plot = TRUE)))
-    }else if(par_name == "y"){
-      names[[1]] <- bquote(~y~"~"~.(print(prior, plot = TRUE)))
     }
   }
 

@@ -359,7 +359,7 @@ rwt <- function(n, df, ncp, steps = if(!is.null(crit_t)) NULL, omega, crit_t = i
   if(!is.numeric(df) | !is.vector(df))stop("'df' must be a numeric vector.")
   if(any(df <= 0))stop("'df' must be positive.")
   if(!is.numeric(omega)  | !is.matrix(omega))stop("'omega' must be numeric")
-  if(any(omega < 0))stop("'omega' must be non-negative.")
+  if(any(omega < 0) | any(omega > 1))stop("all 'omega' must be between 0 and 1")
   if(ncol(crit_t) != ncol(omega) - 1)stop("'omega' is not specified properly - there must be N + 1 weights for N cutoffs")
 
 }

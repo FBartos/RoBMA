@@ -24,7 +24,7 @@
 or ggplot2 \code{"ggplot2"} for plotting. The later
 requires \pkg{ggplot2} package to be installed.}
 
-\item{effect_size}{what type of effect size is supposed to
+\item{effect_size}{type of effect size which is supposed to
 be plotted. Only relevant if the mu parameter needs to be
 transformed (\code{"r"} for correlation coefficients or \code{"OR"}
 for odds ratios).}
@@ -33,9 +33,10 @@ for odds ratios).}
 be transformed. If the prior distribution is constructed for
 effect sizes supplied as correlations, the prior for mu parameter
 is not defined on the correlation scale directly, but transformed into
-it. Only possible if the \code{effect_size == "r", par_name = "mu"}.
-Defaults to \code{NULL}. Other options are \code{"cohens_d"} and
-\code{"fishers_z"}.}
+it. Only possible if the \code{effect_size == "r"} or
+\code{effect_size == "OR"} and \code{par_name = "mu"}.
+Defaults to \code{NULL}. Other options are \code{"cohens_d"},
+\code{"fishers_z"}, and \code{"log_OR"}.}
 
 \item{show_figures}{which figures should be returned in case of
 multiple plots are generated. Useful when priors for the omega
@@ -45,8 +46,9 @@ parameter are plotted and \code{weights = TRUE}.}
 be returned. Only applicable for priors on the omega parameter.
 Defaults to \code{FALSE} - the weight function is plotted.}
 
-\item{par_name}{a name of parameter to be included in the x-axis
-label}
+\item{par_name}{a type of parameter for which the prior is
+specified. Only relevant if the prior corresponds to a mu
+parameter that needs to be transformed.}
 
 \item{samples}{how many samples should be drawn for the
 density plot (applies only for the weight functions, other

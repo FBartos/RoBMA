@@ -70,6 +70,9 @@
 #'   \item{max_error}{The target MCMC error for the autofit function. The
 #'   argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
 #'   \code{.01}.}
+#'   \item{max_rhat}{The target Rhat error for the autofit function. The
+#'   argument is passed to \link[runjags]{add.summary} as 'psrf.target'.
+#'   Defaults to \code{1.05}.}
 #'   \item{max_time}{A string specifying the maximum fitting time in case
 #'   of autofit. Defaults to \code{Inf}. Can be specified as a number and
 #'   a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
@@ -275,6 +278,11 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
   }
 
 
+  ### add warnings
+  object$add_info$warnings <- c(object$add_info$warnings, .model_refit_warnings(sapply(1:length(object$models), function(i)object$models[[i]]$metadata, simplify = FALSE)))
+  object$add_info$warnings <- c(object$add_info$warnings, .model_convergence_warnings(object))
+
+
   ### remove model posteriors if asked to
   if(save == "min"){
     for(i in 1:length(object$models)){
@@ -285,6 +293,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
   }
 
 
+  ### print warnings
   if(!is.null(object$add_info$warnings)){
     for(w in object$add_info$warnings)warning(w)
   }
@@ -457,6 +466,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
 
+  ### add warnings
+  object$add_info$warnings <- c(object$add_info$warnings, .model_refit_warnings(sapply(1:length(object$models), function(i)object$models[[i]]$metadata, simplify = FALSE)))
+  object$add_info$warnings <- c(object$add_info$warnings, .model_convergence_warnings(object))
+
+
   ### remove model posteriors if asked to
   if(object$add_info$save == "min"){
     for(i in 1:length(object$models)){
@@ -467,6 +481,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
 
+  ### print warnings
+  if(!is.null(object$add_info$warnings)){
+    for(w in object$add_info$warnings)warning(w)
+  }
   if(sum(!object$add_info$converged) > 0)warning(paste0(sum(!object$add_info$converged), ifelse(sum(!object$add_info$converged) == 1, " model", " models"), " failed to converge."))
 
   return(object)
@@ -650,9 +668,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 ### fitting function
 .fit_RoBMA             <- function(object, i){
 
-  priors   <- object$models[[i]]$priors
-  control  <- object$control
-  new_warn <- NULL
+  priors     <- object$models[[i]]$priors
+  control    <- object$control
+  refit_info <- NULL
 
   # don't sample the complete null model
   if(!(priors$mu$distribution == "point" &
@@ -701,7 +719,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
           }
         }
 
-        new_warn <- paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.")
+        refit_info <- "empirical init"
 
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
 
@@ -710,7 +728,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       # try boost library (if it wasn't the primary option)
       if(all(class(fit) %in% c("simpleError", "error", "condition")) & !control$boost){
 
-        new_warn <- c(new_warn, paste0("Model's ",i," initial fit failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). The model was refitted using boost likelihood function."))
+        refit_info <- "refit with boost"
 
         model_syntax <- .generate_model_syntax(priors, TRUE, object$add_info$effect_direction)
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
@@ -719,20 +737,26 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     }
 
+    # forward error if it's unfixable
+    if(all(class(fit) %in% c("simpleError", "error", "condition")) & !control$boost){
+      refit_info <- fit$message
+    }
+
 
   }else{
     fit  <- NULL
   }
 
   # add the fit and summary to the main object
-  object$models[[i]]$fit <- fit
+  object$models[[i]]$fit      <- fit
+  object$models[[i]]$metadata <- list(
+    i          = i,
+    refit_info = refit_info)
   if(!is.null(fit)){
     object$models[[i]]$fit_summary <- .runjags.summary(fit)
   }
-  object$add_info$warnings <- c(object$add_info$warnings, new_warn)
 
   return(object)
-
 }
 .fit_model_RoBMA_wrap  <- function(model_syntax, fit_data, fit_inits, monitor_variables, control, seed){
   if(control$silent){
@@ -774,15 +798,15 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     adapt           = control$adapt,
     thin            = control$thin,
     raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
+    psrf.target     = if(control$autofit) control$max_rhat else Inf,
     max.time        = if(control$autofit) control$max_time else Inf,
-    summarise       = TRUE
+    summarise       = FALSE
   ), error = function(e)e)
 }
 .marglik_RoBMA         <- function(object, i){
 
   fit      <- object$models[[i]]$fit
   priors   <- object$models[[i]]$priors
-  new_warn <- NULL
 
   # don't sample the complete null model
   if(!(priors$mu$distribution == "point" &
@@ -790,12 +814,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
        priors$omega$distribution == "point")){
 
 
-    # deal failed model
+    # deal with failed model
     if(any(class(fit) %in% c("simpleError", "error"))){
-      new_warn <- paste0("Model ",i," failed with the following error: ", fit$message)
 
       object$models[[i]]$marg_lik <- .marglik_fail()
-      object$add_info$warnings    <- c(object$add_info$warnings, new_warn)
 
       return(object)
     }
@@ -826,18 +848,17 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # handle errors
   if(any(class(marg_lik) %in% c("simpleError", "error"))){
 
-    new_warn <- paste0("Marginal likelihood computation of model ",i," failed with the following error: ", marg_lik$message)
+    object$models[[i]]$metadata$marg_lik <- marg_lik$message
     marg_lik <- .marglik_fail()
 
   }else if(is.na(marg_lik$logml)){
 
-    new_warn <- paste0("Marginal likelihood computation of model ",i," couldn't be completed within the specified number of iterations.")
+    object$models[[i]]$metadata$marg_lik <- "not enough iterations"
     marg_lik <- .marglik_fail()
 
   }
 
   object$models[[i]]$marg_lik <- marg_lik
-  object$add_info$warnings    <- c(object$add_info$warnings, new_warn)
 
   return(object)
 }
@@ -1479,7 +1500,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
 ### model inference functions
-.model_inference       <- function(object, n_samples = 10000){
+.model_inference            <- function(object, n_samples = 10000){
 
   models    <- object$models
   data      <- object$data
@@ -1565,7 +1586,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   )
   return(output)
 }
-.mix_samples           <- function(models, weights, data, converged, add_info, n_samples){
+.mix_samples                <- function(models, weights, data, converged, add_info, n_samples){
 
   # metadata about model type
   mm_mu     <- sapply(models, function(m)!.is_parameter_null(m$priors, "mu"))
@@ -1720,19 +1741,19 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # convert the transformed correlations back if needed
   if(add_info$effect_size == "r"){
     if(add_info$mu_transform == "cohens_d"){
-      samples$mu    <- psych::d2r(samples$mu)
-      samples$theta <- psych::d2r(samples$theta)
+      if(!is.null(samples$mu))    samples$mu    <- psych::d2r(samples$mu)
+      if(!is.null(samples$theta)) samples$theta <- psych::d2r(samples$theta)
     }else if(add_info$mu_transform == "fishers_z"){
-      samples$mu    <- psych::fisherz2r(samples$mu)
-      samples$theta <- psych::fisherz2r(samples$theta)
+      if(!is.null(samples$mu))    samples$mu    <- psych::fisherz2r(samples$mu)
+      if(!is.null(samples$theta)) samples$theta <- psych::fisherz2r(samples$theta)
     }
   }else if(add_info$effect_size == "OR"){
     if(add_info$mu_transform == "log_OR"){
-      samples$mu    <- exp(samples$mu)
-      samples$theta <- exp(samples$theta)
+      if(!is.null(samples$mu))    samples$mu    <- exp(samples$mu)
+      if(!is.null(samples$theta)) samples$theta <- exp(samples$theta)
     }else if(add_info$mu_transform == "cohens_d"){
-      samples$mu    <- .d2OR(samples$mu)
-      samples$theta <- .d2OR(samples$theta)
+      if(!is.null(samples$mu))    samples$mu    <- .d2OR(samples$mu)
+      if(!is.null(samples$theta)) samples$theta <- .d2OR(samples$theta)
     }
 
   }
@@ -1745,18 +1766,18 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(samples)
 }
-.compute_coeficients   <- function(RoBMA){
+.compute_coeficients        <- function(RoBMA){
   return(c(
     "mu"     = if(length(RoBMA$samples$averaged$mu) != 0)mean(RoBMA$samples$averaged$mu),
     "tau"    = if(length(RoBMA$samples$averaged$tau) != 0)mean(RoBMA$samples$averaged$tau),
     if(ncol(RoBMA$samples$averaged$omega) != 0)apply(RoBMA$samples$averaged$omega, 2, mean)
   ))
 }
-.inclusion_BF          <- function(prior_weights, posterior_weights, conditional_models){
+.inclusion_BF               <- function(prior_weights, posterior_weights, conditional_models){
   (sum(posterior_weights[conditional_models])/sum(posterior_weights[!conditional_models]))  /
     (sum(prior_weights[conditional_models])/sum(prior_weights[!conditional_models]))
 }
-.get_converged_models  <- function(object){
+.get_converged_models       <- function(object){
 
   converged <- NULL
 
@@ -1802,7 +1823,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(converged)
 }
-.balance_prob          <- function(object, converged_models){
+.balance_prob               <- function(object, converged_models){
 
   # extract data
   mm_mu      <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "mu"))
@@ -1832,6 +1853,128 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
   return(object)
+}
+.model_refit_warnings       <- function(metadata){
+
+  new_warn <- NULL
+
+  # extract meta-data with fit-refit information
+  refit_info <- t(sapply(metadata, function(x){
+    if(is.null(x$refit_info)){
+      return(c(x$i, NA))
+    }else{
+      return(c(x$i, x$refit_info))
+    }
+  }))
+
+  marglik_info <- t(sapply(metadata, function(x){
+    if(is.null(x$marg_lik)){
+      return(c(x$i, NA))
+    }else{
+      return(c(x$i, x$marg_lik))
+    }
+  }))
+
+  if(is.null(dim(refit_info)))  refit_info   <- matrix(refit_info,   ncol = 2)
+  if(is.null(dim(marglik_info)))marglik_info <- matrix(marglik_info, ncol = 2)
+
+
+  if(length(refit_info[refit_info[, 2] == "empirical init" & !is.na(refit_info[,2]), 1]) > 0){
+    new_warn <- c(new_warn, sprintf(
+      "Initial fit of %1$s %2$s failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data.",
+      ifelse(length(refit_info[refit_info[, 2] == "empirical init" & !is.na(refit_info[,2]), 1]) == 1, "model", "models"),
+      paste(refit_info[refit_info[, 2] == "empirical init" & !is.na(refit_info[,2]), 1], collapse = ", ")
+    ))
+  }
+
+  if(length(refit_info[refit_info[, 2] == "refit with boost" & !is.na(refit_info[,2]), 1]) > 0){
+    new_warn <- c(new_warn, sprintf(
+      "Initial fit of %1$s %2$s failed due to incompatible starting values (most likely due to an outlier in the data and limited precision of t-distribution). Starting values for the mean parameter were therefore set to the mean of supplied data and the model was refitted using boost likelihood function.",
+      ifelse(length(refit_info[refit_info[, 2] == "refit with boost" & !is.na(refit_info[,2]), 1]) == 1, "model", "models"),
+      paste(refit_info[refit_info[, 2] == "refit with boost" & !is.na(refit_info[,2]), 1], collapse = ", ")
+    ))
+  }
+
+  if(length(refit_info[!refit_info[, 2] %in% c("empirical init", "refit with boost") & !is.na(refit_info[,2]), 1]) > 0){
+    refit_info_messages_i <- refit_info[refit_info[, 2] != "not enough iterations" & !is.na(refit_info[,2]), 1]
+    refit_info_messages   <- refit_info[refit_info[, 2] != "not enough iterations" & !is.na(refit_info[,2]), 2]
+
+    for(i in 1:length(refit_info_messages_i)){
+      new_warn <- c(new_warn, paste0("Model ", refit_info_messages_i[i]," failed with the following error: ", refit_info_messages[i]))
+    }
+  }
+
+
+  if(length(marglik_info[marglik_info[, 2] == "not enough iterations" & !is.na(marglik_info[,2]), 1]) > 0){
+    new_warn <- c(new_warn, sprintf(
+      "Marginal likelihood computation of %1$s %2$s couldn't be completed within the specified number of iterations.",
+      ifelse(length(marglik_info[marglik_info[, 2] == "not enough iterations" & !is.na(marglik_info[,2]), 1]) == 1, "model", "models"),
+      paste(marglik_info[marglik_info[, 2] == "not enough iterations" & !is.na(marglik_info[,2]), 1], collapse = ", ")
+    ))
+  }
+
+  if(length(marglik_info[marglik_info[, 2] != "not enough iterations" & !is.na(marglik_info[,2]), 1]) > 0){
+    marglik_info_messages_i <- marglik_info[marglik_info[, 2] != "not enough iterations" & !is.na(marglik_info[,2]), 1]
+    marglik_info_messages   <- marglik_info[marglik_info[, 2] != "not enough iterations" & !is.na(marglik_info[,2]), 2]
+
+    for(i in 1:length(marglik_info_messages_i)){
+      new_warn <- c(new_warn, paste0("Marginal likelihood computation of model ", marglik_info_messages_i[i]," failed with the following error: ", marglik_info_messages[i]))
+    }
+  }
+
+  return(new_warn)
+}
+.model_convergence_warnings <- function(object){
+
+  new_warn <- NULL
+
+  # used set values if specified by the user
+  threshold_error <- ifelse(is.null(object$control$allow_max_error), Inf, object$control$allow_max_error)
+  threshold_rhat  <- ifelse(is.null(object$control$allow_max_rhat), 1.05, object$control$allow_max_rhat)
+  threshold_ESS   <- ifelse(is.null(object$control$allow_max_error), 100, object$control$allow_min_ESS)
+
+  # get the diagnostics summary
+  diagnostics_summary <- summary.RoBMA(object, type = "models", diagnostics = TRUE, include_theta = object$control$allow_inc_theta)$diagnostics
+
+  # deal with NAs for null models
+  diagnostics_summary$"max(MCMC error)"[is.na(diagnostics_summary$"max(MCMC error)")] <- 0
+  diagnostics_summary$"max(Rhat)"[is.na(diagnostics_summary$"max(Rhat)")]             <- 0
+  diagnostics_summary$"min(ESS)"[is.na(diagnostics_summary$"min(ESS)")]               <- Inf
+
+  # find the problematic models
+  warning_error <- rownames(diagnostics_summary)[diagnostics_summary$"max(MCMC error)" > threshold_error]
+  warning_rhat  <- rownames(diagnostics_summary)[diagnostics_summary$"max(Rhat)"       > threshold_rhat]
+  warning_ESS   <- rownames(diagnostics_summary)[diagnostics_summary$"min(ESS)"        < threshold_ESS]
+
+  # add warnings messages
+  if(length(warning_error) > 0){
+    new_warn <- c(new_warn, sprintf(
+      "%1$s %2$s had at least one parameter with MCMC error larger than %3$s. We advice checking the MCMC diagnostics before drawing inference from the models or ensemble.",
+      ifelse(length(warning_error) == 1, "Model", "Models"),
+      paste(warning_error, collapse = ", "),
+      threshold_error
+    ))
+  }
+
+  if(length(warning_rhat) > 0){
+    new_warn <- c(new_warn, sprintf(
+      "%1$s %2$s had at least one parameter with R-hat larger than %3$s. We advice checking the MCMC diagnostics before drawing inference from the models or ensemble.",
+      ifelse(length(warning_rhat) == 1, "Model", "Models"),
+      paste(warning_rhat, collapse = ", "),
+      threshold_rhat
+    ))
+  }
+
+  if(length(warning_ESS) > 0){
+    new_warn <- c(new_warn, sprintf(
+      "%1$s %2$s had at least one parameter with ESS lower than %3$s. We advice checking the MCMC diagnostics before drawing inference from the models or ensemble.",
+      ifelse(length(warning_ESS) == 1, "Model", "Models"),
+      paste(warning_ESS, collapse = ", "),
+      threshold_ESS
+    ))
+  }
+
+  return(new_warn)
 }
 
 
@@ -1978,6 +2121,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(is.null(control[["max_error"]])){
       control$max_error       <- .01
     }
+    if(is.null(control[["max_rhat"]])){
+      control$max_rhat        <- 1.05
+    }
     if(is.null(control[["max_time"]])){
       control$max_time        <- Inf
     }
@@ -2042,7 +2188,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .check_control          <- function(control){
   # check whether only known controls were supplied
-  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost")
+  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_rhat", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost")
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
   # check whether essential controls were supplied
@@ -2064,6 +2210,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # check convergence criteria
   if(control$autofit)if(control$max_error >= 1 | control$max_error <= 0)stop("The target maximum MCMC error must be within 0 and 1.")
+  if(control$autofit)if(control$max_rhat <= 1)stop("The target maximum R-hat must be higher than 1.")
   if(!is.null(control$allow_max_error))if(control$allow_max_error >= 1 | control$allow_max_error <= 0)stop("The maximum allowed MCMC error must be within 0 and 1.")
   if(!is.null(control$allow_max_rhat))if(control$allow_max_rhat <= 1)stop("The maximum allowed R-hat must be higher than 1.")
   if(!is.null(control$allow_min_ESS))if(control$allow_min_ESS <= 0)stop("The minimum allowed ESS must be higher than 0.")
@@ -2301,7 +2448,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .runjags.summary   <- function(fit){
   # the only reason for this function is that runjags summary function returns HPD instead of quantile intervals
-  summary_fit   <- summary(fit)
+  invisible(capture.output(summary_fit <- summary(fit, silent.jags = T)))
   model_samples <- suppressWarnings(coda::as.mcmc(fit))
 
   for(i in 1:nrow(summary_fit)){
