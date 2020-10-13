@@ -9,7 +9,7 @@
 A framework for estimating ensembles of meta-analytic models
     (assuming either presence or absence of the effect, heterogeneity, and
     publication bias) and using Bayesian model averaging to combine them. The
-    ensembles use Bayes Factors to test for the presence or absence of the
+    ensembles use Bayes factors to test for the presence or absence of the
     individual components (e.g., effect vs. no effect) and model-averages
     parameter estimates based on posterior model probabilities
     (Maier, Bartoš & Wagenmakers, 2020, <doi:10.31234/osf.io/u4cns>). The user can

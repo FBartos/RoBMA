@@ -446,11 +446,12 @@ plot.RoBMA <- function(x, parameter,
       if(prior)if(!is.null(prior_den[[i]]))prior_den[[i]]$y
     )
     if(length(temp_all_y) == 0 | all(temp_all_y == 0)){
-      temp_ylim <- c(0, 1)
+      temp_ylim        <- c(0, 1)
     }else{
       temp_ylim <- c(0, max(temp_all_y))
     }
-
+    pretty_temp_ylim <- pretty(temp_ylim)
+    temp_ylim        <- range(pretty_temp_ylim)
 
     # rescale the spike probabilities
     any_spikes <- FALSE
@@ -597,9 +598,9 @@ plot.RoBMA <- function(x, parameter,
       if(any_density & any_spikes){
         temp_plot <- temp_plot + ggplot2::scale_y_continuous(
           name     = "Density",
-          limits = range(pretty(temp_ylim)),
-          breaks = pretty(temp_ylim),
-          labels = pretty(temp_ylim),
+          limits = temp_ylim,
+          breaks = pretty_temp_ylim,
+          labels = pretty_temp_ylim,
           sec.axis = ggplot2::sec_axis(
             ~ .,
             name   = "Probability",
@@ -609,9 +610,9 @@ plot.RoBMA <- function(x, parameter,
       }else if(any_density){
         temp_plot <- temp_plot + ggplot2::scale_y_continuous(
           name   = "Density",
-          limits = range(pretty(temp_ylim)),
-          breaks = pretty(temp_ylim),
-          labels = pretty(temp_ylim))
+          limits = temp_ylim,
+          breaks = pretty_temp_ylim,
+          labels = pretty_temp_ylim)
       }else if(any_spikes){
         temp_plot <- temp_plot + ggplot2::scale_y_continuous(
           name   = "Probability",
@@ -643,7 +644,7 @@ plot.RoBMA <- function(x, parameter,
 
   par_names <- list()
   for(p in 1:length(par)){
-    par_names[p] <- .plot.RoBMA_par_names(par[p], "averaged", fit)
+    par_names[p] <- .plot.RoBMA_par_names(par[p], fit, "averaged")
   }
 
 
@@ -872,14 +873,14 @@ plot.RoBMA <- function(x, parameter,
   }else{
     if(!is.null(order)){
       if(order == "ascending"){
-        results_est  <- results_est[order(results_est$est,  decreasing = TRUE),]
         results_orig <- results_orig[order(results_est$est, decreasing = TRUE),]
+        results_est  <- results_est[order(results_est$est,  decreasing = TRUE),]
       }else if(order == "descending"){
-        results_est  <- results_est[order(results_est$est,  decreasing = FALSE),]
         results_orig <- results_orig[order(results_est$est, decreasing = FALSE),]
+        results_est  <- results_est[order(results_est$est,  decreasing = FALSE),]
       }else if(order == "alphabetical"){
-        results_est  <- results_est[order(results_est$name,  decreasing = TRUE),]
         results_orig <- results_orig[order(results_est$name, decreasing = TRUE),]
+        results_est  <- results_est[order(results_est$name,  decreasing = TRUE),]
       }
     }
   }
@@ -1270,7 +1271,15 @@ plot.RoBMA <- function(x, parameter,
     x_range <- c(min(mod_res[[i]]$lCI), max(mod_res[[i]]$uCI))
     x_range[1] <- x_range[1] - (x_range[2] - x_range[1])*.05
     x_range[2] <- x_range[2] + (x_range[2] - x_range[1])*.05
-
+    if(par == "mu"){
+      if(fit$add_info$effect_size == "OR"){
+        x_range <- range(x_range, 1)
+      }else{
+        x_range <- range(x_range, 0)
+      }
+    }else{
+      x_range <- range(x_range, 0)
+    }
     if(all(x_range == 0)){
       if(par == "mu")x_range <- c(-.5, .5)
       if(par == "tau")x_range <- c(0, .5)

@@ -170,7 +170,7 @@ fit_update2  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, 
                                        priors_mu  = list(
                                          prior("uniform", parameters = list(a = 1, b = 2)),
                                          prior("uniform", parameters = list(a = 0, b = 1)))))
-fit_update2 <- update(fit_update2, iter = 8000)
+fit_update2 <- suppressWarnings(update(fit_update2, iter = 8000))
 
 test_that("Updating failed models works", {
 
@@ -183,7 +183,7 @@ test_that("Updating failed models works", {
 fit_update3  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 6000), seed = 666,
                                        priors_tau = NULL, priors_omega = NULL,
                                        priors_mu  = prior("uniform", parameters = list(a = 0, b = 1))))
-fit_update3 <- update(fit_update3, refit_failed = FALSE, control = list(allow_min_ESS = NULL))
+fit_update3 <- suppressWarnings(update(fit_update3, refit_failed = FALSE, control = list(allow_min_ESS = NULL)))
 
 test_that("Updating failed models works", {
 
