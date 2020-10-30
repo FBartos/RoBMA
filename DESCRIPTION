@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 1.0.5
+Version: 1.1.0
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -27,7 +27,7 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.0.2
+RoxygenNote: 7.1.1
 Imports:
     runjags,
     bridgesampling,
@@ -43,6 +43,7 @@ Imports:
     Rdpack
 Suggests:
     ggplot2,
+    parallel,
     rstan,
     metaBMA,
     testthat,

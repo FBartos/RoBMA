@@ -109,6 +109,9 @@
 #'   boost allows to estimate models in difficult cases. Defaults to \code{FALSE}.
 #'   The R distributions are used as default and boost is used only if they fail.
 #'   Warning: the estimation using boost takes about twice as long.}
+#'   \item{cores}{Number of cores to bu used fo parallel computation. If
+#'   \code{parallel == TRUE}, the default number is equal to number of cores - 1,
+#'   and 1 (no parallel processing otherwise).}
 #' }
 #' @param save whether all models posterior distributions should be kept
 #' after obtaining a model-averaged result. Defaults to \code{"all"} which
@@ -118,6 +121,9 @@
 #' @param seed a seed to be set before model fitting, marginal likelihood
 #' computation, and posterior mixing for exact results reproducibility. Defaults
 #' to \code{NULL} - no seed is set.
+#' @param parallel whether the individual models should be fitted in parallel.
+#' Defaults to \code{FALSE}. The \code{cores} argument within the \code{control}
+#' list will overwrite the setting if specified to a number higher than 1.
 #'
 #' @details The default settings with either t-statistics / Cohen's d effect
 #' sizes and sample sizes / standard errors correspond to the ensemble proposed by
@@ -204,7 +210,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
                   priors_mu_null    = prior(distribution = "point", parameters = list(location = 0)),
                   priors_tau_null   = prior(distribution = "point", parameters = list(location = 0)),
                   priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
-                  chains = 3, iter = 10000, burnin = 5000, thin = 1,
+                  chains = 3, iter = 10000, burnin = 5000, thin = 1, parallel = FALSE,
                   control = NULL, save = "all", seed = NULL){
 
 
@@ -235,7 +241,6 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
     mu_transform     = if(object$data$effect_size %in% c("r","OR"))mu_transform,
     test_type        = test_type,
     study_names      = as.character(study_names),
-    seed             = seed,
     save             = save,
     warnings         = NULL
   )
@@ -248,16 +253,28 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
     omega = .set_parameter_priors(priors_omega_null, priors_omega, "omega")
   )
   object$models   <- .get_models(object$priors)
-  object$control  <- .set_control(control, chains, iter, burnin, thin)
-  object$add_info <- .check_effect_direction(object)
+  object$control  <- .set_control(control, chains, iter, burnin, thin, seed, effect_direction, parallel)
+  object$add_info$warnings <- c(object$add_info$warnings, .check_effect_direction(object))
 
 
   ### fit the models and compute marginal likelihoods
-  if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_start))
-  for(i in 1:length(object$models)){
-    object <- .fit_RoBMA(object, i)
-    object <- .marglik_RoBMA(object, i)
-    if(!is.null(object$control$progress_tick))eval(parse(text = object$control$progress_tick))
+  if(object$control$cores < 2*object$control$chains){
+
+    if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_start))
+    for(i in 1:length(object$models)){
+      object$models[[i]] <- .fit_RoBMA_wrap(object, i)
+    }
+
+  }else{
+
+    fitting_order <- .fitting_priority(object$models)
+
+    cl <- parallel::makePSOCKcluster(floor(object$control$cores / object$control$chains))
+    parallel::clusterEvalQ(cl, {library("RoBMA")})
+    parallel::clusterExport(cl, "object", envir = environment())
+    object$models <- parallel::clusterApplyLB(cl, fitting_order, .fit_RoBMA_wrap, object = object)[order(fitting_order)]
+    parallel::stopCluster(cl)
+
   }
 
 
@@ -381,7 +398,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
                          prior_mu = NULL, prior_tau = NULL, prior_omega = NULL, prior_odds = NULL,
                          prior_mu_null = NULL, prior_tau_null = NULL, prior_omega_null = NULL,
                          study_names = NULL,
-                         control = NULL, chains = NULL, iter = NULL, burnin = NULL, thin = NULL, ...){
+                         control = NULL, chains = NULL, iter = NULL, burnin = NULL, thin = NULL, parallel = NULL, seed = NULL, ...){
 
   if(object$add_info$save == "min")stop("Models cannot be updated because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' in while fitting the model (see ?RoBMA for more details).")
 
@@ -428,23 +445,21 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   ### update control settings if any change is specified
-  object$control  <- .update_control(object$control, control, chains, iter, burnin, thin)
-  object$add_info <- .check_effect_direction(object)
+  object$control  <- .update_control(object$control, control, chains, iter, burnin, thin, seed, NULL, parallel)
+  object$add_info$warnings <- c(object$add_info$warnings, .check_effect_direction(object))
 
   ### do the stuff
   if(what_to_do == "fit_new_model"){
 
-    object <- .fit_RoBMA(object, length(object$models))
-    object <- .marglik_RoBMA(object, length(object$models))
+    if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_start))
+    object$models[[length(object$models)]] <- .fit_RoBMA_wrap(object, length(object$models))
 
   }else if(what_to_do == "refit_failed_models"){
 
     converged_models <- .get_converged_models(object)
     if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_start))
     for(i in c(1:length(object$models))[!converged_models]){
-      object <- .fit_RoBMA(object, i)
-      object <- .marglik_RoBMA(object, i)
-      if(!is.null(object$control$progress_start))eval(parse(text = object$control$progress_tick))
+      object$models[[i]] <- .fit_RoBMA_wrap(object, i)
     }
 
   }
@@ -668,7 +683,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 ### fitting function
 .fit_RoBMA             <- function(object, i){
 
-  priors     <- object$models[[i]]$priors
+  model      <- object$models[[i]]
+  priors     <- model$priors
   control    <- object$control
   refit_info <- NULL
 
@@ -678,17 +694,17 @@ update.RoBMA <- function(object, refit_failed = TRUE,
        priors$omega$distribution == "point")){
 
     # genrate the model syntax
-    model_syntax <- .generate_model_syntax(priors, control$boost, object$add_info$effect_direction)
+    model_syntax <- .generate_model_syntax(priors, control$boost, object$control$effect_direction)
 
 
     # remove unneccessary objects from data to mittigate warnings
-    fit_data          <- .fit_data(object$data, priors, object$add_info$effect_direction)
-    fit_inits         <- .fit_inits(priors, control$chains, object$add_info$seed)
+    fit_data          <- .fit_data(object$data, priors, control$effect_direction)
+    fit_inits         <- .fit_inits(priors, control$chains, control$seed)
     monitor_variables <- .to_monitor(priors)
 
 
     # fit the model
-    fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
+    fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control)
 
 
     # deal with some fixable errors
@@ -721,7 +737,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         refit_info <- "empirical init"
 
-        fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
+        fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control)
 
       }
 
@@ -730,8 +746,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         refit_info <- "refit with boost"
 
-        model_syntax <- .generate_model_syntax(priors, TRUE, object$add_info$effect_direction)
-        fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control, object$add_info$seed)
+        model_syntax <- .generate_model_syntax(priors, TRUE, control$effect_direction)
+        fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control)
 
       }
 
@@ -748,17 +764,17 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
   # add the fit and summary to the main object
-  object$models[[i]]$fit      <- fit
-  object$models[[i]]$metadata <- list(
+  model$fit      <- fit
+  model$metadata <- list(
     i          = i,
     refit_info = refit_info)
   if(!is.null(fit)){
-    object$models[[i]]$fit_summary <- .runjags.summary(fit)
+    model$fit_summary <- .runjags.summary(fit)
   }
 
-  return(object)
+  return(model)
 }
-.fit_model_RoBMA_wrap  <- function(model_syntax, fit_data, fit_inits, monitor_variables, control, seed){
+.fit_model_RoBMA_wrap  <- function(model_syntax, fit_data, fit_inits, monitor_variables, control){
   if(control$silent){
     fit <- callr::r(
       .fit_model_RoBMA,
@@ -767,8 +783,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
         fit_data          = fit_data,
         fit_inits         = fit_inits,
         monitor_variables = monitor_variables,
-        control           = control,
-        seed              = seed
+        control           = control
       )
     )
   }else{
@@ -777,17 +792,14 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       fit_data          = fit_data,
       fit_inits         = fit_inits,
       monitor_variables = monitor_variables,
-      control           = control,
-      seed              = seed
+      control           = control
     )
   }
   return(fit)
 }
-.fit_model_RoBMA       <- function(model_syntax, fit_data, fit_inits, monitor_variables, control, seed){
-  # requires namespace in case that the fit is estimated in a separate R process (for the silent mode)
-  requireNamespace("RoBMA")
-  if(!is.null(seed))set.seed(seed)
-  tryCatch(runjags::autorun.jags(
+.fit_model_RoBMA       <- function(model_syntax, fit_data, fit_inits, monitor_variables, control){
+
+  model_call <- list(
     model           = model_syntax,
     data            = fit_data,
     inits           = fit_inits,
@@ -797,16 +809,38 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     startsample     = control$iter,
     adapt           = control$adapt,
     thin            = control$thin,
-    raftery.options = if(control$autofit) list(r = control$max_error) else FALSE,
-    psrf.target     = if(control$autofit) control$max_rhat else Inf,
-    max.time        = if(control$autofit) control$max_time else Inf,
+    raftery.options = if(control$autofit)  list(r = control$max_error) else FALSE,
+    psrf.target     = if(control$autofit)  control$max_rhat else Inf,
+    max.time        = if(control$autofit)  control$max_time else Inf,
+    method          = if(control$parallel) "rjparallel"     else "rjags",
     summarise       = FALSE
-  ), error = function(e)e)
+  )
+
+  if(control$parallel){
+    # the cluster needs to be created manually, because windows don't share the RoBMA JAGS module with the cluster by default
+    cl <- parallel::makePSOCKcluster(if(control$chains > control$cores) control$cores else control$chains)
+    parallel::clusterCall(cl, function(x) requireNamespace("RoBMA"))
+    model_call$cl <- cl
+  }else{
+    # requires namespace in case that the fit is estimated in a separate R process (for the silent mode)
+    requireNamespace("RoBMA")
+  }
+
+  if(!is.null(control$seed))set.seed(control$seed)
+  fit <- tryCatch(do.call(runjags::autorun.jags, model_call), error = function(e)e)
+
+  if(control$parallel){
+    parallel::stopCluster(cl)
+  }
+
+  return(fit)
 }
 .marglik_RoBMA         <- function(object, i){
 
-  fit      <- object$models[[i]]$fit
-  priors   <- object$models[[i]]$priors
+  model    <- object$models[[i]]
+  fit      <- model$fit
+  priors   <- model$priors
+  control  <- object$control
 
   # don't sample the complete null model
   if(!(priors$mu$distribution == "point" &
@@ -817,26 +851,26 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     # deal with failed model
     if(any(class(fit) %in% c("simpleError", "error"))){
 
-      object$models[[i]]$marg_lik <- .marglik_fail()
+      model$marg_lik <- .marglik_fail()
 
-      return(object)
+      return(model)
     }
 
 
     # compute marginal likelihood
     marglik_samples <- .marglik_prepare_data(fit, priors, object$data)
-    fit_data        <- .fit_data(object$data, priors, object$add_info$effect_direction)
+    fit_data        <- .fit_data(object$data, priors, control$effect_direction)
 
-    if(!is.null(object$add_info$seed))set.seed(object$add_info$seed)
+    if(!is.null(control$seed))set.seed(control$seed)
     marg_lik        <- tryCatch(suppressWarnings(bridgesampling::bridge_sampler(
       samples          = marglik_samples$samples,
       data             = fit_data,
       log_posterior    = .marglik_function,
       priors           = priors,
-      effect_direction = object$add_info$effect_direction,
+      effect_direction = control$effect_direction,
       lb               = marglik_samples$lb,
       ub               = marglik_samples$ub,
-      maxiter          = object$control$bridge_max_iter,
+      maxiter          = control$bridge_max_iter,
       silent           = TRUE)),
       error = function(e)return(e))
 
@@ -848,19 +882,19 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # handle errors
   if(any(class(marg_lik) %in% c("simpleError", "error"))){
 
-    object$models[[i]]$metadata$marg_lik <- marg_lik$message
+    model$metadata$marg_lik <- marg_lik$message
     marg_lik <- .marglik_fail()
 
   }else if(is.na(marg_lik$logml)){
 
-    object$models[[i]]$metadata$marg_lik <- "not enough iterations"
+    model$metadata$marg_lik <- "not enough iterations"
     marg_lik <- .marglik_fail()
 
   }
 
-  object$models[[i]]$marg_lik <- marg_lik
+  model$marg_lik <- marg_lik
 
-  return(object)
+  return(model)
 }
 .generate_model_syntax <- function(priors, boost, effect_direction){
 
@@ -1497,7 +1531,14 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   class(marg_lik) <- "bridge"
   return(marg_lik)
 }
+.fit_RoBMA_wrap        <- function(object, i){
 
+  object$models[[i]] <- .fit_RoBMA(object, i)
+  object$models[[i]] <- .marglik_RoBMA(object, i)
+  if(!is.null(object$control$progress_tick))eval(parse(text = object$control$progress_tick))
+
+  return(object$models[[i]])
+}
 
 ### model inference functions
 .model_inference            <- function(object, n_samples = 10000){
@@ -1506,7 +1547,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   data      <- object$data
   add_info  <- object$add_info
   converged <- object$add_info$converged
-  seed      <- object$add_info$seed
+  seed      <- object$control$seed
 
   # extract marginal likelihoods
   marg_liks <- sapply(models, function(x)x$marg_lik$logml)
@@ -2098,7 +2139,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(model)
 
 }
-.set_control            <- function(control, chains, iter, burnin, thin){
+.set_control            <- function(control, chains, iter, burnin, thin, seed, effect_direction, parallel){
 
   # set the control list
   if(is.null(control)){
@@ -2116,6 +2157,12 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     control$silent          <- FALSE
     control$boost           <- FALSE
+
+    if(parallel){
+      control$cores         <- parallel::detectCores() - 1
+    }else{
+      control$cores         <- 1
+    }
 
   }else{
     if(is.null(control[["max_error"]])){
@@ -2157,6 +2204,18 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     if(is.null(control[["boost"]])){
       control$boost           <- FALSE
     }
+    if(is.null(control[["cores"]])){
+      if(parallel){
+        control$cores         <- parallel::detectCores() - 1
+      }else{
+        control$cores         <- 1
+      }
+    }
+
+  }
+
+  if(control[["cores"]] > 1){
+    parallel <- TRUE
   }
 
   # add the main MCMC settings
@@ -2164,11 +2223,14 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   control$iter      <- iter
   control$burnin    <- burnin
   control$thin      <- thin
+  control$seed      <- seed
+  control$parallel  <- parallel
+  control$effect_direction <- effect_direction
 
   .check_control(control)
   return(control)
 }
-.update_control         <- function(control, control_new, chains, iter, burnin, thin){
+.update_control         <- function(control, control_new, chains, iter, burnin, thin, seed, effect_direction, parallel){
 
   if(!is.null(control_new)){
     for(n in names(control_new)){
@@ -2176,10 +2238,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
   }
 
-  if(!is.null(chains))  control[["chains"]] <- chains
-  if(!is.null(iter))    control[["iter"]]   <- iter
-  if(!is.null(burnin))  control[["burnin"]] <- burnin
-  if(!is.null(thin))    control[["thin"]]   <- thin
+  if(!is.null(chains))   control[["chains"]]   <- chains
+  if(!is.null(iter))     control[["iter"]]     <- iter
+  if(!is.null(burnin))   control[["burnin"]]   <- burnin
+  if(!is.null(thin))     control[["thin"]]     <- thin
+  if(!is.null(parallel)) control[["parallel"]] <- parallel
+  if(!is.null(seed))     control[["seed"]]     <- seed
+  if(!is.null(effect_direction)) control[["effect_direction"]] <- effect_direction
 
   # stop if there is not enough samples planned for autojags package
   .check_control(control)
@@ -2188,7 +2253,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .check_control          <- function(control){
   # check whether only known controls were supplied
-  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_rhat", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost")
+  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_rhat", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost", "cores", "seed", "parallel", "effect_direction")
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
   # check whether essential controls were supplied
@@ -2197,44 +2262,63 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(is.null(control[["burnin"]])) stop("Number of burnin samples must be set.")
   if(is.null(control[["adapt"]]))  stop("Number of adaptation samples must be set.")
   if(is.null(control[["thin"]]))   stop("Thinning of the posterior samples must be set.")
+  if(is.null(control[["effect_direction"]])) stop("The effect size direction must be set.")
 
-  if(!is.numeric(control[["chains"]]) | !control[["chains"]] >= 1) stop("At least one chains must be set.")
-  if(!is.numeric(control[["iter"]])   | !control[["iter"]] >= 1)   stop("Number of iterations must be a positive number")
-  if(!is.numeric(control[["burnin"]]) | !control[["burnin"]] >= 1) stop("Number of burnin samples must be a positive number")
-  if(!is.numeric(control[["adapt"]])  | !control[["adapt"]] >= 1)  stop("Number of adaptation samples must be a positive number.")
-  if(!is.numeric(control[["thin"]])   | !control[["thin"]] >= 1)   stop("Thinning of the posterior samples must be a positive number")
+  if(!is.numeric(control[["chains"]]) | !control[["chains"]] >= 1)  stop("At least one chains must be set.")
+  if(!is.numeric(control[["iter"]])   | !control[["iter"]] >= 1)    stop("Number of iterations must be a positive number.")
+  if(!is.numeric(control[["burnin"]]) | !control[["burnin"]] >= 1)  stop("Number of burnin samples must be a positive number.")
+  if(!is.numeric(control[["adapt"]])  | !control[["adapt"]] >= 1)   stop("Number of adaptation samples must be a positive number.")
+  if(!is.numeric(control[["thin"]])   | !control[["thin"]] >= 1)    stop("Thinning of the posterior samples must be a positive number.")
+  if(!is.logical(control[["parallel"]]))                            stop("The usage of parallel evaluation must be a logical argument.")
+  if(!is.numeric(control[["cores"]])  | !control[["cores"]] >= 1)   stop("Number of cores must be a positive number.")
+  if(!is.numeric(control[["seed"]]))                                stop("Seed must be a numeric argument.")
+  if(!control[["effect_direction"]] %in% c("positive", "negative")) stop("The effect size direction must be either positive or negative.")
 
   # stop if there is not enough samples planned for autojags package
-  if(control$iter/control$thin < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
-  if(!control$chains >= 2)stop("The number of chains must be at least 2 so that convergence can be assessed.")
+  if(control[["iter"]]/control[["thin"]] < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
+  if(!control[["chains"]] >= 2)stop("The number of chains must be at least 2 so that convergence can be assessed.")
 
   # check convergence criteria
-  if(control$autofit)if(control$max_error >= 1 | control$max_error <= 0)stop("The target maximum MCMC error must be within 0 and 1.")
-  if(control$autofit)if(control$max_rhat <= 1)stop("The target maximum R-hat must be higher than 1.")
-  if(!is.null(control$allow_max_error))if(control$allow_max_error >= 1 | control$allow_max_error <= 0)stop("The maximum allowed MCMC error must be within 0 and 1.")
-  if(!is.null(control$allow_max_rhat))if(control$allow_max_rhat <= 1)stop("The maximum allowed R-hat must be higher than 1.")
-  if(!is.null(control$allow_min_ESS))if(control$allow_min_ESS <= 0)stop("The minimum allowed ESS must be higher than 0.")
+  if(control$autofit)if(control[["max_error"]] >= 1 | control[["max_error"]] <= 0)stop("The target maximum MCMC error must be within 0 and 1.")
+  if(control$autofit)if(control[["max_rhat"]] <= 1)stop("The target maximum R-hat must be higher than 1.")
+  if(!is.null(control[["allow_max_error"]])) if(control[["allow_max_error"]] >= 1 | control[["allow_max_error"]] <= 0)stop("The maximum allowed MCMC error must be within 0 and 1.")
+  if(!is.null(control[["allow_max_rhat"]]))  if(control[["allow_max_rhat"]] <= 1) stop("The maximum allowed R-hat must be higher than 1.")
+  if(!is.null(control[["allow_min_ESS"]]))   if(control[["allow_min_ESS"]] <= 0)  stop("The minimum allowed ESS must be higher than 0.")
 
+  if(control[["parallel"]]){
+    if(!try(requireNamespace("parallel")))stop("parallel package needs to be installed for parallel processing. Run 'install.packages('parallel')'")
+  }
   # now taken care of by the evaluation outside of R
   # runjags::runjags.options(silent.jags = control$silent, silent.runjags = control$silent)
 }
 .check_effect_direction <- function(object){
 
-  if(!object$add_info$effect_direction %in% c("positive", "negative"))stop("'effect_direction' must be either 'positive' or 'negative'")
+  if(!object$control$effect_direction %in% c("positive", "negative"))stop("'effect_direction' must be either 'positive' or 'negative'")
+  warnings <- NULL
 
   # check whether majority of effect sizes are in expected direction. throw warning if not.
   if(any(sapply(object$priors$omega, function(p)p$distribution) == "one.sided")){
-    if(stats::median(object$data$t) > 0 & object$add_info$effect_direction == "negative" |
-       stats::median(object$data$t) < 0 & object$add_info$effect_direction == "positive"){
-      object$add_info$warnings <- c(object$add_info$warnings, "The majority of effect sizes is in the oposite direction than expected. The direction of effect sizes is important for the one-sided weight functions. Please, check the 'effect_direction' argument in 'RoBMA' fitting function.")
+    if(stats::median(object$data$t) > 0 & object$control$effect_direction == "negative" |
+       stats::median(object$data$t) < 0 & object$control$effect_direction == "positive"){
+      warnings <- "The majority of effect sizes is in the oposite direction than expected. The direction of effect sizes is important for the one-sided weight functions. Please, check the 'effect_direction' argument in 'RoBMA' fitting function."
     }
   }
 
   # the actual effect size direction changes are done prior and after fitting using the '.fit_data' and '.change_direction' functions
 
-  return(object$add_info)
+  return(warnings)
 }
+.fitting_priority       <- function(models){
 
+  # model fitting difficulty using the following heuristic: random effects > weighted likelihood > non-null models
+  fitting_difficulty <- sapply(models, function(model){
+    ifelse(model$priors$mu$distribution    == "point", 0, 1) +
+    ifelse(model$priors$tau$distribution   == "point", 0, 3) +
+    ifelse(model$priors$omega$distribution == "point", 0, 5)
+  })
+
+  return(order(fitting_difficulty, decreasing = TRUE))
+}
 
 # general helper functions
 .is_parameter_null <- function(priors, par){
@@ -2448,7 +2532,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .runjags.summary   <- function(fit){
   # the only reason for this function is that runjags summary function returns HPD instead of quantile intervals
-  invisible(capture.output(summary_fit <- summary(fit, silent.jags = T)))
+  invisible(utils::capture.output(summary_fit <- summary(fit, silent.jags = T)))
   model_samples <- suppressWarnings(coda::as.mcmc(fit))
 
   for(i in 1:nrow(summary_fit)){

@@ -5,7 +5,9 @@
 \alias{Anderson2010}
 \title{27 experimental studies from from
 \insertCite{Anderson2010;textual}{RoBMA} that meet the best practice criteria}
-\format{A data.frame with 3 columns and 23 observations.}
+\format{
+A data.frame with 3 columns and 23 observations.
+}
 \usage{
 Anderson2010
 }

@@ -76,7 +76,7 @@ used to estimate the model." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.4</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -146,39 +146,40 @@ effect sizes (<code>d</code>) and standard errors (<code>se</code>) can be
 used to estimate the model.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>RoBMA</span>(
-  <span class='kw'>t</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>d</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>r</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>y</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>OR</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>se</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>n</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>n1</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>n2</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>lCI</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>uCI</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>test_type</span> <span class='kw'>=</span> <span class='st'>"two.sample"</span>,
-  <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>mu_transform</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>r</span>)) <span class='st'>"cohens_d"</span> <span class='kw'>else</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>OR</span>)) <span class='st'>"log_OR"</span> <span class='kw'>else</span> <span class='kw'>NULL</span>,
-  <span class='kw'>effect_direction</span> <span class='kw'>=</span> <span class='st'>"positive"</span>,
-  <span class='kw'>priors_mu</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"normal"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>mean</span> <span class='kw'>=</span> <span class='fl'>0</span>, <span class='kw'>sd</span> <span class='kw'>=</span> <span class='fl'>1</span>)),
-  <span class='kw'>priors_tau</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"invgamma"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>shape</span> <span class='kw'>=</span> <span class='fl'>1</span>, <span class='kw'>scale</span> <span class='kw'>=</span>
-    <span class='fl'>0.15</span>)),
-  <span class='kw'>priors_omega</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"two.sided"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>alpha</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>1</span>,
-    <span class='fl'>1</span>), <span class='kw'>steps</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>0.05</span>)), <span class='kw'>prior_odds</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>), <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"two.sided"</span>, <span class='kw'>parameters</span>
-    <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>alpha</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>1</span>), <span class='kw'>steps</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>0.05</span>, <span class='fl'>0.1</span>)), <span class='kw'>prior_odds</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>)),
-  <span class='kw'>priors_mu_null</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"point"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>location</span> <span class='kw'>=</span> <span class='fl'>0</span>)),
-  <span class='kw'>priors_tau_null</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"point"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>location</span> <span class='kw'>=</span> <span class='fl'>0</span>)),
-  <span class='kw'>priors_omega_null</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='kw'>distribution</span> <span class='kw'>=</span> <span class='st'>"point"</span>, <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>location</span> <span class='kw'>=</span> <span class='fl'>1</span>)),
-  <span class='kw'>chains</span> <span class='kw'>=</span> <span class='fl'>3</span>,
-  <span class='kw'>iter</span> <span class='kw'>=</span> <span class='fl'>10000</span>,
-  <span class='kw'>burnin</span> <span class='kw'>=</span> <span class='fl'>5000</span>,
-  <span class='kw'>thin</span> <span class='kw'>=</span> <span class='fl'>1</span>,
-  <span class='kw'>control</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>save</span> <span class='kw'>=</span> <span class='st'>"all"</span>,
-  <span class='kw'>seed</span> <span class='kw'>=</span> <span class='kw'>NULL</span>
-)</pre>
+    <pre class="usage"><span class='fu'>RoBMA</span><span class='op'>(</span>
+  t <span class='op'>=</span> <span class='cn'>NULL</span>,
+  d <span class='op'>=</span> <span class='cn'>NULL</span>,
+  r <span class='op'>=</span> <span class='cn'>NULL</span>,
+  y <span class='op'>=</span> <span class='cn'>NULL</span>,
+  OR <span class='op'>=</span> <span class='cn'>NULL</span>,
+  se <span class='op'>=</span> <span class='cn'>NULL</span>,
+  n <span class='op'>=</span> <span class='cn'>NULL</span>,
+  n1 <span class='op'>=</span> <span class='cn'>NULL</span>,
+  n2 <span class='op'>=</span> <span class='cn'>NULL</span>,
+  lCI <span class='op'>=</span> <span class='cn'>NULL</span>,
+  uCI <span class='op'>=</span> <span class='cn'>NULL</span>,
+  test_type <span class='op'>=</span> <span class='st'>"two.sample"</span>,
+  study_names <span class='op'>=</span> <span class='cn'>NULL</span>,
+  mu_transform <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>r</span><span class='op'>)</span><span class='op'>)</span> <span class='st'>"cohens_d"</span> <span class='kw'>else</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>OR</span><span class='op'>)</span><span class='op'>)</span> <span class='st'>"log_OR"</span> <span class='kw'>else</span> <span class='cn'>NULL</span>,
+  effect_direction <span class='op'>=</span> <span class='st'>"positive"</span>,
+  priors_mu <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"normal"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>mean <span class='op'>=</span> <span class='fl'>0</span>, sd <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>,
+  priors_tau <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"invgamma"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>shape <span class='op'>=</span> <span class='fl'>1</span>, scale <span class='op'>=</span>
+    <span class='fl'>0.15</span><span class='op'>)</span><span class='op'>)</span>,
+  priors_omega <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span><span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"two.sided"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>alpha <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>,
+    <span class='fl'>1</span><span class='op'>)</span>, steps <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.05</span><span class='op'>)</span><span class='op'>)</span>, prior_odds <span class='op'>=</span> <span class='fl'>1</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span>, <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"two.sided"</span>, parameters
+    <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>alpha <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>1</span>, <span class='fl'>1</span><span class='op'>)</span>, steps <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.05</span>, <span class='fl'>0.1</span><span class='op'>)</span><span class='op'>)</span>, prior_odds <span class='op'>=</span> <span class='fl'>1</span><span class='op'>/</span><span class='fl'>2</span><span class='op'>)</span><span class='op'>)</span>,
+  priors_mu_null <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"point"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>location <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>)</span>,
+  priors_tau_null <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"point"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>location <span class='op'>=</span> <span class='fl'>0</span><span class='op'>)</span><span class='op'>)</span>,
+  priors_omega_null <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"point"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>location <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>,
+  chains <span class='op'>=</span> <span class='fl'>3</span>,
+  iter <span class='op'>=</span> <span class='fl'>10000</span>,
+  burnin <span class='op'>=</span> <span class='fl'>5000</span>,
+  thin <span class='op'>=</span> <span class='fl'>1</span>,
+  parallel <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  control <span class='op'>=</span> <span class='cn'>NULL</span>,
+  save <span class='op'>=</span> <span class='st'>"all"</span>,
+  seed <span class='op'>=</span> <span class='cn'>NULL</span>
+<span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -315,14 +316,23 @@ Defaults to <code>5000</code>.</p></td>
 <code>1</code>.</p></td>
     </tr>
     <tr>
+      <th>parallel</th>
+      <td><p>whether the individual models should be fitted in parallel.
+Defaults to <code>FALSE</code>. The <code>cores</code> argument within the <code>control</code>
+list will overwrite the setting if specified to a number higher than 1.</p></td>
+    </tr>
+    <tr>
       <th>control</th>
       <td><p>a list of additional arguments for the MCMC algorithm.
-Possible options are:</p><dl'>
+Possible options are:</p><dl>
 <dt>autofit</dt><dd><p>Whether the models should be refitted until convergence.
 Defaults to <code>FALSE</code></p></dd>
 <dt>max_error</dt><dd><p>The target MCMC error for the autofit function. The
 argument is passed to <a href='https://rdrr.io/pkg/coda/man/raftery.diag.html'>raftery.diag</a> as 'r'. Defaults to
 <code>.01</code>.</p></dd>
+<dt>max_rhat</dt><dd><p>The target Rhat error for the autofit function. The
+argument is passed to <a href='https://rdrr.io/pkg/runjags/man/add.summary.html'>add.summary</a> as 'psrf.target'.
+Defaults to <code>1.05</code>.</p></dd>
 <dt>max_time</dt><dd><p>A string specifying the maximum fitting time in case
 of autofit. Defaults to <code>Inf</code>. Can be specified as a number and
 a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
@@ -359,6 +369,9 @@ C++ library should be used as the first option. The higher precision of
 boost allows to estimate models in difficult cases. Defaults to <code>FALSE</code>.
 The R distributions are used as default and boost is used only if they fail.
 Warning: the estimation using boost takes about twice as long.</p></dd>
+<dt>cores</dt><dd><p>Number of cores to bu used fo parallel computation. If
+<code>parallel == TRUE</code>, the default number is equal to number of cores - 1,
+and 1 (no parallel processing otherwise).</p></dd>
 
 </dl></td>
     </tr>
@@ -410,52 +423,54 @@ preprint at <a href='https://doi.org/10.31234/osf.io/u4cns'>https://doi.org/10.3
     <div class='dont-index'><p><code><a href='summary.RoBMA.html'>summary.RoBMA()</a></code>, <code><a href='update.RoBMA.html'>update.RoBMA()</a></code>, <code><a href='prior.html'>prior()</a></code>, <code><a href='check_setup.html'>check_setup()</a></code></p></div>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'><span class='kw'>if</span> (<span class='fl'>FALSE</span>) {
+    <pre class="examples"><div class='input'><span class='kw'>if</span> <span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span> <span class='op'>{</span>
 <span class='co'># using the example data from Anderson et al. 2010 and fitting the default model</span>
 <span class='co'># (note that the model can take a while to fit)</span>
-<span class='no'>fit</span> <span class='kw'>&lt;-</span> <span class='fu'>RoBMA</span>(<span class='kw'>r</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>r</span>, <span class='kw'>n</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>n</span>, <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>labels</span>)
+<span class='va'>fit</span> <span class='op'>&lt;-</span> <span class='fu'>RoBMA</span><span class='op'>(</span>r <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>r</span>, n <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>n</span>, study_names <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>labels</span><span class='op'>)</span>
 
 <span class='co'># in order to speed up the process, we can reduce the default number of chains, iteration,</span>
 <span class='co'># and disable the autofit functionality (see ?RoBMA for all possible settings)</span>
-<span class='no'>fit_faster</span> <span class='kw'>&lt;-</span> <span class='fu'>RoBMA</span>(<span class='kw'>r</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>r</span>, <span class='kw'>n</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>n</span>, <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>labels</span>,
-<span class='kw'>chains</span> <span class='kw'>=</span> <span class='fl'>2</span>, <span class='kw'>iter</span> <span class='kw'>=</span> <span class='fl'>5000</span>, <span class='kw'>control</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>autofit</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>))
+<span class='va'>fit_faster</span> <span class='op'>&lt;-</span> <span class='fu'>RoBMA</span><span class='op'>(</span>r <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>r</span>, n <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>n</span>, study_names <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>labels</span>,
+chains <span class='op'>=</span> <span class='fl'>2</span>, iter <span class='op'>=</span> <span class='fl'>5000</span>, control <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>autofit <span class='op'>=</span> <span class='cn'>FALSE</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='co'># RoBMA function allows to use different prior specifications</span>
 <span class='co'># for example, change the prior for tau to be half normal and specify one-sided selection only</span>
 <span class='co'># on significant p-values (see '?.prior' for all options regarding prior distributions)</span>
-<span class='no'>fit1</span> <span class='kw'>&lt;-</span> <span class='fu'>RoBMA</span>(<span class='kw'>r</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>r</span>, <span class='kw'>n</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>n</span>, <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>labels</span>,
-              <span class='kw'>priors_tau</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='st'>"normal"</span>,
-                                 <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>mean</span> <span class='kw'>=</span> <span class='fl'>0</span>, <span class='kw'>sd</span> <span class='kw'>=</span> <span class='fl'>1</span>),
-                                 <span class='kw'>truncation</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>lower</span> <span class='kw'>=</span> <span class='fl'>0</span>, <span class='kw'>upper</span> <span class='kw'>=</span> <span class='fl'>Inf</span>)),
-              <span class='kw'>priors_omega</span> <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='st'>"one-sided"</span>,
-                                   <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>cuts</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>.05</span>), <span class='kw'>alpha</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>1</span>, <span class='fl'>1</span>))))
+<span class='va'>fit1</span> <span class='op'>&lt;-</span> <span class='fu'>RoBMA</span><span class='op'>(</span>r <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>r</span>, n <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>n</span>, study_names <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>labels</span>,
+              priors_tau <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span><span class='st'>"normal"</span>,
+                                 parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>mean <span class='op'>=</span> <span class='fl'>0</span>, sd <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span>,
+                                 truncation <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>lower <span class='op'>=</span> <span class='fl'>0</span>, upper <span class='op'>=</span> <span class='cn'>Inf</span><span class='op'>)</span><span class='op'>)</span>,
+              priors_omega <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span><span class='st'>"one-sided"</span>,
+                                   parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>cuts <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>.05</span><span class='op'>)</span>, alpha <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>1</span>, <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='co'># the priors for the null models can be modified or even omited in a similar manner,</span>
 <span class='co'># allowing to test different (non-nill-null) hypotheses</span>
-<span class='no'>fit2</span> <span class='kw'>&lt;-</span> <span class='fu'>RoBMA</span>(<span class='kw'>r</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>r</span>, <span class='kw'>n</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>n</span>, <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>labels</span>,
-              <span class='kw'>priors_mu_null</span>  <span class='kw'>=</span> <span class='fu'><a href='prior.html'>prior</a></span>(<span class='st'>"normal"</span>,
-                                 <span class='kw'>parameters</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>mean</span> <span class='kw'>=</span> <span class='fl'>0</span>, <span class='kw'>sd</span> <span class='kw'>=</span> <span class='fl'>.1</span>),
-                                 <span class='kw'>truncation</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span>(<span class='kw'>lower</span> <span class='kw'>=</span> -<span class='fl'>0.1</span>, <span class='kw'>upper</span> <span class='kw'>=</span> <span class='fl'>0.1</span>)))
+<span class='va'>fit2</span> <span class='op'>&lt;-</span> <span class='fu'>RoBMA</span><span class='op'>(</span>r <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>r</span>, n <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>n</span>, study_names <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>labels</span>,
+              priors_mu_null  <span class='op'>=</span> <span class='fu'><a href='prior.html'>prior</a></span><span class='op'>(</span><span class='st'>"normal"</span>,
+                                 parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>mean <span class='op'>=</span> <span class='fl'>0</span>, sd <span class='op'>=</span> <span class='fl'>.1</span><span class='op'>)</span>,
+                                 truncation <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>lower <span class='op'>=</span> <span class='op'>-</span><span class='fl'>0.1</span>, upper <span class='op'>=</span> <span class='fl'>0.1</span><span class='op'>)</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='co'># an already fitted RoBMA model can be further updated or modified by using the update function</span>
 <span class='co'># for example, the prior model probabilities can be changed after the fitting by</span>
 <span class='co'># (but see '?update.RoBMA' for other posibilities including refitting or adding more models)</span>
-<span class='no'>fit3</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/update.html'>update</a></span>(<span class='no'>fit2</span>, <span class='kw'>prior_odds</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>10</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>))
+<span class='va'>fit3</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/stats/update.html'>update</a></span><span class='op'>(</span><span class='va'>fit2</span>, prior_odds <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>10</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span>,<span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span>
 
 <span class='co'># we can get a quick overview of the model coefficients just by printing the model</span>
-<span class='no'>fit</span>
+<span class='va'>fit</span>
 
 <span class='co'># a more detailed overview using the summary function (see '?summary.RoBMA' for all options)</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(<span class='no'>fit</span>)
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>fit</span><span class='op'>)</span>
 
 <span class='co'># results of the models can be visualized using the plot function (see ?plot.RoBMA for all options)</span>
 <span class='co'># for example, the model-averaged mean estimate</span>
-<span class='fu'><a href='https://rdrr.io/r/graphics/plot.html'>plot</a></span>(<span class='no'>fit</span>, <span class='kw'>parameter</span> <span class='kw'>=</span> <span class='st'>"mu"</span>)
+<span class='fu'><a href='https://rdrr.io/r/graphics/plot.html'>plot</a></span><span class='op'>(</span><span class='va'>fit</span>, parameter <span class='op'>=</span> <span class='st'>"mu"</span><span class='op'>)</span>
 
 <span class='co'># diagnostics for the individual parameters in individual models can be obtained using diagnostics</span>
 <span class='co'># function (see 'diagnostics' for all options)</span>
-<span class='fu'><a href='diagnostics.html'>diagnostics</a></span>(<span class='no'>fit</span>, <span class='kw'>parameter</span> <span class='kw'>=</span> <span class='st'>"mu"</span>, <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"chains"</span>)
-}</div></pre>
+<span class='fu'><a href='diagnostics.html'>diagnostics</a></span><span class='op'>(</span><span class='va'>fit</span>, parameter <span class='op'>=</span> <span class='st'>"mu"</span>, type <span class='op'>=</span> <span class='st'>"chains"</span><span class='op'>)</span>
+<span class='op'>}</span>
+
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
     <nav id="toc" data-toggle="toc" class="sticky-top">
@@ -471,7 +486,7 @@ preprint at <a href='https://doi.org/10.31234/osf.io/u4cns'>https://doi.org/10.3
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

@@ -76,7 +76,7 @@ crit_t), and weights omega." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.4</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -146,50 +146,50 @@ and random generation for the weighted t distribution with
 <code>crit_t</code>), and weights <code>omega</code>.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>dwt</span>(
-  <span class='no'>x</span>,
-  <span class='no'>df</span>,
-  <span class='no'>ncp</span>,
-  <span class='kw'>steps</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>crit_t</span>)) <span class='kw'>NULL</span>,
-  <span class='no'>omega</span>,
-  <span class='kw'>crit_t</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>steps</span>)) <span class='kw'>NULL</span>,
-  <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"two.sided"</span>,
-  <span class='kw'>log</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>
-)
+    <pre class="usage"><span class='fu'>dwt</span><span class='op'>(</span>
+  <span class='va'>x</span>,
+  <span class='va'>df</span>,
+  <span class='va'>ncp</span>,
+  steps <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>crit_t</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  <span class='va'>omega</span>,
+  crit_t <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>steps</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  type <span class='op'>=</span> <span class='st'>"two.sided"</span>,
+  log <span class='op'>=</span> <span class='cn'>FALSE</span>
+<span class='op'>)</span>
 
-<span class='fu'>pwt</span>(
-  <span class='no'>q</span>,
-  <span class='no'>df</span>,
-  <span class='no'>ncp</span>,
-  <span class='kw'>steps</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>crit_t</span>)) <span class='kw'>NULL</span>,
-  <span class='no'>omega</span>,
-  <span class='kw'>crit_t</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>steps</span>)) <span class='kw'>NULL</span>,
-  <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"two.sided"</span>,
-  <span class='kw'>lower.tail</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>,
-  <span class='kw'>log.p</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>
-)
+<span class='fu'>pwt</span><span class='op'>(</span>
+  <span class='va'>q</span>,
+  <span class='va'>df</span>,
+  <span class='va'>ncp</span>,
+  steps <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>crit_t</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  <span class='va'>omega</span>,
+  crit_t <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>steps</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  type <span class='op'>=</span> <span class='st'>"two.sided"</span>,
+  lower.tail <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  log.p <span class='op'>=</span> <span class='cn'>FALSE</span>
+<span class='op'>)</span>
 
-<span class='fu'>qwt</span>(
-  <span class='no'>p</span>,
-  <span class='no'>df</span>,
-  <span class='no'>ncp</span>,
-  <span class='kw'>steps</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>crit_t</span>)) <span class='kw'>NULL</span>,
-  <span class='no'>omega</span>,
-  <span class='kw'>crit_t</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>steps</span>)) <span class='kw'>NULL</span>,
-  <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"two.sided"</span>,
-  <span class='kw'>lower.tail</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>,
-  <span class='kw'>log.p</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>
-)
+<span class='fu'>qwt</span><span class='op'>(</span>
+  <span class='va'>p</span>,
+  <span class='va'>df</span>,
+  <span class='va'>ncp</span>,
+  steps <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>crit_t</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  <span class='va'>omega</span>,
+  crit_t <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>steps</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  type <span class='op'>=</span> <span class='st'>"two.sided"</span>,
+  lower.tail <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  log.p <span class='op'>=</span> <span class='cn'>FALSE</span>
+<span class='op'>)</span>
 
-<span class='fu'>rwt</span>(
-  <span class='no'>n</span>,
-  <span class='no'>df</span>,
-  <span class='no'>ncp</span>,
-  <span class='kw'>steps</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>crit_t</span>)) <span class='kw'>NULL</span>,
-  <span class='no'>omega</span>,
-  <span class='kw'>crit_t</span> <span class='kw'>=</span> <span class='kw'>if</span> (!<span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span>(<span class='no'>steps</span>)) <span class='kw'>NULL</span>,
-  <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"two.sided"</span>
-)</pre>
+<span class='fu'>rwt</span><span class='op'>(</span>
+  <span class='va'>n</span>,
+  <span class='va'>df</span>,
+  <span class='va'>ncp</span>,
+  steps <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>crit_t</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  <span class='va'>omega</span>,
+  crit_t <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='op'>!</span><span class='fu'><a href='https://rdrr.io/r/base/NULL.html'>is.null</a></span><span class='op'>(</span><span class='va'>steps</span><span class='op'>)</span><span class='op'>)</span> <span class='cn'>NULL</span>,
+  type <span class='op'>=</span> <span class='st'>"two.sided"</span>
+<span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -276,7 +276,7 @@ the implementation switches to <code>DPQ::dnt</code>.</p>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

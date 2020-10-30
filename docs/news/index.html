@@ -71,7 +71,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.4</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -132,73 +132,132 @@
       <small>Source: <a href='https://github.com/FBartos/RoBMA/blob/master/NEWS.md'><code>NEWS.md</code></a></small>
     </div>
 
-    <div id="version-104" class="section level1">
-<h1 class="page-header" data-toc-text="1.0.4">
-<a href="#version-104" class="anchor"></a>version 1.0.4<small> Unreleased </small>
-</h1>
-<p>Fixes:</p>
+    <div id="version-110" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-110" class="anchor"></a>version 1.1.0</h2>
+<div id="features" class="section level3">
+<h3 class="hasAnchor">
+<a href="#features" class="anchor"></a>Features</h3>
+<ul>
+<li>parallel within and between model fitting using the parallel package with ‘parallel = TRUE’ argument</li>
+</ul>
+</div>
+</div>
+    <div id="version-105" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-105" class="anchor"></a>version 1.0.5</h2>
+<div id="fixes" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes" class="anchor"></a>Fixes:</h3>
+<ul>
+<li>models being fitted automatically until reaching R-hat lower than 1.05 without setting max_rhat and autofit control parameters</li>
+<li>bug preventing to draw a bivariate plot of mu and tau</li>
+<li>range for parameter estimates from individual models no containing 0 (or 1 in case of OR measured effect sizes)</li>
+<li>inability to fit a model with only null mu distributions if correlation or OR measured effect sizes were specified</li>
+<li>ordering of the estimated and observed effects when both of them are requested simultaneously</li>
+<li>formatting of this file (NEWS.md)</li>
+</ul>
+</div>
+<div id="improvements" class="section level3">
+<h3 class="hasAnchor">
+<a href="#improvements" class="anchor"></a>Improvements:</h3>
+<ul>
+<li>priors plot: parameter specification, default plotting range, clearer x-axis labels in cases when the parameter is defined on transformed scale</li>
+<li>parameters plots: probability scale always ends at the same spot as is the last tick on the density scale</li>
+<li>adding warnings if any of the specified models has Rhat higher than 1.05 or the specified value</li>
+<li>grouping the same warnings messages together</li>
+</ul>
+</div>
+</div>
+    <div id="version-104" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-104" class="anchor"></a>version 1.0.4</h2>
+<div id="fixes-1" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes-1" class="anchor"></a>Fixes:</h3>
 <ul>
 <li>inability to run models without the silent = TRUE control</li>
 </ul>
 </div>
-    <div id="version-103" class="section level1">
-<h1 class="page-header" data-toc-text="1.0.3">
-<a href="#version-103" class="anchor"></a>version 1.0.3<small> 2020-08-06 </small>
-</h1>
-<p>Features:</p>
+</div>
+    <div id="version-103" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-103" class="anchor"></a>version 1.0.3</h2>
+<div id="features-1" class="section level3">
+<h3 class="hasAnchor">
+<a href="#features-1" class="anchor"></a>Features:</h3>
 <ul>
 <li>x-axis rescaling for the weight function plot (by setting ‘rescale_x = TRUE’ in the ‘plot.RoBMA’ function)</li>
 <li>setting expected direction of the effect in for RoBMA function</li>
 </ul>
-<p>Fixes:</p>
+</div>
+<div id="fixes-2" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes-2" class="anchor"></a>Fixes:</h3>
 <ul>
 <li>marginal likelihood calculation for models with spike prior distribution on mean parameter which location was not set to 0</li>
 <li>some additional error messages</li>
 </ul>
-<p>CRAM requested changes:</p>
+</div>
+<div id="cram-requested-changes" class="section level3">
+<h3 class="hasAnchor">
+<a href="#cram-requested-changes" class="anchor"></a>CRAM requested changes:</h3>
 <ul>
 <li>changing information messages from ‘cat’ to ‘message’ from plot related functions</li>
 <li>saving and returning the ‘par’ settings to the user defined one in the base plot functions</li>
 </ul>
 </div>
-    <div id="version-102" class="section level1">
-<h1 class="page-header" data-toc-text="1.0.2">
-<a href="#version-102" class="anchor"></a>version 1.0.2<small> Unreleased </small>
-</h1>
-<p>Fixes:</p>
+</div>
+    <div id="version-102" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-102" class="anchor"></a>version 1.0.2</h2>
+<div id="fixes-3" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes-3" class="anchor"></a>Fixes:</h3>
 <ul>
 <li>the summary and plot function now shows quantile based confidence intervals for individual models instead of the HPD provided before (this affects only ‘summary’/‘plot’ with ‘type = “individual”’, all other confidence intervals were quantile based before)</li>
 </ul>
 </div>
-    <div id="version-101" class="section level1">
-<h1 class="page-header" data-toc-text="1.0.1">
-<a href="#version-101" class="anchor"></a>version 1.0.1<small> Unreleased </small>
-</h1>
-<p>Fixes:</p>
+</div>
+    <div id="version-101" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-101" class="anchor"></a>version 1.0.1</h2>
+<div id="fixes-4" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes-4" class="anchor"></a>Fixes:</h3>
 <ul>
 <li>summary function returning median instead of mean</li>
 </ul>
 </div>
-    <div id="version-100-vs-the-osf-version" class="section level1">
-<h1 class="page-header" data-toc-text="1.0.0">
-<a href="#version-100-vs-the-osf-version" class="anchor"></a>version 1.0.0 (vs the osf version)<small> Unreleased </small>
-</h1>
-<p>Fixes:</p>
+</div>
+    <div id="version-100-vs-the-osf-version" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-100-vs-the-osf-version" class="anchor"></a>version 1.0.0 (vs the osf version)</h2>
+<div id="fixes-5" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes-5" class="anchor"></a>Fixes:</h3>
 <ul>
 <li>incorrectly weighted theta estimates</li>
 <li>models with non-zero point prior distribution incorrectly plotted using when “models” option in case that the mu parameter was transformed</li>
 </ul>
-<p>Additional features:</p>
+</div>
+<div id="additional-features" class="section level3">
+<h3 class="hasAnchor">
+<a href="#additional-features" class="anchor"></a>Additional features:</h3>
 <ul>
 <li>analyzing OR</li>
 <li>distributions implemented using boost library (helps with convergence issues)</li>
 <li>ability to mute the non-suppressible “precision not achieved” warning messages by using “silent” = TRUE inside of the control argument</li>
 <li>vignettes</li>
 </ul>
-<p>Notable changes:</p>
+</div>
+<div id="notable-changes" class="section level3">
+<h3 class="hasAnchor">
+<a href="#notable-changes" class="anchor"></a>Notable changes:</h3>
 <ul>
 <li>the way how the seed is set before model fitting (the simulation study will not be reproducible with the new version of the package)</li>
 </ul>
+</div>
 </div>
   </div>
 
@@ -217,7 +276,7 @@
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

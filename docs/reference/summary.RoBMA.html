@@ -73,7 +73,7 @@ summary of the RoBMA object." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.4</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -141,19 +141,19 @@ summary of the RoBMA object.</p>
     </div>
 
     <pre class="usage"><span class='co'># S3 method for RoBMA</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(
-  <span class='no'>object</span>,
-  <span class='kw'>type</span> <span class='kw'>=</span> <span class='kw'>if</span> (<span class='no'>diagnostics</span>) <span class='st'>"models"</span> <span class='kw'>else</span> <span class='st'>"ensemble"</span>,
-  <span class='kw'>conditional</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>diagnostics</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>include_theta</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>probs</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>0.025</span>, <span class='fl'>0.975</span>),
-  <span class='kw'>logBF</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>BF01</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>digits_estimates</span> <span class='kw'>=</span> <span class='fl'>3</span>,
-  <span class='kw'>digits_BF</span> <span class='kw'>=</span> <span class='fl'>3</span>,
-  <span class='no'>...</span>
-)</pre>
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span>
+  <span class='va'>object</span>,
+  type <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>(</span><span class='va'>diagnostics</span><span class='op'>)</span> <span class='st'>"models"</span> <span class='kw'>else</span> <span class='st'>"ensemble"</span>,
+  conditional <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  diagnostics <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  include_theta <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  probs <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span><span class='op'>(</span><span class='fl'>0.025</span>, <span class='fl'>0.975</span><span class='op'>)</span>,
+  logBF <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  BF01 <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  digits_estimates <span class='op'>=</span> <span class='fl'>3</span>,
+  digits_BF <span class='op'>=</span> <span class='fl'>3</span>,
+  <span class='va'>...</span>
+<span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -224,31 +224,32 @@ Defaults to <code>3</code>.</p></td>
     <div class='dont-index'><p><code><a href='RoBMA.html'>RoBMA()</a></code> <code><a href='diagnostics.html'>diagnostics()</a></code></p></div>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><div class='input'><span class='kw'>if</span> (<span class='fl'>FALSE</span>) {
+    <pre class="examples"><div class='input'><span class='kw'>if</span> <span class='op'>(</span><span class='cn'>FALSE</span><span class='op'>)</span> <span class='op'>{</span>
 <span class='co'># using the example data from Anderson et al. 2010 and fitting the default model</span>
 <span class='co'># (note that the model can take a while to fit)</span>
-<span class='no'>fit</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='RoBMA.html'>RoBMA</a></span>(<span class='kw'>r</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>r</span>, <span class='kw'>n</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>n</span>, <span class='kw'>study_names</span> <span class='kw'>=</span> <span class='no'>Anderson2010</span>$<span class='no'>labels</span>)
+<span class='va'>fit</span> <span class='op'>&lt;-</span> <span class='fu'><a href='RoBMA.html'>RoBMA</a></span><span class='op'>(</span>r <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>r</span>, n <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>n</span>, study_names <span class='op'>=</span> <span class='va'>Anderson2010</span><span class='op'>$</span><span class='va'>labels</span><span class='op'>)</span>
 
 <span class='co'># summary can provide many details about the model</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(<span class='no'>fit</span>)
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>fit</span><span class='op'>)</span>
 
 <span class='co'># note that the summary function contains additional arguments</span>
 <span class='co'># that allow to obtain a specific output, i.e, the conditional estimates</span>
 <span class='co'># (assuming that the non-null models are true) can be obtained</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(<span class='no'>fit</span>, <span class='kw'>conditional</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>fit</span>, conditional <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
 
 <span class='co'># overview of the models and their prior and posterior probability, marginal likelihood,</span>
 <span class='co'># and inclusion Bayes factor:</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(<span class='no'>fit</span>, <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"models"</span>)
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>fit</span>, type <span class='op'>=</span> <span class='st'>"models"</span><span class='op'>)</span>
 
 <span class='co'># and the model diagnostics overview, containing maximum R-hat and minimum ESS across parameters</span>
 <span class='co'># but see '?diagnostics' for diagnostics plots for individual model parameters</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(<span class='no'>fit</span>, <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"models"</span>, <span class='kw'>diagnostics</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>fit</span>, type <span class='op'>=</span> <span class='st'>"models"</span>, diagnostics <span class='op'>=</span> <span class='cn'>TRUE</span><span class='op'>)</span>
 
 <span class='co'># summary of individual models and their parameters can be further obtained by</span>
-<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span>(<span class='no'>fit</span>, <span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"individual"</span>)
+<span class='fu'><a href='https://rdrr.io/r/base/summary.html'>summary</a></span><span class='op'>(</span><span class='va'>fit</span>, type <span class='op'>=</span> <span class='st'>"individual"</span><span class='op'>)</span>
 
-}</div></pre>
+<span class='op'>}</span>
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
     <nav id="toc" data-toggle="toc" class="sticky-top">
@@ -264,7 +265,7 @@ Defaults to <code>3</code>.</p></td>
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

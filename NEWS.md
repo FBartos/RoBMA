@@ -1,3 +1,8 @@
+## version 1.1.0
+### Features
+- parallel within and between model fitting using the parallel package with 'parallel = TRUE' argument
+
+
 ## version 1.0.5
 ### Fixes:
 - models being fitted automatically until reaching R-hat lower than 1.05 without setting max_rhat and autofit control parameters
