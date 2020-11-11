@@ -607,6 +607,7 @@ plot.RoBMA <- function(x, parameter,
             breaks = seq(0, temp_ylim[2], length.out = 5),
             labels = c("0", ".25", ".50", ".75", "1"))
         )
+        temp_plot$double_y_axis <- TRUE
       }else if(any_density){
         temp_plot <- temp_plot + ggplot2::scale_y_continuous(
           name   = "Density",
@@ -1054,6 +1055,7 @@ plot.RoBMA <- function(x, parameter,
                                                  labels = rev(est_info))
       )
     }
+    out$double_y_axis <- TRUE
 
     out <- out + ggplot2::geom_line(ggplot2::aes(x = c(0,0), y = c(0,1)), linetype = "dotted")
     out <- out + ggplot2::scale_x_continuous(
@@ -1061,7 +1063,8 @@ plot.RoBMA <- function(x, parameter,
       limits = range(pretty(x_range)),
       breaks = pretty(x_range),
       labels = pretty(x_range))
-    out <- out + ggplot2::theme(axis.title.y      = ggplot2::element_blank(),
+    # the suppressWarnings removes warnings from ggplot2::element_text function that complains about passing vectors, but there is need to pass the color argument...
+    out <- out + suppressWarnings(ggplot2::theme(axis.title.y      = ggplot2::element_blank(),
                                 axis.line.y       = ggplot2::element_blank(),
                                 axis.ticks.y      = ggplot2::element_blank(),
                                 axis.text.y       = ggplot2::element_text(
@@ -1069,7 +1072,7 @@ plot.RoBMA <- function(x, parameter,
                                   color = "black"),
                                 axis.text.y.right = ggplot2::element_text(
                                   hjust = 1,
-                                  color = if(length(par) == 2)c("black",rep(c("grey50","black"), length(y_at)/2),"black")))
+                                  color = if(length(par) == 2)c("black",rep(c("grey50","black"), length(y_at)/2),"black"))))
   }
 
 
@@ -1222,13 +1225,15 @@ plot.RoBMA <- function(x, parameter,
   # general plotting info
   y_at <- seq(.05, 1, length.out = nrow(mod_res[[1]]) + 2)
   y_at <- y_at[-c(1, length(y_at))]
-  est_name  <- paste0("Overall (", if(type == "averaged") "Model-Averaged" else if(type == "conditional") "Conditional", ")")
-  mod_names <- unlist(sapply(as.numeric(rownames(mod_res[[1]])), function(i){
-    c(bquote(~mu~"~"~.(mod_names[[i]]$mu)),
-      bquote(~tau~"~"~.(mod_names[[i]]$tau)),
-      bquote(~omega~"~"~.(mod_names[[i]]$omega)))
-  }))
-
+  est_name    <- paste0("Overall (", if(type == "averaged") "Model-Averaged" else if(type == "conditional") "Conditional", ")")
+  model_names <- expression()
+  for(j in as.numeric(rownames(mod_res[[1]]))){
+    model_names <- c(
+      model_names,
+      bquote(~mu~"~"~.(mod_names[[j]]$mu)),
+      bquote(~tau~"~"~.(mod_names[[j]]$tau)),
+      bquote(~omega~"~"~.(mod_names[[j]]$omega)))
+  }
 
   # x axis names
   par_names <- .plot.RoBMA_par_names(par, fit)
@@ -1295,7 +1300,7 @@ plot.RoBMA <- function(x, parameter,
 
       # set up margins
       if(length(list(...)) == 0){
-        graphics::par(mar = c(4,max(sapply(as.character(mod_names), nchar))*1/5,
+        graphics::par(mar = c(4,max(sapply(as.character(model_names), nchar) - 15, 25)*2/7,
                               0,max(sapply(as.character(est_info[[i]]), nchar))*2/7))
       }else{
         graphics::par(list(...))
@@ -1307,7 +1312,7 @@ plot.RoBMA <- function(x, parameter,
       y_at_lab <- y_at_lab + c(-1,0,1)*(y_at[2] - y_at[1])/4
 
       for(j in 1:length(y_at_lab)){
-        graphics::axis(2, at = rev(y_at_lab)[j], labels = mod_names[[j]], las = 1, col = NA)
+        graphics::axis(2, at = rev(y_at_lab)[j], labels = model_names[[j]], las = 1, col = NA)
       }
       graphics::axis(2, at = c(.05, 1), labels = c(est_name, "Model:"), las = 1, col = NA)
       graphics::mtext(par_names[[i]], side = 1, line = 2.5, cex = 1.25)
@@ -1357,13 +1362,14 @@ plot.RoBMA <- function(x, parameter,
 
       temp_plot <- temp_plot + ggplot2::scale_y_continuous("",
                                                            breaks   = c(0.05, y_at_lab, 1.00),
-                                                           labels   = rev(c("Model:",mod_names, est_name)),
+                                                           labels   = rev(c("Model:",model_names, est_name)),
                                                            limits   = c(0, 1.00),
                                                            sec.axis = ggplot2::sec_axis(
                                                              ~ .,
                                                              breaks = c(0.05, y_at, 1.00),
                                                              labels = rev(est_info[[i]]))
       )
+      temp_plot$double_y_axis <- TRUE
 
       if(par != "omega")temp_plot <- temp_plot + ggplot2::geom_line(
         data = data.frame(

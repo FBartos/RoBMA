@@ -2271,7 +2271,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(!is.numeric(control[["thin"]])   | !control[["thin"]] >= 1)    stop("Thinning of the posterior samples must be a positive number.")
   if(!is.logical(control[["parallel"]]))                            stop("The usage of parallel evaluation must be a logical argument.")
   if(!is.numeric(control[["cores"]])  | !control[["cores"]] >= 1)   stop("Number of cores must be a positive number.")
-  if(!is.numeric(control[["seed"]]))                                stop("Seed must be a numeric argument.")
+  if(!is.numeric(control[["seed"]])   & !is.null(control[["seed"]]))stop("Seed must be a numeric argument.")
   if(!control[["effect_direction"]] %in% c("positive", "negative")) stop("The effect size direction must be either positive or negative.")
 
   # stop if there is not enough samples planned for autojags package

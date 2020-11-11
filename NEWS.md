@@ -1,3 +1,8 @@
+## version 1.1.1
+### Fixes
+- inability to fit a model without specifying a seed
+- inability to produce individual model plots due to incompatibility with the newer versions of ggplot2  
+
 ## version 1.1.0
 ### Features
 - parallel within and between model fitting using the parallel package with 'parallel = TRUE' argument
