@@ -271,6 +271,36 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
     output$parameters   <- parameters
     output$truncation   <- list(lower = parameters$a, upper = parameters$b)
 
+  }else if(distribution %in% c("pet", "PET")){
+
+    if(length(parameters) != 2)stop("Normal prior distribution for PET requires 2 parameters.")
+    if(!is.null(names(parameters))){
+      if(!all(names(parameters) %in% c("mean", "sd")))stop(paste0("Parameters ", paste(names(parameters)[!names(parameters) %in% c("mean", "sd")], sep = ", ", collapse = ""), " are not supported for a normal distribution for PET."))
+    }else{
+      names(parameters) <- c("mean", "sd")
+    }
+    if(parameters$sd <= 0)stop("Parameter 'sd' must be positive.")
+
+    # add the values to the output
+    output$distribution <- "PET.normal"
+    output$parameters   <- parameters
+    output$truncation   <- truncation
+
+  }else if(distribution %in% c("peese", "PEESE")){
+
+    if(length(parameters) != 2)stop("Normal prior distribution for PEESE requires 2 parameters.")
+    if(!is.null(names(parameters))){
+      if(!all(names(parameters) %in% c("mean", "sd")))stop(paste0("Parameters ", paste(names(parameters)[!names(parameters) %in% c("mean", "sd")], sep = ", ", collapse = ""), " are not supported for a normal distribution for PEESE."))
+    }else{
+      names(parameters) <- c("mean", "sd")
+    }
+    if(parameters$sd <= 0)stop("Parameter 'sd' must be positive.")
+
+    # add the values to the output
+    output$distribution <- "PEESE.normal"
+    output$parameters   <- parameters
+    output$truncation   <- truncation
+
   }else{
     stop(paste0("The specified distribution name '", distribution,"' is not known. Please, see '?prior' for more information about supported prior distributions."))
   }
@@ -315,17 +345,19 @@ print.RoBMA.prior <- function(x, ...){
 
 
   name <- switch(x$distribution,
-                 "normal"    = "Normal",
-                 "t"         = "gen. Student-t",
-                 "gamma"     = "Gamma",
-                 "invgamma"  = "InvGamma",
-                 "point"     = "Spike",
-                 "two.sided" = "Two-sided",
-                 "one.sided" = "One-sided",
-                 "uniform"   = "Uniform")
+                 "normal"       = "Normal",
+                 "t"            = "gen. Student-t",
+                 "gamma"        = "Gamma",
+                 "invgamma"     = "InvGamma",
+                 "point"        = "Spike",
+                 "two.sided"    = "Two-sided",
+                 "one.sided"    = "One-sided",
+                 "uniform"      = "Uniform",
+                 "PET.normal"   = "PET:Normal",
+                 "PEESE.normal" = "PEESE:Normal")
 
 
-  if(x$distribution == "normal"){
+  if(x$distribution %in% c("normal", "PET.normal", "PEESE.normal")){
     parameters <- c(x$parameters$mean, x$parameters$sd)
   }else if(x$distribution == "t"){
     if(x$parameters$df == 1){
