@@ -101,7 +101,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
             if(length(object$RoBMA$samples[[type]]$omega)               != 0) matrix(apply(object$RoBMA$samples[[type]]$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE),
             PET    = if(length(object$RoBMA$samples[[type]]$PET)        != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$PET, probs)),
             PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)      != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$PEESE, probs)),
-            if(include_theta & nrow(object$RoBMA$samples[[type]]$theta) != 0) rbind(averaged_q, matrix(apply(object$RoBMA$samples[[type]]$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
+            if(include_theta & nrow(object$RoBMA$samples[[type]]$theta) != 0) matrix(apply(object$RoBMA$samples[[type]]$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE)
           )
           colnames(estimates[[paste0(type,"_q")]]) <- probs
         }
@@ -128,12 +128,12 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
 
       # median estimates
       estimates[[paste0(type,"_m")]] <- c(
-        mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0)             NA   else stats::median(object$RoBMA$samples[[type]]$mu),
-        tau    = if(length(object$RoBMA$samples[[type]]$tau) == 0)             NA   else stats::median(object$RoBMA$samples[[type]]$tau),
-        if(length(object$RoBMA$samples[[type]]$omega) == 0)                    NULL else apply(object$RoBMA$samples[[type]]$omega, 2, stats::median),
-        PET    = if(length(object$RoBMA$samples[[type]]$PET) == 0)             NA   else stats::median(object$RoBMA$samples[[type]]$PET),
-        PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE) == 0)           NA   else stats::median(object$RoBMA$samples[[type]]$PEESE),
-        if(include_theta){if(nrow(object$RoBMA$samples[[type]]$theta) == 0)    NULL else apply(object$RoBMA$samples[[type]]$theta, 2, stats::median)}
+        mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0)  NA else stats::median(object$RoBMA$samples[[type]]$mu),
+        tau    = if(length(object$RoBMA$samples[[type]]$tau) == 0)  NA else stats::median(object$RoBMA$samples[[type]]$tau),
+        if(length(object$RoBMA$samples[[type]]$omega)                 != 0)  apply(object$RoBMA$samples[[type]]$omega, 2, stats::median),
+        PET    = if(length(object$RoBMA$samples[[type]]$PET)          != 0)  stats::median(object$RoBMA$samples[[type]]$PET),
+        PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)        != 0)  stats::median(object$RoBMA$samples[[type]]$PEESE),
+        if(include_theta){if(nrow(object$RoBMA$samples[[type]]$theta) != 0)  apply(object$RoBMA$samples[[type]]$theta, 2, stats::median)}
       )
     }
 
@@ -356,7 +356,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
 
         if(length(dim(s.x)) == 0){
           s.x <- data.frame(matrix(s.x, ncol = 11))
-          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", names.omegas, if(include_theta)names.thetas)]
+          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", "PET", "PEESE", names.omegas, if(include_theta)names.thetas)]
         }else{
           s.x <- data.frame(s.x)
         }

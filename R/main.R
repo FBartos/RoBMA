@@ -913,142 +913,32 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   model_syntax <- "model{\n"
 
   ### mu priors
-  # distributions
-  if(priors$mu$distribution == "point"){
-    model_syntax <- paste0(model_syntax, "mu = prior_mu_location\n")
-  }else if(priors$mu$distribution == "normal"){
-    model_syntax <- paste0(model_syntax, "mu ~ dnorm(prior_mu_mean, pow(prior_mu_sd, -2))")
-  }else if(priors$mu$distribution == "t"){
-    model_syntax <- paste0(model_syntax, "mu ~ dt(prior_mu_location, pow(prior_mu_scale, -2), prior_mu_df)")
-  }else if(priors$mu$distribution == "gamma"){
-    model_syntax <- paste0(model_syntax, "mu ~ dgamma(prior_mu_shape, prior_mu_rate)")
-  }else if(priors$mu$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "inv_mu ~ dgamma(prior_mu_shape, prior_mu_scale)")
-  }else if(priors$mu$distribution == "uniform"){
-    model_syntax <- paste0(model_syntax, "mu ~ dunif(prior_mu_a, prior_mu_b)\n")
-  }
-  # truncation
-  if(!priors$mu$distribution %in% c("point", "uniform")){
-    if(!(is.infinite(priors$mu$truncation$lower)  & is.infinite(priors$mu$truncation$lower))){
-      # the truncation for invgamma needs to be done the other way around since we sample from gamma
-      if(priors$mu$distribution == "invgamma"){
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$mu$truncation$upper^-1),"",priors$mu$truncation$upper^-1),
-                               ",",
-                               ifelse(is.infinite(priors$mu$truncation$lower^-1),"",priors$mu$truncation$lower^-1),
-                               ")\n")
-      }else{
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$mu$truncation$lower),"",priors$mu$truncation$lower),
-                               ",",
-                               ifelse(is.infinite(priors$mu$truncation$upper),"",priors$mu$truncation$upper),
-                               ")\n")
-      }
-    }else{
-      model_syntax <- paste0(model_syntax, "\n")
-    }
-  }
+  model_syntax <- paste0(model_syntax, .JAGS_distribution("mu", priors$mu$distribution, priors$mu$truncation))
 
   # transformations
-  if(priors$mu$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "mu = pow(inv_mu, -1)\n")
-  }
   if(effect_direction == "negative"){
     model_syntax <- paste0(model_syntax, "mu_neg = - mu\n")
   }
 
 
   ### tau priors
-  # distributions
   if(priors$tau$distribution == "point"){
-    if(priors$tau$parameters$location > 0)model_syntax <- paste0(model_syntax, "tau = prior_tau_location\n")
-  }else if(priors$tau$distribution == "normal"){
-    model_syntax <- paste0(model_syntax, "tau ~ dnorm(prior_tau_mean, pow(prior_tau_sd, -2))")
-  }else if(priors$tau$distribution == "t"){
-    model_syntax <- paste0(model_syntax, "tau ~ dt(prior_tau_location, pow(prior_tau_scale, -2), prior_tau_df)")
-  }else if(priors$tau$distribution == "gamma"){
-    model_syntax <- paste0(model_syntax, "tau ~ dgamma(prior_tau_shape, prior_tau_rate)")
-  }else if(priors$tau$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "inv_tau ~ dgamma(prior_tau_shape, prior_tau_scale)")
-  }else if(priors$tau$distribution == "uniform"){
-    model_syntax <- paste0(model_syntax, "tau ~ dunif(prior_tau_a, prior_tau_b)\n")
-  }
-  # truncation
-  if(!priors$tau$distribution %in% c("point", "uniform")){
-    if(!(is.infinite(priors$tau$truncation$lower) & is.infinite(priors$tau$truncation$lower))){
-      # the truncation for invgamma needs to be done the other way around since we sample from gamma
-      if(priors$tau$distribution == "invgamma"){
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$tau$truncation$upper^-1),"",priors$tau$truncation$upper^-1),
-                               ",",
-                               ifelse(is.infinite(priors$tau$truncation$lower^-1),"",priors$tau$truncation$lower^-1),
-                               ")\n")
-      }else{
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$tau$truncation$lower),"",priors$tau$truncation$lower),
-                               ",",
-                               ifelse(is.infinite(priors$tau$truncation$upper),"",priors$tau$truncation$upper),
-                               ")\n")
-      }
-    }else{
-      model_syntax <- paste0(model_syntax, "\n")
+    if(priors$tau$parameters$location > 0){
+      model_syntax <- paste0(model_syntax, .JAGS_distribution("tau", priors$tau$distribution, priors$tau$truncation))
     }
+  }else{
+    model_syntax <- paste0(model_syntax, .JAGS_distribution("tau", priors$tau$distribution, priors$tau$truncation))
   }
-  # transformations
-  if(priors$tau$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "tau = pow(inv_tau, -1)\n")
-  }
+
 
 
   ### omega priors
-  # distributions & transformations
-  if(priors$omega$distribution != "point"){
-
-    if(priors$omega$distribution %in% c("PET.normal", "PEESE.normal")){
-      model_syntax <- paste0(model_syntax, ifelse(priors$omega$distribution == "PET.normal", "PET", "PEESE"), " ~ dnorm(prior_omega_mean, pow(prior_omega_sd, -2))")
-      # truncation
-      if(!(is.infinite(priors$omega$truncation$lower)  & is.infinite(priors$omega$truncation$lower))){
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$omega$truncation$lower),"",priors$omega$truncation$lower),
-                               ",",
-                               ifelse(is.infinite(priors$omega$truncation$upper),"",priors$omega$truncation$upper),
-                               ")\n")
-      }else{
-        model_syntax <- paste0(model_syntax, "\n")
-      }
-    }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
-      model_syntax <- paste0(model_syntax,
-                             "for(j in 1:J){
-                                 eta[j] ~ dgamma(prior_omega_alpha[j], 1)
-                              }
-                              for(j in 1:J){
-                                 std_eta[j]  = eta[j] / sum(eta)
-                                 omega[j]    = sum(std_eta[1:j])
-                              }\n")
-    }else if(all(names(priors$omega$parameters) %in% c("alpha1", "alpha2", "steps"))){
-      model_syntax <- paste0(model_syntax,
-                             "for(j1 in 1:J1){
-                                 eta1[j1] ~ dgamma(prior_omega_alpha1[j1], 1)
-                              }
-                              for(j2 in 1:J2){
-                                 eta2[j2] ~ dgamma(prior_omega_alpha2[j2], 1)
-                              }
-                              for(j1 in 1:J1){
-                                 std_eta1[j1]  <-  eta1[j1] / sum(eta1)
-                                 omega[J2 - 1 + j1] = sum(std_eta1[1:j1])
-                              }
-                              for(j2 in 1:J2){
-                                  std_eta2[j2]  = (eta2[j2] / sum(eta2)) * (1 - std_eta1[1])
-                              }
-                              for(j2 in 2:J2){
-                                  omega[j2-1] = sum(std_eta2[j2:J2]) + std_eta1[1]
-                              }\n")
-    }
-  }
+  model_syntax <- paste0(model_syntax, .JAGS_distribution_omega(priors$omega$distribution, priors$omega$truncation, priors$omega$parameters))
 
 
   ### model
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
+
 
   # random effects
   if(priors$tau$distribution != "point"){
@@ -1074,9 +964,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     eff <- ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]")
   }
   # add PET/PEESE
-  if(priors$omega$distribution == "PET.normal"){
+  if(grepl("PET", priors$omega$distribution)){
     eff <- paste0("(", eff, " + PET * se[i])")
-  }else if(priors$omega$distribution == "PEESE.normal"){
+  }else if(grepl("PEESE", priors$omega$distribution)){
     eff <- paste0("(", eff, " + PEESE * pow(se[i], 2))")
   }
   # convert to ncp
@@ -1084,7 +974,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # the observed data
-  if(priors$omega$distribution %in% c("point", "PET.normal", "PEESE.normal")){
+  if(!priors$omega$distribution %in% c("one.sided", "two.sided")){
     model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(", ncp, ", 1, df[i])\n")
   }else if(priors$omega$distribution == "one.sided"){
     model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
@@ -1152,7 +1042,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # remove unnecessary stuff
   data$effect_size <- NULL
-  if(!priors$omega$distribution %in% c("PET.normal", "PEESE.normal")){
+  if(priors$omega$distribution %in% c("one.sided", "two.sided", "point")){
     data$se <- NULL
   }
 
@@ -1227,19 +1117,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # the rounding removes some random erros with init values - probably when stardandizing the omega
 
 
-  if(prior$distribution %in% c("PET.normal", "PEESE.normal")){
+  if(grepl("PET", prior$distribution)){
 
-    temp_b <- NULL
-    while(length(temp_b) != 1){
-      temp_b <- stats::rnorm(1, mean = prior$parameters$mean, sd = prior$parameters$sd)
-      temp_b <- temp_b[temp_b >= prior$truncation$lower & temp_b <= prior$truncation$upper]
-    }
+    temp_x <- .fit_inits_mu_tau(prior, "PET")
 
-    if(prior$distribution == "PET.normal"){
-      temp_x$PET   <- temp_b
-    }else if(prior$distribution == "PEESE.normal"){
-      temp_x$PEESE <- temp_b
-    }
+  }else if(grepl("PEESE", prior$distribution)){
+
+    temp_x <- .fit_inits_mu_tau(prior, "PEESE")
 
   }else if(all(names(prior$parameters) %in% c("alpha", "steps"))){
 
@@ -1280,9 +1164,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # omega relevant
   if(priors$omega$distribution != "point"){
-    if(priors$omega$distribution == "PET.normal"){
+    if(grepl("PET", priors$omega$distribution)){
       variables <- c(variables, "PET")
-    }else if(priors$omega$distribution %in% "PEESE.normal"){
+    }else if(grepl("PEESE", priors$omega$distribution)){
       variables <- c(variables, "PEESE")
     }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
       variables <- c(variables, "eta", "omega")
@@ -1331,11 +1215,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # omega
   if(priors$omega$distribution != "point"){
-    if(priors$omega$distribution == "PET.normal"){
+    if(grepl("PET", priors$omega$distribution)){
 
       PET   <- samples.row[[ "PET" ]]
 
-    }else if(priors$omega$distribution == "PEESE.normal"){
+    }else if(grepl("PEESE", priors$omega$distribution)){
 
       PEESE <- samples.row[[ "PEESE" ]]
 
@@ -1372,9 +1256,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
   # add PET/PEESE
-  if(priors$omega$distribution == "PET.normal"){
+  if(grepl("PET", priors$omega$distribution)){
     eff <- eff + PET * data$se
-  }else if(priors$omega$distribution == "PEESE.normal"){
+  }else if(grepl("PEESE", priors$omega$distribution)){
     eff <- eff + PEESE * data$se^2
   }
   # convert to ncp
@@ -1384,79 +1268,18 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   log_lik <- 0
 
   # mean
-  if(priors$mu$distribution == "normal"){
-    log_lik <- log_lik + stats::dnorm(mu, mean = data$prior_mu_mean, sd = data$prior_mu_sd, log = TRUE) -
-      log(
-        stats::pnorm(priors$mu$truncation$upper, data$prior_mu_mean, data$prior_mu_sd, lower.tail = TRUE, log.p = FALSE) -
-          stats::pnorm(priors$mu$truncation$lower, data$prior_mu_mean, data$prior_mu_sd, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "t"){
-    log_lik <- log_lik + extraDistr::dlst(mu, df = data$prior_mu_df, mu = data$prior_mu_location, sigma = data$prior_mu_scale, log = TRUE) -
-      log(
-        extraDistr::plst(priors$mu$truncation$upper, df = data$prior_mu_df, mu = data$prior_mu_location, sigma = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE) -
-          extraDistr::plst(priors$mu$truncation$lower, df = data$prior_mu_df, mu = data$prior_mu_location, sigma = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "gamma"){
-    log_lik <- log_lik + stats::dgamma(mu, shape = data$prior_mu_shape, rate = data$prior_mu_rate, log = TRUE)  -
-      log(
-        stats::pgamma(priors$mu$truncation$upper, shape = data$prior_mu_shape, rate = data$prior_mu_rate, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$mu$truncation$lower, shape = data$prior_mu_shape, rate = data$prior_mu_rate, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "invgamma"){
-    log_lik <- log_lik + stats::dgamma(inv_mu, shape = data$prior_mu_shape, rate = data$prior_mu_scale, log = TRUE) -
-      log(
-        stats::pgamma(priors$mu$truncation$lower^-1, shape = data$prior_mu_shape, rate = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$mu$truncation$upper^-1, shape = data$prior_mu_shape, rate = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "uniform"){
-    log_lik <- log_lik + stats::dunif(mu, min = data$prior_mu_a, max = data$prior_mu_b, log = TRUE)
-  }
-
+  log_lik <- log_lik + .marglik_distribution(mu, "mu", priors$mu$distribution, data, priors$mu$truncation)
 
   # tau
-  if(priors$tau$distribution == "normal"){
-    log_lik <- log_lik + stats::dnorm(tau, mean = data$prior_tau_mean, sd = data$prior_tau_sd, log = TRUE) -
-      log(
-        stats::pnorm(priors$tau$truncation$upper, data$prior_tau_mean, data$prior_tau_sd, lower.tail = TRUE, log.p = FALSE) -
-          stats::pnorm(priors$tau$truncation$lower, data$prior_tau_mean, data$prior_tau_sd, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "t"){
-    log_lik <- log_lik + extraDistr::dlst(tau, df = data$prior_tau_df, mu = data$prior_tau_location, sigma = data$prior_tau_scale, log = TRUE) -
-      log(
-        extraDistr::plst(priors$tau$truncation$upper, df = data$prior_tau_df, mu = data$prior_tau_location, sigma = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE) -
-          extraDistr::plst(priors$tau$truncation$lower, df = data$prior_tau_df, mu = data$prior_tau_location, sigma = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "gamma"){
-    log_lik <- log_lik + stats::dgamma(tau, shape = data$prior_tau_shape, rate = data$prior_tau_rate, log = TRUE) -
-      log(
-        stats::pgamma(priors$tau$truncation$upper, shape = data$prior_tau_shape, rate = data$prior_tau_rate, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$tau$truncation$lower, shape = data$prior_tau_shape, rate = data$prior_tau_rate, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "invgamma"){
-    log_lik <- log_lik + stats::dgamma(inv_tau, shape = data$prior_tau_shape, rate = data$prior_tau_scale, log = TRUE) -
-      log(
-        stats::pgamma(priors$tau$truncation$lower^-1, shape = data$prior_tau_shape, rate = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$tau$truncation$upper^-1, shape = data$prior_tau_shape, rate = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "uniform"){
-    log_lik <- log_lik + stats::dunif(tau, min = data$prior_tau_a, max = data$prior_tau_b, log = TRUE)
-  }
+  log_lik <- log_lik + .marglik_distribution(tau, "tau", priors$tau$distribution, data, priors$tau$truncation)
 
 
   # omega
   if(priors$omega$distribution != "point"){
-    if(priors$omega$distribution == "PET.normal"){
-      log_lik <- log_lik + stats::dnorm(PET, mean = data$prior_omega_mean, sd = data$prior_omega_sd, log = TRUE) -
-        log(
-          stats::pnorm(priors$omega$truncation$upper, data$prior_omega_mean, data$prior_omega_sd, lower.tail = TRUE, log.p = FALSE) -
-            stats::pnorm(priors$omega$truncation$lower, data$prior_omega_mean, data$prior_omega_sd, lower.tail = TRUE, log.p = FALSE)
-        )
-    }else if(priors$omega$distribution == "PEESE.normal"){
-      log_lik <- log_lik + stats::dnorm(PEESE, mean = data$prior_omega_mean, sd = data$prior_omega_sd, log = TRUE) -
-        log(
-          stats::pnorm(priors$omega$truncation$upper, data$prior_omega_mean, data$prior_omega_sd, lower.tail = TRUE, log.p = FALSE) -
-            stats::pnorm(priors$omega$truncation$lower, data$prior_omega_mean, data$prior_omega_sd, lower.tail = TRUE, log.p = FALSE)
-        )
+    if(grepl("PET", priors$omega$distribution)){
+      log_lik <- log_lik + .marglik_distribution(PET, "omega", substr(priors$omega$distribution, 5, nchar(priors$omega$distribution)), data, priors$omega$truncation)
+    }else if(grepl("PEESE", priors$omega$distribution)){
+      log_lik <- log_lik + .marglik_distribution(PEESE, "omega", substr(priors$omega$distribution, 7, nchar(priors$omega$distribution)), data, priors$omega$truncation)
     }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
       log_lik <- log_lik + sum(stats::dgamma(eta, data$prior_omega_alpha, 1, log = TRUE))
     }else if(all(names(priors$omega$parameters) %in% c("alpha1", "alpha2", "steps"))){
@@ -1477,7 +1300,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # the observed t-statistics
-  if(priors$omega$distribution %in% c("point", "PET.normal", "PEESE.normal")){
+  if(!priors$omega$distribution %in% c("one.sided", "two.sided")){
 
     temp_t  <- stats::dt(data$t, df = data$df, ncp = ncp, log = TRUE)
     # shift to different t-distribution computation of the classical one returns -Inf
@@ -1546,13 +1369,13 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # omega
   if(priors$omega$distribution != "point"){
 
-    if(priors$omega$distribution == "PET.normal"){
+    if(grepl("PET", priors$omega$distribution)){
       # parameters
       pars <- c(pars, "PET")
       # and truncation
       lb   <- c(lb, priors$omega$truncation$lower)
       ub   <- c(ub, priors$omega$truncation$upper)
-    }else if(priors$omega$distribution == "PEESE.normal"){
+    }else if(grepl("PEESE", priors$omega$distribution)){
       # parameters
       pars <- c(pars, "PEESE")
       # and truncation
@@ -1623,6 +1446,134 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(object$models[[i]])
 }
+
+# model building and marginal likelihood tools
+.JAGS_distribution       <- function(par_name, distribution, truncation){
+
+  if(par_name %in% c("PET", "PEESE")){
+    par_data <- "omega"
+  }else{
+    par_data <- par_name
+  }
+
+  # distribution
+  if(distribution == "point"){
+    syntax <- paste0(par_name, " = prior_",par_data,"_location\n")
+  }else if(distribution == "normal"){
+    syntax <- paste0(par_name," ~ dnorm(prior_",par_data,"_mean, pow(prior_",par_data,"_sd, -2))")
+  }else if(distribution == "t"){
+    syntax <- paste0(par_name," ~ dt(prior_",par_data,"_location, pow(prior_",par_data,"_scale, -2), prior_",par_data,"_df)")
+  }else if(distribution == "gamma"){
+    syntax <- paste0(par_name," ~ dgamma(prior_",par_data,"_shape, prior_",par_data,"_rate)")
+  }else if(distribution == "invgamma"){
+    syntax <- paste0("inv_",par_name," ~ dgamma(prior_",par_data,"_shape, prior_",par_data,"_scale)")
+  }else if(distribution == "uniform"){
+    syntax <- paste0(par_name," ~ dunif(prior_",par_data,"_a, prior_",par_data,"_b)\n")
+  }
+
+  # truncation
+  if(!distribution %in% c("point", "uniform")){
+    if(!(is.infinite(truncation$lower)  & is.infinite(truncation$lower))){
+      # the truncation for invgamma needs to be done the other way around since we sample from gamma
+      if(distribution == "invgamma"){
+        syntax <- paste0(syntax, "T(",
+                         ifelse(is.infinite(truncation$upper^-1),"",truncation$upper^-1),
+                         ",",
+                         ifelse(is.infinite(truncation$lower^-1),"",truncation$lower^-1),
+                         ")\n")
+      }else{
+        syntax <- paste0(syntax, "T(",
+                         ifelse(is.infinite(truncation$lower),"",truncation$lower),
+                         ",",
+                         ifelse(is.infinite(truncation$upper),"",truncation$upper),
+                         ")\n")
+      }
+    }else{
+      syntax <- paste0(syntax, "\n")
+    }
+  }
+
+  # transformations
+  if(distribution == "invgamma"){
+    syntax <- paste0(syntax, par_name," = pow(inv_",par_name,", -1)\n")
+  }
+
+  return(syntax)
+}
+.JAGS_distribution_omega <- function(distribution, truncation, parameters){
+
+  if(distribution == "point"){
+    return()
+  }else if(grepl("PET", distribution)){
+    syntax <- .JAGS_distribution("PET", substr(distribution, 5, nchar(distribution)), truncation)
+  }else if(grepl("PEESE", distribution)){
+    syntax <- .JAGS_distribution("PEESE", substr(distribution, 7, nchar(distribution)), truncation)
+  }else if(all(names(parameters) %in% c("alpha", "steps"))){
+    syntax <-
+    "for(j in 1:J){
+       eta[j] ~ dgamma(prior_omega_alpha[j], 1)
+     }
+       for(j in 1:J){
+       std_eta[j]  = eta[j] / sum(eta)
+       omega[j]    = sum(std_eta[1:j])
+     }\n"
+  }else if(all(names(parameters) %in% c("alpha1", "alpha2", "steps"))){
+    syntax <-
+      "for(j1 in 1:J1){
+        eta1[j1] ~ dgamma(prior_omega_alpha1[j1], 1)
+       }
+       for(j2 in 1:J2){
+         eta2[j2] ~ dgamma(prior_omega_alpha2[j2], 1)
+       }
+       for(j1 in 1:J1){
+         std_eta1[j1]       = eta1[j1] / sum(eta1)
+         omega[J2 - 1 + j1] = sum(std_eta1[1:j1])
+       }
+         for(j2 in 1:J2){
+         std_eta2[j2]  = (eta2[j2] / sum(eta2)) * (1 - std_eta1[1])
+       }
+       for(j2 in 2:J2){
+         omega[j2-1] = sum(std_eta2[j2:J2]) + std_eta1[1]
+       }\n"
+  }
+
+  return(syntax)
+}
+.marglik_distribution    <- function(x, par_name, distribution, data, truncation){
+
+  if(distribution == "normal"){
+    log_lik <- stats::dnorm(x, mean = data[[paste0("prior_",par_name,"_mean")]], sd = data[[paste0("prior_",par_name,"_sd")]], log = TRUE) -
+      log(
+        stats::pnorm(truncation$upper, data[[paste0("prior_",par_name,"_mean")]], data[[paste0("prior_",par_name,"_sd")]], lower.tail = TRUE, log.p = FALSE) -
+          stats::pnorm(truncation$lower, data[[paste0("prior_",par_name,"_mean")]], data[[paste0("prior_",par_name,"_sd")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "t"){
+    log_lik <- extraDistr::dlst(x, df = data[[paste0("prior_",par_name,"_df")]], mu = data[[paste0("prior_",par_name,"_location")]], sigma = data[[paste0("prior_",par_name,"_scale")]], log = TRUE) -
+      log(
+        extraDistr::plst(truncation$upper, df = data[[paste0("prior_",par_name,"_df")]], mu = data[[paste0("prior_",par_name,"_location")]], sigma = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE) -
+          extraDistr::plst(truncation$lower, df = data[[paste0("prior_",par_name,"_df")]], mu = data[[paste0("prior_",par_name,"_location")]], sigma = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "gamma"){
+    log_lik <- stats::dgamma(x, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_rate")]], log = TRUE)  -
+      log(
+        stats::pgamma(truncation$upper, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_rate")]], lower.tail = TRUE, log.p = FALSE) -
+          stats::pgamma(truncation$lower, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_rate")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "invgamma"){
+    log_lik <- stats::dgamma(1/x, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_scale")]], log = TRUE) -
+      log(
+        stats::pgamma(truncation$lower^-1, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE) -
+          stats::pgamma(truncation$upper^-1, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "uniform"){
+    log_lik <- stats::dunif(x, min = data[[paste0("prior_",par_name,"_a")]], max = data[[paste0("prior_",par_name,"_b")]], log = TRUE)
+  }else if(distribution == "point"){
+    log_lik <- 0
+  }
+
+  return(log_lik)
+}
+
 
 ### model inference functions
 .model_inference            <- function(object, n_samples = 10000){
@@ -1796,7 +1747,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
       # PET
       samples$PET   <- c(samples$PET,
-                             if(models[[i]]$priors$omega$distribution == "PET.normal"){
+                             if(grepl("PET", models[[i]]$priors$omega$distribution)){
                                model_samples[ind, "PET"]
                              }else{
                                rep(0, round(n_samples * weights[i]))
@@ -1804,7 +1755,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
       # PEESE
       samples$PEESE <- c(samples$PEESE,
-                             if(models[[i]]$priors$omega$distribution == "PEESE.normal"){
+                             if(grepl( "PEESE", models[[i]]$priors$omega$distribution)){
                                model_samples[ind, "PEESE"]
                              }else{
                                rep(0, round(n_samples * weights[i]))
@@ -1880,7 +1831,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       if(!is.null(weights$omega[i])){
         samples$PET   <- c(samples$PET,
                                if(mm_omega[[i]]){
-                                 if(models[[i]]$priors$omega$distribution == "PET.normal"){
+                                 if(grepl("PET", models[[i]]$priors$omega$distribution)){
                                    model_samples[sample(nrow(model_samples), round(n_samples * weights$omega[i]), replace = TRUE), "PET"]
                                  }else{
                                    rep(0, round(n_samples * weights$omega[i]))
@@ -1891,7 +1842,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       # PEESE
       samples$PEESE   <- c(samples$PEESE,
                              if(mm_omega[[i]]){
-                               if(models[[i]]$priors$omega$distribution == "PEESE.normal"){
+                               if(grepl("PEESE", models[[i]]$priors$omega$distribution)){
                                  model_samples[sample(nrow(model_samples), round(n_samples * weights$omega[i]), replace = TRUE), "PEESE"]
                                }else{
                                  rep(0, round(n_samples * weights$omega[i]))
@@ -1931,10 +1882,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   colnames(samples$theta) <- paste0("theta[", 1:ncol(samples$theta), "]")
 
   # remove PET/PEESE if none of the models used it
-  if(!any(sapply(models, function(m)m$priors$omega$distribution) == "PET.normal")){
+  if(!any(grepl("PET", sapply(models, function(m)m$priors$omega$distribution)))){
     samples$PET   <- NULL
   }
-  if(!any(sapply(models, function(m)m$priors$omega$distribution) == "PEESE.normal")){
+  if(!any(grepl("PEESE", sapply(models, function(m)m$priors$omega$distribution)))){
     samples$PEESE <- NULL
   }
   if(!any(sapply(models, function(m)m$priors$omega$distribution) %in% c("one.sided", "two.sided"))){
@@ -2235,7 +2186,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     # check that the passed priors are supported for the parameter
     if(length(priors) > 0){
       for(i in 1:length(priors)){
-        if(!priors[[i]]$distribution %in% c("two.sided", "one.sided", "point", "PET.normal", "PEESE.normal"))stop(paste0(priors[[i]]$distribution," prior distribution is not supported for the omega parameter. See '?prior' for further information."))
+        if(!(priors[[i]]$distribution %in% c("two.sided", "one.sided", "point") | grepl("PET", priors[[i]]$distribution) | grepl("PEESE", priors[[i]]$distribution)))stop(paste0(priors[[i]]$distribution," prior distribution is not supported for the omega parameter. See '?prior' for further information."))
       }
     }
   }
@@ -2469,7 +2420,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   p_type <- sapply(models, function(m)m$priors$omega$distribution)
 
   # remove point distributions, PET, and PEESE
-  if(all(p_type %in% c("point", "PET.normal", "PEESE.normal")))return(NULL)
+  if(all( (p_type == "point" | grepl("PET", p_type) | grepl("PEESE", p_type) ) ))return(NULL)
 
   # get new cutpoint appropriate cut-points
   p_cuts_new <- p_cuts
@@ -2518,7 +2469,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # create maping to weights
   omega_mapping <- list()
   for(p in 1:length(p_type)){
-    if(!p_type[p] %in% c("point", "PET.normal", "PEESE.normal")){
+    if(!(p_type[p] == "point" | grepl("PET", p_type[p]) | grepl("PEESE", p_type[p]) )){
       omega_mapping[[p]] <- sapply(1:(length(all_cuts)-1), function(i)
         omega_ind[[p]][all_cuts[i] >= p_bound[[p]]$l & all_cuts[i+1] <= p_bound[[p]]$u]
       )

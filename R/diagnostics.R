@@ -305,7 +305,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
   }else if(plot_type == "ggplot"){
     graph     <- ggplot2::ggplot(ac_dat, ggplot2::aes_string(x = "lag", y = "ac")) +
-      ggplot2::geom_bar(size = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun.y = "mean") +
+      ggplot2::geom_bar(size = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun = "mean") +
       ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.25)) +
       ggplot2::labs(x = "Lag", y = "Avg. autocorrelation")
     if(!is.null(title)){

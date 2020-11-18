@@ -76,7 +76,7 @@
 prior <- function(distribution, parameters, truncation = list(lower = -Inf, upper = Inf), prior_odds = 1){
 
   # general input check
-  if(!(is.vector(distribution) & length(distribution) == 1 & is.character(distribution)))stop("Argument 'distribution' is incorectly specified. It must be a character vector of length one.")
+  if(!(is.vector(distribution) & length(distribution) <= 2 & is.character(distribution)))stop("Argument 'distribution' is incorectly specified. It must be a character vector.")
   if(!is.list(parameters))stop("Argument 'parameters' must be a list.")
   if(!all(sapply(parameters, function(par)(is.vector(par) & is.numeric(par)))))stop("Elements of the 'parameter' argument must be numeric vectors.")
   if(!(is.list(truncation) & length(truncation) == 2))stop("Argument 'truncation' must be a list of length two.")
@@ -87,6 +87,19 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
 
   distribution <- tolower(distribution)
 
+  if(length(distribution) == 2){
+    if(any(distribution == "pet")){
+      prefix       <- "PET"
+      distribution <- distribution[distribution != "pet"]
+    }else if(any(distribution == "peese")){
+      prefix       <- "PEESE"
+      distribution <- distribution[distribution != "peese"]
+    }else{
+      stop("The combination of distribution names was not recognized.")
+    }
+  }else{
+    prefix <- NULL
+  }
 
   # create an output object
   output <- list()
@@ -271,38 +284,13 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
     output$parameters   <- parameters
     output$truncation   <- list(lower = parameters$a, upper = parameters$b)
 
-  }else if(distribution %in% c("pet", "PET")){
-
-    if(length(parameters) != 2)stop("Normal prior distribution for PET requires 2 parameters.")
-    if(!is.null(names(parameters))){
-      if(!all(names(parameters) %in% c("mean", "sd")))stop(paste0("Parameters ", paste(names(parameters)[!names(parameters) %in% c("mean", "sd")], sep = ", ", collapse = ""), " are not supported for a normal distribution for PET."))
-    }else{
-      names(parameters) <- c("mean", "sd")
-    }
-    if(parameters$sd <= 0)stop("Parameter 'sd' must be positive.")
-
-    # add the values to the output
-    output$distribution <- "PET.normal"
-    output$parameters   <- parameters
-    output$truncation   <- truncation
-
-  }else if(distribution %in% c("peese", "PEESE")){
-
-    if(length(parameters) != 2)stop("Normal prior distribution for PEESE requires 2 parameters.")
-    if(!is.null(names(parameters))){
-      if(!all(names(parameters) %in% c("mean", "sd")))stop(paste0("Parameters ", paste(names(parameters)[!names(parameters) %in% c("mean", "sd")], sep = ", ", collapse = ""), " are not supported for a normal distribution for PEESE."))
-    }else{
-      names(parameters) <- c("mean", "sd")
-    }
-    if(parameters$sd <= 0)stop("Parameter 'sd' must be positive.")
-
-    # add the values to the output
-    output$distribution <- "PEESE.normal"
-    output$parameters   <- parameters
-    output$truncation   <- truncation
-
   }else{
     stop(paste0("The specified distribution name '", distribution,"' is not known. Please, see '?prior' for more information about supported prior distributions."))
+  }
+
+  # add a PET/PEESE prefix
+  if(!is.null(prefix)){
+    output$distribution <- paste0(prefix, ".", output$distribution)
   }
 
   output$prior_odds <- prior_odds
@@ -343,6 +331,15 @@ print.RoBMA.prior <- function(x, ...){
     x$truncation[[i]] <- round(x$truncation[[i]], digits_estimates)
   }
 
+  if(grepl("PET", x$distribution)){
+    prefix          <- "PET:"
+    x$distribution  <- substr(x$distribution, 5, nchar(x$distribution))
+  }else if(grepl("PEESE", x$distribution)){
+    prefix          <- "PEESE:"
+    x$distribution  <- substr(x$distribution, 7, nchar(x$distribution))
+  }else{
+    prefix <- NULL
+  }
 
   name <- switch(x$distribution,
                  "normal"       = "Normal",
@@ -352,10 +349,9 @@ print.RoBMA.prior <- function(x, ...){
                  "point"        = "Spike",
                  "two.sided"    = "Two-sided",
                  "one.sided"    = "One-sided",
-                 "uniform"      = "Uniform",
-                 "PET.normal"   = "PET:Normal",
-                 "PEESE.normal" = "PEESE:Normal")
+                 "uniform"      = "Uniform")
 
+  name <- paste0(prefix, name)
 
   if(x$distribution %in% c("normal", "PET.normal", "PEESE.normal")){
     parameters <- c(x$parameters$mean, x$parameters$sd)
