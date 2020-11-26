@@ -1,3 +1,13 @@
+## version 1.2.0
+### Features
+- by default, selection models are now being estimated on the likelihood of effect sizes (instead of test-statistics as usually defined). We reproduced the simulation study that we used to evaluate the method performance and it achieved identical results (up to MCMC error). On case to case bases, the results might slightly differ from the pre 1.2.0 version (to obtain the same results, use 'likelihood = "t"' argument). The big advantage of using the normal likelihood for effect sizes is a considerable speed up of the whole runtime.
+- possibility to estimate the meta-analytic models using weighted least squares (a prior for sigma, instead of tau and tau_null is required) by 'likelihood = "wls"' argument
+- possibility to add PET and PEESE models to adjust for publication bias (see PET and PEESE vignette for more details)
+
+### Fixes
+- autofit being turn on if any control argument was specified
+
+
 ## version 1.1.1
 ### Fixes
 - inability to fit a model without specifying a seed

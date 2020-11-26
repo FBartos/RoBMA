@@ -97,11 +97,12 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
         for(type in c("averaged", "conditional")){
           estimates[[paste0(type,"_q")]] <- rbind(
             mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples[[type]]$mu,  probs)),
-            tau    = if(length(object$RoBMA$samples[[type]]$tau) == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples[[type]]$tau, probs)),
+            tau    = if(length(object$RoBMA$samples[[type]]$tau)        != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$tau, probs)),
             if(length(object$RoBMA$samples[[type]]$omega)               != 0) matrix(apply(object$RoBMA$samples[[type]]$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE),
             PET    = if(length(object$RoBMA$samples[[type]]$PET)        != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$PET, probs)),
             PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)      != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$PEESE, probs)),
-            if(include_theta & nrow(object$RoBMA$samples[[type]]$theta) != 0) matrix(apply(object$RoBMA$samples[[type]]$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE)
+            sigma  = if(length(object$RoBMA$samples[[type]]$sigma)      != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$sigma, probs)),
+            if(include_theta & !is.null(object$RoBMA$samples[[type]]$theta))  matrix(apply(object$RoBMA$samples[[type]]$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE)
           )
           colnames(estimates[[paste0(type,"_q")]]) <- probs
         }
@@ -119,21 +120,23 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
       # averaged mean estimates
       estimates[[paste0(type,"_e")]] <- c(
         mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0)  NA else base::mean(object$RoBMA$samples[[type]]$mu),
-        tau    = if(length(object$RoBMA$samples[[type]]$tau) == 0)  NA else base::mean(object$RoBMA$samples[[type]]$tau),
+        tau    = if(length(object$RoBMA$samples[[type]]$tau)          != 0)  base::mean(object$RoBMA$samples[[type]]$tau),
         if(length(object$RoBMA$samples[[type]]$omega)                 != 0)  apply(object$RoBMA$samples[[type]]$omega, 2, base::mean),
         PET    = if(length(object$RoBMA$samples[[type]]$PET)          != 0)  base::mean(object$RoBMA$samples[[type]]$PET),
         PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)        != 0)  base::mean(object$RoBMA$samples[[type]]$PEESE),
-        if(include_theta){if(nrow(object$RoBMA$samples[[type]]$theta) != 0)  apply(object$RoBMA$samples[[type]]$theta, 2, base::mean)}
+        sigma  = if(length(object$RoBMA$samples[[type]]$sigma)        != 0)  base::mean(object$RoBMA$samples[[type]]$sigma),
+        if(include_theta){if(!is.null(object$RoBMA$samples[[type]]$theta))  apply(object$RoBMA$samples[[type]]$theta, 2, base::mean)}
       )
 
       # median estimates
       estimates[[paste0(type,"_m")]] <- c(
         mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0)  NA else stats::median(object$RoBMA$samples[[type]]$mu),
-        tau    = if(length(object$RoBMA$samples[[type]]$tau) == 0)  NA else stats::median(object$RoBMA$samples[[type]]$tau),
+        tau    = if(length(object$RoBMA$samples[[type]]$tau)          != 0)  stats::median(object$RoBMA$samples[[type]]$tau),
         if(length(object$RoBMA$samples[[type]]$omega)                 != 0)  apply(object$RoBMA$samples[[type]]$omega, 2, stats::median),
         PET    = if(length(object$RoBMA$samples[[type]]$PET)          != 0)  stats::median(object$RoBMA$samples[[type]]$PET),
         PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)        != 0)  stats::median(object$RoBMA$samples[[type]]$PEESE),
-        if(include_theta){if(nrow(object$RoBMA$samples[[type]]$theta) != 0)  apply(object$RoBMA$samples[[type]]$theta, 2, stats::median)}
+        sigma  = if(length(object$RoBMA$samples[[type]]$sigma)        != 0)  stats::median(object$RoBMA$samples[[type]]$sigma),
+        if(include_theta){if(!is.null(object$RoBMA$samples[[type]]$theta))  apply(object$RoBMA$samples[[type]]$theta, 2, stats::median)}
       )
     }
 
@@ -143,13 +146,15 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
 
     ### model types overview
     mm_mu       <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "mu"))[object$add_info$converged]
-    mm_tau      <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "tau"))[object$add_info$converged]
+    if(object$control$likelihood %in% c("t", "normal")){
+      mm_tau    <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "tau"))[object$add_info$converged]
+    }
     mm_omega    <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "omega"))[object$add_info$converged]
 
     # number of model types
     models_n    <- c(
       mu    = sum(mm_mu),
-      tau   = sum(mm_tau),
+      tau   = if(object$control$likelihood %in% c("t", "normal"))sum(mm_tau),
       omega = sum(mm_omega)
     )
 
@@ -159,17 +164,17 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
     prior_weights_all   <- prior_weights_all / sum(prior_weights_all)
     # conditional model weights
     models_prior <- c(
-      mu    <- sum(prior_weights_all[mm_mu]),
-      tau   <- sum(prior_weights_all[mm_tau]),
-      omega <- sum(prior_weights_all[mm_omega])
+      mu    = sum(prior_weights_all[mm_mu]),
+      tau   = if(object$control$likelihood %in% c("t", "normal"))sum(prior_weights_all[mm_tau]),
+      omega = sum(prior_weights_all[mm_omega])
     )
 
     # conditional model posteriors
     posterior_weights_all <- object$RoBMA$posterior_prob$all[object$add_info$converged]
     models_posteriors     <- c(
-      mu    <- sum(posterior_weights_all[mm_mu]),
-      tau   <- sum(posterior_weights_all[mm_tau]),
-      omega <- sum(posterior_weights_all[mm_omega])
+      mu    = sum(posterior_weights_all[mm_mu]),
+      tau   = if(object$control$likelihood %in% c("t", "normal"))sum(posterior_weights_all[mm_tau]),
+      omega = sum(posterior_weights_all[mm_omega])
     )
 
     # BF
@@ -186,7 +191,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
 
     # create overview table
     overview_tab <- cbind.data.frame(models_n, models_prior, models_posteriors, BF)
-    rownames(overview_tab) <- c("Effect", "Heterogeneity", "Pub. bias")
+    rownames(overview_tab) <- c("Effect", if(object$control$likelihood %in% c("t", "normal"))"Heterogeneity", "Pub. bias")
     colnames(overview_tab) <- c("Models", "Prior prob.", "Post. prob.",
                                 paste0("Incl. ", if(logBF)"log(",if(BF01)"1/","BF",if(logBF)")"))
 
@@ -217,7 +222,11 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
   }else if(substr(type,1,1) == "m"){
 
     priors_mu      <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$mu, silent = TRUE))
-    priors_tau     <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    if(object$control$likelihood %in% c("t", "normal")){
+      priors_tau   <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    }else if(object$control$likelihood == "wls"){
+      priors_sigma <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$sigma, silent = TRUE))
+    }
     priors_omega   <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$omega, silent = TRUE))
     prior_odds     <- sapply(1:length(object$models), function(i)object$models[[i]]$prior_odds)
     prior_prob     <- prior_odds / sum(prior_odds)
@@ -239,10 +248,18 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
       BF <- log(BF)
     }
 
-    overview_tab <- cbind.data.frame(priors_mu, priors_tau, priors_omega, prior_prob, posterior_prob, marg_lik, BF,
-                                     stringsAsFactors = FALSE)
+    overview_tab <- cbind.data.frame(
+      priors_mu,
+      if(object$control$likelihood %in% c("t", "normal")){priors_tau}else if(object$control$likelihood == "wls"){priors_sigma},
+      priors_omega,
+      prior_prob,
+      posterior_prob,
+      marg_lik,
+      BF,
+      stringsAsFactors = FALSE
+    )
     rownames(overview_tab) <- NULL
-    colnames(overview_tab) <- c("Prior mu","Prior tau","Prior omega", "Prior prob.", "Post. prob.", "log(MargLik)",
+    colnames(overview_tab) <- c("Prior mu",if(object$control$likelihood %in% c("t", "normal")){"Prior tau"}else if(object$control$likelihood == "wls"){"Prior sigma"},"Prior omega", "Prior prob.", "Post. prob.", "log(MargLik)",
                                 paste0("Incl. ", if(logBF)"log(",if(BF01)"1/","BF",if(logBF)")"))
 
 
@@ -268,7 +285,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
           if(include_theta){
             names.thetas <- rownames(s.x)[grepl("theta", rownames(s.x))]
           }
-          s.x <- s.x[rownames(s.x) %in% c("mu", "tau", names.omegas, "PET", "PEESE", if(include_theta)names.thetas), ]
+          s.x <- s.x[rownames(s.x) %in% c("mu", "tau", names.omegas, "PET", "PEESE", "sigma", if(include_theta)names.thetas), ]
 
           if(length(dim(s.x)) == 2){
             return(c(
@@ -352,11 +369,11 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
           names.thetas <- rownames(s.x)[grepl("theta", rownames(s.x))]
         }
 
-        s.x <- s.x[rownames(s.x) %in% c("mu", "tau", "PET", "PEESE", names.omegas, if(include_theta)names.thetas), ]
+        s.x <- s.x[rownames(s.x) %in% c("mu", "tau", "PET", "PEESE", "sigma", names.omegas, if(include_theta)names.thetas), ]
 
         if(length(dim(s.x)) == 0){
           s.x <- data.frame(matrix(s.x, ncol = 11))
-          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", "PET", "PEESE", names.omegas, if(include_theta)names.thetas)]
+          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", "PET", "PEESE", "sigma", names.omegas, if(include_theta)names.thetas)]
         }else{
           s.x <- data.frame(s.x)
         }

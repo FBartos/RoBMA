@@ -14,7 +14,7 @@ remove_time  <- function(fit){
   }
   return(fit)
 }
-clean_all  <- function(fit, only_samples = FALSE){
+clean_all  <- function(fit, only_samples = TRUE){
   if(only_samples){
     fit$data     <- NULL
     fit$add_info <- NULL
@@ -47,7 +47,7 @@ fit_custom1 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, contr
 fit_custom2 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
                      priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE)
 fit_custom3 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau = NULL, priors_omega_null = NULL, parallel = TRUE,
+                     priors_mu = NULL, priors_tau = NULL, priors_omega_null = NULL, parallel = TRUE, likelihood = "t",
                      priors_omega = list(
                        prior("two.sided", parameters = list(steps = c(.20),           alpha = c(1,10))),
                        prior("one.sided", parameters = list(steps = c(.10, .30),      alpha = c(1,5,1))),
@@ -280,5 +280,4 @@ if(FALSE){
     saved_fits2[[i]] <- remove_time(saved_fits2[[i]])
   }
   saveRDS(saved_fits2, file = "tests/results/saved_fits2.RDS", compress  = "xz")
-
 }

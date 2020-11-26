@@ -1304,23 +1304,21 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
 #' @export check_setup
 #' @seealso [RoBMA()], [prior()]
 check_setup <- function(priors_mu    = prior(distribution = "normal",   parameters = list(mean = 0, sd = 1)),
-                        priors_tau   = prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15)),
+                        priors_tau   = if(likelihood %in% c("t", "normal")) prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15)),
                         priors_omega = list(
                           prior(distribution = "two.sided", parameters = list(alpha = c(1, 1),     steps = c(.05)),      prior_odds = 1/2),
                           prior(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),  steps = c(.05, .10)), prior_odds = 1/2)
                         ),
                         priors_mu_null    = prior(distribution = "point", parameters = list(location = 0)),
-                        priors_tau_null   = prior(distribution = "point", parameters = list(location = 0)),
+                        priors_tau_null   = if(likelihood %in% c("t", "normal")) prior(distribution = "point", parameters = list(location = 0)),
                         priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
+                        prior_sigma       = if(likelihood == "wls") prior(distribution = "invgamma", parameters = list(shape = 1, scale = 1)),
+                        likelihood        = "t",
                         models = FALSE, silent = FALSE){
 
   object <- list()
-  object$priors  <- list(
-    mu    = .set_parameter_priors(priors_mu_null,    priors_mu,    "mu"),
-    tau   = .set_parameter_priors(priors_tau_null,   priors_tau,   "tau"),
-    omega = .set_parameter_priors(priors_omega_null, priors_omega, "omega")
-  )
-  object$models  <- .get_models(object$priors)
+  object$priors  <- .set_priors(priors_mu_null, priors_mu, priors_tau_null, priors_tau, priors_omega_null, priors_omega, prior_sigma, likelihood)
+  object$models  <- .get_models(object$priors, likelihood)
 
 
   ### model types overview

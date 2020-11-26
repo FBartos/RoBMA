@@ -3,7 +3,7 @@ skip_on_cran()
 # Make sure that the print window is streched as much as possible, errors might emerge because the prints messages get folded.
 
 # test objects - assuming that the fit function worked properly
-saved_fits    <- readRDS(file = "../results/saved_fits.RDS")
+saved_fits    <- c(readRDS(file = "../results/saved_fits.RDS"), readRDS(file = "..//results/saved_fits2.RDS"))
 saved_methods <- readRDS(file = "../results/saved_methods.RDS")
 
 test_that("Print function works", {
@@ -36,7 +36,7 @@ test_that("Individual summary works", {
 
 #### creating / updating the test settings ####
 if(FALSE){
-  saved_fits       <- readRDS(file = "tests/results/saved_fits.RDS")
+  saved_fits       <- c(readRDS(file = "tests/results/saved_fits.RDS"), readRDS(file = "tests/results/saved_fits2.RDS"))
   print_fits       <- list()
   summary_fits     <- list()
   diagnostics_fits <- list()

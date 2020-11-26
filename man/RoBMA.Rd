@@ -21,20 +21,24 @@ RoBMA(
   mu_transform = if (!is.null(r)) "cohens_d" else if (!is.null(OR)) "log_OR" else NULL,
   effect_direction = "positive",
   priors_mu = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
-  priors_tau = prior(distribution = "invgamma", parameters = list(shape = 1, scale =
-    0.15)),
+  priors_tau = if (likelihood \%in\% c("t", "normal")) prior(distribution = "invgamma",
+    parameters = list(shape = 1, scale = 0.15)),
   priors_omega = list(prior(distribution = "two.sided", parameters = list(alpha = c(1,
     1), steps = c(0.05)), prior_odds = 1/2), prior(distribution = "two.sided", parameters
     = list(alpha = c(1, 1, 1), steps = c(0.05, 0.1)), prior_odds = 1/2)),
   priors_mu_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_tau_null = prior(distribution = "point", parameters = list(location = 0)),
+  priors_tau_null = if (likelihood \%in\% c("t", "normal")) prior(distribution =
+    "point", parameters = list(location = 0)),
   priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
+  prior_sigma = if (likelihood == "wls") prior(distribution = "invgamma", parameters =
+    list(shape = 1, scale = 1)),
   chains = 3,
   iter = 10000,
   burnin = 5000,
   thin = 1,
   parallel = FALSE,
   control = NULL,
+  likelihood = "t",
   save = "all",
   seed = NULL
 )
@@ -86,7 +90,8 @@ prior(distribution = "normal",   parameters = list(mean = 0, sd = 1))}.}
 
 \item{priors_tau}{list of prior distributions for the \code{tau} parameter that
 will be treated as belonging to the alternative hypothesis. Defaults to \code{
-prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))}.}
+prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))}.
+Only applicable if \code{likelihood} is either \code{"t"} or \code{"normal"}.}
 
 \item{priors_omega}{list of prior weight functions for the \code{omega}
 parameter that will be treated as belonging to the alternative hypothesis.
@@ -103,12 +108,18 @@ with location at 0 (
 \item{priors_tau_null}{list of prior distributions for the \code{tau} parameter that
 will be treated as belonging to the null hypothesis. Defaults to point distribution
 with location at 0 (
-\code{prior(distribution = "point", parameters = list(location = 0))}).}
+\code{prior(distribution = "point", parameters = list(location = 0))}).
+Only applicable if \code{likelihood} is either \code{"t"} or \code{"normal"}.}
 
 \item{priors_omega_null}{list of prior weight functions for the \code{omega} parameter
 that will be treated as belonging to the null hypothesis. Defaults to point
 distribution with location at 1 (
 \code{prior(distribution = "point", parameters = list(location = 0))}).}
+
+\item{prior_sigma}{a prior distributions for the \code{sigma} parameter.
+Defaults to
+\code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = 1))}.
+Only applicable if \code{likelihood = "wls"}.}
 
 \item{chains}{a number of chains of the MCMC algorithm.}
 
@@ -176,6 +187,12 @@ Warning: the estimation using boost takes about twice as long.}
 \code{parallel == TRUE}, the default number is equal to number of cores - 1,
 and 1 (no parallel processing otherwise).}
 }}
+
+\item{likelihood}{a likelihood that should be used for estimating the
+individual studies. Defaults to 't' which makes use of the test-statistics
+and fit them using a non-central t-distribution, as is usual for selection
+models. Other options use the observed effect sizes with either normal
+distribution likelihood 'normal' or Bayesian weighted least squares 'wls'.}
 
 \item{save}{whether all models posterior distributions should be kept
 after obtaining a model-averaged result. Defaults to \code{"all"} which

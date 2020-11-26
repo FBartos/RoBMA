@@ -14,6 +14,7 @@
   prior_mu_null = NULL,
   prior_tau_null = NULL,
   prior_omega_null = NULL,
+  prior_sigma = NULL,
   study_names = NULL,
   control = NULL,
   chains = NULL,
@@ -54,6 +55,11 @@ will be treated as belonging to the null hypothesis.}
 
 \item{prior_omega_null}{a prior weight function for the \code{omega} parameter
 that will be treated as belonging to the null hypothesis.}
+
+\item{prior_sigma}{a prior distributions for the \code{sigma} parameter.
+Defaults to
+\code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = 1))}.
+Only applicable if \code{likelihood = "wls"}.}
 
 \item{study_names}{an optional argument with the names of the studies.}
 
