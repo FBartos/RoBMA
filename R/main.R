@@ -566,7 +566,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(!is.null(n1))if(!all(n1 > 0))stop("The sample sizes 'n1' must be positive.")
   if(!is.null(n2))if(!all(n2 > 0))stop("The sample sizes 'n2' must be positive.")
   if(!is.null(se))if(!all(se > 0))stop("The standard errors 'se' must be positive.")
-  if(!is.null(lCI) & !is.null(uCI))if(!all(uCI - lCI > 0))stop("The upper confidence intervals bounds 'uCI' must be higher than the lower confidence interval 'lCI' bounds.")
+  if(!is.null(lCI) & !is.null(uCI))if(!all(uCI - lCI > 0))stop("The upper confidence interval bounds 'uCI' must be higher than the lower confidence interval bounds 'lCI'.")
+  if(!is.null(OR))if(!all(OR > 0))stop("The odds ratios 'OR' must be positive.")
+  if(!is.null(OR))if(!all(lCI > 0))stop("The lower confidence interval bounds for odds ratios 'lCI' must be positive.")
+  if(!is.null(OR))if(!all(uCI > 0))stop("The upper confidence interval bounds for odds ratios 'uCI' must be positive.")
 
 
   if((!is.null(t) | !is.null(d)) & ( !is.null(n) | (!is.null(n1) & !is.null(n2)) | !is.null(se) |  (!is.null(lCI) & !is.null(uCI))) ){
