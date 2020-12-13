@@ -750,23 +750,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       # create a new, data-tuned starting values if there is an outlier that fails the sampling
       if(any(names(unlist(fit_inits)) %in% c("mu", "inv_mu"))){
 
-        new_mu <- mean(psych::t2d(fit_data$t, fit_data$df))
-        if(new_mu < priors$mu$truncation$lower){
-          new_mu <- priors$mu$truncation$lower + .001
-        }else if(new_mu > priors$mu$truncation$upper){
-          new_mu <- priors$mu$truncation$upper - .001
-        }
-
-        if(any(names(unlist(fit_inits)) == "mu")){
-          for(p in 1:length(fit_inits)){
-            fit_inits[[p]]$mu <- new_mu
-          }
-        }else if(any(names(unlist(fit_inits)) == "inv_mu")){
-          for(p in 1:length(fit_inits)){
-            fit_inits[[p]]$mu <- 1/new_mu
-          }
-        }
-
+        fit_inits <- .fit_inits_update(fit_inits, priors, fit_data, model$likelihood)
         refit_info <- "empirical init"
 
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control)
@@ -800,7 +784,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   model$metadata <- list(
     i          = i,
     refit_info = refit_info)
-  if(!is.null(fit)){
+  if(!is.null(fit) & !any(class(fit) %in% c("simpleError", "error", "condition"))){
     model$fit_summary <- .runjags.summary(fit)
   }
 
@@ -1221,6 +1205,32 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(temp_x)
 
 }
+.fit_inits_update      <- function(fit_inits, priors, fit_data, likelihood){
+
+  if(likelihood == "t"){
+    new_mu <- mean(psych::t2d(fit_data$t, fit_data$df))
+  }else if(likelihood %in% c("normal", "wls")){
+    new_mu <- stats::weighted.mean(fit_data$y, 1/fit_data$se^2)
+  }
+
+  if(new_mu < priors$mu$truncation$lower){
+    new_mu <- priors$mu$truncation$lower + .001
+  }else if(new_mu > priors$mu$truncation$upper){
+    new_mu <- priors$mu$truncation$upper - .001
+  }
+
+  if(any(names(unlist(fit_inits)) == "mu")){
+    for(p in 1:length(fit_inits)){
+      fit_inits[[p]]$mu <- new_mu
+    }
+  }else if(any(names(unlist(fit_inits)) == "inv_mu")){
+    for(p in 1:length(fit_inits)){
+      fit_inits[[p]]$mu <- 1/new_mu
+    }
+  }
+
+  return(fit_inits)
+}
 .to_monitor            <- function(priors, likelihood){
 
   variables <- NULL
@@ -1273,7 +1283,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .marglik_function      <- function(samples.row, data, likelihood, priors, effect_direction){
 
-  ### get parameteres depending on the model type
+  ### get parameters depending on the model type
   # mu
   if(priors$mu$distribution != "point"){
     if(priors$mu$distribution == "invgamma"){
@@ -1734,7 +1744,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(log_lik)
 }
-
 
 ### model inference functions
 .model_inference            <- function(object, n_samples = 10000){
@@ -2291,7 +2300,6 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(new_warn)
 }
-
 
 ### helper functions for settings
 .set_priors             <- function(priors_mu_null, priors_mu, priors_tau_null, priors_tau, priors_omega_null, priors_omega, prior_sigma, likelihood){

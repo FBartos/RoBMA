@@ -1,15 +1,17 @@
-
-#include "DWN1.h"
+#include "DWN2boost.h"
 #include <util/nainf.h>
 #include <cmath>
 #include <rng/RNG.h>
 #include <JRmath.h>
+#include <boost/math/distributions/normal.hpp>
 
 using std::vector;
 using std::log;
 using std::exp;
 using std::fabs;
-
+using boost::math::normal;
+using boost::math::pdf;
+using boost::math::cdf;
 
 // define parameters
 // mu  = par[0]
@@ -22,43 +24,51 @@ using std::fabs;
 
 
 namespace jags {
-namespace weightedt { 
+namespace weightedt {
 
-DWN1::DWN1() : VectorDist("dwnorm_1s", 4) {}
+DWN2boost::DWN2boost() : VectorDist("dwnorm_2s_boost", 4) {}
 
 
-bool DWN1::checkParameterLength(vector<unsigned int> const &len) const
+bool DWN2boost::checkParameterLength(vector<unsigned int> const &len) const
 {
   // there is one less cut-point then weights
   return n_crit_x(len) == n_omega(len) - 1;
 }
 
-bool DWN1::checkParameterValue(vector<double const *> const &par,
+bool DWN2boost::checkParameterValue(vector<double const *> const &par,
 			    vector<unsigned int> const &len) const
 {
+  bool crit_x_OK = true;
   bool omega_OK  = true;
   bool var_OK;
+
+  // all crit_x must be non-negative
+  for(unsigned i = 1; i < n_crit_x(len); ++i){
+    crit_x_OK = crit_x_OK && ( crit_x(par)[i] >= 0.0 );
+  }
 
   // all omegas are within [0, 1] and the last omega == 1
   for(unsigned j = 0; j < (n_omega(len)-1); ++j){
     omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
   }
   // numerical imprecission for last omega is not a problem since it's assumed to be 1 later on
-  omega_OK = omega_OK && ( fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001 ); 
+  omega_OK = omega_OK && ( fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001 );
 
-  // df are positive
+  // var are positive
   var_OK = *par[1] > 0.0;
 
-  return omega_OK && var_OK;
+  return crit_x_OK && omega_OK && var_OK;
 }
 
-double DWN1::logDensity(double const *x, unsigned int length, PDFType type,
+double DWN2boost::logDensity(double const *x, unsigned int length, PDFType type,
 			  vector<double const *> const &par,
 			  vector<unsigned int> const &len,
 			  double const *lower, double const *upper) const
 {
-  double mu  = *par[0];
-  double var = 1/ *par[1];
+
+  double abs_x = fabs(*x);
+  double mu    = *par[0];
+  double var   = 1/ *par[1];
 
   double w;
   double nom;
@@ -67,36 +77,40 @@ double DWN1::logDensity(double const *x, unsigned int length, PDFType type,
   vector<double> denoms;
   double log_lik;
 
+
   // select weight to correspond to the current cut-off
-  if(*x >= crit_x(par)[n_crit_x(len)-1]){
-    // using 1 instead of omega(par)[n_omega(len)-1] because of possible numerical imprecission
+  if(abs_x >= crit_x(par)[n_crit_x(len)-1]){
+    // using 1 instead of omega(par)[n_omega(len)-1] because of the numerical imprecision
     w = log(1.0);
-  }else if(*x < crit_x(par)[0]){
+  }else if(abs_x < crit_x(par)[0]){
     w = log(omega(par)[0]);
   }else{
     for(unsigned i = 1; i < n_omega(len); ++i){
-      if( (*x < crit_x(par)[i] ) && (*x >= crit_x(par)[i-1]) ){
+      if( ( abs_x < crit_x(par)[i] ) && ( abs_x >= crit_x(par)[i-1]) ){
         w = log(omega(par)[i]);
         break;
       }
     }
   }
 
+  // create the boost distribution object
+  normal n_dist(mu, sqrt(var));
+
   // compute the nominator
-  nom = dnorm(*x, mu, sqrt(var), true) + w;
+  nom = log(pdf(n_dist, *x)) + w;
 
   // compute the probabilities between cutpoints
   // the first one
-  denoms.push_back(pnorm(crit_x(par)[0], mu, sqrt(var), true, false));
-  if(denoms[0] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecission
+  denoms.push_back(cdf(n_dist, n_crit_x(par)[0]) -  cdf(n_dist, -n_crit_x(par)[0]));
+  if(denoms[0] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecision
     denoms[0] = 0.0;
   }
   denom_sum = denoms[0];
   // the ones in the middle
   if(n_omega(len) > 1){
     for(unsigned j = 1; j < n_omega(len) - 1; ++j){
-      denoms.push_back(pnorm(crit_x(par)[j], mu, sqrt(var), true, false) - denom_sum);
-      if(denoms[j] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecission
+      denoms.push_back(cdf(n_dist, n_crit_x(par)[j]) -  cdf(n_dist, -n_crit_x(par)[j]) - denom_sum);
+      if(denoms[j] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecision
         denoms[j] = 0.0;
       }
       denom_sum = denom_sum + denoms[j];
@@ -104,7 +118,7 @@ double DWN1::logDensity(double const *x, unsigned int length, PDFType type,
   }
   // the last one
   denoms.push_back(1.0 - denom_sum);
-  if(denoms[n_omega(len)-1] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecission
+  if(denoms[n_omega(len)-1] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecision
     denoms[n_omega(len)-1] = 0.0;
   }
 
@@ -119,7 +133,7 @@ double DWN1::logDensity(double const *x, unsigned int length, PDFType type,
   return log_lik;
 }
 
-void DWN1::randomSample(double *x, unsigned int length,
+void DWN2boost::randomSample(double *x, unsigned int length,
 			  vector<double const *> const &par,
 			  vector<unsigned int> const &len,
 			  double const *lower, double const *upper,
@@ -128,7 +142,7 @@ void DWN1::randomSample(double *x, unsigned int length,
   // not implemented
 }
 
-void DWN1::support(double *lower, double *upper, unsigned int length,
+void DWN2boost::support(double *lower, double *upper, unsigned int length,
 	     vector<double const *> const &par,
 	     vector<unsigned int> const &len) const
 {
@@ -139,14 +153,14 @@ void DWN1::support(double *lower, double *upper, unsigned int length,
   }
 }
 
-unsigned int DWN1::length(vector<unsigned int> const &len) const
+unsigned int DWN2boost::length(vector<unsigned int> const &len) const
 {
   // no idea how this works
   return 1;
 }
 
 
-void DWN1::typicalValue(double *x, unsigned int length,
+void DWN2boost::typicalValue(double *x, unsigned int length,
 			  vector<double const *> const &par,
 			  vector<unsigned int> const &len,
 			  double const *lower, double const *upper) const
@@ -155,7 +169,7 @@ void DWN1::typicalValue(double *x, unsigned int length,
 }
 
 
-bool DWN1::isSupportFixed(vector<bool> const &fixmask) const
+bool DWN2boost::isSupportFixed(vector<bool> const &fixmask) const
 {
   return true;
 }

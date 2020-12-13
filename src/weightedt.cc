@@ -6,6 +6,9 @@
 #include "distributions/DTboost.h"
 #include "distributions/DWT1boost.h"
 #include "distributions/DWT2boost.h"
+#include "distributions/DNboost.h"
+#include "distributions/DWN1boost.h"
+#include "distributions/DWN2boost.h"
 #include "functions/LogWeightedtFun.h"
 
 namespace jags { 
@@ -27,6 +30,9 @@ namespace weightedt { // module namespace
     insert(new DTboost);
     insert(new DWT1boost);
     insert(new DWT2boost);
+    insert(new DNboost);
+    insert(new DWN1boost);
+    insert(new DWN2boost);
     //load functions
     insert(new LogWeightedtFun);
   }

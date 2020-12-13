@@ -12,7 +12,7 @@ using std::fabs;
 
 // define parameters
 // mu  = par[0]
-// var = par[1]
+// var = 1/par[1]
 #define crit_x(par) (par[2])
 #define omega(par) (par[3])
 // and their dimensions
