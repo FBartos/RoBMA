@@ -19,10 +19,11 @@ fit <- readRDS(file = "prefitted/Anderson2010.RDS")
 
 # Robust Bayesian Meta-Analysis (RoBMA)
 
-This package estimates an ensemble of meta-analytic models (assuming either presence or absence of the effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range of non-informative or informative priors for the effect size, heterogeneity, and weight 
-functions. The package provides convenient functions for summary, visualizations, and fit diagnostics.
+Please note that since version 1.2.0, (1) studies' true effects are now marginalized out of the random effects models and are no longer estimated and (2) all models are now estimated using the likelihood of effect sizes and standard errors (see Appendix A of our [prerint](https://psyarxiv.com/u4cns/) for more details). As a results, arguments referring to the true effects are now disabled. And results obtained with previous versions of the package are not reproducible.
 
-See our preprint, Maier, Bartoš, & Wagenmakers (2020) at https://doi.org/10.31234/osf.io/u4cns, for more details about the implementation, examples, and simulation studies.
+This package estimates an ensemble of meta-analytic models (assuming either presence or absence of the effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range of non-informative or informative priors for the effect size, heterogeneity, and weight functions. The package provides convenient functions for summary, visualizations, and fit diagnostics.
+
+See our preprint, @maier2020 at https://doi.org/10.31234/osf.io/u4cns, for more details about the implementation, examples, and simulation studies or try out the package functionality in the user-friendly graphical user interface of JASP with our preprint of a tutorial paper with additional examples [@bartos2020] at https://doi.org/10.31234/osf.io/75bqn.
 
 We also prepared multiple vignettes that illustrate functionality of the package:
 

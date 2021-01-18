@@ -101,6 +101,10 @@ plot.RoBMA <- function(x, parameter,
                        show_figures = if(parameter == "omega" & (weights | any(type %in% "individual")) ) -1,
                        weights = FALSE, rescale_x = FALSE, ...){
 
+  if(any(parameter == "theta")){
+    stop("The true effect estimates are no longer available. See NEWS for updated regarding the model parametrization.")
+  }
+
   ### settings
   # deal with misspecified arguments
   if(length(parameter) == 1){

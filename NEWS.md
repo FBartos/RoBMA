@@ -1,3 +1,17 @@
+## version 1.2.0
+### Changes
+- the studies's true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our [prerint](https://psyarxiv.com/u4cns/) for more details). As a results, arguments referring to the true effects are now disabled.
+- all models are now being estimated using the likelihood of effect sizes (instead of test-statistics as usually defined). We reproduced the simulation study that we used to evaluate the method performance and it achieved identical results (up to MCMC error, before marginalizing out the true effects). A big advantage of using the normal likelihood for effect sizes is a considerable speed up of the whole estimation process.
+- as a results of these two changes, the results of the models will differ to those of pre 1.2.0 version
+
+### Fixes
+- autofit being turn on if any control argument was specified
+
+
+## version 1.1.2
+### Fixes
+- vdiffr not being used conditionally in unit tests
+
 ## version 1.1.1
 ### Fixes
 - inability to fit a model without specifying a seed

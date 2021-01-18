@@ -14,6 +14,15 @@ remove_time  <- function(fit){
   }
   return(fit)
 }
+clean_all  <- function(fit, only_samples = TRUE){
+  if(only_samples){
+    fit$data     <- NULL
+    fit$add_info <- NULL
+    fit$control  <- NULL
+    fit$models   <- NULL
+  }
+  return(fit)
+}
 
 # create mock data
 k  <- 3
@@ -28,7 +37,7 @@ fit_default <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, contr
 
 test_that("Default model fit works", {
   fit_default <- remove_time(fit_default)
-  expect_equal(saved_fits[[1]], fit_default)
+  expect_equal(clean_all(saved_fits[[1]]), clean_all(fit_default))
 })
 
 
@@ -36,16 +45,16 @@ test_that("Default model fit works", {
 fit_custom1 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
                      priors_mu = NULL, priors_tau = NULL, priors_omega = NULL)
 fit_custom2 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL)
+                     priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE)
 fit_custom3 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau = NULL, priors_omega_null = NULL,
+                     priors_mu = NULL, priors_tau = NULL, priors_omega_null = NULL, parallel = TRUE, #likelihood = "t",
                      priors_omega = list(
                        prior("two.sided", parameters = list(steps = c(.20),           alpha = c(1,10))),
                        prior("one.sided", parameters = list(steps = c(.10, .30),      alpha = c(1,5,1))),
                        prior("one.sided", parameters = list(steps = c(.15, .25, .75), alpha1 = c(1,1,1), alpha2 = c(1,1)))
                      ))
 fit_custom4 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau = NULL, priors_omega = NULL,
+                     priors_mu = NULL, priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
                      priors_mu_null = list(
                        prior("point",     parameters = list(location = 1)),
                        prior("normal",    parameters = list(mean = 0, sd = 1)),
@@ -59,7 +68,7 @@ fit_custom4 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, contr
                        prior("uniform",   parameters = list(a = 2, b = 3))
                      ))
 fit_custom5 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau_null = NULL, priors_omega = NULL,
+                     priors_mu = NULL, priors_tau_null = NULL, priors_omega = NULL, parallel = TRUE,
                      priors_tau = list(
                        prior("point",     parameters = list(location = 0)),
                        prior("normal",    parameters = list(mean = 1, sd = 1),                truncation = list(lower = 0, upper = 2), prior_odds = 2),
@@ -80,21 +89,21 @@ test_that("Custom models works", {
   fit_custom4 <- remove_time(fit_custom4)
   fit_custom5 <- remove_time(fit_custom5)
 
-  expect_equal(saved_fits[[2]], fit_custom1)
-  expect_equal(saved_fits[[3]], fit_custom2)
-  expect_equal(saved_fits[[4]], fit_custom3)
-  expect_equal(saved_fits[[5]], fit_custom4)
-  expect_equal(saved_fits[[6]], fit_custom5)
+  expect_equal(clean_all(saved_fits[[2]]), clean_all(fit_custom1))
+  expect_equal(clean_all(saved_fits[[3]]), clean_all(fit_custom2))
+  expect_equal(clean_all(saved_fits[[4]]), clean_all(fit_custom3))
+  expect_equal(clean_all(saved_fits[[5]]), clean_all(fit_custom4))
+  expect_equal(clean_all(saved_fits[[6]]), clean_all(fit_custom5))
 })
 
 
 # fit failling models
 fit_fail1  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, bridge_max_iter = 2), seed = 666, save = "min",
-                    priors_tau = NULL, priors_omega = NULL,
+                    priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
                     priors_mu  = prior("uniform", parameters = list(a = 10, b = 11))))
 
 fit_fail2  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 2000), seed = 666, save = "min",
-                    priors_tau = NULL, priors_omega = NULL,
+                    priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
                     priors_mu  = prior("uniform", parameters = list(a = 10, b = 11))))
 
 
@@ -103,8 +112,8 @@ test_that("Error handling works", {
   fit_fail1 <- remove_time(fit_fail1)
   fit_fail2 <- remove_time(fit_fail2)
 
-  expect_equal(saved_fits[[7]], fit_fail1)
-  expect_equal(saved_fits[[8]], fit_fail2)
+  expect_equal(clean_all(saved_fits[[7]]), clean_all(fit_fail1))
+  expect_equal(clean_all(saved_fits[[8]]), clean_all(fit_fail2))
 
 })
 
@@ -112,7 +121,7 @@ test_that("Error handling works", {
 # test additional settings
 fit_settings  <- RoBMA(t = t, n = n, chains = 3, burnin = 1001, iter = 8002, thin = 2,
                        control = list(autofit = FALSE, silent = TRUE, adapt = 101), seed = 666,
-                       priors_tau = NULL, priors_omega = NULL, priors_mu_null = NULL,
+                       priors_tau = NULL, priors_omega = NULL, priors_mu_null = NULL, parallel = TRUE,
                        priors_mu  = prior("uniform", parameters = list(a = -.5, b = .5)))
 
 
@@ -137,13 +146,13 @@ fit_update1a<- update(fit_update1,
                       prior_tau = prior("uniform",       parameters = list(a = 0, b = .5), prior_odds = 2),
                       prior_omega_null = prior("point",  parameters = list(location = 1)))
 
-fit_update1b<- update(fit_update1,
+fit_update1b<- update(fit_update1, parallel = TRUE,
                       prior_mu  = prior("normal",        parameters = list(mean = 1, sd = 1)),
                       prior_tau = prior("uniform",       parameters = list(a = 0, b = .5)),
                       prior_omega_null = prior("point",  parameters = list(location = 1)),
                       prior_odds = 2)
 
-fit_update1c<- update(fit_update1,
+fit_update1c<- update(fit_update1, parallel = TRUE,
                       prior_mu  = prior("normal",        parameters = list(mean = 1, sd = 1)),
                       prior_tau = prior("uniform",       parameters = list(a = 0, b = .5)),
                       prior_omega_null = prior("point",  parameters = list(location = 1)))
@@ -156,9 +165,9 @@ test_that("Adding models and changing prior odds works", {
   fit_update1b <- remove_time(fit_update1b)
   fit_update1c <- remove_time(fit_update1c)
 
-  expect_equal(updated_fits[[1]]$RoBMA, fit_update1a$RoBMA)
-  expect_equal(updated_fits[[1]]$RoBMA, fit_update1b$RoBMA)
-  expect_equal(updated_fits[[1]]$RoBMA, fit_update1c$RoBMA)
+  expect_equal(clean_all(updated_fits[[1]]$RoBMA), clean_all(fit_update1a$RoBMA))
+  expect_equal(clean_all(updated_fits[[1]]$RoBMA), clean_all(fit_update1b$RoBMA))
+  expect_equal(clean_all(updated_fits[[1]]$RoBMA), clean_all(fit_update1c$RoBMA))
 
 })
 
@@ -166,7 +175,7 @@ test_that("Adding models and changing prior odds works", {
 
 # test refitting failed models (important that it updates only the failed model)
 fit_update2  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 2000), seed = 666,
-                                       priors_tau = NULL, priors_omega = NULL,
+                                       priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
                                        priors_mu  = list(
                                          prior("uniform", parameters = list(a = 1, b = 2)),
                                          prior("uniform", parameters = list(a = 0, b = 1)))))
@@ -175,20 +184,20 @@ fit_update2 <- suppressWarnings(update(fit_update2, iter = 8000))
 test_that("Updating failed models works", {
 
   fit_update2 <- remove_time(fit_update2)
-  expect_equal(updated_fits[[2]], fit_update2)
+  expect_equal(clean_all(updated_fits[[2]]), clean_all(fit_update2))
 
 })
 
 # only changing the settings
 fit_update3  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 6000), seed = 666,
-                                       priors_tau = NULL, priors_omega = NULL,
+                                       priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
                                        priors_mu  = prior("uniform", parameters = list(a = 0, b = 1))))
 fit_update3 <- suppressWarnings(update(fit_update3, refit_failed = FALSE, control = list(allow_min_ESS = NULL)))
 
 test_that("Updating failed models works", {
 
   fit_update3 <- remove_time(fit_update3)
-  expect_equal(updated_fits[[3]], fit_update3)
+  expect_equal(clean_all(updated_fits[[3]]), clean_all(fit_update3))
 
 })
 
@@ -223,30 +232,30 @@ test_that("Model preview works", {
 
 # additional model fits (not used for plotting and other tests)
 fit_new1  <- suppressWarnings(RoBMA(OR = c(1.1, 1.05, 1.15), lCI = c(1, 0.95, 1.05), uCI = c(1.20, 1.15, 1.25),
-                   chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
+                   chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666, parallel = TRUE,
                    priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
                    priors_omega = prior("two.sided", parameters = list(steps = c(.20), alpha = c(1,10)))))
 
 fit_new2a <- RoBMA(y = d,  se = se, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
-                   priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
+                   priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE,
                    priors_mu    = prior("normal",    parameters = list(mean = 1, sd = 1)),
                    priors_omega = prior("one.sided", parameters = list(steps = c(.20), alpha = c(1,1))))
 
 fit_new2b <- RoBMA(y = -d, se = se, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
-                   effect_direction = "negative", priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
+                   effect_direction = "negative", priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE,
                    priors_mu    = prior("normal",    parameters = list(mean = -1, sd = 1)),
                    priors_omega = prior("one.sided", parameters = list(steps = c(.20), alpha = c(1,1))))
 
 test_that("OR model fit works", {
   fit_new1 <- remove_time(fit_new1)
-  expect_equal(saved_fits2[[1]], fit_new1)
+  expect_equal(clean_all(saved_fits2[[1]]), clean_all(fit_new1))
 })
 
 test_that("Direction change model fit works", {
   fit_new2a <- remove_time(fit_new2a)
   fit_new2b <- remove_time(fit_new2b)
-  expect_equal(saved_fits2[[2]], fit_new2a)
-  expect_equal(saved_fits2[[3]], fit_new2b)
+  expect_equal(clean_all(saved_fits2[[2]]), clean_all(fit_new2a))
+  expect_equal(clean_all(saved_fits2[[3]]), clean_all(fit_new2b))
 })
 
 
@@ -271,5 +280,4 @@ if(FALSE){
     saved_fits2[[i]] <- remove_time(saved_fits2[[i]])
   }
   saveRDS(saved_fits2, file = "tests/results/saved_fits2.RDS", compress  = "xz")
-
 }

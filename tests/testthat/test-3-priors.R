@@ -47,6 +47,7 @@ test_that("Prior print works", {
 })
 
 test_that("Priors plots work", {
+  testthat::skip_if_not_installed("vdiffr")
   set.seed(666)
   for(i in 1:length(fitted_priors)){
     expect_doppelganger(paste0("prior_plot_",i),plot(fitted_priors[[i]], plot_type = "ggplot", samples = 1000, points = 100))

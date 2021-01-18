@@ -5,6 +5,14 @@ README
 
 # Robust Bayesian Meta-Analysis (RoBMA)
 
+Please note that since version 1.2.0, (1) studies’ true effects are now
+marginalized out of the random effects models and are no longer
+estimated and (2) all models are now estimated using the likelihood of
+effect sizes and standard errors (see Appendix A of our
+[prerint](https://psyarxiv.com/u4cns/) for more details). As a results,
+arguments referring to the true effects are now disabled. And results
+obtained with previous versions of the package are not reproducible.
+
 This package estimates an ensemble of meta-analytic models (assuming
 either presence or absence of the effect, heterogeneity, and publication
 bias) and uses Bayesian model averaging to combine them. The ensemble
@@ -15,9 +23,12 @@ wide range of non-informative or informative priors for the effect size,
 heterogeneity, and weight functions. The package provides convenient
 functions for summary, visualizations, and fit diagnostics.
 
-See our preprint, Maier, Bartoš, & Wagenmakers (2020) at
+See our preprint, Maier et al. (2020) at
 <https://doi.org/10.31234/osf.io/u4cns>, for more details about the
-implementation, examples, and simulation studies.
+implementation, examples, and simulation studies or try out the package
+functionality in the user-friendly graphical user interface of JASP with
+our preprint of a tutorial paper with additional examples (Bartoš et
+al., 2020) at <https://doi.org/10.31234/osf.io/75bqn>.
 
 We also prepared multiple vignettes that illustrate functionality of the
 package:
@@ -61,6 +72,7 @@ on aggressive behavior.
 library(RoBMA)
 #> Loading required namespace: runjags
 #> module RoBMA loaded
+#> Parametrization of random effect models changed and all models are estimated using likelihood of effects sizes since version 1.2.0, see NEWS for more details.
 
 data("Anderson2010", package = "RoBMA")
 head(Anderson2010)
@@ -105,8 +117,7 @@ probability of an effect, 0.5 prior probability of heterogeneity, and
 
 The default models using the correlation coefficients can then be fitted
 using the `RoBMA()` function (all input is internally transformed into
-t-statistics and degrees of
-freedom):
+t-statistics and degrees of freedom):
 
 ``` r
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$name)
@@ -137,17 +148,17 @@ summary(fit)
 #> 
 #> Robust Bayesian Meta-Analysis
 #>               Models Prior prob. Post. prob.     Incl. BF
-#> Effect          6/12       0.500       1.000 11286565.669
-#> Heterogeneity   6/12       0.500       0.131        0.151
-#> Pub. bias       8/12       0.500       0.998      532.522
+#> Effect          6/12       0.500       1.000 10523514.159
+#> Heterogeneity   6/12       0.500       0.138        0.160
+#> Pub. bias       8/12       0.500       0.997      382.271
 #> 
 #> Model-averaged estimates
 #>                  Mean Median 0.025 0.975
-#> mu              0.151  0.151 0.094 0.207
-#> tau             0.010  0.000 0.000 0.098
+#> mu              0.152  0.152 0.096 0.206
+#> tau             0.010  0.000 0.000 0.105
 #> omega[0,0.05]   1.000  1.000 1.000 1.000
-#> omega[0.05,0.1] 0.515  0.502 0.100 0.962
-#> omega[0.1,1]    0.122  0.095 0.020 0.367
+#> omega[0.05,0.1] 0.364  0.307 0.057 0.920
+#> omega[0.1,1]    0.146  0.117 0.029 0.418
 #> (Tau is on Cohen's d scale.)
 #> (Estimated omegas correspond to two-sided p-values)
 ```
@@ -156,8 +167,7 @@ We can visualize the estimated parameters using the `plot.RoBMA()`
 function. In the case of parameter tau, the arrow stands for probability
 mass at \(\tau\) = 0. Weights \(\omega\) are by default plotted as the
 weight function, which can be changed to the individual weights
-estimates by setting `weights =
-TRUE`.
+estimates by setting `weights = TRUE`.
 
 ``` r
 plot(fit, parameter = "mu")
@@ -178,8 +188,7 @@ plot(fit, parameter = "omega")
 <img src="man/figures/README-fig_omega-1.png" width="50%" style="display: block; margin: auto;" />
 
 Furthermore, we can inspect the individual models’ estimates mu,
-including the prior and posterior
-probability.
+including the prior and posterior probability.
 
 ``` r
 plot(fit, parameter = "mu", type = "individual")
@@ -199,8 +208,7 @@ posterior sample densities `type = "densities"`, and averaged
 autocorrelations `type = "autocorrelation"`. Here, we request the chains
 trace plot of the \(\mu\) parameter of the most complex model by setting
 `show_models = 12` (the model numbers can be obtained from the summary
-function with `type = "models"`
-argument.)
+function with `type = "models"` argument.)
 
 ``` r
 RoBMA::diagnostics(fit, parameter = "mu", type = "chains", show_models = 12)
@@ -232,7 +240,15 @@ Anderson, C. A., Shibuya, A., Ihori, N., Swing, E. L., Bushman, B. J.,
 Sakamoto, A., Rothstein, H. R., & Saleem, M. (2010). Violent video game
 effects on aggression, empathy, and prosocial behavior in Eastern and
 Western countries: A meta-analytic review. *Psychological Bulletin*,
-*136*(2), 151.
+*136*(2), 151. <https://doi.org/10.1037/a0018251>
+
+</div>
+
+<div id="ref-bartos2020">
+
+Bartoš, F., Maier, M., & Wagenmakers, E.-J. (2020). Adjusting for
+publication bias in JASP — selection models and robust bayesian
+meta-analysis. In *PsyArXiv*. <https://doi.org/10.31234/osf.io/75bqn>
 
 </div>
 
@@ -240,8 +256,8 @@ Western countries: A meta-analytic review. *Psychological Bulletin*,
 
 Erp, S. van, Verhagen, J., Grasman, R. P., & Wagenmakers, E.-J. (2017).
 Estimates of between-study heterogeneity for 705 meta-analyses reported
-in psychological bulletin from 1990–2013. *Journal of Open Psychology
-Data*, *5*(1).
+in Psychological Bulletin from 1990–2013. *Journal of Open Psychology
+Data*, *5*(1). <http://doi.org/10.5334/jopd.33>
 
 </div>
 
@@ -255,7 +271,7 @@ JASP Team. (2020). *JASP (Version 0.14)*. <https://jasp-stats.org/>
 
 Maier, M., Bartoš, F., & Wagenmakers, E.-J. (2020). Robust Bayesian
 meta-analysis: Addressing publication bias with model-averaging. In
-*PsyArXiv*.
+*PsyArXiv*. <https://doi.org/10.31234/osf.io/u4cns>
 
 </div>
 

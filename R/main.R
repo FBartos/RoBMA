@@ -93,9 +93,6 @@
 #'   consideration. Model will be removed from the ensemble if it fails to
 #'   achieve the set ESS. Defaults to \code{NULL} - no model will be removed
 #'   based on ESS.}
-#'   \item{allow_inc_theta}{Whether the diagnostics for theta should be
-#'   included into model removal decision. Defaults to \code{NULL} - only
-#'   'mu', 'tau', and 'omega' estimates will be taken into account.}
 #'   \item{balance_prob}{Whether the prior probability of the removed model
 #'   should be redistributed to other models with the same type if possible
 #'    (crossing of effect / heterogeneity / publication bias). Defaults to
@@ -213,6 +210,8 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
                   chains = 3, iter = 10000, burnin = 5000, thin = 1, parallel = FALSE,
                   control = NULL, save = "all", seed = NULL){
 
+  prior_sigma <- NULL
+  likelihood  <- "normal"
 
   object       <- NULL
   object$call  <- match.call()
@@ -241,19 +240,17 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
     mu_transform     = if(object$data$effect_size %in% c("r","OR"))mu_transform,
     test_type        = test_type,
     study_names      = as.character(study_names),
+    likelihood       = likelihood,
+    seed             = seed,
     save             = save,
     warnings         = NULL
   )
 
 
   ### prepare and check the settings
-  object$priors  <- list(
-    mu    = .set_parameter_priors(priors_mu_null,    priors_mu,    "mu"),
-    tau   = .set_parameter_priors(priors_tau_null,   priors_tau,   "tau"),
-    omega = .set_parameter_priors(priors_omega_null, priors_omega, "omega")
-  )
-  object$models   <- .get_models(object$priors)
-  object$control  <- .set_control(control, chains, iter, burnin, thin, seed, effect_direction, parallel)
+  object$priors   <- .set_priors(priors_mu_null, priors_mu, priors_tau_null, priors_tau, priors_omega_null, priors_omega, prior_sigma, likelihood)
+  object$models   <- .get_models(object$priors, likelihood)
+  object$control  <- .set_control(control, chains, iter, burnin, thin, likelihood, seed, effect_direction, parallel)
   object$add_info$warnings <- c(object$add_info$warnings, .check_effect_direction(object))
 
 
@@ -267,7 +264,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
 
   }else{
 
-    fitting_order <- .fitting_priority(object$models)
+    fitting_order <- .fitting_priority(object$models, object$control$likelihood)
 
     cl <- parallel::makePSOCKcluster(floor(object$control$cores / object$control$chains))
     parallel::clusterEvalQ(cl, {library("RoBMA")})
@@ -397,6 +394,7 @@ RoBMA <- function(t = NULL, d = NULL, r = NULL, y = NULL, OR = NULL, se = NULL, 
 update.RoBMA <- function(object, refit_failed = TRUE,
                          prior_mu = NULL, prior_tau = NULL, prior_omega = NULL, prior_odds = NULL,
                          prior_mu_null = NULL, prior_tau_null = NULL, prior_omega_null = NULL,
+                         prior_sigma = NULL,
                          study_names = NULL,
                          control = NULL, chains = NULL, iter = NULL, burnin = NULL, thin = NULL, parallel = NULL, seed = NULL, ...){
 
@@ -417,9 +415,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     what_to_do <- "fit_new_model"
     object$models[length(object$models) + 1]  <- .get_models(list(
       mu    = .set_parameter_priors(prior_mu_null,    prior_mu,    "mu"),
-      tau   = .set_parameter_priors(prior_tau_null,   prior_tau,   "tau"),
-      omega = .set_parameter_priors(prior_omega_null, prior_omega, "omega")
-    ))
+      tau   = if(object$control$likelihood %in% c("t", "normal")) .set_parameter_priors(prior_tau_null,   prior_tau,   "tau"),
+      omega = .set_parameter_priors(prior_omega_null, prior_omega, "omega"),
+      sigma = if(object$control$likelihood == "wls") .set_parameter_priors(NULL, prior_sigma, "sigma"),
+      likelihood = object$control$likelihood
+    ), likelihood = object$control$likelihood)
     if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds     <- prior_odds
     if(!is.null(prior_odds))object$models[[length(object$models)]]$prior_odds_set <- prior_odds
 
@@ -445,7 +445,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   ### update control settings if any change is specified
-  object$control  <- .update_control(object$control, control, chains, iter, burnin, thin, seed, NULL, parallel)
+  object$control  <- .update_control(object$control, control, chains, iter, burnin, thin, NULL, seed, NULL, parallel)
   object$add_info$warnings <- c(object$add_info$warnings, .check_effect_direction(object))
 
   ### do the stuff
@@ -552,7 +552,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(!is.null(n1))if(!all(n1 > 0))stop("The sample sizes 'n1' must be positive.")
   if(!is.null(n2))if(!all(n2 > 0))stop("The sample sizes 'n2' must be positive.")
   if(!is.null(se))if(!all(se > 0))stop("The standard errors 'se' must be positive.")
-  if(!is.null(lCI) & !is.null(uCI))if(!all(uCI - lCI > 0))stop("The upper confidence intervals bounds 'uCI' must be higher than the lower confidence interval 'lCI' bounds.")
+  if(!is.null(lCI) & !is.null(uCI))if(!all(uCI - lCI > 0))stop("The upper confidence interval bounds 'uCI' must be higher than the lower confidence interval bounds 'lCI'.")
+  if(!is.null(OR))if(!all(OR > 0))stop("The odds ratios 'OR' must be positive.")
+  if(!is.null(OR))if(!all(lCI > 0))stop("The lower confidence interval bounds for odds ratios 'lCI' must be positive.")
+  if(!is.null(OR))if(!all(uCI > 0))stop("The upper confidence interval bounds for odds ratios 'uCI' must be positive.")
 
 
   if((!is.null(t) | !is.null(d)) & ( !is.null(n) | (!is.null(n1) & !is.null(n2)) | !is.null(se) |  (!is.null(lCI) & !is.null(uCI))) ){
@@ -562,14 +565,20 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       data$df <- n - ifelse(test_type == "two.sample", 2, 1)
       # multiplicator for converting effect sizes into ncp
       if(test_type == "two.sample"){
-        if(is.null(t))t <- psych::d2t(d = d, n = n)
+        if(is.null(t))  t  <- psych::d2t(d = d, n = n)
+        if(is.null(d))  d  <- psych::t2d(t = t, n = n)
+        if(is.null(se)) se <- (psych::d.ci(d, n = n)[,3] - psych::d.ci(d, n = n)[,1])/(2*stats::qnorm(.975))
         data$ncp_mlp    <- sqrt(n)/2
       }else if(test_type == "one.sample"){
-        if(is.null(t))t <- psych::d2t(d = d, n1 = n)
+        if(is.null(t))  t  <- psych::d2t(d = d, n1 = n)
+        if(is.null(d))  d  <- psych::t2d(t = t, n1 = n)
+        if(is.null(se)) se <- (psych::d.ci(d, n1 = n)[,3] - psych::d.ci(d, n1 = n)[,1])/(2*stats::qnorm(.975))
         data$ncp_mlp    <- sqrt(n)
       }
     }else if(!is.null(n1) & !is.null(n2)){
-      if(is.null(t))t <- psych::d2t(d = d, n1 = n1, n2 = n2)
+      if(is.null(t))  t  <- psych::d2t(d = d, n1 = n1, n2 = n2)
+      if(is.null(d))  d  <- psych::t2d(t = t, n1 = n1, n2 = n2)
+      if(is.null(se)) se <- (psych::d.ci(d, n1 = n1, n2 = n2)[,3] - psych::d.ci(d, n1 = n1, n2 = n2)[,1])/(2*stats::qnorm(.975))
       data$ncp_mlp    <- 1/sqrt(1/n1 + 1/n2)
       data$df         <- n1 + n2 - ifelse(test_type == "two.sample", 2, 1)
     }else if(!is.null(se) | (!is.null(lCI) & !is.null(uCI))){
@@ -580,8 +589,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       data$ncp_mlp    <- sqrt(n)/2
     }
 
-    data$t <- t
-    data$K <- length(t)
+    data$y  <- d
+    data$se <- se
+    data$t  <- t
+    data$K  <- length(t)
 
     data$effect_size <- "d"
 
@@ -592,7 +603,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         # convert to cohen's d and compute it's test statistic
         # using n-2 leads to the actual t-statistic corresponding to the cor.test
-        data$t       <- psych::d2t(psych::r2d(r), n = n-2)
+        data$y       <- psych::r2d(r)
+        data$se      <- (psych::d.ci(data$y, n = n-2)[,3] - psych::d.ci(data$y, n = n-2)[,1])/(2*stats::qnorm(.975))
+        data$t       <- psych::d2t(data$y, n = n-2)
         data$ncp_mlp <- sqrt(n-2)/2
         data$df      <- n - 2
         data$K       <- length(n)
@@ -600,7 +613,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       }else if(mu_transform == "fishers_z"){
 
         # convert to fisher's z and compute it's test statistic
-        data$t       <- psych::fisherz(r) / (1/sqrt(n-3))
+        data$y       <- psych::fisherz(r)
+        data$se      <- (1/sqrt(n-3))
+        data$t       <- data$y / data$se
         data$ncp_mlp <- sqrt(n-3)
         data$df      <- n - 2
         data$K       <- length(n)
@@ -610,10 +625,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       if(mu_transform == "cohens_d"){
 
         # convert to cohen's d and se
-        d               <- psych::r2d(r)
-        se              <- (psych::r2d(uCI) - psych::r2d(lCI))/(2*stats::qnorm(.975))
-        n               <- .get_n_for_d(d, se)
-        if(is.null(t))t <- d/se
+        data$y          <- psych::r2d(r)
+        data$se         <- (psych::r2d(uCI) - psych::r2d(lCI))/(2*stats::qnorm(.975))
+        n               <- .get_n_for_d(data$y, data$se)
+        if(is.null(t))t <- data$y/data$se
         data$df         <- n - 2
         data$ncp_mlp    <- sqrt(n)/2
         data$K          <- length(n)
@@ -622,9 +637,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         # convert to fisher's z and compute it's test statistic
         d               <- psych::r2d(r)
-        se              <- (psych::r2d(uCI) - psych::r2d(lCI))/(2*stats::qnorm(.975))
-        n               <- .get_n_for_d(d, se)
-        data$t          <- psych::fisherz(r) / (1/sqrt(n-3))
+        d_se            <- (psych::r2d(uCI) - psych::r2d(lCI))/(2*stats::qnorm(.975))
+        n               <- .get_n_for_d(d, d_se)
+        data$se         <- (1/sqrt(n-3))
+        data$y          <- psych::fisherz(r)
+        data$t          <- data$y / data$se
         data$ncp_mlp    <- sqrt(n-3)
         data$df         <- n - 2
         data$K          <- length(n)
@@ -638,10 +655,12 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     if(!is.null(lCI) & !is.null(uCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
     # convert to z-statistics (and treat as t-statistics with df = Inf followingly)
+    data$y       <- y
     data$K       <- length(y)
     data$t       <- y / se
     data$df      <- rep(999999, length(y)) # should be Inf, but JAGS have problem with that for some reason
     data$ncp_mlp <- 1 / se
+    data$se      <- se
 
     data$effect_size <- "y"
 
@@ -649,19 +668,20 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     if(mu_transform == "log_OR"){
 
-      se               <- (log(uCI) - log(lCI))/(2*stats::qnorm(.975))
-      data$t           <- log(OR)/se
+      data$y           <- log(OR)
+      data$se          <- (log(uCI) - log(lCI))/(2*stats::qnorm(.975))
+      data$t           <- data$y/data$se
       data$df          <- rep(999999, length(OR))
-      data$ncp_mlp     <- 1/se
+      data$ncp_mlp     <- 1/data$se
       data$K           <- length(OR)
 
     }else if(mu_transform == "cohens_d"){
       # transform to Cohen's d
       # https://www.meta-analysis.com/downloads/Meta-analysis%20Converting%20among%20effect%20sizes.pdf
-      d                <- log(OR) * (sqrt(3)/pi)
-      se               <- (log(uCI) * (sqrt(3)/pi) - log(lCI) * (sqrt(3)/pi))/(2*stats::qnorm(.975))
-      n                <- .get_n_for_d(d, se)
-      data$t           <- d/se
+      data$y           <- log(OR) * (sqrt(3)/pi)
+      data$se          <- (log(uCI) * (sqrt(3)/pi) - log(lCI) * (sqrt(3)/pi))/(2*stats::qnorm(.975))
+      n                <- .get_n_for_d(data$y, data$se)
+      data$t           <- data$y/data$se
       data$df          <- n - 2
       data$ncp_mlp     <- sqrt(n)/2
       data$K           <- length(OR)
@@ -689,18 +709,16 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   refit_info <- NULL
 
   # don't sample the complete null model
-  if(!(priors$mu$distribution == "point" &
-       (if(priors$tau$distribution == "point"){priors$tau$parameters$location == 0}else{FALSE}) &
-       priors$omega$distribution == "point")){
+  if(!.is_model_constant(priors)){
 
-    # genrate the model syntax
-    model_syntax <- .generate_model_syntax(priors, control$boost, object$control$effect_direction)
+    # generate the model syntax
+    model_syntax <- .generate_model_syntax(priors, model$likelihood, control$boost, object$control$effect_direction)
 
 
-    # remove unneccessary objects from data to mittigate warnings
-    fit_data          <- .fit_data(object$data, priors, control$effect_direction)
+    # remove unnecessary objects from data to mitigate warnings
+    fit_data          <- .fit_data(object$data, priors, model$likelihood, control$effect_direction)
     fit_inits         <- .fit_inits(priors, control$chains, control$seed)
-    monitor_variables <- .to_monitor(priors)
+    monitor_variables <- .to_monitor(priors, model$likelihood)
 
 
     # fit the model
@@ -718,23 +736,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       # create a new, data-tuned starting values if there is an outlier that fails the sampling
       if(any(names(unlist(fit_inits)) %in% c("mu", "inv_mu"))){
 
-        new_mu <- mean(psych::t2d(fit_data$t, fit_data$df))
-        if(new_mu < priors$mu$truncation$lower){
-          new_mu <- priors$mu$truncation$lower + .001
-        }else if(new_mu > priors$mu$truncation$upper){
-          new_mu <- priors$mu$truncation$upper - .001
-        }
-
-        if(any(names(unlist(fit_inits)) == "mu")){
-          for(p in 1:length(fit_inits)){
-            fit_inits[[p]]$mu <- new_mu
-          }
-        }else if(any(names(unlist(fit_inits)) == "inv_mu")){
-          for(p in 1:length(fit_inits)){
-            fit_inits[[p]]$mu <- 1/new_mu
-          }
-        }
-
+        fit_inits <- .fit_inits_update(fit_inits, priors, fit_data, model$likelihood)
         refit_info <- "empirical init"
 
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control)
@@ -746,7 +748,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
         refit_info <- "refit with boost"
 
-        model_syntax <- .generate_model_syntax(priors, TRUE, control$effect_direction)
+        model_syntax <- .generate_model_syntax(priors, model$likelihood, TRUE, control$effect_direction)
         fit <- .fit_model_RoBMA_wrap(model_syntax, fit_data, fit_inits, monitor_variables, control)
 
       }
@@ -768,7 +770,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   model$metadata <- list(
     i          = i,
     refit_info = refit_info)
-  if(!is.null(fit)){
+  if(!is.null(fit) & !any(class(fit) %in% c("simpleError", "error", "condition"))){
     model$fit_summary <- .runjags.summary(fit)
   }
 
@@ -843,9 +845,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   control  <- object$control
 
   # don't sample the complete null model
-  if(!(priors$mu$distribution == "point" &
-       (if(priors$tau$distribution == "point"){priors$tau$parameters$location == 0}else{FALSE}) &
-       priors$omega$distribution == "point")){
+  if(!.is_model_constant(priors)){
 
 
     # deal with failed model
@@ -858,14 +858,15 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
     # compute marginal likelihood
-    marglik_samples <- .marglik_prepare_data(fit, priors, object$data)
-    fit_data        <- .fit_data(object$data, priors, control$effect_direction)
+    marglik_samples <- .marglik_prepare_data(fit, priors, model$likelihood, object$data)
+    fit_data        <- .fit_data(object$data, priors, model$likelihood, control$effect_direction)
 
     if(!is.null(control$seed))set.seed(control$seed)
     marg_lik        <- tryCatch(suppressWarnings(bridgesampling::bridge_sampler(
       samples          = marglik_samples$samples,
       data             = fit_data,
       log_posterior    = .marglik_function,
+      likelihood       = model$likelihood,
       priors           = priors,
       effect_direction = control$effect_direction,
       lb               = marglik_samples$lb,
@@ -876,7 +877,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   }else{
     # easy calculation of the marginal likelihood in case of null model
-    marg_lik <- .marglik_null(object$data, priors)
+    marg_lik <- .marglik_null(object$data, model$likelihood, priors)
   }
 
   # handle errors
@@ -896,192 +897,126 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(model)
 }
-.generate_model_syntax <- function(priors, boost, effect_direction){
+.generate_model_syntax <- function(priors, likelihood, boost, effect_direction){
 
   # generate model syntax
-  model_syntax <- "model{"
+  model_syntax <- "model{\n"
 
   ### mu priors
-  # distributions
-  if(priors$mu$distribution == "point"){
-    model_syntax <- paste0(model_syntax, "mu = prior_mu_location\n")
-  }else if(priors$mu$distribution == "normal"){
-    model_syntax <- paste0(model_syntax, "mu ~ dnorm(prior_mu_mean, pow(prior_mu_sd, -2))")
-  }else if(priors$mu$distribution == "t"){
-    model_syntax <- paste0(model_syntax, "mu ~ dt(prior_mu_location, pow(prior_mu_scale, -2), prior_mu_df)")
-  }else if(priors$mu$distribution == "gamma"){
-    model_syntax <- paste0(model_syntax, "mu ~ dgamma(prior_mu_shape, prior_mu_rate)")
-  }else if(priors$mu$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "inv_mu ~ dgamma(prior_mu_shape, prior_mu_scale)")
-  }else if(priors$mu$distribution == "uniform"){
-    model_syntax <- paste0(model_syntax, "mu ~ dunif(prior_mu_a, prior_mu_b)")
-  }
-  # truncation
-  if(!priors$mu$distribution %in% c("point", "uniform")){
-    if(!(is.infinite(priors$mu$truncation$lower)  & is.infinite(priors$mu$truncation$lower))){
-      # the truncation for invgamma needs to be done the other way around since we sample from gamma
-      if(priors$mu$distribution == "invgamma"){
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$mu$truncation$upper^-1),"",priors$mu$truncation$upper^-1),
-                               ",",
-                               ifelse(is.infinite(priors$mu$truncation$lower^-1),"",priors$mu$truncation$lower^-1),
-                               ")\n")
-      }else{
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$mu$truncation$lower),"",priors$mu$truncation$lower),
-                               ",",
-                               ifelse(is.infinite(priors$mu$truncation$upper),"",priors$mu$truncation$upper),
-                               ")\n")
-      }
-    }else{
-      model_syntax <- paste0(model_syntax, "\n")
-    }
-  }
+  model_syntax <- paste0(model_syntax, .JAGS_distribution("mu", priors$mu$distribution, priors$mu$truncation))
 
   # transformations
-  if(priors$mu$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "mu = pow(inv_mu, -1)\n")
-  }
   if(effect_direction == "negative"){
     model_syntax <- paste0(model_syntax, "mu_neg = - mu\n")
   }
 
 
   ### tau priors
-  # distributions
-  if(priors$tau$distribution == "point"){
-    if(priors$tau$parameters$location > 0)model_syntax <- paste0(model_syntax, "tau = prior_tau_location\n")
-  }else if(priors$tau$distribution == "normal"){
-    model_syntax <- paste0(model_syntax, "tau ~ dnorm(prior_tau_mean, pow(prior_tau_sd, -2))")
-  }else if(priors$tau$distribution == "t"){
-    model_syntax <- paste0(model_syntax, "tau ~ dt(prior_tau_location, pow(prior_tau_scale, -2), prior_tau_df)")
-  }else if(priors$tau$distribution == "gamma"){
-    model_syntax <- paste0(model_syntax, "tau ~ dgamma(prior_tau_shape, prior_tau_rate)")
-  }else if(priors$tau$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "inv_tau ~ dgamma(prior_tau_shape, prior_tau_scale)")
-  }else if(priors$tau$distribution == "uniform"){
-    model_syntax <- paste0(model_syntax, "tau ~ dunif(prior_tau_a, prior_tau_b)")
-  }
-  # truncation
-  if(!priors$tau$distribution %in% c("point", "uniform")){
-    if(!(is.infinite(priors$tau$truncation$lower) & is.infinite(priors$tau$truncation$lower))){
-      # the truncation for invgamma needs to be done the other way around since we sample from gamma
-      if(priors$tau$distribution == "invgamma"){
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$tau$truncation$upper^-1),"",priors$tau$truncation$upper^-1),
-                               ",",
-                               ifelse(is.infinite(priors$tau$truncation$lower^-1),"",priors$tau$truncation$lower^-1),
-                               ")\n")
-      }else{
-        model_syntax <- paste0(model_syntax, "T(",
-                               ifelse(is.infinite(priors$tau$truncation$lower),"",priors$tau$truncation$lower),
-                               ",",
-                               ifelse(is.infinite(priors$tau$truncation$upper),"",priors$tau$truncation$upper),
-                               ")\n")
+  if(likelihood %in% c("t", "normal")){
+    if(priors$tau$distribution == "point"){
+      if(priors$tau$parameters$location > 0){
+        model_syntax <- paste0(model_syntax, .JAGS_distribution("tau", priors$tau$distribution, priors$tau$truncation))
       }
+    }else{
+      model_syntax <- paste0(model_syntax, .JAGS_distribution("tau", priors$tau$distribution, priors$tau$truncation))
     }
-  }
-  # transformations
-  if(priors$tau$distribution == "invgamma"){
-    model_syntax <- paste0(model_syntax, "tau = pow(inv_tau, -1)\n")
   }
 
 
   ### omega priors
-  # distributions & transformations
-  if(priors$omega$distribution != "point"){
-    if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
-      model_syntax <- paste0(model_syntax,
-                             "for(j in 1:J){
-                                 eta[j] ~ dgamma(prior_omega_alpha[j], 1)
-                              }
-                              for(j in 1:J){
-                                 std_eta[j]  = eta[j] / sum(eta)
-                                 omega[j]    = sum(std_eta[1:j])
-                              }\n")
-    }else if(all(names(priors$omega$parameters) %in% c("alpha1", "alpha2", "steps"))){
-      model_syntax <- paste0(model_syntax,
-                             "for(j1 in 1:J1){
-                                 eta1[j1] ~ dgamma(prior_omega_alpha1[j1], 1)
-                              }
-                              for(j2 in 1:J2){
-                                 eta2[j2] ~ dgamma(prior_omega_alpha2[j2], 1)
-                              }
-                              for(j1 in 1:J1){
-                                 std_eta1[j1]  <-  eta1[j1] / sum(eta1)
-                                 omega[J2 - 1 + j1] = sum(std_eta1[1:j1])
-                              }
-                              for(j2 in 1:J2){
-                                  std_eta2[j2]  = (eta2[j2] / sum(eta2)) * (1 - std_eta1[1])
-                              }
-                              for(j2 in 2:J2){
-                                  omega[j2-1] = sum(std_eta2[j2:J2]) + std_eta1[1]
-                              }\n")
-    }
+  model_syntax <- paste0(model_syntax, .JAGS_distribution_omega(priors$omega$distribution, priors$omega$truncation, priors$omega$parameters))
+
+
+  ### sigma prior for wls
+  if(likelihood == "wls"){
+    model_syntax <- paste0(model_syntax, .JAGS_distribution("sigma", priors$sigma$distribution, priors$sigma$truncation))
   }
 
 
   ### model
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
-  # random effects
-  if(priors$tau$distribution != "point"){
-    model_syntax <- paste0(model_syntax, ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]")," ~ dnorm(",ifelse(effect_direction == "negative", "mu_neg", "mu"),", pow(tau, -2))\n")
-    if(effect_direction == "negative"){
-      model_syntax <- paste0(model_syntax, "theta[i] = - theta_neg[i]\n")
+  # marginized random effects the effect size
+  if(likelihood %in% c("t", "normal")){
+    if(priors$tau$distribution == "point"){
+      if(priors$tau$parameters$location > 0){
+        prec <- "1 / ( pow(se[i],2) + pow(tau,2) )"
+      }else{
+        prec <- "1 / pow(se[i],2)"
+      }
+    }else{
+      prec <- "1 / ( pow(se[i],2) + pow(tau,2) )"
     }
-  }else if(priors$tau$parameters$location > 0){
-    model_syntax <- paste0(model_syntax, ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]")," ~ dnorm(",ifelse(effect_direction == "negative", "mu_neg", "mu"),", pow(tau, -2))\n")
-    if(effect_direction == "negative"){
-      model_syntax <- paste0(model_syntax, "theta[i] = - theta_neg[i]\n")
+  }else if(likelihood %in% "wls"){
+    prec <- "1 / ( pow(se[i],2) * pow(sigma,2) )"
+  }
+
+  eff <- ifelse(effect_direction == "negative", "mu_neg", "mu")
+  # add PET/PEESE
+  if(grepl("PET", priors$omega$distribution)){
+    eff <- paste0("(", eff, " + PET * se[i])")
+  }else if(grepl("PEESE", priors$omega$distribution)){
+    eff <- paste0("(", eff, " + PEESE * pow(se[i], 2))")
+  }
+
+
+  # the observed data
+  if(likelihood == "t"){
+    # convert to ncp
+    ncp <- paste0(eff, "*ncp_mlp[i]")
+
+    if(!priors$omega$distribution %in% c("one.sided", "two.sided")){
+      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(", ncp, ", 1, df[i])\n")
+    }else if(priors$omega$distribution == "one.sided"){
+      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
+    }else if(priors$omega$distribution == "two.sided"){
+      model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
+    }
+  }else if(likelihood %in% c("normal", "wls")){
+    if(!priors$omega$distribution %in% c("one.sided", "two.sided")){
+      model_syntax <- paste0(model_syntax, "y[i] ~ ",ifelse(boost, "dnorm_boost", "dnorm"),"(", eff, ",", prec, " )\n")
+    }else if(priors$omega$distribution == "one.sided"){
+      model_syntax <- paste0(model_syntax, "y[i] ~ ",ifelse(boost, "dwnorm_1s_boost", "dwnorm_1s"),"(", eff, ",", prec, ", crit_x[i,], omega) \n")
+    }else if(priors$omega$distribution == "two.sided"){
+      model_syntax <- paste0(model_syntax, "y[i] ~ ",ifelse(boost, "dwnorm_2s_boost", "dwnorm_2s"),"(", eff, ",", prec, ", crit_x[i,], omega) \n")
     }
   }
 
-  # the ncp parameters
-  if(priors$tau$distribution == "point"){
-    if(priors$tau$parameters$location > 0){
-      ncp <- paste0(ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]"),"*ncp_mlp[i]")
-    }else{
-      ncp <- paste0(ifelse(effect_direction == "negative", "mu_neg", "mu"),"*ncp_mlp[i]")
-    }
-  }else{
-    ncp <- paste0(ifelse(effect_direction == "negative", "theta_neg[i]", "theta[i]"),"*ncp_mlp[i]")
-  }
-  # the observed data
-  if(priors$omega$distribution == "point"){
-    model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dnt_boost", "dnt"),"(", ncp, ", 1, df[i])\n")
-  }else if(priors$omega$distribution == "one.sided"){
-    model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_1s_boost", "dwt_1s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
-  }else if(priors$omega$distribution == "two.sided"){
-    model_syntax <- paste0(model_syntax, "t[i] ~ ",ifelse(boost, "dwt_2s_boost", "dwt_2s"),"(df[i], ", ncp, ", crit_t[i,], omega) \n")
-  }
+
   model_syntax <- paste0(model_syntax, "}\n")
   model_syntax <- paste0(model_syntax, "}")
 
   return(model_syntax)
 }
-.fit_data              <- function(data, priors, effect_direction){
-
-  # remove unneccessary stuff
-  data$effect_size <- NULL
+.fit_data              <- function(data, priors, likelihood, effect_direction){
 
   # change the effect size direction (important for one-sided selection)
-  if(effect_direction == "negative"){
-    data$t <- - data$t
+  if(likelihood == "t"){
+    if(effect_direction == "negative"){
+      data$t <- - data$t
+    }
+  }else if(likelihood %in% c("normal", "wls")){
+    if(effect_direction == "negative"){
+      data$y <- - data$y
+    }
   }
+
 
   ### add settings for prior distribution
   for(var in names(priors)){
 
     # don't add parameters for null omega or null tau
-    if(var == "omega"){
-      if(priors[[var]]$distribution == "point")next
-    }
     if(var == "tau"){
       if(priors[[var]]$distribution == "point"){
         if(priors[[var]]$parameters$location <= 0)next
       }
     }
+    if(likelihood %in% c("t", "normal")){
+      if(var == "omega"){
+        if(priors[[var]]$distribution == "point")next
+      }
+    }
+
 
     for(par in names(priors[[var]]$parameters)){
 
@@ -1117,6 +1052,24 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
   }
 
+  # remove unnecessary stuff
+  data$effect_size <- NULL
+  if(priors$omega$distribution %in% c("one.sided", "two.sided", "point") & likelihood == "t"){
+    data$se <- NULL
+  }
+  if(likelihood == "t"){
+    data$y       <- NULL
+  }
+  if(likelihood %in% c("normal", "wls")){
+    data$t       <- NULL
+    data$df      <- NULL
+    data$ncp_mlp <- NULL
+    if(!is.null(data$crit_t)){
+      data$crit_x  <- data[["crit_t"]] * data$se
+      data$crit_t  <- NULL
+    }
+  }
+
   return(data)
 }
 .fit_inits             <- function(priors, chains, seed){
@@ -1132,7 +1085,12 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     temp_init <- list()
 
     temp_init <- c(temp_init, .fit_inits_mu_tau(priors$mu, "mu"))
-    temp_init <- c(temp_init, .fit_inits_mu_tau(priors$tau, "tau"))
+    if(!is.null(priors$tau)){
+      temp_init <- c(temp_init, .fit_inits_mu_tau(priors$tau, "tau"))
+    }
+    if(!is.null(priors$sigma)){
+      temp_init <- c(temp_init, .fit_inits_mu_tau(priors$sigma, "sigma"))
+    }
     temp_init <- c(temp_init, .fit_inits_omega(priors$omega))
 
     temp_init[[".RNG.seed"]] <- seed + i
@@ -1187,7 +1145,16 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   temp_x  <- list()
   # the rounding removes some random erros with init values - probably when stardandizing the omega
 
-  if(all(names(prior$parameters) %in% c("alpha", "steps"))){
+
+  if(grepl("PET", prior$distribution)){
+
+    temp_x <- .fit_inits_mu_tau(prior, "PET")
+
+  }else if(grepl("PEESE", prior$distribution)){
+
+    temp_x <- .fit_inits_mu_tau(prior, "PEESE")
+
+  }else if(all(names(prior$parameters) %in% c("alpha", "steps"))){
 
     temp_x$eta <- round(stats::rgamma(length(prior$parameters$alpha),   prior$parameters$alpha,  1),5)
 
@@ -1202,7 +1169,33 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(temp_x)
 
 }
-.to_monitor            <- function(priors){
+.fit_inits_update      <- function(fit_inits, priors, fit_data, likelihood){
+
+  if(likelihood == "t"){
+    new_mu <- mean(psych::t2d(fit_data$t, fit_data$df))
+  }else if(likelihood %in% c("normal", "wls")){
+    new_mu <- stats::weighted.mean(fit_data$y, 1/fit_data$se^2)
+  }
+
+  if(new_mu < priors$mu$truncation$lower){
+    new_mu <- priors$mu$truncation$lower + .001
+  }else if(new_mu > priors$mu$truncation$upper){
+    new_mu <- priors$mu$truncation$upper - .001
+  }
+
+  if(any(names(unlist(fit_inits)) == "mu")){
+    for(p in 1:length(fit_inits)){
+      fit_inits[[p]]$mu <- new_mu
+    }
+  }else if(any(names(unlist(fit_inits)) == "inv_mu")){
+    for(p in 1:length(fit_inits)){
+      fit_inits[[p]]$mu <- 1/new_mu
+    }
+  }
+
+  return(fit_inits)
+}
+.to_monitor            <- function(priors, likelihood){
 
   variables <- NULL
 
@@ -1214,19 +1207,34 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     variables <- c(variables, "mu")
   }
 
-  # tau relevant
-  if(priors$tau$distribution != "point"){
-    if(priors$tau$distribution == "invgamma"){
-      variables <- c(variables, "inv_tau")
+  if(likelihood %in% c("t", "normal")){
+    # tau relevant
+    if(priors$tau$distribution != "point"){
+      if(priors$tau$distribution == "invgamma"){
+        variables <- c(variables, "inv_tau")
+      }
+      variables <- c(variables, "tau")
     }
-    variables <- c(variables, "tau", "theta")
-  }else if(priors$tau$parameters$location > 0){
-    variables <- c(variables, "theta")
+  }
+
+  if(likelihood == "wls"){
+    if(priors$sigma$distribution != "point"){
+      if(priors$sigma$distribution == "invgamma"){
+        variables <- c(variables, "inv_sigma")
+      }
+      variables <- c(variables, "sigma")
+    }else if(priors$sigma$parameters$location > 0){
+      variables <- c(variables, "sigma")
+    }
   }
 
   # omega relevant
   if(priors$omega$distribution != "point"){
-    if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
+    if(grepl("PET", priors$omega$distribution)){
+      variables <- c(variables, "PET")
+    }else if(grepl("PEESE", priors$omega$distribution)){
+      variables <- c(variables, "PEESE")
+    }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
       variables <- c(variables, "eta", "omega")
     }else if(all(names(priors$omega$parameters) %in% c("alpha1", "alpha2", "steps"))){
       variables <- c(variables, "eta1", "eta2", "omega")
@@ -1235,9 +1243,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(variables)
 }
-.marglik_function      <- function(samples.row, data, priors, effect_direction){
+.marglik_function      <- function(samples.row, data, likelihood, priors, effect_direction){
 
-  ### get parameteres depending on the model type
+  ### get parameters depending on the model type
   # mu
   if(priors$mu$distribution != "point"){
     if(priors$mu$distribution == "invgamma"){
@@ -1252,38 +1260,33 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # tau
-  if(priors$tau$distribution == "point"){
-    if(priors$tau$parameters$location != 0){
-      tau      <- priors$tau$parameters$location
-      theta    <- samples.row[ paste0("theta[", 1:data$K, "]") ]
-    }
-
-    # change the direction for the ncp parameter
-    if(effect_direction == "negative"){
-      ncp <- -mu*data$ncp_mlp
+  if(likelihood %in% c("t", "normal")){
+    if(priors$tau$distribution == "point"){
+      if(priors$tau$parameters$location != 0){
+        tau      <- priors$tau$parameters$location
+      }
     }else{
-      ncp <-  mu*data$ncp_mlp
-    }
-  }else{
-    theta    <- samples.row[ paste0("theta[", 1:data$K, "]") ]
-    if(priors$tau$distribution == "invgamma"){
-      inv_tau <- samples.row[[ "inv_tau" ]]
-      tau     <- 1/inv_tau
-    }else{
-      tau <- samples.row[[ "tau" ]]
-    }
-
-    # change the direction for the ncp parameter
-    if(effect_direction == "negative"){
-      ncp <- -theta*data$ncp_mlp
-    }else{
-      ncp <-  theta*data$ncp_mlp
+      if(priors$tau$distribution == "invgamma"){
+        inv_tau <- samples.row[[ "inv_tau" ]]
+        tau     <- 1/inv_tau
+      }else{
+        tau <- samples.row[[ "tau" ]]
+      }
     }
   }
 
+
   # omega
   if(priors$omega$distribution != "point"){
-    if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
+    if(grepl("PET", priors$omega$distribution)){
+
+      PET   <- samples.row[[ "PET" ]]
+
+    }else if(grepl("PEESE", priors$omega$distribution)){
+
+      PEESE <- samples.row[[ "PEESE" ]]
+
+    }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
 
       eta     <- samples.row[ paste0("eta[",1:data$J,"]") ]
       std_eta <- NULL
@@ -1316,114 +1319,109 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }
 
 
+  # sigma
+  if(likelihood == "wls"){
+    if(priors$sigma$distribution == "invgamma"){
+      inv_sigma <- samples.row[[ "inv_sigma" ]]
+      sigma     <- 1/inv_sigma
+    }else{
+      sigma <- samples.row[[ "sigma" ]]
+    }
+  }
+
+
+
+  # sd for marginalized random effects
+  if(likelihood %in% c("t", "normal")){
+    if(priors$tau$distribution == "point"){
+      if(priors$tau$parameters$location != 0){
+        pop_sd <- sqrt(data$se^2 + tau^2)
+      }else{
+        pop_sd <- data$se
+      }
+    }else{
+      pop_sd <- sqrt(data$se^2 + tau^2)
+    }
+  }else if(likelihood == "wls"){
+    pop_sd <- sigma*data$se
+  }
+
+
+  # add PET/PEESE
+  eff <- ifelse(effect_direction == "negative", -1, 1)*mu
+  if(grepl("PET", priors$omega$distribution)){
+    eff <- eff + PET * data$se
+  }else if(grepl("PEESE", priors$omega$distribution)){
+    eff <- eff + PEESE * data$se^2
+  }
+
+
   ### compute the marginal log_likelihood
   log_lik <- 0
 
   # mean
-  if(priors$mu$distribution == "normal"){
-    log_lik <- log_lik + stats::dnorm(mu, mean = data$prior_mu_mean, sd = data$prior_mu_sd, log = TRUE) -
-      log(
-        stats::pnorm(priors$mu$truncation$upper, data$prior_mu_mean, data$prior_mu_sd, lower.tail = TRUE, log.p = FALSE) -
-          stats::pnorm(priors$mu$truncation$lower, data$prior_mu_mean, data$prior_mu_sd, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "t"){
-    log_lik <- log_lik + extraDistr::dlst(mu, df = data$prior_mu_df, mu = data$prior_mu_location, sigma = data$prior_mu_scale, log = TRUE) -
-      log(
-        extraDistr::plst(priors$mu$truncation$upper, df = data$prior_mu_df, mu = data$prior_mu_location, sigma = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE) -
-          extraDistr::plst(priors$mu$truncation$lower, df = data$prior_mu_df, mu = data$prior_mu_location, sigma = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "gamma"){
-    log_lik <- log_lik + stats::dgamma(mu, shape = data$prior_mu_shape, rate = data$prior_mu_rate, log = TRUE)  -
-      log(
-        stats::pgamma(priors$mu$truncation$upper, shape = data$prior_mu_shape, rate = data$prior_mu_rate, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$mu$truncation$lower, shape = data$prior_mu_shape, rate = data$prior_mu_rate, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "invgamma"){
-    log_lik <- log_lik + stats::dgamma(inv_mu, shape = data$prior_mu_shape, rate = data$prior_mu_scale, log = TRUE) -
-      log(
-        stats::pgamma(priors$mu$truncation$lower^-1, shape = data$prior_mu_shape, rate = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$mu$truncation$upper^-1, shape = data$prior_mu_shape, rate = data$prior_mu_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$mu$distribution == "uniform"){
-    log_lik <- log_lik + stats::dunif(mu, min = data$prior_mu_a, max = data$prior_mu_b, log = TRUE)
-  }
-
+  log_lik <- log_lik + .marglik_distribution(mu, "mu", priors$mu$distribution, data, priors$mu$truncation)
 
   # tau
-  if(priors$tau$distribution == "normal"){
-    log_lik <- log_lik + stats::dnorm(tau, mean = data$prior_tau_mean, sd = data$prior_tau_sd, log = TRUE) -
-      log(
-        stats::pnorm(priors$tau$truncation$upper, data$prior_tau_mean, data$prior_tau_sd, lower.tail = TRUE, log.p = FALSE) -
-          stats::pnorm(priors$tau$truncation$lower, data$prior_tau_mean, data$prior_tau_sd, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "t"){
-    log_lik <- log_lik + extraDistr::dlst(tau, df = data$prior_tau_df, mu = data$prior_tau_location, sigma = data$prior_tau_scale, log = TRUE) -
-      log(
-        extraDistr::plst(priors$tau$truncation$upper, df = data$prior_tau_df, mu = data$prior_tau_location, sigma = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE) -
-          extraDistr::plst(priors$tau$truncation$lower, df = data$prior_tau_df, mu = data$prior_tau_location, sigma = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "gamma"){
-    log_lik <- log_lik + stats::dgamma(tau, shape = data$prior_tau_shape, rate = data$prior_tau_rate, log = TRUE) -
-      log(
-        stats::pgamma(priors$tau$truncation$upper, shape = data$prior_tau_shape, rate = data$prior_tau_rate, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$tau$truncation$lower, shape = data$prior_tau_shape, rate = data$prior_tau_rate, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "invgamma"){
-    log_lik <- log_lik + stats::dgamma(inv_tau, shape = data$prior_tau_shape, rate = data$prior_tau_scale, log = TRUE) -
-      log(
-        stats::pgamma(priors$tau$truncation$lower^-1, shape = data$prior_tau_shape, rate = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE) -
-          stats::pgamma(priors$tau$truncation$upper^-1, shape = data$prior_tau_shape, rate = data$prior_tau_scale, lower.tail = TRUE, log.p = FALSE)
-      )
-  }else if(priors$tau$distribution == "uniform"){
-    log_lik <- log_lik + stats::dunif(tau, min = data$prior_tau_a, max = data$prior_tau_b, log = TRUE)
+  if(likelihood %in% c("t", "normal")){
+    log_lik <- log_lik + .marglik_distribution(tau, "tau", priors$tau$distribution, data, priors$tau$truncation)
+  }
+
+  # sigma
+  if(likelihood == "wls"){
+    log_lik <- log_lik + .marglik_distribution(sigma, "sigma", priors$sigma$distribution, data, priors$sigma$truncation)
   }
 
 
   # omega
   if(priors$omega$distribution != "point"){
-    if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
-
+    if(grepl("PET", priors$omega$distribution)){
+      log_lik <- log_lik + .marglik_distribution(PET, "omega", substr(priors$omega$distribution, 5, nchar(priors$omega$distribution)), data, priors$omega$truncation)
+    }else if(grepl("PEESE", priors$omega$distribution)){
+      log_lik <- log_lik + .marglik_distribution(PEESE, "omega", substr(priors$omega$distribution, 7, nchar(priors$omega$distribution)), data, priors$omega$truncation)
+    }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
       log_lik <- log_lik + sum(stats::dgamma(eta, data$prior_omega_alpha, 1, log = TRUE))
-
     }else if(all(names(priors$omega$parameters) %in% c("alpha1", "alpha2", "steps"))){
-
       log_lik <- log_lik + sum(stats::dgamma(eta1, data$prior_omega_alpha1, 1, log = TRUE))
       log_lik <- log_lik + sum(stats::dgamma(eta2, data$prior_omega_alpha2, 1, log = TRUE))
-
     }
   }
 
 
-  # the true effect sizes (in case of heterogeneity) (the normal is symetric, so it doesn't matter whether we use theta~N(mu,tau) or theta_neg~N(mu_neg,tau))
-  if(priors$tau$distribution == "point"){
-    if(priors$tau$parameters$location != 0){
-      log_lik <- log_lik + sum(stats::dnorm(theta, mean = mu, sd = tau, log = TRUE))
+  # the individual studies
+  if(likelihood == "t"){
+    # convert to ncp
+    ncp <- eff * data$ncp_mlp
+
+    if(!priors$omega$distribution %in% c("one.sided", "two.sided")){
+
+      temp_t  <- stats::dt(data$t, df = data$df, ncp = ncp, log = TRUE)
+      # shift to different t-distribution computation of the classical one returns -Inf
+      if(any(is.infinite(temp_t))){
+        temp_t[is.infinite(temp_t)] <- DPQ::dntJKBf(data$t[is.infinite(temp_t)], df = data$df[is.infinite(temp_t)], ncp = ncp[is.infinite(temp_t)], log = TRUE)
+      }
+
+      log_lik <- log_lik + sum(temp_t)
+
+    }else if(priors$omega$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwt_fast(data$t, df = data$df, ncp = ncp, omega = omega, crit_t = data$crit_t, type = "one.sided", log = TRUE))
+    }else if(priors$omega$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwt_fast(data$t, df = data$df, ncp = ncp, omega = omega, crit_t = data$crit_t, type = "two.sided", log = TRUE))
     }
-  }else{
-    log_lik <- log_lik + sum(stats::dnorm(theta, mean = mu, sd = tau, log = TRUE))
+  }else if(likelihood %in% c("normal","wls")){
+    if(!priors$omega$distribution %in% c("one.sided", "two.sided")){
+      log_lik <- log_lik + sum(stats::dnorm(data$y, mean = eff, sd = pop_sd, log = TRUE))
+    }else if(priors$omega$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data$y, mean = eff, sd = pop_sd, omega = omega, crit_x = data$crit_x, type = "one.sided", log = TRUE))
+    }else if(priors$omega$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data$y, mean = eff, sd = pop_sd, omega = omega, crit_x = data$crit_x, type = "two.sided", log = TRUE))
+    }
   }
 
-
-  # the observed t-statistics
-  if(priors$omega$distribution == "point"){
-
-    temp_t  <- stats::dt(data$t, df = data$df, ncp = ncp, log = TRUE)
-    # shift to different t-distribution computation of the classical one returns -Inf
-    if(any(is.infinite(temp_t))){
-      temp_t[is.infinite(temp_t)] <- DPQ::dntJKBf(data$t[is.infinite(temp_t)], df = data$df[is.infinite(temp_t)], ncp = ncp[is.infinite(temp_t)], log = TRUE)
-    }
-
-    log_lik <- log_lik + sum(temp_t)
-
-  }else if(priors$omega$distribution == "one.sided"){
-    log_lik <- log_lik + sum(.dwt_fast(data$t, df = data$df, ncp = ncp, omega = omega, crit_t = data$crit_t, type = "one.sided", log = TRUE))
-  }else if(priors$omega$distribution == "two.sided"){
-    log_lik <- log_lik + sum(.dwt_fast(data$t, df = data$df, ncp = ncp, omega = omega, crit_t = data$crit_t, type = "two.sided", log = TRUE))
-  }
 
   return(log_lik)
 }
-.marglik_prepare_data  <- function(fit, priors, data){
+.marglik_prepare_data  <- function(fit, priors, likelihood, data){
 
   # posterior samples
   samples <- suppressWarnings(coda::as.mcmc(fit)) # gives a warning about merging chains
@@ -1451,30 +1449,48 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
 
   # tau
-  if(priors$tau$distribution == "point"){
-    if(priors$tau$parameters$location != 0){
-      pars <- c(pars, paste0("theta[", 1:data$K, "]"))
-      lb   <- c(lb, rep(-Inf, data$K))
-      ub   <- c(ub, rep( Inf, data$K))
+  if(likelihood %in% c("t", "normal")){
+    if(priors$tau$distribution != "point"){
+      if(priors$tau$distribution == "invgamma"){
+        pars <- c(pars, "inv_tau")
+        lb   <- c(lb, rep(-Inf, data$K), priors$tau$truncation$upper^-1)
+        ub   <- c(ub, rep( Inf, data$K), priors$tau$truncation$lower^-1)
+      }else{
+        pars <- c(pars, "tau")
+        lb   <- c(lb, rep(-Inf, data$K), priors$tau$truncation$lower)
+        ub   <- c(ub, rep( Inf, data$K), priors$tau$truncation$upper)
+      }
     }
   }else{
-    pars <- c(pars, paste0("theta[", 1:data$K, "]"))
-    if(priors$tau$distribution == "invgamma"){
-      pars <- c(pars, "inv_tau")
-      lb   <- c(lb, rep(-Inf, data$K), priors$tau$truncation$upper^-1)
-      ub   <- c(ub, rep( Inf, data$K), priors$tau$truncation$lower^-1)
+    if(priors$sigma$distribution == "invgamma"){
+      pars <- c(pars, "inv_sigma")
+      lb   <- c(lb,   priors$sigma$truncation$upper^-1)
+      ub   <- c(ub,   priors$sigma$truncation$lower^-1)
     }else{
-      pars <- c(pars, "tau")
-      lb   <- c(lb, rep(-Inf, data$K), priors$tau$truncation$lower)
-      ub   <- c(ub, rep( Inf, data$K), priors$tau$truncation$upper)
+      pars <- c(pars, "sigma")
+      lb   <- c(lb,   priors$sigma$truncation$lower)
+      ub   <- c(ub,   priors$sigma$truncation$upper)
     }
   }
+
 
 
   # omega
   if(priors$omega$distribution != "point"){
 
-    if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
+    if(grepl("PET", priors$omega$distribution)){
+      # parameters
+      pars <- c(pars, "PET")
+      # and truncation
+      lb   <- c(lb, priors$omega$truncation$lower)
+      ub   <- c(ub, priors$omega$truncation$upper)
+    }else if(grepl("PEESE", priors$omega$distribution)){
+      # parameters
+      pars <- c(pars, "PEESE")
+      # and truncation
+      lb   <- c(lb, priors$omega$truncation$lower)
+      ub   <- c(ub, priors$omega$truncation$upper)
+    }else if(all(names(priors$omega$parameters) %in% c("alpha", "steps"))){
       # parameters
       pars <- c(pars, paste0("eta[",1:length(priors$omega$parameters$alpha),"]"))
       # and truncation
@@ -1517,10 +1533,17 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   )
   return(out)
 }
-.marglik_null          <- function(data, priors){
+.marglik_null          <- function(data, likelihood, priors){
 
   marg_lik        <- NULL
-  marg_lik$logml  <- sum(stats::dt(data$t, data$df, priors$mu$parameters$location, log = TRUE))
+  if(likelihood == "t"){
+    marg_lik$logml  <- sum(stats::dt(data$t, data$df, priors$mu$parameters$location, log = TRUE))
+  }else if(likelihood =="normal"){
+    marg_lik$logml  <- sum(stats::dnorm(data$y, priors$mu$parameters$location, data$se, log = TRUE))
+  }else if(likelihood == "wls"){
+    marg_lik$logml  <- sum(stats::dnorm(data$y, priors$mu$parameters$location, priors$sigma$parameters$location*data$se, log = TRUE))
+  }
+
   class(marg_lik) <- "bridge"
 
   return(marg_lik)
@@ -1540,6 +1563,133 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(object$models[[i]])
 }
 
+# model building and marginal likelihood tools
+.JAGS_distribution       <- function(par_name, distribution, truncation){
+
+  if(par_name %in% c("PET", "PEESE")){
+    par_data <- "omega"
+  }else{
+    par_data <- par_name
+  }
+
+  # distribution
+  if(distribution == "point"){
+    syntax <- paste0(par_name, " = prior_",par_data,"_location\n")
+  }else if(distribution == "normal"){
+    syntax <- paste0(par_name," ~ dnorm(prior_",par_data,"_mean, pow(prior_",par_data,"_sd, -2))")
+  }else if(distribution == "t"){
+    syntax <- paste0(par_name," ~ dt(prior_",par_data,"_location, pow(prior_",par_data,"_scale, -2), prior_",par_data,"_df)")
+  }else if(distribution == "gamma"){
+    syntax <- paste0(par_name," ~ dgamma(prior_",par_data,"_shape, prior_",par_data,"_rate)")
+  }else if(distribution == "invgamma"){
+    syntax <- paste0("inv_",par_name," ~ dgamma(prior_",par_data,"_shape, prior_",par_data,"_scale)")
+  }else if(distribution == "uniform"){
+    syntax <- paste0(par_name," ~ dunif(prior_",par_data,"_a, prior_",par_data,"_b)\n")
+  }
+
+  # truncation
+  if(!distribution %in% c("point", "uniform")){
+    if(!(is.infinite(truncation$lower)  & is.infinite(truncation$lower))){
+      # the truncation for invgamma needs to be done the other way around since we sample from gamma
+      if(distribution == "invgamma"){
+        syntax <- paste0(syntax, "T(",
+                         ifelse(is.infinite(truncation$upper^-1),"",truncation$upper^-1),
+                         ",",
+                         ifelse(is.infinite(truncation$lower^-1),"",truncation$lower^-1),
+                         ")\n")
+      }else{
+        syntax <- paste0(syntax, "T(",
+                         ifelse(is.infinite(truncation$lower),"",truncation$lower),
+                         ",",
+                         ifelse(is.infinite(truncation$upper),"",truncation$upper),
+                         ")\n")
+      }
+    }else{
+      syntax <- paste0(syntax, "\n")
+    }
+  }
+
+  # transformations
+  if(distribution == "invgamma"){
+    syntax <- paste0(syntax, par_name," = pow(inv_",par_name,", -1)\n")
+  }
+
+  return(syntax)
+}
+.JAGS_distribution_omega <- function(distribution, truncation, parameters){
+
+  if(distribution == "point"){
+    return()
+  }else if(grepl("PET", distribution)){
+    syntax <- .JAGS_distribution("PET", substr(distribution, 5, nchar(distribution)), truncation)
+  }else if(grepl("PEESE", distribution)){
+    syntax <- .JAGS_distribution("PEESE", substr(distribution, 7, nchar(distribution)), truncation)
+  }else if(all(names(parameters) %in% c("alpha", "steps"))){
+    syntax <-
+      "for(j in 1:J){
+       eta[j] ~ dgamma(prior_omega_alpha[j], 1)
+     }
+       for(j in 1:J){
+       std_eta[j]  = eta[j] / sum(eta)
+       omega[j]    = sum(std_eta[1:j])
+     }\n"
+  }else if(all(names(parameters) %in% c("alpha1", "alpha2", "steps"))){
+    syntax <-
+      "for(j1 in 1:J1){
+        eta1[j1] ~ dgamma(prior_omega_alpha1[j1], 1)
+       }
+       for(j2 in 1:J2){
+         eta2[j2] ~ dgamma(prior_omega_alpha2[j2], 1)
+       }
+       for(j1 in 1:J1){
+         std_eta1[j1]       = eta1[j1] / sum(eta1)
+         omega[J2 - 1 + j1] = sum(std_eta1[1:j1])
+       }
+         for(j2 in 1:J2){
+         std_eta2[j2]  = (eta2[j2] / sum(eta2)) * (1 - std_eta1[1])
+       }
+       for(j2 in 2:J2){
+         omega[j2-1] = sum(std_eta2[j2:J2]) + std_eta1[1]
+       }\n"
+  }
+
+  return(syntax)
+}
+.marglik_distribution    <- function(x, par_name, distribution, data, truncation){
+
+  if(distribution == "normal"){
+    log_lik <- stats::dnorm(x, mean = data[[paste0("prior_",par_name,"_mean")]], sd = data[[paste0("prior_",par_name,"_sd")]], log = TRUE) -
+      log(
+        stats::pnorm(truncation$upper, data[[paste0("prior_",par_name,"_mean")]], data[[paste0("prior_",par_name,"_sd")]], lower.tail = TRUE, log.p = FALSE) -
+          stats::pnorm(truncation$lower, data[[paste0("prior_",par_name,"_mean")]], data[[paste0("prior_",par_name,"_sd")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "t"){
+    log_lik <- extraDistr::dlst(x, df = data[[paste0("prior_",par_name,"_df")]], mu = data[[paste0("prior_",par_name,"_location")]], sigma = data[[paste0("prior_",par_name,"_scale")]], log = TRUE) -
+      log(
+        extraDistr::plst(truncation$upper, df = data[[paste0("prior_",par_name,"_df")]], mu = data[[paste0("prior_",par_name,"_location")]], sigma = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE) -
+          extraDistr::plst(truncation$lower, df = data[[paste0("prior_",par_name,"_df")]], mu = data[[paste0("prior_",par_name,"_location")]], sigma = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "gamma"){
+    log_lik <- stats::dgamma(x, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_rate")]], log = TRUE)  -
+      log(
+        stats::pgamma(truncation$upper, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_rate")]], lower.tail = TRUE, log.p = FALSE) -
+          stats::pgamma(truncation$lower, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_rate")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "invgamma"){
+    log_lik <- stats::dgamma(1/x, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_scale")]], log = TRUE) -
+      log(
+        stats::pgamma(truncation$lower^-1, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE) -
+          stats::pgamma(truncation$upper^-1, shape = data[[paste0("prior_",par_name,"_shape")]], rate = data[[paste0("prior_",par_name,"_scale")]], lower.tail = TRUE, log.p = FALSE)
+      )
+  }else if(distribution == "uniform"){
+    log_lik <- stats::dunif(x, min = data[[paste0("prior_",par_name,"_a")]], max = data[[paste0("prior_",par_name,"_b")]], log = TRUE)
+  }else if(distribution == "point"){
+    log_lik <- 0
+  }
+
+  return(log_lik)
+}
+
 ### model inference functions
 .model_inference            <- function(object, n_samples = 10000){
 
@@ -1554,19 +1704,19 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # determine the type of the models
   mm_mu     <- sapply(models, function(m)!.is_parameter_null(m$priors, "mu"))
-  mm_tau    <- sapply(models, function(m)!.is_parameter_null(m$priors, "tau"))
+  if(add_info$likelihood %in% c("t", "normal"))mm_tau <- sapply(models, function(m)!.is_parameter_null(m$priors, "tau"))
   mm_omega  <- sapply(models, function(m)!.is_parameter_null(m$priors, "omega"))
 
   # extract model weights
   prior_weights_all   <- sapply(models, function(m)m$prior_odds)
   prior_weights_mu    <- ifelse(mm_mu,    prior_weights_all, 0)
-  prior_weights_tau   <- ifelse(mm_tau,   prior_weights_all, 0)
+  if(add_info$likelihood %in% c("t", "normal"))prior_weights_tau   <- ifelse(mm_tau,   prior_weights_all, 0)
   prior_weights_omega <- ifelse(mm_omega, prior_weights_all, 0)
 
   # standardize model weights
   prior_weights_all   <- prior_weights_all   / sum(prior_weights_all)
   prior_weights_mu    <- prior_weights_mu    / sum(prior_weights_mu)
-  prior_weights_tau   <- prior_weights_tau   / sum(prior_weights_tau)
+  if(add_info$likelihood %in% c("t", "normal"))prior_weights_tau   <- prior_weights_tau   / sum(prior_weights_tau)
   prior_weights_omega <- prior_weights_omega / sum(prior_weights_omega)
 
 
@@ -1578,8 +1728,12 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }else{
     weights_mu <- NULL
   }
-  if(any(mm_tau) & all(!is.nan(prior_weights_tau))){
-    weights_tau <- bridgesampling::post_prob(marg_liks, prior_prob = prior_weights_tau)
+  if(add_info$likelihood %in% c("t", "normal")){
+    if(any(mm_tau) & all(!is.nan(prior_weights_tau))){
+      weights_tau <- bridgesampling::post_prob(marg_liks, prior_prob = prior_weights_tau)
+    }else{
+      weights_tau <- NULL
+    }
   }else{
     weights_tau <- NULL
   }
@@ -1592,7 +1746,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   ### compute inclusion BFs
   BF_effect        <- .inclusion_BF(prior_weights_all, weights_all, mm_mu)
-  BF_heterogeneity <- .inclusion_BF(prior_weights_all, weights_all, mm_tau)
+  if(add_info$likelihood %in% c("t", "normal")){
+    BF_heterogeneity <- .inclusion_BF(prior_weights_all, weights_all, mm_tau)
+  }else if(add_info$likelihood == "wls"){
+    BF_heterogeneity <- NULL
+  }
   BF_bias          <- .inclusion_BF(prior_weights_all, weights_all, mm_omega)
 
 
@@ -1615,7 +1773,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     samples         = samples,
     BF = list(
       effect        = BF_effect,
-      heterogeneity = BF_heterogeneity,
+      heterogeneity = if(object$control$likelihood %in% c("t", "normal"))BF_heterogeneity,
       bias          = BF_bias
     ),
     posterior_prob = list(
@@ -1631,7 +1789,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # metadata about model type
   mm_mu     <- sapply(models, function(m)!.is_parameter_null(m$priors, "mu"))
-  mm_tau    <- sapply(models, function(m)!.is_parameter_null(m$priors, "tau"))
+  if(add_info$likelihood %in% c("t", "normal"))mm_tau <- sapply(models, function(m)!.is_parameter_null(m$priors, "tau"))
   mm_omega  <- sapply(models, function(m)!.is_parameter_null(m$priors, "omega"))
 
   # the indicies for omega based on type of p-value cutpoints
@@ -1642,7 +1800,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     mu    = NULL,
     tau   = NULL,
     omega = matrix(nrow = 0, ncol = if(is.null(omega_ind)) 0 else ncol(do.call(rbind, omega_ind))),
-    theta = matrix(nrow = 0, ncol = data$K)
+    PET   = NULL,
+    PEESE = NULL,
+    theta = if(add_info$likelihood %in% c("t", "normal"))matrix(nrow = 0, ncol = data$K),
+    sigma = NULL
   )
 
 
@@ -1650,8 +1811,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     # deal with the complete null model possibility
     if(models[[i]]$priors$mu$distribution == "point" &
-         (if(models[[i]]$priors$tau$distribution == "point"){models[[i]]$priors$tau$parameters$location == 0}else{FALSE}) &
-         models[[i]]$priors$omega$distribution == "point"){
+       (if(add_info$likelihood == "wls"){FALSE}else if(models[[i]]$priors$tau$distribution == "point"){models[[i]]$priors$tau$parameters$location == 0}else{FALSE}) &
+       models[[i]]$priors$omega$distribution == "point"){
       model_samples <- NULL
     }else{
       model_samples <- suppressWarnings(coda::as.mcmc(models[[i]]$fit))
@@ -1676,38 +1837,50 @@ update.RoBMA <- function(object, refit_failed = TRUE,
                         model_samples[ind, "mu"]
                       })
 
-      # tau
-      samples$tau <- c(samples$tau,
-                       if(models[[i]]$priors$tau$distribution == "point"){
-                         rep(models[[i]]$priors$tau$parameter$location, round(n_samples * weights[i]))
-                       }else{
-                         model_samples[ind, "tau"]
-                       })
+      if(add_info$likelihood %in% c("t", "normal")){
+        # tau
+        samples$tau <- c(samples$tau,
+                         if(models[[i]]$priors$tau$distribution == "point"){
+                           rep(models[[i]]$priors$tau$parameter$location, round(n_samples * weights[i]))
+                         }else{
+                           model_samples[ind, "tau"]
+                         })
+      }
 
-      # theta
-      samples$theta <- rbind(samples$theta,
-                             if(models[[i]]$priors$tau$distribution == "point"){
-                               if(models[[i]]$priors$tau$parameter$location == 0){
-                                 if(models[[i]]$priors$mu$distribution == "point"){
-                                   matrix(models[[i]]$priors$mu$parameter$location, ncol = data$K, nrow = round(n_samples * weights[i]))
-                                 }else{
-                                   matrix(model_samples[ind,"mu"], ncol = data$K, nrow = round(n_samples * weights[i]))
-                                 }
-                               }else{
-                                 model_samples[ind, paste0("theta[",1:data$K,"]")]
-                               }
-                             }else{
-                               model_samples[ind, paste0("theta[",1:data$K,"]")]
-                             })
 
       # omega
       samples$omega <- rbind(samples$omega,
-                             if(models[[i]]$priors$omega$distribution == "point"){
-                               matrix(1, ncol = ncol(samples$omega), nrow = round(n_samples * weights[i]))
-                             }else{
+                             if(models[[i]]$priors$omega$distribution %in% c("one.sided", "two.sided")){
                                model_samples[ind, paste0("omega[",omega_ind[[i]],"]")]
+                             }else{
+                               matrix(1, ncol = ncol(samples$omega), nrow = round(n_samples * weights[i]))
                              })
 
+      # PET
+      samples$PET   <- c(samples$PET,
+                         if(grepl("PET", models[[i]]$priors$omega$distribution)){
+                           model_samples[ind, "PET"]
+                         }else{
+                           rep(0, round(n_samples * weights[i]))
+                         })
+
+      # PEESE
+      samples$PEESE <- c(samples$PEESE,
+                         if(grepl( "PEESE", models[[i]]$priors$omega$distribution)){
+                           model_samples[ind, "PEESE"]
+                         }else{
+                           rep(0, round(n_samples * weights[i]))
+                         })
+
+      # sigma
+      if(add_info$likelihood == "wls"){
+        samples$sigma <- c(samples$sigma,
+                           if(models[[i]]$priors$sigma$distribution == "point"){
+                             rep(models[[i]]$priors$sigma$parameter$location, round(n_samples * weights[i]))
+                           }else{
+                             model_samples[ind, "sigma"]
+                           })
+      }
 
     }else{
 
@@ -1726,38 +1899,18 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       }
 
 
-
-      # tau
-      if(!is.null(weights$tau)){
-        samples$tau <- c(samples$tau,
-                         if(mm_tau[[i]]){
-                           if(models[[i]]$priors$tau$distribution == "point"){
-                             rep(models[[i]]$priors$tau$parameter$location, round(n_samples * weights$tau[i]))
-                           }else{
-                             model_samples[sample(nrow(model_samples), round(n_samples * weights$tau[i]), replace = TRUE), "tau"]
-                           }
-                         })
-      }
-
-
-      # theta
-      if(!is.null(weights$mu[i])){
-        samples$theta <- rbind(samples$theta,
-                               if(mm_mu[[i]]){
-                                 if(models[[i]]$priors$tau$distribution == "point"){
-                                   if(models[[i]]$priors$tau$parameter$location == 0){
-                                     if(models[[i]]$priors$mu$distribution == "point"){
-                                       matrix(models[[i]]$priors$mu$parameter$location, ncol = data$K, nrow = round(n_samples * weights$mu[i]))
-                                     }else{
-                                       matrix(model_samples[sample(nrow(model_samples), round(n_samples * weights$mu[i]), replace = TRUE),"mu"], ncol = data$K, nrow = round(n_samples * weights$mu[i]))
-                                     }
-                                   }else{
-                                     model_samples[sample(nrow(model_samples), round(n_samples * weights$mu[i]), replace = TRUE), paste0("theta[",1:data$K,"]")]
-                                   }
-                                 }else{
-                                   model_samples[sample(nrow(model_samples), round(n_samples * weights$mu[i]), replace = TRUE), paste0("theta[",1:data$K,"]")]
-                                 }
-                               })
+      if(add_info$likelihood %in% c("t", "normal")){
+        # tau
+        if(!is.null(weights$tau)){
+          samples$tau <- c(samples$tau,
+                           if(mm_tau[[i]]){
+                             if(models[[i]]$priors$tau$distribution == "point"){
+                               rep(models[[i]]$priors$tau$parameter$location, round(n_samples * weights$tau[i]))
+                             }else{
+                               model_samples[sample(nrow(model_samples), round(n_samples * weights$tau[i]), replace = TRUE), "tau"]
+                             }
+                           })
+        }
       }
 
 
@@ -1765,13 +1918,36 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       if(!is.null(weights$omega[i])){
         samples$omega <- rbind(samples$omega,
                                if(mm_omega[[i]]){
-                                 if(models[[i]]$priors$omega$distribution == "point"){
-                                   matrix(1, ncol = ncol(samples$omega), nrow = round(n_samples * weights$omega[i]))
-                                 }else{
+                                 if(models[[i]]$priors$omega$distribution %in% c("one.sided", "two.sided")){
                                    model_samples[sample(nrow(model_samples), round(n_samples * weights$omega[i]), replace = TRUE), paste0("omega[",omega_ind[[i]],"]")]
+                                 }else{
+
+                                   matrix(1, ncol = ncol(samples$omega), nrow = round(n_samples * weights$omega[i]))
                                  }
                                })
       }
+
+      # PET
+      if(!is.null(weights$omega[i])){
+        samples$PET   <- c(samples$PET,
+                           if(mm_omega[[i]]){
+                             if(grepl("PET", models[[i]]$priors$omega$distribution)){
+                               model_samples[sample(nrow(model_samples), round(n_samples * weights$omega[i]), replace = TRUE), "PET"]
+                             }else{
+                               rep(0, round(n_samples * weights$omega[i]))
+                             }
+                           })
+      }
+
+      # PEESE
+      samples$PEESE   <- c(samples$PEESE,
+                           if(mm_omega[[i]]){
+                             if(grepl("PEESE", models[[i]]$priors$omega$distribution)){
+                               model_samples[sample(nrow(model_samples), round(n_samples * weights$omega[i]), replace = TRUE), "PEESE"]
+                             }else{
+                               rep(0, round(n_samples * weights$omega[i]))
+                             }
+                           })
 
 
     }
@@ -1803,15 +1979,32 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   all_cuts                <- .get_omega_mapping(models, cuts_only = TRUE)
   if(!is.null(all_cuts))colnames(samples$omega) <- sapply(1:(length(all_cuts)-1), function(i)paste0("omega[",all_cuts[i],",",all_cuts[i+1],"]"))
   # fix theta names
-  colnames(samples$theta) <- paste0("theta[", 1:ncol(samples$theta), "]")
+  if(!is.null(samples$theta))colnames(samples$theta) <- paste0("theta[", 1:ncol(samples$theta), "]")
+
+  # remove PET/PEESE if none of the models used it
+  if(!any(grepl("PET", sapply(models, function(m)m$priors$omega$distribution)))){
+    samples$PET   <- NULL
+  }
+  if(!any(grepl("PEESE", sapply(models, function(m)m$priors$omega$distribution)))){
+    samples$PEESE <- NULL
+  }
+  if(!any(sapply(models, function(m)m$priors$omega$distribution) %in% c("one.sided", "two.sided"))){
+    samples$omega <- NULL
+  }
+  if(add_info$likelihood != "wls"){
+    samples$sigma <- NULL
+  }
 
   return(samples)
 }
 .compute_coeficients        <- function(RoBMA){
   return(c(
-    "mu"     = if(length(RoBMA$samples$averaged$mu) != 0)mean(RoBMA$samples$averaged$mu),
-    "tau"    = if(length(RoBMA$samples$averaged$tau) != 0)mean(RoBMA$samples$averaged$tau),
-    if(ncol(RoBMA$samples$averaged$omega) != 0)apply(RoBMA$samples$averaged$omega, 2, mean)
+    "mu"     = if(length(RoBMA$samples$averaged$mu) != 0)   mean(RoBMA$samples$averaged$mu),
+    "tau"    = if(length(RoBMA$samples$averaged$tau) != 0)  mean(RoBMA$samples$averaged$tau),
+    if(length(RoBMA$samples$averaged$omega)   != 0)         apply(RoBMA$samples$averaged$omega, 2, mean),
+    "PET"   = if(length(RoBMA$samples$averaged$PET)   != 0) mean(RoBMA$samples$averaged$PET),
+    "PEESE" = if(length(RoBMA$samples$averaged$PEESE) != 0) mean(RoBMA$samples$averaged$PEESE),
+    "sigma" = if(length(RoBMA$samples$averaged$sigma) != 0) mean(RoBMA$samples$averaged$sigma)
   ))
 }
 .inclusion_BF               <- function(prior_weights, posterior_weights, conditional_models){
@@ -1824,9 +2017,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   # basic convergence checks
   for(i in 1:length(object$models)){
-    if(!(object$models[[i]]$priors$mu$distribution == "point" &
-       (if(object$models[[i]]$priors$tau$distribution == "point"){object$models[[i]]$priors$tau$parameters$location == 0}else{FALSE}) &
-       object$models[[i]]$priors$omega$distribution == "point")){
+    if(!.is_model_constant(object$models[[i]]$priors)){
 
       if(any(class(object$models[[i]]$fit) %in% c("simpleError", "error")) | is.infinite(object$models[[i]]$marg_lik$logml) | is.na(object$models[[i]]$marg_lik$logml)){
         converged <- c(converged, FALSE)
@@ -2018,8 +2209,19 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(new_warn)
 }
 
-
 ### helper functions for settings
+.set_priors             <- function(priors_mu_null, priors_mu, priors_tau_null, priors_tau, priors_omega_null, priors_omega, prior_sigma, likelihood){
+  priors <- list()
+  priors$mu <- .set_parameter_priors(priors_mu_null, priors_mu, "mu")
+  if(likelihood %in% c("t", "normal")){
+    priors$tau   <- .set_parameter_priors(priors_tau_null, priors_tau, "tau")
+  }else if(likelihood %in% "wls"){
+    priors$sigma <- .set_parameter_priors(NULL, prior_sigma, "sigma")
+  }
+  priors$omega <- .set_parameter_priors(priors_omega_null, priors_omega, "omega")
+
+  return(priors)
+}
 .set_parameter_priors   <- function(priors_null, priors_alt, parameter){
 
   # check that at least one prior is specified (either null or alternative)
@@ -2070,23 +2272,23 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     }
 
 
-  }else if(parameter == "tau"){
+  }else if(parameter %in% c("tau", "sigma")){
 
-    # check that the passed priors are supported for the tau parameter
+    # check that the passed priors are supported for the tau/sigma parameter
     if(length(priors) > 0){
       for(i in 1:length(priors)){
         if(!priors[[i]]$distribution %in% c("normal", "t", "gamma", "invgamma", "point", "uniform"))stop(paste0(priors[[i]]$distribution," prior distribution is not supported for the tau parameter. See '?prior' for further information."))
         if(priors[[i]]$distribution == "point"){
           if(priors[[i]]$parameters$location < 0){
-            stop("The location of a point prior distribution for tau parameter cannot be negative. See '?prior' for further information.")
+            stop(paste0("The location of a point prior distribution for ", parameter, " parameter cannot be negative. See '?prior' for further information."))
           }
         }else if(priors[[i]]$distribution == "uniform"){
           if(priors[[i]]$parameters$a < 0 | priors[[i]]$parameters$b < 0 ){
-            stop("The uniform prior distribution for tau parameter cannot be defined on negative numbers. See '?prior' for further information.")
+            stop(paste0("The uniform prior distribution for ", parameter, " parameter cannot be defined on negative numbers. See '?prior' for further information."))
           }
         }else if(priors[[i]]$truncation$lower < 0){
           priors[[i]]$truncation$lower <- 0
-          warning("The range of a prior distribution for tau parameter cannot be negative. The lower truncation point was set to zero. See '?prior' for further information.")
+          warning(paste0("The range of a prior distribution for ", parameter, " parameter cannot be negative. The lower truncation point was set to zero. See '?prior' for further information."))
         }
       }
     }
@@ -2097,7 +2299,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     # check that the passed priors are supported for the parameter
     if(length(priors) > 0){
       for(i in 1:length(priors)){
-        if(!priors[[i]]$distribution %in% c("two.sided", "one.sided", "point"))stop(paste0(priors[[i]]$distribution," prior distribution is not supported for the omega parameter. See '?prior' for further information."))
+        if(!(priors[[i]]$distribution %in% c("two.sided", "one.sided", "point") | grepl("PET", priors[[i]]$distribution) | grepl("PEESE", priors[[i]]$distribution)))stop(paste0(priors[[i]]$distribution," prior distribution is not supported for the omega parameter. See '?prior' for further information."))
       }
     }
   }
@@ -2106,45 +2308,61 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   return(priors)
 
 }
-.get_models             <- function(priors){
+.get_models             <- function(priors, likelihood){
 
   # create models according to the set priors
   models <- NULL
   for(mu in priors$mu){
-    for(tau in priors$tau){
+    if(likelihood %in% c("t", "normal")){
+      for(tau in priors$tau){
+        for(omega in priors$omega){
+          models <- c(
+            models,
+            list(.create_model(mu, tau, omega, NULL, mu$prior_odds * tau$prior_odds * omega$prior_odds, likelihood))
+          )
+        }
+      }
+    }else if(likelihood == "wls"){
       for(omega in priors$omega){
         models <- c(
           models,
-          list(.create_model(mu, tau, omega, mu$prior_odds * tau$prior_odds * omega$prior_odds))
+          list(.create_model(mu, NULL, omega, priors$sigma[[1]], mu$prior_odds * omega$prior_odds, likelihood))
         )
       }
     }
+
   }
 
   return(models)
 }
-.create_model           <- function(prior_mu, prior_tau, priors_omega, prior_odds){
+.create_model           <- function(prior_mu, prior_tau, prior_omega, prior_sigma, prior_odds, likelihood){
+
+  priors <- list()
+
+  priors$mu    <- prior_mu
+  if(!is.null(prior_tau)){
+    priors$tau   <- prior_tau
+  }
+  if(!is.null(prior_sigma)){
+    priors$sigma <- prior_sigma
+  }
+  priors$omega = prior_omega
 
   model <- list(
-    priors = list(
-      mu    = prior_mu,
-      tau   = prior_tau,
-      omega = priors_omega
-    ),
+    priors         = priors,
     prior_odds     = prior_odds,
-    prior_odds_set = prior_odds
+    prior_odds_set = prior_odds,
+    likelihood     = likelihood
   )
   class(model) <- "RoBMA.model"
 
   return(model)
 
 }
-.set_control            <- function(control, chains, iter, burnin, thin, seed, effect_direction, parallel){
+.set_control            <- function(control, chains, iter, burnin, thin, likelihood, seed, effect_direction, parallel){
 
   # set the control list
   if(is.null(control)){
-    control$max_error       <- .01
-    control$max_time        <- Inf
     control$autofit         <- FALSE
     control$adapt           <- 1000
     control$bridge_max_iter <- 10000
@@ -2175,7 +2393,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
       control$max_time        <- Inf
     }
     if(is.null(control[["autofit"]])){
-      control$autofit         <- TRUE
+      control$autofit         <- FALSE
     }
     if(is.null(control[["adapt"]])){
       control$adapt           <- 1000
@@ -2226,11 +2444,12 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   control$seed      <- seed
   control$parallel  <- parallel
   control$effect_direction <- effect_direction
+  control$likelihood       <- likelihood
 
   .check_control(control)
   return(control)
 }
-.update_control         <- function(control, control_new, chains, iter, burnin, thin, seed, effect_direction, parallel){
+.update_control         <- function(control, control_new, chains, iter, burnin, thin, likelihood, seed, effect_direction, parallel){
 
   if(!is.null(control_new)){
     for(n in names(control_new)){
@@ -2245,6 +2464,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(!is.null(parallel)) control[["parallel"]] <- parallel
   if(!is.null(seed))     control[["seed"]]     <- seed
   if(!is.null(effect_direction)) control[["effect_direction"]] <- effect_direction
+  if(!is.null(likelihood))       control[["likelihood"]]       <- likelihood
 
   # stop if there is not enough samples planned for autojags package
   .check_control(control)
@@ -2253,7 +2473,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 }
 .check_control          <- function(control){
   # check whether only known controls were supplied
-  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_rhat", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost", "cores", "seed", "parallel", "effect_direction")
+  known_controls <- c("chains", "iter", "burnin" , "adapt", "thin" ,"autofit", "max_error", "max_rhat", "max_time", "bridge_max_iter", "allow_max_error", "allow_max_rhat", "allow_min_ESS", "allow_inc_theta", "balance_prob", "silent", "progress_start", "progress_tick", "boost", "cores", "seed", "parallel", "effect_direction", "likelihood")
   if(any(!names(control) %in% known_controls))stop(paste0("The following control settings were not recognize: ", paste(names(control[!names(control) %in% known_controls]), collapse = ", ")))
 
   # check whether essential controls were supplied
@@ -2263,6 +2483,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(is.null(control[["adapt"]]))  stop("Number of adaptation samples must be set.")
   if(is.null(control[["thin"]]))   stop("Thinning of the posterior samples must be set.")
   if(is.null(control[["effect_direction"]])) stop("The effect size direction must be set.")
+  if(is.null(control[["likelihood"]]))       stop("The likelihood must be set.")
 
   if(!is.numeric(control[["chains"]]) | !control[["chains"]] >= 1)  stop("At least one chains must be set.")
   if(!is.numeric(control[["iter"]])   | !control[["iter"]] >= 1)    stop("Number of iterations must be a positive number.")
@@ -2273,6 +2494,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   if(!is.numeric(control[["cores"]])  | !control[["cores"]] >= 1)   stop("Number of cores must be a positive number.")
   if(!is.numeric(control[["seed"]])   & !is.null(control[["seed"]]))stop("Seed must be a numeric argument.")
   if(!control[["effect_direction"]] %in% c("positive", "negative")) stop("The effect size direction must be either positive or negative.")
+  if(!control[["likelihood"]]       %in% c("t", "normal", "wls"))   stop("The likelihood must be either 't', 'normal', or 'wls'.")
 
   # stop if there is not enough samples planned for autojags package
   if(control[["iter"]]/control[["thin"]] < 4000)stop("At least 4000 iterations after thinning is required to compute the Raftery and Lewis's diagnostic.")
@@ -2308,14 +2530,22 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
   return(warnings)
 }
-.fitting_priority       <- function(models){
+.fitting_priority       <- function(models, likelihood){
 
-  # model fitting difficulty using the following heuristic: random effects > weighted likelihood > non-null models
-  fitting_difficulty <- sapply(models, function(model){
-    ifelse(model$priors$mu$distribution    == "point", 0, 1) +
-    ifelse(model$priors$tau$distribution   == "point", 0, 3) +
-    ifelse(model$priors$omega$distribution == "point", 0, 5)
-  })
+  if(likelihood %in% c("t", "normal")){
+    # model fitting difficulty using the following heuristic: random effects > weighted likelihood > non-null models
+    fitting_difficulty <- sapply(models, function(model){
+      ifelse(model$priors$mu$distribution    == "point", 0, 1) +
+        ifelse(model$priors$tau$distribution   == "point", 0, 3) +
+        ifelse(model$priors$omega$distribution == "point", 0, 5)
+    })
+  }else if(likelihood == "wls"){
+    fitting_difficulty <- sapply(models, function(model){
+      ifelse(model$priors$mu$distribution    == "point", 0, 1) +
+        ifelse(model$priors$omega$distribution == "point", 0, 5)
+    })
+  }
+
 
   return(order(fitting_difficulty, decreasing = TRUE))
 }
@@ -2324,14 +2554,27 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 .is_parameter_null <- function(priors, par){
   return(priors[[par]]$is_null)
 }
+.is_model_constant <- function(priors){
+
+  constant <- NULL
+  for(par in c("mu", "tau", "omega", "sigma")){
+    if(!is.null(priors[[par]])){
+      constant <- c(constant, priors[[par]]$distribution == "point")
+    }
+  }
+
+  constant <- all(constant)
+
+  return(constant)
+}
 .get_omega_mapping <- function(models, cuts_only = FALSE){
 
   # extract cuts and types
   p_cuts <- sapply(models, function(m)rev(m$priors$omega$parameters$steps), simplify = FALSE)
   p_type <- sapply(models, function(m)m$priors$omega$distribution)
 
-  # remove point distributions
-  if(all(p_type == "point"))return(NULL)
+  # remove point distributions, PET, and PEESE
+  if(all( (p_type == "point" | grepl("PET", p_type) | grepl("PEESE", p_type) ) ))return(NULL)
 
   # get new cutpoint appropriate cut-points
   p_cuts_new <- p_cuts
@@ -2380,7 +2623,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   # create maping to weights
   omega_mapping <- list()
   for(p in 1:length(p_type)){
-    if(p_type[p] != "point"){
+    if(!(p_type[p] == "point" | grepl("PET", p_type[p]) | grepl("PEESE", p_type[p]) )){
       omega_mapping[[p]] <- sapply(1:(length(all_cuts)-1), function(i)
         omega_ind[[p]][all_cuts[i] >= p_bound[[p]]$l & all_cuts[i+1] <= p_bound[[p]]$u]
       )

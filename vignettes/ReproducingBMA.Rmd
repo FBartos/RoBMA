@@ -32,7 +32,7 @@ fit_RoBMA_test <- readRDS(file = "../prefitted/PowerPoseTest.RDS")
 fit_RoBMA_est  <- readRDS(file = "../prefitted/PowerPoseEst.RDS")
 ```
 
-By default, the package estimates an ensemble of 12 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble as is used in 'classical' Bayesian Meta-Analysis [@gronau2017]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles.
+By default, the package estimates an ensemble of 12 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble as is used in 'classical' Bayesian Meta-Analysis [@gronau2017]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020 for a tutorial on fitting (custom) models in JASP.
 
 
 ### Reproducing Bayesian Meta-Analysis (BMA)
@@ -65,7 +65,7 @@ From the output, we can see that the inclusion Bayes factor for the effect size 
 
 ### Using RoBMA
 
-Now we reproduce the analysis with `RoBMA`. Note that some differences in the results are expected since the `RoBMA` package evaluates the likelihood of test-statistics and not the effect sizes itself. The original data contain t-values and sample sizes, which would be the preffered input, however, we use the general effect sizes and standard errors input to show that the `RoBMA()` can handle them as well. We set the corresponding prior distributions for effect sizes ($\mu$) and heterogeneity ($\tau$), and remove the alternative prior distributions for the publication bias ($\omega$) by setting `priors_omega = NULL`. Note that for specifying half-Cauchy prior distribution with the `RoBMA::prior()` function, we use a regular Cauchy distribution and truncate it at zero. The inverse-gamma prior distribution for the $\tau$ parameter is the default option (we specify it for completeness) and we omit the specifications for the null prior distributions for $\mu$, $\tau$ (both of which are set to a spike at 0 by default), and $\omega$ (which is set to no publication bias by default). We also turn on the silent option to not spam the output and set a seed for reproducibility.
+Now we reproduce the analysis with `RoBMA`. Note that some differences in the results are expected since the `RoBMA` package evaluates the likelihood of test-statistics and not the effect sizes itself. The original data contain t-values and sample sizes, which would be the preferred input, however, we use the general effect sizes and standard errors input to show that the `RoBMA()` can handle them as well. We set the corresponding prior distributions for effect sizes ($\mu$) and heterogeneity ($\tau$), and remove the alternative prior distributions for the publication bias ($\omega$) by setting `priors_omega = NULL`. Note that for specifying half-Cauchy prior distribution with the `RoBMA::prior()` function, we use a regular Cauchy distribution and truncate it at zero. The inverse-gamma prior distribution for the $\tau$ parameter is the default option (we specify it for completeness) and we omit the specifications for the null prior distributions for $\mu$, $\tau$ (both of which are set to a spike at 0 by default), and $\omega$ (which is set to no publication bias by default). We also turn on the silent option to not spam the output and set a seed for reproducibility. To speed the computation, we set `parallel = TRUE` which utilizes available processing cores.
 
 ``` r
 library(RoBMA)
@@ -79,7 +79,7 @@ fit_RoBMA_test <- RoBMA(y = power_pose$effectSize, se = power_pose$SE, study_nam
                           distribution = "invgamma",
                           parameters = list(shape = 1, scale = 0.15)),
                         priors_omega = NULL,
-                        control = list(silent = TRUE), seed = 1)
+                        control = list(silent = TRUE), seed = 1, parallel = TRUE)
 
 fit_RoBMA_est  <- RoBMA(y = power_pose$effectSize, se = power_pose$SE, study_names = power_pose$study,
                         priors_mu  = prior(
@@ -89,7 +89,7 @@ fit_RoBMA_est  <- RoBMA(y = power_pose$effectSize, se = power_pose$SE, study_nam
                           distribution = "invgamma",
                           parameters = list(shape = 1, scale = 0.15)),
                         priors_omega = NULL,
-                        control = list(silent = TRUE), seed = 2)
+                        control = list(silent = TRUE), seed = 2, parallel = TRUE)
 ```
 ```{r}
 summary(fit_RoBMA_test)
@@ -99,7 +99,7 @@ summary(fit_RoBMA_est, conditional = TRUE)
 
 At first, we notice a few warning messages which inform us about using data-informed starting values. These are harmless and are further discussed in [another vignette](WarningsAndErrors.html)
 
-The output from the `summary.RoBMA()` function has 2 parts. The first one under the "Robust Bayesian Meta-Analysis" heading provides a basic summary of the fitted models by the component types (presence of Effect/Heterogeneity/Publication bias). Here, we can see that there are no models correcting for publication bias (we disabled them by setting `priors_omega = NULL`). We can find there the prior and posterior component probability and their inclusion BF. The results for the half-Cauchy model specified for testing show that the inclusion BF is basically identical to the one computed by the `metaBMA` package, $BF_{10} = 33.10$. The second part under the 'Model-averaged estimates' heading displays the parameter estimates (that are model-averaged across all fitted models. If we want to compare the results to the output from `metaBMA`, we have to look into the table under the 'Conditional estimates' heading. It presents estimates averaged only across the models that assume the presence of the specific component (we invoke this section by adding `conditional = TRUE` argument). Here we can see, the conditional effect size estimate 0.22, 95% CI [0.10, 0.35] that mirrors the estimate from the `metaBMA` package.
+The output from the `summary.RoBMA()` function has 2 parts. The first one under the "Robust Bayesian Meta-Analysis" heading provides a basic summary of the fitted models by the component types (presence of Effect/Heterogeneity/Publication bias). Here, we can see that there are no models correcting for publication bias (we disabled them by setting `priors_omega = NULL`). We can find there the prior and posterior component probability and their inclusion BF. The results for the half-Cauchy model specified for testing show that the inclusion BF is basically identical to the one computed by the `metaBMA` package, $BF_{10} = 32.87$. The second part under the 'Model-averaged estimates' heading displays the parameter estimates (that are model-averaged across all fitted models. If we want to compare the results to the output from `metaBMA`, we have to look into the table under the 'Conditional estimates' heading. It presents estimates averaged only across the models that assume the presence of the specific component (we invoke this section by adding `conditional = TRUE` argument). Here we can see, the conditional effect size estimate 0.22, 95% CI [0.10, 0.35] that mirrors the estimate from the `metaBMA` package.
 
 
 ### Visualizating the results
@@ -118,7 +118,7 @@ plot(fit_RoBMA_est, parameter = "mu", prior = TRUE, type = "conditional", plot_t
 
 We can also visualize the estimates from the individual models used in the ensemble. To do that, we need to change the type argument to `type = "models"`. Whereas the first two models assume that the $\mu$ estimate is zero - we see their mean estimate as a square at zero, the last two models use the Cauchy distribution for prior on the mean parameter - we see their mean estimates and credible intervals. The size of the square denoting the mean estimate corresponds to its posterior probability, which is also displayed in the right-hand side panel. The bottom then shows the model averaged-estimate that weighted posterior distribution of all included models.
 
-```{r fig.height = 5, fig.width = 6.5, fig.align = "center"}
+```{r fig.height = 5, fig.width = 7.5, fig.align = "center"}
 plot(fit_RoBMA_est, parameter = "mu", type = "models")
 ```
 
@@ -127,13 +127,6 @@ The last type of visualization that we show here is the forest plot. It displays
 ```{r fig.height = 4.5, fig.width = 5, fig.align = "center"}
 plot(fit_RoBMA_est, parameter = "forest")
 ```
-
-Furthermore, we can include the estimated true effects of the studies in the figure as well by setting the parameter argument to `parameter = c("forest","theta")`. We can see that the true effect estimates (grey) are shrunk towards the meta-analytic estimate which is a result of the pooling occurring in the random effects models.
-
-```{r fig.height = 6, fig.width = 5, fig.align = "center"}
-plot(fit_RoBMA_est, parameter = c("forest","theta"))
-```
-
 
 For more options provided by the plotting function, see its documentation using `plot.RoBMA()`.
 

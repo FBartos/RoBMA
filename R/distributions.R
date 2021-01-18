@@ -403,7 +403,7 @@ rwt <- function(n, df, ncp, steps = if(!is.null(crit_t)) NULL, omega, crit_t = i
 ### for inner usage in the package
 # - no input checking and reformating
 # - only one omega
-.dwt_fast   <- function(t, df, ncp, omega, crit_t, type = "two.sided", log = TRUE){
+.dwt_fast    <- function(t, df, ncp, omega, crit_t, type = "two.sided", log = TRUE){
 
 
   if(type == "two.sided"){
@@ -476,6 +476,87 @@ rwt <- function(n, df, ncp, steps = if(!is.null(crit_t)) NULL, omega, crit_t = i
       for(j in 2:(length(omega)-1)){
         denoms <- cbind(denoms, stats::pt(crit_t[,j], df, ncp) - apply(denoms, 1, sum))
         denoms[denoms[,j] < 0, j] <- 0 # check and correct for possibly negative numbers due to numerical imprecission
+      }
+    }
+    denoms  <- cbind(denoms, 1 - apply(denoms, 1, sum))
+    denoms  <- log(denoms) + log(matrix(omega, ncol = ncol(denoms), nrow = nrow(denoms), byrow = TRUE))
+    denom   <- log(apply(exp(denoms), 1, sum))
+
+    log_lik <- nom - denom
+  }
+
+
+  if(log){
+    return(log_lik)
+  }else{
+    return(exp(log_lik))
+  }
+}
+.dwnorm_fast <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
+
+
+  if(type == "two.sided"){
+
+    # assign appropriate weights to the current values
+    w <- sapply(1:length(x),function(i){
+      if(abs(x[i]) >= crit_x[i, length(omega)-1]){
+        return(log(1))
+      }else if(abs(x[i]) < crit_x[i,1]){
+        return(log(omega[1]))
+      }else{
+        for(j in 2:length(omega)){
+          if(abs(x[i]) < crit_x[i,j] & abs(x[i]) >= crit_x[i,j-1]){
+            return(log(omega[j]))
+          }
+        }
+      }
+    })
+
+
+    # compute the nominator
+    nom <- stats::dnorm(x, mean, sd, log = T)+w
+
+    # compute the denominator
+    denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd) - stats::pnorm(-crit_x[,1], mean, sd), ncol = 1)
+    denoms[denoms < 0, 1]  <- 0 # check and correct for possibly negative numbers due to numerical imprecission
+    if(length(omega) > 2){
+      for(j in 2:(length(omega)-1)){
+        denoms <- cbind(denoms, stats::pnorm(crit_x[,j], mean, sd) - stats::pnorm(-crit_x[,j], mean, sd) - apply(denoms, 1, sum))
+        denoms[denoms[,j] < 0, j] <- 0 # check and correct for possibly negative numbers due to numerical imprecission
+      }
+    }
+    denoms  <- cbind(denoms, 1 - apply(denoms, 1, sum))
+    denoms  <- log(denoms) + log(matrix(omega, ncol = ncol(denoms), nrow = nrow(denoms), byrow = TRUE))
+    denom   <- log(apply(exp(denoms), 1, sum))
+
+    log_lik <- nom - denom
+
+  }else if(type == "one.sided"){
+
+    # assign appropriate weights to the current values
+    w <- sapply(1:length(x),function(i){
+      if(x[i] >= crit_x[i, length(omega)-1]){
+        return(log(1))
+      }else if(x[i] < crit_x[i,1]){
+        return(log(omega[1]))
+      }else{
+        for(j in 2:length(omega)){
+          if(x[i] < crit_x[i,j] & x[i] >= crit_x[i,j-1]){
+            return(log(omega[j]))
+          }
+        }
+      }
+    })
+
+    # compute the nominator
+    nom <- stats::dnorm(x, mean, sd, log = T)+w
+
+    denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd), ncol = 1)
+    denoms[denoms < 0, 1]  <- 0 # check and correct for possibly negative numbers due to numerical imprecision
+    if(length(omega) > 2){
+      for(j in 2:(length(omega)-1)){
+        denoms <- cbind(denoms, stats::pnorm(crit_x[,j], mean, sd) - apply(denoms, 1, sum))
+        denoms[denoms[,j] < 0, j] <- 0 # check and correct for possibly negative numbers due to numerical imprecision
       }
     }
     denoms  <- cbind(denoms, 1 - apply(denoms, 1, sum))

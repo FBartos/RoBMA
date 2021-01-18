@@ -76,7 +76,7 @@
 prior <- function(distribution, parameters, truncation = list(lower = -Inf, upper = Inf), prior_odds = 1){
 
   # general input check
-  if(!(is.vector(distribution) & length(distribution) == 1 & is.character(distribution)))stop("Argument 'distribution' is incorectly specified. It must be a character vector of length one.")
+  if(!(is.vector(distribution) & length(distribution) <= 2 & is.character(distribution)))stop("Argument 'distribution' is incorectly specified. It must be a character vector.")
   if(!is.list(parameters))stop("Argument 'parameters' must be a list.")
   if(!all(sapply(parameters, function(par)(is.vector(par) & is.numeric(par)))))stop("Elements of the 'parameter' argument must be numeric vectors.")
   if(!(is.list(truncation) & length(truncation) == 2))stop("Argument 'truncation' must be a list of length two.")
@@ -87,6 +87,19 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
 
   distribution <- tolower(distribution)
 
+  if(length(distribution) == 2){
+    if(any(distribution == "pet")){
+      prefix       <- "PET"
+      distribution <- distribution[distribution != "pet"]
+    }else if(any(distribution == "peese")){
+      prefix       <- "PEESE"
+      distribution <- distribution[distribution != "peese"]
+    }else{
+      stop("The combination of distribution names was not recognized.")
+    }
+  }else{
+    prefix <- NULL
+  }
 
   # create an output object
   output <- list()
@@ -275,6 +288,11 @@ prior <- function(distribution, parameters, truncation = list(lower = -Inf, uppe
     stop(paste0("The specified distribution name '", distribution,"' is not known. Please, see '?prior' for more information about supported prior distributions."))
   }
 
+  # add a PET/PEESE prefix
+  if(!is.null(prefix)){
+    output$distribution <- paste0(prefix, ".", output$distribution)
+  }
+
   output$prior_odds <- prior_odds
   class(output) <- "RoBMA.prior"
 
@@ -313,19 +331,29 @@ print.RoBMA.prior <- function(x, ...){
     x$truncation[[i]] <- round(x$truncation[[i]], digits_estimates)
   }
 
+  if(grepl("PET", x$distribution)){
+    prefix          <- "PET:"
+    x$distribution  <- substr(x$distribution, 5, nchar(x$distribution))
+  }else if(grepl("PEESE", x$distribution)){
+    prefix          <- "PEESE:"
+    x$distribution  <- substr(x$distribution, 7, nchar(x$distribution))
+  }else{
+    prefix <- NULL
+  }
 
   name <- switch(x$distribution,
-                 "normal"    = "Normal",
-                 "t"         = "gen. Student-t",
-                 "gamma"     = "Gamma",
-                 "invgamma"  = "InvGamma",
-                 "point"     = "Spike",
-                 "two.sided" = "Two-sided",
-                 "one.sided" = "One-sided",
-                 "uniform"   = "Uniform")
+                 "normal"       = "Normal",
+                 "t"            = "gen. Student-t",
+                 "gamma"        = "Gamma",
+                 "invgamma"     = "InvGamma",
+                 "point"        = "Spike",
+                 "two.sided"    = "Two-sided",
+                 "one.sided"    = "One-sided",
+                 "uniform"      = "Uniform")
 
+  name <- paste0(prefix, name)
 
-  if(x$distribution == "normal"){
+  if(x$distribution %in% c("normal", "PET.normal", "PEESE.normal")){
     parameters <- c(x$parameters$mean, x$parameters$sd)
   }else if(x$distribution == "t"){
     if(x$parameters$df == 1){
@@ -1276,23 +1304,21 @@ plot.RoBMA.prior <- function(x, plot_type = "base", effect_size = NULL, mu_trans
 #' @export check_setup
 #' @seealso [RoBMA()], [prior()]
 check_setup <- function(priors_mu    = prior(distribution = "normal",   parameters = list(mean = 0, sd = 1)),
-                        priors_tau   = prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15)),
+                        priors_tau   = if(likelihood %in% c("t", "normal")) prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15)),
                         priors_omega = list(
                           prior(distribution = "two.sided", parameters = list(alpha = c(1, 1),     steps = c(.05)),      prior_odds = 1/2),
                           prior(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),  steps = c(.05, .10)), prior_odds = 1/2)
                         ),
                         priors_mu_null    = prior(distribution = "point", parameters = list(location = 0)),
-                        priors_tau_null   = prior(distribution = "point", parameters = list(location = 0)),
+                        priors_tau_null   = if(likelihood %in% c("t", "normal")) prior(distribution = "point", parameters = list(location = 0)),
                         priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
+                        prior_sigma       = if(likelihood == "wls") prior(distribution = "invgamma", parameters = list(shape = 1, scale = 1)),
+                        likelihood        = "t",
                         models = FALSE, silent = FALSE){
 
   object <- list()
-  object$priors  <- list(
-    mu    = .set_parameter_priors(priors_mu_null,    priors_mu,    "mu"),
-    tau   = .set_parameter_priors(priors_tau_null,   priors_tau,   "tau"),
-    omega = .set_parameter_priors(priors_omega_null, priors_omega, "omega")
-  )
-  object$models  <- .get_models(object$priors)
+  object$priors  <- .set_priors(priors_mu_null, priors_mu, priors_tau_null, priors_tau, priors_omega_null, priors_omega, prior_sigma, likelihood)
+  object$models  <- .get_models(object$priors, likelihood)
 
 
   ### model types overview

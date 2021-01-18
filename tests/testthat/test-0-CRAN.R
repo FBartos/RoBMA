@@ -38,7 +38,7 @@ test_that("print function", {
       ""                                                                                           ,
       "Estimates:"                                                                                 ,
       "             mu             tau   omega[0,0.05] omega[0.05,0.1]    omega[0.1,1] "           ,
-      "      0.5999943       0.1475925       1.0000000       0.8019722       0.6671523 " )
+      "      0.5368836       0.1314026       1.0000000       0.7622662       0.5956029 " )
   )
 })
 
@@ -52,17 +52,17 @@ test_that("summary function", {
       ""                                                                                           ,
       "Robust Bayesian Meta-Analysis"                                                              ,
       "              Models Prior prob. Post. prob. Incl. BF"                                      ,
-      "Effect          6/12       0.500       0.807    4.184"                                      ,
-      "Heterogeneity   6/12       0.500       0.477    0.912"                                      ,
-      "Pub. bias       8/12       0.500       0.545    1.197"                                      ,
+      "Effect          6/12       0.500       0.761    3.188"                                      ,
+      "Heterogeneity   6/12       0.500       0.458    0.844"                                      ,
+      "Pub. bias       8/12       0.500       0.615    1.598"                                      ,
       ""                                                                                           ,
       "Model-averaged estimates"                                                                   ,
       "                 Mean Median 0.025 0.975"                                                   ,
-      "mu              0.600  0.640 0.000 1.383"                                                   ,
-      "tau             0.148  0.000 0.000 0.946"                                                   ,
+      "mu              0.537  0.559 0.000 1.333"                                                   ,
+      "tau             0.131  0.000 0.000 0.861"                                                   ,
       "omega[0,0.05]   1.000  1.000 1.000 1.000"                                                   ,
-      "omega[0.05,0.1] 0.802  0.952 0.171 1.000"                                                   ,
-      "omega[0.1,1]    0.667  0.832 0.043 1.000"                                                   ,
+      "omega[0.05,0.1] 0.762  0.875 0.130 1.000"                                                   ,
+      "omega[0.1,1]    0.596  0.612 0.026 1.000"                                                   ,
       "(Estimated omegas correspond to two-sided p-values)"  )
   )
 })

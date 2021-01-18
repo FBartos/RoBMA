@@ -76,7 +76,7 @@ used to estimate the model." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.2.0</span>
       </span>
     </div>
 
@@ -353,9 +353,6 @@ based on Rhat.</p></dd>
 consideration. Model will be removed from the ensemble if it fails to
 achieve the set ESS. Defaults to <code>NULL</code> - no model will be removed
 based on ESS.</p></dd>
-<dt>allow_inc_theta</dt><dd><p>Whether the diagnostics for theta should be
-included into model removal decision. Defaults to <code>NULL</code> - only
-'mu', 'tau', and 'omega' estimates will be taken into account.</p></dd>
 <dt>balance_prob</dt><dd><p>Whether the prior probability of the removed model
 should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to
@@ -417,7 +414,8 @@ The fitted model can be further updated or modified by <code><a href='update.RoB
 
     <p>Maier M, Barto㤼㹡 F, Wagenmakers E (2020).
 &#8220;Robust Bayesian Meta-Analysis: Addressing Publication Bias with Model-Averaging.&#8221;
-preprint at <a href='https://doi.org/10.31234/osf.io/u4cns'>https://doi.org/10.31234/osf.io/u4cns</a>.</p>
+doi: <a href='https://doi.org/10.31234/osf.io/u4cns'>10.31234/osf.io/u4cns</a>
+, preprint at <a href='https://doi.org/10.31234/osf.io/u4cns'>https://doi.org/10.31234/osf.io/u4cns</a>, <a href='https://doi.org/10.31234/osf.io/u4cns'>https://doi.org/10.31234/osf.io/u4cns</a>.</p>
     <h2 class="hasAnchor" id="see-also"><a class="anchor" href="#see-also"></a>See also</h2>
 
     <div class='dont-index'><p><code><a href='summary.RoBMA.html'>summary.RoBMA()</a></code>, <code><a href='update.RoBMA.html'>update.RoBMA()</a></code>, <code><a href='prior.html'>prior()</a></code>, <code><a href='check_setup.html'>check_setup()</a></code></p></div>
@@ -463,7 +461,7 @@ chains <span class='op'>=</span> <span class='fl'>2</span>, iter <span class='op
 
 <span class='co'># results of the models can be visualized using the plot function (see ?plot.RoBMA for all options)</span>
 <span class='co'># for example, the model-averaged mean estimate</span>
-<span class='fu'><a href='https://rdrr.io/r/graphics/plot.html'>plot</a></span><span class='op'>(</span><span class='va'>fit</span>, parameter <span class='op'>=</span> <span class='st'>"mu"</span><span class='op'>)</span>
+<span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>fit</span>, parameter <span class='op'>=</span> <span class='st'>"mu"</span><span class='op'>)</span>
 
 <span class='co'># diagnostics for the individual parameters in individual models can be obtained using diagnostics</span>
 <span class='co'># function (see 'diagnostics' for all options)</span>

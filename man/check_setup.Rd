@@ -6,14 +6,18 @@
 \usage{
 check_setup(
   priors_mu = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
-  priors_tau = prior(distribution = "invgamma", parameters = list(shape = 1, scale =
-    0.15)),
+  priors_tau = if (likelihood \%in\% c("t", "normal")) prior(distribution = "invgamma",
+    parameters = list(shape = 1, scale = 0.15)),
   priors_omega = list(prior(distribution = "two.sided", parameters = list(alpha = c(1,
     1), steps = c(0.05)), prior_odds = 1/2), prior(distribution = "two.sided", parameters
     = list(alpha = c(1, 1, 1), steps = c(0.05, 0.1)), prior_odds = 1/2)),
   priors_mu_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_tau_null = prior(distribution = "point", parameters = list(location = 0)),
+  priors_tau_null = if (likelihood \%in\% c("t", "normal")) prior(distribution =
+    "point", parameters = list(location = 0)),
   priors_omega_null = prior(distribution = "point", parameters = list(location = 1)),
+  prior_sigma = if (likelihood == "wls") prior(distribution = "invgamma", parameters =
+    list(shape = 1, scale = 1)),
+  likelihood = "t",
   models = FALSE,
   silent = FALSE
 )

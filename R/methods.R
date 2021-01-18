@@ -74,6 +74,10 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
                                 probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
                                 digits_estimates = 3, digits_BF = 3,...){
 
+  if(include_theta){
+    stop("The true effect estimates are no longer available. See NEWS for updated regarding the model parametrization.")
+  }
+
   # print diagnostics if all models fail to converge
   if(!any(object$add_info$converged)){
     if(substr(type,1,1) != "m" & !diagnostics)warning("All models failed to converge. Model diagnostics were printed instead.")
@@ -85,6 +89,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
   if(substr(type,1,1) == "e"){
 
     ### model estimates
+    estimates <- list()
     # compute quantiles
     if(!is.null(probs)){
       if(length(probs) != 0){
@@ -92,79 +97,68 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
         if(!is.numeric(probs) | !is.vector(probs))stop("The passed probabilities 'probs' must be a numeric vector.")
         if(!(all(probs > 0) & all(probs < 1)))stop("The passed probabilities 'probs' must be higher than 0 and lower than 1.")
 
-        # average median estimates
-        averaged_q <- rbind(
-          mu     = if(length(object$RoBMA$samples$averaged$mu)  == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$averaged$mu,  probs)),
-          tau    = if(length(object$RoBMA$samples$averaged$tau) == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$averaged$tau, probs)))
-        if(ncol(object$RoBMA$samples$averaged$omega) != 0)averaged_q <- rbind(averaged_q, matrix(apply(object$RoBMA$samples$averaged$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
-        if(include_theta & nrow(object$RoBMA$samples$averaged$theta) != 0)averaged_q <- rbind(averaged_q, matrix(apply(object$RoBMA$samples$averaged$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
-
-
-        # conditional mean estimates
-        conditional_q <- rbind(
-          mu     = if(length(object$RoBMA$samples$conditional$mu)  == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$conditional$mu,  probs)),
-          tau    = if(length(object$RoBMA$samples$conditional$tau) == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples$conditional$tau, probs)))
-        if(ncol(object$RoBMA$samples$averaged$omega) != 0)conditional_q <- rbind(conditional_q, matrix(apply(object$RoBMA$samples$conditional$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
-        if(include_theta & nrow(object$RoBMA$samples$conditional$theta) != 0)conditional_q <- rbind(conditional_q, matrix(apply(object$RoBMA$samples$conditional$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE))
-
-
-        colnames(averaged_q)    <- probs
-        colnames(conditional_q) <- probs
+        # quantiles
+        for(type in c("averaged", "conditional")){
+          estimates[[paste0(type,"_q")]] <- rbind(
+            mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0) c(NA, NA) else unname(stats::quantile(object$RoBMA$samples[[type]]$mu,  probs)),
+            tau    = if(length(object$RoBMA$samples[[type]]$tau)        != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$tau, probs)),
+            if(length(object$RoBMA$samples[[type]]$omega)               != 0) matrix(apply(object$RoBMA$samples[[type]]$omega, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE),
+            PET    = if(length(object$RoBMA$samples[[type]]$PET)        != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$PET, probs)),
+            PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)      != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$PEESE, probs)),
+            sigma  = if(length(object$RoBMA$samples[[type]]$sigma)      != 0) unname(stats::quantile(object$RoBMA$samples[[type]]$sigma, probs)),
+            if(include_theta & !is.null(object$RoBMA$samples[[type]]$theta))  matrix(apply(object$RoBMA$samples[[type]]$theta, 2, stats::quantile, probs = probs), ncol = length(probs), byrow = TRUE)
+          )
+          colnames(estimates[[paste0(type,"_q")]]) <- probs
+        }
 
       }else{
-        averaged_q    <- NULL
-        conditional_q <- NULL
+        estimates$averaged_q    <- NULL
+        estimates$conditional_q <- NULL
       }
     }else{
-      averaged_q    <- NULL
-      conditional_q <- NULL
+      estimates$averaged_q    <- NULL
+      estimates$conditional_q <- NULL
     }
 
-    # averaged mean estimates
-    averaged_e <- c(
-      mu     = if(length(object$RoBMA$samples$averaged$mu)  == 0) NA else base::mean(object$RoBMA$samples$averaged$mu),
-      tau    = if(length(object$RoBMA$samples$averaged$tau) == 0) NA else base::mean(object$RoBMA$samples$averaged$tau),
-      if(ncol(object$RoBMA$samples$averaged$omega) == 0) NULL else apply(object$RoBMA$samples$averaged$omega, 2, base::mean),
-      if(include_theta){if(nrow(object$RoBMA$samples$averaged$theta) == 0) NULL else apply(object$RoBMA$samples$averaged$theta, 2, base::mean)}
-    )
+    for(type in c("averaged", "conditional")){
+      # averaged mean estimates
+      estimates[[paste0(type,"_e")]] <- c(
+        mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0)  NA else base::mean(object$RoBMA$samples[[type]]$mu),
+        tau    = if(length(object$RoBMA$samples[[type]]$tau)          != 0)  base::mean(object$RoBMA$samples[[type]]$tau),
+        if(length(object$RoBMA$samples[[type]]$omega)                 != 0)  apply(object$RoBMA$samples[[type]]$omega, 2, base::mean),
+        PET    = if(length(object$RoBMA$samples[[type]]$PET)          != 0)  base::mean(object$RoBMA$samples[[type]]$PET),
+        PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)        != 0)  base::mean(object$RoBMA$samples[[type]]$PEESE),
+        sigma  = if(length(object$RoBMA$samples[[type]]$sigma)        != 0)  base::mean(object$RoBMA$samples[[type]]$sigma),
+        if(include_theta){if(!is.null(object$RoBMA$samples[[type]]$theta))  apply(object$RoBMA$samples[[type]]$theta, 2, base::mean)}
+      )
 
-    # average median estimates
-    averaged_m <- c(
-      mu     = if(length(object$RoBMA$samples$averaged$mu)  == 0) NA else stats::median(object$RoBMA$samples$averaged$mu),
-      tau    = if(length(object$RoBMA$samples$averaged$tau) == 0) NA else stats::median(object$RoBMA$samples$averaged$tau),
-      if(ncol(object$RoBMA$samples$averaged$omega) == 0) NULL else apply(object$RoBMA$samples$averaged$omega, 2, stats::median),
-      if(include_theta){if(nrow(object$RoBMA$samples$averaged$theta) == 0) NULL else apply(object$RoBMA$samples$averaged$theta, 2, stats::median)}
-    )
-
-    # conditional mean estimates
-    conditional_e <- c(
-      mu     = if(length(object$RoBMA$samples$conditional$mu)  == 0) NA else base::mean(object$RoBMA$samples$conditional$mu),
-      tau    = if(length(object$RoBMA$samples$conditional$tau) == 0) NA else base::mean(object$RoBMA$samples$conditional$tau),
-      if(ncol(object$RoBMA$samples$conditional$omega) == 0) NULL else apply(object$RoBMA$samples$conditional$omega, 2, base::mean),
-      if(include_theta){if(nrow(object$RoBMA$samples$conditional$theta) == 0) NULL else apply(object$RoBMA$samples$conditional$theta, 2, base::mean)}
-    )
-
-    # conditional median estimates
-    conditional_m <- c(
-      mu     = if(length(object$RoBMA$samples$conditional$mu)  == 0) NA else stats::median(object$RoBMA$samples$conditional$mu),
-      tau    = if(length(object$RoBMA$samples$conditional$tau) == 0) NA else stats::median(object$RoBMA$samples$conditional$tau),
-      if(ncol(object$RoBMA$samples$conditional$omega) == 0) NULL else apply(object$RoBMA$samples$conditional$omega, 2, stats::median),
-      if(include_theta){if(nrow(object$RoBMA$samples$conditional$theta) == 0) NULL else apply(object$RoBMA$samples$conditional$theta, 2, stats::median)}
-    )
+      # median estimates
+      estimates[[paste0(type,"_m")]] <- c(
+        mu     = if(length(object$RoBMA$samples[[type]]$mu)  == 0)  NA else stats::median(object$RoBMA$samples[[type]]$mu),
+        tau    = if(length(object$RoBMA$samples[[type]]$tau)          != 0)  stats::median(object$RoBMA$samples[[type]]$tau),
+        if(length(object$RoBMA$samples[[type]]$omega)                 != 0)  apply(object$RoBMA$samples[[type]]$omega, 2, stats::median),
+        PET    = if(length(object$RoBMA$samples[[type]]$PET)          != 0)  stats::median(object$RoBMA$samples[[type]]$PET),
+        PEESE  = if(length(object$RoBMA$samples[[type]]$PEESE)        != 0)  stats::median(object$RoBMA$samples[[type]]$PEESE),
+        sigma  = if(length(object$RoBMA$samples[[type]]$sigma)        != 0)  stats::median(object$RoBMA$samples[[type]]$sigma),
+        if(include_theta){if(!is.null(object$RoBMA$samples[[type]]$theta))  apply(object$RoBMA$samples[[type]]$theta, 2, stats::median)}
+      )
+    }
 
     # create estimates tables
-    averaged_tab    <- cbind.data.frame(Mean = averaged_e,    Median = averaged_m,    averaged_q)
-    conditional_tab <- cbind.data.frame(Mean = conditional_e, Median = conditional_m, conditional_q)
+    averaged_tab    <- cbind.data.frame(Mean = estimates$averaged_e,    Median = estimates$averaged_m,    estimates$averaged_q)
+    conditional_tab <- cbind.data.frame(Mean = estimates$conditional_e, Median = estimates$conditional_m, estimates$conditional_q)
 
     ### model types overview
     mm_mu       <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "mu"))[object$add_info$converged]
-    mm_tau      <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "tau"))[object$add_info$converged]
+    if(object$control$likelihood %in% c("t", "normal")){
+      mm_tau    <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "tau"))[object$add_info$converged]
+    }
     mm_omega    <- sapply(object$models, function(m)!.is_parameter_null(m$priors, "omega"))[object$add_info$converged]
 
     # number of model types
     models_n    <- c(
       mu    = sum(mm_mu),
-      tau   = sum(mm_tau),
+      tau   = if(object$control$likelihood %in% c("t", "normal"))sum(mm_tau),
       omega = sum(mm_omega)
     )
 
@@ -174,17 +168,17 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
     prior_weights_all   <- prior_weights_all / sum(prior_weights_all)
     # conditional model weights
     models_prior <- c(
-      mu    <- sum(prior_weights_all[mm_mu]),
-      tau   <- sum(prior_weights_all[mm_tau]),
-      omega <- sum(prior_weights_all[mm_omega])
+      mu    = sum(prior_weights_all[mm_mu]),
+      tau   = if(object$control$likelihood %in% c("t", "normal"))sum(prior_weights_all[mm_tau]),
+      omega = sum(prior_weights_all[mm_omega])
     )
 
     # conditional model posteriors
     posterior_weights_all <- object$RoBMA$posterior_prob$all[object$add_info$converged]
     models_posteriors     <- c(
-      mu    <- sum(posterior_weights_all[mm_mu]),
-      tau   <- sum(posterior_weights_all[mm_tau]),
-      omega <- sum(posterior_weights_all[mm_omega])
+      mu    = sum(posterior_weights_all[mm_mu]),
+      tau   = if(object$control$likelihood %in% c("t", "normal"))sum(posterior_weights_all[mm_tau]),
+      omega = sum(posterior_weights_all[mm_omega])
     )
 
     # BF
@@ -201,7 +195,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
 
     # create overview table
     overview_tab <- cbind.data.frame(models_n, models_prior, models_posteriors, BF)
-    rownames(overview_tab) <- c("Effect", "Heterogeneity", "Pub. bias")
+    rownames(overview_tab) <- c("Effect", if(object$control$likelihood %in% c("t", "normal"))"Heterogeneity", "Pub. bias")
     colnames(overview_tab) <- c("Models", "Prior prob.", "Post. prob.",
                                 paste0("Incl. ", if(logBF)"log(",if(BF01)"1/","BF",if(logBF)")"))
 
@@ -232,7 +226,11 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
   }else if(substr(type,1,1) == "m"){
 
     priors_mu      <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$mu, silent = TRUE))
-    priors_tau     <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    if(object$control$likelihood %in% c("t", "normal")){
+      priors_tau   <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    }else if(object$control$likelihood == "wls"){
+      priors_sigma <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$sigma, silent = TRUE))
+    }
     priors_omega   <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$omega, silent = TRUE))
     prior_odds     <- sapply(1:length(object$models), function(i)object$models[[i]]$prior_odds)
     prior_prob     <- prior_odds / sum(prior_odds)
@@ -254,10 +252,18 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
       BF <- log(BF)
     }
 
-    overview_tab <- cbind.data.frame(priors_mu, priors_tau, priors_omega, prior_prob, posterior_prob, marg_lik, BF,
-                                     stringsAsFactors = FALSE)
+    overview_tab <- cbind.data.frame(
+      priors_mu,
+      if(object$control$likelihood %in% c("t", "normal")){priors_tau}else if(object$control$likelihood == "wls"){priors_sigma},
+      priors_omega,
+      prior_prob,
+      posterior_prob,
+      marg_lik,
+      BF,
+      stringsAsFactors = FALSE
+    )
     rownames(overview_tab) <- NULL
-    colnames(overview_tab) <- c("Prior mu","Prior tau","Prior omega", "Prior prob.", "Post. prob.", "log(MargLik)",
+    colnames(overview_tab) <- c("Prior mu",if(object$control$likelihood %in% c("t", "normal")){"Prior tau"}else if(object$control$likelihood == "wls"){"Prior sigma"},"Prior omega", "Prior prob.", "Post. prob.", "log(MargLik)",
                                 paste0("Incl. ", if(logBF)"log(",if(BF01)"1/","BF",if(logBF)")"))
 
 
@@ -283,7 +289,7 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
           if(include_theta){
             names.thetas <- rownames(s.x)[grepl("theta", rownames(s.x))]
           }
-          s.x <- s.x[rownames(s.x) %in% c("mu", "tau", names.omegas, if(include_theta)names.thetas), ]
+          s.x <- s.x[rownames(s.x) %in% c("mu", "tau", names.omegas, "PET", "PEESE", "sigma", if(include_theta)names.thetas), ]
 
           if(length(dim(s.x)) == 2){
             return(c(
@@ -367,11 +373,11 @@ summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "en
           names.thetas <- rownames(s.x)[grepl("theta", rownames(s.x))]
         }
 
-        s.x <- s.x[rownames(s.x) %in% c("mu", "tau", names.omegas, if(include_theta)names.thetas), ]
+        s.x <- s.x[rownames(s.x) %in% c("mu", "tau", "PET", "PEESE", "sigma", names.omegas, if(include_theta)names.thetas), ]
 
         if(length(dim(s.x)) == 0){
           s.x <- data.frame(matrix(s.x, ncol = 11))
-          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", names.omegas, if(include_theta)names.thetas)]
+          rownames(s.x) <- rownames(object$models[[i]]$fit_summary)[rownames(object$models[[i]]$fit_summary) %in% c("mu", "tau", "PET", "PEESE", "sigma", names.omegas, if(include_theta)names.thetas)]
         }else{
           s.x <- data.frame(s.x)
         }

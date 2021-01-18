@@ -156,9 +156,6 @@ based on Rhat.}
 consideration. Model will be removed from the ensemble if it fails to
 achieve the set ESS. Defaults to \code{NULL} - no model will be removed
 based on ESS.}
-\item{allow_inc_theta}{Whether the diagnostics for theta should be
-included into model removal decision. Defaults to \code{NULL} - only
-'mu', 'tau', and 'omega' estimates will be taken into account.}
 \item{balance_prob}{Whether the prior probability of the removed model
 should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to

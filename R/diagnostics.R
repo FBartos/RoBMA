@@ -63,6 +63,9 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
                   show_figures = if(parameter == "omega") -1 else NULL, show_models = NULL, par_transform = TRUE,
                   lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 
+  if(parameter == "theta"){
+    stop("The true effect estimates are no longer available. See NEWS for updated regarding the model parametrization.")
+  }
 
   # check & correct parameters
   if(class(fit) != "RoBMA")stop("Diagnostics are available only for RoBMA models.")
@@ -305,7 +308,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
   }else if(plot_type == "ggplot"){
     graph     <- ggplot2::ggplot(ac_dat, ggplot2::aes_string(x = "lag", y = "ac")) +
-      ggplot2::geom_bar(size = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun.y = "mean") +
+      ggplot2::geom_bar(size = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun = "mean") +
       ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.25)) +
       ggplot2::labs(x = "Lag", y = "Avg. autocorrelation")
     if(!is.null(title)){

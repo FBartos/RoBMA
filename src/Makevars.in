@@ -1,5 +1,5 @@
 PKG_CPPFLAGS=@JAGS_CFLAGS@
 PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@
 
-SOURCES = distributions/DTboost.cc distributions/DWT1.cc distributions/DWT1boost.cc distributions/DWT2.cc distributions/DWT2boost.cc functions/LogWeightedtFun.cc weightedt.cc
+SOURCES = distributions/DTboost.cc distributions/DWT1.cc distributions/DWT1boost.cc distributions/DWT2.cc distributions/DWT2boost.cc distributions/DNboost.cc distributions/DWN1.cc distributions/DWN1boost.cc distributions/DWN2.cc distributions/DWN2boost.cc functions/LogWeightedtFun.cc weightedt.cc
 OBJECTS=$(SOURCES:.cc=.o)

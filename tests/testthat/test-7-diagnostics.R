@@ -1,6 +1,6 @@
 context("(7) diagnostics plots")
 skip_on_cran()
-
+testthat::skip_if_not_installed("vdiffr")
 
 # test objects - assuming that the fit function worked properly
 saved_fits    <- readRDS(file = "../results/saved_fits.RDS")

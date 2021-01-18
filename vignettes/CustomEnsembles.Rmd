@@ -24,7 +24,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model odds being equal to the product of prior distributions' prior odds. This results in the 12 meta-analytic models using the default settings or can be utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017] as shown in [another vignette](ReproducingBMA.html). However, the package was built in a way that it can be used as a framework for estimating highly customized model ensembles. Here, we are going to illustrate how to do exactly that. 
+By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model odds being equal to the product of prior distributions' prior odds. This results in the 12 meta-analytic models using the default settings [@maier2020]. In [another vignette](ReproducingBMA.html), we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017] and in a tutorial paper, we showed how to fit custom models in JASP [@bartos2020]. However, the package was built in a way that it can be used as a framework for estimating even more customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that. 
 
 Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that it can perform as intended, a priori to drawing inference from it. The following sections are only illustrating the functionality of the package.
 
@@ -144,7 +144,7 @@ Finally, we use the `summary.RoBMA()` function to inspect the model results.
 summary(fit)
 ```
 
-The finalized ensemble can be treated as any other `RoBMA` using the `summary.RoBMA()`, `plot.RoBMA()`, and `diagnostics()` function. The results from our ensemble indicate support for presence of the effect, $BF_{10} = 8.48e+08$, heterogeneity, $BF_{rf} = 46.60$ , and publication bias, $BF_{\omega{\overline{\omega}}} = 70.72$. 
+The finalized ensemble can be treated as any other `RoBMA` using the `summary.RoBMA()`, `plot.RoBMA()`, and `diagnostics()` function. The results from our ensemble indicate support for presence of the effect, $BF_{10} = 1.03e+09$, heterogeneity, $BF_{rf} = 61.88$ , and publication bias, $BF_{\omega{\overline{\omega}}} = 94.57$. 
 
 For example, we can use the `plot.RoBMA()` with the `parameter = "mu", prior = TRUE` arguments to plot the prior (grey) and posterior distribution (black) for the effect size.
 

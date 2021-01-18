@@ -85,7 +85,7 @@ refit_failed == FALSE.
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.2.0</span>
       </span>
     </div>
 
@@ -175,6 +175,7 @@ results by specifying new <code>control</code> argument and setting
   prior_mu_null <span class='op'>=</span> <span class='cn'>NULL</span>,
   prior_tau_null <span class='op'>=</span> <span class='cn'>NULL</span>,
   prior_omega_null <span class='op'>=</span> <span class='cn'>NULL</span>,
+  prior_sigma <span class='op'>=</span> <span class='cn'>NULL</span>,
   study_names <span class='op'>=</span> <span class='cn'>NULL</span>,
   control <span class='op'>=</span> <span class='cn'>NULL</span>,
   chains <span class='op'>=</span> <span class='cn'>NULL</span>,
@@ -272,9 +273,6 @@ based on Rhat.</p></dd>
 consideration. Model will be removed from the ensemble if it fails to
 achieve the set ESS. Defaults to <code>NULL</code> - no model will be removed
 based on ESS.</p></dd>
-<dt>allow_inc_theta</dt><dd><p>Whether the diagnostics for theta should be
-included into model removal decision. Defaults to <code>NULL</code> - only
-'mu', 'tau', and 'omega' estimates will be taken into account.</p></dd>
 <dt>balance_prob</dt><dd><p>Whether the prior probability of the removed model
 should be redistributed to other models with the same type if possible
 (crossing of effect / heterogeneity / publication bias). Defaults to
