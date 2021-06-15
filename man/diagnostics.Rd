@@ -11,7 +11,6 @@ diagnostics(
   plot_type = "base",
   show_figures = if (parameter == "omega") -1 else NULL,
   show_models = NULL,
-  par_transform = TRUE,
   lags = 30,
   title = is.null(show_models) | length(show_models) > 1,
   ...
@@ -44,9 +43,6 @@ to show all parameters (default for \code{parameter = "theta"}).}
 \item{show_models}{diagnostics for which models should be produced.
 Defaults to \code{NULL} that shows diagnostics to all models.}
 
-\item{par_transform}{whether the figures should be produced for the
-par_transform parameters. Defaults to \code{TRUE}.}
-
 \item{lags}{number of lags to be shown for
 \code{type = "autocorrelation"}. Defaults to \code{30}.}
 
@@ -55,6 +51,9 @@ Defaults to \code{TRUE} when more than one model is selected.}
 
 \item{...}{additional arguments to be passed to
 \link[graphics]{par} if \code{plot_type = "base"}.}
+
+\item{par_transform}{whether the figures should be produced for the
+par_transform parameters. Defaults to \code{TRUE}.}
 }
 \description{
 \code{diagnostics} creates visual

@@ -4,18 +4,25 @@
 \name{RoBMA-package}
 \alias{RoBMA-package}
 \alias{_PACKAGE}
-\title{RoBMA: Robust Bayesian Meta-Analyses}
+\alias{RoBMA}
+\title{RoBMA: Robust Bayesian meta-analysis}
 \description{
-A framework for estimating ensembles of meta-analytic models
-    (assuming either presence or absence of the effect, heterogeneity, and
-    publication bias) and using Bayesian model averaging to combine them. The
-    ensembles use Bayes factors to test for the presence or absence of the
-    individual components (e.g., effect vs. no effect) and model-averages
-    parameter estimates based on posterior model probabilities
-    (Maier, Bartoš & Wagenmakers, 2020, <doi:10.31234/osf.io/u4cns>). The user can
-    define a wide range of non-informative or informative priors for the
-    effect size, heterogeneity, and weight functions. The package provides
-    convenient functions for summary, visualizations, and fit diagnostics.
+RoBMA: Bayesian model-averaged meta-analysis with adjustments for publication
+bias and ability to specify informed prior distributions and draw inference with
+inclusion Bayes factors.
+}
+\details{
+\code{\link{RoBMA}} fits parametric models ....
+}
+\section{User guide}{
+ The \bold{RoBMA user guide} vignette explains the
+methods in detail, and gives several worked examples.  A further vignette
+\bold{RoBMA-examples} gives a few more complicated examples, and users
+are encouraged to submit their own.
+}
+
+\references{
+
 }
 \seealso{
 Useful links:
@@ -26,18 +33,6 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: František Bartoš \email{f.bartos96@gmail.com} (\href{https://orcid.org/0000-0002-0018-5573}{ORCID})
-
-Authors:
-\itemize{
-  \item Maximilian Maier \email{maximilianmaier0401@gmail.com} (\href{https://orcid.org/0000-0002-9873-6096}{ORCID})
+František Bartoš \email{f.bartos96@gmail.com}
 }
-
-Other contributors:
-\itemize{
-  \item Eric-Jan Wagenmakers (\href{https://orcid.org/0000-0003-1596-1034}{ORCID}) [thesis advisor]
-  \item Joris Goosen [contributor]
-}
-
-}
-\keyword{internal}
+\keyword{package}

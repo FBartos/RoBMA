@@ -1,0 +1,312 @@
+#' @title Prints a fitted RoBMA object
+#'
+#' @param x a fitted RoBMA object.
+#' @param ... additional arguments.
+#' @export  print.RoBMA
+#' @rawNamespace S3method(print, RoBMA)
+#' @seealso [RoBMA()]
+print.RoBMA <- function(x, ...){
+  cat("Call:\n")
+  print(x$call)
+  cat("\nEstimates:\n")
+  print(stats::coef(x))
+}
+
+
+#' @title Summarize fitted RoBMA object
+#'
+#' @description \code{summary.RoBMA} creates a numerical
+#' summary of the RoBMA object.
+#'
+#' @param object a fitted RoBMA object.
+#' @param type whether to show the overall RoBMA results (\code{"ensemble"}),
+#' an overview of the individual models (\code{"models"}), or detailed summary
+#' for the individual models (\code{"individual"}).
+#' @param conditional show the conditional estimates (assuming that the
+#' alternative is true). Defaults to \code{FALSE}. Only available for
+#' \code{type == "conditional"}.
+#' @param diagnostics show the maximum R-hat and minimum ESS for the main
+#' parameters in each of the models. Only available for \code{type = "ensemble"}.
+#' @param include_theta whether the estimated random effects should be included
+#' either in the summaries.
+#' @param probs quantiles of the posterior samples to be displayed.
+#' Defaults to \code{c(.025, .50, .975)}
+#' @param logBF show log of the BFs. Defaults to \code{FALSE}.
+#' @param BF01 show BF in support of the null hypotheses. Defaults to
+#' \code{FALSE}.
+#' @param ... additional arguments
+#'
+#' @return summary of a RoBMA object
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' # summary can provide many details about the model
+#' summary(fit)
+#'
+#' # note that the summary function contains additional arguments
+#' # that allow to obtain a specific output, i.e, the conditional estimates
+#' # (assuming that the non-null models are true) can be obtained
+#' summary(fit, conditional = TRUE)
+#'
+#' # overview of the models and their prior and posterior probability, marginal likelihood,
+#' # and inclusion Bayes factor:
+#' summary(fit, type = "models")
+#'
+#' # and the model diagnostics overview, containing maximum R-hat and minimum ESS across parameters
+#' # but see '?diagnostics' for diagnostics plots for individual model parameters
+#' summary(fit, type = "models", diagnostics = TRUE)
+#'
+#' # summary of individual models and their parameters can be further obtained by
+#' summary(fit, type = "individual")
+#'
+#' }
+#' @note See [diagnostics()] for visual convergence checks of the individual models.
+#' @method summary RoBMA
+#' @export summary.RoBMA
+#' @rawNamespace S3method(summary, RoBMA)
+#' @seealso [RoBMA()] [diagnostics()]
+summary.RoBMA       <- function(object, type = if(diagnostics) "models" else "ensemble", conditional = FALSE, diagnostics = FALSE,
+                                probs = c(.025, .975), logBF = FALSE, BF01 = FALSE, output_scale = NULL,
+                                short_name = FALSE, remove_spike_0 = FALSE, ...){
+
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_bool(diagnostics, "diagnostics")
+  BayesTools::check_char(type, "type")
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
+  BayesTools::check_bool(BF01,  "BF01")
+  BayesTools::check_bool(logBF, "logBF")
+  BayesTools::check_bool(short_name, "short_name")
+  BayesTools::check_bool(remove_spike_0, "remove_spike_0")
+
+  if(is.null(output_scale)){
+    output_scale <- object$add_info[["output_scale"]]
+  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+    stop("Models estimated using the generall effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  # print diagnostics if all models fail to converge
+  if(!any(.get_model_convergence(object))){
+    if(substr(type,1,1) != "m" & !diagnostics)
+      warning("All models failed to converge. Model diagnostics were printed instead.")
+    type        <- "models"
+    diagnostics <- TRUE
+  }
+
+  object[["add_info"]][["warnings"]]
+
+  if(substr(type,1,1) == "e"){
+
+    # transform the estimates if needed
+    if(object$add_info[["output_scale"]] != output_scale){
+      object <- .transform_posterior(object, object$add_info[["output_scale"]], .transformation_var(output_scale))
+    }
+
+    # obtain components overview
+    components <- BayesTools::ensemble_inference_table(
+      inference  = object$RoBMA[["inference"]],
+      parameters = names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")],
+      logBF      = logBF,
+      BF01       = BF01,
+      title      = "Components summary:"
+    )
+
+    # obtain estimates tables
+    estimates <- BayesTools::ensemble_estimates_table(
+      samples    = object$RoBMA[["posteriors"]],
+      parameters = names(object$RoBMA[["posteriors"]]),
+      probs      = probs,
+      title      = "Model-averaged estimates:",
+      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      warnings   = .collect_errors_and_warnings(object)
+    )
+    estimates_conditional <- BayesTools::ensemble_estimates_table(
+      samples    = object$RoBMA[["posteriors_conditional"]],
+      parameters = names(object$RoBMA[["posteriors_conditional"]]),
+      probs      = probs,
+      title      = "Conditional estimates:",
+      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      warnings   = .collect_errors_and_warnings(object)
+    )
+
+    ### return results
+    output <- list(
+      call       = object[["call"]],
+      title      = "Robust Bayesian meta-analysis",
+      components = components,
+      estimates  = estimates
+    )
+
+    if(conditional){
+      output$estimates_conditional <- estimates_conditional
+    }
+
+    class(output) <- "summary.RoBMA"
+    attr(output, "type") <- "ensemble"
+
+    return(output)
+
+  }else if(substr(type,1,1) == "m"){
+
+    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")]
+    parameters <- list()
+    if(any(components == "Effect")){
+      parameters[["Effect"]] <- "mu"
+    }
+    if(any(components == "Heterogeneity")){
+      parameters[["Heterogeneity"]] <- "tau"
+    }
+    if(any(components == "Bias")){
+      parameters[["Bias"]] <- c("PET", "PEESE", "omega")
+    }
+
+    summary <- BayesTools::ensemble_summary_table(
+      models         = object[["models"]],
+      parameters     = parameters,
+      title          = "Models overview:",
+      footnotes      = NULL,
+      warnings       = .collect_errors_and_warnings(object),
+      short_name     = short_name,
+      remove_spike_0 = remove_spike_0
+    )
+
+    output <- list(
+      call       = object[["call"]],
+      title      = "Robust Bayesian meta-analysis",
+      summary    = summary
+    )
+
+    if(diagnostics){
+      diagnostics <- BayesTools::ensemble_diagnostics_table(
+        models         = object[["models"]],
+        parameters     = parameters,
+        title          = "Diagnostics overview:",
+        footnotes      = NULL,
+        warnings       = .collect_errors_and_warnings(object),
+        short_name     = short_name,
+        remove_spike_0 = remove_spike_0
+      )
+      output$diagnostics <- diagnostics
+    }
+
+    class(output) <- "summary.RoBMA"
+    attr(output, "type") <- "models"
+
+    return(output)
+
+  }else if(substr(type, 1, 1) == "i"){
+
+    output <- list(
+      call       = object[["call"]],
+      title      = "Robust Bayesian meta-analysis",
+      models     = list()
+    )
+
+    for(i in seq_along(object[["models"]])){
+
+      summary  <- BayesTools::model_summary_table(
+        model     = object[["models"]][[i]],
+      )
+      if(output_scale == "y"){
+        estimates <- object[["models"]][[i]][["fit_summary"]]
+        attr(estimates, "warnings")  <- object[["models"]][[i]][["warnings"]]
+        attr(estimates, "title")     <- "Parameter estimates:"
+      }else{
+        estimates <- object[["models"]][[i]][["fit_summaries"]][[output_scale]]
+        attr(estimates, "footnotes") <- .scale_note(object[["models"]][[i]][["prior_scale"]], output_scale)
+        attr(estimates, "warnings")  <- object[["models"]][[i]][["warnings"]]
+        attr(estimates, "title")     <- "Parameter estimates:"
+      }
+
+      output[["models"]][[i]] <- list(
+        summary   = summary,
+        estimates = estimates
+      )
+    }
+
+    class(output) <- "summary.RoBMA"
+    attr(output, "type") <- "individual"
+
+    return(output)
+
+  }else{
+    stop(paste0("Unknown summary type: '", type, "'."))
+  }
+}
+
+#' @title Prints summary object for RoBMA method
+#'
+#' @param x a summary of a RoBMA object
+#' @param ... additional arguments
+#' @method print.summary RoBMA
+#' @export print.summary.RoBMA
+#' @rawNamespace S3method(print, summary.RoBMA)
+#' @seealso [RoBMA()]
+print.summary.RoBMA <- function(x, ...){
+
+  cat("Call:\n")
+  print(x[["call"]])
+
+  cat("\n")
+  cat(x[["title"]])
+
+
+  if(attr(x, "type") == "ensemble"){
+
+    cat("\n")
+    print(x[["components"]])
+
+    cat("\n")
+    print(x[["estimates"]])
+
+    if(!is.null(x[["estimates_conditional"]])){
+      cat("\n")
+      print(x[["estimates_conditional"]])
+    }
+
+    return(invisible())
+
+  }else if(attr(x, "type") == "models"){
+
+    cat("\n")
+    print(x[["components"]])
+
+    cat("\n")
+    print(x[["summary"]])
+
+    if(!is.null(x[["diagnostics"]])){
+      cat("\n")
+      print(x[["diagnostics"]])
+    }
+
+    return(invisible())
+
+  }else if(attr(x, "type") == "individual"){
+
+    for(i in seq_along(x[["models"]])){
+
+      if(i > 1){
+        cat("\n")
+      }
+      print(x[["models"]][[i]][["summary"]])
+
+      cat("\n")
+      print(x[["models"]][[i]][["estimates"]])
+    }
+
+    return(invisible())
+  }
+}
+
+#' @title Reports whether x is a RoBMA object
+#'
+#' @param x an object to test
+#' @export is.RoBMA
+is.RoBMA            <- function(x){
+  inherits(x, "RoBMA")
+}
+

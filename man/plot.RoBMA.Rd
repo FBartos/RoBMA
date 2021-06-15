@@ -7,18 +7,12 @@
 \method{plot}{RoBMA}(
   x,
   parameter,
-  type = "averaged",
+  conditional = FALSE,
   plot_type = "base",
-  mean = TRUE,
-  median = FALSE,
-  CI = 0.95,
+  output_scale = NULL,
   prior = FALSE,
-  order = NULL,
-  digits_estimates = 2,
-  show_figures = if (parameter == "omega" & (weights | any(type \%in\% "individual")))
-    -1,
-  weights = FALSE,
   rescale_x = FALSE,
+  dots_prior = NULL,
   ...
 )
 }
@@ -34,6 +28,24 @@ addition, a forest plot with the original estimates can
 be obtained by \code{"forest"} or added to the theta
 estimates by \code{c("theta", "forest")}.}
 
+\item{plot_type}{whether to use a base plot \code{"base"}
+or ggplot2 \code{"ggplot2"} for plotting. The later
+requires \pkg{ggplot2} package to be installed.}
+
+\item{prior}{add prior density to the plot. Only available
+for \code{type = "averaged"} or \code{type = "conditional"}.
+Defaults to \code{FALSE}.}
+
+\item{rescale_x}{whether the x-axis should be rescaled in order
+to make the x-ticks equally spaced. Available only for the
+weightfunction plot. Defaults to \code{FALSE}.}
+
+\item{...}{additional arguments to be passed to
+\link[graphics]{par} if \code{plot_type = "base"}. Especially
+useful for \code{parameter == "theta"},
+\code{parameter == "forest"} or \code{type = "individual"}
+where automatic margins might cut out parts of the labels.}
+
 \item{type}{what type of estimates should be plotted.
 Options are \code{"averaged"} for the model-averaged
 estimates, \code{"conditional"} for the conditional
@@ -42,33 +54,11 @@ individual models estimates. The options
 \code{c("individual", "conditional")} can be supplied
 together to show only coditional individual models.}
 
-\item{plot_type}{whether to use a base plot \code{"base"}
-or ggplot2 \code{"ggplot2"} for plotting. The later
-requires \pkg{ggplot2} package to be installed.}
-
 \item{mean}{whether the mean should be plotted.}
 
 \item{median}{whether the median should be plotted.}
 
 \item{CI}{width of the confidence intervals.}
-
-\item{prior}{add prior density to the plot. Only available
-for \code{type = "averaged"} or \code{type = "conditional"}.
-Defaults to \code{FALSE}.}
-
-\item{order}{either (1) ordering of the studies for
-\code{parameter = "theta"} or \code{parameter = "forest"}.
-Defaults to \code{NULL} - ordering as supplied to the fitting
-function. However, studies can be ordered either
-\code{"ascending"} or \code{"descending"} by effect size, or
-by \code{"alphabetical"} by labels.
-Or (2) ordering models for \code{type = "individual"}. The
-default orders models according to their number. However,
-models can be ordered either \code{"ascending"} or
-\code{"descending"} by posterior model probability
-\code{c("ascending", "prob")}, or marginal likelihood
-\code{c("descending", "marglik")}
-by marginal likelihood.}
 
 \item{digits_estimates}{number of decimals to be displayed for
 \code{parameter = "theta"}, \code{parameter = "forest"}, and
@@ -84,16 +74,6 @@ or to \code{c(1,3)} to show only the first and third one.}
 \item{weights}{whether the weights or weight function should
 be returned. Only applicable when \code{parameter = "omega"}.
 Defaults to \code{FALSE} - the weight function is plotted.}
-
-\item{rescale_x}{whether the x-axis should be rescaled in order
-to make the x-ticks equally spaced. Available only for the
-weightfunction plot. Defaults to \code{FALSE}.}
-
-\item{...}{additional arguments to be passed to
-\link[graphics]{par} if \code{plot_type = "base"}. Especially
-useful for \code{parameter == "theta"},
-\code{parameter == "forest"} or \code{type = "individual"}
-where automatic margins might cut out parts of the labels.}
 }
 \description{
 \code{plot.RoBMA} allows to visualize
@@ -129,6 +109,7 @@ plot(fit, parameter = "forest")
 plot(fit, parameter = "mu", type = "individual", order = "prob")
 
 }
+
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}

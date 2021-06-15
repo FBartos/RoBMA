@@ -401,7 +401,7 @@ rwt <- function(n, df, ncp, steps = if(!is.null(crit_t)) NULL, omega, crit_t = i
 }
 
 ### for inner usage in the package
-# - no input checking and reformating
+# - no input checking and reformatting
 # - only one omega
 .dwt_fast    <- function(t, df, ncp, omega, crit_t, type = "two.sided", log = TRUE){
 

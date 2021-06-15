@@ -60,9 +60,9 @@
 #' @export diagnostics
 #' @seealso [RoBMA()], [summary.RoBMA()]
 diagnostics <- function(fit, parameter, type, plot_type = "base",
-                  show_figures = if(parameter == "omega") -1 else NULL, show_models = NULL, par_transform = TRUE,
+                  show_figures = if(parameter == "omega") -1 else NULL, show_models = NULL,
                   lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
-
+  par_transform = FALSE
   if(parameter == "theta"){
     stop("The true effect estimates are no longer available. See NEWS for updated regarding the model parametrization.")
   }
@@ -357,7 +357,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
 
     # create parameter names
-    par_names <- .plot.RoBMA_par_names(par, fit)
+    par_names <- .plot.RoBMA_par_names(par, fit, fit$add_info$prior_scale)
 
 
     plot_data <- list()
@@ -383,7 +383,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
     # transform the values if requested
     if(par_transform){
       if(par %in% c("mu", "theta") & fit$add_info$effect_size %in% c("r", "OR")){
-        plot_data[[1]]$samp$value <- .transform(plot_data[[1]]$samp$value, fit$add_info$effect_size, fit$add_info$mu_transform)
+        plot_data[[1]]$samp$value <- .transform(plot_data[[1]]$samp$value, fit$add_info$effect_size, fit$add_info$transformation)
       }
     }
 

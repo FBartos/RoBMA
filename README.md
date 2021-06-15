@@ -72,7 +72,9 @@ on aggressive behavior.
 library(RoBMA)
 #> Loading required namespace: runjags
 #> module RoBMA loaded
-#> Parametrization of random effect models changed and all models are estimated using likelihood of effects sizes since version 1.2.0, see NEWS for more details.
+#> Please, note the following changes in version 1.2.0 (see NEWS for more details):
+#> - all models are now estimated using the likelihood of effects sizes (instead of t-statistics)
+#> - parametrization of random effect models changed (the studies' true effects are marginalized out of the likelihood)
 
 data("Anderson2010", package = "RoBMA")
 head(Anderson2010)
@@ -257,7 +259,7 @@ meta-analysis. In *PsyArXiv*. <https://doi.org/10.31234/osf.io/75bqn>
 Erp, S. van, Verhagen, J., Grasman, R. P., & Wagenmakers, E.-J. (2017).
 Estimates of between-study heterogeneity for 705 meta-analyses reported
 in Psychological Bulletin from 1990–2013. *Journal of Open Psychology
-Data*, *5*(1). <http://doi.org/10.5334/jopd.33>
+Data*, *5*(1). <https://doi.org/10.5334/jopd.33>
 
 </div>
 

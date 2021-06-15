@@ -1,3 +1,24 @@
+## version 1.3.0
+### Features
+- adding PET and PEESE style models for adjusting for publication bias
+- adding functions for effect sizes and standard error transformations
+- the prior distributions can be specified on a different scale ('prior_scale') than is used for fitting the effect sizes ('transform'). Defaults to Cohen's d and Fisher's z respectively. (The estimates are transformed back to a scale with majority of effect size estimates.)
+- additional prior distribution: lognormal
+- transforming the results between different effect sizes with the print.RoBMA, summary.RoBMA, and plot.RoBMA functions
+
+### Changes to the RoBMA function
+- the default ensemble now uses 36 models - the publication bias adjustment part was extended to 6 weight functions, PET, and PEESE style models. It corresponds to RoBMA 6wPP model introduce in out new [preprint](ADD LINK)
+
+### Changes to the data input
+- studies with different effect size measures can be supplied simultaneously - RoBMA will internally transform them into a common scale ('transform'). The common scale defaults to Fisher's z since it stabilizes variances. Not stabilizing variances leads to overestimating the evidence for publication bias in case that that PET and PEESE style models are used.
+- one-sample t-tests are no longer supported as input - the corresponding effect sizes and standard errors must be manually computed and passed as 'd' and 'se'.
+- see metafor::escalc for more details about calculating effect sizes and standard errors
+
+
+## version 1.2.1
+### Fixes
+- check_setup function not working at all
+
 ## version 1.2.0
 ### Changes
 - the studies's true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our [prerint](https://psyarxiv.com/u4cns/) for more details). As a results, arguments referring to the true effects are now disabled.
