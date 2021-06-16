@@ -241,6 +241,12 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   if(nrow(na.omit(data[,c("lCI", "uCI")]) > 0)){
     if(any(na.omit(data[,"lCI"]) > na.omit(data[,"uCI"])))
       stop("'lCI' must be lower than 'uCI'.")
+    for(var in c("d", "r", "z", "logOR", "y")){
+      if(any(!is.na(data[,var]))){
+        if(any(data[!is.na(var) & !is.na("lCI"),var] < data[!is.na(var) & !is.na("lCI"),"lCI"]) | any(data[!is.na(var) & !is.na("uCI"),var] > data[!is.na(var) & !is.na("uCI"),"uCI"]))
+          stop("All effect sizes must be within the CI intervals.")
+      }
+    }
   }
 
   for(var in c("r")){

@@ -83,7 +83,7 @@
 #' @export
 plot.RoBMA  <- function(x, parameter,
                         conditional = FALSE, plot_type = "base", output_scale = NULL, prior = FALSE,
-                        rescale_x = FALSE, dots_prior = NULL, ...){
+                        rescale_x = FALSE, show_data = TRUE, dots_prior = NULL, ...){
 
   # check whether plotting is possible
   if(sum(.get_model_convergence(x)) == 0)
@@ -98,6 +98,7 @@ plot.RoBMA  <- function(x, parameter,
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_bool(rescale_x, "rescale_x")
+  BayesTools::check_bool(show_data, "show_data")
 
   # deal with bad parameter names for PET-PEESE, weightfunction
   if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
@@ -147,18 +148,29 @@ plot.RoBMA  <- function(x, parameter,
   if(conditional && parameter == "PETPEESE"){
     # get model-averaged posterior across PET and PEESE parameters
     models <- x[["models"]]
+
+    effect <- sapply(x[["models"]], function(model)!.is_component_null(model[["priors"]], "effect"))
     PET    <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
     PEESE  <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
 
     if(any(PET) & any(PEESE)){
-      parameters      <- c("PET", "PEESE")
-      parameters_null <- c("PET" = list(!(PET|PEESE)), "PEESE" = list(!(PET|PEESE)))
+      is_conditional  <- effect & (PET | PEESE)
+      if(sum(is_conditional) == 0)
+        stop("There is no model that assumes presence of the effect and PET-PEESE bias correction")
+      parameters      <- c("mu", "PET", "PEESE")
+      parameters_null <- c("mu" = list(!is_conditional), "PET" = list(!is_conditional), "PEESE" = list(!is_conditional))
     }else if(any(PET)){
-      parameters      <- c("PET")
-      parameters_null <- c("PET"   = list(!PET))
+      is_conditional  <- effect & PET
+      if(sum(is_conditional) == 0)
+        stop("There is no model that assumes presence of the effect and PET-PEESE bias correction")
+      parameters      <- c("mu", "PET")
+      parameters_null <- c("mu" = list(!is_conditional), "PET"   = list(!is_conditional))
     }else if(any(PEESE)){
-      parameters      <- c("PEESE")
-      parameters_null <- c("PEESE" = list(!PEESE))
+      is_conditional  <- effect & PEESE
+      if(sum(is_conditional) == 0)
+        stop("There is no model that assumes presence of the effect and PET-PEESE bias correction")
+      parameters      <- c("mu", "PEESE")
+      parameters_null <- c("mu" = list(!is_conditional), "PEESE" = list(!is_conditional))
     }
 
     samples <- BayesTools::mix_posteriors(
@@ -168,6 +180,7 @@ plot.RoBMA  <- function(x, parameter,
       seed         = x$add_info[["seed"]],
       conditional  = TRUE
     )
+
   }else{
     if(conditional){
       samples <- x[["RoBMA"]][["posteriors_conditional"]]
@@ -196,6 +209,23 @@ plot.RoBMA  <- function(x, parameter,
     dots))
 
 
+  if(parameter == "PETPEESE" & show_data){
+
+    data <- x[["data"]]
+
+    if(plot_type == "ggplot"){
+      plot <- plot + ggplot2::geom_point(
+          ggplot2::aes(
+            x  = data$se,
+            y  = data$y),
+          size  = if(!is.null(dots[["cex"]])) dots[["cex"]] else 2,
+          shape = if(!is.null(dots[["pch"]])) dots[["pch"]] else 18
+        )
+    }else if(plot_type == "base"){
+      graphics::points(data$se, data$y, cex = if(!is.null(dots[["cex"]])) dots[["cex"]] else 2, pch = if(!is.null(dots[["pch"]])) dots[["pch"]] else 18)
+    }
+  }
+
   # return the plots
   if(plot_type == "base"){
     return(invisible(plot))
@@ -206,7 +236,7 @@ plot.RoBMA  <- function(x, parameter,
 
 #' @title Forest plot for a RoBMA object
 #'
-#' @param order either of the studies. Defaults to \code{NULL} -
+#' @param order order of the studies. Defaults to \code{NULL} -
 #' ordering as supplied to the fitting function. Studies
 #' can be ordered either \code{"ascending"} or \code{"descending"} by
 #' effect size, or by labels \code{"alphabetical"}.
@@ -263,19 +293,19 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   # simplify the data structure
   data$y <- data[,output_scale]
   data   <- data[,c("y", "lCI", "uCI", "study_names")]
-  data$x <- 3:(nrow(data)+2)
 
   # add ordering
   if(!is.null(order)){
     if(order == "increasing"){
-      data <- data[order(results$y, decreasing = TRUE),]
+      data <- data[order(data$y, decreasing = FALSE),]
     }else if(order == "decreasing"){
-      data <- data[order(results$y, decreasing = FALSE),]
+      data <- data[order(data$y, decreasing = TRUE),]
     }else if(order == "alphabetical"){
-      data <- data[order(results$study_names, decreasing = TRUE),]
+      data <- data[order(data$study_names),]
     }
   }
 
+  data$x <- (nrow(data)+2):3
 
   # additional plot settings
   y_at      <- c(1, data$x)
@@ -311,6 +341,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     graphics::abline(v = .transform_mu(0, "d", output_scale), lty = 3)
 
     arrows(x0 = data$lCI, x1 = data$uCI, y0 = data$x, code = 3, angle = 90, length = 0.1)
+    graphics::points(x = data$y, y = data$x, pch = 15)
 
     graphics::polygon(
       x = c(lCI_mu, est_mu , uCI_mu, est_mu),
