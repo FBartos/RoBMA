@@ -1,3 +1,137 @@
+#' @title Prints summary of \code{"RoBMA"} ensemble implied by the specified priors
+#'
+#' @description \code{check_setup} prints summary of \code{"RoBMA"} ensemble
+#' implied by the specified prior distributions. It is useful for checking
+#' the ensemble configuration prior to fitting all of the models.
+#'
+#' @inheritParams RoBMA
+#' @param models should the models' details be printed.
+#' @param silent do not print the results.
+#'
+#' @return \code{check_setup} invisibly returns list of summary tables
+#'
+#' @seealso [RoBMA()], [prior()], and [combine_data()]
+#' @export
+check_setup <- function(
+  model_type   = NULL,
+  priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
+  priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
+  priors_bias           = list(
+    prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
+    prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
+    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
+    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
+    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
+    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
+    prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),  prior_weights = 1/4),
+    prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),  prior_weights = 1/4)
+  ),
+  priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
+  priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
+  priors_bias_null           = prior_none(),
+  models = FALSE, silent = FALSE){
+
+  object <- list()
+  object$priors   <- .check_and_list_priors(tolower(model_type), priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, object$add_info[["prior_scale"]])
+  object$models   <- .make_models(object[["priors"]])
+
+
+  ### model types overview
+  effect         <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "effect"))
+  heterogeneity  <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
+  bias           <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "bias"))
+
+  # obtain the parameter types
+  weightfunctions <- sapply(object$models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
+  PET             <- sapply(object$models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
+  PEESE           <- sapply(object$models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
+
+  # number of model types
+  n_models    <- c(
+    mu    = sum(effect),
+    tau   = sum(heterogeneity),
+    omega = sum(bias)
+  )
+
+  # extract model weights
+  prior_weights   <- sapply(object$models, function(m)m$prior_weights)
+  # standardize model weights
+  prior_weights   <- prior_weights / sum(prior_weights)
+  # conditional model weights
+  models_prior <- c(
+    mu    <- sum(prior_weights[effect]),
+    tau   <- sum(prior_weights[heterogeneity]),
+    omega <- sum(prior_weights[bias])
+  )
+
+  # create overview table
+  components <- data.frame(
+    "models"     = n_models,
+    "prior_prob" = models_prior
+  )
+  rownames(components) <- c("Effect", "Heterogeneity", "Bias")
+
+  class(components)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(components))
+  attr(components, "type")      <- c("n_models", "prior_prob")
+  attr(components, "rownames")  <- TRUE
+  attr(components, "n_models")  <- length(object$models)
+  attr(components, "title")     <- "Components summary:"
+  attr(components, "footnotes") <- NULL
+  attr(components, "warnings")  <- NULL
+
+  object$components <- components
+
+  ### model details
+  if(models){
+    priors_effect        <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$mu, silent = TRUE))
+    priors_heterogeneity <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    priors_bias          <- sapply(1:length(object$models), function(i){
+      if(weightfunctions[i]){
+        print(object$models[[i]]$priors$omega, silent = TRUE)
+      }else if(PET[i]){
+        print(object$models[[i]]$priors$PET, silent = TRUE)
+      }else if(PEESE[i]){
+        print(object$models[[i]]$priors$PEESE, silent = TRUE)
+      }else{
+        ""
+      }
+    })
+    prior_weights  <- sapply(1:length(object$models), function(i)object$models[[i]]$prior_weights)
+    prior_prob     <- prior_weights / sum(prior_weights)
+
+    summary <- cbind.data.frame(
+      "Model"         = 1:length(object$models),
+      "Effect"        = priors_effect,
+      "Heterogeneity" = priors_heterogeneity,
+      "Bias"          = priors_bias,
+      "prior_prob"    = prior_prob
+    )
+    class(summary)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(summary))
+    attr(summary, "type")      <- c("integer", rep("prior", 3), "prior_prob")
+    attr(summary, "rownames")  <- FALSE
+    attr(summary, "title")     <- "Models overview:"
+    attr(summary, "footnotes") <- NULL
+    attr(summary, "warnings")  <- NULL
+
+    object$summary <- summary
+  }
+
+
+  if(!silent){
+    cat("Robust Bayesian meta-analysis (set-up)\n")
+    print(components, quote = FALSE, right = TRUE)
+
+    if(models){
+      cat("\n")
+      print(summary, quote = FALSE, right = TRUE)
+    }
+  }
+
+  return(invisible(object))
+}
+
+
+
 #' @title Control MCMC fitting process
 #'
 #' @description Controls settings for the autofit
