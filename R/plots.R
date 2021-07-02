@@ -212,6 +212,8 @@ plot.RoBMA  <- function(x, parameter,
   if(parameter == "PETPEESE" & show_data){
 
     data <- x[["data"]]
+    # TODO: change from 'prior_scale' to 'output_scale' when plotting scale can be changed
+    data <- combine_data(data = data, transformation = .transformation_invar(prior_scale))
 
     if(plot_type == "ggplot"){
       plot <- plot + ggplot2::geom_point(

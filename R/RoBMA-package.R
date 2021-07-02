@@ -8,7 +8,7 @@
 ##'
 ##'
 ##' @name RoBMA-package
-##' @aliases RoBMA-package RoBMA
+##' @aliases RoBMA-package
 ##' @docType package
 ##' @section User guide: The \bold{RoBMA user guide} vignette explains the
 ##' methods in detail, and gives several worked examples.  A further vignette
@@ -19,6 +19,11 @@
 ##' @keywords package
 ##' @importFrom BayesTools prior prior_none prior_PET prior_PEESE prior_weightfunction
 ##' @importFrom BayesTools is.prior is.prior.none is.prior.point is.prior.simple is.prior.PET is.prior.PEESE is.prior.weightfunction
+##' @export prior
+##' @export prior_none
+##' @export prior_PET
+##' @export prior_PEESE
+##' @export prior_weightfunction
 "_PACKAGE"
 
 #//##' @useDynLib RoBMA, .registration = TRUE

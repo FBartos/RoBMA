@@ -38,8 +38,9 @@
 }
 .ensemble_inference    <- function(object){
 
-  # use oly converged models for inference about parameters
-  models    <- object[["models"]][.get_model_convergence(object)]
+  # use only converged models with prior weights > 0 for inference about parameters
+  prior_weights <- sapply(object[["models"]], function(model) model[["prior_weights"]])
+  models        <- object[["models"]][.get_model_convergence(object) & prior_weights > 0]
 
   # obtain the component type
   effect         <- sapply(models, function(model)!.is_component_null(model[["priors"]], "effect"))

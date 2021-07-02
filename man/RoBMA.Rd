@@ -26,18 +26,18 @@ RoBMA(
   priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1,
     scale = 0.15)),
   priors_bias = list(prior_weightfunction(distribution = "two.sided", parameters =
-    list(alpha = c(1, 1), steps = c(0.05)), prior_odds = 1/12),
+    list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/12),
     prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1,
-    1), steps = c(0.05, 0.1)), prior_odds = 1/12), prior_weightfunction(distribution =
-    "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_odds = 1/12),
+    1), steps = c(0.05, 0.1)), prior_weights = 1/12), prior_weightfunction(distribution =
+    "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights =
+    1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha =
+    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12),     
     prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1,
-    1), steps = c(0.025, 0.05)), prior_odds = 1/12),     
-    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1,
-    1), steps = c(0.05, 0.5)), prior_odds = 1/12), prior_weightfunction(distribution =
+    1), steps = c(0.05, 0.5)), prior_weights = 1/12), prior_weightfunction(distribution =
     "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)),
-    prior_odds = 1/12), prior_PET(distribution = "Cauchy", parameters = list(0, 1),
-    truncation = list(0, Inf), prior_odds = 1/4), prior_PEESE(distribution = "Cauchy",
-    parameters = list(0, 5), truncation = list(0, Inf), prior_odds = 1/4)),
+    prior_weights = 1/12), prior_PET(distribution = "Cauchy", parameters = list(0, 1),
+    truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy",
+    parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/4)),
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location
     = 0)),
@@ -114,8 +114,8 @@ prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))}.}
 \item{priors_bias}{list of prior weight functions for the \code{omega}
 parameter that will be treated as belonging to the alternative hypothesis.
 Defaults to \code{list(
-prior(distribution = "two.sided", parameters = list(alpha = c(1, 1),     steps = c(.05)),      prior_odds = 1/2),
-prior(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),  steps = c(.05, .10)), prior_odds = 1/2)
+prior(distribution = "two.sided", parameters = list(alpha = c(1, 1),     steps = c(.05)),      prior_weights = 1/2),
+prior(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),  steps = c(.05, .10)), prior_weights = 1/2)
 )}.}
 
 \item{priors_effect_null}{list of prior distributions for the \code{mu} parameter that
@@ -268,7 +268,7 @@ fit2 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010
 # an already fitted RoBMA model can be further updated or modified by using the update function
 # for example, the prior model probabilities can be changed after the fitting by
 # (but see '?update.RoBMA' for other possibilities including refitting or adding more models)
-fit3 <- update(fit2, prior_odds = c(10,1,1,1,1,1,1,1,1,1,1,1))
+fit3 <- update(fit2, prior_weights = c(10,1,1,1,1,1,1,1,1,1,1,1))
 
 # we can get a quick overview of the model coefficients just by printing the model
 fit

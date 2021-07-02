@@ -4,7 +4,6 @@
 \name{RoBMA-package}
 \alias{RoBMA-package}
 \alias{_PACKAGE}
-\alias{RoBMA}
 \title{RoBMA: Robust Bayesian meta-analysis}
 \description{
 RoBMA: Bayesian model-averaged meta-analysis with adjustments for publication

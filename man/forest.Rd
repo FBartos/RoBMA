@@ -25,7 +25,7 @@ requires \pkg{ggplot2} package to be installed.}
 for \code{type = "averaged"} or \code{type = "conditional"}.
 Defaults to \code{FALSE}.}
 
-\item{order}{either of the studies. Defaults to \code{NULL} -
+\item{order}{order of the studies. Defaults to \code{NULL} -
 ordering as supplied to the fitting function. Studies
 can be ordered either \code{"ascending"} or \code{"descending"} by
 effect size, or by labels \code{"alphabetical"}.}

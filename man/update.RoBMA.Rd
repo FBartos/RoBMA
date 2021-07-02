@@ -11,7 +11,7 @@
   prior_effect = NULL,
   prior_heterogeneity = NULL,
   prior_bias = NULL,
-  prior_odds = NULL,
+  prior_weights = NULL,
   prior_effect_null = NULL,
   prior_heterogeneity_null = NULL,
   prior_bias_null = NULL,
@@ -36,9 +36,9 @@
 \item{object}{a fitted RoBMA object.}
 
 \item{refit_failed}{whether failed models should be refitted. Relevant only
-if new priors or \code{prior_odds} are not supplied. Defaults to \code{TRUE}.}
+if new priors or \code{prior_weights} are not supplied. Defaults to \code{TRUE}.}
 
-\item{prior_odds}{either a single value specifying prior model odds
+\item{prior_weights}{either a single value specifying prior model odds
 of a newly specified model using priors argument, or a vector of the
 same length as already fitted models to update their prior odds.}
 
@@ -99,10 +99,10 @@ that will be treated as belonging to the null hypothesis.}
 \enumerate{
 \item{add an additional model to an existing \code{"RoBMA"} object by
 specifying either a null or alternative prior for each parameter
-and the prior odds of the model (\code{prior_odds}), see the
+and the prior odds of the model (\code{prior_weights}), see the
 \code{vignette("CustomEnsembles")} vignette,}
 \item{change the prior odds of fitted models by specifying a vector
-\code{prior_odds} of the same length as the fitted models,}
+\code{prior_weights} of the same length as the fitted models,}
 \item{refitting models that failed to converge with updated settings
 of control parameters,}
 \item{or changing the convergence criteria and recalculating the ensemble
@@ -120,7 +120,7 @@ See \code{\link[=RoBMA]{RoBMA()}} for more details.
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
 
 # the update function allows us to change the prior model probability of each model
-fit1 <- update(fit, prior_odds = c(10,1,1,1,1,1,1,1,1,1,1,1))
+fit1 <- update(fit, prior_weights = c(10,1,1,1,1,1,1,1,1,1,1,1))
 
 # add an additional model with different priors specification (see '?prior' for more information)
 fit2 <- update(fit,

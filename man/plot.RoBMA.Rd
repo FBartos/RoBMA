@@ -12,6 +12,7 @@
   output_scale = NULL,
   prior = FALSE,
   rescale_x = FALSE,
+  show_data = TRUE,
   dots_prior = NULL,
   ...
 )

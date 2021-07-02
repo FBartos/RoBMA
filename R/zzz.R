@@ -13,8 +13,8 @@
 
 .onAttach <- function(libname, pkgname){
 
-  packageStartupMessage(
-    "Please, note the following changes in version 1.2.0 (see NEWS for more details):\n- all models are now estimated using the likelihood of effects sizes (instead of t-statistics)\n- parametrization of random effect models changed (the studies' true effects are marginalized out of the likelihood)")
+  packageStartupMessage("This is a preview of the 2.0 version of the RoBMA package.")
+  # 1.2.0 message: "Please, note the following changes in version 1.2.0 (see NEWS for more details):\n- all models are now estimated using the likelihood of effects sizes (instead of t-statistics)\n- parametrization of random effect models changed (the studies' true effects are marginalized out of the likelihood)"
 
 }
 

@@ -39,6 +39,8 @@
       priors_effect_null         <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null           <- prior_none()
+    }else{
+      stop("Unknown 'model_type'.")
     }
   }
 
