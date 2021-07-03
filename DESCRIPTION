@@ -40,7 +40,6 @@ Imports:
     graphics,
     extraDistr,
     scales,
-    DPQ,
     callr,
     Rdpack
 Suggests:
@@ -48,6 +47,7 @@ Suggests:
     parallel,
     rstan,
     metaBMA,
+    DPQ,
     testthat,
     vdiffr,
     knitr,
