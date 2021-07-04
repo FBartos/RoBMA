@@ -8,6 +8,5 @@ PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include"
 PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -ljrmath-0
 
 # Actual sources and objects for RoBMA
-
-SOURCES = $(wildcard distributions/*.cc) $(wildcard transformations/*.cc) weightedt.cc
+SOURCES = distributions/DWN1.cc distributions/DWN2.cc distributions/DWT1.cc distributions/DWT2.cc transformations/z.cc transformations/r.cc transformations/d.cc transformations/logOR.cc transformations/transformations_common.cc weightedt.cc
 OBJECTS = $(SOURCES:.cc=.o)

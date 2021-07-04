@@ -1,5 +1,5 @@
 PKG_CPPFLAGS=@JAGS_CFLAGS@
 PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@
 
-SOURCES = $(wildcard distributions/*.cc) $(wildcard transformations/*.cc) weightedt.cc
+SOURCES = distributions/DWN1.cc distributions/DWN2.cc distributions/DWT1.cc distributions/DWT2.cc transformations/z.cc transformations/r.cc transformations/d.cc transformations/logOR.cc transformations/transformations_common.cc weightedt.cc
 OBJECTS=$(SOURCES:.cc=.o)
