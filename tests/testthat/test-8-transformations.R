@@ -1,7 +1,7 @@
 context("(8) Effect size transformations")
+skip_on_cran()
 
 # Based on examples from: Borenstein, M., Hedges, L. V., Higgins, J. P., & Rothstein, H. R. (2011). Introduction to meta-analysis. John Wiley & Sons.
-
 test_that("standard error of Cohen's d  (p. 28)", {
   expect_equal(
     round(se_d(0.5970, 100), 4),
@@ -149,8 +149,7 @@ test_that("data combination works", {
     lCI = orig_data$z - orig_data$se * qnorm(0.975),
     uCI = orig_data$z + orig_data$se * qnorm(0.975),
     n   = n_z(orig_data$se),
-    t   = orig_data$z / orig_data$se,
-    p   = pt(orig_data$z / orig_data$se, n_z(orig_data$se) - 2, lower.tail = FALSE)
+    t   = orig_data$z / orig_data$se
   )
   orig_data_d <- data.frame(
     d   = z2d(orig_data_z$z),
@@ -161,7 +160,6 @@ test_that("data combination works", {
     n   = n_d(z2d(orig_data_z$z), se_z2se_d(orig_data_z$se, orig_data_z$z))
   )
   orig_data_d$t <- RoBMA:::.t_dn(orig_data_d$d, orig_data_d$n)
-  orig_data_d$p <- pt(orig_data_d$t, orig_data_d$n - 2, lower.tail = FALSE)
 
   orig_data_r <- data.frame(
     r   = z2r(orig_data_z$z),
@@ -172,7 +170,6 @@ test_that("data combination works", {
     n   = n_r(z2r(orig_data_z$z), se_z2se_r(orig_data_z$se, orig_data_z$z))
   )
   orig_data_r$t <- RoBMA:::.t_rn(orig_data_r$r, orig_data_r$n)
-  orig_data_r$p <- pt(orig_data_r$t, orig_data_r$n - 2, lower.tail = FALSE)
 
   orig_data_logOR <- data.frame(
     logOR = z2logOR(orig_data_z$z),
@@ -182,7 +179,6 @@ test_that("data combination works", {
     uCI   = z2logOR(orig_data_z$z) + se_z2se_logOR(orig_data_z$se, orig_data_z$z) * qnorm(0.975)
   )
   orig_data_logOR$t <- orig_data_logOR$logOR / orig_data_logOR$se
-  orig_data_logOR$p <- pnorm(orig_data_logOR$t, lower.tail = FALSE)
 
 
   test_data   <- matrix(NA, ncol = 0, nrow = nrow(orig_data))
@@ -213,10 +209,6 @@ test_that("data combination works", {
     }else{
       test_data[i, use_variability_measure[i]] <- temp_df[i, use_variability_measure[i]]
     }
-
-    # don't check p-values - they are not consistent across transformation
-    test_data[i, "p"] <- temp_df[i, "p"]
-
   }
 
   parsed_z <- combine_data(data = test_data)
@@ -241,5 +233,27 @@ test_that("data combination works", {
 
   colnames(parsed_logOR)[1] <- "logOR"
   expect_equal(as.matrix(parsed_logOR[, c("logOR", "se")]), as.matrix(orig_data_logOR[, c("logOR", "se")]))
+
+})
+
+# test that input checks work
+test_that("input check works", {
+
+  expect_error(combine_data(d = 0, lCI = 0.1, uCI = 0.2), "All effect sizes must be within the CI intervals.")
+  expect_error(combine_data(r = 0, lCI = 0.1, uCI = 0.2), "All effect sizes must be within the CI intervals.")
+  expect_error(combine_data(y = 0, lCI = 0.1, uCI = 0.2), "All effect sizes must be within the CI intervals.")
+  expect_error(combine_data(z = 0, lCI = 0.1, uCI = 0.2), "All effect sizes must be within the CI intervals.")
+  expect_error(combine_data(d = 0, lCI = 0.1, uCI = 0.0), "'lCI' must be lower than 'uCI'.")
+  expect_error(combine_data(d = 0, se = 0), "The 'se' must be higher than 0.")
+  expect_error(combine_data(r = 1, se = 1), "The 'r' must be lower than 1.")
+  expect_error(combine_data(r =-1, se = 1), "The 'r' must be higher than -1.")
+  expect_error(combine_data(r = 0, d  = 1), "The data do not contain any variability measure.")
+  expect_error(combine_data(se = 1, v  = 1), "The data do not contain any effect size measure.")
+  expect_error(combine_data(d = c(0,1), se = c(NA, 1)), "At least one variability measure per study must be supplied.")
+  expect_error(combine_data(d = c(NA,1), se = c(1, 1)), "At least one effect size measure per study must be supplied.")
+  expect_error(combine_data(d = c(NA,1), r = c(0, 0), se = c(1, 1)), "Only one effect size measure per study can be supplied.")
+  expect_error(combine_data(d = c(0, 1), v = c(2, 1), se = c(1, 1)), "Only one variability measure per study can be supplied.")
+  expect_error(combine_data(d = c(0, 1), lCI = c(NA, 1), se = c(1, NA)), "Either none or both CI bounds must be supplied.")
+  expect_error(combine_data(d = c(NA,1), y = c(1, NA), se = c(1, 1)), "Standardized and general effect sizes cannot be combined.")
 
 })
