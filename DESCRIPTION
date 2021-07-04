@@ -53,5 +53,4 @@ Suggests:
     knitr,
     rmarkdown
 RdMacros: Rdpack
-LinkingTo: BH
 VignetteBuilder: knitr
