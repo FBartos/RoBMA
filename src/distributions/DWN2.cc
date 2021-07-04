@@ -44,14 +44,12 @@ bool DWN2::checkParameterValue(vector<double const *> const &par,
     crit_x_OK = crit_x_OK && ( crit_x(par)[i] >= 0.0 );
   }
 
-  // all omegas are within [0, 1] and the last omega == 1
+  // all omegas are within [0, 1]
   for(unsigned j = 0; j < (n_omega(len)-1); ++j){
     omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
   }
-  // numerical imprecission for last omega is not a problem since it's assumed to be 1 later on
-  omega_OK = omega_OK && ( fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001 );
 
-  // var are positive
+  // var is positive
   var_OK = *par[1] > 0.0;
 
   return crit_x_OK && omega_OK && var_OK;
