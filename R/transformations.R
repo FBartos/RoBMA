@@ -125,8 +125,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     stop("The data do not contain any variability measure.")
 
   # logical check for confidence intervals
-  if(nrow(na.omit(data[,c("lCI", "uCI")]) > 0)){
-    if(any(na.omit(data[,"lCI"]) > na.omit(data[,"uCI"])))
+  if(nrow(stats::na.omit(data[,c("lCI", "uCI")]) > 0)){
+    if(any(stats::na.omit(data[,"lCI"]) > stats::na.omit(data[,"uCI"])))
       stop("'lCI' must be lower than 'uCI'.")
     for(var in c("d", "r", "z", "logOR", "y")){
       if(any(!is.na(data[,var]))){
@@ -178,7 +178,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     if(transformation != "y")
       stop("Effect sizes cannot be transformed in a presence of unstandardized measure ('y').")
 
-    data[is.na(data[,"se"]),"se"] <- (data[is.na(data[,"se"]),"uCI"] - data[is.na(data[,"se"]),"lCI"]) / (2*qnorm(.975))
+    data[is.na(data[,"se"]),"se"] <- (data[is.na(data[,"se"]),"uCI"] - data[is.na(data[,"se"]),"lCI"]) / (2*stats::qnorm(.975))
 
     ### t-statistics from effect sizes and standard errors
     data[is.na(data[,"t"]),"t"] <- data[is.na(data[,"t"]),"y"] / data[is.na(data[,"t"]),"se"]
@@ -187,8 +187,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     data[is.na(data[,"se"]),"se"] <- data[is.na(data[,"se"]),"y"] / data[is.na(data[,"se"]),"t"]
 
     if(return_all){
-      data[,"lCI"] <- data[,"y"] + qnorm(0.025) * data[,"se"]
-      data[,"uCI"] <- data[,"y"] + qnorm(0.975) * data[,"se"]
+      data[,"lCI"] <- data[,"y"] + stats::qnorm(0.025) * data[,"se"]
+      data[,"uCI"] <- data[,"y"] + stats::qnorm(0.975) * data[,"se"]
       return(data)
     }else{
       output$y  <- data[,"y"]
@@ -205,20 +205,20 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
   data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "se"] <- se_z2se_d(
     ( d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"uCI"]) -
-        d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"lCI"]))/(2*qnorm(.975)),
+        d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
     d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "d"])
   )
   data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "se"] <- se_z2se_r(
     ( r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"uCI"]) -
-        r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"lCI"]))/(2*qnorm(.975)),
+        r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
     r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "r"])
   )
   data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]), "se"] <-
     (data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"uCI"] -
-       data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"lCI"])/(2*qnorm(.975))
+       data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
   data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]), "se"] <-
     (data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"uCI"] -
-       data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"lCI"])/(2*qnorm(.975))
+       data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
 
 
   ### calculate sample sizes
@@ -281,8 +281,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"])
 
     # add CI for export
-    data[,"lCI"] <- z2d(d2z(data[,"d"]) + qnorm(0.025) * se_d2se_z(data[,"se"], data[,"d"]))
-    data[,"uCI"] <- z2d(d2z(data[,"d"]) + qnorm(0.975) * se_d2se_z(data[,"se"], data[,"d"]))
+    data[,"lCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.025) * se_d2se_z(data[,"se"], data[,"d"]))
+    data[,"uCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.975) * se_d2se_z(data[,"se"], data[,"d"]))
 
   }else if(transformation == "z"){
     data[is.na(data[,"z"]) & !is.na(data[,"d"]),    "z"] <-     d2z(data[is.na(data[,"z"]) & !is.na(data[,"d"]),        "d"])
@@ -300,8 +300,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "logOR"])
 
     # add CI for export
-    data[,"lCI"] <- data[,"z"] + qnorm(0.025) * data[,"se"]
-    data[,"uCI"] <- data[,"z"] + qnorm(0.975) * data[,"se"]
+    data[,"lCI"] <- data[,"z"] + stats::qnorm(0.025) * data[,"se"]
+    data[,"uCI"] <- data[,"z"] + stats::qnorm(0.975) * data[,"se"]
 
   }else if(transformation == "r"){
     data[is.na(data[,"r"]) & !is.na(data[,"d"]),    "r"] <-     d2r(data[is.na(data[,"r"]) & !is.na(data[,"d"]),        "d"])
@@ -319,8 +319,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"logOR"])
 
     # add CI for export
-    data[,"lCI"] <- z2r(r2z(data[,"r"]) + qnorm(0.025) * se_r2se_z(data[,"se"], data[,"r"]))
-    data[,"uCI"] <- z2r(r2z(data[,"r"]) + qnorm(0.975) * se_r2se_z(data[,"se"], data[,"r"]))
+    data[,"lCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.025) * se_r2se_z(data[,"se"], data[,"r"]))
+    data[,"uCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.975) * se_r2se_z(data[,"se"], data[,"r"]))
 
   }else if(transformation == "logOR"){
     data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "logOR"] <- d2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "d"])
@@ -337,8 +337,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
 
     # add CI for export
-    data[,"lCI"] <- data[,"logOR"] + qnorm(0.025) * data[,"se"]
-    data[,"uCI"] <- data[,"logOR"] + qnorm(0.975) * data[,"se"]
+    data[,"lCI"] <- data[,"logOR"] + stats::qnorm(0.025) * data[,"se"]
+    data[,"uCI"] <- data[,"logOR"] + stats::qnorm(0.975) * data[,"se"]
   }
 
   if(return_all){
@@ -407,14 +407,14 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
           output_scale
         )
       }else if(par == "tau"){
-        model[["fit"]][["mcmc"]][[type]][[par]] <- .scale(
+        model[["fit"]][["mcmc"]][[chain]][[par]] <- .scale(
           model[["fit"]][["mcmc"]][[chain]][,par],
           current_scale,
           output_scale
         )
       }else if(par == "PEESE"){
         # the transformation for PEESE is inverse
-        model[["fit"]][["mcmc"]][[type]][[par]] <- .scale(
+        model[["fit"]][["mcmc"]][[chain]][[par]] <- .scale(
           model[["fit"]][["mcmc"]][[chain]][,par],
           output_scale,
           current_scale
@@ -756,11 +756,11 @@ se_z2se_logOR <- function(se_z, z){
 
       backtransformed_y    <- do.call(
         .get_transformation(effect_measure, original_measure[i]),
-        arg = list(y[i]))
+        args = list(y[i]))
 
       backtransformed_y_se <- do.call(
         .get_transformation_se(effect_measure, original_measure[i]),
-        arg = list(se[i], y[i]))
+        args = list(se[i], y[i]))
 
       backtransformed_df   <- switch(
         original_measure[i],
@@ -778,12 +778,12 @@ se_z2se_logOR <- function(se_z, z){
 
       backtransformed_c    <- do.call(
         eval(parse(text = paste0(".c_", original_measure[i]))),
-        arg = list(backtransformed_y, backtransformed_y_se, backtransformed_t))
+        args = list(backtransformed_y, backtransformed_y_se, backtransformed_t))
 
       # transform back the backtransformed measures
       crit_y[i,] <- do.call(
         .get_transformation(original_measure[i], effect_measure),
-        arg = list(backtransformed_c))
+        args = list(backtransformed_c))
     }
   }
 
@@ -898,7 +898,7 @@ se_z2se_logOR <- function(se_z, z){
 .scale       <- function(x, from, to){
   do.call(
     .get_scale(from, to),
-    arg = list(x))
+    args = list(x))
 }
 
 .get_scale_b <- function(from, to){
@@ -954,24 +954,24 @@ se_z2se_logOR <- function(se_z, z){
 .transform_mu    <- function(mu, from, to){
   do.call(
     .get_transformation(from, to),
-    arg = list(mu))
+    args = list(mu))
 }
 .transform_tau   <- function(tau, mu, from, to){
   if(all(c(from, to) %in% c("d", "logOR"))){
     return(do.call(
       .get_transformation_se(from, to),
-      arg = list(tau)))
+      args = list(tau)))
   }else{
     return(do.call(
       .get_transformation_se(from, to),
-      arg = list(tau, if(!is.null(mu)) mu else 0)))
+      args = list(tau, if(!is.null(mu)) mu else 0)))
   }
 }
-.transform_PEESE <- function(PEESE, mu, from, to){
-  do.call(
-    .get_transformation_PEESE(from, to),
-    arg = list(PEESE, if(!is.null(mu)) mu else 0))
-}
+# .transform_PEESE <- function(PEESE, mu, from, to){
+#   do.call(
+#     .get_transformation_PEESE(from, to),
+#     args = list(PEESE, if(!is.null(mu)) mu else 0))
+# }
 
 
 #### helper functions ####
@@ -981,93 +981,93 @@ se_z2se_logOR <- function(se_z, z){
     stop("data must be a data.frame")
   apply(data, 1, anyNA)
 }
-
-.get_effect_and_ci <- function(add_info, CI){
-
-  # extract the information
-  t  <- add_info$t
-  d  <- add_info$d
-  r  <- add_info$r
-  y  <- add_info$y
-  OR <- add_info$OR
-  n  <- add_info$n
-  n1 <- add_info$n1
-  n2 <- add_info$n2
-  se <- add_info$se
-  lCI<- add_info$lCI
-  uCI<- add_info$uCI
-  effect_size <- add_info$effect_size
-  test_type   <- add_info$test_type
-  study_names <- add_info$study_names
-
-  # compute the mean and CI
-  if(effect_size == "d"){
-
-    if(!is.null(uCI) & !is.null(lCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
-    if(is.null(n) & !is.null(d) & !is.null(se))n <- .get_n_for_d(d, se)
-
-    if(test_type == "one.sample"){
-      out <- psych::d.ci(psych::t2d(t = t, n1 = n), n1 = n, alpha = 1 - CI)
-    }else if(test_type == "two.sample"){
-      if(!is.null(n1) & !is.null(n2)){
-        out <- psych::d.ci(psych::t2d(t = t, n1 = n1, n2 = n2), n1 = n1, n2 = n2, alpha = 1 - CI)
-      }else{
-        out <- psych::d.ci(psych::t2d(t = t, n = n), n = n, alpha = 1 - CI)
-      }
-    }
-  }else if(effect_size == "r"){
-
-    if(!is.null(uCI) & !is.null(lCI)){
-      out <- cbind(lCI, r, uCI)
-    }else{
-      out <- matrix(suppressWarnings(psych::r.con(r = r, n = n, p = CI, twotailed = TRUE)), ncol = 2)
-      out <- cbind(out[,1], r, out[,2])
-    }
-
-  }else if(effect_size == "y"){
-
-    if(!is.null(uCI) & !is.null(lCI)){
-      out <- cbind(lCI, y, uCI)
-    }else{
-      out <- cbind(y + stats::qnorm((1-CI)/2) * se, y, y - stats::qnorm((1-CI)/2) * se)
-    }
-  }else if(effect_size == "OR"){
-
-    out <- cbind(lCI, OR, uCI)
-
-  }
-
-  if(is.null(study_names))study_names <- paste0("Study ", 1:nrow(out))
-  out <- data.frame(out)
-  colnames(out) <- c("lCI", "est", "uCI")
-  out$name <- study_names
-
-  return(out)
-}
-.get_study_names   <- function(study_names, n_studies){
-
-  if(!is.null(study_names))if(length(study_names) != n_studies)stop("The study names do not match the length of supplied data.")
-  if(is.null(study_names))study_names <- paste("Study", 1:n_studies)
-
-  return(study_names)
-
-}
-.transform         <- function(x, effect_size, transformation){
-  if(!is.null(effect_size)){
-    if(effect_size == "r"){
-      if(transformation == "cohens_d"){
-        x   <- psych::d2r(x)
-      }else if(transformation == "fishers_z"){
-        x   <- psych::fisherz2r(x)
-        x[is.nan(x)] <- ifelse(x[is.nan(x)] > 0, 1, -1)
-      }
-    }else if(effect_size == "OR"){
-      if(transformation == "log_OR"){
-        x   <- exp(x)
-      }else if(transformation == "cohens_d"){
-        x   <- .d2OR(x)
-      }
-    }
-  }
-  return(x)
-}
+#
+# .get_effect_and_ci <- function(add_info, CI){
+#
+#   # extract the information
+#   t  <- add_info$t
+#   d  <- add_info$d
+#   r  <- add_info$r
+#   y  <- add_info$y
+#   OR <- add_info$OR
+#   n  <- add_info$n
+#   n1 <- add_info$n1
+#   n2 <- add_info$n2
+#   se <- add_info$se
+#   lCI<- add_info$lCI
+#   uCI<- add_info$uCI
+#   effect_size <- add_info$effect_size
+#   test_type   <- add_info$test_type
+#   study_names <- add_info$study_names
+#
+#   # compute the mean and CI
+#   if(effect_size == "d"){
+#
+#     if(!is.null(uCI) & !is.null(lCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
+#     if(is.null(n) & !is.null(d) & !is.null(se))n <- .get_n_for_d(d, se)
+#
+#     if(test_type == "one.sample"){
+#       out <- psych::d.ci(psych::t2d(t = t, n1 = n), n1 = n, alpha = 1 - CI)
+#     }else if(test_type == "two.sample"){
+#       if(!is.null(n1) & !is.null(n2)){
+#         out <- psych::d.ci(psych::t2d(t = t, n1 = n1, n2 = n2), n1 = n1, n2 = n2, alpha = 1 - CI)
+#       }else{
+#         out <- psych::d.ci(psych::t2d(t = t, n = n), n = n, alpha = 1 - CI)
+#       }
+#     }
+#   }else if(effect_size == "r"){
+#
+#     if(!is.null(uCI) & !is.null(lCI)){
+#       out <- cbind(lCI, r, uCI)
+#     }else{
+#       out <- matrix(suppressWarnings(psych::r.con(r = r, n = n, p = CI, twotailed = TRUE)), ncol = 2)
+#       out <- cbind(out[,1], r, out[,2])
+#     }
+#
+#   }else if(effect_size == "y"){
+#
+#     if(!is.null(uCI) & !is.null(lCI)){
+#       out <- cbind(lCI, y, uCI)
+#     }else{
+#       out <- cbind(y + stats::qnorm((1-CI)/2) * se, y, y - stats::qnorm((1-CI)/2) * se)
+#     }
+#   }else if(effect_size == "OR"){
+#
+#     out <- cbind(lCI, OR, uCI)
+#
+#   }
+#
+#   if(is.null(study_names))study_names <- paste0("Study ", 1:nrow(out))
+#   out <- data.frame(out)
+#   colnames(out) <- c("lCI", "est", "uCI")
+#   out$name <- study_names
+#
+#   return(out)
+# }
+# .get_study_names   <- function(study_names, n_studies){
+#
+#   if(!is.null(study_names))if(length(study_names) != n_studies)stop("The study names do not match the length of supplied data.")
+#   if(is.null(study_names))study_names <- paste("Study", 1:n_studies)
+#
+#   return(study_names)
+#
+# }
+# .transform         <- function(x, effect_size, transformation){
+#   if(!is.null(effect_size)){
+#     if(effect_size == "r"){
+#       if(transformation == "cohens_d"){
+#         x   <- psych::d2r(x)
+#       }else if(transformation == "fishers_z"){
+#         x   <- psych::fisherz2r(x)
+#         x[is.nan(x)] <- ifelse(x[is.nan(x)] > 0, 1, -1)
+#       }
+#     }else if(effect_size == "OR"){
+#       if(transformation == "log_OR"){
+#         x   <- exp(x)
+#       }else if(transformation == "cohens_d"){
+#         x   <- .d2OR(x)
+#       }
+#     }
+#   }
+#   return(x)
+# }

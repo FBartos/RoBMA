@@ -313,8 +313,8 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
   # obtain the posterior estimates
   est_mu <- mean(samples_mu)
-  lCI_mu <- unname(quantile(samples_mu, .025))
-  uCI_mu <- unname(quantile(samples_mu, .975))
+  lCI_mu <- unname(stats::quantile(samples_mu, .025))
+  uCI_mu <- unname(stats::quantile(samples_mu, .975))
 
   # get the CIs (+add transformation if necessary)
   data <- combine_data(data = data, transformation = .transformation_invar(output_scale), return_all = TRUE)
@@ -373,7 +373,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
       graphics::abline(v = .transform_mu(0, "d", output_scale), lty = 3)
     }
 
-    arrows(x0 = data$lCI, x1 = data$uCI, y0 = data$x, code = 3, angle = 90, length = 0.1)
+    graphics::arrows(x0 = data$lCI, x1 = data$uCI, y0 = data$x, code = 3, angle = 90, length = 0.1)
     graphics::points(x = data$y, y = data$x, pch = 15)
 
     graphics::polygon(
@@ -384,20 +384,25 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
   }else if(plot_type == "ggplot"){
 
-    plot <- ggplot2::ggplot(data = data)
+    plot <- ggplot2::ggplot()
 
     # add the studies
     plot <- plot +ggplot2::geom_errorbarh(
       mapping = ggplot2::aes(
-        xmin   = lCI,
-        xmax   = uCI,
-        y      = x),
+        xmin   = xmin,
+        xmax   = xmax,
+        y      = y),
       color   = "black",
+      data = data.frame(
+        xmin = data$lCI,
+        xmax = data$uCI,
+        y    = data$x
+      ),
       height  = .25)
     plot <- plot +ggplot2::geom_point(
       mapping = ggplot2::aes(
-        x = y,
-        y = x),
+        x = data$y,
+        y = data$x),
       shape = 15)
 
     # add the overall estimate
@@ -406,7 +411,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
         x = x,
         y = y),
       data = data.frame(
-        x = c(lCI_mu, est_mu , uCI_mu, est_mu),
+        x = c(data$lCI_mu, data$est_mu , data$uCI_mu, data$est_mu),
         y = c(1, 1.25, 1, 0.75)),
       fill = "black")
 

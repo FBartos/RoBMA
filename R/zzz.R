@@ -2,7 +2,6 @@
 .onLoad <- function(libname, pkgname){
 
   # load runjags
-  requireNamespace("BayesTools")
   requireNamespace("runjags")
 
   hereIsTheModule <- file.path(libname, pkgname)

@@ -459,8 +459,9 @@ update.RoBMA <- function(object, refit_failed = TRUE, output_scale = NULL,
   }else if(what_to_do == "transform_estimates"){
 
     # TODO: implement
+    stop("Not implemented.")
     for(i in c(1:length(object$models))){
-      object$models[[i]] <- .transform_posteriors(object$models[[i]], object$add_info$output_scale, .transformation_var(output_scale))
+      object$models[[i]] <- .transform_posterior(object$models[[i]], object$add_info$output_scale, .transformation_var(output_scale))
     }
     object <- .transform_posterior(object, object$add_info$output_scale, .transformation_var(output_scale))
     object$add_info$output_scale <- .transformation_var(output_scale)

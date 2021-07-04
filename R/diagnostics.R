@@ -113,7 +113,8 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
   for(m in models_ind){
 
     temp_out  <- NULL
-    temp_data <- .diagnostics_plot_data(fit, m, parameter, par_transform)
+    # add ability to transform the estimates with 'par_transform'
+    temp_data <- .diagnostics_plot_data(fit, m, parameter, NULL)
 
     # deal with no parameter in model
     if(is.null(temp_data)){

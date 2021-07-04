@@ -113,7 +113,7 @@
       if(component == "heterogeneity"){
         if(priors[[p]][["distribution"]] == "point" && priors[[p]]$parameters[["location"]] < 0){
           stop("The location of a point prior distribution for the heterogeneity component cannot be negative.")
-        }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[i]]$parameters[["a"]] < 0 | priors[[p]]$parameters[["b"]] < 0)){
+        }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[p]]$parameters[["a"]] < 0 | priors[[p]]$parameters[["b"]] < 0)){
           stop("The uniform prior distribution for the heterogeneity component cannot be defined on negative numbers.")
         }else if(priors[[p]]$truncation[["lower"]] < 0){
           priors[[p]]$truncation[["lower"]] <- 0

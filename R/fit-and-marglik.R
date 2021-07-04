@@ -245,11 +245,11 @@
   if(prior_scale != effect_measure){
     mu_transformed  <- do.call(
       .get_scale(prior_scale, effect_measure),
-      arg = list(mu)
+      args = list(mu)
     )
     tau_transformed <- do.call(
       .get_scale(prior_scale, effect_measure),
-      arg = list(tau)
+      args = list(tau)
     )
     if(!is.null(priors[["PET"]])){
       PET_transformed   <- PET
@@ -257,7 +257,7 @@
       # don't forget that the transformation is inverse for PEESE
       PEESE_transformed <- do.call(
         .get_scale(effect_measure, prior_scale),
-        arg = list(PEESE)
+        args = list(PEESE)
       )
     }
   }else{
