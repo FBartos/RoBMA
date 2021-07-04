@@ -2,8 +2,8 @@
 ^\.Rproj\.user$
 ^trash$
 ^prefitted$
-^tests/figs/.*$
-^tests/results/.*$
+^tests/results$
+^tests/testthat/_snaps$
 ^..Rcheck
 ^.*\.o
 ^docs$

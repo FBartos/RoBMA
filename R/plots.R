@@ -389,15 +389,10 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     # add the studies
     plot <- plot +ggplot2::geom_errorbarh(
       mapping = ggplot2::aes(
-        xmin   = xmin,
-        xmax   = xmax,
-        y      = y),
+        xmin   = data$lCI,
+        xmax   = data$uCI,
+        y      = data$x),
       color   = "black",
-      data = data.frame(
-        xmin = data$lCI,
-        xmax = data$uCI,
-        y    = data$x
-      ),
       height  = .25)
     plot <- plot +ggplot2::geom_point(
       mapping = ggplot2::aes(
@@ -408,9 +403,6 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     # add the overall estimate
     plot <- plot + ggplot2::geom_polygon(
       mapping = ggplot2::aes(
-        x = x,
-        y = y),
-      data = data.frame(
         x = c(data$lCI_mu, data$est_mu , data$uCI_mu, data$est_mu),
         y = c(1, 1.25, 1, 0.75)),
       fill = "black")
@@ -419,22 +411,14 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     if(output_scale == "y"){
       plot <- plot + ggplot2::geom_line(
         mapping = ggplot2::aes(
-          x = x,
-          y = y),
-        data     = data.frame(
           x = c(0,0),
-          y = ylim
-        ),
+          y = ylim),
         linetype = "dotted")
     }else{
       plot <- plot + ggplot2::geom_line(
         mapping = ggplot2::aes(
-          x = x,
-          y = y),
-        data     = data.frame(
           x = .transform_mu(c(0,0), "d", output_scale),
-          y = ylim
-        ),
+          y = ylim),
         linetype = "dotted")
     }
 
