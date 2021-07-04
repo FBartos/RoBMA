@@ -3,8 +3,11 @@ skip_on_cran()
 
 # the summary tables and print functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
-saved_fits    <- readRDS(file = "../results/saved_fits.RDS")
-
+saved_files <- paste0("fit_", 1:12, ".RDS")
+saved_fits  <- list()
+for(i in seq_along(saved_files)){
+  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+}
 
 test_that("Print functions work", {
 

@@ -2,9 +2,13 @@ context("(4) Fitting and updating functions")
 skip_on_cran()
 
 # test objects
-saved_fits   <- readRDS(file = "../results/saved_fits.RDS")
+saved_files <- paste0("fit_", 1:12, ".RDS")
+saved_fits  <- list()
+for(i in seq_along(saved_files)){
+  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+}
 
-# functions simplyfing the comparison
+# functions simplifying the comparison
 remove_time  <- function(fit){
   for(m in 1:length(fit$models)){
     if(is.null(fit$models[[m]]$fit))next
@@ -169,8 +173,12 @@ test_that("Convergence warnings work", {
 #### creating / updating the test settings ####
 if(FALSE){
   saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12)
+
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])
   }
-  saveRDS(saved_fits, file = "tests/results/saved_fits.RDS", compress  = "xz")
+
+  for(i in 1:length(saved_fits)){
+    saveRDS(saved_fits[[i]], file = file.path("tests/results/fits/", paste0("fit_",i,".RDS")),   compress  = "xz")
+  }
 }

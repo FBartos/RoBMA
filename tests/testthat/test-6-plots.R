@@ -3,7 +3,11 @@ skip_on_cran()
 
 # the plotting functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
-saved_fits <- readRDS(file = "../results/saved_fits.RDS")
+saved_files <- paste0("fit_", 1:12, ".RDS")
+saved_fits  <- list()
+for(i in seq_along(saved_files)){
+  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+}
 
 # alternative components present in the models:
 effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12)

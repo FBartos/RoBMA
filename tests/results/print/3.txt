@@ -1,0 +1,6 @@
+"Call:"
+"RoBMA(d = d, se = d_se, model_type = \"PP\", parallel = TRUE, seed = 1)"
+""
+"Estimates:"
+"       mu       tau       PET     PEESE "
+"0.1959897 0.1083434 0.2637312 0.2126261 "

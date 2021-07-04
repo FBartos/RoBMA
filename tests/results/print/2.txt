@@ -1,0 +1,6 @@
+"Call:"
+"RoBMA(d = d, se = d_se, model_type = \"2w\", parallel = TRUE, seed = 1)"
+""
+"Estimates:"
+"             mu             tau   omega[0,0.05] omega[0.05,0.1]    omega[0.1,1] "
+"      0.2381600       0.1025148       1.0000000       0.7872446       0.7204842 "

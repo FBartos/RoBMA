@@ -1,0 +1,8 @@
+"Call:"
+"RoBMA(r = r, n = n, model_type = \"PSMA\", parallel = TRUE, seed = 1)"
+""
+"Estimates:"
+"               mu               tau    omega[0,0.025] omega[0.025,0.05]   omega[0.05,0.5]   omega[0.5,0.95] omega[0.95,0.975]    omega[0.975,1] "
+"       0.19511289        0.11047852        1.00000000        0.91733626        0.81082356        0.74465449        0.75498922        0.79189901 "
+"              PET             PEESE "
+"       0.10741357        0.08677961 "

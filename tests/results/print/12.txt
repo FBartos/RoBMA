@@ -1,0 +1,7 @@
+"Call:"
+"RoBMA(d = d, se = d_se, priors_effect = NULL, priors_heterogeneity = NULL, "
+"    priors_bias = NULL, parallel = TRUE, seed = 1)"
+""
+"Estimates:"
+"       mu       tau "
+"0.4483379 0.0000000 "
