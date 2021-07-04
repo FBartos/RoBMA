@@ -59,11 +59,21 @@
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
 
-  # settings check
-  if(length(transformation) != 1 | !is.character(transformation))
-    stop("'transformation' must be a character of length 1.")
-  if(length(return_all) != 1 | !is.logical(return_all))
-    stop("'return_all' must be a logical of length 1.")
+  # settings & input  check
+  BayesTools::check_char(transformation, "transformation")
+  BayesTools::check_bool(return_all, "return_all")
+  BayesTools::check_real(d[!is.na(d)],         "d",        allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(r[!is.na(r)],         "r",        allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
+  BayesTools::check_real(z[!is.na(z)],         "z",        allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)], "logOR",    allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(t[!is.na(t)],         "t",        allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(y[!is.na(y)],         "y",        allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(se[!is.na(se)],       "se",       allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(v[!is.na(v)],         "v",        allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_int( n[!is.na(n)],         "n",        allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(lCI[!is.na(lCI)],     "lCI",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(uCI[!is.na(uCI)],     "uCI",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
 
   transformation <- .transformation_var(transformation)
 
@@ -79,7 +89,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   input_variables <- c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names")
 
   if(!is.null(data)){
-    if(!is.data.frame(data))stop("Data must be passed as a data.frame.")
+    if(!is.data.frame(data))
+      stop("Data must be passed as a data.frame.")
     if(any(!colnames(data) %in% input_variables))
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
@@ -107,52 +118,29 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     study_names = rep(NA, nrow(data))
   )
 
-  ### general check of the input values
-  for(var in c("d", "r", "z", "logOR", "y", "t", "se", "v", "n", "lCI", "uCI")){
-    if(all(is.na(data[,var])))
-      next
-    if(!is.numeric(data[,var]))
-      stop(paste0("'", var, "' must be numeric."))
-    if(any(is.nan(data[,var])))
-      stop(paste0("NaN are not allowed in '", var, "'."))
-    if(any(is.infinite(data[,var])))
-      stop(paste0("Infinite values are not allowed in '", var, "'."))
-  }
-
   ### check for sufficient input
   if(all(is.na(data[, c("d", "r", "z", "logOR", "y")])))
     stop("The data do not contain any effect size measure.")
   if(all(is.na(data[, c("se", "v", "n", "lCI", "uCI", "t")])))
     stop("The data do not contain any variability measure.")
 
-  ### logical checks for the input values
-  for(var in c("se", "v", "n")){
-    if(length(na.omit(data[,var]) > 0)){
-      if(any(na.omit(data[,var]) < 0))
-        stop(paste0("'", var, "' must be positive."))
-    }
-  }
-
+  # logical check for confidence intervals
   if(nrow(na.omit(data[,c("lCI", "uCI")]) > 0)){
     if(any(na.omit(data[,"lCI"]) > na.omit(data[,"uCI"])))
       stop("'lCI' must be lower than 'uCI'.")
     for(var in c("d", "r", "z", "logOR", "y")){
       if(any(!is.na(data[,var]))){
-        if(any(data[!is.na(var) & !is.na("lCI"),var] < data[!is.na(var) & !is.na("lCI"),"lCI"]) | any(data[!is.na(var) & !is.na("uCI"),var] > data[!is.na(var) & !is.na("uCI"),"uCI"]))
+        if((any(data[!is.na(data[,var]) & !is.na(data[,"lCI"]),var] < data[!is.na(data[,var]) & !is.na(data[,"lCI"]),"lCI"]) | any(data[!is.na(data[,var]) & !is.na(data[,"uCI"]),var] > data[!is.na(data[,var]) & !is.na(data[,"uCI"]),"uCI"])))
           stop("All effect sizes must be within the CI intervals.")
       }
     }
   }
 
-  for(var in c("r")){
-    if(length(na.omit(data[,var]) > 0)){
-      if(any(abs(na.omit(data[,var])) > 1))
-        stop(paste0("'", var, "' must be lower than 1."))
-    }
-  }
-
   if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "y")])) > 1))
     stop("Only one effect size measure per study can be supplied.")
+
+  if(any(rowSums(!is.na(data[,c("se", "v", "n", "t", "lCI")])) > 1))
+    stop("Only one variability measure per study can be supplied.")
 
   if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "y")])) != 1))
     stop("At least one effect size measure per study must be supplied.")
@@ -199,6 +187,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     data[is.na(data[,"se"]),"se"] <- data[is.na(data[,"se"]),"y"] / data[is.na(data[,"se"]),"t"]
 
     if(return_all){
+      data[,"lCI"] <- data[,"y"] + qnorm(0.025) * data[,"se"]
+      data[,"uCI"] <- data[,"y"] + qnorm(0.975) * data[,"se"]
       return(data)
     }else{
       output$y  <- data[,"y"]
@@ -642,13 +632,13 @@ n_z      <- function(se)(3*se^2 + 1)/se^2
 
 # transformation between standard errors of effect sizes
 #' @rdname standard_errors
-se_d2se_logOR <- function(se_d)sqrt(se_d^2 * pi^2 / 3)
+se_d2se_logOR <- function(se_d, logOR)sqrt(se_d^2 * pi^2 / 3)
 #' @rdname standard_errors
 se_d2se_r     <- function(se_d, d)sqrt((4^2*se_d^2)/(d^2+4)^3)
 #' @rdname standard_errors
 se_r2se_d     <- function(se_r, r)sqrt((4*se_r^2)/(1-r^2)^3)
 #' @rdname standard_errors
-se_logOR2se_d <- function(se_logOR)sqrt(se_logOR^2 * 3 / pi^2)
+se_logOR2se_d <- function(se_logOR, logOR)sqrt(se_logOR^2 * 3 / pi^2)
 
 # compound transformations
 #' @rdname standard_errors
@@ -780,10 +770,10 @@ se_z2se_logOR <- function(se_z, z){
         "logOR" = Inf
       )
 
-      if(prior$distribution == "one.sided"){
-        backtransformed_t    <- stats::qt(prior$parameters$steps,   backtransformed_df, lower.tail = FALSE)
-      }else if(prior$distribution == "two.sided"){
-        backtransformed_t    <- stats::qt(prior$parameters$steps/2, backtransformed_df, lower.tail = FALSE)
+      if(grepl("one.sided", prior[["distribution"]])){
+        backtransformed_t    <- stats::qt(prior$parameters[["steps"]],   backtransformed_df, lower.tail = FALSE)
+      }else if(grepl("two.sided", prior[["distribution"]])){
+        backtransformed_t    <- stats::qt(prior$parameters[["steps"]]/2, backtransformed_df, lower.tail = FALSE)
       }
 
       backtransformed_c    <- do.call(

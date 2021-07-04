@@ -62,29 +62,38 @@
 diagnostics <- function(fit, parameter, type, plot_type = "base",
                   show_figures = if(parameter == "omega") -1 else NULL, show_models = NULL,
                   lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
-  par_transform = FALSE
-  if(parameter == "theta"){
-    stop("The true effect estimates are no longer available. See NEWS for updated regarding the model parametrization.")
+
+  # check settings
+  if(class(fit) != "RoBMA")
+    stop("Diagnostics are available only for RoBMA models.")
+  if(fit$add_info$save == "min")
+    stop("Diagnostics cannot be produced because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' while fitting the model (see ?RoBMA for more details).")
+  BayesTools::check_char(parameter, "parameter")
+  BayesTools::check_char(type, "type")
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
+    stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
+
+  # deal with bad type names
+  if(substr(type, 1, 1) == "c"){
+    type <- "chains"
+  }else if(substr(type, 1, 1) == "t"){
+    type <- "chains" # for trace
+  }else if(substr(type, 1, 1) == "d"){
+    type <- "densities"
+  }else if(substr(type, 1, 1) == "a"){
+    type <- "autocorrelation"
+  }else{
+    stop("Unsupported diagnostics type. See '?diagnostics' for more details.")
   }
 
-  # check & correct parameters
-  if(class(fit) != "RoBMA")stop("Diagnostics are available only for RoBMA models.")
-  if(fit$add_info$save == "min")stop("Diagnostics cannot be produced because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' in while fitting the model (see ?RoBMA for more details).")
-
-  if(length(parameter) != 1)stop("Only one parameter can be selected.")
-  if(!parameter %in% c("mu", "tau", "omega", "theta"))stop("Selected parameter is not supported. Choose one of 'mu', 'tau', 'omega', or 'theta'.")
-  if(length(type) != 1)stop("Only one type can be selected.")
-  if(substr(type, 1, 1) == "c")type <- "chains"
-  if(substr(type, 1, 1) == "t")type <- "chains" # for trace
-  if(substr(type, 1, 1) == "d")type <- "densities"
-  if(substr(type, 1, 1) == "a")type <- "autocorrelation"
-  if(!type %in% c("chains", "autocorrelation", "densities"))stop("Selected diagnostic type is not supported. Choose one of 'chains', 'autocorrelation', or 'densities'.")
-  if(plot_type == "ggplot2")plot_type <- "ggplot"
-  if(!plot_type %in% c("base", "ggplot"))stop("The passed plot_type is not supported for plotting. See '?diagnostics' for more details.")
-
-  # check availability of ggplot
-  if(plot_type == "ggplot"){
-    if(!try(requireNamespace("ggplot2")))stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
+  # deal with bad parameter names for PET-PEESE, weightfunction
+  if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
+    parameter <- "omega"
+  }else if(parameter %in% c("mu", "tau", "PET", "PEESE")){
+    parameters <- parameter
+  }else{
+    stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
   }
 
 
@@ -96,8 +105,10 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
     models_ind <- models_ind[show_models]
   }
 
-  # a message with info about muliple plots
-  if(plot_type == "base" & (length(models_ind) > 1 | parameter == "omega"))message("Multiple plots will be produced. See '?layout' for help with setting multiple plots.")
+  # a message with info about multiple plots
+  if(plot_type == "base" & (length(models_ind) > 1 | parameter == "omega"))
+    message("Multiple plots will be produced. See '?layout' for help with setting multiple plots.")
+
 
   for(m in models_ind){
 
@@ -122,21 +133,24 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
     }
 
     for(i in par_ind){
-
-      if(type == "chains")temp_out <- c(temp_out, list(.diagnostics_plot_trace(temp_data[[i]], plot_type, if(title) m else NULL, ...)))
-      if(type == "densities")temp_out <- c(temp_out, list(.diagnostics_plot_density(temp_data[[i]], plot_type, if(title) m else NULL, parameter, ...)))
-      if(type == "autocorrelation")temp_out <- c(temp_out, list(.diagnostics_plot_ac(temp_data[[i]], plot_type, if(title) m else NULL, lags, ...)))
-
+      if(type == "chains"){
+        temp_out <- c(temp_out, list(.diagnostics_plot_trace(temp_data[[i]], plot_type, if(title) m else NULL, ...)))
+      }else if(type == "densities"){
+        temp_out <- c(temp_out, list(.diagnostics_plot_density(temp_data[[i]], plot_type, if(title) m else NULL, parameter, ...)))
+      }else if(type == "autocorrelation"){
+        temp_out <- c(temp_out, list(.diagnostics_plot_ac(temp_data[[i]], plot_type, if(title) m else NULL, lags, ...)))
+      }
     }
 
-    if(length(temp_out) == 1)temp_out <- temp_out[[1]]
+    if(length(temp_out) == 1){
+      temp_out <- temp_out[[1]]
+    }
 
     if(length(models_ind) == 1){
       out    <- temp_out
     }else{
       out[m] <- list(temp_out)
     }
-
   }
 
   # return the plots
@@ -154,7 +168,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
     # save plotting settings
     oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(oldpar))
+    on.exit(graphics::par(mar = oldpar[["mar"]]))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -195,7 +209,9 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
         breaks = pretty(temp_y_range),
         labels = pretty(temp_y_range)
       )
-    if(!is.null(title))graph <- graph + ggplot2::ggtitle(paste0("Model ",title))
+    if(!is.null(title)){
+      graph <- graph + ggplot2::ggtitle(paste0("Model ",title))
+    }
   }
 
   return(graph)
@@ -206,7 +222,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
     # save plotting settings
     oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(oldpar))
+    on.exit(graphics::par(mar = oldpar[["mar"]]))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -215,8 +231,13 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
       graphics::par(list(...))
     }
     with_trunc <- list()
-    if(!is.infinite(plot_data$lower))with_trunc$from <- plot_data$lower
-    if(!is.infinite(plot_data$upper))with_trunc$to   <- plot_data$upper
+    if(!is.infinite(plot_data$lower)){
+      with_trunc$from <- plot_data$lower
+    }
+    if(!is.infinite(plot_data$upper)){
+      with_trunc$to   <- plot_data$upper
+    }
+
 
     temp_den <- vector(mode = "list", length = length(unique(plot_data$samp$chain)))
     for(i in as.numeric(unique(plot_data$samp$chain))){
@@ -228,19 +249,21 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
       }
     }
 
-    graphics::plot(NA, type = "n",
-                   xlim = if(all(sapply(temp_den, is.null))) c(0, 1) else range(sapply(1:length(temp_den), function(i)temp_den[[i]]$x)),
-                   ylim = if(all(sapply(temp_den, is.null))) c(0, 1) else c(0, max(sapply(1:length(temp_den), function(i)temp_den[[i]]$y))),
-                   xlab = "", ylab = "", bty = "n", las = 1)
+    graphics::plot(
+      NA, type = "n",
+      xlim = if(all(sapply(temp_den, is.null))) c(0, 1) else range(sapply(1:length(temp_den), function(i)temp_den[[i]]$x)),
+      ylim = if(all(sapply(temp_den, is.null))) c(0, 1) else c(0, max(sapply(1:length(temp_den), function(i)temp_den[[i]]$y))),
+      xlab = "", ylab = "", bty = "n", las = 1)
     for(i in 1:length(temp_den)){
       if(is.null(temp_den[[i]]) & par == "omega"){
         graphics::arrows(x0 = 1, y0 = 0, y1 = 1, lwd = 2, lty = 1, col = .diagnostics_color(plot_data$nchains)[i])
       }else{
         graphics::lines(temp_den[[i]], col = .diagnostics_color(plot_data$nchains)[i])
-        graphics::polygon(x = c(if(!is.infinite(plot_data$lower)) plot_data$lower, temp_den[[i]]$x, if(!is.infinite(plot_data$upper)) plot_data$upper),
-                          y = c(if(!is.infinite(plot_data$lower)) 0,               temp_den[[i]]$y, if(!is.infinite(plot_data$upper)) 0),
-                          border = .diagnostics_color(plot_data$nchains)[i],
-                          col    = scales::alpha(.diagnostics_color(plot_data$nchains)[i], alpha = .5))
+        graphics::polygon(
+          x = c(if(!is.infinite(plot_data$lower)) plot_data$lower, temp_den[[i]]$x, if(!is.infinite(plot_data$upper)) plot_data$upper),
+          y = c(if(!is.infinite(plot_data$lower)) 0,               temp_den[[i]]$y, if(!is.infinite(plot_data$upper)) 0),
+          border = .diagnostics_color(plot_data$nchains)[i],
+          col    = scales::alpha(.diagnostics_color(plot_data$nchains)[i], alpha = .5))
       }
     }
     if(!is.null(title)){
@@ -270,7 +293,9 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
         breaks = pretty(temp_x_range),
         labels = pretty(temp_x_range)
       )
-    if(!is.null(title))graph <- graph + ggplot2::ggtitle(paste0("Model ",title))
+    if(!is.null(title)){
+      graph <- graph + ggplot2::ggtitle(paste0("Model ",title))
+    }
 
   }
 
@@ -284,7 +309,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
     # save plotting settings
     oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(oldpar))
+    on.exit(graphics::par(mar = oldpar[["mar"]]))
 
     # set up margins
     if(length(list(...)) == 0){
@@ -343,26 +368,32 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
 
   }else{
 
+    # do not plot spike priors
+    if(is.prior.point(fit$models[[model]]$priors[[par]]))
+      return(NULL)
+
     samples <- coda::as.array.mcmc.list(fit$models[[model]]$fit$mcmc, drop = FALSE)
 
-    if(!any(grepl(par, dimnames(samples)$var)))return(NULL)
+    if(!any(grepl(par, dimnames(samples)$var)))
+      return(NULL)
 
-    if(par %in% c("mu", "tau")){
-      ind <- c(1:length(dimnames(samples)$var))[par == dimnames(samples)$var]
+    # create parameter names and get parameter indexes
+    if(par %in% c("mu", "tau", "PET", "PEESE")){
+      ind       <- c(1:length(dimnames(samples)$var))[par == dimnames(samples)$var]
+      par_names <- .plot.RoBMA_par_names(par, fit, fit$add_info$prior_scale)
     }else{
       ind <- c(1:length(dimnames(samples)$var))[grepl(par, dimnames(samples)$var)]
+      ind <- rev(ind)
+      summary_info <- summary(fit, "individual")
+      summary_info <- summary_info[["models"]][[model]][["estimates"]]
+      omega_names  <- rownames(summary_info)[grepl(par, rownames(summary_info))]
+      par_names    <- vector("list", length = length(omega_names))
+      for(i in 1:length(par_names)){
+        par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
+      }
     }
 
-    if(par == "omega")ind <- rev(ind)
-
-
-    # create parameter names
-    par_names <- .plot.RoBMA_par_names(par, fit, fit$add_info$prior_scale)
-
-
     plot_data <- list()
-
-
     for(i in 1:length(ind)){
       plot_data[[dimnames(samples)$var[ind[i]]]] <- list(
         samp = data.frame(
@@ -375,17 +406,18 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
         nparams   = 1,
         warmup    = 0,
         parameter = par_names[[i]],
-        lower     = if(par == "omega") 0 else fit$models[[model]]$priors[[par]]$truncation$lower,
-        upper     = if(par == "omega") 1 else fit$models[[model]]$priors[[par]]$truncation$upper
+        lower     = if(par == "omega") 0 else fit$models[[model]]$priors[[par]]$truncation[["lower"]],
+        upper     = if(par == "omega") 1 else fit$models[[model]]$priors[[par]]$truncation[["upper"]]
       )
     }
 
+    # TODO: implement later
     # transform the values if requested
-    if(par_transform){
-      if(par %in% c("mu", "theta") & fit$add_info$effect_size %in% c("r", "OR")){
-        plot_data[[1]]$samp$value <- .transform(plot_data[[1]]$samp$value, fit$add_info$effect_size, fit$add_info$transformation)
-      }
-    }
+    # if(par_transform){
+    #   if(par %in% c("mu", "theta") & fit$add_info$effect_size %in% c("r", "OR")){
+    #     plot_data[[1]]$samp$value <- .transform(plot_data[[1]]$samp$value, fit$add_info$effect_size, fit$add_info$transformation)
+    #   }
+    # }
 
   }
 

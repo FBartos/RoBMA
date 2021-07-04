@@ -208,7 +208,7 @@ RoBMA <- function(
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
-  autofit = FALSE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
+  autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
 
   # additional settings
   save = "all", seed = NULL, silent = TRUE){
@@ -405,7 +405,7 @@ update.RoBMA <- function(object, refit_failed = TRUE, output_scale = NULL,
     what_to_do <- "fit_new_model"
     new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, object$add_info[["prior_scale"]])
 
-    object$models[length(object$models) + 1]  <- .make_models(new_priors)[[1]]
+    object$models[length(object$models) + 1]  <- list(.make_models(new_priors)[[1]])
 
     if(!is.null(prior_weights)){
       object$models[[length(object$models)]]$prior_weights     <- prior_weights

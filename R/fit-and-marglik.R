@@ -167,7 +167,7 @@
   fit_data <- list()
   # change the effect size direction (important for one-sided selection and PET/PEESE)
   if(effect_direction == "negative"){
-    fit_data$y <- - fit_data[["y"]]
+    fit_data$y <- - data[,"y"]
   }else{
     fit_data$y <- data[,"y"]
   }
@@ -205,7 +205,7 @@
   prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
   reg_std  <- "pow( pow(se[i],2) + pow(tau_transformed,2), 1/2)"
 
-  eff <- ifelse(effect_direction == "negative", "mu_neg_transformed", "mu_transformed")
+  eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
   # add PET/PEESE
   if(!is.null(priors[["PET"]])){
     eff <- paste0("(", eff, " + PET_transformed * se[i])")
@@ -216,9 +216,9 @@
   # the observed data
   if(is.null(priors[["omega"]])){
     model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
-  }else if(priors[["omega"]]$distribution == "one.sided"){
+  }else if(grepl("one.sided", priors[["omega"]]$distribution)){
     model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[i,], omega) \n")
-  }else if(priors[["omega"]]$distribution == "two.sided"){
+  }else if(grepl("two.sided", priors[["omega"]]$distribution)){
     model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[i,], omega) \n")
   }
 

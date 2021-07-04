@@ -1,7 +1,7 @@
 ### functions for creating model objects
 .check_and_list_priors            <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, prior_scale){
 
-  if(!is.null(model_type)){
+  if(!is.null(model_type) & length(model_type == 1)){
     # precanned models
     if(model_type == "psma"){
       priors_effect         <- prior(distribution = "normal",    parameters = list(mean = 0,  sd = 1))
@@ -100,7 +100,9 @@
 
       # replace empty priors by spike at 0
       if(is.prior.none(priors[[p]])){
-        priors[[p]] <- prior("point", list("location" = 0))
+        temp_is_null         <- priors[[p]]$is_null
+        priors[[p]]          <- prior("point", list("location" = 0))
+        priors[[p]]$is_null  <- temp_is_null
       }
 
       # check for allowed priors

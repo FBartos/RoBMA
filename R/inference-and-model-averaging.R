@@ -81,21 +81,27 @@
     parameters_null <- c(parameters_null, "PEESE" = list(!PEESE))
   }
 
-  # get models inference
+  ### get models inference
   inference <- BayesTools::ensemble_inference(
     model_list   = models,
     parameters   = components,
     is_null_list = components_null,
     conditional  = FALSE
   )
-  inference_conditional <- BayesTools::ensemble_inference(
-    model_list   = models,
-    parameters   = components,
-    is_null_list = components_null,
-    conditional  = TRUE
-  )
+  # deal with the possibility of only null models models
+  if(all(sapply(components_null, all))){
+    inference_conditional <- NULL
+  }else{
+    inference_conditional <- BayesTools::ensemble_inference(
+      model_list   = models,
+      parameters   = components[!sapply(components_null, all)],
+      is_null_list = components_null[!sapply(components_null, all)],
+      conditional  = TRUE
+    )
+  }
 
-  # get model-averaged posteriors
+
+  ### get model-averaged posteriors
   posteriors <- BayesTools::mix_posteriors(
     model_list   = models,
     parameters   = parameters,
@@ -103,13 +109,19 @@
     seed         = object$add_info[["seed"]],
     conditional  = FALSE
   )
-  posteriors_conditional <- BayesTools::mix_posteriors(
-    model_list   = models,
-    parameters   = parameters,
-    is_null_list = parameters_null,
-    seed         = object$add_info[["seed"]],
-    conditional  = TRUE
-  )
+  # deal with the possibility of only null models models
+  if(all(sapply(components_null, all))){
+    posteriors_conditional <- NULL
+  }else{
+    posteriors_conditional <- BayesTools::mix_posteriors(
+      model_list   = models,
+      parameters   = parameters[!sapply(parameters_null, all)],
+      is_null_list = parameters_null[!sapply(parameters_null, all)],
+      seed         = object$add_info[["seed"]],
+      conditional  = TRUE
+    )
+  }
+
 
 
   # return the results

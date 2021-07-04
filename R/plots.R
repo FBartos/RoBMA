@@ -81,7 +81,7 @@
 #'
 #' @seealso [RoBMA()]
 #' @export
-plot.RoBMA  <- function(x, parameter,
+plot.RoBMA  <- function(x, parameter = "mu",
                         conditional = FALSE, plot_type = "base", output_scale = NULL, prior = FALSE,
                         rescale_x = FALSE, show_data = TRUE, dots_prior = NULL, ...){
 
@@ -93,7 +93,7 @@ plot.RoBMA  <- function(x, parameter,
   BayesTools::check_char(parameter, "parameter")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2")))
+  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
     stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(prior, "prior")
@@ -122,22 +122,22 @@ plot.RoBMA  <- function(x, parameter,
   if(prior_scale != output_scale){
     # TODO: figure out transformations, including jacobinas for effect sizes transformations - needed for the priors
     stop("Plotting output on a different than prior scale is not possible yet.")
-    if(parameter == "PETPEESE"){
-
-      # the transformation is inverse for PEESE
-      transformation           = "lin"
-      transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
-
-    }else if(parameter == "mu"){
-
-      # this transformation needs jacobian!
-
-    }else if(parameter == "tau"){
-
-      transformation           = "lin"
-      transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
-
-    }
+    # if(parameter == "PETPEESE"){
+    #
+    #   # the transformation is inverse for PEESE
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
+    #
+    # }else if(parameter == "mu"){
+    #
+    #   # this transformation needs jacobian!
+    #
+    # }else if(parameter == "tau"){
+    #
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
+    #
+    # }
   }else{
     transformation           <- NULL
     transformation_arguments <- NULL
@@ -156,19 +156,19 @@ plot.RoBMA  <- function(x, parameter,
     if(any(PET) & any(PEESE)){
       is_conditional  <- effect & (PET | PEESE)
       if(sum(is_conditional) == 0)
-        stop("There is no model that assumes presence of the effect and PET-PEESE bias correction")
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
       parameters      <- c("mu", "PET", "PEESE")
       parameters_null <- c("mu" = list(!is_conditional), "PET" = list(!is_conditional), "PEESE" = list(!is_conditional))
     }else if(any(PET)){
       is_conditional  <- effect & PET
       if(sum(is_conditional) == 0)
-        stop("There is no model that assumes presence of the effect and PET-PEESE bias correction")
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
       parameters      <- c("mu", "PET")
       parameters_null <- c("mu" = list(!is_conditional), "PET"   = list(!is_conditional))
     }else if(any(PEESE)){
       is_conditional  <- effect & PEESE
       if(sum(is_conditional) == 0)
-        stop("There is no model that assumes presence of the effect and PET-PEESE bias correction")
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
       parameters      <- c("mu", "PEESE")
       parameters_null <- c("mu" = list(!is_conditional), "PEESE" = list(!is_conditional))
     }
@@ -188,6 +188,32 @@ plot.RoBMA  <- function(x, parameter,
       samples <- x[["RoBMA"]][["posteriors"]]
     }
   }
+
+  if(parameter %in% c("mu", "tau", "omega")){
+    if(conditional && is.null(samples[[parameter]])){
+      switch(
+        parameter,
+        "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect."),
+        "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity."),
+        "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of selection models publication bias adjustment. Please, verify that you specified at least one model assuming the presence of selection models publication bias adjustment.")
+      )
+    }else if(is.null(samples[[parameter]])){
+      switch(
+        parameter,
+        "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the effect. Please, verify that you specified at least one model for the effect."),
+        "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the heterogeneity. Please, verify that you specified at least one model for the heterogeneity."),
+        "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the selection models publication bias adjustment. Please, verify that you specified at least one selection models publication bias adjustment.")
+      )
+    }
+  }else if(parameter %in% "PETPEESE"){
+    # checking for mu since it's the common parameter for PET-PEESE
+    if(conditional && is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
+    }else if(is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
+      stop("The ensemble does not contain any posterior samples model-averaged across the PET-PEESE publication bias adjustment. Please, verify that you specified at least one PET-PEESE publication bias adjustment.")
+    }
+  }
+
 
   dots       <- .set_dots_plot(...)
   dots_prior <- .set_dots_prior(dots_prior)
@@ -245,7 +271,7 @@ plot.RoBMA  <- function(x, parameter,
 #' @inheritParams plot.RoBMA
 #'
 #' @export
-forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL, prior = FALSE, order = NULL, ...){
+forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL, order = NULL, ...){
 
   # check whether plotting is possible
   if(sum(.get_model_convergence(x)) == 0)
@@ -254,16 +280,17 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   #check settings
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2")))
+  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
     stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
-  BayesTools::check_bool(prior, "prior")
   BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing", "alphabetical"))
 
 
   ### get the posterior samples & data
   if(conditional){
     samples_mu <- x[["RoBMA"]][["posteriors_conditional"]][["mu"]]
+    if(is.null(samples_mu))
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
   }else{
     samples_mu <- x[["RoBMA"]][["posteriors"]][["mu"]]
   }
@@ -340,7 +367,11 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     graphics::plot(NA, bty = "n", las = 1, xlab = xlab, ylab = "", main = "", yaxt = "n", ylim = ylim, xlim = xlim)
     graphics::axis(2, at = y_at, labels = y_labels,  las = 1, col = NA)
     graphics::axis(4, at = y_at, labels = y_labels2, las = 1, col = NA, hadj = 0)
-    graphics::abline(v = .transform_mu(0, "d", output_scale), lty = 3)
+    if(output_scale == "y"){
+      graphics::abline(v = 0, lty = 3)
+    }else{
+      graphics::abline(v = .transform_mu(0, "d", output_scale), lty = 3)
+    }
 
     arrows(x0 = data$lCI, x1 = data$uCI, y0 = data$x, code = 3, angle = 90, length = 0.1)
     graphics::points(x = data$y, y = data$x, pch = 15)
@@ -380,15 +411,27 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
       fill = "black")
 
     # add the vertical line
-    plot <- plot + ggplot2::geom_line(
-      mapping = ggplot2::aes(
-        x = x,
-        y = y),
-      data     = data.frame(
-        x = .transform_mu(c(0,0), "d", output_scale),
-        y = ylim
-      ),
-      linetype = "dotted")
+    if(output_scale == "y"){
+      plot <- plot + ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = x,
+          y = y),
+        data     = data.frame(
+          x = c(0,0),
+          y = ylim
+        ),
+        linetype = "dotted")
+    }else{
+      plot <- plot + ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = x,
+          y = y),
+        data     = data.frame(
+          x = .transform_mu(c(0,0), "d", output_scale),
+          y = ylim
+        ),
+        linetype = "dotted")
+    }
 
     # add all the other stuff
     plot <- plot + ggplot2::scale_y_continuous(
@@ -417,14 +460,18 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
 #' @title Models plot for a RoBMA object
 #'
-#' @param order either of the studies. Defaults to \code{NULL} -
-#' ordering as supplied to the fitting function. Studies
-#' can be ordered either \code{"ascending"} or \code{"descending"} by
-#' effect size, or by labels \code{"alphabetical"}.
+#' @param order how the models should be ordered.
+#' Defaults to \code{"decreasing"} which orders them in decreasing
+#' order in accordance to \code{order_by} argument. The alternative is
+#' \code{"decreasing"}.
+#' @param order_by what feature should be use to order the models.
+#' Defaults to \code{"model"} which orders the models according to
+#' their number. The alternatives are: \code{"estimate"},
+#' \code{"probability"}, \code{"BF"}.
 #' @inheritParams plot.RoBMA
 #'
 #' @export
-plot_models <- function(x, parameter, conditional = FALSE, plot_type = "base", output_scale = NULL, prior = FALSE, order = "decreasing", order_by = "model", ...){
+plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "base", output_scale = NULL, order = "decreasing", order_by = "model", ...){
 
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
@@ -432,15 +479,14 @@ plot_models <- function(x, parameter, conditional = FALSE, plot_type = "base", o
   #check settings
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2")))
+  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
     stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
-  BayesTools::check_bool(prior, "prior")
-  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing", "alphabetical"))
+  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing"))
   if(!parameter %in% c("mu", "tau")){
     stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
   }
-  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing", "alphabetical"))
+  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing"))
   BayesTools::check_char(order_by, "order_by", allow_NULL = TRUE, allow_values = c("model", "estimate", "probability", "BF"))
 
 
@@ -456,22 +502,22 @@ plot_models <- function(x, parameter, conditional = FALSE, plot_type = "base", o
   if(prior_scale != output_scale){
     # TODO: figure out transformations, including jacobinas for effect sizes transformations - needed for the priors
     stop("Plotting output on a different than prior scale is not possible yet.")
-    if(parameter == "PEESE"){
-
-      # the transformation is inverse for PEESE
-      transformation           = "lin"
-      transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
-
-    }else if(parameter == "mu"){
-
-      # this transformation needs jacobian!
-
-    }else if(parameter == "tau"){
-
-      transformation           = "lin"
-      transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
-
-    }
+    # if(parameter == "PEESE"){
+    #
+    #   # the transformation is inverse for PEESE
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
+    #
+    # }else if(parameter == "mu"){
+    #
+    #   # this transformation needs jacobian!
+    #
+    # }else if(parameter == "tau"){
+    #
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
+    #
+    # }
   }else{
     transformation           <- NULL
     transformation_arguments <- NULL
@@ -484,6 +530,12 @@ plot_models <- function(x, parameter, conditional = FALSE, plot_type = "base", o
     model_list <- x[["models"]]
     samples    <- x[["RoBMA"]][["posteriors_conditional"]]
     inference  <- x[["RoBMA"]][["inference_conditional"]]
+
+    # check whether the input exists
+    if(parameter == "mu" && is.null(samples[["mu"]]))
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
+    if(parameter == "tau" && is.null(samples[["tau"]]))
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity.")
 
   }else{
 
@@ -505,7 +557,7 @@ plot_models <- function(x, parameter, conditional = FALSE, plot_type = "base", o
     inference                = list(inference),
     parameter                = parameter,
     plot_type                = plot_type,
-    prior                    = prior,
+    prior                    = FALSE,
     condtional               = conditional,
     order                    = list(list(order, order_by)),
     transformation           = transformation,
@@ -582,29 +634,39 @@ plot_models <- function(x, parameter, conditional = FALSE, plot_type = "base", o
 
   }else if(par == "omega"){
 
-    summary_info <- summary(fit)
-    sum_all      <- summary_info[["averaged"]]
-    omega_names  <- rownames(sum_all)[grepl(par, rownames(sum_all))]
-    par_names    <- vector("list", length = length(omega_names))
-    for(i in 1:length(par_names)){
-      par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
-    }
+    stop("should not be used")
+    # summary_info <- summary(fit)
+    # sum_all      <- summary_info[["estimates"]]
+    # omega_names  <- rownames(sum_all)[grepl(par, rownames(sum_all))]
+    # par_names    <- vector("list", length = length(omega_names))
+    # for(i in 1:length(par_names)){
+    #   par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
+    # }
 
   }else if(par == "theta"){
 
-    add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
-    par_names <- vector("list", length = length(study_names))
-    for(i in 1:length(par_names)){
-      par_names[i] <- list(switch(
-        output_scale,
-        "r"     = bquote(~rho[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-        "d"     = bquote("Cohen's"~italic(d)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-        "z"     = bquote("Fisher's"~italic(z)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-        "logOR" = bquote("log"(italic("OR"))[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-        "OR"    = bquote(~italic("OR")[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-        "y"     = bquote(~mu[.(paste0("[",study_names[i],"]"))]~.(add_type))
-      ))
-    }
+    stop("should not be used")
+    # add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
+    # par_names <- vector("list", length = length(study_names))
+    # for(i in 1:length(par_names)){
+    #   par_names[i] <- list(switch(
+    #     output_scale,
+    #     "r"     = bquote(~rho[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "d"     = bquote("Cohen's"~italic(d)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "z"     = bquote("Fisher's"~italic(z)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "logOR" = bquote("log"(italic("OR"))[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "OR"    = bquote(~italic("OR")[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "y"     = bquote(~mu[.(paste0("[",study_names[i],"]"))]~.(add_type))
+    #   ))
+    # }
+
+  }else if(par == "PET"){
+
+    par_names <- list(bquote("PET"~.(add_type)))
+
+  }else if(par == "PEESE"){
+
+    par_names <- list(bquote("PEESE"~.(add_type)))
 
   }
 
