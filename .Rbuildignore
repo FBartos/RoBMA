@@ -11,3 +11,5 @@
 ^Meta$
 ^RoBMA.Rcheck$
 README.Rmd
+^\.github$
+^codecov\.yml$

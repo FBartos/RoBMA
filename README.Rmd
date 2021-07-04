@@ -14,8 +14,14 @@ knitr::opts_chunk$set(
   fig.path = "man/figures/README-"
 )
 # we pre-load the model, the fitting time is around 30 minutes
-fit <- readRDS(file = "prefitted/Anderson2010.RDS")
+#fit <- readRDS(file = "prefitted/Anderson2010.RDS")
 ```
+
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg)](https://github.com/FBartos/RoBMA/actions)
+[![Codecov test coverage](https://codecov.io/gh/FBartos/RoBMA/branch/master/graph/badge.svg)](https://codecov.io/gh/FBartos/RoBMA?branch=master)
+[![CRAN status](https://www.r-pkg.org/badges/version/RoBMA)](https://CRAN.R-project.org/package=RoBMA)
+<!-- badges: end -->
 
 # Robust Bayesian Meta-Analysis (RoBMA)
 
@@ -53,8 +59,8 @@ First, we load the dataset which is included with the package. The dataset conta
 ```{r}
 library(RoBMA)
 
-data("Anderson2010", package = "RoBMA")
-head(Anderson2010)
+#data("Anderson2010", package = "RoBMA")
+#head(Anderson2010)
 ```
 
 Then, we fit the meta-analytic model ensemble that is composed of 12 models (the default settings of RoBMA fitting function). These models are all possible combinations of priors for the following parameters (the prior parameters for $\mu$ and $\tau$ are defined on Cohen’s d transformed scale if correlation coefficients are supplied):
@@ -75,7 +81,7 @@ The prior odds of these prior distributions are by default set to make all three
 The default models using the correlation coefficients can then be fitted using the `RoBMA()` function (all input is internally transformed into t-statistics and degrees of freedom):
 
 ``` r
-fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$name)
+#fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$name)
 ```
 
 The main model summary can be obtained using the `summary.RoBMA()` function.
@@ -85,27 +91,27 @@ The first table shows an overview of the model types -the number of models, prio
 The second table shows model-averaged estimates weighted by the individual models' posterior probabilities. The mean estimate $\mu$ (converted back to correlation scale) is considerably lower than in the original meta-analysis due to the publication bias correction. The heterogeneity estimate $\tau$ (on the Cohen's d scale) has most of its probability mass around zero due to the higher support of models with no heterogeneity. The parameters omega, representing the weights at each *p*-value interval are decreasing with increasing *p*-values, showing the publication bias.
 
 ```{r}
-summary(fit)
+#summary(fit)
 ```
 
 We can visualize the estimated parameters using the `plot.RoBMA()` function. In the case of parameter tau, the arrow stands for probability mass at $\tau$ = 0. Weights $\omega$ are by default plotted as the weight function, which can be changed to the individual weights estimates by setting `weights = TRUE`.
 
 ```{r fig_mu, out.width = '50%', fig.align = "center"}
-plot(fit, parameter = "mu")
+#plot(fit, parameter = "mu")
 ```
 
 ```{r fig_tau, out.width = '50%', fig.align = "center"}
-plot(fit, parameter = "tau")
+#plot(fit, parameter = "tau")
 ```
 
 ```{r fig_omega, out.width = '50%', fig.align = "center"}
-plot(fit, parameter = "omega")
+#plot(fit, parameter = "omega")
 ```
 
 Furthermore, we can inspect the individual models' estimates mu, including the prior and posterior probability.
 
 ```{r fig_mu_ind, fig.height = 12.5, fig.width = 7, out.width = '75%', fig.align = "center"}
-plot(fit, parameter = "mu", type = "individual")
+#plot(fit, parameter = "mu", type = "individual")
 ```
 
 Apart from plotting, the individual model performance can be inspected using the `summary.RoBMA()` function with argument `type = "individual"`. An overview of the individual model MCMC diagnostics can be obtained by setting `type = "models", diagnostics = TRUE` (not shown here for the lack of space).
@@ -113,7 +119,7 @@ Apart from plotting, the individual model performance can be inspected using the
 We can also visualize the MCMC diagnostics using the diagnostics function. The function can display the chains `type = "chain"` / posterior sample densities `type = "densities"`, and averaged autocorrelations `type = "autocorrelation"`. Here, we request the chains trace plot of the $\mu$ parameter of the most complex model by setting `show_models = 12` (the model numbers can be obtained from the summary function with `type = "models"` argument.)
 
 ```{r fig_mu_chain, out.width = '50%', fig.align = "center"}
-RoBMA::diagnostics(fit, parameter = "mu", type = "chains", show_models = 12)
+#RoBMA::diagnostics(fit, parameter = "mu", type = "chains", show_models = 12)
 ```
 
 The package allows to fit highly customized models with different prior distribution functions, prior model probabilities, and provides more visualization options. See the documentation to find out more about the specific functions: `RoBMA()`, `priors()`, `plot.RoBMA()`. The main package functionalities are to be implemented within the Meta Analysis module of JASP 0.14 [@jasp].
