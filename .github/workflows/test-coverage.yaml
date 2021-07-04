@@ -3,10 +3,12 @@ on:
     branches:
       - main
       - master
+      - pre-release
   pull_request:
     branches:
       - main
       - master
+      - pre-release
 
 name: test-coverage
 
