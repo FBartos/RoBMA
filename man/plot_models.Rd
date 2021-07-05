@@ -29,8 +29,7 @@ publication bias adjustment.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to
-\code{"base"}. \code{"ggplot"} requires the \pkg{ggplot2}
-package to be installed.}
+\code{"base"}.}
 
 \item{order}{how the models should be ordered.
 Defaults to \code{"decreasing"} which orders them in decreasing

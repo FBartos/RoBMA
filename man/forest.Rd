@@ -24,8 +24,7 @@ publication bias adjustment.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to
-\code{"base"}. \code{"ggplot"} requires the \pkg{ggplot2}
-package to be installed.}
+\code{"base"}.}
 
 \item{output_scale}{transform the effect sizes and the meta-analytic
 effect size estimate to a different scale. Defaults to \code{NULL}

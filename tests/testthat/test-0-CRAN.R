@@ -3,16 +3,15 @@ context("(0) Basic tests for CRAN")
 # The full range of tests is run locally.
 
 
-# fit a default model
-d <- c(0.1, 0.2, 0.3)
-n <- c(20, 15, 10)
-fit_default <- suppressWarnings(RoBMA(d = d, n = n, chains = 1, burnin = 50, sample = 100, autofit = FALSE, seed = 1))
+test_that("Basic functionality works", {
 
-test_that("Default model can be fit",
-  expect_equal(TRUE, is.RoBMA(fit_default)))
+  # fit a default model
+  d <- c(0.1, 0.2, 0.3)
+  n <- c(20, 15, 10)
+  fit_default <- suppressWarnings(RoBMA(d = d, n = n, chains = 1, burnin = 50, sample = 100, autofit = FALSE, seed = 1))
 
-# check the S3 methods
-test_that("Print function", {
+  expect_equal(TRUE, is.RoBMA(fit_default))
+
   expect_equal(
     capture_output_lines(fit_default, print = TRUE, width = 150),
     c("Call:"                                                                                                                                           ,
@@ -25,10 +24,7 @@ test_that("Print function", {
       "              PET             PEESE "                                                                                                            ,
       "      0.044580252       0.045223594 " )
   )
-})
 
-
-test_that("Summary function", {
   expect_equal(
     capture_output_lines(summary(fit_default), print = TRUE, width = 150),
     c("Call:"                                                                                        ,
