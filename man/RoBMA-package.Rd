@@ -10,9 +10,6 @@ RoBMA: Bayesian model-averaged meta-analysis with adjustments for publication
 bias and ability to specify informed prior distributions and draw inference with
 inclusion Bayes factors.
 }
-\details{
-\code{\link{RoBMA}} fits parametric models ....
-}
 \section{User guide}{
  The \bold{RoBMA user guide} vignette explains the
 methods in detail, and gives several worked examples.  A further vignette
@@ -20,9 +17,6 @@ methods in detail, and gives several worked examples.  A further vignette
 are encouraged to submit their own.
 }
 
-\references{
-
-}
 \seealso{
 Useful links:
 \itemize{

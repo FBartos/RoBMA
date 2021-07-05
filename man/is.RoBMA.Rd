@@ -9,6 +9,9 @@ is.RoBMA(x)
 \arguments{
 \item{x}{an object to test}
 }
+\value{
+\code{is.RoBMA} returns a boolean.
+}
 \description{
 Reports whether x is a RoBMA object
 }

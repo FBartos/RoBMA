@@ -4,12 +4,15 @@
 \alias{print.summary.RoBMA}
 \title{Prints summary object for RoBMA method}
 \usage{
-\method{print.summary}{RoBMA}(x, ...)
+\method{print}{summary.RoBMA}(x, ...)
 }
 \arguments{
 \item{x}{a summary of a RoBMA object}
 
 \item{...}{additional arguments}
+}
+\value{
+\code{print.summary.RoBMA} invisibly returns the print statement.
 }
 \description{
 Prints summary object for RoBMA method

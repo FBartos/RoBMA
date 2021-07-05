@@ -81,6 +81,11 @@ are \eqn{P[X \le x]}, otherwise, \eqn{P[X \ge x]}.}
 \item{n}{number of observations. If length(n) > 1, the length
 is taken to be the number required.}
 }
+\value{
+\code{dwnorm} gives the density, \code{dwnorm} gives the
+distribution function, \code{qwnorm} gives the quantile function,
+and \code{rwnorm} generates random deviates.
+}
 \description{
 Density, distribution function, quantile function
 and random generation for the weighted normal distribution with

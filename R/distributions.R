@@ -28,6 +28,10 @@
 #' \code{p}. Otherwise, they are recycled to the length of the result.
 #'
 #'
+#' @return \code{dwnorm} gives the density, \code{dwnorm} gives the
+#' distribution function, \code{qwnorm} gives the quantile function,
+#' and \code{rwnorm} generates random deviates.
+#'
 #' @export dwnorm
 #' @export pwnorm
 #' @export qwnorm

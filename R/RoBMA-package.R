@@ -4,8 +4,6 @@
 ##' bias and ability to specify informed prior distributions and draw inference with
 ##' inclusion Bayes factors.
 ##'
-##' \code{\link{RoBMA}} fits parametric models ....
-##'
 ##'
 ##' @name RoBMA-package
 ##' @aliases RoBMA-package
@@ -15,7 +13,6 @@
 ##' \bold{RoBMA-examples} gives a few more complicated examples, and users
 ##' are encouraged to submit their own.
 ##' @author František Bartoš \email{f.bartos96@@gmail.com}
-##' @references
 ##' @keywords package
 ##' @importFrom BayesTools prior prior_none prior_PET prior_PEESE prior_weightfunction
 ##' @importFrom BayesTools is.prior is.prior.none is.prior.point is.prior.simple is.prior.PET is.prior.PEESE is.prior.weightfunction

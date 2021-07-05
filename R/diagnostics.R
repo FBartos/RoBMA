@@ -9,32 +9,29 @@
 #'
 #' @param fit a fitted RoBMA object
 #' @param parameter a parameter to be plotted. Either
-#' \code{"mu"}, \code{"tau"}, \code{"theta"}, or
-#' \code{"omega"}.
-#' @param type what type of model check should be plotted.
-#' Options are \code{"chains"} for the chains trace plots,
+#' \code{"mu"}, \code{"tau"}, \code{"omega"}, \code{"PET"},
+#' or \code{"PEESE"}.
+#' @param type type of MCMC diagnostic to be plotted.
+#' Options are \code{"chains"} for the chains' trace plots,
 #' \code{"autocorrelation"} for autocorrelation of the
 #' chains, and \code{"densities"} for the overlaying
-#' densities of the individual chains.
+#' densities of the individual chains. Can be abbreviated to
+#' first letters.
 #' @param plot_type whether to use a base plot \code{"base"}
-#' or ggplot2 \code{"ggplot2"} for plotting. The later
-#' requires \pkg{ggplot2} package to be installed.
-#' @param show_figures which figures should be returned in case of
-#' multiple plots are generated. Useful when
-#' \code{parameter = "omega"} when a plot for each parameter would be
-#' generated. Can be also used for \code{parameter = "theta"} to
-#' obtain only a specific subset of thetas. Set to \code{NULL}
-#' to show all parameters (default for \code{parameter = "theta"}).
-#' @param show_models diagnostics for which models should be produced.
-#' Defaults to \code{NULL} that shows diagnostics to all models.
-#' @param par_transform whether the figures should be produced for the
-#' par_transform parameters. Defaults to \code{TRUE}.
+#' or ggplot2 \code{"ggplot"} for plotting. Defaults to
+#' \code{"base"}. \code{"ggplot"} requires the \pkg{ggplot2}
+#' package to be installed.
+#' @param show_models MCMC diagnostics of which models should be
+#' plotted. Defaults to \code{NULL} which plots MCMC diagnostics
+#' for a specified parameter for every model that is part of the
+#' ensemble.
 #' @param title whether the model number should be displayed in title.
 #' Defaults to \code{TRUE} when more than one model is selected.
 #' @param lags number of lags to be shown for
 #' \code{type = "autocorrelation"}. Defaults to \code{30}.
 #' @param ... additional arguments to be passed to
 #' \link[graphics]{par} if \code{plot_type = "base"}.
+#'
 #' @details The visualization functions are based on
 #' \link[rstan]{stan_plot} function and its color schemes.
 #'
@@ -57,10 +54,15 @@
 #' # and overlying densities for each plot can also be visualize
 #' diagnostics(fit, parameter = "mu", type = "densities")
 #' }
-#' @export diagnostics
+#'
+#'
+#' @return \code{diagnostics} returns either \code{NULL} if \code{plot_type = "base"}
+#' or an object/list of objects (depending on the number of parameters to be plotted)
+#' of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#'
 #' @seealso [RoBMA()], [summary.RoBMA()]
-diagnostics <- function(fit, parameter, type, plot_type = "base",
-                  show_figures = if(parameter == "omega") -1 else NULL, show_models = NULL,
+#' @export
+diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = NULL,
                   lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 
   # check settings
@@ -94,6 +96,13 @@ diagnostics <- function(fit, parameter, type, plot_type = "base",
     parameters <- parameter
   }else{
     stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
+  }
+
+  # omit the first figure for publication bias weights (it is constants for all interesting weightfunctions)
+  if(parameter == "omega"){
+    show_figures <-  -1
+  }else{
+    show_figures <-  NULL
   }
 
 

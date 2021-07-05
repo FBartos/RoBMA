@@ -31,42 +31,64 @@ check_setup(
 )
 }
 \arguments{
-\item{priors_effect}{list of prior distributions for the \code{mu} parameter that
-will be treated as belonging to the alternative hypothesis. Defaults to \code{
-prior(distribution = "normal",   parameters = list(mean = 0, sd = 1))}.}
+\item{model_type}{string specifying the RoBMA enseble. Defaults to \code{NULL}.
+The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
+settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
+\code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
+\code{priors_bias_null}, and \code{priors_effect}. See details for more information
+about the different model types.}
 
-\item{priors_heterogeneity}{list of prior distributions for the \code{tau} parameter that
-will be treated as belonging to the alternative hypothesis. Defaults to \code{
-prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))}.}
+\item{priors_effect}{list of prior distributions for the effect size (\code{mu})
+parameter that will be treated as belonging to the alternative hypothesis. Defaults to
+a standard normal distribution
+\code{prior(distribution = "normal", parameters = list(mean = 0, sd = 1))}.}
 
-\item{priors_bias}{list of prior weight functions for the \code{omega}
-parameter that will be treated as belonging to the alternative hypothesis.
+\item{priors_heterogeneity}{list of prior distributions for the heterogeneity \code{tau}
+parameter that will be treated as belonging to the alternative hypothesis. Defaults to
+\code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))} that
+is based on heterogeneities estimates from psychology \insertCite{erp2017estimates}{RoBMA}.}
+
+\item{priors_bias}{list of prior distributions for the publication bias adjustment
+component that will be treated as belonging to the alternative hypothesis.
 Defaults to \code{list(
-prior(distribution = "two.sided", parameters = list(alpha = c(1, 1),     steps = c(.05)),      prior_weights = 1/2),
-prior(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),  steps = c(.05, .10)), prior_weights = 1/2)
-)}.}
+prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),
+    steps = c(0.05)),             prior_weights = 1/12),
+prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),
+    steps = c(0.05, 0.10)),       prior_weights = 1/12),
+prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),
+     steps = c(0.05)),             prior_weights = 1/12),
+prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),
+     steps = c(0.025, 0.05)),      prior_weights = 1/12),
+prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),
+     steps = c(0.05, 0.5)),        prior_weights = 1/12),
+prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1),
+     steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
+prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),
+     prior_weights = 1/4),
+prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
+     prior_weights = 1/4)
+)}, corresponding to the RoBMA-PSMA model introduce by \insertCite{bartos2021no;textual}{RoBMA}.}
 
-\item{priors_effect_null}{list of prior distributions for the \code{mu} parameter that
-will be treated as belonging to the null hypothesis. Defaults to point distribution
-with location at 0 (
-\code{prior(distribution = "point", parameters = list(location = 0))}).}
+\item{priors_effect_null}{list of prior distributions for the effect size (\code{mu})
+parameter that will be treated as belonging to the null hypothesis. Defaults to
+a point null hypotheses at zero,
+\code{prior(distribution = "point", parameters = list(location = 0))}.}
 
-\item{priors_heterogeneity_null}{list of prior distributions for the \code{tau} parameter that
-will be treated as belonging to the null hypothesis. Defaults to point distribution
-with location at 0 (
-\code{prior(distribution = "point", parameters = list(location = 0))}).}
+\item{priors_heterogeneity_null}{list of prior distributions for the heterogeneity \code{tau}
+parameter that will be treated as belonging to the null hypothesis. Defaults to
+a point null hypotheses at zero (a fixed effect meta-analytic models),
+\code{prior(distribution = "point", parameters = list(location = 0))}.}
 
 \item{priors_bias_null}{list of prior weight functions for the \code{omega} parameter
-that will be treated as belonging to the null hypothesis. Defaults to point
-distribution with location at 1 (
-\code{prior(distribution = "point", parameters = list(location = 0))}).}
+that will be treated as belonging to the null hypothesis. Defaults no publication
+bias adjustment, \code{prior_none()}.}
 
 \item{models}{should the models' details be printed.}
 
 \item{silent}{do not print the results.}
 }
 \value{
-\code{check_setup} invisibly returns list of summary tables
+\code{check_setup} invisibly returns list of summary tables.
 }
 \description{
 \code{check_setup} prints summary of \code{"RoBMA"} ensemble
@@ -74,5 +96,5 @@ implied by the specified prior distributions. It is useful for checking
 the ensemble configuration prior to fitting all of the models.
 }
 \seealso{
-\code{\link[=RoBMA]{RoBMA()}}, \code{\link[=prior]{prior()}}, and \code{\link[=combine_data]{combine_data()}}
+\code{\link[=RoBMA]{RoBMA()}}
 }

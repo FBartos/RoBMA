@@ -23,17 +23,13 @@ se_z(n)
 n_z(se)
 }
 \arguments{
-\item{d}{Cohen's d.}
+\item{d}{Cohen's d}
 
-\item{n}{sample size of the corresponding effect size.}
+\item{n}{sample size of the corresponding effect size}
 
-\item{se}{standard error of the corresponding effect size.}
+\item{se}{standard error of the corresponding effect size}
 
-\item{r}{correlation coefficient.}
-
-\item{z}{Fisher's z.}
-
-\item{logOR}{log(odds ratios).}
+\item{r}{correlation coefficient}
 }
 \description{
 Functions for transforming between standard

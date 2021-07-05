@@ -1,9 +1,15 @@
-#' @title Check fitted RoBMA object
+#' @title Check fitted RoBMA object for errors and warnings
 #'
 #' @description Checks fitted RoBMA object
 #' for warnings and errors and prints them to the
 #' console.
+#'
 #' @param fit a fitted RoBMA object.
+#'
+#'
+#' @return \code{check_RoBMA} returns a vector of error and
+#' warning messages.
+#'
 #' @export
 check_RoBMA <- function(fit){
   .print_errors_and_warnings(fit, max_print = Inf)

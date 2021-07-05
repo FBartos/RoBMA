@@ -2,9 +2,12 @@
 #'
 #' @param x a fitted RoBMA object.
 #' @param ... additional arguments.
-#' @export  print.RoBMA
-#' @rawNamespace S3method(print, RoBMA)
+#'
+#'
+#' @return \code{print.RoBMA} invisibly returns the print statement.
+#'
 #' @seealso [RoBMA()]
+#' @export
 print.RoBMA <- function(x, ...){
   cat("Call:\n")
   print(x$call)
@@ -15,10 +18,10 @@ print.RoBMA <- function(x, ...){
 
 #' @title Summarize fitted RoBMA object
 #'
-#' @description \code{summary.RoBMA} creates a numerical
-#' summary of the RoBMA object.
+#' @description \code{summary.RoBMA} creates summary tables for a
+#' RoBMA object.
 #'
-#' @param object a fitted RoBMA object.
+#' @param object a fitted RoBMA object
 #' @param type whether to show the overall RoBMA results (\code{"ensemble"}),
 #' an overview of the individual models (\code{"models"}), an overview of
 #' the individual models MCMC diagnostics (\code{"diagnostics"}), or a detailed summary
@@ -26,14 +29,19 @@ print.RoBMA <- function(x, ...){
 #' @param conditional show the conditional estimates (assuming that the
 #' alternative is true). Defaults to \code{FALSE}. Only available for
 #' \code{type == "conditional"}.
+#' @param output_scale transform the  meta-analytic estimates to a different
+#' scale. Defaults to \code{NULL} which returns the same scale as the model was estimated on.
 #' @param probs quantiles of the posterior samples to be displayed.
-#' Defaults to \code{c(.025, .50, .975)}
-#' @param logBF show log of the BFs. Defaults to \code{FALSE}.
-#' @param BF01 show BF in support of the null hypotheses. Defaults to
+#' Defaults to \code{c(.025, .975)}
+#' @param logBF show log of Bayes factors. Defaults to \code{FALSE}.
+#' @param BF01 show Bayes factors in support of the null hypotheses. Defaults to
 #' \code{FALSE}.
+#' @param short_name whether priors names should be shortened to the first
+#' (couple) of letters. Defaults to \code{FALSE}.
+#' @param remove_spike_0 whether spike prior distributions with location at zero should
+#' be omitted from the summary. Defaults to \code{FALSE}.
 #' @param ... additional arguments
 #'
-#' @return summary of a RoBMA object
 #' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
 #' # (note that the model can take a while to fit)
@@ -42,30 +50,30 @@ print.RoBMA <- function(x, ...){
 #' # summary can provide many details about the model
 #' summary(fit)
 #'
-#' # note that the summary function contains additional arguments
-#' # that allow to obtain a specific output, i.e, the conditional estimates
-#' # (assuming that the non-null models are true) can be obtained
+#' # estimates from the conditional models can be obtained with
 #' summary(fit, conditional = TRUE)
 #'
 #' # overview of the models and their prior and posterior probability, marginal likelihood,
-#' # and inclusion Bayes factor:
+#' # and inclusion Bayes factor can be obtained with
 #' summary(fit, type = "models")
 #'
-#' # and the model diagnostics overview, containing maximum R-hat and minimum ESS across parameters
-#' # but see '?diagnostics' for diagnostics plots for individual model parameters
-#' summary(fit, type = "models", diagnostics = TRUE)
+#' # diagnostics overview, containing the maximum R-hat, minimum ESS, maximum MCMC error, and
+#' # maximum MCMC error / sd across parameters for each individual model can be obtained with
+#' summary(fit, type = "diagnostics")
 #'
 #' # summary of individual models and their parameters can be further obtained by
 #' summary(fit, type = "individual")
-#'
 #' }
+#'
 #' @note See [diagnostics()] for visual convergence checks of the individual models.
-#' @method summary RoBMA
-#' @export summary.RoBMA
-#' @rawNamespace S3method(summary, RoBMA)
-#' @seealso [RoBMA()] [diagnostics()]
+#'
+#'
+#' @return \code{summary.RoBMA} returns a list of tables of class 'BayesTools_table'.
+#'
+#' @seealso [RoBMA()], [diagnostics()], [check_RoBMA()]
+#' @export
 summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
-                                probs = c(.025, .975), logBF = FALSE, BF01 = FALSE, output_scale = NULL,
+                                output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
                                 short_name = FALSE, remove_spike_0 = FALSE, ...){
 
   BayesTools::check_bool(conditional, "conditional")
@@ -271,14 +279,17 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   }
 }
 
+
 #' @title Prints summary object for RoBMA method
 #'
 #' @param x a summary of a RoBMA object
 #' @param ... additional arguments
-#' @method print.summary RoBMA
-#' @export print.summary.RoBMA
-#' @rawNamespace S3method(print, summary.RoBMA)
+#'
+#'
+#' @return \code{print.summary.RoBMA} invisibly returns the print statement.
+#'
 #' @seealso [RoBMA()]
+#' @export
 print.summary.RoBMA <- function(x, ...){
 
   cat("Call:\n")
@@ -334,10 +345,15 @@ print.summary.RoBMA <- function(x, ...){
   }
 }
 
+
 #' @title Reports whether x is a RoBMA object
 #'
 #' @param x an object to test
-#' @export is.RoBMA
+#'
+#'
+#' @return \code{is.RoBMA} returns a boolean.
+#'
+#' @export
 is.RoBMA            <- function(x){
   inherits(x, "RoBMA")
 }

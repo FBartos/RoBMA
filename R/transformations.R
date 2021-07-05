@@ -5,22 +5,21 @@
 #' a data.frame \code{data} with columns named corresponding to the
 #' arguments or vectors with individual values can be passed.
 #'
-#' @param d a vector of effect sizes measured as Cohen's d.
-#' @param r a vector of effect sizes measured as correlations.
-#' @param logOR a vector of log odds ratios.
-#' @param t a vector of t/z-statistics.
+#' @param d a vector of effect sizes measured as Cohen's d
+#' @param r a vector of effect sizes measured as correlations
+#' @param logOR a vector of effect sizes measured as log odds ratios
+#' @param z a vector of effect sizes measured as Fisher's z
+#' @param t a vector of t/z-statistics
 #' @param y a vector of unspecified effect sizes (note that effect size
-#' transformations are unavailable with this type of input).
-#' @param se a vector of standard errors of the effect sizes.
-#' @param v a vector of variances of the effect sizes.
-#' @param n a vector of overall sample sizes.
-#' @param n1 a vector of sample sizes for the first group.
-#' @param n2 a vector of sample sizes for the second group.
-#' @param lCI a vector of lower bounds of confidence intervals.
-#' @param uCI a vector of upper bounds of confidence intervals.
-#' @param study_names an optional argument with the names of the studies.
+#' transformations are unavailable with this type of input)
+#' @param se a vector of standard errors of the effect sizes
+#' @param v a vector of variances of the effect sizes
+#' @param n a vector of overall sample sizes
+#' @param lCI a vector of lower bounds of confidence intervals
+#' @param uCI a vector of upper bounds of confidence intervals
+#' @param study_names an optional argument with the names of the studies
 #' @param data a data frame with column names corresponding to the
-#' variable names used to supply data individually.
+#' variable names used to supply data individually
 #' @param transformation transformation to be applied to the supplied
 #' effect sizes before fitting the individual models. Defaults to
 #' \code{"fishers_z"}. We highly recommend using \code{"fishers_z"}
@@ -30,7 +29,7 @@
 #' Supplying \code{"none"} will treat the effect sizes as unstandardized and
 #' refrain from any transformations.
 #' @param return_all whether data frame containing all filled values should be
-#' returned. Defaults to \code{FALSE}.
+#' returned. Defaults to \code{FALSE}
 #'
 #' @details The aim of the function is to combine different, already calculated,
 #' effect size measures. In order to obtain effect size measures from raw values,
@@ -55,8 +54,11 @@
 #' If the \code{transforms} is \code{NULL} or an unstandardized effect size \code{y} is
 #' supplied, steps 4-9 are skipped.
 #'
-#' @export combine_data
+#'
+#' @return \code{combine_data} returns a data.frame.
+#'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
+#' @export
 combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
 
   # settings & input  check
@@ -471,14 +473,14 @@ NULL
 #' @description Functions for transforming between
 #' standard errors of different effect size measures.
 #'
-#' @param se_d standard error of Cohen's d.
-#' @param se_r standard error of correlation coefficient.
-#' @param se_z standard error of Fisher's z.
-#' @param se_logOR standard error of log(odds ratios).
-#' @param d Cohen's d.
-#' @param r correlation coefficient.
-#' @param z Fisher's z.
-#' @param logOR log(odds ratios).
+#' @param se_d standard error of Cohen's d
+#' @param se_r standard error of correlation coefficient
+#' @param se_z standard error of Fisher's z
+#' @param se_logOR standard error of log(odds ratios)
+#' @param d Cohen's d
+#' @param r correlation coefficient
+#' @param z Fisher's z
+#' @param logOR log(odds ratios)
 #'
 #' @details Transformations for Cohen's d, Fisher's z, and log(OR) are
 #' based on \insertCite{borenstein2011introduction}{RoBMA}. Calculations
@@ -531,12 +533,10 @@ NULL
 #' @description Functions for transforming between standard
 #' errors and sample sizes (assuming equal sample sizes per group).
 #'
-#' @param d Cohen's d.
-#' @param r correlation coefficient.
-#' @param z Fisher's z.
-#' @param logOR log(odds ratios).
-#' @param se standard error of the corresponding effect size.
-#' @param n sample size of the corresponding effect size.
+#' @param d Cohen's d
+#' @param r correlation coefficient
+#' @param se standard error of the corresponding effect size
+#' @param n sample size of the corresponding effect size
 #'
 #' @details Calculations for Cohen's d, Fisher's z, and log(OR) are
 #' based on \insertCite{borenstein2011introduction}{RoBMA}. Calculations
@@ -570,37 +570,37 @@ NULL
 
 # main transformations
 #' @rdname effect_sizes
-d2r     <- function(d)d/sqrt(d^2 + 4)
+d2r     <- function(d) d/sqrt(d^2 + 4)
 #' @rdname effect_sizes
-d2logOR <- function(d)d*pi/sqrt(3)
+d2logOR <- function(d) d*pi/sqrt(3)
 #' @rdname effect_sizes
-r2d     <- function(r)2 * r/sqrt(1 - r^2)
+r2d     <- function(r) 2 * r/sqrt(1 - r^2)
 #' @rdname effect_sizes
-r2z     <- function(r)0.5 * log((1 + r)/(1 - r))
+r2z     <- function(r) 0.5 * log((1 + r)/(1 - r))
 #' @rdname effect_sizes
-logOR2d <- function(logOR)logOR * sqrt(3)/pi
+logOR2d <- function(logOR) logOR * sqrt(3)/pi
 #' @rdname effect_sizes
-z2r     <- function(z)(exp(2 * z) - 1)/(1 + exp(2 * z))
+z2r     <- function(z) (exp(2 * z) - 1)/(1 + exp(2 * z))
 
 # compound transformations
 #' @rdname effect_sizes
-d2z     <- function(d)r2z(d2r(d))
+d2z     <- function(d) r2z(d2r(d))
 #' @rdname effect_sizes
-r2logOR <- function(r)d2logOR(r2d(r))
+r2logOR <- function(r) d2logOR(r2d(r))
 #' @rdname effect_sizes
-logOR2z <- function(logOR)d2z(logOR2d(logOR))
+logOR2z <- function(logOR) d2z(logOR2d(logOR))
 #' @rdname effect_sizes
-logOR2r <- function(logOR)d2r(logOR2d(logOR))
+logOR2r <- function(logOR) d2r(logOR2d(logOR))
 #' @rdname effect_sizes
-z2d     <- function(z)r2d(z2r(z))
+z2d     <- function(z) r2d(z2r(z))
 #' @rdname effect_sizes
-z2logOR <- function(z)d2logOR(z2d(z))
+z2logOR <- function(z) d2logOR(z2d(z))
 
 # sample size / standard errors calculations
 #' @rdname sample_sizes
-se_d     <- function(d, n)sqrt(4/n + d^2/(2*n))
+se_d     <- function(d, n) sqrt(4/n + d^2/(2*n))
 #' @rdname sample_sizes
-n_d      <- function(d, se)(d^2 + 8) / (2 * se^2)
+n_d      <- function(d, se) (d^2 + 8) / (2 * se^2)
 #' @rdname sample_sizes
 se_r     <- function(r, n){
   # sqrt((1-r^2)^2/(n-1)) : according to the Borenstein, however, it is not consistent with the remaining transformations
@@ -616,9 +616,9 @@ n_r      <- function(r, se){
   n_d(d, se_d)
 }
 #' @rdname sample_sizes
-se_z     <- function(n)sqrt(1/(n-3))
+se_z     <- function(n) sqrt(1/(n-3))
 #' @rdname sample_sizes
-n_z      <- function(se)(3*se^2 + 1)/se^2
+n_z      <- function(se) (3*se^2 + 1)/se^2
 
 # sample size / standard errors calculations based on chaining the transformations among the remaining effect sizes (introduces more error due to multiple approximations and missing detailed information - terrible, don't use)
 # se_logOR <- function(logOR, n){
@@ -632,13 +632,13 @@ n_z      <- function(se)(3*se^2 + 1)/se^2
 
 # transformation between standard errors of effect sizes
 #' @rdname standard_errors
-se_d2se_logOR <- function(se_d, logOR)sqrt(se_d^2 * pi^2 / 3)
+se_d2se_logOR <- function(se_d, logOR) sqrt(se_d^2 * pi^2 / 3)
 #' @rdname standard_errors
-se_d2se_r     <- function(se_d, d)sqrt((4^2*se_d^2)/(d^2+4)^3)
+se_d2se_r     <- function(se_d, d) sqrt((4^2*se_d^2)/(d^2+4)^3)
 #' @rdname standard_errors
-se_r2se_d     <- function(se_r, r)sqrt((4*se_r^2)/(1-r^2)^3)
+se_r2se_d     <- function(se_r, r) sqrt((4*se_r^2)/(1-r^2)^3)
 #' @rdname standard_errors
-se_logOR2se_d <- function(se_logOR, logOR)sqrt(se_logOR^2 * 3 / pi^2)
+se_logOR2se_d <- function(se_logOR, logOR) sqrt(se_logOR^2 * 3 / pi^2)
 
 # compound transformations
 #' @rdname standard_errors
@@ -719,13 +719,13 @@ se_z2se_logOR <- function(se_z, z){
 }
 # cutoffs based on effect sizes, standard errors, and t-statistics
 # 'c_z' and 'c_logOR' do not require the effect sizes - keeping them for consistency when creating calls to the functions automatically
-.c_r     <- function(r,     se, t){
+.c_r     <- function(r, se, t){
   .r_tn(t, n_r(r, se))
 }
-.c_d     <- function(d,     se, t){
+.c_d     <- function(d, se, t){
   .d_tn(t, n_d(d, se))
 }
-.c_z     <- function(z,     se, t){
+.c_z     <- function(z, se, t){
   t * se
 }
 .c_logOR <- function(logOR, se, t){

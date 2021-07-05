@@ -8,9 +8,9 @@
 #' @param models should the models' details be printed.
 #' @param silent do not print the results.
 #'
-#' @return \code{check_setup} invisibly returns list of summary tables
+#' @return \code{check_setup} invisibly returns list of summary tables.
 #'
-#' @seealso [RoBMA()], [prior()], and [combine_data()]
+#' @seealso [RoBMA()]
 #' @export
 check_setup <- function(
   model_type   = NULL,
@@ -162,11 +162,16 @@ check_setup <- function(
 #' across the combinations of models with the same H0/H1 for effect / heterogeneity / bias
 #' in the case of non-convergence. Defaults to \code{TRUE}.
 #'
+#'
+#' @return \code{set_autofit_control} returns a list of autofit control settings
+#' and \code{set_convergence_checks} returs a list of convergence checks settings.
+#'
 #' @export set_autofit_control
 #' @export set_convergence_checks
 #' @name RoBMA_control
+#' @aliases set_autofit_control, set_convergence_checks
 #'
-#' @seealso [RoBMA], [RoBMA.update]
+#' @seealso [RoBMA], [update.RoBMA]
 NULL
 
 #' @rdname RoBMA_control
@@ -224,9 +229,6 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }
   if(is.null(parallel)){
     parallel <- old_fit_control[["parallel"]]
-  }
-  if(is.null(cores)){
-    cores  <- old_fit_control[["cores"]]
   }
   if(is.null(silent)){
     silent <- old_fit_control[["silent"]]

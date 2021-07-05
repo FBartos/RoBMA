@@ -2,8 +2,9 @@
 % Please edit documentation in R/check-input-and-settings.R
 \name{RoBMA_control}
 \alias{RoBMA_control}
-\alias{set_autofit_control}
+\alias{set_autofit_control,}
 \alias{set_convergence_checks}
+\alias{set_autofit_control}
 \title{Control MCMC fitting process}
 \usage{
 set_autofit_control(
@@ -56,11 +57,15 @@ be removed from the inference. Defaults to \code{FALSE} - only a warning is rais
 across the combinations of models with the same H0/H1 for effect / heterogeneity / bias
 in the case of non-convergence. Defaults to \code{TRUE}.}
 }
+\value{
+\code{set_autofit_control} returns a list of autofit control settings
+and \code{set_convergence_checks} returs a list of convergence checks settings.
+}
 \description{
 Controls settings for the autofit
 process of the MCMC JAGS sampler (specifies termination
 criteria), and values for the convergence checks.
 }
 \seealso{
-\link{RoBMA}, \link{RoBMA.update}
+\link{RoBMA}, \link{update.RoBMA}
 }

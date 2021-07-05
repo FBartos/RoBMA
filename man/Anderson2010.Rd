@@ -4,17 +4,20 @@
 \name{Anderson2010}
 \alias{Anderson2010}
 \title{27 experimental studies from from
-\insertCite{Anderson2010;textual}{RoBMA} that meet the best practice criteria}
+\insertCite{anderson2010violent;textual}{RoBMA} that meet the best practice criteria}
 \format{
 A data.frame with 3 columns and 23 observations.
 }
 \usage{
 Anderson2010
 }
+\value{
+a data.frame.
+}
 \description{
-The dataset contains correlational coefficients, sample
+The data set contains correlation coefficients, sample
 sizes, and labels for 27 experimental studies focusing on the effect of
-violent videogames on aggressive behavior. The full original data can
+violent video games on aggressive behavior. The full original data can
 found at https://github.com/Joe-Hilgard/Anderson-meta.
 }
 \references{

@@ -6,11 +6,9 @@
 \usage{
 plot_models(
   x,
-  parameter,
+  parameter = "mu",
   conditional = FALSE,
   plot_type = "base",
-  output_scale = NULL,
-  prior = FALSE,
   order = "decreasing",
   order_by = "model",
   ...
@@ -19,34 +17,62 @@ plot_models(
 \arguments{
 \item{x}{a fitted RoBMA object}
 
-\item{parameter}{a parameter to be plotted. Either
-\code{"mu"}, \code{"tau"}, \code{"theta"}, or
-\code{"omega"}. A bivariate plot for model-averaged
-estimates of "mu" and "tau" can be obtained by
-\code{c("mu","tau")} if \code{type = "averaged"}. In
-addition, a forest plot with the original estimates can
-be obtained by \code{"forest"} or added to the theta
-estimates by \code{c("theta", "forest")}.}
+\item{parameter}{a parameter to be plotted. Defaults to
+\code{"mu"} (for the effect size). The additional option
+is \code{"tau"} (for the heterogeneity).}
+
+\item{conditional}{whether conditional estimates should be
+plotted. Defaults to \code{FALSE} which plots the model-averaged
+estimates. Note that both \code{"weightfunction"} and
+\code{"PET-PEESE"} are always ignoring the other type of
+publication bias adjustment.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
-or ggplot2 \code{"ggplot2"} for plotting. The later
-requires \pkg{ggplot2} package to be installed.}
+or ggplot2 \code{"ggplot"} for plotting. Defaults to
+\code{"base"}. \code{"ggplot"} requires the \pkg{ggplot2}
+package to be installed.}
 
-\item{prior}{add prior density to the plot. Only available
-for \code{type = "averaged"} or \code{type = "conditional"}.
-Defaults to \code{FALSE}.}
+\item{order}{how the models should be ordered.
+Defaults to \code{"decreasing"} which orders them in decreasing
+order in accordance to \code{order_by} argument. The alternative is
+\code{"decreasing"}.}
 
-\item{order}{either of the studies. Defaults to \code{NULL} -
-ordering as supplied to the fitting function. Studies
-can be ordered either \code{"ascending"} or \code{"descending"} by
-effect size, or by labels \code{"alphabetical"}.}
+\item{order_by}{what feature should be use to order the models.
+Defaults to \code{"model"} which orders the models according to
+their number. The alternatives are \code{"estimate"} (for the effect
+size estimates), \code{"probability"} (for the posterior model probability),
+and \code{"BF"} (for the inclusion Bayes factor).}
 
-\item{...}{additional arguments to be passed to
-\link[graphics]{par} if \code{plot_type = "base"}. Especially
-useful for \code{parameter == "theta"},
-\code{parameter == "forest"} or \code{type = "individual"}
-where automatic margins might cut out parts of the labels.}
+\item{...}{list of additional graphical arguments
+to be passed to the plotting function. Supported arguments
+are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
+\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+to adjust the line thickness, line type, line color, fill color,
+x-label, y-label, title, x-axis range, and y-axis range
+respectively.}
+}
+\value{
+\code{plot_models} returns either \code{NULL} if \code{plot_type = "base"}
+or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
-Models plot for a RoBMA object
+\code{plot_models} plots individual models'
+estimates for a \code{"RoBMA"} object.
+}
+\examples{
+\dontrun{
+# using the example data from Anderson et al. 2010 and fitting the default model
+# (note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+
+### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
+# the plot_models function creates a plot for of the individual models' estimates, for example,
+# the effect size estimates from the individual models can be obtained with
+plot_models(fit)
+
+# and effect size estimates from only the conditional models
+plot_models(fit, conditional = TRUE)
+}
+
+
 }

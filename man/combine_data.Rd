@@ -23,31 +23,33 @@ combine_data(
 )
 }
 \arguments{
-\item{d}{a vector of effect sizes measured as Cohen's d.}
+\item{d}{a vector of effect sizes measured as Cohen's d}
 
-\item{r}{a vector of effect sizes measured as correlations.}
+\item{r}{a vector of effect sizes measured as correlations}
 
-\item{logOR}{a vector of log odds ratios.}
+\item{z}{a vector of effect sizes measured as Fisher's z}
 
-\item{t}{a vector of t/z-statistics.}
+\item{logOR}{a vector of effect sizes measured as log odds ratios}
+
+\item{t}{a vector of t/z-statistics}
 
 \item{y}{a vector of unspecified effect sizes (note that effect size
-transformations are unavailable with this type of input).}
+transformations are unavailable with this type of input)}
 
-\item{se}{a vector of standard errors of the effect sizes.}
+\item{se}{a vector of standard errors of the effect sizes}
 
-\item{v}{a vector of variances of the effect sizes.}
+\item{v}{a vector of variances of the effect sizes}
 
-\item{n}{a vector of overall sample sizes.}
+\item{n}{a vector of overall sample sizes}
 
-\item{lCI}{a vector of lower bounds of confidence intervals.}
+\item{lCI}{a vector of lower bounds of confidence intervals}
 
-\item{uCI}{a vector of upper bounds of confidence intervals.}
+\item{uCI}{a vector of upper bounds of confidence intervals}
 
-\item{study_names}{an optional argument with the names of the studies.}
+\item{study_names}{an optional argument with the names of the studies}
 
 \item{data}{a data frame with column names corresponding to the
-variable names used to supply data individually.}
+variable names used to supply data individually}
 
 \item{transformation}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to
@@ -59,11 +61,10 @@ Supplying \code{"none"} will treat the effect sizes as unstandardized and
 refrain from any transformations.}
 
 \item{return_all}{whether data frame containing all filled values should be
-returned. Defaults to \code{FALSE}.}
-
-\item{n1}{a vector of sample sizes for the first group.}
-
-\item{n2}{a vector of sample sizes for the second group.}
+returned. Defaults to \code{FALSE}}
+}
+\value{
+\code{combine_data} returns a data.frame.
 }
 \description{
 \code{combine_data} combines different effect sizes

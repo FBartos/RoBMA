@@ -11,6 +11,9 @@
 
 \item{...}{additional arguments.}
 }
+\value{
+\code{print.RoBMA} invisibly returns the print statement.
+}
 \description{
 Prints a fitted RoBMA object
 }

@@ -16,13 +16,13 @@
 \alias{se_z2se_logOR}
 \title{Standard errors transformations}
 \usage{
-se_d2se_logOR(se_d)
+se_d2se_logOR(se_d, logOR)
 
 se_d2se_r(se_d, d)
 
 se_r2se_d(se_r, r)
 
-se_logOR2se_d(se_logOR)
+se_logOR2se_d(se_logOR, logOR)
 
 se_d2se_z(se_d, d)
 
@@ -41,21 +41,21 @@ se_z2se_r(se_z, z)
 se_z2se_logOR(se_z, z)
 }
 \arguments{
-\item{se_d}{standard error of Cohen's d.}
+\item{se_d}{standard error of Cohen's d}
 
-\item{d}{Cohen's d.}
+\item{logOR}{log(odds ratios)}
 
-\item{se_r}{standard error of correlation coefficient.}
+\item{d}{Cohen's d}
 
-\item{r}{correlation coefficient.}
+\item{se_r}{standard error of correlation coefficient}
 
-\item{se_logOR}{standard error of log(odds ratios).}
+\item{r}{correlation coefficient}
 
-\item{logOR}{log(odds ratios).}
+\item{se_logOR}{standard error of log(odds ratios)}
 
-\item{se_z}{standard error of Fisher's z.}
+\item{se_z}{standard error of Fisher's z}
 
-\item{z}{Fisher's z.}
+\item{z}{Fisher's z}
 }
 \description{
 Functions for transforming between

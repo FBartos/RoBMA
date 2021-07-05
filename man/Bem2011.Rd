@@ -3,19 +3,23 @@
 \docType{data}
 \name{Bem2011}
 \alias{Bem2011}
-\title{10 experimental studies from from
-\insertCite{Anderson2010;textual}{RoBMA} that meet the best practice criteria}
+\title{9 experimental studies from from
+\insertCite{bem2011feeling;textual}{RoBMA} as described in
+\insertCite{bem2011must;textual}{RoBMA}}
 \format{
-A data.frame with 3 columns and 10 observations.
+A data.frame with 3 columns and 9 observations.
 }
 \usage{
 Bem2011
 }
+\value{
+a data.frame.
+}
 \description{
-The dataset contains correlational coefficients, sample
-sizes, and labels for 27 experimental studies focusing on the effect of
-violent videogames on aggressive behavior. The full original data can
-found at https://github.com/Joe-Hilgard/Anderson-meta.
+The data set contains Cohen's d effect sizes, standard errors,
+and labels for 9 experimental studies of precognition from the infamous
+\insertCite{bem2011feeling;textual}{RoBMA} as analyzed in his later meta-analysis
+\insertCite{bem2011must}{RoBMA}.
 }
 \references{
 \insertAllCited{}

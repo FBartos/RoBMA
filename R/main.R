@@ -1,11 +1,16 @@
 #' @title Estimate a Robust Bayesian Meta-Analysis
 #'
 #' @description \code{RoBMA} is used to estimate a Robust Bayesian
-#' Meta-Analysis. Either t-statistics (\code{t}) and sample sizes of
-#' the original studies (\code{n} or \code{n1} and \code{n2}), or
-#' effect sizes (\code{d}) and standard errors (\code{se}) can be
-#' used to estimate the model.
+#' Meta-Analysis. The interface allows a complete customization of
+#' the ensemble with different prior (or list of prior) distributions
+#' for each component.
 #'
+#' @param model_type string specifying the RoBMA enseble. Defaults to \code{NULL}.
+#' The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
+#' settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
+#' \code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
+#' \code{priors_bias_null}, and \code{priors_effect}. See details for more information
+#' about the different model types.
 #' @param effect_direction the expected direction of the effect. The one-sided
 #' selection sets the weights omega to 1 to significant results in the expected
 #' direction. Defaults to \code{"positive"} (another option is \code{"negative"}).
@@ -13,151 +18,111 @@
 #' Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
 #' and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
 #' the samples from prior distributions are internally transformed to match the
-#' \code{transformation} of the data. The \code{prior_scale} are corresponds to
+#' \code{transformation} of the data. The \code{prior_scale} corresponds to
 #' the scale of default output, but can be changed within the summary function.
-#' @param priors_effect list of prior distributions for the \code{mu} parameter that
-#' will be treated as belonging to the alternative hypothesis. Defaults to \code{
-#' prior(distribution = "normal",   parameters = list(mean = 0, sd = 1))}.
-#' @param priors_heterogeneity list of prior distributions for the \code{tau} parameter that
-#' will be treated as belonging to the alternative hypothesis. Defaults to \code{
-#' prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))}.
-#' @param priors_bias list of prior weight functions for the \code{omega}
-#' parameter that will be treated as belonging to the alternative hypothesis.
+#' @param priors_effect list of prior distributions for the effect size (\code{mu})
+#' parameter that will be treated as belonging to the alternative hypothesis. Defaults to
+#' a standard normal distribution
+#' \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 1))}.
+#' @param priors_heterogeneity list of prior distributions for the heterogeneity \code{tau}
+#' parameter that will be treated as belonging to the alternative hypothesis. Defaults to
+#' \code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))} that
+#' is based on heterogeneities estimates from psychology \insertCite{erp2017estimates}{RoBMA}.
+#' @param priors_bias list of prior distributions for the publication bias adjustment
+#' component that will be treated as belonging to the alternative hypothesis.
 #' Defaults to \code{list(
-#' prior(distribution = "two.sided", parameters = list(alpha = c(1, 1),     steps = c(.05)),      prior_weights = 1/2),
-#' prior(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),  steps = c(.05, .10)), prior_weights = 1/2)
-#' )}.
-#' @param priors_effect_null list of prior distributions for the \code{mu} parameter that
-#' will be treated as belonging to the null hypothesis. Defaults to point distribution
-#' with location at 0 (
-#' \code{prior(distribution = "point", parameters = list(location = 0))}).
-#' @param priors_heterogeneity_null list of prior distributions for the \code{tau} parameter that
-#' will be treated as belonging to the null hypothesis. Defaults to point distribution
-#' with location at 0 (
-#' \code{prior(distribution = "point", parameters = list(location = 0))}).
+#' prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),
+#'     steps = c(0.05)),             prior_weights = 1/12),
+#' prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),
+#'     steps = c(0.05, 0.10)),       prior_weights = 1/12),
+#' prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),
+#'      steps = c(0.05)),             prior_weights = 1/12),
+#' prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),
+#'      steps = c(0.025, 0.05)),      prior_weights = 1/12),
+#' prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),
+#'      steps = c(0.05, 0.5)),        prior_weights = 1/12),
+#' prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1),
+#'      steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
+#' prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),
+#'      prior_weights = 1/4),
+#' prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
+#'      prior_weights = 1/4)
+#' )}, corresponding to the RoBMA-PSMA model introduce by \insertCite{bartos2021no;textual}{RoBMA}.
+#' @param priors_effect_null list of prior distributions for the effect size (\code{mu})
+#' parameter that will be treated as belonging to the null hypothesis. Defaults to
+#' a point null hypotheses at zero,
+#' \code{prior(distribution = "point", parameters = list(location = 0))}.
+#' @param priors_heterogeneity_null list of prior distributions for the heterogeneity \code{tau}
+#' parameter that will be treated as belonging to the null hypothesis. Defaults to
+#' a point null hypotheses at zero (a fixed effect meta-analytic models),
+#' \code{prior(distribution = "point", parameters = list(location = 0))}.
 #' @param priors_bias_null list of prior weight functions for the \code{omega} parameter
-#' that will be treated as belonging to the null hypothesis. Defaults to point
-#' distribution with location at 1 (
-#' \code{prior(distribution = "point", parameters = list(location = 0))}).
-#' @param chains a number of chains of the MCMC algorithm.
+#' that will be treated as belonging to the null hypothesis. Defaults no publication
+#' bias adjustment, \code{prior_none()}.
+#' @param chains a number of chains of the MCMC algorithm
 #' @param sample a number of sampling iterations of the MCMC algorithm.
-#' Defaults to \code{10000}, with a minimum of \code{4000}.
-#' @param burnin a number of burnin iterations of the MCMC algorithm.
 #' Defaults to \code{5000}.
+#' @param burnin a number of burnin iterations of the MCMC algorithm.
+#' Defaults to \code{2000}.
+#' @param adapt a number of adaptation iterations of the MCMC algorithm.
+#' Defaults to \code{500}.
 #' @param thin a thinning of the chains of the MCMC algorithm. Defaults to
 #' \code{1}.
-#' @param control a list of additional arguments for the MCMC algorithm.
-#' Possible options are:
-#' \describe{
-#'   \item{autofit}{Whether the models should be refitted until convergence.
-#'   Defaults to \code{FALSE}}
-#'   \item{max_error}{The target MCMC error for the autofit function. The
-#'   argument is passed to \link[coda]{raftery.diag} as 'r'. Defaults to
-#'   \code{.01}.}
-#'   \item{max_rhat}{The target Rhat error for the autofit function. The
-#'   argument is passed to \link[runjags]{add.summary} as 'psrf.target'.
-#'   Defaults to \code{1.05}.}
-#'   \item{max_time}{A string specifying the maximum fitting time in case
-#'   of autofit. Defaults to \code{Inf}. Can be specified as a number and
-#'   a unit (Acceptable units include ’seconds’, ’minutes’, ’hours’, ’days’,
-#'   ’weeks’, or the first letter(s) of each), i.e. \code{"1hr"}.}
-#'   \item{adapt}{A number of iterations used for MCMC adaptation. Defaults
-#'   to \code{1000}.}
-#'   \item{bridge_max_iter}{Maximum number of iterations for the
-#'   \link[bridgesampling]{bridge_sampler} function. Defaults to \code{10000}}
-#'   \item{allow_max_error}{Maximum allowed MCMC error for a model to be taken
-#'   into consideration. The model will be removed from the ensemble if it fails to
-#'   achieve the set MCMC error. Defaults to \code{NULL} - no model will be
-#'   removed based on MCMC error.}
-#'   \item{allow_max_rhat}{Maximum allowed Rhat for a model to be taken into
-#'   consideration. Model will be removed from the ensemble if it fails to
-#'   achieve the set Rhat. Defaults to \code{NULL} - no model will be removed
-#'   based on Rhat.}
-#'   \item{allow_min_ESS}{Minimum allowed ESS for a model to be taken into
-#'   consideration. Model will be removed from the ensemble if it fails to
-#'   achieve the set ESS. Defaults to \code{NULL} - no model will be removed
-#'   based on ESS.}
-#'   \item{balance_prob}{Whether the prior probability of the removed model
-#'   should be redistributed to other models with the same type if possible
-#'    (crossing of effect / heterogeneity / publication bias). Defaults to
-#'    \code{TRUE}.}
-#'   \item{silent}{Whether all fitting messages should be suppressed. Defaults
-#'   to \code{FALSE}. Ideal for getting rid of the "full precision may not have
-#'   been achieved in pnt{final}'" warning that cannot be suppressed in any
-#'   other way.}
-#'   \item{boost}{Whether the likelihood functions implemented using the boost
-#'   C++ library should be used as the first option. The higher precision of
-#'   boost allows to estimate models in difficult cases. Defaults to \code{FALSE}.
-#'   The R distributions are used as default and boost is used only if they fail.
-#'   Warning: the estimation using boost takes about twice as long.}
-#'   \item{cores}{Maximum number of cores to be used for parallel computation. If
-#'   \code{parallel == TRUE}, the default number is equal to number of cores - 1,
-#'   and 1 (no parallel processing otherwise).}
-#' }
+#' @param parallel whether the individual models should be fitted in parallel.
+#' Defaults to \code{FALSE}. The implementation is not completely stable
+#' and might cause a connection error.
+#' @param autofit whether the model should be fitted until the convergence
+#' criteria (specified in \code{autofit_control}) are satisfied. Defaults to
+#' \code{TRUE}.
+#' @param autofit_control allows to pass autofit control settings with the
+#' [set_autofit_control()] function. See \code{?set_autofit_control} for
+#' options and default settings.
+#' @param convergence_checks automatic convergence checks to assess the fitted
+#' models, passed with [set_convergence_checks()] function. See
+#' \code{?set_convergence_checks} for options and default settings.
 #' @param save whether all models posterior distributions should be kept
 #' after obtaining a model-averaged result. Defaults to \code{"all"} which
 #' does not remove anything. Set to \code{"min"} to significantly reduce
-#' the size of final object, however, some model diagnostics [check()] will
-#' not be available.
+#' the size of final object, however, some model diagnostics and further
+#' manipulation with the object will not be possible.
 #' @param seed a seed to be set before model fitting, marginal likelihood
-#' computation, and posterior mixing for exact results reproducibility. Defaults
+#' computation, and posterior mixing for reproducibility of results. Defaults
 #' to \code{NULL} - no seed is set.
-#' @param parallel whether the individual models should be fitted in parallel.
-#' Defaults to \code{FALSE}. The \code{cores} argument within the \code{control}
-#' list will overwrite the setting if specified to a number higher than 1.
+#' @param silent whether all print messages regarding the fitting process
+#' should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
+#' also suppresses all messages.
+#' @inheritParams combine_data
 #'
-#' @details The default settings with either t-statistics / Cohen's d effect
-#' sizes and sample sizes / standard errors correspond to the ensemble proposed by
-#' \insertCite{maier2020}{RoBMA}. The \code{vignette("CustomEnsembles")} and
-#' \code{vignette("ReproducingBMA")} vignettes describe how to use [RoBMA()] to fit
-#' custom meta-analytic ensembles (see [prior()] for more information about prior
-#' distributions). To get help with the error and warning messages,
-#' see \code{vignette("WarningsAndErrors")}.
+#' @details The default settings of the RoBMA 2.0 package corresponds to the RoBMA-PSMA
+#' ensemble proposed by \insertCite{bartos2021no;textual}{RoBMA}. The previous versions
+#' of the package (i.e., RoBMA < 2.0) used specifications proposed by
+#' \insertCite{maier2020robust;textual}{RoBMA} (this specification can be easily
+#' obtained by setting \code{model_type = "2w"}. The RoBMA-PP specification from
+#' \insertCite{bartos2021no;textual}{RoBMA} can be obtained by setting
+#' \code{model_type = "PP"}.
+#'
+#' The \code{vignette("CustomEnsembles")} and \code{vignette("ReproducingBMA")} vignettes
+#' describe how to use [RoBMA()] to fit custom meta-analytic ensembles (see [prior()]
+#' for more information about prior distributions).
 #'
 #' The RoBMA function first generates models from a combination of the
 #' provided priors for each of the model parameters. Then, the individual models
 #' are fitted using \link[runjags]{autorun.jags} function. A marginal likelihood
 #' is computed using \link[bridgesampling]{bridge_sampler} function. The individual
-#' models are then combined into an ensemble using the posterior model probabilities.
+#' models are then combined into an ensemble using the posterior model probabilities
+#' using \link[BayesTools]{BayesTools} package.
 #'
 #' Generic [summary.RoBMA()], [print.RoBMA()], and [plot.RoBMA()] functions are
 #' provided to facilitate manipulation with the ensemble. A visual check of the
 #' individual model diagnostics can be obtained using the [diagnostics()] function.
 #' The fitted model can be further updated or modified by [update.RoBMA()] function.
 #'
-#' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
-#'
 #' @examples \dontrun{
-#' # using the example data from Anderson et al. 2010 and fitting the default model
-#' # (note that the model can take a while to fit)
-#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#' # using the example data from Bem 2011 and fitting the default (RoBMA-PSMA) model
+#' fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study)
 #'
-#' # in order to speed up the process, we can reduce the default number of chains, iteration,
-#' # and disable the autofit functionality (see ?RoBMA for all possible settings)
-#' fit_faster <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
-#' chains = 2, iter = 5000, control = list(autofit = FALSE))
-#'
-#' # RoBMA function allows to use different prior specifications
-#' # for example, change the prior for tau to be half normal and specify one-sided selection only
-#' # on significant p-values (see '?.prior' for all options regarding prior distributions)
-#' fit1 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
-#'               priors_heterogeneity = prior("normal",
-#'                                  parameters = list(mean = 0, sd = 1),
-#'                                  truncation = list(lower = 0, upper = Inf)),
-#'               priors_bias = prior("one-sided",
-#'                                    parameters = list(cuts = c(.05), alpha = c(1, 1))))
-#'
-#' # the priors for the null models can be modified or even omitted in a similar manner,
-#' # allowing to test different (non-nill-null) hypotheses
-#' fit2 <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels,
-#'               priors_effect_null  = prior("normal",
-#'                                  parameters = list(mean = 0, sd = .1),
-#'                                  truncation = list(lower = -0.1, upper = 0.1)))
-#'
-#' # an already fitted RoBMA model can be further updated or modified by using the update function
-#' # for example, the prior model probabilities can be changed after the fitting by
-#' # (but see '?update.RoBMA' for other possibilities including refitting or adding more models)
-#' fit3 <- update(fit2, prior_weights = c(10,1,1,1,1,1,1,1,1,1,1,1))
+#' # in order to speed up the process, we can turn the parallelization on
+#' fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, parallel = TRUE)
 #'
 #' # we can get a quick overview of the model coefficients just by printing the model
 #' fit
@@ -165,20 +130,43 @@
 #' # a more detailed overview using the summary function (see '?summary.RoBMA' for all options)
 #' summary(fit)
 #'
-#' # results of the models can be visualized using the plot function (see ?plot.RoBMA for all options)
-#' # for example, the model-averaged mean estimate
+#' # the model-averaged effect size estimate can be visualized using the plot function
+#' # (see ?plot.RoBMA for all options)
 #' plot(fit, parameter = "mu")
+#'
+#' # forest plot can be obtained with the forest function (see ?forest for all options)
+#' forest(fit)
+#'
+#' # plot of the individual model estimates can be obtained with the plot_models function
+#' #  (see ?plot_models for all options)
+#' plot_models(fit)
 #'
 #' # diagnostics for the individual parameters in individual models can be obtained using diagnostics
 #' # function (see 'diagnostics' for all options)
 #' diagnostics(fit, parameter = "mu", type = "chains")
+#'
+#' # the RoBMA-PP can be fitted with addition of the 'model_type' argument
+#' fit_PP <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, model_type = "PP")
+#'
+#' # as well as the original version of RoBMA (with two weightfunctions)
+#' fit_original <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
+#'                       model_type = "2w")
+#'
+#' # or different prior distribution for the effect size (e.g., a half-normal distribution)
+#' # (see 'vignette("CustomEnsembles")' for a detailed guide on specifying a custom model ensemble)
+#' fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
+#'              priors_effect = prior("normal", parameters = list(0, 1),
+#'                                    truncation = list(0, Inf)))
 #' }
 #'
 #' @references
 #' \insertAllCited{}
-#' @inheritParams combine_data
-#' @export RoBMA
-#' @seealso [summary.RoBMA()], [update.RoBMA()], [prior()], [check_setup()]
+#'
+#'
+#' @return \code{RoBMA} returns an object of class 'RoBMA'.
+#'
+#' @seealso [summary.RoBMA()], [update.RoBMA()], [check_setup()]
+#' @export
 RoBMA <- function(
   # data specification
   d = NULL, r = NULL, logOR = NULL, z = NULL, y = NULL,
@@ -322,24 +310,28 @@ RoBMA <- function(
 #'   \code{refit_failed == FALSE}.}
 #' }
 #'
-#' @param object a fitted RoBMA object.
-#' @param prior_mu a prior distribution for the \code{mu} parameter that
-#' will be treated as belonging to the alternative hypothesis.
-#' @param prior_tau a prior distribution for the \code{tau} parameter that
-#' will be treated as belonging to the alternative hypothesis.
-#' @param prior_omega a prior weight function for the \code{omega}
+#' @param object a fitted RoBMA object
+#' @param prior_effect prior distribution for the effect size (\code{mu})
 #' parameter that will be treated as belonging to the alternative hypothesis.
-#' @param prior_mu_null list of prior distribution for the \code{mu} parameter that
-#' will be treated as belonging to the null hypothesis. Defaults to point distribution
-#' with location at 0 (
-#' \code{prior(distribution = "point", parameters = list(location = 0))}).
-#' @param prior_tau_null a prior distribution for the \code{tau} parameter that
-#' will be treated as belonging to the null hypothesis.
-#' @param prior_omega_null a prior weight function for the \code{omega} parameter
-#' that will be treated as belonging to the null hypothesis.
-#' @param prior_weights either a single value specifying prior model odds
+#' Defaults to \code{NULL}.
+#' @param prior_heterogeneity prior distribution for the heterogeneity \code{tau}
+#' parameter that will be treated as belonging to the alternative hypothesis.
+#' Defaults to \code{NULL}.
+#' @param prior_bias prior distribution for the publication bias adjustment
+#' component that will be treated as belonging to the alternative hypothesis.
+#' Defaults to \code{NULL}.
+#' @param prior_effect_null prior distribution for the effect size (\code{mu})
+#' parameter that will be treated as belonging to the null hypothesis.
+#' Defaults to \code{NULL}.
+#' @param prior_heterogeneity_null prior distribution for the heterogeneity \code{tau}
+#' parameter that will be treated as belonging to the null hypothesis.
+#' Defaults to \code{NULL}.
+#' @param prior_bias_null prior distribution for the publication bias adjustment
+#' component that will be treated as belonging to the null hypothesis.
+#' Defaults to \code{NULL}.
+#' @param prior_weights either a single value specifying prior model weight
 #' of a newly specified model using priors argument, or a vector of the
-#' same length as already fitted models to update their prior odds.
+#' same length as already fitted models to update their prior weights.
 #' @param refit_failed whether failed models should be refitted. Relevant only
 #' if new priors or \code{prior_weights} are not supplied. Defaults to \code{TRUE}.
 #' @inheritParams RoBMA
@@ -347,44 +339,43 @@ RoBMA <- function(
 #'
 #' @details See [RoBMA()] for more details.
 #'
-#' @return \code{RoBMA} returns an object of \link[base]{class} \code{"RoBMA"}.
 #' @examples \dontrun{
-#' # using the example data from Anderson et al. 2010 and fitting the default model
-#' # (note that the model can take a while to fit)
-#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#' # using the example data from Bem 2011 and fitting the default (RoBMA-PSMA) model
+#' fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study)
 #'
-#' # the update function allows us to change the prior model probability of each model
-#' fit1 <- update(fit, prior_weights = c(10,1,1,1,1,1,1,1,1,1,1,1))
+#' # the update function allows us to change the prior model weights of each model
+#' fit1 <- update(fit, prior_weights = c(0, rep(1, 35)))
 #'
-#' # add an additional model with different priors specification (see '?prior' for more information)
+#' # add an additional model with different priors specification
+#' # (see '?prior' for more information)
 #' fit2 <- update(fit,
 #'                priors_effect_null = prior("point", parameters = list(location = 0)),
 #'                priors_heterogeneity = prior("normal",
 #'                                   parameters = list(mean = 0, sd = 1),
 #'                                   truncation = list(lower = 0, upper = Inf)),
-#'                priors_bias = prior("one-sided",
-#'                                     parameters = list(cuts = c(.05), alpha = c(1, 1))))
+#'                priors_bias = prior_weightfunction("one-sided",
+#'                                     parameters = list(cuts = c(.05, .10, .20),
+#'                                                       alpha = c(1, 1, 1, 1))))
 #'
-#' # change the model convergence criteria to mark models with ESS lower than 2000 as non-covergent
-#' fit3 <- update(fit, control = list(allow_min_ESS = 2000))
-#'
-#' # and refit them failed models with increased number of burnin iterations
-#' fit4 <- update(fit3, burnin = 10000)
-#'
+#' # refit the models with an increased number of sample iterations
+#' fit3 <- update(fit, sample = 10000)
 #' }
 #'
-#' @method update RoBMA
-#' @export update.RoBMA
-#' @rawNamespace S3method(update, RoBMA)
+#'
+#' @return \code{RoBMA} returns an object of class 'RoBMA'.
 #'
 #' @seealso [RoBMA()], [summary.RoBMA()], [prior()], [check_setup()]
-update.RoBMA <- function(object, refit_failed = TRUE, output_scale = NULL,
+#' @export
+update.RoBMA <- function(object, refit_failed = TRUE,
                          prior_effect = NULL,      prior_heterogeneity = NULL,      prior_bias = NULL, prior_weights = NULL,
                          prior_effect_null = NULL, prior_heterogeneity_null = NULL, prior_bias_null = NULL,
                          study_names = NULL,
-                         chains = NULL, adapt = NULL, burnin = NULL, sample = NULL, thin = NULL, autofit = NULL, parallel = NULL, cores = NULL, autofit_control = NULL, convergence_checks = NULL,
+                         chains = NULL, adapt = NULL, burnin = NULL, sample = NULL, thin = NULL, autofit = NULL, parallel = NULL,
+                         autofit_control = NULL, convergence_checks = NULL,
                          save = "all", seed = NULL, silent = TRUE, ...){
-  prior_sigma <- NULL
+
+  # TODO: add ability to change the output scale
+  output_scale <- NULL
 
   if(object$add_info$save == "min")
     stop("Models cannot be updated because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' in while fitting the model (see ?RoBMA for more details).")

@@ -2,12 +2,16 @@
 % Please edit documentation in R/tools.R
 \name{check_RoBMA}
 \alias{check_RoBMA}
-\title{Check fitted RoBMA object}
+\title{Check fitted RoBMA object for errors and warnings}
 \usage{
 check_RoBMA(fit)
 }
 \arguments{
 \item{fit}{a fitted RoBMA object.}
+}
+\value{
+\code{check_RoBMA} returns a vector of error and
+warning messages.
 }
 \description{
 Checks fitted RoBMA object
