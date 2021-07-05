@@ -10,17 +10,17 @@
 #include "transformations/logOR.h"
 
 namespace jags { 
-  namespace weightedt { // module namespace
+  namespace RoBMA { // module namespace
 
     // JAGS module class
-    class WTModule : public Module {
+    class RoBMAModule : public Module {
       public:
-        WTModule();
-        ~WTModule();
+        RoBMAModule();
+        ~RoBMAModule();
     };
 
     // constructor (executed when loading the module)
-    WTModule::WTModule() : Module("RoBMA"){
+    RoBMAModule::RoBMAModule() : Module("RoBMA"){
       
       // distributions
       insert(new DWT1);
@@ -66,7 +66,7 @@ namespace jags {
     }
     
     // destructor (executed when unloading the module)
-    WTModule::~WTModule() {
+    RoBMAModule::~RoBMAModule() {
       std::vector<Function*> const &fvec = functions();
       for (unsigned int i = 0; i < fvec.size(); ++i) {
         delete fvec[i];
@@ -80,5 +80,5 @@ namespace jags {
   }
 }
 
-jags::weightedt::WTModule _weightedt_module;
+jags::RoBMA::RoBMAModule _RoBMA_module;
 

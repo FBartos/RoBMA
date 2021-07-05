@@ -8,7 +8,7 @@ using std::vector;
 using std::string;
 
 namespace jags {
-  namespace weightedt {
+  namespace RoBMA {
 
     // effect sizes transformations
     d2r::d2r() :ScalarFunction("d2r", 1)

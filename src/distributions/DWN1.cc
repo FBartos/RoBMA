@@ -22,7 +22,7 @@ using std::fabs;
 
 
 namespace jags {
-namespace weightedt {
+namespace RoBMA {
 
 DWN1::DWN1() : VectorDist("dwnorm_1s", 4) {}
 

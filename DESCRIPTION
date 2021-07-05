@@ -9,7 +9,11 @@ Authors@R: c(
     email   = "maximilianmaier0401@gmail.com", comment = c(ORCID = "0000-0002-9873-6096")),
     person("Eric-Jan", "Wagenmakers", role = "ths",
     comment = c(ORCID = "0000-0003-1596-1034")),
-    person("Joris", "Goosen",         role = "ctb")
+    person("Joris", "Goosen",         role = "ctb"),
+    person("Matthew", "Denwood", role="cph", 
+           comment="Original copyright holder of some modified code where indicated."),
+    person("Martyn", "Plummer", role="cph", 
+           comment="Original copyright holder of some modified code where indicated.")
     )
 Description: A framework for estimating ensembles of meta-analytic models
     (assuming either presence or absence of the effect, heterogeneity, and
@@ -28,6 +32,10 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.1
+SystemRequirements: JAGS >= 4.3.0 (http://mcmc-jags.sourceforge.net)
+NeedsCompilation: yes
+Depends:
+    R (>= 4.0.0)
 Imports:
     BayesTools,
     runjags,

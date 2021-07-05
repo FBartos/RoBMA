@@ -9,7 +9,7 @@ using std::string;
 using std::fabs;
 
 namespace jags {
-  namespace weightedt {
+  namespace RoBMA {
 
     // effect sizes transformations
     r2d::r2d() :ScalarFunction("r2d", 1)

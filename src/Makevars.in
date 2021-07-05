@@ -1,5 +1,36 @@
-PKG_CPPFLAGS=@JAGS_CFLAGS@
+######################################################################################################
+###  This file is based on file in the runjags package (version 2.0)
+###  The previous version of the file is Copyright (C) Matthew Denwood, licensed under GPL-2.
+###
+###  The previous file is based on that in the rjags package (version 4-10)
+###  Original file is Copyright (C) Martyn Plummer, licensed under GPL-2
+###
+###  This file allows compilation with JAGS 4 without modifying RoBMA.
+###  To force the package to compile assuming a given JAGS version is installed, use the 
+###  JAGS_MAJOR_FORCED environmental variable.  This should not be necessary on unix.
+###
+######################################################################################################
+
+
+###############
+###  Flags
+###  Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
+###  JAGS_MAJOR_ASSUMED is not needed (always 0) on unix
+###############
+
+PKG_CPPFLAGS=@JAGS_CFLAGS@ -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -D JAGS_MAJOR_ASSUMED=0
 PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@
 
-SOURCES = distributions/DWN1.cc distributions/DWN2.cc distributions/DWT1.cc distributions/DWT2.cc transformations/z.cc transformations/r.cc transformations/d.cc transformations/logOR.cc transformations/transformations_common.cc weightedt.cc
-OBJECTS=$(SOURCES:.cc=.o)
+###############
+
+
+###############
+###  LIBS and objects to be compiled
+###############
+
+OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+
+###############
+
+
+

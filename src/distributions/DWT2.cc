@@ -21,7 +21,7 @@ using std::fabs;
 
 
 namespace jags {
-namespace weightedt { 
+namespace RoBMA { 
 
 DWT2::DWT2() : VectorDist("dwt_2s", 4) {}
 

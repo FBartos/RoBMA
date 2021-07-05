@@ -4,7 +4,7 @@
 #include <function/ScalarFunction.h>
 
 namespace jags {
-  namespace weightedt {
+  namespace RoBMA {
 
     // effect sizes transformations
     class d2r : public ScalarFunction 
