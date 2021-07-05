@@ -28,7 +28,8 @@ AC_PATH_PROG([PKG_CONFIG], [pkg-config], [], [$PATH:/usr/local/bin])
 if test [ -n "${PKG_CONFIG}" ] ; then
    if `${PKG_CONFIG} --exists jags`; then
        if `${PKG_CONFIG} --exists --atleast-version=3.0.0 jags`; then
-         JAGS_LIBS=`${PKG_CONFIG} --libs jags -ljrmath`
+         JAGS_LIBS_PKGCONFIG=`${PKG_CONFIG} --libs jags`
+         JAGS_LIBS="$JAGS_LIBS_PKGCONFIG -ljrmath"
          JAGS_CFLAGS=`${PKG_CONFIG} --cflags jags`
          JAGS_LIBDIR=`${PKG_CONFIG} --variable libdir jags`
          if test [ -z "${JAGS_LIBS}" -a -z "${JAGS_CFLAGS}" ] ; then
