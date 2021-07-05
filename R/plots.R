@@ -17,8 +17,7 @@
 #' publication bias adjustment.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
-#' \code{"base"}. \code{"ggplot"} requires the \pkg{ggplot2}
-#' package to be installed.
+#' \code{"base"}.
 #' @param prior whether prior distribution should be added to
 #' figure. Defaults to \code{FALSE}.
 #' @param rescale_x whether the x-axis of the \code{"weightfunction"}
@@ -88,8 +87,6 @@ plot.RoBMA  <- function(x, parameter = "mu",
   BayesTools::check_char(parameter, "parameter")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
-    stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_bool(rescale_x, "rescale_x")
@@ -301,8 +298,6 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   #check settings
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
-    stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing", "alphabetical"))
 
@@ -518,8 +513,6 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "b
   #check settings
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
-    stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing"))
   if(!parameter %in% c("mu", "tau")){

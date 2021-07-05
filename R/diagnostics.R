@@ -19,8 +19,7 @@
 #' first letters.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
-#' \code{"base"}. \code{"ggplot"} requires the \pkg{ggplot2}
-#' package to be installed.
+#' \code{"base"}.
 #' @param show_models MCMC diagnostics of which models should be
 #' plotted. Defaults to \code{NULL} which plots MCMC diagnostics
 #' for a specified parameter for every model that is part of the
@@ -73,8 +72,6 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
   BayesTools::check_char(parameter, "parameter")
   BayesTools::check_char(type, "type")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  if(plot_type == "ggplot" && !try(requireNamespace("ggplot2", quietly = TRUE)))
-    stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
 
   # deal with bad type names
   if(substr(type, 1, 1) == "c"){

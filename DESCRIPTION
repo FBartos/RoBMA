@@ -48,13 +48,12 @@ Imports:
     extraDistr,
     scales,
     callr,
-    Rdpack
+    Rdpack,
+    ggplot2
 Suggests:
-    ggplot2,
     parallel,
     rstan,
     metaBMA,
-    DPQ,
     testthat,
     vdiffr,
     knitr,
