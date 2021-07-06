@@ -73,6 +73,11 @@ jobs:
           del wjags.exe
         shell: cmd
 
+      - name: Set JAGS path (windows-latest)
+        if: runner.os == 'Windows'
+        run: |
+          Sys.setenv(JAGS_ROOT = "/usr/local/lib")
+
       - name: Install JAGS (macOS-latest)
         if: runner.os == 'macOS'
         run : |
