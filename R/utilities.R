@@ -1,20 +1,4 @@
-# addapted from the runjags package version 2.2.0
-
-RoBMA.private <- new.env()
-# Use 'expression' for functions to avoid having to evaluate before the package is fully loaded:
-assign("defaultoptions",  list(
-  jagspath = expression(runjags::findjags()),
-  envir    = RoBMA.private))
-
-assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
-assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
-assign("min_jags_major",  4,                              envir = RoBMA.private)
-assign("max_jags_major",  4,                              envir = RoBMA.private)
-
-
-#' Options for the RoBMA package
-#'
-#' @name RoBMA.options
+#' @title Options for the RoBMA package
 #'
 #' @description A placeholder object and functions for the RoBMA package.
 #' (adapted from the runjags R package).
@@ -27,12 +11,15 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
 #' @return The current value of all available RoBMA options (after applying any
 #' changes specified) is returned invisibly as a named list.
 #'
-#' @seealso \code{\link{run.jags}}
+#' @export RoBMA.options
+#' @export RoBMA.get_option
+#' @name RoBMA_options
+#' @aliases RoBMA_options RoBMA.options RoBMA.get_option
 NULL
 
-#' @rdname RoBMA.options
-#' @export
-RoBMA.options <- function(...){
+
+#' @rdname RoBMA_options
+RoBMA.options    <- function(...){
 
 	opts <- list(...)
 
@@ -58,8 +45,7 @@ RoBMA.options <- function(...){
 	return(invisible(RoBMA.private$options))
 }
 
-#' @rdname RoBMA.options
-#' @export
+#' @rdname RoBMA_options
 RoBMA.get_option <- function(name){
 
 	if(length(name)!=1)
@@ -74,3 +60,16 @@ RoBMA.get_option <- function(name){
 	return(eval(RoBMA.private$options[[opt]]))
 }
 
+
+
+# adapted from the runjags package version 2.2.0
+RoBMA.private <- new.env()
+# Use 'expression' for functions to avoid having to evaluate before the package is fully loaded:
+assign("defaultoptions",  list(
+  jagspath = expression(runjags::findjags()),
+  envir    = RoBMA.private))
+
+assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
+assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
+assign("min_jags_major",  4,                              envir = RoBMA.private)
+assign("max_jags_major",  4,                              envir = RoBMA.private)

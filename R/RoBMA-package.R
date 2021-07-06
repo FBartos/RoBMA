@@ -14,23 +14,11 @@
 ##' are encouraged to submit their own.
 ##' @author František Bartoš \email{f.bartos96@@gmail.com}
 ##' @keywords package
-##' @importFrom BayesTools prior prior_none prior_PET prior_PEESE prior_weightfunction
 ##' @importFrom BayesTools is.prior is.prior.none is.prior.point is.prior.simple is.prior.PET is.prior.PEESE is.prior.weightfunction
-##' @export prior
-##' @export prior_none
-##' @export prior_PET
-##' @export prior_PEESE
-##' @export prior_weightfunction
 "_PACKAGE"
 
 #//##' @useDynLib RoBMA, .registration = TRUE
-#//.onUnload <- function(libpath) {
-#//  library.dynam.unload("RoBMA", libpath)
-#//}
 
-# The following block is used by usethis to automatically manage
-# roxygen namespace tags. Modify with care!
-## usethis namespace: start
-## usethis namespace: end
-NULL
+
+
 
