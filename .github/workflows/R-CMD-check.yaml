@@ -93,9 +93,7 @@ jobs:
         run: |
           options(crayon.enabled = TRUE)
           rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran"), error_on = "warning", check_dir = "check")
-        shell: Rscript {0}
-        env:
-          JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
+        shell: Rscript {0}"
 
       - name: Check
         if: runner.os == 'Windows'
