@@ -36,8 +36,7 @@ jobs:
         if: runner.os == 'macOS'
         run : |
           rm '/usr/local/bin/gfortran'
-          brew install autoconf automake libtool
-          brew install jags
+          brew install automake jags
 
       - name: Query dependencies
         run: |

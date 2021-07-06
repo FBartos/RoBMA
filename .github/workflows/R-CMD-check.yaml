@@ -77,7 +77,7 @@ jobs:
         if: runner.os == 'macOS'
         run : |
           rm '/usr/local/bin/gfortran'
-          brew install autoconf automake libtool
+          brew install automake jags
           brew install jags
 
       - name: Install dependencies
@@ -89,7 +89,7 @@ jobs:
       - name: Set JAGS path (windows-latest)
         if: runner.os == 'Windows'
         run: |
-          Sys.setenv(JAGS_ROOT = gsub("jags-terminal.exe", "", "C:/Program Files/JAGS/JAGS-4.3.0/x64/bin/jags-terminal.exe"))
+          Sys.setenv(JAGS_ROOT = gsub("jags-terminal.exe", "", runjags::findjags()))
         shell: Rscript {0}
 
       - name: Check
