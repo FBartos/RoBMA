@@ -27,9 +27,8 @@ PKG_CONFIG_OK="FALSE"
 AC_PATH_PROG([PKG_CONFIG], [pkg-config], [], [$PATH:/usr/local/bin])
 if test [ -n "${PKG_CONFIG}" ] ; then
    if `${PKG_CONFIG} --exists jags`; then
-       if `${PKG_CONFIG} --exists --atleast-version=3.0.0 jags`; then
-         JAGS_LIBS_PKGCONFIG=`${PKG_CONFIG} --libs jags`
-         JAGS_LIBS="$JAGS_LIBS_PKGCONFIG -ljrmath"
+       if `${PKG_CONFIG} --exists --atleast-version=4.0.0 jags`; then
+         JAGS_LIBS=`${PKG_CONFIG} --libs jags`
          JAGS_CFLAGS=`${PKG_CONFIG} --cflags jags`
          JAGS_LIBDIR=`${PKG_CONFIG} --variable libdir jags`
          if test [ -z "${JAGS_LIBS}" -a -z "${JAGS_CFLAGS}" ] ; then
@@ -42,9 +41,9 @@ if test [ -n "${PKG_CONFIG}" ] ; then
          fi
       else
          jags_installed_version=`${PKG_CONFIG} --modversion jags`
-         AC_MSG_ERROR([pkg-config found JAGS ${jags_installed_version} but rjags requires JAGS >= 3.x.y])
+         AC_MSG_ERROR([pkg-config found JAGS ${jags_installed_version} but rjags requires JAGS >= 4.x.y])
       fi
-   else 
+   else
       AC_MSG_WARN([pkg-config file for jags ${PACKAGE_VERSION} unavailable])
       AC_MSG_WARN([Consider adding the directory containing `jags.pc`])
       AC_MSG_WARN([to the PKG_CONFIG_PATH environment variable])
@@ -117,7 +116,7 @@ AC_LANG_POP()
 # installed. The user can set the environment variable LIBnn to
 # override this.
 
-if test -z "${LIBnn}"; then 
+if test -z "${LIBnn}"; then
    LIBnn=`"${R_HOME}/bin/R" CMD config LIBnn`
 fi
 
@@ -156,7 +155,7 @@ if test [ "x$enable_rpath" = "xyes"]; then
    JAGS_RPATH="-Wl,-rpath ${JAGS_LIBDIR}"
 fi
 
-# Sanity checks. 
+# Sanity checks.
 OLDFLAGS=${LDFLAGS}
 OCFLAGS=${CFLAGS}
 AC_LANG_PUSH(C)

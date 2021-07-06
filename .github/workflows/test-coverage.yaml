@@ -37,6 +37,7 @@ jobs:
         run : |
           rm '/usr/local/bin/gfortran'
           brew install jags
+          brew install aclocal
 
       - name: Query dependencies
         run: |
