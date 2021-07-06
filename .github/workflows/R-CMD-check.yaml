@@ -75,9 +75,8 @@ jobs:
 
       - name: Set JAGS path (windows-latest)
         if: runner.os == 'Windows'
-        run: |
-          Sys.setenv(JAGS_ROOT = "/c/progra~1/JAGS/JAGS-4.2.0")
-        shell: Rscript {0}
+        env:
+          JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
 
       - name: Install JAGS (macOS-latest)
         if: runner.os == 'macOS'
