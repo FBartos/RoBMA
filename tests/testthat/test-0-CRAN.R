@@ -2,7 +2,7 @@ context("(0) Basic tests for CRAN")
 # These are just a very rudimentary tests that don't require time or saved files.
 # The full range of tests is run locally.
 
-warning(runjags::findjags())
+
 test_that("Basic functionality works", {
 
   # fit a default model
