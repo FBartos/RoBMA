@@ -1,0 +1,45 @@
+#!/bin/sh
+
+rm -f .DS_Store
+rm -f R/.DS_Store
+rm -f inst/.DS_Store
+rm -f inst/doc/.DS_Store
+rm -f man/.DS_Store
+rm -rf R/.svn
+rm -rf inst/.svn
+rm -rf inst/xgrid/.svn
+rm -rf man/.svn
+rm -f src/.DS_Store
+rm -f src/distributions/.DS_Store
+rm -f src/functions/.DS_Store
+rm -f src/transformations/.DS_Store
+
+rm -rf src/.deps
+rm -rf src/distributions/.deps
+rm -rf src/distributions/.libs
+rm -rf src/functions/.deps
+rm -rf src/functions/.libs
+rm -rf src/transformations/.deps
+rm -rf src/transformations/.libs
+
+rm -f src/Makevars
+rm -f config.*
+rm -rf autom4te.cache
+rm -f config.log
+rm -f config.status
+
+rm -f src/RoBMA.o
+rm -f src/RoBMA.so
+rm -f src/testRoBMA.o
+rm -f src/testRoBMA.so
+rm -f src/symbols.rds
+
+rm -f src/distributions/*.o
+rm -f src/distributions/*.so
+rm -f src/functions/*.o
+rm -f src/functions/*.so
+rm -f src/transformations/*.o
+rm -f src/transformations/*.so
+
+
+exit 0
