@@ -1,4 +1,4 @@
-# addapted from the runjags package version 2.2.0
+# adapted from the runjags package version 2.2.0
 .onLoad <- function(libname, pkgname){
 
 
