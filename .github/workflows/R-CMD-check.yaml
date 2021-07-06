@@ -89,7 +89,13 @@ jobs:
       - name: Set JAGS path (windows-latest)
         if: runner.os == 'Windows'
         run: |
-          Sys.setenv(JAGS_ROOT = gsub("jags-terminal.exe", "", runjags::findjags()))
+          Sys.setenv(JAGS_ROOT = "/usr/local")
+        shell: Rscript {0}
+
+      - name: Set JAGS path (macOS-latest)
+        if: runner.os == 'macOS'
+        run: |
+          Sys.setenv(JAGS_ROOT = "/usr/local/Cellar/jags/4.3.0_2")
         shell: Rscript {0}
 
       - name: Check
