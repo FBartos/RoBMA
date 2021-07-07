@@ -1,16 +1,15 @@
 # adapted from the runjags package version 2.2.0
 .onLoad <- function(libname, pkgname){
 
-  RoBMA.private$RoBMA_version <- utils::packageDescription(pkgname, fields='Version')
+  RoBMA.private$RoBMA_version <- utils::packageDescription(pkgname, fields = 'Version')
 
   # Get and save the library location, getting rid of any trailing / caused by r_arch being empty:
   modloc <- gsub('/$','', file.path(libname, pkgname, 'libs', if(.Platform$r_arch!="") .Platform$r_arch else ""))
   if(!file.exists(file.path(modloc, paste('RoBMA', .Platform$dynlib.ext, sep='')))){
-    modloc <- ''
-    warning('The RoBMA module could not be loaded.', call. =FALSE)
+    modloc <- NULL
+    warning('The RoBMA module could not be loaded.', call. = FALSE)
   }else{
     rjags::load.module("RoBMA", path = modloc)
-    library.dynam("RoBMA", "RoBMA", libname)
   }
 
   RoBMA.private$modulelocation <- modloc
@@ -37,6 +36,5 @@
   # Just in case it is not always safe to try and access an element of an env that is in the process of being deleted (when R quits):
   if(!is.null(RoBMA.private$modulelocation)){
     rjags::unload.module("RoBMA")
-    library.dynam.unload("RoBMA", libpath)
   }
 }
