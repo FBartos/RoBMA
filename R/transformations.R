@@ -112,6 +112,10 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     }
   }
 
+  ### into numeric
+  for(var in c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t")){
+    data[,var] <- as.numeric(as.character(data[,var]))
+  }
 
   ### create holder of the output
   output <- data.frame(

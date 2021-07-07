@@ -375,7 +375,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
     # set up margins
     if(length(list(...)) == 0){
-      graphics::par(mar = c(4, max(nchar(y_labels)) * 2/3, 0, max(nchar(y_labels2)) * 1/2))
+      graphics::par(mar = c(4, max(nchar(y_labels)) * 1/2, 0, max(nchar(y_labels2)) * 1/2))
     }else{
       graphics::par(...)
     }

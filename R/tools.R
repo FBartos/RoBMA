@@ -70,7 +70,7 @@ check_RoBMA <- function(fit){
   return(c(short_warnings, short_errors, conv_warning))
 }
 .get_model_convergence       <- function(object){
-  return(sapply(object[["models"]], function(model)model[["converged"]]))
+  return(sapply(object[["models"]], function(model) if(is.null(model[["converged"]])) FALSE else model[["converged"]]))
 }
 .get_model_warnings          <- function(object){
   return(unlist(sapply(seq_along(object[["models"]]), function(i){
