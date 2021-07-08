@@ -5,7 +5,7 @@ README
 <!-- badges: start -->
 
 [![R-CRAN-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg)](https://github.com/FBartos/RoBMA/actions)
-[![R-tests-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-tests/badge.svg)](https://github.com/FBartos/RoBMA/actions)
+[![R-tests](https://github.com/FBartos/RoBMA/workflows/R-CMD-tests/badge.svg)](https://github.com/FBartos/RoBMA/actions)
 [![Codecov test
 coverage](https://codecov.io/gh/FBartos/RoBMA/branch/master/graph/badge.svg)](https://codecov.io/gh/FBartos/RoBMA?branch=master)
 [![CRAN
@@ -101,7 +101,7 @@ The 2.0 version brings several updates to the package:
 
 ## Installation
 
-The package requires [JAGS 4.3.0](http://mcmc-jags.sourceforge.net/) to
+The package requires [JAGS 4.3.0](https://mcmc-jags.sourceforge.io/) to
 be installed. The release version can be installed from CRAN:
 
 ``` r

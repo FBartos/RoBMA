@@ -32,6 +32,7 @@ try_parallel <- function(x, rep = 3){
   i        <- 0
   while(is.null(temp_fit) & i < rep){
     temp_fit <- tryCatch(eval(x), error = function(e) NULL)
+    i        <- i + 1
   }
   return(temp_fit)
 }
