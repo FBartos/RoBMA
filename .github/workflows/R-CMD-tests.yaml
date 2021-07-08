@@ -100,7 +100,7 @@ jobs:
           JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
         run: |
           options(crayon.enabled = TRUE)
-          rcmdcheck::rcmdcheck(args = c("--no-manual"), error_on = "warning", check_dir = "check")
+          testthat::test()
         shell: Rscript {0}
 
 
