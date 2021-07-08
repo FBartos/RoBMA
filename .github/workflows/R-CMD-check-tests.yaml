@@ -12,7 +12,7 @@ on:
       - master
       - pre-release
 
-name: R-CMD-check
+name: R-CMD-tests
 
 jobs:
   R-CMD-check:

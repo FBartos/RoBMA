@@ -4,7 +4,8 @@ README
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg)](https://github.com/FBartos/RoBMA/actions)
+[![R-CRAN-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg)](https://github.com/FBartos/RoBMA/actions)
+[![R-tests-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check-tests/badge.svg)](https://github.com/FBartos/RoBMA/actions)
 [![Codecov test
 coverage](https://codecov.io/gh/FBartos/RoBMA/branch/master/graph/badge.svg)](https://codecov.io/gh/FBartos/RoBMA?branch=master)
 [![CRAN
