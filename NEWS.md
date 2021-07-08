@@ -1,18 +1,20 @@
-## version 1.3.0
-### Features
-- adding PET and PEESE style models for adjusting for publication bias
-- adding functions for effect sizes and standard error transformations
-- the prior distributions can be specified on a different scale ('prior_scale') than is used for fitting the effect sizes ('transform'). Defaults to Cohen's d and Fisher's z respectively. (The estimates are transformed back to a scale with majority of effect size estimates.)
-- additional prior distribution: lognormal
-- transforming the results between different effect sizes with the print.RoBMA, summary.RoBMA, and plot.RoBMA functions
+## version 2.0
+Please notice that this is a major release that breaks backwards compatibility.
 
-### Changes to the RoBMA function
-- the default ensemble now uses 36 models - the publication bias adjustment part was extended to 6 weight functions, PET, and PEESE style models. It corresponds to RoBMA 6wPP model introduce in out new [preprint](ADD LINK)
-
-### Changes to the data input
-- studies with different effect size measures can be supplied simultaneously - RoBMA will internally transform them into a common scale ('transform'). The common scale defaults to Fisher's z since it stabilizes variances. Not stabilizing variances leads to overestimating the evidence for publication bias in case that that PET and PEESE style models are used.
-- one-sample t-tests are no longer supported as input - the corresponding effect sizes and standard errors must be manually computed and passed as 'd' and 'se'.
-- see metafor::escalc for more details about calculating effect sizes and standard errors
+### Changes
+ - naming of the arguments specifying prior distributions for the different parameters/components of the models changed (`priors_mu` -> `priors_effect`, `priors_tau` -> `priors_heterogeneity`, and `priors_omega` -> `priors_bias`),
+ - prior distributions for specifying weight functions now use a dedicated function (`prior(distribution = "two.sided", parameters = ...)` -> `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
+ - new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (`prior_none()`),
+ - new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (`prior_PET(distribution = "Cauchy", parameters = ...)` and `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
+ - new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al., 2021 [preprint](https://psyarxiv.com/kvsp7/)),
+ - new `model_type` argument allowing to specify different "pre-canned" models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` = corresponding to Maier et al., in press , [manuscript](https://psyarxiv.com/u4cns/)),
+ - `combine_data` function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the `RoBMA` function),
+ - better and improved automatic fitting procedure now enabled by default (can be turned of with `autofit = FALSE`)
+ - prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher's z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen's d by default, but both of them can be overwritten with the `prior_scale` and `transformation` arguments),
+ - new prior distributions, e.g., beta or fixed weight functions,
+ - estimates from individual models are now plotted with the `plot_models()` function and the forest plot can be obtained with the `forest()` function,
+ - the posterior distribution plots for the individual weights are no able supported, however, the weightfunction and the PET-PEESE publication bias adjustments can be visualized with the `plot.RoBMA()` function and `parameter = "weightfunction"` and `parameter = "PET-PEESE"`.
+ 
 
 
 ## version 1.2.1

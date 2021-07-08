@@ -1,8 +1,8 @@
 ---
-title: "README"
+title:        "README"
 bibliography: inst/REFERENCES.bib
-csl: inst/apa.csl
-output: github_document
+csl:          inst/apa.csl
+output:       github_document
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -10,11 +10,14 @@ output: github_document
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
-  fig.path = "man/figures/README-"
+  comment  = "#>",
+  fig.path = "man/figures/README-",
+  dev      = "png",
+  dev.args = list(type = "cairo")
 )
+
 # we pre-load the model, the fitting time is around 30 minutes
-#fit <- readRDS(file = "prefitted/Anderson2010.RDS")
+fit <- readRDS(file = "prefitted/Bem2011.RDS")
 ```
 
 <!-- badges: start -->
@@ -25,17 +28,45 @@ knitr::opts_chunk$set(
 
 # Robust Bayesian Meta-Analysis (RoBMA)
 
-Please note that since version 1.2.0, (1) studies' true effects are now marginalized out of the random effects models and are no longer estimated and (2) all models are now estimated using the likelihood of effect sizes and standard errors (see Appendix A of our [prerint](https://psyarxiv.com/u4cns/) for more details). As a results, arguments referring to the true effects are now disabled. And results obtained with previous versions of the package are not reproducible.
+This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range of non-informative or informative priors for the effect size, heterogeneity, and publication bias components (including selection, PET, and PEESE style models). The package provides convenient functions for summary, visualizations, and fit diagnostics.
 
-This package estimates an ensemble of meta-analytic models (assuming either presence or absence of the effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range of non-informative or informative priors for the effect size, heterogeneity, and weight functions. The package provides convenient functions for summary, visualizations, and fit diagnostics.
-
-See our preprint, @maier2020 at https://doi.org/10.31234/osf.io/u4cns, for more details about the implementation, examples, and simulation studies or try out the package functionality in the user-friendly graphical user interface of JASP with our preprint of a tutorial paper with additional examples [@bartos2020] at https://doi.org/10.31234/osf.io/75bqn.
+See our new pre-print @bartos2021no (https://doi.org/10.31234/osf.io/kvsp7) for the description of the newest version, RoBMA-PSMA, or our previous paper introducing the method @maier2020robust (https://doi.org/10.31234/osf.io/u4cns). The previous version of the methods is also implemented within the the user-friendly graphical user interface of JASP [@jasp14] and accompanied by a tutorial paper with more examples [@bartos2020adjusting] (https://doi.org/10.31234/osf.io/75bqn).
 
 We also prepared multiple vignettes that illustrate functionality of the package:
 
- - [Explanation and dealing with warnings and errors](https://fbartos.github.io/RoBMA/articles/WarningsAndErrors.html)
  - [Reproducing Bayesian Model-Averaged Meta-Analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
  - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+
+
+## Updates
+
+The package was updated to version 2.0 to provides Bayesian model-averaging across selection models and PET-PEESE (as described in @bartos2021no at <https://doi.org/10.31234/osf.io/kvsp7>).
+
+### Backwards Compatibility
+
+Please note that the RoBMA 2.0 is not backwards compatible with the previous versions of RoBMA. Use 
+``` r
+remotes::install_version("RoBMA", version = 1.2.1)
+```
+to install the previous version if needed. 
+(Or use the source packages archived with at OSF repositories associated with the corresponding projects.)
+
+
+### News
+
+The 2.0 version brings several updates to the package:
+
+ - naming of the arguments specifying prior distributions for the different parameters/components of the models changed (`priors_mu` -> `priors_effect`, `priors_tau` -> `priors_heterogeneity`, and `priors_omega` -> `priors_bias`),
+ - prior distributions for specifying weight functions now use a dedicated function (`prior(distribution = "two.sided", parameters = ...)` -> `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
+ - new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (`prior_none()`),
+ - new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (`prior_PET(distribution = "Cauchy", parameters = ...)` and `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
+ - new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from @bartos2021no),
+ - new `model_type` argument allowing to specify different "pre-canned" models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` = corresponding to @maier2020robust),
+ - `combine_data` function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the `RoBMA` function)
+ - better and improved automatic fitting procedure now enabled by default (can be turned of with `autofit = FALSE`)
+ - prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher's z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen's d by default, but both of them can be overwritten with the `prior_scale` and `transformation` arguments),
+ - new prior distributions, e.g., beta or fixed weight functions,
+ - and plenty of small changes to the arguments, output, and etc...
 
 
 ## Installation
@@ -52,80 +83,89 @@ devtools::install_github("fbartos/RoBMA")
 
 ## Example
 
-To illustrate the functionality of the package, we reproduce$^1$ the example in @maier2020 where we use the RoBMA package to re-analyze a subset of @Anderson2010 meta-analysis of effects of violent video games on aggression (the original dataset can be found [here](https://github.com/Joe-Hilgard/Anderson-meta)).
+To illustrate the functionality of the package, we fit the RoBMA-PSMA model from the example in @bartos2021no to adjust for publication bias in the infamous @bem2011feeling "Feeling the future" pre-cognition study. The RoBMA-PSMA model combines six selection models and PET-PEESE to adjust for publication bias. As in the pre-print, we analyze the data as described by @bem2011must in his reply to methodological critiques.
 
-First, we load the dataset which is included with the package. The dataset contains correlational coefficients, sample sizes, and labels for 27 experimental studies focusing on the effect of violent videogames on aggressive behavior.
+First, we load the package and the data set included in the package.
 
 ```{r}
 library(RoBMA)
 
-#data("Anderson2010", package = "RoBMA")
-#head(Anderson2010)
+data("Bem2011", package = "RoBMA")
+Bem2011
 ```
 
-Then, we fit the meta-analytic model ensemble that is composed of 12 models (the default settings of RoBMA fitting function). These models are all possible combinations of priors for the following parameters (the prior parameters for $\mu$ and $\tau$ are defined on Cohen’s d transformed scale if correlation coefficients are supplied):
+Then, we fit the meta-analytic model ensemble that is composed of 36 models (the new default settings of RoBMA fitting function). These models represent all possible combinations of prior distributions for the following components:
 
-* $\mu$ (the mean parameter)
-  - a spike at zero, representing a null effect
-  - a standard normal distribution, representing the alternative hypothesis
-* $\tau$ (the heterogeneity parameter)
-  - a spike at zero, representing no heterogeneity (fixed effect)
-  - an inverse gamma distribution with shape = 1 and scale = 0.15, representing presence of heterogeneity (random effects), based on @vanErp2017 
-* $\omega$ (the weights parameters for modeling publication bias)
-  - a spike at 1, representing no publication bias (all studies have the same probability of being published)
-  - a two-steps two-sided weight-function with *p*-values cut-off at 0.05 and weights following a cumulative sum of Dirichlet distribution with alpha = (1,1)
-  - a three-steps two-sided weight-function with *p*-values cut-offs at 0.05 and 0.10 and weights following a cumulative sum of Dirichlet distribution with alpha = (1,1,1)
+* effect size (the mean parameter $\mu$)
+  - a spike at zero, representing the null hypothesis of the absence of effect
+  - a standard normal distribution, representing the alternative hypothesis of the presence of effect
+* heterogeneity (the heterogeneity parameter $\tau$)
+  - a spike at zero, representing the null hypothesis of the absence of heterogeneity (i.e., fixed effect meta-analysis)
+  - an inverse gamma distribution with shape = 1 and scale = 0.15, based on @erp2017estimates, representing the alternative hypothesis of the presence of heterogeneity (i.e., random effect meta-analysis)
+* publication bias
+  - no prior distribution, representing the absence of publication bias
+  - eight prior distributions specifying two two-sided weight functions, four one-sided weight functions, and PET and PEESE publication bias adjustment, representing the presence of publication bias
 
-The prior odds of these prior distributions are by default set to make all three model categories equally likely a priory (0.5 prior probability of an effect, 0.5 prior probability of heterogeneity, and 0.5 prior probability of publication bias).
+The prior odds of the components are by default set to make all three model categories equally likely a priory (0.5 prior probability of the presence of the effect, 0.5 prior probability of the presence of the heterogeneity, and 0.5 prior probability of the presence of the publication bias). The prior model probability of the publication bias adjustment component is further split equally among the selection models represented by the six weightfunctions and the PET-PEESE models. 
 
-The default models using the correlation coefficients can then be fitted using the `RoBMA()` function (all input is internally transformed into t-statistics and degrees of freedom):
 
 ``` r
-#fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$name)
+fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, seed = 1)
 ```
 
-The main model summary can be obtained using the `summary.RoBMA()` function.
+The main summary can be obtained using the `summary.RoBMA()` function.
 
-The first table shows an overview of the model types -the number of models, prior and posterior probability, and inclusion Bayes factor. As we can see, the data show strong evidence for the presence of effect and publication bias and weak evidence for lack of heterogeneity.
+The first table shows an overview of the ensemble composition. The number of models, the prior and posterior model probabilities, and inclusion Bayes factor of the ensemble  components representing the alternative hypothesis of the presence of the effect, heterogeneity, and publication bias, We can see the data show very weak evidence, barely worth mentioning, against the presence of the effect ($\text{BF}_{10} = 0.479$ -> $\text{BF}_{01} = 2.09$), moderate evidence for the absence of heterogeneity ($\text{BF}_{\text{rf}} = 0.143$ -> $BF_{\text{fr}} = 7.00$), and strong evidence for the presence of publication bias ($\text{BF}_{\text{pb}} = 16.32$).
 
-The second table shows model-averaged estimates weighted by the individual models' posterior probabilities. The mean estimate $\mu$ (converted back to correlation scale) is considerably lower than in the original meta-analysis due to the publication bias correction. The heterogeneity estimate $\tau$ (on the Cohen's d scale) has most of its probability mass around zero due to the higher support of models with no heterogeneity. The parameters omega, representing the weights at each *p*-value interval are decreasing with increasing *p*-values, showing the publication bias.
+The second table shows model-averaged estimates weighted by the individual models' posterior probabilities. The mean estimate $\mu =0.037$, 95% CI [-0.041, 0.213], is very close to zero, corresponding to the a priory expected absence of pre-cognition. The heterogeneity estimate $\tau$ has most of its probability mass around zero due to the higher support of models assuming absence of the heterogeneity. The parameters omega, representing the publication weights at each *p*-value interval are decreasing with increasing *p*-values, showing the publication bias, as well as the non zero PET and PEESE estimates.
 
 ```{r}
-#summary(fit)
+summary(fit)
 ```
 
-We can visualize the estimated parameters using the `plot.RoBMA()` function. In the case of parameter tau, the arrow stands for probability mass at $\tau$ = 0. Weights $\omega$ are by default plotted as the weight function, which can be changed to the individual weights estimates by setting `weights = TRUE`.
+We can visualize the estimated mean and heterogeneity parameters using the `plot.RoBMA()` function. The arrows in both figures represent the point probability mass at $\mu = 0$ and $\tau = 0$, corresponding to the null hypotheses of the absence of effect and heterogeneity, both increasing in the posterior model probability from 0.5 to 0.676 and 0.875 respectively.
 
-```{r fig_mu, out.width = '50%', fig.align = "center"}
-#plot(fit, parameter = "mu")
+```{r fig_mu, out.width = "80%", fig.align = "center"}
+plot(fit, parameter = "mu", xlim = c(-0.5, 0.5))
 ```
 
-```{r fig_tau, out.width = '50%', fig.align = "center"}
-#plot(fit, parameter = "tau")
+```{r fig_tau, out.width = "80%", fig.align = "center"}
+plot(fit, parameter = "tau")
 ```
 
-```{r fig_omega, out.width = '50%', fig.align = "center"}
-#plot(fit, parameter = "omega")
+We can further visualize the publication bias adjustments of selection models, visualizing the posterior estimate of the model-averaged weightfunction that shows a sharp decrease in the publication weights of studies with *p*-values above the "marginal significance" (0.10) level,
+
+```{r fig_weightfunction, out.width = "80%", fig.align = "center"}
+plot(fit, parameter = "weightfunction", rescale_x = TRUE)
 ```
 
-Furthermore, we can inspect the individual models' estimates mu, including the prior and posterior probability.
+and the PET-PEESE publication bias adjustment, visualizing the individual studies' standard errors and effect sizes as diamonds and the model-averaged estimate of the regression lines that shows a steady increase of effect sizes with increasing standard errors.
 
-```{r fig_mu_ind, fig.height = 12.5, fig.width = 7, out.width = '75%', fig.align = "center"}
-#plot(fit, parameter = "mu", type = "individual")
+```{r fig_PETPEESE, out.width = "80%", fig.align = "center"}
+plot(fit, parameter = "PET-PEESE", xlim = c(0, 0.25))
 ```
 
-Apart from plotting, the individual model performance can be inspected using the `summary.RoBMA()` function with argument `type = "individual"`. An overview of the individual model MCMC diagnostics can be obtained by setting `type = "models", diagnostics = TRUE` (not shown here for the lack of space).
+The usual meta-analytic forest plot can be obtained with the `forest()` function, 
 
-We can also visualize the MCMC diagnostics using the diagnostics function. The function can display the chains `type = "chain"` / posterior sample densities `type = "densities"`, and averaged autocorrelations `type = "autocorrelation"`. Here, we request the chains trace plot of the $\mu$ parameter of the most complex model by setting `show_models = 12` (the model numbers can be obtained from the summary function with `type = "models"` argument.)
-
-```{r fig_mu_chain, out.width = '50%', fig.align = "center"}
-#RoBMA::diagnostics(fit, parameter = "mu", type = "chains", show_models = 12)
+```{r fig_forest, fig.height = 5, fig.width = 10, out.width = "100%", fig.align = "center"}
+forest(fit)
 ```
 
-The package allows to fit highly customized models with different prior distribution functions, prior model probabilities, and provides more visualization options. See the documentation to find out more about the specific functions: `RoBMA()`, `priors()`, `plot.RoBMA()`. The main package functionalities are to be implemented within the Meta Analysis module of JASP 0.14 [@jasp].
+and visualization of the effect size estimates from models assuming presence of the effect can be obtained with the `plot_models()` function.
 
-### Footnotes
+```{r fig_mu_ind, fig.height = 7, fig.width = 7, out.width = '75%', fig.align = "center"}
+plot_models(fit, conditional = TRUE)
+```
 
-1 - There have been changes in the way the seed is set since finishing the paper. Use the archival version of the package stored at the [OSF repository](https://osf.io/buk8g/) to obtain identical results to those reported in the paper.
+Apart from plotting, the individual model performance can be inspected using the `summary.RoBMA()` function with argument `type = "models"` or the overview of the individual model MCMC diagnostics can be obtained by setting `type = "diagnostics"` (not shown here for the lack of space).
+
+We can also visualize the MCMC diagnostics using the diagnostics function. The function can display the chains `type = "chain"` / posterior sample densities `type = "densities"`, and averaged auto-correlations `type = "autocorrelation"`. Here, we request the chains trace plot of the $\mu$ parameter of the most complex model by setting `show_models = 36` (the model numbers can be obtained from the summary function with `type = "models"` argument).
+
+```{r fig_mu_chain, out.width = '80%', fig.align = "center"}
+diagnostics(fit, parameter = "mu", type = "chains", show_models = 36)
+```
+
+The package allows to fit highly customized models with different prior distribution functions, prior model probabilities, and provides more visualization options. See the documentation to find out more about the specific functions: `RoBMA()`, `priors()`, `plot.RoBMA()`. The main package functionality is also implemented within the Meta Analysis module of JASP 0.14 [@jasp14] and will be soon updated to accommodate the 2.0 version of the package.
+
 
 ### References
