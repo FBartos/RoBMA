@@ -17,7 +17,7 @@ vignette: >
 ```{r setup, include = FALSE}
 is_check <- ("CheckExEnv" %in% search()) ||
               any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
-              !file.exists("../prefitted/BMA_PowerPoseTest.RDS")
+              !file.exists("../models/ReproducingBMA/BMA_PowerPoseTest.RDS")
 knitr::opts_chunk$set(
   collapse  = TRUE,
   comment   = "#>",
@@ -30,10 +30,10 @@ if(.Platform$OS.type == "windows"){
 ```{r include = FALSE}
 library(RoBMA)
 # we pre-load the RoBMA models, the fitting time is around 2-5 minutes
-fit_BMA_test   <- readRDS(file = "../prefitted/BMA_PowerPoseTest.RDS")
-fit_BMA_est    <- readRDS(file = "../prefitted/BMA_PowerPoseEst.RDS")
-fit_RoBMA_test <- readRDS(file = "../prefitted/PowerPoseTest.RDS")
-fit_RoBMA_est  <- readRDS(file = "../prefitted/PowerPoseEst.RDS")
+fit_BMA_test   <- readRDS(file = "../models/ReproducingBMA/BMA_PowerPoseTest.RDS")
+fit_BMA_est    <- readRDS(file = "../models/ReproducingBMA/BMA_PowerPoseEst.RDS")
+fit_RoBMA_test <- readRDS(file = "../models/ReproducingBMA/PowerPoseTest.RDS")
+fit_RoBMA_est  <- readRDS(file = "../models/ReproducingBMA/PowerPoseEst.RDS")
 ```
 
 By default, the package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in 'classical' Bayesian Model-Averaged Meta-Analysis [@gronau2017bayesian, @gronau2020primer]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020adjusting for a tutorial on fitting (custom) models in JASP.
@@ -55,7 +55,7 @@ fit_BMA_test <- metaBMA::meta_bma(y   = power_pose$effectSize, SE = power_pose$S
                                   tau = metaBMA::prior(family = "invgamma", param = c(1, .15)))
  
 fit_BMA_est  <- metaBMA::meta_bma(y   = power_pose$effectSize, SE = power_pose$SE,
-                                  d   = metaBMA::prior(family = "cauchy", param = 1/sqrt(2)),
+                                  d   = metaBMA::prior(family = "cauchy", param = c(0, 1/sqrt(2))),
                                   tau = metaBMA::prior(family = "invgamma", param = c(1, .15)))
 ``` 
 ```{r}

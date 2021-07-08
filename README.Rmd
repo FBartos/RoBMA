@@ -18,12 +18,12 @@ if(.Platform$OS.type == "windows"){
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
 }
 # we pre-load the model, the fitting time is around 30 minutes
-fit <- readRDS(file = "prefitted/Bem2011.RDS")
+fit <- readRDS(file = "models/README/Bem2011.RDS")
 ```
 
 <!-- badges: start -->
 [![R-CRAN-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg)](https://github.com/FBartos/RoBMA/actions)
-[![R-tests-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-tests/badge.svg)](https://github.com/FBartos/RoBMA/actions)
+[![R-tests](https://github.com/FBartos/RoBMA/workflows/R-CMD-tests/badge.svg)](https://github.com/FBartos/RoBMA/actions)
 [![Codecov test coverage](https://codecov.io/gh/FBartos/RoBMA/branch/master/graph/badge.svg)](https://codecov.io/gh/FBartos/RoBMA?branch=master)
 [![CRAN status](https://www.r-pkg.org/badges/version/RoBMA)](https://CRAN.R-project.org/package=RoBMA)
 <!-- badges: end -->

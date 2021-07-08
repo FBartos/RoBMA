@@ -17,7 +17,7 @@ vignette: >
 ```{r setup, include = FALSE}
 is_check <- ("CheckExEnv" %in% search()) ||
              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
-             !file.exists("../prefitted/Bem_update1.RDS") 
+             !file.exists("../models/CustomEnsembles/Bem_update1.RDS") 
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment  = "#>",
@@ -90,7 +90,7 @@ We add the second model to the ensemble using the `update.RoBMA()` function. The
 
 ```{r include = FALSE}
 # these fits are relatively fast, but we reduce the knitting time considerably
-fit <- readRDS(file = "../prefitted/Bem_update1.RDS")
+fit <- readRDS(file = "../models/CustomEnsembles/Bem_update1.RDS")
 ```
 ```r
 fit <- update(fit,
@@ -148,7 +148,7 @@ fit <- update(fit,
 We again verify that all of the requested models are included in the ensemble using the `summary())` function with `type = "models"` argument.
 
 ```{r include = FALSE}
-fit <- readRDS(file = "../prefitted/Bem_update2.RDS")
+fit <- readRDS(file = "../models/CustomEnsembles/Bem_update2.RDS")
 ```
 ```{r}
 summary(fit, type = "models")

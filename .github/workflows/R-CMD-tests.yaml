@@ -82,6 +82,8 @@ jobs:
         run: |
           remotes::install_deps(dependencies = TRUE)
           remotes::install_cran("rcmdcheck")
+          remotes::install_github("FBartos/BayesTools")
+          install.packages("devtools")
         shell: Rscript {0}
 
       - name: Check
@@ -90,7 +92,7 @@ jobs:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
         run: |
           options(crayon.enabled = TRUE)
-          rcmdcheck::rcmdcheck(args = c("--no-manual"), error_on = "warning", check_dir = "check")
+          devtools::test()
         shell: Rscript {0}"
 
       - name: Check

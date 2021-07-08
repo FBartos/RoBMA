@@ -1,7 +1,7 @@
 ^RoBMA\.Rproj$
 ^\.Rproj\.user$
-^trash$
-^prefitted$
+^do-not-share$
+^models$
 ^tests/results$
 ^tests/testthat/_snaps$
 tests/testthat/test-1-load.R

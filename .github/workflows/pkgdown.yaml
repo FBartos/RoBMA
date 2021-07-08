@@ -34,10 +34,25 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-${{ hashFiles('.github/depends.Rds') }}
           restore-keys: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-
 
+      - name: Install JAGS (windows-latest)
+        if: runner.os == 'Windows'
+        run: |
+          curl.exe -o wjags.exe --url https://deac-fra.dl.sourceforge.net/project/mcmc-jags/JAGS/4.x/Windows/JAGS-4.2.0-Rtools33.exe
+          wjags.exe /S
+          del wjags.exe
+        shell: cmd
+
+      - name: Install JAGS (macOS-latest)
+        if: runner.os == 'macOS'
+        run : |
+          rm '/usr/local/bin/gfortran'
+          brew install automake jags
+
       - name: Install dependencies
         run: |
           remotes::install_deps(dependencies = TRUE)
           install.packages("pkgdown", type = "binary")
+          remotes::install_github("FBartos/BayesTools")
         shell: Rscript {0}
 
       - name: Install package
