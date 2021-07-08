@@ -100,7 +100,7 @@ jobs:
           JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
         run: |
           options(crayon.enabled = TRUE)
-          testthat::test()
+          devtools::test()
         shell: Rscript {0}
 
 
