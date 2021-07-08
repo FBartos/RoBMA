@@ -86,7 +86,7 @@ jobs:
           install.packages("devtools")
         shell: Rscript {0}
 
-      - name: Check
+      - name: Tests
         if: runner.os != 'Windows'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
@@ -95,7 +95,7 @@ jobs:
           devtools::test()
         shell: Rscript {0}"
 
-      - name: Check
+      - name: Tests
         if: runner.os == 'Windows'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false

@@ -1,11 +1,11 @@
 context("(1) JAGS module functionality")
 skip_on_cran()
 
-hereIsTheModule <- sub("/DESCRIPTION", '', sub("/Meta.*", '', attr(packageDescription("RoBMA"), "file")))
-rjags::load.module("RoBMA", path = paste0(hereIsTheModule, "/libs", Sys.getenv("R_ARCH")) )
-
 ### one-sided weight function
 test_that("Module can be loaded and the one-sided normal distribution works", {
+
+  module_location <- gsub('/$','', file.path(.libPaths(), "RoBMA", 'libs', if(.Platform$r_arch!="") .Platform$r_arch else ""))
+  sapply(module_location, function(path) rjags::load.module("RoBMA", path = path))
 
   model_syntax <- "
   model{
@@ -39,10 +39,11 @@ test_that("Module can be loaded and the one-sided normal distribution works", {
   expect_equal(fit$omega[1] > 0 & fit$omega[1] < 1, TRUE)
 })
 
-
-
 ### two-sided weight function
 test_that("Module can be loaded and the two-sided weighted-t distribution works", {
+
+  module_location <- gsub('/$','', file.path(.libPaths(), "RoBMA", 'libs', if(.Platform$r_arch!="") .Platform$r_arch else ""))
+  sapply(module_location, function(path) rjags::load.module("RoBMA", path = path))
 
   model_syntax <- "
   model{
