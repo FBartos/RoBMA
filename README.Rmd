@@ -12,10 +12,11 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment  = "#>",
   fig.path = "man/figures/README-",
-  dev      = "png",
-  dev.args = list(type = "cairo")
+  dev      = "png"
 )
-
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
 # we pre-load the model, the fitting time is around 30 minutes
 fit <- readRDS(file = "prefitted/Bem2011.RDS")
 ```

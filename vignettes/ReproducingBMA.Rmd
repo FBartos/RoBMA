@@ -22,9 +22,10 @@ knitr::opts_chunk$set(
   collapse  = TRUE,
   comment   = "#>",
   eval      = !is_check,
-  dev      = "png",
-  dev.args = list(type = "cairo")
-)
+  dev      = "png")
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
 ```
 ```{r include = FALSE}
 library(RoBMA)

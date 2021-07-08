@@ -22,9 +22,11 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment  = "#>",
   eval     = !is_check,
-  dev      = "png",
-  dev.args = list(type = "cairo")
+  dev      = "png"
 )
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
 ```
 
 By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions' weights. This results in the 36 meta-analytic models using the default settings [@bartos2021no]$^1$. In [another vignette](ReproducingBMA.html), we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017bayesian]. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see @bartos2020adjusting for a tutorial paper on customizing the model ensemble with JASP). 

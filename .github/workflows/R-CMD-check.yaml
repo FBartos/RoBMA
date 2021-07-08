@@ -77,7 +77,7 @@ jobs:
         if: runner.os == 'macOS'
         run : |
           rm '/usr/local/bin/gfortran'
-          brew install automake jags cairo
+          brew install automake jags
 
       - name: Install dependencies
         run: |
