@@ -210,6 +210,16 @@ plot.RoBMA  <- function(x, parameter = "mu",
   dots       <- .set_dots_plot(...)
   dots_prior <- .set_dots_prior(dots_prior)
 
+  if(parameter == "PETPEESE" & show_data){
+    # TODO: change from 'prior_scale' to 'output_scale' when plotting scale can be changed
+    data <- x[["data"]]
+    data <- combine_data(data = data, transformation = .transformation_invar(prior_scale))
+    # make sure all standard errors are within the plotting range
+    if(is.null(dots[["xlim"]])){
+      dots[["xlim"]] <- range(pretty(c(0, data$se)))
+    }
+  }
+
   plot <- do.call(BayesTools::plot_posterior, c(
     samples                  = list(samples),
     parameter                = parameter,
@@ -229,10 +239,6 @@ plot.RoBMA  <- function(x, parameter = "mu",
 
   if(parameter == "PETPEESE" & show_data){
 
-    data <- x[["data"]]
-    # TODO: change from 'prior_scale' to 'output_scale' when plotting scale can be changed
-    data <- combine_data(data = data, transformation = .transformation_invar(prior_scale))
-
     if(plot_type == "ggplot"){
       plot <- plot + ggplot2::geom_point(
           ggplot2::aes(
@@ -241,6 +247,12 @@ plot.RoBMA  <- function(x, parameter = "mu",
           size  = if(!is.null(dots[["cex"]])) dots[["cex"]] else 2,
           shape = if(!is.null(dots[["pch"]])) dots[["pch"]] else 18
         )
+      # make sure all effect sizes are within the plotting range
+      if(is.null(dots[["ylim"]]) & any(data$y < plot$plot_env$ylim[1] | data$y > plot$plot_env$ylim[2])){
+        new_y_range <- range(c(data$y, plot$plot_env$ylim))
+        plot <- suppressMessages(plot + ggplot2::scale_y_continuous(breaks = pretty(new_y_range), limits = range(pretty(new_y_range)), oob = scales::oob_keep))
+      }
+
     }else if(plot_type == "base"){
       graphics::points(data$se, data$y, cex = if(!is.null(dots[["cex"]])) dots[["cex"]] else 2, pch = if(!is.null(dots[["pch"]])) dots[["pch"]] else 18)
     }
@@ -419,7 +431,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     # add the overall estimate
     plot <- plot + ggplot2::geom_polygon(
       mapping = ggplot2::aes(
-        x = c(data$lCI_mu, data$est_mu , data$uCI_mu, data$est_mu),
+        x = c(lCI_mu, est_mu , uCI_mu, est_mu),
         y = c(1, 1.25, 1, 0.75)),
       fill = "black")
 
@@ -616,7 +628,7 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "b
     dots[["col"]]      <- "black"
   }
   if(is.null(dots[["col.fill"]])){
-    dots[["col.fill"]] <- "#CCCCCC33" # scales::alpha("grey80", .20)
+    dots[["col.fill"]] <- "#4D4D4D4C" # scales::alpha("grey30", .30)
   }
 
   return(dots)
@@ -634,7 +646,7 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "b
     dots_prior[["lty"]]      <- 2
   }
   if(is.null(dots_prior[["col.fill"]])){
-    dots_prior[["col.fill"]] <- "#4D4D4D33" # scales::alpha("grey30", .20)
+    dots_prior[["col.fill"]] <- "#B3B3B34C" # scales::alpha("grey70", .30)
   }
 
   return(dots_prior)

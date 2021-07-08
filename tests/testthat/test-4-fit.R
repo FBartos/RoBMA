@@ -27,6 +27,15 @@ clean_all  <- function(fit, only_samples = TRUE){
   }
   return(fit)
 }
+try_parallel <- function(x, rep = 3){
+  temp_fit <- NULL
+  i        <- 0
+  while(is.null(temp_fit) & i < rep){
+    temp_fit <- tryCatch(eval(x), error = function(e) NULL)
+  }
+  return(temp_fit)
+}
+
 
 # create mock data
 k    <- 3
@@ -37,19 +46,20 @@ d_se <- se_d(d, n)
 
 
 test_that("Default model (RoBMA-PSMA) works", {
-  fit1 <- RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE)
+
+  fit1 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE))
   fit1 <- remove_time(fit1)
   expect_equal(clean_all(saved_fits[[1]]), clean_all(fit1))
 
-  fit4 <- RoBMA(r = r, n = n, seed = 1, model_type = "PSMA", parallel = TRUE)
+  fit4 <- try_parallel(RoBMA(r = r, n = n, seed = 1, model_type = "PSMA", parallel = TRUE))
   fit4 <- remove_time(fit4)
   expect_equal(clean_all(saved_fits[[4]]), clean_all(fit4))
 
-  fit5 <- RoBMA(d = d, se = d_se, seed = 1, model_type = "PSMA", transformation = "logOR", parallel = TRUE)
+  fit5 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, model_type = "PSMA", transformation = "logOR", parallel = TRUE))
   fit5 <- remove_time(fit5)
   expect_equal(clean_all(saved_fits[[5]]), clean_all(fit5))
 
-  fit6 <- RoBMA(d = -d, se = d_se, seed = 1, model_type = "PSMA", effect_direction = "negative", parallel = TRUE)
+  fit6 <- try_parallel(RoBMA(d = -d, se = d_se, seed = 1, model_type = "PSMA", effect_direction = "negative", parallel = TRUE))
   fit6 <- remove_time(fit6)
   expect_equal(clean_all(saved_fits[[6]]), clean_all(fit6))
 
@@ -72,69 +82,69 @@ test_that("Default model (RoBMA-PSMA) works", {
 })
 
 test_that("RoBMA-2w works", {
-  fit2 <- RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "2w")
+  fit2 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "2w"))
   fit2 <- remove_time(fit2)
   expect_equal(clean_all(saved_fits[[2]]), clean_all(fit2))
 })
 
 test_that("RoBMA-PP works", {
-  fit3 <- RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "PP")
+  fit3 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "PP"))
   fit3 <- remove_time(fit3)
   expect_equal(clean_all(saved_fits[[3]]), clean_all(fit3))
 })
 
 test_that("Custom models - only alternative", {
-  fit7 <- RoBMA(d = d, se = d_se, seed = 1,
+  fit7 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
                 priors_bias = list(
                   prior_weightfunction("one-sided", list(c(0.10), c(1, 1))),
                   prior_PET("normal", list(0, 1))
                 ),
-                priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE)
+                priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE))
   fit7 <- remove_time(fit7)
   expect_equal(clean_all(saved_fits[[7]]), clean_all(fit7))
 })
 
 test_that("Custom models - only null", {
-  fit8 <- RoBMA(d = d, se = d_se, seed = 1,
-                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE)
+  fit8 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
   fit8 <- remove_time(fit8)
   expect_equal(clean_all(saved_fits[[8]]), clean_all(fit8))
 })
 
 test_that("Custom models - only null (non-point)", {
-  fit9 <- RoBMA(d = d, se = d_se, seed = 1,
+  fit9 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
                 priors_effect_null = prior("normal", list(0, 1)),
                 priors_heterogeneity_null = prior("invgamma", list(1, 0.15)),
                 priors_bias_null = list(
                   prior_weightfunction("one-sided", list(c(0.10), c(1, 1))),
                   prior_PET("normal", list(0, 1))
                 ),
-                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE)
+                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
   fit9 <- remove_time(fit9)
   expect_equal(clean_all(saved_fits[[9]]), clean_all(fit9))
 })
 
 test_that("Custom models - fixed weightfunctions", {
-  fit10 <- RoBMA(d = d, se = d_se, seed = 1,
+  fit10 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
                 priors_bias = prior_weightfunction("one-sided.fixed", list(c(0.10), c(1, .5))),
-                priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE)
+                priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE))
   fit10 <- remove_time(fit10)
   expect_equal(clean_all(saved_fits[[10]]), clean_all(fit10))
 })
 
 test_that("Custom models - unknown effect size", {
-  fit11 <- RoBMA(y = d, se = d_se, seed = 1,
+  fit11 <- try_parallel(RoBMA(y = d, se = d_se, seed = 1,
                 priors_bias = list(
                   prior_weightfunction("two-sided", list(c(0.10), c(1, 1))),
                   prior_PET("normal", list(0, 1))
-                ), parallel = TRUE)
+                ), parallel = TRUE))
   fit11 <- remove_time(fit11)
   expect_equal(clean_all(saved_fits[[11]]), clean_all(fit11))
 })
 
 test_that("Custom models - updating models", {
-  fit12 <- RoBMA(d = d, se = d_se, seed = 1,
-                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE)
+  fit12 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
   fit12 <- update(fit12, prior_effect = prior("normal", list(0, 1), list(0, 1)), prior_heterogeneity = prior_none(), prior_bias = prior_none())
   fit12 <- update(fit12, prior_weights = c(1, 2))
   fit12 <- remove_time(fit12)
@@ -142,8 +152,8 @@ test_that("Custom models - updating models", {
 })
 
 test_that("Main settings work", {
-  fit_settings <- RoBMA(d = d, se = d_se, seed = 1, autofit = FALSE, thin = 2, sample = 1000, burnin = 500, adapt = 100, chains = 1,
-                        priors_effect_null = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE)
+  fit_settings <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, autofit = FALSE, thin = 2, sample = 1000, burnin = 500, adapt = 100, chains = 1,
+                        priors_effect_null = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
 
   expect_equal(fit_settings$models[[1]]$fit$thin,   2)
   expect_equal(fit_settings$models[[1]]$fit$burnin, 500 + 100)
@@ -155,9 +165,9 @@ test_that("Main settings work", {
 
 test_that("Convergence warnings work", {
   fit_warnings <- suppressWarnings(
-    RoBMA(d = d, se = d_se, seed = 1, autofit = FALSE, thin = 2, sample = 500, burnin = 500, adapt = 100, chains = 2,
+    try_parallel(RoBMA(d = d, se = d_se, seed = 1, autofit = FALSE, thin = 2, sample = 500, burnin = 500, adapt = 100, chains = 2,
           convergence_checks = set_convergence_checks(max_Rhat = 1.01, min_ESS = 1000, max_error = 0.001, max_SD_error = 0.002),
-          priors_effect_null = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE)
+          priors_effect_null = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
   )
 
   expect_equal(

@@ -44,9 +44,8 @@ test_that("Parameter plots work", {
 
   # additional settings
   expect_doppelganger(paste0("plot_mu5_",i), function()plot(saved_fits[[i]], "mu", prior = TRUE, dots_prior = list(col = "blue", lty = 2), col = "red", lty = 2, xlim = c(0, 1), main = "Title"))
-  expect_error(plot(saved_fits[[i]], "mu", output_scale = "fishers_z"),
-               "Plotting output on a different than prior scale is not possible yet.")
-  # expect_doppelganger(paste0("plot_mu6_",i), )
+  # expect_error(plot(saved_fits[[i]], "mu", output_scale = "fishers_z"))
+
 
 
   ### heterogeneity
@@ -160,10 +159,6 @@ test_that("Individual model plots work", {
   expect_doppelganger(paste0("plot_models2_",i), function()plot_models(saved_fits[[i]], conditional = TRUE))
 
   # different output scale
-  expect_error(plot_models(saved_fits[[i]], output_scale = "fishers_z"),
-               "Plotting output on a different than prior scale is not possible yet.")
-  expect_error(plot_models(saved_fits[[i]], output_scale = "fishers_z", conditional = TRUE),
-               "Plotting output on a different than prior scale is not possible yet.")
   # expect_doppelganger(paste0("plot_models3_",i), plot_models(saved_fits[[i]], output_scale = "fishers_z"))
   # expect_doppelganger(paste0("plot_models4_",i), plot_models(saved_fits[[i]], output_scale = "fishers_z", conditional = TRUE))
 
