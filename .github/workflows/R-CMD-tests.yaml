@@ -88,23 +88,21 @@ jobs:
           install.packages("vdiffr")
         shell: Rscript {0}
 
-      - name: Install RoBMA
+      - name: Install and test RoBMA (Windows)
         if: runner.os != 'Windows'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
         run: |
           devtools::install()
+          devtools::test()
         shell: Rscript {0}"
 
-      - name: Install RoBMA
+      - name: Install and test RoBMA (non-Windows)
         if: runner.os == 'Windows'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
           JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
         run: |
           devtools::install()
-        shell: Rscript {0}
-
-      - name: Run unit tests
-        run: devtools::test()
+          devtools::test()
         shell: Rscript {0}
