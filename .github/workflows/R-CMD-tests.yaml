@@ -95,7 +95,7 @@ jobs:
         run: |
           options(crayon.enabled = TRUE)
           options(crayon.enabled = TRUE)
-          librart(RoBMA)
+          library(RoBMA)
           library(testthat)
           library(vdiffr)
           devtools::test(filter = 0)
@@ -116,7 +116,7 @@ jobs:
           JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
         run: |
           options(crayon.enabled = TRUE)
-          librart(RoBMA)
+          library(RoBMA)
           library(testthat)
           library(vdiffr)
           devtools::test(filter = 0)
