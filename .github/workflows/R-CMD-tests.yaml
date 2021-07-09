@@ -88,38 +88,23 @@ jobs:
           install.packages("vdiffr")
         shell: Rscript {0}
 
-      - name: Tests
+      - name: Install RoBMA
         if: runner.os != 'Windows'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
         run: |
-          options(crayon.enabled = TRUE)
-          options(crayon.enabled = TRUE)
-          devtools::install()
-          library(RoBMA)
-          library(testthat)
-          library(vdiffr)
           devtools::test()
         shell: Rscript {0}"
 
-      - name: Tests
+      - name: Install RoBMA
         if: runner.os == 'Windows'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
           JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
         run: |
-          options(crayon.enabled = TRUE)
           devtools::install()
-          library(RoBMA)
-          library(testthat)
-          library(vdiffr)
-          devtools::test()
         shell: Rscript {0}
 
-
-      - name: Upload check results
-        if: failure()
-        uses: actions/upload-artifact@main
-        with:
-          name: ${{ runner.os }}-r${{ matrix.config.r }}-results
-          path: check
+      - name: Run unit tests
+        run: source("tests/testthat.R")
+        shell: Rscript {0}
