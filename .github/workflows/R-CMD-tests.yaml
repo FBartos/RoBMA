@@ -99,15 +99,7 @@ jobs:
           library(RoBMA)
           library(testthat)
           library(vdiffr)
-          devtools::test(filter = 0)
-          devtools::test(filter = 1)
-          devtools::test(filter = 2)
-          devtools::test(filter = 3)
-          # devtools::test(filter = 4) # just skip the model fitting - too long
-          devtools::test(filter = 5)
-          devtools::test(filter = 6)
-          devtools::test(filter = 7)
-          devtools::test(filter = 8)
+          devtools::test()
         shell: Rscript {0}"
 
       - name: Tests
@@ -121,15 +113,7 @@ jobs:
           library(RoBMA)
           library(testthat)
           library(vdiffr)
-          devtools::test(filter = 0)
-          devtools::test(filter = 1)
-          devtools::test(filter = 2)
-          devtools::test(filter = 3)
-          # devtools::test(filter = 4) # just skip the model fitting - too long
-          devtools::test(filter = 5)
-          devtools::test(filter = 6)
-          devtools::test(filter = 7)
-          devtools::test(filter = 8)
+          devtools::test()
         shell: Rscript {0}
 
 
