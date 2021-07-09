@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 1.3.0
+Version: 2.0.0
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -17,14 +17,17 @@ Authors@R: c(
     )
 Description: A framework for estimating ensembles of meta-analytic models
     (assuming either presence or absence of the effect, heterogeneity, and
-    publication bias) and using Bayesian model averaging to combine them. The
-    ensembles use Bayes factors to test for the presence or absence of the
-    individual components (e.g., effect vs. no effect) and model-averages
-    parameter estimates based on posterior model probabilities
-    (Maier, Bartoš & Wagenmakers, 2020, <doi:10.31234/osf.io/u4cns>). The user can
-    define a wide range of non-informative or informative priors for the
-    effect size, heterogeneity, and weight functions. The package provides
-    convenient functions for summary, visualizations, and fit diagnostics.
+    publication bias). The RoBMA framework uses Bayesian model-averaging to 
+    combine the competing meta-analytic models into a model ensemble, weights 
+    the posterior parameter distributions based on posterior model probabilities 
+    and uses Bayes factors to test for the presence or absence of the
+    individual components (e.g., effect vs. no effect; Bartoš et al., 2021, 
+    <doi:10.31234/osf.io/kvsp7>; Maier, Bartoš & Wagenmakers, in press, 
+    <doi:10.31234/osf.io/u4cns>). Users can define a wide range of non-informative 
+    or informative prior distributions for the effect size, heterogeneity, 
+    and publication bias components (including selection models and PET-PEESE). 
+    The package provides convenient functions for summary, visualizations, and 
+    fit diagnostics.
 URL: https://fbartos.github.io/RoBMA/
 BugReports: https://github.com/FBartos/RoBMA/issues
 License: GPL-3
@@ -32,7 +35,7 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.1
-SystemRequirements: JAGS >= 4.3.0 (http://mcmc-jags.sourceforge.net)
+SystemRequirements: JAGS >= 4.3.0 (https://mcmc-jags.sourceforge.io/)
 NeedsCompilation: yes
 Depends:
     R (>= 4.0.0)
