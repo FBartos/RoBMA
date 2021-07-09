@@ -93,7 +93,7 @@ jobs:
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
         run: |
-          devtools::test()
+          devtools::install()
         shell: Rscript {0}"
 
       - name: Install RoBMA
