@@ -5,8 +5,7 @@
 *.so
 *.dll
 *.dylib
-trash/
-prefitted/
+do-not-share/
 ..Rcheck
 src-x64
 src-i386

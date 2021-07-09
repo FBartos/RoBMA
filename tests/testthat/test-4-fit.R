@@ -1,11 +1,15 @@
-context("(4) fitting and updating functions")
+context("(4) Fitting and updating functions")
 skip_on_cran()
-
+skip_on_covr()
 
 # test objects
-saved_fits   <- readRDS(file = "../results/saved_fits.RDS")
-saved_fits2  <- readRDS(file = "../results/saved_fits2.RDS")
-updated_fits <- readRDS(file = "../results/updated_fits.RDS")
+saved_files <- paste0("fit_", 1:12, ".RDS")
+saved_fits  <- list()
+for(i in seq_along(saved_files)){
+  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+}
+
+# functions simplifying the comparison
 remove_time  <- function(fit){
   for(m in 1:length(fit$models)){
     if(is.null(fit$models[[m]]$fit))next
@@ -23,261 +27,170 @@ clean_all  <- function(fit, only_samples = TRUE){
   }
   return(fit)
 }
+try_parallel <- function(x, rep = 3){
+  temp_fit <- NULL
+  i        <- 0
+  while(is.null(temp_fit) & i < rep){
+    temp_fit <- tryCatch(eval(x), error = function(e) NULL)
+    i        <- i + 1
+  }
+  return(temp_fit)
+}
+
 
 # create mock data
-k  <- 3
-n  <- rep(20, 3)
-r  <- c(.1, .2, .3)
-t  <- psych::r2t(r, n - 2)
-d  <- psych::t2d(t, n)
-se <- c(psych::d.ci(d, n)[,2] - psych::d.ci(d, n)[,1]) / 1.96
+k    <- 3
+n    <- c(15, 20, 50)
+r    <- c(.1, .2, .3)
+d    <- r2d(r)
+d_se <- se_d(d, n)
 
-# fit default priors model configuration
-fit_default <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666)
 
-test_that("Default model fit works", {
-  fit_default <- remove_time(fit_default)
-  expect_equal(clean_all(saved_fits[[1]]), clean_all(fit_default))
+test_that("Default model (RoBMA-PSMA) works", {
+
+  fit1 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE))
+  fit1 <- remove_time(fit1)
+  expect_equal(clean_all(saved_fits[[1]]), clean_all(fit1))
+
+  fit4 <- try_parallel(RoBMA(r = r, n = n, seed = 1, model_type = "PSMA", parallel = TRUE))
+  fit4 <- remove_time(fit4)
+  expect_equal(clean_all(saved_fits[[4]]), clean_all(fit4))
+
+  fit5 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, model_type = "PSMA", transformation = "logOR", parallel = TRUE))
+  fit5 <- remove_time(fit5)
+  expect_equal(clean_all(saved_fits[[5]]), clean_all(fit5))
+
+  fit6 <- try_parallel(RoBMA(d = -d, se = d_se, seed = 1, model_type = "PSMA", effect_direction = "negative", parallel = TRUE))
+  fit6 <- remove_time(fit6)
+  expect_equal(clean_all(saved_fits[[6]]), clean_all(fit6))
+
+  # verify that the transformations and etc holds, up to MCMC error
+  expect_equal(coef(fit1)[1:2], coef(fit4)[1:2], 0.005)
+  expect_equal(coef(fit1)[1:2], coef(fit5)[1:2], 0.005)
+  # the effect size is in the opposite direction for fit6
+  expect_equal(coef(fit1)[1],  -coef(fit6)[1], 0.005)
+  expect_equal(coef(fit1)[2],   coef(fit6)[2], 0.005)
+
+  # lower precision for weights
+  expect_equal(coef(fit1)[3:8], coef(fit4)[3:8], 0.02)
+  expect_equal(coef(fit1)[3:8], coef(fit5)[3:8], 0.02)
+  expect_equal(coef(fit1)[3:8], coef(fit6)[3:8], 0.02)
+
+  # PET is also stable (and in this case PEESE as well, since it is low)
+  expect_equal(coef(fit1)[9:10], coef(fit4)[9:10], 0.005)
+  expect_equal(coef(fit1)[9:10], coef(fit6)[9:10], 0.005)
+  expect_equal(coef(fit1)[9:10], coef(fit6)[9:10], 0.005)
 })
 
-
-# fit custom fits
-fit_custom1 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau = NULL, priors_omega = NULL)
-fit_custom2 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE)
-fit_custom3 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau = NULL, priors_omega_null = NULL, parallel = TRUE, #likelihood = "t",
-                     priors_omega = list(
-                       prior("two.sided", parameters = list(steps = c(.20),           alpha = c(1,10))),
-                       prior("one.sided", parameters = list(steps = c(.10, .30),      alpha = c(1,5,1))),
-                       prior("one.sided", parameters = list(steps = c(.15, .25, .75), alpha1 = c(1,1,1), alpha2 = c(1,1)))
-                     ))
-fit_custom4 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
-                     priors_mu_null = list(
-                       prior("point",     parameters = list(location = 1)),
-                       prior("normal",    parameters = list(mean = 0, sd = 1)),
-                       prior("normal",    parameters = list(mean = 1, sd = 1),                truncation = list(lower = 0, upper = 2), prior_odds = 2),
-                       prior("cauchy",    parameters = list(location = 1, scale = 1),         truncation = list(lower = 0, upper = 2)),
-                       prior("t",         parameters = list(location = 1, scale = 1, df = 1), truncation = list(lower = 0, upper = 2)),
-                       prior("t",         parameters = list(location = 1, scale = 1, df = 5), truncation = list(lower = -2, upper = 2)),
-                       prior("gamma",     parameters = list(shape = 1, rate  = 2),            truncation = list(lower = 1, upper = Inf)),
-                       prior("gamma",     parameters = list(shape = 1, scale = 1/2),          truncation = list(lower = 1, upper = Inf)),
-                       prior("invgamma",  parameters = list(shape = 1, scale = .15),          truncation = list(lower = 0, upper = Inf)),
-                       prior("uniform",   parameters = list(a = 2, b = 3))
-                     ))
-fit_custom5 <- RoBMA(r = r, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666, save = "min",
-                     priors_mu = NULL, priors_tau_null = NULL, priors_omega = NULL, parallel = TRUE,
-                     priors_tau = list(
-                       prior("point",     parameters = list(location = 0)),
-                       prior("normal",    parameters = list(mean = 1, sd = 1),                truncation = list(lower = 0, upper = 2), prior_odds = 2),
-                       prior("cauchy",    parameters = list(location = 1, scale = 1),         truncation = list(lower = 0, upper = 2)),
-                       prior("t",         parameters = list(location = 1, scale = 1, df = 1), truncation = list(lower = 0, upper = 2)),
-                       prior("t",         parameters = list(location = 1, scale = 1, df = 5), truncation = list(lower = .5, upper = 2)),
-                       prior("gamma",     parameters = list(shape = 1, rate  = 2),            truncation = list(lower = 1, upper = Inf)),
-                       prior("gamma",     parameters = list(shape = 1, scale = 1/2),          truncation = list(lower = 1, upper = Inf)),
-                       prior("invgamma",  parameters = list(shape = 1, scale = .15),          truncation = list(lower = 0, upper = Inf)),
-                       prior("uniform",   parameters = list(a = .5, b = 1.5))
-                     ))
-
-test_that("Custom models works", {
-
-  fit_custom1 <- remove_time(fit_custom1)
-  fit_custom2 <- remove_time(fit_custom2)
-  fit_custom3 <- remove_time(fit_custom3)
-  fit_custom4 <- remove_time(fit_custom4)
-  fit_custom5 <- remove_time(fit_custom5)
-
-  expect_equal(clean_all(saved_fits[[2]]), clean_all(fit_custom1))
-  expect_equal(clean_all(saved_fits[[3]]), clean_all(fit_custom2))
-  expect_equal(clean_all(saved_fits[[4]]), clean_all(fit_custom3))
-  expect_equal(clean_all(saved_fits[[5]]), clean_all(fit_custom4))
-  expect_equal(clean_all(saved_fits[[6]]), clean_all(fit_custom5))
+test_that("RoBMA-2w works", {
+  fit2 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "2w"))
+  fit2 <- remove_time(fit2)
+  expect_equal(clean_all(saved_fits[[2]]), clean_all(fit2))
 })
 
-
-# fit failling models
-fit_fail1  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, bridge_max_iter = 2), seed = 666, save = "min",
-                    priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
-                    priors_mu  = prior("uniform", parameters = list(a = 10, b = 11))))
-
-fit_fail2  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 2000), seed = 666, save = "min",
-                    priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
-                    priors_mu  = prior("uniform", parameters = list(a = 10, b = 11))))
-
-
-test_that("Error handling works", {
-
-  fit_fail1 <- remove_time(fit_fail1)
-  fit_fail2 <- remove_time(fit_fail2)
-
-  expect_equal(clean_all(saved_fits[[7]]), clean_all(fit_fail1))
-  expect_equal(clean_all(saved_fits[[8]]), clean_all(fit_fail2))
-
+test_that("RoBMA-PP works", {
+  fit3 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "PP"))
+  fit3 <- remove_time(fit3)
+  expect_equal(clean_all(saved_fits[[3]]), clean_all(fit3))
 })
 
+test_that("Custom models - only alternative", {
+  fit7 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_bias = list(
+                  prior_weightfunction("one-sided", list(c(0.10), c(1, 1))),
+                  prior_PET("normal", list(0, 1))
+                ),
+                priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE))
+  fit7 <- remove_time(fit7)
+  expect_equal(clean_all(saved_fits[[7]]), clean_all(fit7))
+})
 
-# test additional settings
-fit_settings  <- RoBMA(t = t, n = n, chains = 3, burnin = 1001, iter = 8002, thin = 2,
-                       control = list(autofit = FALSE, silent = TRUE, adapt = 101), seed = 666,
-                       priors_tau = NULL, priors_omega = NULL, priors_mu_null = NULL, parallel = TRUE,
-                       priors_mu  = prior("uniform", parameters = list(a = -.5, b = .5)))
+test_that("Custom models - only null", {
+  fit8 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
+  fit8 <- remove_time(fit8)
+  expect_equal(clean_all(saved_fits[[8]]), clean_all(fit8))
+})
 
+test_that("Custom models - only null (non-point)", {
+  fit9 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_effect_null = prior("normal", list(0, 1)),
+                priors_heterogeneity_null = prior("invgamma", list(1, 0.15)),
+                priors_bias_null = list(
+                  prior_weightfunction("one-sided", list(c(0.10), c(1, 1))),
+                  prior_PET("normal", list(0, 1))
+                ),
+                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
+  fit9 <- remove_time(fit9)
+  expect_equal(clean_all(saved_fits[[9]]), clean_all(fit9))
+})
+
+test_that("Custom models - fixed weightfunctions", {
+  fit10 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_bias = prior_weightfunction("one-sided.fixed", list(c(0.10), c(1, .5))),
+                priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE))
+  fit10 <- remove_time(fit10)
+  expect_equal(clean_all(saved_fits[[10]]), clean_all(fit10))
+})
+
+test_that("Custom models - unknown effect size", {
+  fit11 <- try_parallel(RoBMA(y = d, se = d_se, seed = 1,
+                priors_bias = list(
+                  prior_weightfunction("two-sided", list(c(0.10), c(1, 1))),
+                  prior_PET("normal", list(0, 1))
+                ), parallel = TRUE))
+  fit11 <- remove_time(fit11)
+  expect_equal(clean_all(saved_fits[[11]]), clean_all(fit11))
+})
+
+test_that("Custom models - updating models", {
+  fit12 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
+                priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
+  fit12 <- update(fit12, prior_effect = prior("normal", list(0, 1), list(0, 1)), prior_heterogeneity = prior_none(), prior_bias = prior_none())
+  fit12 <- update(fit12, prior_weights = c(1, 2))
+  fit12 <- remove_time(fit12)
+  expect_equal(clean_all(saved_fits[[12]]), clean_all(fit12))
+})
 
 test_that("Main settings work", {
+  fit_settings <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, autofit = FALSE, thin = 2, sample = 1000, burnin = 500, adapt = 100, chains = 1,
+                        priors_effect_null = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
 
   expect_equal(fit_settings$models[[1]]$fit$thin,   2)
-  expect_equal(fit_settings$models[[1]]$fit$burnin, 1102)
-  expect_equal(fit_settings$models[[1]]$fit$sample, 8002)
+  expect_equal(fit_settings$models[[1]]$fit$burnin, 500 + 100)
+  expect_equal(fit_settings$models[[1]]$fit$sample, 1000)
 
-  expect_equal(length(fit_settings$models[[1]]$fit$mcmc),   3)
-  expect_equal(dim(fit_settings$models[[1]]$fit$mcmc[[1]]), c(8002, 1))
-
+  expect_equal(length(fit_settings$models[[1]]$fit$mcmc),   1)
+  expect_equal(dim(fit_settings$models[[1]]$fit$mcmc[[1]]), c(1000, 2))
 })
 
+test_that("Convergence warnings work", {
+  fit_warnings <- suppressWarnings(
+    try_parallel(RoBMA(d = d, se = d_se, seed = 1, autofit = FALSE, thin = 2, sample = 500, burnin = 500, adapt = 100, chains = 2,
+          convergence_checks = set_convergence_checks(max_Rhat = 1.01, min_ESS = 1000, max_error = 0.001, max_SD_error = 0.002),
+          priors_effect_null = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE))
+  )
 
-# test updating model fits
-fit_update1 <- RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE), seed = 666,
-                     priors_mu = NULL, priors_tau = NULL, priors_omega = NULL)
-
-fit_update1a<- update(fit_update1,
-                      prior_mu  = prior("normal",        parameters = list(mean = 1, sd = 1)),
-                      prior_tau = prior("uniform",       parameters = list(a = 0, b = .5), prior_odds = 2),
-                      prior_omega_null = prior("point",  parameters = list(location = 1)))
-
-fit_update1b<- update(fit_update1, parallel = TRUE,
-                      prior_mu  = prior("normal",        parameters = list(mean = 1, sd = 1)),
-                      prior_tau = prior("uniform",       parameters = list(a = 0, b = .5)),
-                      prior_omega_null = prior("point",  parameters = list(location = 1)),
-                      prior_odds = 2)
-
-fit_update1c<- update(fit_update1, parallel = TRUE,
-                      prior_mu  = prior("normal",        parameters = list(mean = 1, sd = 1)),
-                      prior_tau = prior("uniform",       parameters = list(a = 0, b = .5)),
-                      prior_omega_null = prior("point",  parameters = list(location = 1)))
-fit_update1c<- update(fit_update1c, prior_odds = c(1, 2))
-
-
-test_that("Adding models and changing prior odds works", {
-
-  fit_update1a <- remove_time(fit_update1a)
-  fit_update1b <- remove_time(fit_update1b)
-  fit_update1c <- remove_time(fit_update1c)
-
-  expect_equal(clean_all(updated_fits[[1]]$RoBMA), clean_all(fit_update1a$RoBMA))
-  expect_equal(clean_all(updated_fits[[1]]$RoBMA), clean_all(fit_update1b$RoBMA))
-  expect_equal(clean_all(updated_fits[[1]]$RoBMA), clean_all(fit_update1c$RoBMA))
-
-})
-
-
-
-# test refitting failed models (important that it updates only the failed model)
-fit_update2  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 2000), seed = 666,
-                                       priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
-                                       priors_mu  = list(
-                                         prior("uniform", parameters = list(a = 1, b = 2)),
-                                         prior("uniform", parameters = list(a = 0, b = 1)))))
-fit_update2 <- suppressWarnings(update(fit_update2, iter = 8000))
-
-test_that("Updating failed models works", {
-
-  fit_update2 <- remove_time(fit_update2)
-  expect_equal(clean_all(updated_fits[[2]]), clean_all(fit_update2))
-
-})
-
-# only changing the settings
-fit_update3  <- suppressWarnings(RoBMA(t = t, n = n, chains = 2, burnin = 1000, iter = 4000, control = list(autofit = FALSE, silent = TRUE, allow_min_ESS = 6000), seed = 666,
-                                       priors_tau = NULL, priors_omega = NULL, parallel = TRUE,
-                                       priors_mu  = prior("uniform", parameters = list(a = 0, b = 1))))
-fit_update3 <- suppressWarnings(update(fit_update3, refit_failed = FALSE, control = list(allow_min_ESS = NULL)))
-
-test_that("Updating failed models works", {
-
-  fit_update3 <- remove_time(fit_update3)
-  expect_equal(clean_all(updated_fits[[3]]), clean_all(fit_update3))
-
-})
-
-
-# test model preview
-test_that("Model preview works", {
   expect_equal(
-    capture.output(check_setup(models = T)),
-    c("Robust Bayesian Meta-Analysis (Set-Up)",
-      "              Models Prior prob.",
-      "Effect          6/12       0.500",
-      "Heterogeneity   6/12       0.500",
-      "Pub. bias       8/12       0.500",
-      ""                                ,
-      "Models Overview"                 ,
-      "                  Prior mu                 Prior tau                       Prior omega Prior prob.",
-      "1                 Spike(0)                  Spike(0)                          Spike(1)       0.125",
-      "2                 Spike(0)                  Spike(0)         Two-sided((0.05), (1, 1))       0.062",
-      "3                 Spike(0)                  Spike(0) Two-sided((0.1, 0.05), (1, 1, 1))       0.062",
-      "4                 Spike(0) InvGamma(1, 0.15)[0, Inf]                          Spike(1)       0.125",
-      "5                 Spike(0) InvGamma(1, 0.15)[0, Inf]         Two-sided((0.05), (1, 1))       0.062",
-      "6                 Spike(0) InvGamma(1, 0.15)[0, Inf] Two-sided((0.1, 0.05), (1, 1, 1))       0.062",
-      "7  Normal(0, 1)[-Inf, Inf]                  Spike(0)                          Spike(1)       0.125",
-      "8  Normal(0, 1)[-Inf, Inf]                  Spike(0)         Two-sided((0.05), (1, 1))       0.062",
-      "9  Normal(0, 1)[-Inf, Inf]                  Spike(0) Two-sided((0.1, 0.05), (1, 1, 1))       0.062",
-      "10 Normal(0, 1)[-Inf, Inf] InvGamma(1, 0.15)[0, Inf]                          Spike(1)       0.125",
-      "11 Normal(0, 1)[-Inf, Inf] InvGamma(1, 0.15)[0, Inf]         Two-sided((0.05), (1, 1))       0.062",
-      "12 Normal(0, 1)[-Inf, Inf] InvGamma(1, 0.15)[0, Inf] Two-sided((0.1, 0.05), (1, 1, 1))       0.062")
+    suppressWarnings(RoBMA::check_RoBMA(fit_warnings)),
+    c(
+      "Model (1): ESS 829 is lower than the set target (1000).",
+      "Model (1): MCMC error 0.00733 is larger than the set target (0.001).",
+      "Model (1): MCMC SD error 0.035 is larger than the set target (0.002)."
+    )
   )
 })
 
 
-# additional model fits (not used for plotting and other tests)
-fit_new1  <- suppressWarnings(RoBMA(OR = c(1.1, 1.05, 1.15), lCI = c(1, 0.95, 1.05), uCI = c(1.20, 1.15, 1.25),
-                   chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666, parallel = TRUE,
-                   priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL,
-                   priors_omega = prior("two.sided", parameters = list(steps = c(.20), alpha = c(1,10)))))
-
-fit_new2a <- RoBMA(y = d,  se = se, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
-                   priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE,
-                   priors_mu    = prior("normal",    parameters = list(mean = 1, sd = 1)),
-                   priors_omega = prior("one.sided", parameters = list(steps = c(.20), alpha = c(1,1))))
-
-fit_new2b <- RoBMA(y = -d, se = se, chains = 2, burnin = 1000, iter = 4000, control = list(silent = TRUE), seed = 666,
-                   effect_direction = "negative", priors_mu_null = NULL, priors_tau_null = NULL, priors_omega_null = NULL, parallel = TRUE,
-                   priors_mu    = prior("normal",    parameters = list(mean = -1, sd = 1)),
-                   priors_omega = prior("one.sided", parameters = list(steps = c(.20), alpha = c(1,1))))
-
-test_that("OR model fit works", {
-  fit_new1 <- remove_time(fit_new1)
-  expect_equal(clean_all(saved_fits2[[1]]), clean_all(fit_new1))
-})
-
-test_that("Direction change model fit works", {
-  fit_new2a <- remove_time(fit_new2a)
-  fit_new2b <- remove_time(fit_new2b)
-  expect_equal(clean_all(saved_fits2[[2]]), clean_all(fit_new2a))
-  expect_equal(clean_all(saved_fits2[[3]]), clean_all(fit_new2b))
-})
-
-
-
-
 #### creating / updating the test settings ####
 if(FALSE){
-  saved_fits <- list(fit_default, fit_custom1, fit_custom2, fit_custom3, fit_custom4, fit_custom5, fit_fail1, fit_fail2)
+  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12)
+
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])
   }
-  saveRDS(saved_fits, file = "tests/results/saved_fits.RDS", compress  = "xz")
 
-  updated_fits <- list(fit_update1a, fit_update2, fit_update3)
-  for(i in 1:3){
-    updated_fits[[i]] <- remove_time(updated_fits[[i]])
+  for(i in 1:length(saved_fits)){
+    saveRDS(saved_fits[[i]], file = file.path("tests/results/fits/", paste0("fit_",i,".RDS")),   compress  = "xz")
   }
-  saveRDS(updated_fits, file = "tests/results/updated_fits.RDS", compress  = "xz")
-
-  saved_fits2 <- list(fit_new1, fit_new2a, fit_new2b)
-  for(i in 1:length(saved_fits2)){
-    saved_fits2[[i]] <- remove_time(saved_fits2[[i]])
-  }
-  saveRDS(saved_fits2, file = "tests/results/saved_fits2.RDS", compress  = "xz")
 }

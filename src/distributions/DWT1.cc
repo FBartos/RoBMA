@@ -22,7 +22,7 @@ using std::fabs;
 
 
 namespace jags {
-namespace weightedt { 
+namespace RoBMA { 
 
 DWT1::DWT1() : VectorDist("dwt_1s", 4) {}
 
@@ -39,13 +39,11 @@ bool DWT1::checkParameterValue(vector<double const *> const &par,
   bool omega_OK  = true;
   bool df_OK;
 
-  // all omegas are within [0, 1] and the last omega == 1
+  // all omegas are within [0, 1]
   for(unsigned j = 0; j < (n_omega(len)-1); ++j){
     omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
   }
-  // numerical imprecission for last omega is not a problem since it's assumed to be 1 later on
-  omega_OK = omega_OK && ( fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001 ); 
-
+  
   // df are positive
   df_OK = *par[0] > 0.0;
 
@@ -69,8 +67,7 @@ double DWT1::logDensity(double const *x, unsigned int length, PDFType type,
 
   // select weight to correspond to the current cut-off
   if(*x >= crit_t(par)[n_crit_t(len)-1]){
-    // using 1 instead of omega(par)[n_omega(len)-1] because of possible numerical imprecission
-    w = log(1.0);
+    w = log(omega(par)[n_omega(len)-1]);
   }else if(*x < crit_t(par)[0]){
     w = log(omega(par)[0]);
   }else{

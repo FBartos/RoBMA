@@ -1,0 +1,8 @@
+"Call:"
+"RoBMA(d = d, se = d_se, priors_effect = NULL, priors_heterogeneity = NULL, "
+"    priors_bias = NULL, parallel = TRUE, seed = 1)"
+""
+"Robust Bayesian meta-analysis"
+"Models overview:"
+" Model Prior Effect Prior Heterogeneity Prior Bias Prior prob. log(marglik) Post. prob. Inclusion BF"
+"     1     Spike(0)            Spike(0)                  1.000        -0.83       1.000          Inf"

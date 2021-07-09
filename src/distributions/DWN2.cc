@@ -21,7 +21,7 @@ using std::fabs;
 
 
 namespace jags {
-namespace weightedt {
+namespace RoBMA {
 
 DWN2::DWN2() : VectorDist("dwnorm_2s", 4) {}
 
@@ -44,14 +44,12 @@ bool DWN2::checkParameterValue(vector<double const *> const &par,
     crit_x_OK = crit_x_OK && ( crit_x(par)[i] >= 0.0 );
   }
 
-  // all omegas are within [0, 1] and the last omega == 1
+  // all omegas are within [0, 1]
   for(unsigned j = 0; j < (n_omega(len)-1); ++j){
     omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
   }
-  // numerical imprecission for last omega is not a problem since it's assumed to be 1 later on
-  omega_OK = omega_OK && ( fabs(omega(par)[n_omega(len)-1] - 1.0) < 0.001 );
 
-  // var are positive
+  // var is positive
   var_OK = *par[1] > 0.0;
 
   return crit_x_OK && omega_OK && var_OK;
@@ -78,8 +76,7 @@ double DWN2::logDensity(double const *x, unsigned int length, PDFType type,
 
   // select weight to correspond to the current cut-off
   if(abs_x >= crit_x(par)[n_crit_x(len)-1]){
-    // using 1 instead of omega(par)[n_omega(len)-1] because of the numerical imprecision
-    w = log(1.0);
+    w = log(omega(par)[n_omega(len)-1]);
   }else if(abs_x < crit_x(par)[0]){
     w = log(omega(par)[0]);
   }else{
@@ -97,7 +94,8 @@ double DWN2::logDensity(double const *x, unsigned int length, PDFType type,
   // compute the probabilities between cutpoints
   // the first one
   denoms.push_back(pnorm(crit_x(par)[0], mu, sqrt(var), true, false) -  pnorm(-crit_x(par)[0], mu, sqrt(var), true, false));
-  if(denoms[0] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecision
+  // check and correct for possibly negative numbers due to numerical imprecision
+  if(denoms[0] < 0.0){
     denoms[0] = 0.0;
   }
   denom_sum = denoms[0];
@@ -105,7 +103,8 @@ double DWN2::logDensity(double const *x, unsigned int length, PDFType type,
   if(n_omega(len) > 1){
     for(unsigned j = 1; j < n_omega(len) - 1; ++j){
       denoms.push_back(pnorm(crit_x(par)[j], mu, sqrt(var), true, false) -  pnorm(-crit_x(par)[j], mu, sqrt(var), true, false) - denom_sum);
-      if(denoms[j] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecision
+      // check and correct for possibly negative numbers due to numerical imprecision
+      if(denoms[j] < 0.0){
         denoms[j] = 0.0;
       }
       denom_sum = denom_sum + denoms[j];
@@ -113,7 +112,8 @@ double DWN2::logDensity(double const *x, unsigned int length, PDFType type,
   }
   // the last one
   denoms.push_back(1.0 - denom_sum);
-  if(denoms[n_omega(len)-1] < 0.0){ // check and correct for possibly negative numbers due to numerical imprecision
+  // check and correct for possibly negative numbers due to numerical imprecision
+  if(denoms[n_omega(len)-1] < 0.0){
     denoms[n_omega(len)-1] = 0.0;
   }
 

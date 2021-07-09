@@ -1,3 +1,26 @@
+## version 2.0
+Please notice that this is a major release that breaks backwards compatibility.
+
+### Changes
+ - naming of the arguments specifying prior distributions for the different parameters/components of the models changed (`priors_mu` -> `priors_effect`, `priors_tau` -> `priors_heterogeneity`, and `priors_omega` -> `priors_bias`),
+ - prior distributions for specifying weight functions now use a dedicated function (`prior(distribution = "two.sided", parameters = ...)` -> `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
+ - new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (`prior_none()`),
+ - new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (`prior_PET(distribution = "Cauchy", parameters = ...)` and `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
+ - new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al., 2021 [preprint](https://psyarxiv.com/kvsp7/)),
+ - new `model_type` argument allowing to specify different "pre-canned" models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` = corresponding to Maier et al., in press , [manuscript](https://psyarxiv.com/u4cns/)),
+ - `combine_data` function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the `RoBMA` function),
+ - better and improved automatic fitting procedure now enabled by default (can be turned of with `autofit = FALSE`)
+ - prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher's z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen's d by default, but both of them can be overwritten with the `prior_scale` and `transformation` arguments),
+ - new prior distributions, e.g., beta or fixed weight functions,
+ - estimates from individual models are now plotted with the `plot_models()` function and the forest plot can be obtained with the `forest()` function,
+ - the posterior distribution plots for the individual weights are no able supported, however, the weightfunction and the PET-PEESE publication bias adjustments can be visualized with the `plot.RoBMA()` function and `parameter = "weightfunction"` and `parameter = "PET-PEESE"`.
+ 
+
+
+## version 1.2.1
+### Fixes
+- check_setup function not working at all
+
 ## version 1.2.0
 ### Changes
 - the studies's true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our [prerint](https://psyarxiv.com/u4cns/) for more details). As a results, arguments referring to the true effects are now disabled.

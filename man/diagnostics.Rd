@@ -9,9 +9,7 @@ diagnostics(
   parameter,
   type,
   plot_type = "base",
-  show_figures = if (parameter == "omega") -1 else NULL,
   show_models = NULL,
-  par_transform = TRUE,
   lags = 30,
   title = is.null(show_models) | length(show_models) > 1,
   ...
@@ -21,31 +19,24 @@ diagnostics(
 \item{fit}{a fitted RoBMA object}
 
 \item{parameter}{a parameter to be plotted. Either
-\code{"mu"}, \code{"tau"}, \code{"theta"}, or
-\code{"omega"}.}
+\code{"mu"}, \code{"tau"}, \code{"omega"}, \code{"PET"},
+or \code{"PEESE"}.}
 
-\item{type}{what type of model check should be plotted.
-Options are \code{"chains"} for the chains trace plots,
+\item{type}{type of MCMC diagnostic to be plotted.
+Options are \code{"chains"} for the chains' trace plots,
 \code{"autocorrelation"} for autocorrelation of the
 chains, and \code{"densities"} for the overlaying
-densities of the individual chains.}
+densities of the individual chains. Can be abbreviated to
+first letters.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
-or ggplot2 \code{"ggplot2"} for plotting. The later
-requires \pkg{ggplot2} package to be installed.}
+or ggplot2 \code{"ggplot"} for plotting. Defaults to
+\code{"base"}.}
 
-\item{show_figures}{which figures should be returned in case of
-multiple plots are generated. Useful when
-\code{parameter = "omega"} when a plot for each parameter would be
-generated. Can be also used for \code{parameter = "theta"} to
-obtain only a specific subset of thetas. Set to \code{NULL}
-to show all parameters (default for \code{parameter = "theta"}).}
-
-\item{show_models}{diagnostics for which models should be produced.
-Defaults to \code{NULL} that shows diagnostics to all models.}
-
-\item{par_transform}{whether the figures should be produced for the
-par_transform parameters. Defaults to \code{TRUE}.}
+\item{show_models}{MCMC diagnostics of which models should be
+plotted. Defaults to \code{NULL} which plots MCMC diagnostics
+for a specified parameter for every model that is part of the
+ensemble.}
 
 \item{lags}{number of lags to be shown for
 \code{type = "autocorrelation"}. Defaults to \code{30}.}
@@ -55,6 +46,11 @@ Defaults to \code{TRUE} when more than one model is selected.}
 
 \item{...}{additional arguments to be passed to
 \link[graphics]{par} if \code{plot_type = "base"}.}
+}
+\value{
+\code{diagnostics} returns either \code{NULL} if \code{plot_type = "base"}
+or an object/list of objects (depending on the number of parameters to be plotted)
+of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
 \code{diagnostics} creates visual
@@ -88,6 +84,8 @@ diagnostics(fit, parameter = "mu", type = "autocorrelation")
 # and overlying densities for each plot can also be visualize
 diagnostics(fit, parameter = "mu", type = "densities")
 }
+
+
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}

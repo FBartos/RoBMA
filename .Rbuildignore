@@ -1,9 +1,17 @@
 ^RoBMA\.Rproj$
 ^\.Rproj\.user$
-^trash$
-^prefitted$
-^tests/figs/.*$
-^tests/results/.*$
+^do-not-share$
+^models$
+^tests/results$
+^tests/testthat/_snaps$
+tests/testthat/test-1-load.R
+tests/testthat/test-2-distributions.R
+tests/testthat/test-3-setup.R
+tests/testthat/test-4-fit.R
+tests/testthat/test-5-methods.R
+tests/testthat/test-6-plots.R
+tests/testthat/test-7-diagnostics.R
+tests/testthat/test-8-transformations.R
 ^..Rcheck
 ^.*\.o
 ^docs$
@@ -11,3 +19,5 @@
 ^Meta$
 ^RoBMA.Rcheck$
 README.Rmd
+^\.github$
+^codecov\.yml$

@@ -3,7 +3,7 @@
 #include <distribution/VectorDist.h>
 
 namespace jags {
-namespace weightedt { // module namespace
+namespace RoBMA { // module namespace
 
 class DWT1 : public VectorDist
   {

@@ -5,63 +5,40 @@
 #' ways. See \code{type} for the different model types.
 #'
 #' @param x a fitted RoBMA object
-#' @param parameter a parameter to be plotted. Either
-#' \code{"mu"}, \code{"tau"}, \code{"theta"}, or
-#' \code{"omega"}. A bivariate plot for model-averaged
-#' estimates of "mu" and "tau" can be obtained by
-#' \code{c("mu","tau")} if \code{type = "averaged"}. In
-#' addition, a forest plot with the original estimates can
-#' be obtained by \code{"forest"} or added to the theta
-#' estimates by \code{c("theta", "forest")}.
-#' @param type what type of estimates should be plotted.
-#' Options are \code{"averaged"} for the model-averaged
-#' estimates, \code{"conditional"} for the conditional
-#' estimates, or \code{"individual"} for the
-#' individual models estimates. The options
-#' \code{c("individual", "conditional")} can be supplied
-#' together to show only coditional individual models.
+#' @param parameter a parameter to be plotted. Defaults to
+#' \code{"mu"} (for the effect size). The additional options
+#' are \code{"tau"} (for the heterogeneity),
+#' \code{"weightfunction"} (for the estimated weightfunction),
+#' or \code{"PET-PEESE"} (for the PET-PEESE regression).
+#' @param conditional whether conditional estimates should be
+#' plotted. Defaults to \code{FALSE} which plots the model-averaged
+#' estimates. Note that both \code{"weightfunction"} and
+#' \code{"PET-PEESE"} are always ignoring the other type of
+#' publication bias adjustment.
 #' @param plot_type whether to use a base plot \code{"base"}
-#' or ggplot2 \code{"ggplot2"} for plotting. The later
-#' requires \pkg{ggplot2} package to be installed.
-#' @param mean whether the mean should be plotted.
-#' @param median whether the median should be plotted.
-#' @param CI width of the confidence intervals.
-#' @param prior add prior density to the plot. Only available
-#' for \code{type = "averaged"} or \code{type = "conditional"}.
+#' or ggplot2 \code{"ggplot"} for plotting. Defaults to
+#' \code{"base"}.
+#' @param prior whether prior distribution should be added to
+#' figure. Defaults to \code{FALSE}.
+#' @param rescale_x whether the x-axis of the \code{"weightfunction"}
+#' should be re-scaled to make the x-ticks equally spaced.
 #' Defaults to \code{FALSE}.
-#' @param order either (1) ordering of the studies for
-#' \code{parameter = "theta"} or \code{parameter = "forest"}.
-#' Defaults to \code{NULL} - ordering as supplied to the fitting
-#' function. However, studies can be ordered either
-#' \code{"ascending"} or \code{"descending"} by effect size, or
-#' by \code{"alphabetical"} by labels.
-#' Or (2) ordering models for \code{type = "individual"}. The
-#' default orders models according to their number. However,
-#' models can be ordered either \code{"ascending"} or
-#' \code{"descending"} by posterior model probability
-#' \code{c("ascending", "prob")}, or marginal likelihood
-#' \code{c("descending", "marglik")}
-#' by marginal likelihood.
-#' @param digits_estimates number of decimals to be displayed for
-#' \code{parameter = "theta"}, \code{parameter = "forest"}, and
-#' \code{type = "individual"} plot.
-#' @param show_figures which figures should be returned in the case
-#' when multiple plots are generated. Useful when
-#' \code{parameter = "omega", type = "individual"} which generates
-#' a figure for each weights cut-off. Defaults to \code{-1} which
-#' omits the first weight. Set to \code{NULL} to show all figures
-#' or to \code{c(1,3)} to show only the first and third one.
-#' @param weights whether the weights or weight function should
-#' be returned. Only applicable when \code{parameter = "omega"}.
-#' Defaults to \code{FALSE} - the weight function is plotted.
-#' @param rescale_x whether the x-axis should be rescaled in order
-#' to make the x-ticks equally spaced. Available only for the
-#' weightfunction plot. Defaults to \code{FALSE}.
-#' @param ... additional arguments to be passed to
-#' \link[graphics]{par} if \code{plot_type = "base"}. Especially
-#' useful for \code{parameter == "theta"},
-#' \code{parameter == "forest"} or \code{type = "individual"}
-#' where automatic margins might cut out parts of the labels.
+#' @param show_data whether the study estimates and standard
+#' errors should be show in the \code{"PET-PEESE"} plot.
+#' Defaults to \code{TRUE}.
+#' @param dots_prior list of additional graphical arguments
+#' to be passed to the plotting function of the prior
+#' distribution. Supported arguments are \code{lwd},
+#' \code{lty}, \code{col}, and \code{col.fill}, to adjust
+#' the line thickness, line type, line color, and fill color
+#' of the prior distribution respectively.
+#' @param ... list of additional graphical arguments
+#' to be passed to the plotting function. Supported arguments
+#' are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
+#' \code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+#' to adjust the line thickness, line type, line color, fill color,
+#' x-label, y-label, title, x-axis range, and y-axis range
+#' respectively.
 #'
 #' @examples \dontrun{
 #' # using the example data from Anderson et al. 2010 and fitting the default model
@@ -69,1394 +46,672 @@
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
 #'
 #' ### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
-#' # plot function allows to visualize the results of a fitted RoBMA object, for example,
-#' # the model-averaged mean parameter estimate
+#' # the 'plot' function allows to visualize the results of a fitted RoBMA object, for example;
+#' # the model-averaged effect size estimate
 #' plot(fit, parameter = "mu")
 #'
-#' # or show both the prior and posterior distribution
+#' # and show both the prior and posterior distribution
 #' plot(fit, parameter = "mu", prior = TRUE)
 #'
-#' # condtional plots might by obtained by specifying
-#' plot(fit, parameter = "mu", type = "conditional")
+#' # conditional plots can by obtained by specifying
+#' plot(fit, parameter = "mu", conditional = TRUE)
 #'
 #' # plotting function also allows to visualize the weight function
-#' # (or individual weights by adding 'weights = TRUE')
-#' plot(fit, parameter = "omega")
+#' plot(fit, parameter = "weightfunction")
 #'
-#' # or the forest plot (the estimated study effects can be shown by setting 'parameter = "theta"')
-#' plot(fit, parameter = "forest")
+#' # re-scale the x-axis
+#' plot(fit, parameter = "weightfunction", rescale_x = TRUE)
 #'
-#' # it is also possible to compare the individual model estimates
-#' # and order them by the posterior probability
-#' plot(fit, parameter = "mu", type = "individual", order = "prob")
-#'
+#' # or visualize the PET-PEESE regression line
+#' plot(fit, parameter = "PET-PEESE")
 #' }
-#' @export  plot.RoBMA
-#' @rawNamespace S3method(plot, RoBMA)
+#'
+#'
+#' @return \code{plot.RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
+#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#'
 #' @seealso [RoBMA()]
-plot.RoBMA <- function(x, parameter,
-                       type = "averaged", plot_type = "base",
-                       mean = TRUE, median = FALSE, CI = .95, prior = FALSE,
-                       order = NULL, digits_estimates = 2,
-                       show_figures = if(parameter == "omega" & (weights | any(type %in% "individual")) ) -1,
-                       weights = FALSE, rescale_x = FALSE, ...){
+#' @export
+plot.RoBMA  <- function(x, parameter = "mu",
+                        conditional = FALSE, plot_type = "base", prior = FALSE,
+                        rescale_x = FALSE, show_data = TRUE, dots_prior = NULL, ...){
 
-  if(any(parameter == "theta")){
-    stop("The true effect estimates are no longer available. See NEWS for updated regarding the model parametrization.")
-  }
+  # check whether plotting is possible
+  if(sum(.get_model_convergence(x)) == 0)
+    stop("There is no converged model in the ensemble.")
 
-  ### settings
-  # deal with misspecified arguments
-  if(length(parameter) == 1){
-    if(parameter %in% c("weight", "weights"))parameter <- "omega"
-  }
+  # TODO: implement
+  output_scale <- NULL
 
-  for(i in 1:length(type)){
-    if(substr(type[i], 1, 1) == "c")type[i] <- "conditional"
-    if(substr(type[i], 1, 1) == "i")type[i] <- "individual"
-    if(substr(type[i], 1, 1) == "m")type[i] <- "individual" # for 'models'
-    if(substr(type[i], 1, 1) == "a")type[i] <- "averaged"
-  }
+  #check settings
+  BayesTools::check_char(parameter, "parameter")
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_bool(prior, "prior")
+  BayesTools::check_bool(rescale_x, "rescale_x")
+  BayesTools::check_bool(show_data, "show_data")
 
-  if(plot_type == "ggplot2")plot_type <- "ggplot"
-
-
-  if(sum(x$add_info$converged) == 0)stop("There is no converged model in the ensemble.")
-  if(length(type) > 2)stop("The passed type is not supported for plotting. See '?plot.RoBMA' for more details.")
-  if(length(type) == 2)if(!all(type %in% c("conditional","individual")))stop("The passed type is not supported for plotting. See '?plot.RoBMA' for more details.")
-  if(!all(type %in% c("averaged","conditional","individual")))stop("The passed type is not supported for plotting. See '?plot.RoBMA' for more details.")
-  if(!plot_type %in% c("base", "ggplot"))stop("The passed plot_type is not supported for plotting. See '?plot.RoBMA' for more details.")
-
-  # check availability of ggplot
-  if(plot_type == "ggplot"){
-    if(!try(requireNamespace("ggplot2")))stop("ggplot2 package needs to be installed. Run 'install.packages('ggplot2')'")
+  # deal with bad parameter names for PET-PEESE, weightfunction
+  if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
+    parameter <- "omega"
+  }else if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) == "petpeese"){
+    parameter <- "PETPEESE"
+  }else if(!parameter %in% c("mu", "tau")){
+    stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
   }
 
 
-  ### plotting
-  if(any(type %in% "individual")){
+  ### manage transformations
+  # get the settings
+  prior_scale <- x$add_info[["prior_scale"]]
+  if(is.null(output_scale)){
+    output_scale <- x$add_info[["output_scale"]]
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+  # set the transformations
+  if(prior_scale != output_scale){
+    # TODO: figure out transformations, including jacobinas for effect sizes transformations - needed for the priors
+    stop("Plotting output on a different than prior scale is not possible yet.")
+    # if(parameter == "PETPEESE"){
+    #
+    #   # the transformation is inverse for PEESE
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
+    #
+    # }else if(parameter == "mu"){
+    #
+    #   # this transformation needs jacobian!
+    #
+    # }else if(parameter == "tau"){
+    #
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
+    #
+    # }
+  }else{
+    transformation           <- NULL
+    transformation_arguments <- NULL
+  }
 
-    if(any(parameter %in% c("theta", "forest")))stop("Individual plot is not supported for theta parameter (forest plot).")
-    output <- .plot.RoBMA_ind(x, parameter, type, plot_type, mean, median, CI, order, digits_estimates, show_figures, ...)
 
-  }else if(length(parameter) == 2){
+  # choose the samples
+  if(conditional && parameter == "PETPEESE"){
+    # get model-averaged posterior across PET and PEESE parameters
+    models <- x[["models"]]
 
-    # option for creating model-averaged bivariate plots of mu and tau
-    if(all(parameter %in% c("mu", "tau"))){
+    effect <- sapply(x[["models"]], function(model)!.is_component_null(model[["priors"]], "effect"))
+    PET    <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
+    PEESE  <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
 
-      if(type != "averaged")stop("Bivariate plot is available only for averaged parameters.")
-      output <- .plot.RoBMA_biv(x, parameter, plot_type, ...)
-
-    }else if(all(parameter %in% c("theta", "forest"))){
-
-      # creating forrest plot with both observed and estimated effect sizes
-      output <- .plot.RoBMA_theta(x, parameter, type, plot_type, mean, median, CI, order, digits_estimates, ...)
-
-    }else{
-      stop("The parameters combination is not supported for plotting. See '?plot.RoBMA' for more details.")
+    if(any(PET) & any(PEESE)){
+      is_conditional  <- effect & (PET | PEESE)
+      if(sum(is_conditional) == 0)
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
+      parameters      <- c("mu", "PET", "PEESE")
+      parameters_null <- c("mu" = list(!is_conditional), "PET" = list(!is_conditional), "PEESE" = list(!is_conditional))
+    }else if(any(PET)){
+      is_conditional  <- effect & PET
+      if(sum(is_conditional) == 0)
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
+      parameters      <- c("mu", "PET")
+      parameters_null <- c("mu" = list(!is_conditional), "PET"   = list(!is_conditional))
+    }else if(any(PEESE)){
+      is_conditional  <- effect & PEESE
+      if(sum(is_conditional) == 0)
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
+      parameters      <- c("mu", "PEESE")
+      parameters_null <- c("mu" = list(!is_conditional), "PEESE" = list(!is_conditional))
     }
 
-  }else if(parameter %in% c("mu", "tau") | (parameter ==  "omega" & weights)){
-    output <- .plot.RoBMA_par(x, parameter, type, plot_type, mean, median, CI, prior, show_figures, ...)
-  }else if(parameter == "omega" & !weights){
-    output <- .plot.RoBMA_weightf(x, type, plot_type, mean, median, CI, prior, rescale_x, ...)
-  }else if(parameter %in% c("theta", "forest")){
-    output <- .plot.RoBMA_theta(x, parameter, type, plot_type, mean, median, CI, order, digits_estimates, ...)
+    samples <- BayesTools::mix_posteriors(
+      model_list   = models,
+      parameters   = parameters,
+      is_null_list = parameters_null,
+      seed         = x$add_info[["seed"]],
+      conditional  = TRUE
+    )
+
   }else{
-    stop("The parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
+    if(conditional){
+      samples <- x[["RoBMA"]][["posteriors_conditional"]]
+    }else{
+      samples <- x[["RoBMA"]][["posteriors"]]
+    }
   }
+
+  if(parameter %in% c("mu", "tau", "omega")){
+    if(conditional && is.null(samples[[parameter]])){
+      switch(
+        parameter,
+        "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect."),
+        "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity."),
+        "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of selection models publication bias adjustment. Please, verify that you specified at least one model assuming the presence of selection models publication bias adjustment.")
+      )
+    }else if(is.null(samples[[parameter]])){
+      switch(
+        parameter,
+        "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the effect. Please, verify that you specified at least one model for the effect."),
+        "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the heterogeneity. Please, verify that you specified at least one model for the heterogeneity."),
+        "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the selection models publication bias adjustment. Please, verify that you specified at least one selection models publication bias adjustment.")
+      )
+    }
+  }else if(parameter %in% "PETPEESE"){
+    # checking for mu since it's the common parameter for PET-PEESE
+    if(conditional && is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
+    }else if(is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
+      stop("The ensemble does not contain any posterior samples model-averaged across the PET-PEESE publication bias adjustment. Please, verify that you specified at least one PET-PEESE publication bias adjustment.")
+    }
+  }
+
+
+  dots       <- .set_dots_plot(...)
+  dots_prior <- .set_dots_prior(dots_prior)
+
+  if(parameter == "PETPEESE" & show_data){
+    # TODO: change from 'prior_scale' to 'output_scale' when plotting scale can be changed
+    data <- x[["data"]]
+    data <- combine_data(data = data, transformation = .transformation_invar(prior_scale))
+    # make sure all standard errors are within the plotting range
+    if(is.null(dots[["xlim"]])){
+      dots[["xlim"]] <- range(pretty(c(0, data$se)))
+    }
+  }
+
+  plot <- do.call(BayesTools::plot_posterior, c(
+    samples                  = list(samples),
+    parameter                = parameter,
+    plot_type                = plot_type,
+    prior                    = prior,
+    n_points                 = 1000,
+    n_samples                = 10000,
+    force_samples            = FALSE,
+    transformation           = transformation,
+    transformation_arguments = transformation_arguments,
+    transformation_settings  = FALSE,
+    rescale_x                = rescale_x,
+    par_name                 = NULL,
+    dots_prior               = list(dots_prior),
+    dots))
+
+
+  if(parameter == "PETPEESE" & show_data){
+
+    if(plot_type == "ggplot"){
+      plot <- plot + ggplot2::geom_point(
+          ggplot2::aes(
+            x  = data$se,
+            y  = data$y),
+          size  = if(!is.null(dots[["cex"]])) dots[["cex"]] else 2,
+          shape = if(!is.null(dots[["pch"]])) dots[["pch"]] else 18
+        )
+      # make sure all effect sizes are within the plotting range
+      if(is.null(dots[["ylim"]]) & any(data$y < plot$plot_env$ylim[1] | data$y > plot$plot_env$ylim[2])){
+        new_y_range <- range(c(data$y, plot$plot_env$ylim))
+        plot <- suppressMessages(plot + ggplot2::scale_y_continuous(breaks = pretty(new_y_range), limits = range(pretty(new_y_range)), oob = scales::oob_keep))
+      }
+
+    }else if(plot_type == "base"){
+      graphics::points(data$se, data$y, cex = if(!is.null(dots[["cex"]])) dots[["cex"]] else 2, pch = if(!is.null(dots[["pch"]])) dots[["pch"]] else 18)
+    }
+  }
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible(plot))
+  }else if(plot_type == "ggplot"){
+    return(plot)
+  }
+}
+
+#' @title Forest plot for a RoBMA object
+#'
+#' @description \code{forest} creates a forest plot for
+#' a \code{"RoBMA"} object.
+#'
+#' @param order order of the studies. Defaults to \code{NULL} -
+#' ordering as supplied to the fitting function. Studies
+#' can be ordered either \code{"ascending"} or \code{"descending"} by
+#' effect size, or by labels \code{"alphabetical"}.
+#' @param output_scale transform the effect sizes and the meta-analytic
+#' effect size estimate to a different scale. Defaults to \code{NULL}
+#' which returns the same scale as the model was estimated on.
+#' @inheritParams plot.RoBMA
+#'
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' ### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
+#' # the forest function creates a forest plot for a fitted RoBMA object, for example,
+#' # the forest plot for the individual studies and the model-averaged effect size estimate
+#' forest(fit)
+#'
+#' # the conditional effect size estimate
+#' forest(fit, conditional = TRUE)
+#'
+#' # or transforming the effect size estimates to Fisher's z
+#' forest(fit, output_scale = "fishers_z")
+#' }
+#'
+#' @return \code{forest} returns either \code{NULL} if \code{plot_type = "base"}
+#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#'
+#' @export
+forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL, order = NULL, ...){
+
+  # check whether plotting is possible
+  if(sum(.get_model_convergence(x)) == 0)
+    stop("There is no converged model in the ensemble.")
+
+  #check settings
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing", "alphabetical"))
+
+
+  ### get the posterior samples & data
+  if(conditional){
+    samples_mu <- x[["RoBMA"]][["posteriors_conditional"]][["mu"]]
+    if(is.null(samples_mu))
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
+  }else{
+    samples_mu <- x[["RoBMA"]][["posteriors"]][["mu"]]
+  }
+  data <- x[["data"]]
+
+
+  ### manage transformations
+  # get the settings
+  prior_scale <- x$add_info[["prior_scale"]]
+  if(is.null(output_scale)){
+    output_scale <- x$add_info[["output_scale"]]
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  # set the transformations
+  if(prior_scale != output_scale){
+    samples_mu <- .transform_mu(samples_mu, prior_scale, output_scale)
+  }
+
+  # obtain the posterior estimates
+  est_mu <- mean(samples_mu)
+  lCI_mu <- unname(stats::quantile(samples_mu, .025))
+  uCI_mu <- unname(stats::quantile(samples_mu, .975))
+
+  # get the CIs (+add transformation if necessary)
+  data <- combine_data(data = data, transformation = .transformation_invar(output_scale), return_all = TRUE)
+
+  # simplify the data structure
+  data$y <- data[,output_scale]
+  data   <- data[,c("y", "lCI", "uCI", "study_names")]
+
+  # add ordering
+  if(!is.null(order)){
+    if(order == "increasing"){
+      data <- data[order(data$y, decreasing = FALSE),]
+    }else if(order == "decreasing"){
+      data <- data[order(data$y, decreasing = TRUE),]
+    }else if(order == "alphabetical"){
+      data <- data[order(data$study_names),]
+    }
+  }
+
+  data$x <- (nrow(data)+2):3
+
+  # additional plot settings
+  y_at      <- c(1, data$x)
+  y_labels  <- c(ifelse(conditional, "Conditional", "Model-Averaged"), data$study_names)
+  y_labels2 <- paste0(
+    format(round(c(est_mu, data$y), 2), nsmall = 2),
+    " [", format(round(c(lCI_mu, data$lCI), 2), nsmall = 2), ", ",
+    format(round(c(uCI_mu, data$uCI), 2), nsmall = 2), "]")
+  ylim      <- c(0, max(data$x) + 1)
+  xlab      <- .plot.RoBMA_par_names("mu", x, output_scale)[[1]]
+  x_labels  <- pretty(range(c(data$lCI, data$uCI, lCI_mu, uCI_mu)))
+  xlim      <- range(pretty(range(c(data$lCI, data$uCI, lCI_mu, uCI_mu))))
+
+
+  ### do the plotting
+  dots <- .set_dots_plot(...)
+
+  if(plot_type == "base"){
+
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mar = oldpar[["mar"]]))
+
+    # set up margins
+    if(length(list(...)) == 0){
+      graphics::par(mar = c(4, max(nchar(y_labels)) * 1/2, 0, max(nchar(y_labels2)) * 1/2))
+    }else{
+      graphics::par(...)
+    }
+
+    graphics::plot(NA, bty = "n", las = 1, xlab = xlab, ylab = "", main = "", yaxt = "n", ylim = ylim, xlim = xlim)
+    graphics::axis(2, at = y_at, labels = y_labels,  las = 1, col = NA)
+    graphics::axis(4, at = y_at, labels = y_labels2, las = 1, col = NA, hadj = 0)
+    if(output_scale == "y"){
+      graphics::abline(v = 0, lty = 3)
+    }else{
+      graphics::abline(v = .transform_mu(0, "d", output_scale), lty = 3)
+    }
+
+    graphics::arrows(x0 = data$lCI, x1 = data$uCI, y0 = data$x, code = 3, angle = 90, length = 0.1)
+    graphics::points(x = data$y, y = data$x, pch = 15)
+
+    graphics::polygon(
+      x = c(lCI_mu, est_mu , uCI_mu, est_mu),
+      y = c(1, 1.25, 1, 0.75),
+      col = "black"
+    )
+
+  }else if(plot_type == "ggplot"){
+
+    plot <- ggplot2::ggplot()
+
+    # add the studies
+    plot <- plot +ggplot2::geom_errorbarh(
+      mapping = ggplot2::aes(
+        xmin   = data$lCI,
+        xmax   = data$uCI,
+        y      = data$x),
+      color   = "black",
+      height  = .25)
+    plot <- plot +ggplot2::geom_point(
+      mapping = ggplot2::aes(
+        x = data$y,
+        y = data$x),
+      shape = 15)
+
+    # add the overall estimate
+    plot <- plot + ggplot2::geom_polygon(
+      mapping = ggplot2::aes(
+        x = c(lCI_mu, est_mu , uCI_mu, est_mu),
+        y = c(1, 1.25, 1, 0.75)),
+      fill = "black")
+
+    # add the vertical line
+    if(output_scale == "y"){
+      plot <- plot + ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = c(0,0),
+          y = ylim),
+        linetype = "dotted")
+    }else{
+      plot <- plot + ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = .transform_mu(c(0,0), "d", output_scale),
+          y = ylim),
+        linetype = "dotted")
+    }
+
+    # add all the other stuff
+    plot <- plot + ggplot2::scale_y_continuous(
+      name = "", breaks = y_at, labels = y_labels, limits = ylim,
+      sec.axis = ggplot2::sec_axis( ~ ., breaks = y_at, labels = y_labels2))
+    plot <- plot + ggplot2::scale_x_continuous(
+      name = xlab, breaks = x_labels, labels = x_labels, limits = xlim)
+    plot <- plot + ggplot2::theme(
+      axis.title.y      = ggplot2::element_blank(),
+      axis.line.y       = ggplot2::element_blank(),
+      axis.ticks.y      = ggplot2::element_blank(),
+      axis.text.y       = ggplot2::element_text(hjust = 0, color = "black"),
+      axis.text.y.right = ggplot2::element_text(hjust = 1, color = "black"))
+
+    attr(plot, "sec_axis") <- TRUE
+  }
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible())
+  }else if(plot_type == "ggplot"){
+    return(plot)
+  }
+}
+
+
+#' @title Models plot for a RoBMA object
+#'
+#' @description \code{plot_models} plots individual models'
+#' estimates for a \code{"RoBMA"} object.
+#'
+#' @param parameter a parameter to be plotted. Defaults to
+#' \code{"mu"} (for the effect size). The additional option
+#' is \code{"tau"} (for the heterogeneity).
+#' @param order how the models should be ordered.
+#' Defaults to \code{"decreasing"} which orders them in decreasing
+#' order in accordance to \code{order_by} argument. The alternative is
+#' \code{"decreasing"}.
+#' @param order_by what feature should be use to order the models.
+#' Defaults to \code{"model"} which orders the models according to
+#' their number. The alternatives are \code{"estimate"} (for the effect
+#' size estimates), \code{"probability"} (for the posterior model probability),
+#' and \code{"BF"} (for the inclusion Bayes factor).
+#' @inheritParams plot.RoBMA
+#' @inheritParams forest
+#'
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
+#'
+#' ### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
+#' # the plot_models function creates a plot for of the individual models' estimates, for example,
+#' # the effect size estimates from the individual models can be obtained with
+#' plot_models(fit)
+#'
+#' # and effect size estimates from only the conditional models
+#' plot_models(fit, conditional = TRUE)
+#' }
+#'
+#'
+#' @return \code{plot_models} returns either \code{NULL} if \code{plot_type = "base"}
+#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#'
+#' @export
+plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "base", order = "decreasing", order_by = "model", ...){
+
+  if(sum(.get_model_convergence(x)) == 0)
+    stop("There is no converged model in the ensemble.")
+
+  # TODO:implement
+  output_scale <- NULL
+
+  #check settings
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing"))
+  if(!parameter %in% c("mu", "tau")){
+    stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
+  }
+  BayesTools::check_char(order, "order", allow_NULL = TRUE, allow_values = c("increasing", "decreasing"))
+  BayesTools::check_char(order_by, "order_by", allow_NULL = TRUE, allow_values = c("model", "estimate", "probability", "BF"))
+
+
+  ### manage transformations
+  # get the settings
+  prior_scale <- x$add_info[["prior_scale"]]
+  if(is.null(output_scale)){
+    output_scale <- x$add_info[["output_scale"]]
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+  # set the transformations
+  if(prior_scale != output_scale){
+    # TODO: figure out transformations, including jacobinas for effect sizes transformations - needed for the priors
+    stop("Plotting output on a different than prior scale is not possible yet.")
+    # if(parameter == "PEESE"){
+    #
+    #   # the transformation is inverse for PEESE
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
+    #
+    # }else if(parameter == "mu"){
+    #
+    #   # this transformation needs jacobian!
+    #
+    # }else if(parameter == "tau"){
+    #
+    #   transformation           = "lin"
+    #   transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
+    #
+    # }
+  }else{
+    transformation           <- NULL
+    transformation_arguments <- NULL
+  }
+
+
+  ### prepare input
+  if(conditional){
+
+    model_list <- x[["models"]]
+    samples    <- x[["RoBMA"]][["posteriors_conditional"]]
+    inference  <- x[["RoBMA"]][["inference_conditional"]]
+
+    # check whether the input exists
+    if(parameter == "mu" && is.null(samples[["mu"]]))
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
+    if(parameter == "tau" && is.null(samples[["tau"]]))
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity.")
+
+  }else{
+
+    model_list <- x[["models"]]
+    samples    <- x[["RoBMA"]][["posteriors"]]
+    inference  <- x[["RoBMA"]][["inference"]]
+
+  }
+
+  # deal with the non-matching names
+  names(inference)[names(inference) == "Effect"]        <- "mu"
+  names(inference)[names(inference) == "Heterogeneity"] <- "tau"
+
+  dots <- list(...)
+
+  plot <- do.call(BayesTools::plot_models, c(
+    model_list               = list(model_list),
+    samples                  = list(samples),
+    inference                = list(inference),
+    parameter                = parameter,
+    plot_type                = plot_type,
+    prior                    = FALSE,
+    condtional               = conditional,
+    order                    = list(list(order, order_by)),
+    transformation           = transformation,
+    transformation_arguments = transformation_arguments,
+    transformation_settings  = FALSE,
+    par_name                 = .plot.RoBMA_par_names(parameter, x, output_scale)[[1]],
+    dots))
 
 
   # return the plots
   if(plot_type == "base"){
-    return(invisible(NULL))
+    return(invisible(plot))
   }else if(plot_type == "ggplot"){
-    return(output)
+    return(plot)
   }
 }
 
-.plot.RoBMA_par     <- function(fit, par, type, plot_type, mean, median, CI, prior, show_figures, ...){
 
-  # get the parameter values & density
-  y  <- fit$RoBMA$samples[[type]][[par]]
-  if(length(y) == 0)stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameter or models with the parameter did not converge.")
 
-  # make sure that the parameter is in a matrix
-  if(length(dim(y)) == 0)y <- matrix(y, ncol = 1)
+.set_dots_plot        <- function(...){
 
-  # obtain model information
-  fit_models   <- fit$models[fit$add_info$converged]
-  model_priors <- sapply(fit_models, function(m)m$priors[[par]], simplify = FALSE)
-  prior_odds   <- sapply(fit_models, function(m)m$prior_odds)
-  if(type == "conditional"){
-    mm_par       <- sapply(fit_models, function(m)!.is_parameter_null(m$priors, par))
-    model_priors <- model_priors[mm_par]
-    prior_odds   <- prior_odds[mm_par]
+  dots <- list(...)
+  if(is.null(dots[["col"]])){
+    dots[["col"]]      <- "black"
   }
-  prior_prob   <- prior_odds / sum(prior_odds)
-  if(par == "omega"){
-    spikes_loc <- 1
-  }else{
-    spikes_loc   <- unique(unlist(sapply(model_priors, function(p)if(p$distribution == "point") p$parameters$location)))
-  }
-  if(par %in% c("mu","tau")){
-    trunc_lower  <- unlist(sapply(model_priors, function(p)p$truncation$lower))
-    trunc_upper  <- unlist(sapply(model_priors, function(p)p$truncation$upper))
-    trunc_lower  <- if(!all(is.null(trunc_lower))) min(trunc_lower) else -Inf
-    trunc_upper  <- if(!all(is.null(trunc_upper))) max(trunc_upper) else  Inf
+  if(is.null(dots[["col.fill"]])){
+    dots[["col.fill"]] <- "#4D4D4D4C" # scales::alpha("grey30", .30)
   }
 
-  # get the indicies
-  if(par == "omega"){
-    omega_ind <- .get_omega_mapping(fit$models)
-    if(type == "conditional")omega_ind <- omega_ind[mm_par]
-    if(is.null(omega_ind))stop("The ensemble does not cointain any converged model adjusting for publication bias.")
-  }
-
-
-  # transform values to correlations if needed
-  if(fit$add_info$effect_size %in% c("r", "OR") & par == "mu"){
-    spikes_loc  <- .transform(spikes_loc, fit$add_info$effect_size, fit$add_info$mu_transform)
-    trunc_lower <- if(!is.infinite(trunc_lower)) .transform(trunc_lower, fit$add_info$effect_size, fit$add_info$mu_transform) else -Inf
-    trunc_upper <- if(!is.infinite(trunc_upper)) .transform(trunc_upper, fit$add_info$effect_size, fit$add_info$mu_transform) else -Inf
-  }
-
-
-  # get the estimated densitites
-  res_CI     <- NULL
-  res_den    <- list()
-  res_spikes <- list()
-
-  for(i in 1:ncol(y)){
-    # create a temporary y
-    temp_y   <- y[,i]
-
-    # get out the posterior on spikes
-    res_spikes[[i]] <- list()
-    if(length(spikes_loc) > 0){
-      for(j in 1:length(spikes_loc)){
-        temp_spikes_loc <- abs(temp_y - spikes_loc[j]) < sqrt(.Machine$double.eps)
-        res_spikes[[i]][[j]] <- data.frame(
-          x = rep(spikes_loc[j], 2),
-          y = c(0, mean(temp_spikes_loc))
-        )
-        temp_y  <- temp_y[!temp_spikes_loc]
-      }
-    }
-
-    # compute the density of the rest
-    if(length(temp_y) > 0){
-      if(par %in% c("mu", "tau")){
-
-        with_trunc <- list()
-        if(!is.infinite(trunc_lower))with_trunc$from <- trunc_lower
-        if(!is.infinite(trunc_upper))with_trunc$to   <- trunc_upper
-
-        temp_den <- do.call(stats::density, c(list(x = temp_y), with_trunc))
-
-        # truncate the posterior density appropriatelly
-        no_support <- .get_no_support(fit_models, par)
-        if(!is.null(no_support)){
-          for(n in 1:length(no_support)){
-            temp_den$y[temp_den$x > no_support[[n]]$lower & temp_den$x < no_support[[n]]$upper] <- 0
-          }
-        }
-
-      }else if(par == "omega"){
-        temp_den <- stats::density(temp_y, from = 0, to = 1)
-      }
-
-      # rescale the density by the proportion of included samples
-      temp_den$y   <- temp_den$y * (length(temp_y) / length(y[,i]))
-
-      # add the start and end points
-      temp_den$x <- c(temp_den$x[1], temp_den$x, temp_den$x[length(temp_den$x)])
-      temp_den$y <- c(0,             temp_den$y, 0)
-
-      res_den[[i]] <- data.frame(x = temp_den$x, y = temp_den$y)
-    }else{
-      res_den[[i]] <- list()
-    }
-
-    # the CIs are based on all samples
-    res_CI       <- rbind(res_CI, c(lCI = stats::quantile(y[,i], (1-CI)/2), uCI = stats::quantile(y[,i], 1-(1-CI)/2)))
-  }
-
-  # get the prior densities
-  if(prior){
-
-    # get the plotting data
-    prior_den      <- list()
-    prior_spikes   <- list()
-    temp_prior_dat <- vector("list", length(model_priors))
-
-    # get range
-    if(par != "omega"){
-      x_range <- NULL
-      for(j in 1:length(model_priors)){
-        if(model_priors[[j]]$distribution == "point"){
-          x_range <- rbind(x_range, rep(model_priors[[j]]$parameters$location,2))
-        }else{
-
-          # only generate data for not already computed priors
-          if(j > 1){
-            temp_same_priors <- sapply(model_priors[1:(j-1)], function(x)isTRUE(all.equal(model_priors[[j]], x)))
-          }else{
-            temp_same_priors <- FALSE
-          }
-
-          if(any(temp_same_priors)){
-            temp_prior_dat[[j]] <- temp_prior_dat[[which.max(temp_same_priors)]]
-          }else{
-            temp_prior_dat[[j]] <- .plot.prior_data(
-              prior        = model_priors[[j]],
-              par_name     = par,
-              effect_size  = if(par == "mu")fit$add_info$effect_size,
-              mu_transform = if(fit$add_info$effect_size %in% c("r","OR") & par == "mu")fit$add_info$mu_transform,
-              weights      = par == "omega")
-          }
-
-          x_range <- rbind(x_range, temp_prior_dat[[j]]$x_range)
-        }
-      }
-      x_range <- c(min(c(x_range[,1], res_den[[1]]$x)), max(c(x_range[,2], res_den[[1]]$x)))
-    }else{
-      x_range <- c(0, 1)
-    }
-
-    # recompute the densities with the same range
-    for(j in 1:length(model_priors)){
-
-      if(j > 1){
-        temp_same_priors <- sapply(model_priors[1:(j-1)], function(x)isTRUE(all.equal(model_priors[[j]], x)))
-      }else{
-        temp_same_priors <- FALSE
-      }
-
-      if(any(temp_same_priors)){
-        temp_prior_dat[[j]] <- temp_prior_dat[[which.max(temp_same_priors)]]
-      }else{
-        # use the already used samples if possible
-        temp_prior_dat[[j]] <- .plot.prior_data(
-          prior        = model_priors[[j]],
-          temp_x       = if(!is.null(temp_prior_dat[[j]]$samples)) temp_prior_dat[[j]]$samples,
-          x_range      = x_range,
-          par_name     = par,
-          effect_size  = if(par == "mu")fit$add_info$effect_size,
-          mu_transform = if(fit$add_info$effect_size %in% c("r","OR") & par == "mu")fit$add_info$mu_transform,
-          weights      = par == "omega")
-      }
-
-
-    }
-
-    for(i in 1:ncol(y)){
-
-      # get densities across this range
-      temp_den       <- NULL
-      temp_spikes    <- NULL
-
-      for(j in 1:length(model_priors)){
-
-        # select the correct one in case of omega
-        if(par == "omega"){
-          # the indicies are reversed since .plot.prior_data generates the coefficients in reverse order
-          temp_par_ind <- if(model_priors[[j]]$distribution == "point") 1 else -1* omega_ind[[j]][i] + max(omega_ind[[j]]) + 1
-        }else{
-          temp_par_ind <- 1
-        }
-
-        # add either spike or density
-        if(temp_prior_dat[[j]]$prob[[temp_par_ind]]){
-          temp_spikes$x <- c(temp_spikes$x, temp_prior_dat[[j]]$df[[temp_par_ind]]$x[2])
-          temp_spikes$y <- c(temp_spikes$y, temp_prior_dat[[j]]$df[[temp_par_ind]]$y[2] * prior_prob[j])
-        }else{
-          temp_den$x <- cbind(temp_den$x, temp_prior_dat[[j]]$df[[temp_par_ind]]$x)
-          temp_den$y <- cbind(temp_den$y, temp_prior_dat[[j]]$df[[temp_par_ind]]$y * prior_prob[j])
-        }
-
-
-      }
-
-      # agregate
-      prior_spikes[[i]] <- list()
-      if(!is.null(temp_spikes)){
-        for(j in 1:length(unique(temp_spikes$x))){
-          prior_spikes[[i]][[j]] <- data.frame(
-            x = rep(unique(temp_spikes$x[j]), 2),
-            y = c(0, sum(temp_spikes$y[temp_spikes$x == unique(temp_spikes$x)[j]]))
-          )
-        }
-      }
-      if(!is.null(temp_den)){
-        if(length(dim(temp_den$y)) == 0)temp_den$y <- matrix(temp_den$y, ncol = 1)
-        prior_den[[i]] <- data.frame(
-          x = temp_den$x[,1],
-          y = apply(temp_den$y, 1, sum)
-        )
-      }else{
-        prior_den[[i]] <- list()
-      }
-    }
-  }
-
-
-  # get parameter names
-  par_names <- .plot.RoBMA_par_names(par, fit, type)
-
-
-  # create appropriate plot
-  plots <- list()
-  if(is.null(show_figures) | length(res_den) == 1){
-    plots_ind <- c(1:ncol(y))
-  }else{
-    plots_ind <- c(1:ncol(y))[show_figures]
-  }
-  # a message with info about muliple plots
-  if(plot_type == "base" & length(plots_ind) > 1)message(paste0(length(plots_ind), " plots will be produced. See '?layout' for help with setting multiple plots."))
-
-
-  for(i in plots_ind){
-
-
-    # get parameter range
-    if(par %in% c("mu", "tau")){
-
-      # get range of all x
-      temp_xlim <- range(c(
-        if(!is.null(res_den[[i]]))res_den[[i]]$x,
-        if(length(res_spikes[[i]]) != 0)unlist(sapply(1:length(res_spikes[[i]]), function(j)res_spikes[[i]][[j]]$x[res_spikes[[i]][[j]]$y > 0], simplify = FALSE)),
-        if(prior)if(!is.null(prior_den[[i]]))prior_den[[i]]$x,
-        if(prior)if(length(prior_spikes[[i]]) != 0)unlist(sapply(1:length(prior_spikes[[i]]), function(j)prior_spikes[[i]][[j]]$x[prior_spikes[[i]][[j]]$y > 0], simplify = FALSE)),
-        0
-      )
-      )
-
-      # deal with collapsed range due to only point posterior density
-      if(temp_xlim[1] == temp_xlim[2]){
-        temp_xlim[1] <- temp_xlim[1] - .5
-        temp_xlim[2] <- temp_xlim[2] + .5
-      }
-
-      if(par == "tau" & temp_xlim[1] < 0)temp_xlim[1] <- 0
-
-    }else{
-      temp_xlim <- c(0, 1)
-    }
-
-    # range of y can be defined only on the spikes, but we wanna wanna use spikes for scalling
-    temp_all_y <- c(
-      if(!is.null(res_den[[i]]))res_den[[i]]$y,
-      if(prior)if(!is.null(prior_den[[i]]))prior_den[[i]]$y
-    )
-    if(length(temp_all_y) == 0 | all(temp_all_y == 0)){
-      temp_ylim        <- c(0, 1)
-    }else{
-      temp_ylim <- c(0, max(temp_all_y))
-    }
-    pretty_temp_ylim <- pretty(temp_ylim)
-    temp_ylim        <- range(pretty_temp_ylim)
-
-    # rescale the spike probabilities
-    any_spikes <- FALSE
-    if(length(res_spikes[[i]]) != 0){
-      for(j in 1:length(length(res_spikes[[i]]))){
-        res_spikes[[i]][[j]]$y <- res_spikes[[i]][[j]]$y * temp_ylim[2]
-        if(res_spikes[[i]][[j]]$y[2] > 0)any_spikes <- TRUE
-      }
-    }
-    if(prior){
-      if(length(prior_spikes[[i]]) != 0){
-        prior_spikes[[i]][[j]]$y <- prior_spikes[[i]][[j]]$y * temp_ylim[2]
-        if(prior_spikes[[i]][[j]]$y[2] > 0)any_spikes <- TRUE
-      }
-    }
-    any_density <- FALSE
-    if(!is.null(res_den[[i]]$x))any_density <- TRUE
-    if(prior)if(!is.null(prior_den[[i]]$x))any_density <- TRUE
-
-
-    if(plot_type == "base"){
-
-      # save plotting settings
-      oldpar <- graphics::par(no.readonly = TRUE)
-      on.exit(graphics::par(oldpar))
-
-      # set up margins
-      if(length(list(...)) == 0){
-        graphics::par(mar = c(4,4,1,if(any_spikes) 4 else 1))
-      }else{
-        graphics::par(list(...))
-      }
-
-      graphics::plot(NA, bty = "n", las = 1, xlim = temp_xlim, ylim = temp_ylim, xlab = "", ylab = "", main = "", type = "l",
-                     yaxt = if(!any_density) "n")
-      graphics::mtext(par_names[[i]], side = 1, line = 2.5, cex = 1.25)
-      # add axis
-      if(any_density){
-        graphics::mtext("Density",      side = 2, line = 2.5, cex = 1.25)
-        if(any_spikes)graphics::axis(4, at = seq(0, temp_ylim[2], length.out = 5), labels = c("0", ".25", ".50", ".75", "1"), las = 1)
-        if(any_spikes)graphics::mtext("Probability",  side = 4, line = 2.5, cex = 1.25)
-      }else{
-        if(any_spikes)graphics::axis(2, at = seq(0, temp_ylim[2], length.out = 5), labels = c("0", ".25", ".50", ".75", "1"), las = 1)
-        if(any_spikes)graphics::mtext("Probability",  side = 2, line = 2.5, cex = 1.25)
-      }
-
-      # maybe add CI shading and mean/median later
-      if(FALSE){
-        if(CI)graphics::polygon(
-          x = c(res_CI[i,1], res_CI[i,1], res_den[[i]]$x[res_den[[i]]$x >= res_CI[i,1] & res_den[[i]]$x <= res_CI[i,2]], res_CI[i,2], res_CI[i,2]),
-          y = c(0, res_den[[i]]$y[which.max(res_den[[i]]$x >= res_CI[i,1])], res_den[[i]]$y[res_den[[i]]$x >= res_CI[i,1] & res_den[[i]]$x <= res_CI[i,2]], res_den[[i]]$y[which.min(res_den[[i]]$x <= res_CI[i,2])], 0),
-          col = "grey80"
-        )
-        if(mean)graphics::lines(rep(mean(y[,i]),2), c(0,res_den[[i]]$y[which.max(res_den[[i]]$x > mean(y[,i]))]) ,lwd = 2)
-        if(median)graphics::lines(rep(median(y[,i]),2), c(0,res_den[[i]]$y[which.max(res_den[[i]]$x > median(y[,i]))]) ,lwd = 2)
-      }
-
-      # add densities
-      if(prior)if(!is.null(prior_den[[i]]))graphics::lines(prior_den[[i]]$x, prior_den[[i]]$y, lwd = 2, lty = 2, col = "grey50")
-      if(!is.null(res_den[[i]]))graphics::lines(res_den[[i]]$x, res_den[[i]]$y, lwd = 2, lty = 1)
-
-
-      # add spikes
-      if(prior){
-        if(length(prior_spikes[[i]]) != 0){
-          if(prior_spikes[[i]][[j]]$y[2] > 0)graphics::arrows(x0 = prior_spikes[[i]][[j]]$x[1], y0 = prior_spikes[[i]][[j]]$y[1], y1 = prior_spikes[[i]][[j]]$y[2], lwd = 3, lty = 1, col = "grey50")
-        }
-      }
-      if(length(res_spikes[[i]]) != 0){
-        for(j in 1:length(length(res_spikes[[i]]))){
-          if(res_spikes[[i]][[j]]$y[2] > 0)graphics::arrows(x0 = res_spikes[[i]][[j]]$x[1], y0 = res_spikes[[i]][[j]]$y[1], y1 = res_spikes[[i]][[j]]$y[2], lwd = 3, lty = 1)
-        }
-      }
-
-
-      plots <- NULL
-
-    }else if(plot_type == "ggplot"){
-
-
-      temp_plot <- ggplot2::ggplot()
-
-      # maybe later
-      if(FALSE){
-        if(CI)temp_plot <- temp_plot + ggplot2::geom_polygon(data = data.frame(
-          xx = c(res_CI[i,1], res_CI[i,1], res_den[[i]]$x[res_den[[i]]$x >= res_CI[i,1] & res_den[[i]]$x <= res_CI[i,2]], res_CI[i,2], res_CI[i,2]),
-          yy = c(0, res_den[[i]]$y[which.max(res_den[[i]]$x >= res_CI[i,1])], res_den[[i]]$y[res_den[[i]]$x >= res_CI[i,1] & res_den[[i]]$x <= res_CI[i,2]], res_den[[i]]$y[which.min(res_den[[i]]$x <= res_CI[i,2])], 0)
-        ),
-        ggplot2::aes_string(
-          x = "xx",
-          y = "yy"
-        ),
-        fill = "grey80"
-        )
-        if(mean)temp_plot   <- temp_plot + ggplot2::geom_line(data = data.frame(
-          x_e = rep(mean(y[,i]),2),
-          y_e = c(0,res_den[[i]]$y[which.max(res_den[[i]]$x > mean(y[,i]))])
-        ),
-        ggplot2::aes_string(x = "x_e", y = "y_e"), size = 1.25)
-        if(median)temp_plot <- temp_plot + ggplot2::geom_line(data = data.frame(
-          x_m = rep(median(y[,i]),2),
-          y_m = c(0,res_den[[i]]$y[which.max(res_den[[i]]$x > median(y[,i]))])
-        ),
-        ggplot2::aes_string(x = "x_m", y = "y_m"), size = 1.25)
-      }
-
-      # add densities
-      if(prior)if(length(prior_den[[i]]) != 0)temp_plot <- temp_plot + ggplot2::geom_line(
-        data  = prior_den[[i]],
-        ggplot2::aes_string(x = "x", y = "y"),
-        color = "grey50", linetype = 2, size = 1.25)
-      if(length(res_den[[i]]) != 0)temp_plot <- temp_plot + ggplot2::geom_line(
-        data  = res_den[[i]],
-        ggplot2::aes_string(x = "x", y = "y"),
-        color = "black", linetype = 1, size = 1.25)
-
-      # add spikes
-      if(prior){
-        if(length(prior_spikes[[i]]) != 0){
-          if(prior_spikes[[i]][[j]]$y[2] > 0)temp_plot <- temp_plot + ggplot2::geom_segment(
-            data = data.frame(
-              x       = prior_spikes[[i]][[j]]$x[1],
-              y_start = prior_spikes[[i]][[j]]$y[1],
-              y_end   = prior_spikes[[i]][[j]]$y[2]),
-            ggplot2::aes_string(x = "x", xend = "x", y = "y_start", yend = "y_end"),
-            arrow = ggplot2::arrow(length = ggplot2::unit(0.5, "cm")),
-            color = "grey50", size = 1.25)
-        }
-      }
-      if(length(res_spikes[[i]]) != 0){
-        for(j in 1:length(length(res_spikes[[i]]))){
-          if(res_spikes[[i]][[j]]$y[2] > 0)temp_plot <- temp_plot + ggplot2::geom_segment(
-            data = data.frame(
-              x       = res_spikes[[i]][[j]]$x[1],
-              y_start = res_spikes[[i]][[j]]$y[1],
-              y_end   = res_spikes[[i]][[j]]$y[2]),
-            ggplot2::aes_string(x = "x", xend = "x", y = "y_start", yend = "y_end"),
-            arrow = ggplot2::arrow(length = ggplot2::unit(0.5, "cm")),
-            color = "black", size = 1.25)
-        }
-      }
-
-      # add axis
-      if(any_density & any_spikes){
-        temp_plot <- temp_plot + ggplot2::scale_y_continuous(
-          name     = "Density",
-          limits = temp_ylim,
-          breaks = pretty_temp_ylim,
-          labels = pretty_temp_ylim,
-          sec.axis = ggplot2::sec_axis(
-            ~ .,
-            name   = "Probability",
-            breaks = seq(0, temp_ylim[2], length.out = 5),
-            labels = c("0", ".25", ".50", ".75", "1"))
-        )
-        temp_plot$double_y_axis <- TRUE
-      }else if(any_density){
-        temp_plot <- temp_plot + ggplot2::scale_y_continuous(
-          name   = "Density",
-          limits = temp_ylim,
-          breaks = pretty_temp_ylim,
-          labels = pretty_temp_ylim)
-      }else if(any_spikes){
-        temp_plot <- temp_plot + ggplot2::scale_y_continuous(
-          name   = "Probability",
-          limits = temp_ylim,
-          breaks = seq(0, temp_ylim[2], length.out = 5),
-          labels = c("0", ".25", ".50", ".75", "1"))
-      }
-
-      temp_plot <- temp_plot + ggplot2::scale_x_continuous(
-        name   = par_names[[i]],
-        limits = range(pretty(temp_xlim)),
-        breaks = pretty(temp_xlim),
-        labels = pretty(temp_xlim))
-
-      plots <- c(plots, list(temp_plot))
-    }
-  }
-
-
-  if(length(plots) == 1)plots <- plots[[1]]
-
-  return(plots)
+  return(dots)
 }
-.plot.RoBMA_biv     <- function(fit, par, plot_type, ...){
+.set_dots_prior       <- function(dots_prior){
 
-  # get the parameter values & density
-  y1     <- fit$RoBMA$samples[["averaged"]][[par[1]]]
-  y2     <- fit$RoBMA$samples[["averaged"]][[par[2]]]
-
-  par_names <- list()
-  for(p in 1:length(par)){
-    par_names[p] <- .plot.RoBMA_par_names(par[p], fit, "averaged")
+  if(is.null(dots_prior)){
+    dots_prior <- list()
   }
 
-
-  # create appropriate plot
-  if(plot_type == "base"){
-
-    # save plotting settings
-    oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(oldpar))
-
-    # set up margins
-    if(length(list(...)) == 0){
-      graphics::par(mar = c(4,4,2,2))
-    }else{
-      graphics::par(list(...))
-    }
-
-    graphics::plot(y1, y2, bty = "n", las = 1, pch = 16, col = scales::alpha("black", 0.4),
-                   xlab = "", ylab = "", main = "")
-    graphics::mtext(par_names[[1]], side = 1, line = 2.5, cex = 1.25)
-    graphics::mtext(par_names[[2]], side = 2, line = 2.5, cex = 1.25)
-
-    out <- NULL
-
-  }else if(plot_type == "ggplot"){
-
-    out <- ggplot2::ggplot() + ggplot2::geom_point(ggplot2::aes(x = y1, y = y2), alpha = .4)
-    out <- out + ggplot2::scale_x_continuous(
-      name   = par_names[[1]],
-      limits = range(pretty(range(y1))),
-      breaks = pretty(range(y1)),
-      labels = pretty(range(y1)))
-    out <- out + ggplot2::scale_y_continuous(
-      name   = par_names[[2]],
-      limits = range(pretty(range(y2))),
-      breaks = pretty(range(y2)),
-      labels = pretty(range(y2)))
-
+  if(is.null(dots_prior[["col"]])){
+    dots_prior[["col"]]      <- "grey30"
+  }
+  if(is.null(dots_prior[["lty"]])){
+    dots_prior[["lty"]]      <- 2
+  }
+  if(is.null(dots_prior[["col.fill"]])){
+    dots_prior[["col.fill"]] <- "#B3B3B34C" # scales::alpha("grey70", .30)
   }
 
-  return(out)
+  return(dots_prior)
 }
-.plot.RoBMA_weightf <- function(fit, type, plot_type, mean, median, CI, prior, rescale_x, ...){
+.plot.RoBMA_par_names <- function(par, fit, output_scale, type = NULL){
 
-  # deal with only null models
-  if(all(sapply(fit$models,function(m).is_parameter_null(m$priors, "omega"))) & type == "conditional")stop("The ensemble cointains no non-null model adjusting for publication bias.")
-  if(all(sapply(fit$models,function(m)m$priors$omega$distribution == "point")))stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameter or models with the parameter did not converge.")
-
-  all_cuts  <- .get_omega_mapping(fit$models, cuts_only = TRUE)
-
-  # get the x-axis coordinate order
-  coord_order <- sort(rep(1:(length(all_cuts)-1),2), decreasing = TRUE)
-  if(rescale_x){
-    x <- seq(0, 1, length.out = length(all_cuts))[rev(c(1, sort(rep(2:(length(all_cuts)-1), 2)), length(all_cuts)))]
-  }else{
-    x <- all_cuts[rev(c(1, sort(rep(2:(length(all_cuts)-1), 2)), length(all_cuts)))]
-  }
-
-  # get the y-axis coordinates
-  if(mean){
-    y_mean <- apply(fit$RoBMA$samples[[type]]$omega, 2, mean)[coord_order]
-  }
-  if(median){
-    y_median <- apply(fit$RoBMA$samples[[type]]$omega, 2, median)[coord_order]
-  }
-  if(CI){
-    y_lCI <- apply(fit$RoBMA$samples[[type]]$omega, 2, stats::quantile, probs = (1-CI)/2)[coord_order]
-    y_uCI <- apply(fit$RoBMA$samples[[type]]$omega, 2, stats::quantile, probs = 1-(1-CI)/2)[coord_order]
-  }
-
-
-  if(prior){
-    prior_samples <- .plot_prior_data_joint_omega(fit$models[fit$add_info$converged], type)
-    if(is.null(prior_samples))prior_samples <- matrix(1, ncol = 1, nrow = 1)
-
-    if(mean){
-      prior_mean <- apply(prior_samples, 2, mean)[coord_order]
-    }
-    if(median){
-      prior_median <- apply(prior_samples, 2, median)[coord_order]
-    }
-    if(CI){
-      prior_lCI <- apply(prior_samples, 2, stats::quantile, probs = (1-CI)/2)[coord_order]
-      prior_uCI <- apply(prior_samples, 2, stats::quantile, probs = 1-(1-CI)/2)[coord_order]
-    }
-  }
-
-
-  # axis labels
-  x_labes <- trimws(rev(all_cuts), which = "both", whitespace = "0")
-  y_labes <- trimws(seq(0,1,.1),   which = "both", whitespace = "0")
-  x_labes[length(x_labes)] <- 0 # fix the omitted 0
-  y_labes[1] <- 0
-
-  #main_text <- paste0("Estimated ", ifelse(type == "conditional", "conditional ","averaged "), "Weights")
-  x_text <- bquote(italic(p)*.(paste0("-value (",ifelse(any(sapply(fit$models, function(m)m$priors$omega$distribution) == "one.sided"),"one-sided", "two-sided"),")")))
-  y_text <- bquote("Publication prob. ("*omega*";"~.(ifelse(type == "conditional", "conditional)","averaged)")))
-
-  if(rescale_x){
-    x_breaks <- rev(seq(0, 1, length.out = length(all_cuts)))
-  }else{
-    x_breaks <- rev(all_cuts)
-  }
-
-
-  # create appropriate plot
-  if(plot_type == "base"){
-
-    # save plotting settings
-    oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(oldpar))
-
-    # set up margins
-    if(length(list(...)) == 0){
-      graphics::par(mar = c(4,4,2,2))
-    }else{
-      graphics::par(list(...))
-    }
-
-    graphics::plot(NA, type = "n", xlim = c(0, 1), ylim = c(0,1), xaxt = "n", yaxt = "n", bty = "n",
-                   xlab = "", ylab = "", main = "")
-    graphics::axis(1, at = x_breaks,    labels = x_labes)
-    graphics::axis(2, at = seq(0,1,.1), labels = y_labes, las = 1)
-    graphics::mtext(x_text, side = 1, line = 2.5, cex = 1.25)
-    graphics::mtext(y_text, side = 2, line = 2.5, cex = 1.25)
-
-    if(CI)graphics::polygon(
-      x = c(x, rev(x)),
-      y = c(y_lCI, rev(y_uCI)),
-      col = "grey80", border = NA
-    )
-    if(prior){
-      if(CI){
-        graphics::lines(x, prior_lCI, lwd = 1, lty = 2, col = "grey50")
-        graphics::lines(x, prior_uCI, lwd = 1, lty = 2, col = "grey50")
-      }
-    }
-
-    if(mean)graphics::lines(x, y_mean,     lwd = 2)
-    if(median)graphics::lines(x, y_median, lwd = 2)
-    if(prior){
-      if(mean)graphics::lines(x, prior_mean,     lwd = 2, lty = 2, col = "grey50")
-      if(median)graphics::lines(x, prior_median, lwd = 2, lty = 2, col = "grey50")
-    }
-
-    out <- NULL
-
-  }else if(plot_type == "ggplot"){
-
-    out <- ggplot2::ggplot()
-    if(CI)out     <- out + ggplot2::geom_polygon(
-      ggplot2::aes(
-        x  = c(x, rev(x)),
-        y  = c(round(y_lCI,5), rev(round(y_uCI,5)))), # rounding is reuqired for nummerical imprecission issues
-      fill = "grey80"
-    )
-    if(prior){
-      if(CI)out <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = prior_lCI), size = 1, linetype = 2, color = "grey50")
-      if(CI)out <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = prior_uCI), size = 1, linetype = 2, color = "grey50")
-    }
-
-    if(mean)out   <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = y_mean),   size = 1.25)
-    if(median)out <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = y_median), size = 1.25)
-    if(prior){
-      if(mean)out   <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = prior_mean),   size = 1.25, linetype = 2, color = "grey50")
-      if(median)out <- out + ggplot2::geom_path(ggplot2::aes(x = x, y = prior_median), size = 1.25, linetype = 2, color = "grey50")
-    }
-    out <- out + ggplot2::scale_x_continuous(x_text, breaks = x_breaks,      labels = x_labes, limits = c(0,1))
-    out <- out + ggplot2::scale_y_continuous(y_text, breaks = seq(0,1,.1),   labels = y_labes, limits = c(0,1))
-
-  }
-
-  return(out)
-
-}
-.plot.RoBMA_theta   <- function(fit, par, type, plot_type, mean, median, CI, order, digits_estimates, ...){
-
-  # CIs must be set
-  if(is.null(CI))CI <- .95
-  if(!median)mean   <- TRUE
-  if(length(par) == 2){
-    mean   <- TRUE
-    median <- FALSE
-  }else if(par == "forest"){
-    mean   <- TRUE
-    median <- FALSE
-  }
-
-  # get the parameter values
-  mu     <- fit$RoBMA$samples[[type]][["mu"]]
-  if(length(mu) == 0)stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
-  mu_est <- if(median) stats::median(mu) else if(mean) base::mean(mu)
-  mu_CI  <- unname(stats::quantile(mu, probs = c((1-CI)/2, 1-(1-CI)/2)))
-
-  ## obtain the plotting information depending on the plot settings
-  # get the original studies mean and CI
-  if(any(par == "forest")){
-    results_orig <- .get_effect_and_ci(fit$add_info, .95)
-  }
-  # get the estimated theta
-  if(any(par == "theta")){
-    theta_est   <- fit$RoBMA$samples[[type]][["theta"]]
-    results_est <- cbind.data.frame(
-      lCI  = apply(theta_est, 2, stats::quantile, prob = (1-CI)/2),
-      est  = apply(theta_est, 2, if(median) stats::median else if(mean) base::mean),
-      uCI  = apply(theta_est, 2, stats::quantile, prob = 1-(1-CI)/2),
-      name = if(!is.null(fit$add_info$study_names)) fit$add_info$study_names else paste0("Study ", 1:ncol(theta_est))
-    )
-  }
-
-  if(length(par) == 1){
-    if(par == "forest"){
-      results <- results_orig
-    }else if(par == "theta"){
-      results <- results_est
-    }
-    if(!is.null(order)){
-      if(order == "ascending"){
-        results <- results[order(results$est, decreasing = TRUE),]
-      }else if(order == "descending"){
-        results <- results[order(results$est, decreasing = FALSE),]
-      }else if(order == "alphabetical"){
-        results <- results[order(results$name, decreasing = TRUE),]
-      }
-    }
-  }else{
-    if(!is.null(order)){
-      if(order == "ascending"){
-        results_orig <- results_orig[order(results_est$est, decreasing = TRUE),]
-        results_est  <- results_est[order(results_est$est,  decreasing = TRUE),]
-      }else if(order == "descending"){
-        results_orig <- results_orig[order(results_est$est, decreasing = FALSE),]
-        results_est  <- results_est[order(results_est$est,  decreasing = FALSE),]
-      }else if(order == "alphabetical"){
-        results_orig <- results_orig[order(results_est$name, decreasing = TRUE),]
-        results_est  <- results_est[order(results_est$name,  decreasing = TRUE),]
-      }
-    }
-  }
-
-
-  # general plotting info
-  if(length(par) == 2){
-    y_at <- seq(.025, 1, length.out = nrow(results_orig)*3 + 6)
-    y_at <- y_at[-c(1:3 ,(length(y_at) - 2):length(y_at))]
-    y_at <- y_at - (y_at[1] - y_at[2])/2
-    y_at <- y_at[1:length(y_at) %% 3 != 1]
-  }else{
-    y_at <- seq(.025, 1, length.out = nrow(results) + 4)
-    y_at <- y_at[-c(1, 2 ,length(y_at) - 1, length(y_at))]
-  }
-
-
-  # estimate information
-  est_info <- paste0(ifelse(median,"Median", "Mean"),
-                     if(CI)paste0(" [", round(CI*100), "% CI]"))
-
-  if(fit$add_info$effect_size == "r")x_name <- bquote(~rho~.(paste0("(",type,")")))
-  if(fit$add_info$effect_size == "d")x_name <- bquote("Cohen's"~italic(d)~.(paste0("(",type,")")))
-  if(fit$add_info$effect_size == "y")x_name <- bquote(~mu~.(paste0("(",type,")")))
-
-  if(length(par) == 2){
-    est_info <- c(est_info, sapply(1:nrow(results_orig), function(i){
-      c(paste0(
-        if(round(results_orig$est[i], digits_estimates) >= 0)" ",
-        format(round(results_orig$est[i], digits_estimates), nsmall = digits_estimates),
-        if(CI)paste0(" [",format(round(results_orig$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
-                     format(round(results_orig$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
-      ),
-      paste0(
-        if(round(results_est$est[i], digits_estimates) >= 0)" ",
-        format(round(results_est$est[i], digits_estimates), nsmall = digits_estimates),
-        if(CI)paste0(" [",format(round(results_est$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
-                     format(round(results_est$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
-      )
-      )
-
-    }))
-    est_info <- c(est_info, paste0(
-      if(round(mu_est, digits_estimates) >= 0)" ",
-      format(round(mu_est, digits_estimates), nsmall = digits_estimates),
-      if(CI)paste0(" [",format(round(mu_CI[1], digits_estimates), nsmall = digits_estimates),", ",
-                   format(round(mu_CI[2], digits_estimates), nsmall = digits_estimates),"]")))
-  }else{
-    est_info <- c(est_info, sapply(1:nrow(results), function(i){
-      paste0(
-        if(round(results$est[i], digits_estimates) >= 0)" ",
-        format(round(results$est[i], digits_estimates), nsmall = digits_estimates),
-        if(CI)paste0(" [",format(round(results$lCI[i], digits_estimates), nsmall = digits_estimates),", ",
-                     format(round(results$uCI[i], digits_estimates), nsmall = digits_estimates),"]")
-      )
-    }))
-    est_info <- c(est_info, paste0(
-      if(round(mu_est, digits_estimates) >= 0)" ",
-      format(round(mu_est, digits_estimates), nsmall = digits_estimates),
-      if(CI)paste0(" [",format(round(mu_CI[1], digits_estimates), nsmall = digits_estimates),", ",
-                   format(round(mu_CI[2], digits_estimates), nsmall = digits_estimates),"]")))
-  }
-
-
-  if(length(par) == 2){
-    x_range <- range(c(results_orig$lCI, results_est$lCI, results_orig$uCI, results_est$uCI,0))
-  }else{
-    x_range <- range(c(results$lCI, results$uCI, 0))
-  }
-  x_range[1] <- x_range[1] - (x_range[2] - x_range[1])*.05
-  x_range[2] <- x_range[2] + (x_range[2] - x_range[1])*.05
-
-  # create appropriate plot
-  if(plot_type == "base"){
-
-    # save plotting settings
-    oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(oldpar))
-
-    # set up margins
-    if(length(list(...)) == 0){
-      graphics::par(mar = c(4,max(sapply(as.character(if(length(par) == 2) results_est$name else results$name), nchar))*12/25,
-                            2,max(sapply(as.character(est_info), nchar))*10/25))
-    }else{
-      graphics::par(list(...))
-    }
-
-
-    graphics::plot(NA, bty = "n", las = 1, xlab = "", ylab = "", main = "", yaxt = "n", ylim = c(0,1), xlim = x_range)
-    if(length(par) == 2){
-      graphics::axis(2,
-                     at     = c(0.025, sapply(1:(length(y_at)/2), function(i)mean(y_at[(2*i-1):(2*i)])), 1),
-                     labels = rev(c("Study:", as.character(results_est$name), "Overall")),
-                     las = 1, col = NA)
-    }else{
-      graphics::axis(2, at = c(0.025, y_at, 1), labels = rev(c("Study:",as.character(results$name), "Overall")), las = 1, col = NA)
-    }
-    graphics::mtext(x_name, side = 1, line = 2.5, cex = 1.25)
-    graphics::axis(4, at = c(0.025, y_at, 1), labels = rev(est_info), las = 1, col = NA, hadj = 0)
-    graphics::lines(c(0, 0), c(0, 1), lty = 3)
-    if(length(par) == 2){
-      for(i in 1:nrow(results_orig)){
-        graphics::lines(c(results_orig$lCI[i],results_orig$uCI[i]), rep(rev(y_at)[2*i-1], 2))
-        graphics::points(results_orig$est[i], rev(y_at)[2*i-1], pch = 15)
-
-        graphics::lines(c(results_est$lCI[i],results_est$uCI[i]), rep(rev(y_at)[2*i], 2), col = "grey50")
-        graphics::points(results_est$est[i], rev(y_at)[2*i], pch = 15, col = "grey50")
-      }
-    }else{
-      for(i in 1:nrow(results)){
-        graphics::lines(c(results$lCI[i],results$uCI[i]), rep(rev(y_at)[i], 2))
-        graphics::points(results$est[i], rev(y_at)[i], pch = 15)
-      }
-    }
-
-    graphics::polygon(
-      x = c(mu_CI[1], mu_est, mu_CI[2], mu_est),
-      y = c(.025, .01, .025, .04),
-      col = "black"
-    )
-
-    out <- NULL
-
-  }else if(plot_type == "ggplot"){
-
-    out <- ggplot2::ggplot()
-
-    if(length(par) == 2){
-      out <- out + ggplot2::geom_errorbarh(ggplot2::aes(
-        xmin = as.vector(sapply(1:(length(y_at)/2), function(i)c(results_orig$lCI[i], results_est$lCI[i]))),
-        xmax = as.vector(sapply(1:(length(y_at)/2), function(i)c(results_orig$uCI[i], results_est$uCI[i]))),
-        y    = rev(y_at)),
-        color = rep(c("black","grey50"), length(y_at)/2))
-      out   <- out + ggplot2::geom_point(ggplot2::aes(
-        x = as.vector(sapply(1:(length(y_at)/2), function(i)c(results_orig$est[i], results_est$est[i]))),
-        y = rev(y_at)),
-        shape = 15,
-        color = rep(c("black","grey50"), length(y_at)/2))
-    }else{
-      out <- out + ggplot2::geom_errorbarh(ggplot2::aes(
-        xmin = results$lCI,
-        xmax = results$uCI,
-        y    = rev(y_at)))
-      out   <- out + ggplot2::geom_point(ggplot2::aes(x = results$est, y = rev(y_at)), shape = 15)
-    }
-
-    out <- out + ggplot2::geom_polygon(
-      ggplot2::aes(
-        x = c(mu_CI[1], mu_est, mu_CI[2], mu_est),
-        y = c(.025, .01, .025, .04)),
-      fill = "black",
-    )
-    if(length(par) == 2){
-      out <- out + ggplot2::scale_y_continuous("",
-                                               breaks   = c(0.025, sapply(1:(length(y_at)/2), function(i)mean(y_at[(2*i-1):(2*i)])), 1),
-                                               labels   = rev(c("Study:", as.character(results_est$name), "Overall")),
-                                               limits   = c(0, 1),
-                                               sec.axis = ggplot2::sec_axis(
-                                                 ~ .,
-                                                 breaks = c(0.025, y_at, 1),
-                                                 labels = rev(est_info))
-      )
-    }else{
-      out <- out + ggplot2::scale_y_continuous("",
-                                               breaks   = c(0.025, y_at, 1),
-                                               labels   = rev(c("Study:",as.character(results$name), "Overall")),
-                                               limits   = c(0, 1),
-                                               sec.axis = ggplot2::sec_axis(
-                                                 ~ .,
-                                                 breaks = c(0.025, y_at, 1),
-                                                 labels = rev(est_info))
-      )
-    }
-    out$double_y_axis <- TRUE
-
-    out <- out + ggplot2::geom_line(ggplot2::aes(x = c(0,0), y = c(0,1)), linetype = "dotted")
-    out <- out + ggplot2::scale_x_continuous(
-      name   = x_name,
-      limits = range(pretty(x_range)),
-      breaks = pretty(x_range),
-      labels = pretty(x_range))
-    # the suppressWarnings removes warnings from ggplot2::element_text function that complains about passing vectors, but there is need to pass the color argument...
-    out <- out + suppressWarnings(ggplot2::theme(axis.title.y      = ggplot2::element_blank(),
-                                axis.line.y       = ggplot2::element_blank(),
-                                axis.ticks.y      = ggplot2::element_blank(),
-                                axis.text.y       = ggplot2::element_text(
-                                  hjust = 0,
-                                  color = "black"),
-                                axis.text.y.right = ggplot2::element_text(
-                                  hjust = 1,
-                                  color = if(length(par) == 2)c("black",rep(c("grey50","black"), length(y_at)/2),"black"))))
-  }
-
-
-  return(out)
-}
-.plot.RoBMA_ind     <- function(fit, par, type, plot_type, mean, median, CI, order, digits_estimates, show_figures, ...){
-
-  # only 95% CI is supported and only one estimates is set
-  CI        <- .95
-  omega_ind <- .get_omega_mapping(fit$models)
-  if(!median) mean  <- TRUE else mean <- FALSE
-
-  # select the type of individual plots
-  type <- type[type != "individual"]
-  if(length(type) == 0)type <- "averaged"
-
-  # get the parameter values
-  summary_info <- summary(fit, probs = c((1-CI)/2, 1-(1-CI)/2), conditional = type == "conditional")
-  sum_all <- summary_info[[type]]
-  sum_ind <- summary(fit, type = "individual", probs = c((1-CI)/2, 1-(1-CI)/2))[["overview"]]
-
-  # the overall estimates
-  par_est <- sum_all[grepl(par, rownames(sum_all)) ,c("Mean", "Median")[c(mean, median)]]
-  par_CI  <- sum_all[grepl(par, rownames(sum_all)) ,3:4]
-
-  # individual model estimates
-  if(par == "omega"){
-    if(is.null(omega_ind))stop("The ensemble cointains no non-null model adjusting for publication bias.")
-    mod_est   <- vector(mode = "list", length = ncol(do.call(rbind,omega_ind)))
-    mod_CI    <- vector(mode = "list", length = ncol(do.call(rbind,omega_ind)))
-  }else{
-    mod_est   <- NULL
-    mod_CI    <- NULL
-  }
-  mod_names   <- list()
-  mod_marglik <- NULL
-  mod_prior   <- NULL
-
-  if(type == "conditional"){
-    model_ind <- c(1:length(sum_ind))[sapply(fit$models, function(m)!.is_parameter_null(m$priors, par))]
-  }else if(type == "averaged"){
-    model_ind <- c(1:length(sum_ind))
-  }
-  if(length(model_ind) == 0)stop("The ensemble contains no non-null model with the specified parameter.")
-  if(length(model_ind) == 1)stop("At least two modes containing the specified parameter are required for this plot.")
-
-  for(i in model_ind){
-
-    if(fit$models[[i]]$priors[[par]]$distribution != "point"){
-
-      # add the estimates values
-      if(par == "omega"){
-
-        for(j in 1:length(omega_ind[[i]])){
-          mod_est[[j]] <- c(mod_est[[j]], sum_ind[[i]]$tab[rev(rownames(sum_ind[[i]]$tab)[grepl("omega",rownames(sum_ind[[i]]$tab))])[omega_ind[[i]][j]], c("Mean", "Median")[c(mean, median)]])
-          mod_CI[[j]]  <- rbind(mod_CI[[j]], unlist(sum_ind[[i]]$tab[rev(rownames(sum_ind[[i]]$tab)[grepl("omega",rownames(sum_ind[[i]]$tab))])[omega_ind[[i]][j]], c(3, 5)]))
-        }
-
-      }else{
-
-        mod_est <- c(mod_est,    sum_ind[[i]]$tab[rownames(sum_ind[[i]]$tab) == par, c("Mean", "Median")[c(mean, median)]])
-        mod_CI  <- rbind(mod_CI, unlist(sum_ind[[i]]$tab[rownames(sum_ind[[i]]$tab) == par, c(3, 5)]))
-
-      }
-
-    }else{
-
-      # add the estimates null values
-      if(par == "omega"){
-        for(j in 1:ncol(do.call(rbind,omega_ind))){
-          mod_est[[j]] <- c(mod_est[[j]],    1)
-          mod_CI[[j]]  <- rbind(mod_CI[[j]], c(1,1))
-        }
-      }else{
-
-        temp_prior_location <- fit$models[[i]]$priors[[par]]$parameters$location
-        if(par == "mu"){
-          temp_prior_location <- .transform(temp_prior_location, fit$add_info$effect_size, fit$add_info$mu_transform)
-        }
-
-        mod_est <- c(mod_est,        temp_prior_location)
-        mod_CI  <- rbind(mod_CI, rep(temp_prior_location, 2))
-      }
-
-    }
-
-    # marglik information
-    mod_marglik    <- c(mod_marglik, fit$models[[i]]$marg_lik$logml)
-    mod_prior      <- c(mod_prior,   fit$models[[i]]$prior_odds)
-
-    # prior names
-    mod_names <- c(mod_names, list(
-      list(
-        mu    = print(fit$models[[i]]$priors$mu,    silent = TRUE, plot = TRUE),
-        tau   = print(fit$models[[i]]$priors$tau,   silent = TRUE, plot = TRUE),
-        omega = print(fit$models[[i]]$priors$omega, silent = TRUE, plot = TRUE))
-    ))
-
-  }
-
-  # compute posterior prob
-  if(all(mod_prior == 0) | length(mod_prior) == 0)stop("The parameter could not be plotted because it is not in the ensemble. Possible cause might be trying to plot a parameter from an ensemble where either no model has the parameters or all of the models did not converge.")
-  mod_prior <- mod_prior/sum(mod_prior)
-  mod_post  <- bridgesampling::post_prob(mod_marglik, prior_prob = mod_prior)
-
-  # merge the model results together
-  if(par == "omega"){
-    mod_res   <- vector(mode = "list", length = ncol(do.call(rbind,omega_ind)))
-    for(i in 1:length(mod_res)){
-      mod_res[[i]] <- data.frame(
-        est     = mod_est[[i]],
-        lCI     = mod_CI[[i]][,1],
-        uCI     = mod_CI[[i]][,2]
-      )
-    }
-  }else{
-    mod_res <- list(data.frame(
-      est     = mod_est,
-      lCI     = mod_CI[,1],
-      uCI     = mod_CI[,2]
-    ))
-  }
-
-  # order the values
-  for(i in 1:length(mod_res)){
-    if(!is.null(order)){
-      if(any(order == "marglik")){
-        if(any(order == "ascending")){
-          mod_res[[i]] <- mod_res[[i]][order(mod_marglik, decreasing = TRUE),]
-        }else{
-          mod_res[[i]] <- mod_res[[i]][order(mod_marglik, decreasing = FALSE),]
-        }
-      }else if(any(order == "prob")){
-        if(any(order == "ascending")){
-          mod_res[[i]] <- mod_res[[i]][order(mod_post, decreasing = TRUE),]
-        }else{
-          mod_res[[i]] <- mod_res[[i]][order(mod_post, decreasing = FALSE),]
-        }
-      }else{
-        if(any(order == "descending")){
-          mod_res[[i]] <- mod_res[[i]][nrow(mod_res[[i]]):1,]
-        }
-      }
-    }
-  }
-  mod_marglik <- mod_marglik[as.numeric(rownames(mod_res[[1]]))]
-  mod_post    <- mod_post[as.numeric(rownames(mod_res[[1]]))]
-
-
-  # general plotting info
-  y_at <- seq(.05, 1, length.out = nrow(mod_res[[1]]) + 2)
-  y_at <- y_at[-c(1, length(y_at))]
-  est_name    <- paste0("Overall (", if(type == "averaged") "Model-Averaged" else if(type == "conditional") "Conditional", ")")
-  model_names <- expression()
-  for(j in as.numeric(rownames(mod_res[[1]]))){
-    model_names <- c(
-      model_names,
-      bquote(~mu~"~"~.(mod_names[[j]]$mu)),
-      bquote(~tau~"~"~.(mod_names[[j]]$tau)),
-      bquote(~omega~"~"~.(mod_names[[j]]$omega)))
-  }
-
-  # x axis names
-  par_names <- .plot.RoBMA_par_names(par, fit)
-
-
-  # estimate information
-  est_info <- vector(mode = "list", length = length(mod_res))
-  for(i in 1:length(mod_res)){
-    est_info[[i]] <- paste0(ifelse(median,"Median", "Mean"),
-                            paste0(" [", round(CI*100), "% CI]\nPost. prob. (Prior prob.)"))
-    est_info[[i]] <- c(est_info[[i]], sapply(1:nrow(mod_res[[1]]), function(j){
-      paste0(
-        format(round(mod_res[[i]]$est[j], digits_estimates), nsmall = digits_estimates),
-        paste0(" [",format(round(mod_res[[i]]$lCI[j], digits_estimates), nsmall = digits_estimates),", ",
-               format(round(mod_res[[i]]$uCI[j], digits_estimates), nsmall = digits_estimates),"]\n",
-               format(round(mod_post[j], digits_estimates), nsmall = digits_estimates),
-               " (",format(round(mod_prior[j], digits_estimates), nsmall = digits_estimates),")")
-      )
-    }))
-    est_info[[i]] <- c(est_info[[i]], paste0(
-      format(round(par_est[i], digits_estimates), nsmall = digits_estimates),
-      if(CI)paste0(" [",format(round(par_CI[i,1], digits_estimates), nsmall = digits_estimates),", ",
-                   format(round(par_CI[i,2], digits_estimates), nsmall = digits_estimates),"]")))
-  }
-
-
-  # create appropriate plot
-  plots <- list()
-  if(is.null(show_figures) | length(mod_res) == 1){
-    plots_ind <- c(1:length(mod_res))
-  }else{
-    plots_ind <- c(1:length(mod_res))[show_figures]
-  }
-  # a message with info about muliple plots
-  if(plot_type == "base" & length(plots_ind) > 1)message(paste0(length(plots_ind), " plots will be produced. See '?layout' for help with setting multiple plots."))
-
-  if(par == "omega"){
-    x_range <- c(0, 1)
-  }else{
-    x_range <- c(min(mod_res[[i]]$lCI), max(mod_res[[i]]$uCI))
-    x_range[1] <- x_range[1] - (x_range[2] - x_range[1])*.05
-    x_range[2] <- x_range[2] + (x_range[2] - x_range[1])*.05
-    if(par == "mu"){
-      if(fit$add_info$effect_size == "OR"){
-        x_range <- range(x_range, 1)
-      }else{
-        x_range <- range(x_range, 0)
-      }
-    }else{
-      x_range <- range(x_range, 0)
-    }
-    if(all(x_range == 0)){
-      if(par == "mu")x_range <- c(-.5, .5)
-      if(par == "tau")x_range <- c(0, .5)
-    }
-  }
-
-  for(i in plots_ind){
-    if(plot_type == "base"){
-
-      # save plotting settings
-      oldpar <- graphics::par(no.readonly = TRUE)
-      on.exit(graphics::par(oldpar))
-
-      # set up margins
-      if(length(list(...)) == 0){
-        graphics::par(mar = c(4,max(sapply(as.character(model_names), nchar) - 15, 25)*2/7,
-                              0,max(sapply(as.character(est_info[[i]]), nchar))*2/7))
-      }else{
-        graphics::par(list(...))
-      }
-
-      graphics::plot(NA, bty = "n", las = 1, xlab = "", ylab = "", main = "", yaxt = "n", ylim = c(0,1.05), xlim = x_range)
-
-      y_at_lab <- sort(rep(y_at, 3))
-      y_at_lab <- y_at_lab + c(-1,0,1)*(y_at[2] - y_at[1])/4
-
-      for(j in 1:length(y_at_lab)){
-        graphics::axis(2, at = rev(y_at_lab)[j], labels = model_names[[j]], las = 1, col = NA)
-      }
-      graphics::axis(2, at = c(.05, 1), labels = c(est_name, "Model:"), las = 1, col = NA)
-      graphics::mtext(par_names[[i]], side = 1, line = 2.5, cex = 1.25)
-      graphics::axis(4, at = c(0.05, y_at, 1), labels = rev(est_info[[i]]), las = 1, col = NA, hadj = 0)
-
-
-      if(par != "omega")graphics::lines(if(par == "mu" & fit$add_info$effect_size == "OR") c(1,1) else c(0,0), c(0, 1), lty = 3)
-      if(par == "omega")graphics::lines(c(1, 1), c(0, 1), lty = 3)
-
-      for(j in 1:nrow(mod_res[[i]])){
-        graphics::lines(c(mod_res[[i]]$lCI[j],mod_res[[i]]$uCI[j]), rep(rev(y_at)[j], 2))
-        graphics::points(mod_res[[i]]$est[j], rev(y_at)[j], pch = 15, cex = .5 + mod_post[j])
-      }
-
-      graphics::polygon(
-        x = c(par_CI[i, 1], par_est[i], par_CI[i, 2], par_est[i]),
-        y = c(.05, .025, .05, .075),
-        col = "black"
-      )
-
-      plots <- NULL
-
-    }else if(plot_type == "ggplot"){
-
-      temp_plot <- ggplot2::ggplot(mod_res[[i]])
-      temp_plot <- temp_plot + ggplot2::geom_errorbarh(ggplot2::aes_string(
-        xmin = "lCI",
-        xmax = "uCI",
-        y    = rev(y_at)))
-      temp_plot <- temp_plot + ggplot2::geom_point(ggplot2::aes_string(
-        x = "est",
-        y = rev(y_at)),
-        shape = 15, size = 1 + 5*mod_post)
-      temp_plot <- temp_plot + ggplot2::geom_polygon(
-        data = data.frame(
-          xx = c(par_est[i], par_CI[i, 1],  par_est[i], par_CI[i, 2]),
-          yy = c(.025, .05, .075, .05)
-        ),
-        ggplot2::aes_string(
-          x = "xx",
-          y = "yy"),
-        fill = "black"
-      )
-
-      y_at_lab <- sort(rep(y_at, 3))
-      y_at_lab <- y_at_lab + c(-1,0,1)*(y_at[2] - y_at[1])/4
-
-      temp_plot <- temp_plot + ggplot2::scale_y_continuous("",
-                                                           breaks   = c(0.05, y_at_lab, 1.00),
-                                                           labels   = rev(c("Model:",model_names, est_name)),
-                                                           limits   = c(0, 1.00),
-                                                           sec.axis = ggplot2::sec_axis(
-                                                             ~ .,
-                                                             breaks = c(0.05, y_at, 1.00),
-                                                             labels = rev(est_info[[i]]))
-      )
-      temp_plot$double_y_axis <- TRUE
-
-      if(par != "omega")temp_plot <- temp_plot + ggplot2::geom_line(
-        data = data.frame(
-          xl = if(par == "mu" & fit$add_info$effect_size == "OR") c(1,1) else c(0,0),
-          yl = c(0,1)
-        ),
-        ggplot2::aes_string(x = "xl", y = "yl"),
-        linetype = "dotted")
-      if(par == "omega")temp_plot <- temp_plot + ggplot2::geom_line(
-        data = data.frame(
-          xl = c(1,1),
-          yl = c(0,1)
-        ),
-        ggplot2::aes_string(x = "xl", y = "yl"),
-        linetype = "dotted")
-
-      temp_plot <- temp_plot + ggplot2::scale_x_continuous(
-        name   = par_names[[i]],
-        limits = if(par == "omega") c(-.01, 1.01) else range(pretty(x_range)),
-        breaks = pretty(x_range),
-        labels = pretty(x_range))
-      temp_plot <- temp_plot + ggplot2::theme(axis.title.y      = ggplot2::element_blank(),
-                                              axis.line.y       = ggplot2::element_blank(),
-                                              axis.ticks.y      = ggplot2::element_blank(),
-                                              axis.text.y       = ggplot2::element_text(
-                                                hjust = 0,
-                                                color = "black"),
-                                              axis.text.y.right = ggplot2::element_text(hjust = 1))
-
-      plots <- c(plots, list(temp_plot))
-    }
-  }
-
-  if(length(plots) == 1)plots <- plots[[1]]
-
-  return(plots)
-}
-.plot.RoBMA_par_names <- function(par, fit, type = NULL){
+  add_type  <- if(!is.null(type)) paste0("(",type,")") else NULL
 
   if(par == "mu"){
-    add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
-    if(fit$add_info$effect_size == "r")par_names <- list(bquote(~rho~.(add_type)))
-    if(fit$add_info$effect_size == "d")par_names <- list(bquote("Cohen's"~italic(d)~.(add_type)))
-    if(fit$add_info$effect_size == "y")par_names <- list(bquote(~mu~.(add_type)))
-    if(fit$add_info$effect_size == "OR")par_names<- list(bquote(~italic("OR")~.(add_type)))
+
+    par_names <- list(switch(
+      output_scale,
+      "r"     = bquote(~rho~.(add_type)),
+      "d"     = bquote("Cohen's"~italic(d)~.(add_type)),
+      "z"     = bquote("Fisher's"~italic(z)~.(add_type)),
+      "logOR" = bquote("log"(italic("OR"))~.(add_type)),
+      "OR"    = bquote(~italic("OR")~.(add_type)),
+      "y"     = bquote(~mu~.(add_type))
+    ))
+
   }else if(par == "tau"){
-    if(fit$add_info$effect_size == "r"){
-      add_type <- if(!is.null(type)) paste0("; ",type,")") else ")"
-      if(fit$add_info$mu_transform == "cohens_d"){
-        par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale"*.(add_type)))
-      }else if(fit$add_info$mu_transform == "fishers_z"){
-        par_names <- list(bquote(~tau~"(Fisher's"~italic(z)~ "scale"*.(add_type)))
-      }
-    }else if(fit$add_info$effect_size == "OR"){
-      add_type <- if(!is.null(type)) paste0("; ",type,")") else ")"
-      if(fit$add_info$mu_transform == "log_OR"){
-        par_names <- list(bquote(~tau~"("~italic("log(OR)")~ "scale"*.(add_type)))
-      }else if(fit$add_info$mu_transform == "cohens_d"){
-        par_names <- list(bquote(~tau~"(Cohen's"~italic(d)~ "scale"*.(add_type)))
-      }
-    }else{
-      add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
-      par_names <- list(bquote(~tau~.(add_type)))
-    }
+
+    par_names <- list(switch(
+      output_scale,
+      "r"     = bquote(~tau~("Fisher's"~italic(z)~"scale;"~.(type))),
+      "OR"    = bquote(~tau~("log"(italic("OR"))~"scale;"~.(type))),
+      bquote(~tau~.(add_type))
+    ))
+
   }else if(par == "omega"){
 
-    summary_info <- summary(fit)
-    sum_all      <- summary_info[["averaged"]]
-    omega_names  <- rownames(sum_all)[grepl(par, rownames(sum_all))]
-    par_names    <- vector("list", length = length(omega_names))
-    for(i in 1:length(par_names)){
-      par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
-    }
+    stop("should not be used")
+    # summary_info <- summary(fit)
+    # sum_all      <- summary_info[["estimates"]]
+    # omega_names  <- rownames(sum_all)[grepl(par, rownames(sum_all))]
+    # par_names    <- vector("list", length = length(omega_names))
+    # for(i in 1:length(par_names)){
+    #   par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
+    # }
 
   }else if(par == "theta"){
-    add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
-    par_names <- vector("list", length = length(fit$add_info$study_names))
-    for(i in 1:length(par_names)){
-      if(fit$add_info$effect_size == "r")par_names[i] <- list(bquote(~rho[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
-      if(fit$add_info$effect_size == "d")par_names[i] <- list(bquote("Cohen's"~italic(d)[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
-      if(fit$add_info$effect_size == "y")par_names[i] <- list(bquote(~theta[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
-      if(fit$add_info$effect_size == "OR")par_names[i]<- list(bquote(~italic("OR")[.(paste0("[",fit$add_info$study_names[i],"]"))]~.(add_type)))
-    }
+
+    stop("should not be used")
+    # add_type <- if(!is.null(type)) paste0("(",type,")") else NULL
+    # par_names <- vector("list", length = length(study_names))
+    # for(i in 1:length(par_names)){
+    #   par_names[i] <- list(switch(
+    #     output_scale,
+    #     "r"     = bquote(~rho[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "d"     = bquote("Cohen's"~italic(d)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "z"     = bquote("Fisher's"~italic(z)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "logOR" = bquote("log"(italic("OR"))[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "OR"    = bquote(~italic("OR")[.(paste0("[",study_names[i],"]"))]~.(add_type)),
+    #     "y"     = bquote(~mu[.(paste0("[",study_names[i],"]"))]~.(add_type))
+    #   ))
+    # }
+
+  }else if(par == "PET"){
+
+    par_names <- list(bquote("PET"~.(add_type)))
+
+  }else if(par == "PEESE"){
+
+    par_names <- list(bquote("PEESE"~.(add_type)))
+
   }
 
   return(par_names)

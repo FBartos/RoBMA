@@ -6,94 +6,64 @@
 \usage{
 \method{plot}{RoBMA}(
   x,
-  parameter,
-  type = "averaged",
+  parameter = "mu",
+  conditional = FALSE,
   plot_type = "base",
-  mean = TRUE,
-  median = FALSE,
-  CI = 0.95,
   prior = FALSE,
-  order = NULL,
-  digits_estimates = 2,
-  show_figures = if (parameter == "omega" & (weights | any(type \%in\% "individual")))
-    -1,
-  weights = FALSE,
   rescale_x = FALSE,
+  show_data = TRUE,
+  dots_prior = NULL,
   ...
 )
 }
 \arguments{
 \item{x}{a fitted RoBMA object}
 
-\item{parameter}{a parameter to be plotted. Either
-\code{"mu"}, \code{"tau"}, \code{"theta"}, or
-\code{"omega"}. A bivariate plot for model-averaged
-estimates of "mu" and "tau" can be obtained by
-\code{c("mu","tau")} if \code{type = "averaged"}. In
-addition, a forest plot with the original estimates can
-be obtained by \code{"forest"} or added to the theta
-estimates by \code{c("theta", "forest")}.}
+\item{parameter}{a parameter to be plotted. Defaults to
+\code{"mu"} (for the effect size). The additional options
+are \code{"tau"} (for the heterogeneity),
+\code{"weightfunction"} (for the estimated weightfunction),
+or \code{"PET-PEESE"} (for the PET-PEESE regression).}
 
-\item{type}{what type of estimates should be plotted.
-Options are \code{"averaged"} for the model-averaged
-estimates, \code{"conditional"} for the conditional
-estimates, or \code{"individual"} for the
-individual models estimates. The options
-\code{c("individual", "conditional")} can be supplied
-together to show only coditional individual models.}
+\item{conditional}{whether conditional estimates should be
+plotted. Defaults to \code{FALSE} which plots the model-averaged
+estimates. Note that both \code{"weightfunction"} and
+\code{"PET-PEESE"} are always ignoring the other type of
+publication bias adjustment.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
-or ggplot2 \code{"ggplot2"} for plotting. The later
-requires \pkg{ggplot2} package to be installed.}
+or ggplot2 \code{"ggplot"} for plotting. Defaults to
+\code{"base"}.}
 
-\item{mean}{whether the mean should be plotted.}
+\item{prior}{whether prior distribution should be added to
+figure. Defaults to \code{FALSE}.}
 
-\item{median}{whether the median should be plotted.}
-
-\item{CI}{width of the confidence intervals.}
-
-\item{prior}{add prior density to the plot. Only available
-for \code{type = "averaged"} or \code{type = "conditional"}.
+\item{rescale_x}{whether the x-axis of the \code{"weightfunction"}
+should be re-scaled to make the x-ticks equally spaced.
 Defaults to \code{FALSE}.}
 
-\item{order}{either (1) ordering of the studies for
-\code{parameter = "theta"} or \code{parameter = "forest"}.
-Defaults to \code{NULL} - ordering as supplied to the fitting
-function. However, studies can be ordered either
-\code{"ascending"} or \code{"descending"} by effect size, or
-by \code{"alphabetical"} by labels.
-Or (2) ordering models for \code{type = "individual"}. The
-default orders models according to their number. However,
-models can be ordered either \code{"ascending"} or
-\code{"descending"} by posterior model probability
-\code{c("ascending", "prob")}, or marginal likelihood
-\code{c("descending", "marglik")}
-by marginal likelihood.}
+\item{show_data}{whether the study estimates and standard
+errors should be show in the \code{"PET-PEESE"} plot.
+Defaults to \code{TRUE}.}
 
-\item{digits_estimates}{number of decimals to be displayed for
-\code{parameter = "theta"}, \code{parameter = "forest"}, and
-\code{type = "individual"} plot.}
+\item{dots_prior}{list of additional graphical arguments
+to be passed to the plotting function of the prior
+distribution. Supported arguments are \code{lwd},
+\code{lty}, \code{col}, and \code{col.fill}, to adjust
+the line thickness, line type, line color, and fill color
+of the prior distribution respectively.}
 
-\item{show_figures}{which figures should be returned in the case
-when multiple plots are generated. Useful when
-\code{parameter = "omega", type = "individual"} which generates
-a figure for each weights cut-off. Defaults to \code{-1} which
-omits the first weight. Set to \code{NULL} to show all figures
-or to \code{c(1,3)} to show only the first and third one.}
-
-\item{weights}{whether the weights or weight function should
-be returned. Only applicable when \code{parameter = "omega"}.
-Defaults to \code{FALSE} - the weight function is plotted.}
-
-\item{rescale_x}{whether the x-axis should be rescaled in order
-to make the x-ticks equally spaced. Available only for the
-weightfunction plot. Defaults to \code{FALSE}.}
-
-\item{...}{additional arguments to be passed to
-\link[graphics]{par} if \code{plot_type = "base"}. Especially
-useful for \code{parameter == "theta"},
-\code{parameter == "forest"} or \code{type = "individual"}
-where automatic margins might cut out parts of the labels.}
+\item{...}{list of additional graphical arguments
+to be passed to the plotting function. Supported arguments
+are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
+\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+to adjust the line thickness, line type, line color, fill color,
+x-label, y-label, title, x-axis range, and y-axis range
+respectively.}
+}
+\value{
+\code{plot.RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
+or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
 \code{plot.RoBMA} allows to visualize
@@ -107,28 +77,27 @@ ways. See \code{type} for the different model types.
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n, study_names = Anderson2010$labels)
 
 ### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"
-# plot function allows to visualize the results of a fitted RoBMA object, for example,
-# the model-averaged mean parameter estimate
+# the 'plot' function allows to visualize the results of a fitted RoBMA object, for example;
+# the model-averaged effect size estimate
 plot(fit, parameter = "mu")
 
-# or show both the prior and posterior distribution
+# and show both the prior and posterior distribution
 plot(fit, parameter = "mu", prior = TRUE)
 
-# condtional plots might by obtained by specifying
-plot(fit, parameter = "mu", type = "conditional")
+# conditional plots can by obtained by specifying
+plot(fit, parameter = "mu", conditional = TRUE)
 
 # plotting function also allows to visualize the weight function
-# (or individual weights by adding 'weights = TRUE')
-plot(fit, parameter = "omega")
+plot(fit, parameter = "weightfunction")
 
-# or the forest plot (the estimated study effects can be shown by setting 'parameter = "theta"')
-plot(fit, parameter = "forest")
+# re-scale the x-axis
+plot(fit, parameter = "weightfunction", rescale_x = TRUE)
 
-# it is also possible to compare the individual model estimates
-# and order them by the posterior probability
-plot(fit, parameter = "mu", type = "individual", order = "prob")
-
+# or visualize the PET-PEESE regression line
+plot(fit, parameter = "PET-PEESE")
 }
+
+
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}

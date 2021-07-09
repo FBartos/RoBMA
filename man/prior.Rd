@@ -2,13 +2,13 @@
 % Please edit documentation in R/priors.R
 \name{prior}
 \alias{prior}
-\title{Creates a RoBMA prior}
+\title{Creates a prior distribution}
 \usage{
 prior(
   distribution,
   parameters,
   truncation = list(lower = -Inf, upper = Inf),
-  prior_odds = 1
+  prior_weights = 1
 )
 }
 \arguments{
@@ -19,6 +19,8 @@ possible options are
 \code{location} parameter.}
 \item{\code{"normal"}}{for a normal distribution characterized
 by a \code{mean} and \code{sd} parameters.}
+\item{\code{"lognormal"}}{for a lognormal distribution characterized
+by a \code{meanlog} and \code{sdlog} parameters.}
 \item{\code{"cauchy"}}{for a Cauchy distribution characterized
 by a \code{location} and \code{scale} parameters. Internally
 converted into a generalized t-distribution with \code{df = 1}.}
@@ -32,20 +34,12 @@ the \code{shape} and \code{rate} parametrization}
 characterized by a \code{shape} and \code{scale} parameters. The
 JAGS part uses a 1/gamma distribution with a shape and rate
 parameter.}
-\item{\code{"two.sided"}}{for a two-sided weight function
-characterized by a vector \code{steps} and vector \code{alpha}
-parameters. The \code{alpha} parameter determines an alpha
-parameter of Dirichlet distribution which cumulative sum
-is used for the weights omega.}
-\item{\code{"one.sided"}}{for a one-sided weight function
-characterized by either a vector \code{steps} and vector
-\code{alpha} parameter, leading to a monotonic one-sided
-function, or by a vector \code{steps}, vector \code{alpha1},
-and vector \code{alpha2} parameters leading non-monotonic
-one-sided weight function. The \code{alpha} / \code{alpha1} and
-\code{alpha2} parameters determine an alpha parameter of
-Dirichlet distribution which cumulative sum is used for
-the weights omega.}
+\item{\code{"beta"}}{for a beta distribution
+characterized by an \code{alpha} and \code{beta} parameters.}
+\item{\code{"exp"}}{for an exponential distribution
+characterized by either \code{rate} or \code{scale}
+parameter. The later is internally converted to
+\code{rate}.}
 \item{\code{"uniform"}}{for a uniform distribution defined on a
 range from \code{a} to \code{b}}
 }}
@@ -56,37 +50,36 @@ range from \code{a} to \code{b}}
 \item{truncation}{list with two elements, \code{lower} and
 \code{upper}, that define the lower and upper truncation of the
 distribution. Defaults to \code{list(lower = -Inf, upper = Inf)}.
-The lower truncation point is automatically set to 0 if it is
-specified outside of the support of distributions defined only for
-positive numbers.}
+The truncation is automatically set to the bounds of the support.}
 
-\item{prior_odds}{prior odds associated with a given distribution.
-\code{\link[=RoBMA]{RoBMA()}} creates models corresponding to all combinations of prior
-distributions for each of the model parameters (mu, tau, omega), and
-sets the model priors odds to the product of its prior distributions.}
+\item{prior_weights}{prior odds associated with a given distribution.
+The value is passed into the model fitting function, which creates models
+corresponding to all combinations of prior distributions for each of
+the model parameters and sets the model priors odds to the product
+of its prior distributions.}
+}
+\value{
+\code{prior} and \code{prior_none} return an object of class 'prior'.
+A named list containing the distribution name, parameters, and prior weights.
 }
 \description{
-\code{prior} creates a prior distribution for fitting
-a RoBMA model. The prior can be visualized by a \code{plot} function.
+\code{prior} creates a prior distribution.
+The prior can be visualized by the \code{plot} function.
 }
 \examples{
-# create a standart normal prior distribution
+# create a standard normal prior distribution
 p1 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1))
 
-# create a half-normal standart normal prior distribution
+# create a half-normal standard normal prior distribution
 p2 <- prior(distribution = "normal", parameters = list(mean = 1, sd = 1),
 truncation = list(lower = 0, upper = Inf))
 
-# or a prior for one-sided weight function
-p3 <- prior("one-sided", parameters = list(steps = c(.05, .10), alpha = c(1, 1, 1)))
-
 # the prior distribution can be visualized using the plot function
-# (see ?plot.prior.RoBMA for all options)
+# (see ?plot.prior for all options)
 plot(p1)
-
-
 }
 \seealso{
-\code{\link[=plot.RoBMA.prior]{plot.RoBMA.prior()}}, \link[stats]{Normal}, \link[stats]{Cauchy},
-\link[extraDistr]{LocationScaleT}, \link[stats]{GammaDist}, \link[extraDistr]{InvGamma}.
+\code{\link[BayesTools:plot.prior]{plot.prior()}}, \link[stats]{Normal}, \link[stats]{Lognormal}, \link[stats]{Cauchy},
+\link[stats]{Beta}, \link[stats]{Exponential},
+\link[extraDistr]{LocationScaleT}, \link[extraDistr]{InvGamma}.
 }
