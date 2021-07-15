@@ -382,3 +382,28 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   return(warnings)
 }
+
+
+# some functions for the JASP implementation
+.RoBMA_collect_dots      <- function(...){
+
+  dots <- list(...)
+
+  known_dots <- c("is_JASP")
+  if(any(!names(dots) %in% known_dots))
+    stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
+
+  if(is.null(dots[["is_JASP"]])){
+    dots[["is_JASP"]] <- FALSE
+  }else{
+    dots[["is_JASP"]] <- TRUE
+  }
+
+  return(dots)
+}
+.JASP_progress_bar_start <- function(n){
+  eval(expr = parse(text = 'startProgressbar(n)'))
+}
+.JASP_progress_bar_tick  <- function(){
+  eval(expr = parse(text = 'progressbarTick()'))
+}

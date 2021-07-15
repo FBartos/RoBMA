@@ -53,7 +53,8 @@ RoBMA(
   convergence_checks = set_convergence_checks(),
   save = "all",
   seed = NULL,
-  silent = TRUE
+  silent = TRUE,
+  ...
 )
 }
 \arguments{

@@ -91,6 +91,7 @@
 #' @param silent whether all print messages regarding the fitting process
 #' should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
 #' also suppresses all messages.
+#' @param ... additional arguments.
 #' @inheritParams combine_data
 #'
 #' @details The default settings of the RoBMA 2.0 package corresponds to the RoBMA-PSMA
@@ -199,8 +200,9 @@ RoBMA <- function(
   autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
 
   # additional settings
-  save = "all", seed = NULL, silent = TRUE){
+  save = "all", seed = NULL, silent = TRUE, ...){
 
+  dots         <- .RoBMA_collect_dots(...)
   object       <- NULL
   object$call  <- match.call()
 
@@ -242,8 +244,15 @@ RoBMA <- function(
   ### fit the models and compute marginal likelihoods
   if(!object$fit_control[["parallel"]]){
 
+    if(dots[["is_JASP"]]){
+      .JASP_progress_bar_start(length(object[["models"]]))
+    }
+
     for(i in seq_along(object[["models"]])){
       object$models[[i]] <- .fit_RoBMA_model(object, i)
+      if(dots[["is_JASP"]]){
+        .JASP_progress_bar_tick()
+      }
     }
 
   }else{
