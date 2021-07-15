@@ -75,7 +75,7 @@ for each component." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.2</span>
       </span>
     </div>
 
@@ -248,8 +248,9 @@ transformations are unavailable with this type of input)</p></td>
     </tr>
     <tr>
       <th>data</th>
-      <td><p>a data frame with column names corresponding to the
-variable names used to supply data individually</p></td>
+      <td><p>a data object created by the <code>combine_data</code> function. This is
+an alternative input entry to specifying the <code>d</code>, <code>r</code>, <code>y</code>, etc...
+directly. I.e., you cannot pass the a data.frame and reference to the columns.</p></td>
     </tr>
     <tr>
       <th>transformation</th>
@@ -279,7 +280,7 @@ direction. Defaults to <code>"positive"</code> (another option is <code>"negativ
     </tr>
     <tr>
       <th>model_type</th>
-      <td><p>string specifying the RoBMA enseble. Defaults to <code>NULL</code>.
+      <td><p>string specifying the RoBMA ensemble. Defaults to <code>NULL</code>.
 The other options are <code>"PSMA"</code>, <code>"PP"</code>, and <code>"2w"</code> which override
 settings passed to the <code>priors_effect</code>, <code>priors_heterogeneity</code>,
 <code>priors_effect</code>, <code>priors_effect_null</code>, <code>priors_heterogeneity_null</code>,
@@ -413,6 +414,10 @@ to <code>NULL</code> - no seed is set.</p></td>
 should be suppressed. Defaults to <code>TRUE</code>. Note that <code>parallel = TRUE</code>
 also suppresses all messages.</p></td>
     </tr>
+    <tr>
+      <th>...</th>
+      <td><p>additional arguments.</p></td>
+    </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
@@ -430,9 +435,11 @@ obtained by setting <code>model_type = "2w"</code>. The RoBMA-PP specification f
 Bartoš et al. (2021)
  can be obtained by setting
 <code>model_type = "PP"</code>.</p>
-<p>The <code><a href='../articles/CustomEnsembles.html'>vignette("CustomEnsembles")</a></code> and <code><a href='../articles/ReproducingBMA.html'>vignette("ReproducingBMA")</a></code> vignettes
-describe how to use <code>RoBMA()</code> to fit custom meta-analytic ensembles (see <code><a href='prior.html'>prior()</a></code>
-for more information about prior distributions).</p>
+<p>The <a href='../doc/CustomEnsembles.html'><code><a href='../articles/CustomEnsembles.html'>vignette("CustomEnsembles", package = "RoBMA")</a></code></a>
+and <a href='../doc/ReproducingBMA.html'><code><a href='../articles/ReproducingBMA.html'>vignette("ReproducingBMA", package = "RoBMA")</a></code></a>
+vignettes  describe how to use <code>RoBMA()</code> to fit custom meta-analytic ensembles (see <code><a href='prior.html'>prior()</a></code>,
+<code><a href='prior_weightfunction.html'>prior_weightfunction()</a></code>, <code><a href='prior_PET.html'>prior_PET()</a></code>, and <code><a href='prior_PEESE.html'>prior_PEESE()</a></code> for more information about prior
+distributions).</p>
 <p>The RoBMA function first generates models from a combination of the
 provided priors for each of the model parameters. Then, the individual models
 are fitted using <a href='https://rdrr.io/pkg/runjags/man/autorun.jags.html'>autorun.jags</a> function. A marginal likelihood
