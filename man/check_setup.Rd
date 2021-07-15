@@ -31,7 +31,7 @@ check_setup(
 )
 }
 \arguments{
-\item{model_type}{string specifying the RoBMA enseble. Defaults to \code{NULL}.
+\item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
 settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
 \code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},

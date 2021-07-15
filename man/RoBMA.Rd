@@ -83,8 +83,9 @@ transformations are unavailable with this type of input)}
 
 \item{study_names}{an optional argument with the names of the studies}
 
-\item{data}{a data frame with column names corresponding to the
-variable names used to supply data individually}
+\item{data}{a data object created by the \code{combine_data} function. This is
+an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
+directly. I.e., you cannot pass the a data.frame and reference to the columns.}
 
 \item{transformation}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to
@@ -106,7 +107,7 @@ the scale of default output, but can be changed within the summary function.}
 selection sets the weights omega to 1 to significant results in the expected
 direction. Defaults to \code{"positive"} (another option is \code{"negative"}).}
 
-\item{model_type}{string specifying the RoBMA enseble. Defaults to \code{NULL}.
+\item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
 settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
 \code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
@@ -201,6 +202,8 @@ to \code{NULL} - no seed is set.}
 \item{silent}{whether all print messages regarding the fitting process
 should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
 also suppresses all messages.}
+
+\item{...}{additional arguments.}
 }
 \value{
 \code{RoBMA} returns an object of class 'RoBMA'.
@@ -220,9 +223,11 @@ obtained by setting \code{model_type = "2w"}. The RoBMA-PP specification from
 \insertCite{bartos2021no;textual}{RoBMA} can be obtained by setting
 \code{model_type = "PP"}.
 
-The \code{vignette("CustomEnsembles")} and \code{vignette("ReproducingBMA")} vignettes
-describe how to use \code{\link[=RoBMA]{RoBMA()}} to fit custom meta-analytic ensembles (see \code{\link[=prior]{prior()}}
-for more information about prior distributions).
+The \href{../doc/CustomEnsembles.html}{\code{vignette("CustomEnsembles", package = "RoBMA")}}
+and \href{../doc/ReproducingBMA.html}{\code{vignette("ReproducingBMA", package = "RoBMA")}}
+vignettes  describe how to use \code{\link[=RoBMA]{RoBMA()}} to fit custom meta-analytic ensembles (see \code{\link[=prior]{prior()}},
+\code{\link[=prior_weightfunction]{prior_weightfunction()}}, \code{\link[=prior_PET]{prior_PET()}}, and \code{\link[=prior_PEESE]{prior_PEESE()}} for more information about prior
+distributions).
 
 The RoBMA function first generates models from a combination of the
 provided priors for each of the model parameters. Then, the individual models

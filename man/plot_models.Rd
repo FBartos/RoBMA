@@ -34,7 +34,7 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \item{order}{how the models should be ordered.
 Defaults to \code{"decreasing"} which orders them in decreasing
 order in accordance to \code{order_by} argument. The alternative is
-\code{"decreasing"}.}
+\code{"increasing"}.}
 
 \item{order_by}{what feature should be use to order the models.
 Defaults to \code{"model"} which orders the models according to

@@ -145,7 +145,7 @@ check_setup <- function(
 #' @param max_error maximum value of the MCMC error.
 #' Defaults to \code{NULL}. Be aware that PEESE publication bias
 #' adjustment can have estimates on different scale than the rest of
-#' the output, resulting in relativelly large max MCMC error.
+#' the output, resulting in relatively large max MCMC error.
 #' @param max_SD_error maximum value of the proportion of MCMC error
 #' of the estimated SD of the parameter.
 #' Defaults to \code{NULL}.
@@ -155,7 +155,7 @@ check_setup <- function(
 #' Defaults to \code{list(time = 60, unit = "mins")}.
 #' @param sample_extend number of samples to extend the fitting process if
 #' the criteria are not satisfied.
-#' Defaults to \code{1.05}.
+#' Defaults to \code{1000}.
 #' @param remove_failed whether models not satisfying the convergence checks should
 #' be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.
 #' @param balance_probability whether prior model probability should be balanced
@@ -164,7 +164,7 @@ check_setup <- function(
 #'
 #'
 #' @return \code{set_autofit_control} returns a list of autofit control settings
-#' and \code{set_convergence_checks} returs a list of convergence checks settings.
+#' and \code{set_convergence_checks} returns a list of convergence checks settings.
 #'
 #' @export set_autofit_control
 #' @export set_convergence_checks

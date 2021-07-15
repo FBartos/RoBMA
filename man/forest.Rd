@@ -32,7 +32,7 @@ which returns the same scale as the model was estimated on.}
 
 \item{order}{order of the studies. Defaults to \code{NULL} -
 ordering as supplied to the fitting function. Studies
-can be ordered either \code{"ascending"} or \code{"descending"} by
+can be ordered either \code{"increasing"} or \code{"decreasing"} by
 effect size, or by labels \code{"alphabetical"}.}
 
 \item{...}{list of additional graphical arguments

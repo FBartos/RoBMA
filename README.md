@@ -37,7 +37,7 @@ accompanied by a tutorial paper with more examples (Bartoš et al., 2020)
 We also prepared multiple vignettes that illustrate functionality of the
 package:
 
--   [Reproducing Bayesian Model-Averaged Meta-Analysis
+-   [Reproducing Bayesian model-averaged meta-analysis
     (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
 -   [Fitting custom meta-analytic
     ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
@@ -130,7 +130,7 @@ First, we load the package and the data set included in the package.
 library(RoBMA)
 #> Loading required namespace: runjags
 #> module RoBMA loaded
-#> This is a preview of the 2.0 version of the RoBMA package.
+#> This is a 2.0 version of the RoBMA package (see NEWS for detailed overview of the changes).
 
 data("Bem2011", package = "RoBMA")
 Bem2011

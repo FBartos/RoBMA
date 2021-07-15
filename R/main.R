@@ -5,7 +5,10 @@
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
 #'
-#' @param model_type string specifying the RoBMA enseble. Defaults to \code{NULL}.
+#' @param data a data object created by the \code{combine_data} function. This is
+#' an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
+#' directly. I.e., you cannot pass the a data.frame and reference to the columns.
+#' @param model_type string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 #' The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
 #' settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
 #' \code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
@@ -102,9 +105,11 @@
 #' \insertCite{bartos2021no;textual}{RoBMA} can be obtained by setting
 #' \code{model_type = "PP"}.
 #'
-#' The \code{vignette("CustomEnsembles")} and \code{vignette("ReproducingBMA")} vignettes
-#' describe how to use [RoBMA()] to fit custom meta-analytic ensembles (see [prior()]
-#' for more information about prior distributions).
+#' The \href{../doc/CustomEnsembles.html}{\code{vignette("CustomEnsembles", package = "RoBMA")}}
+#' and \href{../doc/ReproducingBMA.html}{\code{vignette("ReproducingBMA", package = "RoBMA")}}
+#' vignettes  describe how to use [RoBMA()] to fit custom meta-analytic ensembles (see [prior()],
+#' [prior_weightfunction()], [prior_PET()], and [prior_PEESE()] for more information about prior
+#' distributions).
 #'
 #' The RoBMA function first generates models from a combination of the
 #' provided priors for each of the model parameters. Then, the individual models

@@ -273,7 +273,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
 #'
 #' @param order order of the studies. Defaults to \code{NULL} -
 #' ordering as supplied to the fitting function. Studies
-#' can be ordered either \code{"ascending"} or \code{"descending"} by
+#' can be ordered either \code{"increasing"} or \code{"decreasing"} by
 #' effect size, or by labels \code{"alphabetical"}.
 #' @param output_scale transform the effect sizes and the meta-analytic
 #' effect size estimate to a different scale. Defaults to \code{NULL}
@@ -486,7 +486,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' @param order how the models should be ordered.
 #' Defaults to \code{"decreasing"} which orders them in decreasing
 #' order in accordance to \code{order_by} argument. The alternative is
-#' \code{"decreasing"}.
+#' \code{"increasing"}.
 #' @param order_by what feature should be use to order the models.
 #' Defaults to \code{"model"} which orders the models according to
 #' their number. The alternatives are \code{"estimate"} (for the effect

@@ -35,7 +35,7 @@ Defaults to \code{500}.}
 \item{max_error}{maximum value of the MCMC error.
 Defaults to \code{NULL}. Be aware that PEESE publication bias
 adjustment can have estimates on different scale than the rest of
-the output, resulting in relativelly large max MCMC error.}
+the output, resulting in relatively large max MCMC error.}
 
 \item{max_SD_error}{maximum value of the proportion of MCMC error
 of the estimated SD of the parameter.
@@ -48,7 +48,7 @@ Defaults to \code{list(time = 60, unit = "mins")}.}
 
 \item{sample_extend}{number of samples to extend the fitting process if
 the criteria are not satisfied.
-Defaults to \code{1.05}.}
+Defaults to \code{1000}.}
 
 \item{remove_failed}{whether models not satisfying the convergence checks should
 be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.}
@@ -59,7 +59,7 @@ in the case of non-convergence. Defaults to \code{TRUE}.}
 }
 \value{
 \code{set_autofit_control} returns a list of autofit control settings
-and \code{set_convergence_checks} returs a list of convergence checks settings.
+and \code{set_convergence_checks} returns a list of convergence checks settings.
 }
 \description{
 Controls settings for the autofit

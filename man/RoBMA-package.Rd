@@ -4,6 +4,8 @@
 \name{RoBMA-package}
 \alias{RoBMA-package}
 \alias{_PACKAGE}
+\alias{RoBMA_package}
+\alias{RoBMA.package}
 \title{RoBMA: Robust Bayesian meta-analysis}
 \description{
 RoBMA: Bayesian model-averaged meta-analysis with adjustments for publication
@@ -11,12 +13,21 @@ bias and ability to specify informed prior distributions and draw inference with
 inclusion Bayes factors.
 }
 \section{User guide}{
- The \bold{RoBMA user guide} vignette explains the
-methods in detail, and gives several worked examples.  A further vignette
-\bold{RoBMA-examples} gives a few more complicated examples, and users
-are encouraged to submit their own.
+ See \insertCite{bartos2021no;textual}{RoBMA},
+\insertCite{maier2020robust;textual}{RoBMA}, and
+\insertCite{bartos2020adjusting;textual}{RoBMA} for details regarding the RoBMA
+methodology.
+
+More details regarding customization of the model ensembles are provided in the
+\href{../doc/ReproducingBMA.html}{\bold{Reproducing BMA}} and
+\href{../doc/CustomEnsembles.html}{\bold{Fitting custom meta-analytic ensembles}}
+vignettes. Please, use the "Issues" section in the GitHub repository to ask any
+further questions.
 }
 
+\references{
+\insertAllCited{}
+}
 \seealso{
 Useful links:
 \itemize{
