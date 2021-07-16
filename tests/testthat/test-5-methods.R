@@ -219,7 +219,7 @@ test_that("Individual summary functions work", {
       " Inclusion BF     Inf                                                     "                             ,
       ""                                                                                                       ,
       "Parameter estimates:"                                                                                   ,
-      "              Mean    SD    lCI Median   uCI error(MCMC) SD/error(MCMC)  ESS R-hat"                     ,
+      "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                     ,
       "mu           0.176 0.134 -0.097  0.177 0.428     0.00153          0.000 8076 1.000"                     ,
       "tau          0.106 0.102  0.019  0.075 0.369     0.00124          0.000 6744 1.000"                     ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"                     ,
@@ -243,7 +243,7 @@ test_that("Individual summary functions work", {
       " Inclusion BF     Inf                                          "                             ,
       ""                                                                                            ,
       "Parameter estimates:"                                                                        ,
-      "              Mean    SD    lCI Median   uCI error(MCMC) SD/error(MCMC)  ESS R-hat"          ,
+      "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"          ,
       "mu           0.353 0.275 -0.195  0.357 0.883     0.00306          0.011 8076 1.000"          ,
       "tau          0.211 0.204  0.037  0.149 0.738     0.00249          0.012 6744 1.000"          ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"          ,
@@ -265,7 +265,7 @@ test_that("Individual summary functions work", {
       " Inclusion BF     Inf                                          "                                                                           ,
       ""                                                                                                                                          ,
       "Parameter estimates:"                                                                                                                      ,
-      "[1] Mean           SD             lCI            Median         uCI            error(MCMC)    SD/error(MCMC) ESS            R-hat         ",
+      "[1] Mean           SD             lCI            Median         uCI            error(MCMC)    error(MCMC)/SD ESS            R-hat         ",
       "<0 rows> (or 0-length row.names)"
     ))
 })
