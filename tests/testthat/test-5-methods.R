@@ -227,6 +227,60 @@ test_that("Individual summary functions work", {
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
     ))
 
+  # different effect size measure (with PET and PEESE)
+  expect_equal(
+    capture_output_lines(summary(saved_fits[[3]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150)[130:155],
+    c(  " Model             11             Parameter prior distributions"                                     ,
+        " Prior prob.    0.062                 mu ~ Normal(0, 1)        "                                     ,
+        " log(marglik)   -0.87                tau ~ InvGamma(1, 0.15)   "                                     ,
+        " Post. prob.    0.044                PET ~ Cauchy(0, 1)[0, Inf]"                                     ,
+        " Inclusion BF   0.695                                          "                                     ,
+        ""                                                                                                    ,
+        "Parameter estimates:"                                                                                ,
+        "     Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                           ,
+        "mu  0.090 0.184 -0.335  0.108 0.403     0.00357          0.000 2783 1.003"                           ,
+        "tau 0.115 0.121  0.018  0.078 0.429     0.00146          0.000 6854 1.000"                           ,
+        "PET 0.730 0.646  0.023  0.556 2.439     0.01383          0.021 2184 1.002"                           ,
+        "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).",
+        ""                                                                                                    ,
+        "                                                               "                                     ,
+        " Model             12             Parameter prior distributions"                                     ,
+        " Prior prob.    0.062                 mu ~ Normal(0, 1)        "                                     ,
+        " log(marglik)   -1.71                tau ~ InvGamma(1, 0.15)   "                                     ,
+        " Post. prob.    0.019              PEESE ~ Cauchy(0, 5)[0, Inf]"                                     ,
+        " Inclusion BF   0.291                                          "                                     ,
+        ""                                                                                                    ,
+        "Parameter estimates:"                                                                                ,
+        "       Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                         ,
+        "mu    0.102 0.179 -0.304  0.117 0.411     0.00311          0.000 3482 1.001"                         ,
+        "tau   0.130 0.151  0.020  0.085 0.490     0.00228          0.000 4430 1.001"                         ,
+        "PEESE 3.107 2.647  0.100  2.467 9.645     0.05316          0.000 2480 1.000"                         ,
+        "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
+    ))
+
+  # different effect size measure
+  expect_equal(
+    capture_output_lines(summary(saved_fits[[10]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
+    c("Call:"                                                                                                  ,
+      "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                       ,
+      "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "            ,
+      "    priors_bias_null = NULL, parallel = TRUE, seed = 1)"                                                ,
+      ""                                                                                                       ,
+      "Robust Bayesian meta-analysis                                                                          ",
+      " Model              1                        Parameter prior distributions"                             ,
+      " Prior prob.    1.000                               mu ~ Normal(0, 1)     "                             ,
+      " log(marglik)   -1.04                              tau ~ InvGamma(1, 0.15)"                             ,
+      " Post. prob.    1.000             omega[one-sided: .1] = (0.5, 1)         "                             ,
+      " Inclusion BF     Inf                                                     "                             ,
+      ""                                                                                                       ,
+      "Parameter estimates:"                                                                                   ,
+      "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                     ,
+      "mu           0.176 0.134 -0.097  0.177 0.428     0.00153          0.000 8076 1.000"                     ,
+      "tau          0.106 0.102  0.019  0.075 0.369     0.00124          0.000 6744 1.000"                     ,
+      "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"                     ,
+      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA   NA    NA"                     ,
+      "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
+    ))
   # test short names
   expect_equal(
     capture_output_lines(summary(saved_fits[[10]], type = "individual", short_name = TRUE), print = TRUE, width = 150),
@@ -268,6 +322,8 @@ test_that("Individual summary functions work", {
       "[1] Mean           SD             lCI            Median         uCI            error(MCMC)    error(MCMC)/SD ESS            R-hat         ",
       "<0 rows> (or 0-length row.names)"
     ))
+
+
 })
 
 
@@ -275,10 +331,6 @@ test_that("Individual summary functions work", {
 if(FALSE){
 
   saved_fits       <- readRDS(file = "tests/results/saved_fits.RDS")
-
-  # temporal fixes
-  saved_fits[[8]]$models[[1]]$inference$inclusion_BF  <- Inf
-  saved_fits[[10]]$models[[1]]$inference$inclusion_BF <- Inf
 
   # generate print files
   for(i in seq_along(saved_fits)){

@@ -352,7 +352,7 @@
       }
       if("PEESE" %in% names(priors)){
         # the transformation is inverse for PEESE
-        transformations[["tau"]] <- list(
+        transformations[["PEESE"]] <- list(
           "fun" = .scale,
           "arg" = list(
             "from" = measure,
