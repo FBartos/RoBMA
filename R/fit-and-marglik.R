@@ -42,6 +42,9 @@
     # assess the model fit and deal with errors
     if(inherits(fit, "error")){
 
+      if(grepl("Unknown function", fit$message))
+        stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
+
       fit            <- list()
       converged      <- FALSE
       has_posterior  <- FALSE
