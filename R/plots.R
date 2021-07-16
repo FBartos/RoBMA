@@ -163,6 +163,8 @@ plot.RoBMA  <- function(x, parameter = "mu",
         stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
       parameters      <- c("mu", "PEESE")
       parameters_null <- c("mu" = list(!is_conditional), "PEESE" = list(!is_conditional))
+    }else{
+      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
     }
 
     samples <- BayesTools::mix_posteriors(
@@ -199,9 +201,9 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }
   }else if(parameter %in% "PETPEESE"){
     # checking for mu since it's the common parameter for PET-PEESE
-    if(conditional && is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
+    if(conditional && (is.null(samples[["mu"]]) || is.null(samples[["PET"]]) && is.null(samples[["PEESE"]]))){
       stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
-    }else if(is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
+    }else if(is.null(samples[["mu"]]) || is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
       stop("The ensemble does not contain any posterior samples model-averaged across the PET-PEESE publication bias adjustment. Please, verify that you specified at least one PET-PEESE publication bias adjustment.")
     }
   }
