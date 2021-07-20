@@ -28,7 +28,7 @@ PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath
 ###  LIBS and objects to be compiled
 ###############
 
-OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+OBJECTS = distributions/DWMN1.o distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
 
 ###############
 
