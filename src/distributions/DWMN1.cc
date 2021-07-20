@@ -45,7 +45,9 @@ using std::fabs;
 #include <algorithm>
 
 #include <JRmath.h>
-#include <mvtnormAPI.h>
+#include "mvtnorm_workaround.h"
+
+
 
 using std::vector;
 using std::log;
