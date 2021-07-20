@@ -43,6 +43,7 @@ Imports:
     BayesTools (>= 0.1.3),
     runjags,
     bridgesampling,
+    mvtnorm,
     rjags,
     coda,
     psych,
@@ -62,5 +63,7 @@ Suggests:
     knitr,
     rmarkdown,
     covr
+LinkingTo:
+    mvtnorm
 RdMacros: Rdpack
 VignetteBuilder: knitr
