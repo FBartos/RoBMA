@@ -53,7 +53,56 @@ inform <- 0
 
 library(mvtnorm)
 mvtnorm::pmvnorm(
-  lower = rep(-Inf, 2),
-  upper = rep(1.96, 2),
-  mean  = c(0, 0),,
+  lower = c(-Inf, .5),
+  upper = c(1, Inf),
+  mean  = c(1.2, 1.5),
   sigma = E_all[1:2, 1:2])
+
+### pre-processing
+lower <- (lower - mean)/sqrt(diag(sigma))
+upper <- (upper - mean)/sqrt(diag(sigma))
+delta <- rep(0, length(lower))
+corr  <- cov2cor(sigma)
+RET  <- mvt(lower = lower, upper = upper, df = 0,
+            corr  = corr, delta = mean, algorithm = algorithm,
+            ...)
+
+### return 0 on the same upper and lower bounds
+any(abs(lower - upper) < sqrt(.Machine$double.eps) * (abs(lower) + abs(upper)) | lower == upper)
+return(0)
+
+### settings of inif argument:
+# =  1  if the upper bound is Inf
+# =  0  if the lower bound is -Inf
+# = -1  if the lower bound is -Inf and the upper bound is InF
+infin[isInf(upper)]  <- 1
+infin[isNInf(lower)] <- 0
+infin[isNInf(lower) & isInf(upper)] <- -1
+debug(pmvnorm)
+
+### return 1 when all range is unrestricted
+all(infin < 0)
+
+### prepare the correlation matrix input
+corr <- matrix(as.vector(corr), ncol = n, byrow = TRUE)
+corr <- corr[upper.tri(corr)]
+
+ret <- probval(algorithm, n, df, lower, upper, infin, corr,
+               delta)
+
+
+### inside of probval
+if (isInf(df))
+   df <- 0
+lower[isNInf(lower)] <- 0
+upper[isInf(upper)] <- 0
+error <- 0
+value <- 0
+inform <- 0
+.C(C_mvtdst, N = as.integer(n), NU = as.integer(df), LOWER = as.double(lower),
+   UPPER = as.double(upper), INFIN = as.integer(infin),
+   CORREL = as.double(corrF), DELTA = as.double(delta),
+   MAXPTS = as.integer(x$maxpts), ABSEPS = as.double(x$abseps),
+   RELEPS = as.double(x$releps), error = as.double(error),
+   value = as.double(value), inform = as.integer(inform),
+   RND = as.integer(1))

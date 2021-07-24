@@ -64,6 +64,9 @@ Suggests:
     rmarkdown,
     covr
 LinkingTo:
-    mvtnorm
+    mvtnorm,
+    Rcpp,
+    RcppArmadillo,
+    Matrix
 RdMacros: Rdpack
 VignetteBuilder: knitr
