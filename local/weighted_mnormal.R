@@ -53,10 +53,15 @@ inform <- 0
 
 library(mvtnorm)
 mvtnorm::pmvnorm(
-  lower = c(-Inf, .5),
-  upper = c(1, Inf),
-  mean  = c(1.2, 1.5),
-  sigma = E_all[1:2, 1:2])
+  lower = c(-Inf, .5, .8),
+  upper = c(1, Inf, 1),
+  mean  = c(1.2, 1.5, .8),
+  sigma = E_all[1:3, 1:3])
+
+mvtnorm::dmvnorm(
+   x =    c(0, .5, .8),
+   mean  = c(1.2, 1.5, .8),
+   sigma = E_all[1:3, 1:3])
 
 ### pre-processing
 lower <- (lower - mean)/sqrt(diag(sigma))
@@ -106,3 +111,8 @@ inform <- 0
    RELEPS = as.double(x$releps), error = as.double(error),
    value = as.double(value), inform = as.integer(inform),
    RND = as.integer(1))
+
+
+
+s
+#

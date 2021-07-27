@@ -6,16 +6,27 @@
 #include <cfloat>
 #include <cmath>
 #include <vector>
+#include <array>
 
 #include <algorithm>
 #include <JRmath.h>
-#include "../functions/pmwnorm.h"
+//#include "../functions/mnorm.h"
+#include "../functions/get_weight.h"
+
+#include <iostream>
+
 
 using std::vector;
 using std::log;
 using std::exp;
+using std::sqrt;
 using std::fabs;
-using std::copy;
+//using std::inf;
+using std::cout;
+using std::endl;
+
+
+
 
 // define parameters
 // mu  = par[0]
@@ -33,59 +44,108 @@ using std::copy;
 namespace jags {
 namespace RoBMA {
 
-
+// identify whether the matrix with crit_y values collapsed to a vector
+bool steps_collapsed (vector<vector<unsigned int> > const &dims)
+{
+  return dims[3].size() == 1;
+}
 
 vector<unsigned int> DWMN1::dim(vector<vector<unsigned int> > const &dims) const
 {
-  if (isScalar(dims[0])) {
-    return vector<unsigned int>(1,1);
-  }
-  else {
-    return vector<unsigned int> (2, dims[0][0]);
-  }
+  return vector<unsigned int>(1,dims[0][0]);
 }
+
 
 bool DWMN1::checkParameterDim (vector<vector<unsigned int> > const &dims) const
 {
-  return true;
+
+  bool sigma_OK  = true; // check that sigma and mu dimension matches
+  bool omega_OK  = true; // check that omega and crit_x dimension matches
+  bool crit_x_OK = true; // check that crit_x and mu dimension matches
+
+  sigma_OK  = dims[0][0] == dims[1][0] && dims[1][0] == dims[1][1];
+  crit_x_OK = dims[0][0] == dims[3][0];
+  if(steps_collapsed(dims)){
+    omega_OK  = dims[2][0] == 2;
+  }else{
+    omega_OK  = dims[2][0] == (dims[3][1] + 1);
+  }
+
+  return sigma_OK && omega_OK && crit_x_OK;
 }
+
 
 bool DWMN1::checkParameterValue(vector<double const *> const &par, vector<vector<unsigned int> > const &dims) const
 {
-  return true;
+
+  const double *sigma  = par[1];
+  const double *omega  = par[2];
+
+  const int K = dims[0][0];
+  const int J = dims[2][0];
+
+  bool sigma_OK = true;  // check that sigma is symmetric and positive (not that it is semidefinite)
+  bool omega_OK = true;  // check that omega is between 0 and 1
+
+  for(int i = 0; i < K; i++){
+    for(int j = 0; j < K && j <= i; j++){
+      sigma_OK = sigma_OK && sigma[K * i + j] == sigma[K * j + i] && sigma[K * i + j] >= 0;
+    }
+  }
+
+  for(int i = 0; i < J; i++){
+    omega_OK = omega_OK && omega[i] >= 0 && omega[i] <= 1;
+  }
+
+  return sigma_OK && omega_OK;
 }
+
 
 DWMN1::DWMN1():ArrayDist("dwmnorm_1s", 4) {}
 
 double DWMN1::logDensity(double const *x, unsigned int length, PDFType type, vector<double const *> const &par,
-			    vector<vector<unsigned int> > const &dims,
-			    double const *lower, double const *upper) const
+			    vector<vector<unsigned int> > const &dims, double const *lower, double const *upper) const
 {
 
-  double mu     = *par[0];
-  double sigma  = *par[1];
-  double omega  = *par[2];
-  double crit_x = *par[3];
+  // reassign the addresses to pointers
+  const double *mu     = par[0];
+  const double *sigma  = par[1];
+  const double *omega  = par[2];
+  const double *crit_x = par[3];
 
-  double p;
+  // information about the dimensions
+  const int K = dims[0][0]; // of the outcome
+  const int J = dims[2][0]; // of the weights
 
-  vector<double> t_lower;
-  vector<double> t_upper;
+  // create dynamically allocated arrays for covariance matrix decomposition
+  double * sigma_stdev;
+  double * sigma_corr;
 
-  t_lower.push_back(0);
-  t_lower.push_back(0);
-  t_upper.push_back(1);
-  t_upper.push_back(1);
-  p = pmnorm(t_lower, t_upper,
-             mu, sigma);
+  sigma_stdev = new double [K];
+  sigma_corr  = new double [K * (K - 1) / 2];
 
-/*
-  double loglik = (k - p - 1) * logdet(x, p) / 2;
-  for (unsigned int i = 0; i < p; ++i) {
-    loglik -= (k+1) * log(df * x[i*p + i] + 1/(A[i]*A[i])) / 2;
-
+  for(int i = 0; i < K; i++){
+    sigma_stdev[i] = sqrt(sigma[K * i + i]);
   }
-*/
+  for(int i = 0; i < K; i++){
+    for(int j = 0; j < K && j < i; j++){
+      sigma_corr[i * (i - 1) / 2 + j] = sigma[K * i + j] / sqrt(sigma[K * i + i] * sigma[K * j + j]);
+    }
+  }
+
+  // obtain product of the weights (on log scale)
+  double log_w = 0;
+  for(int i = 0; i < K; i++){
+    log_w += log_weight_twosided(&x[i], &crit_x[i * (J - 1)], &omega[0], J);
+  }
+
+  // get the log-likelihood
+  //double log_lik = dwmnorm(&x[0], &mu[0], &sigma[0]) + log_w;
+
+
+
+
+
   return 0;
 /*
   // imported

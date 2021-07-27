@@ -71,7 +71,9 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0
 ### NB: the objects in distributions/jags are only necessary for JAGS <=3, and are excluded by the sources when compiling against JAGS >= 4
 ###############
 
-OBJECTS = distributions/DWMN1.o distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+OBJECTS = distributions/DWMN1.o distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o \
+		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o                       \
+		  functions/get_weight.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
 
 ###############
 
@@ -83,6 +85,8 @@ OBJECTS = distributions/DWMN1.o distributions/DWN1.o distributions/DWN2.o distri
 
 # PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include"
 # PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4
-# OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+# OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o        \
+	        transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o        \
+			functions/get_weight.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
 
 ###############
