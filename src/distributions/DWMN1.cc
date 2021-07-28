@@ -8,9 +8,12 @@
 #include <vector>
 #include <array>
 
-#include <algorithm>
+//#include <lapack.h>
+//#include <R_ext/Lapack.h>
+
+
 #include <JRmath.h>
-//#include "../functions/mnorm.h"
+#include "../functions/mnorm.h"
 #include "../functions/get_weight.h"
 
 #include <iostream>
@@ -21,7 +24,6 @@ using std::log;
 using std::exp;
 using std::sqrt;
 using std::fabs;
-//using std::inf;
 using std::cout;
 using std::endl;
 
@@ -49,6 +51,7 @@ bool steps_collapsed (vector<vector<unsigned int> > const &dims)
 {
   return dims[3].size() == 1;
 }
+
 
 vector<unsigned int> DWMN1::dim(vector<vector<unsigned int> > const &dims) const
 {
@@ -136,11 +139,11 @@ double DWMN1::logDensity(double const *x, unsigned int length, PDFType type, vec
   // obtain product of the weights (on log scale)
   double log_w = 0;
   for(int i = 0; i < K; i++){
-    log_w += log_weight_twosided(&x[i], &crit_x[i * (J - 1)], &omega[0], J);
+    log_w += log_weight_onesided(&x[i], &crit_x[i * (J - 1)], &omega[0], J);
   }
 
-  // get the log-likelihood
-  //double log_lik = dwmnorm(&x[0], &mu[0], &sigma[0]) + log_w;
+
+  double log_lik = dmnorm(&x[0], &mu[0], &sigma[0], K) + log_w;
 
 
 

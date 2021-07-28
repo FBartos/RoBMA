@@ -44,32 +44,70 @@ data2 <- list(
 )
 
 model1 <- rjags::jags.model(file = textConnection(model_syntax1), data = data1, quiet = TRUE, n.adapt=1)
-fit1   <- rjags::jags.samples(model = model1, variable.names = "omega", n.iter = 2, quiet = TRUE, progress.bar = "none")
+fit1   <- rjags::jags.samples(model = model1, variable.names = "omega", n.iter = 1, quiet = TRUE, progress.bar = "none")
 
 
-model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt=1)
-fit2   <- rjags::jags.samples(model = model2, variable.names = "omega", n.iter = 1, quiet = TRUE, progress.bar = "none")
-
-corr[upper.tri(corr)]
-
-K <- 5
-m <- matrix(0:(K*K-1), ncol = K, nrow = K, byrow = T)
-m
-m[lower.tri(m)]
-
-for(i in 0:(K-1))
-  print(K * i + i)
+model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt=2)
+fit2   <- rjags::jags.samples(model = model2, variable.names = "omega", n.iter = 2, quiet = TRUE, progress.bar = "none")
 
 
-TT <- function(n) n * (n + 1) / 2
+y      = c(1.5, 0, 3)
+mu     = c(0.2, 0.5, -0.1)
+sigma  = matrix(c(
+  1.5, 1.0, 0.5,
+  1.0, 1.8, 0.7,
+  0.5, 0.7, 1.2), nrow = 3, ncol = 3)
 
-K = 4
-for(i in 0:(K-1)){
-  for(j in 0:(K-1)){
+solve(chol_decomp)
+solve(t(chol_decomp))
 
-    print(sigma[K * i + j + 1])
-    print(sigma[K * j + i + 1])
-    print("xxx")
+chol_decomp <- chol(sigma)
+chol_decomp
+rooti       <- solve(chol_decomp)
+rootisum    <- sum(log(diag(rooti)))
+constants   <- -nrow(sigma)/2.0 * log(2 * pi)
+other_terms <- rootisum + constants
+
+z          <- (y - mu)
+z          <- inplace_tri_mat_mult(z, rooti)
+other_terms - 0.5 * sum(z * z)
+
+mvtnorm::dmvnorm(
+  x     = y,
+  mean  = mu,
+  sigma = sigma, log = T)
+
+inplace_tri_mat_mult <-  function(x, mat){
+  n = ncol(mat)
+
+  for(j in n:1){
+    tmp <- 0
+    for(i in 1:j)
+      tmp = tmp + mat[i, j] * x[i]
+      x[j] = tmp
+  }
+
+  return(x)
+}
+void inplace_tri_mat_mult(arma::rowvec &x, arma::mat const &trimat){
+  arma::uword const n = trimat.n_cols;
+
+  for(unsigned j = n; j-- > 0;){
+    double tmp(0.);
+    for(unsigned i = 0; i <= j; ++i)
+      tmp += trimat.at(i, j) * x[i];
+      x[j] = tmp;
   }
 }
 
+arma::mat const rooti = arma::inv(trimatu(arma::chol(sigma)));
+double const rootisum = arma::sum(log(rooti.diag())),
+constants = -(double)xdim/2.0 * log2pi,
+other_terms = rootisum + constants;
+
+arma::rowvec z;
+for (uword i = 0; i < n; i++) {
+  z = (x.row(i) - mean);
+  inplace_tri_mat_mult(z, rooti);
+  out(i) = other_terms - 0.5 * arma::dot(z, z);
+}
