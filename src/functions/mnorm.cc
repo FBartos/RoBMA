@@ -76,49 +76,38 @@ double dmnorm(double const *x, double const *mu, double const *sigma, const int 
 
   // lower triangle cholesky decomposition
   chol(&sigma[0], K, sigma_chol);
+
+  // inverse
   inverse(&sigma_chol[0], K, chol_inv);
 
-  for(int i = 0; i < K*K; i++){
-    cout << "sigma_chol[" << i << "]" << sigma_chol[i] << endl;
+  // product of the diagonal ellements
+  double diag_prod = 0;
+  for(int i = 0; i < K; i++){
+    diag_prod += log(*(chol_inv+K*i+i));
   }
-    for(int i = 0; i < K*K; i++){
-    cout << "chol_inv[" << i << "]" << chol_inv[i] << endl;
+
+  // standardized means? (based on arma::inplace_tri_mat_mult)
+  double * z;
+  z = new double [K];
+  for(int i = 0; i < K; i++){
+    *(z+i) += *(x+i) - *(mu+i);
   }
-  cout << "ggeeeg" << endl;
-  /*
-  Matrix3d m = Matrix3d::Random();
-  m = (m + Matrix3d::Constant(1.2)) * 50;
-  cout << "m =" << endl << m << endl;
-  Vector3d v(1,2,3);
-
-  cout << "m * v =" << endl << m * v << endl;
-
-
-  arma::vec dmvnrm_arma_fast(arma::mat const &x,
-                           arma::rowvec const &mean,
-                           arma::mat const &sigma,
-                           bool const logd = false) {
-    using arma::uword;
-    uword const n = x.n_rows,
-             xdim = x.n_cols;
-    arma::vec out(n);
-    arma::mat const rooti = arma::inv(trimatu(arma::chol(sigma)));
-    double const rootisum = arma::sum(log(rooti.diag())),
-                constants = -(double)xdim/2.0 * log2pi,
-              other_terms = rootisum + constants;
-
-    arma::rowvec z;
-    for (uword i = 0; i < n; i++) {
-        z = (x.row(i) - mean);
-        inplace_tri_mat_mult(z, rooti);
-        out(i) = other_terms - 0.5 * arma::dot(z, z);
+  for(int i = K - 1; i >= 0; i--){
+    double temp = 0;
+    for(int j = 0; j <= i; j++){
+      temp += *(chol_inv+K*i+j) * *(z+j);
     }
+    *(z+i) = temp;
+  }
 
-    if (logd)
-      return out;
-    return exp(out);
-    */
-   return 0;
+  // log lik
+  double log_lik = 0;
+  for(int i = 0; i < K; i++){
+    log_lik += pow(*(z+i), 2);
+  }
+  log_lik = - 0.5 * log_lik + diag_prod - K * 0.9189385;
+ 
+  return log_lik;
 }
 
 
@@ -155,7 +144,7 @@ void cofactor(double const *matrix, double *temp, int p, int q, int n, int const
       //  Copying into temporary matrix only those element
       //  which are not in given row and column
       if (row != p && col != q){
-        [temp+K*i+j++] = *(matrix+K*row+col);
+        temp[K*i+j++] = *(matrix+K*row+col);
 
         // Row is filled, so increase row index and
         // reset col index
@@ -232,12 +221,12 @@ void adjoint(double const *matrix, double *adj, int const K)
 
 // Function to calculate and store inverse, returns false if
 // matrix is singular
-bool inverse(double const *matrix, double const K, double *inverse)
+bool inverse(double const *matrix, int const K, double *inverse)
 {
   // Find determinant of A[][]
   double det = determinant(&matrix[0], K, K);
   if (det == 0){
-    cout << "Singular matrix, can't find its inverse";
+    cout << "Singular matrix, can't find its inverse" << endl;
     return false;
   }
 

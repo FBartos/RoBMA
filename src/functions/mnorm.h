@@ -11,7 +11,7 @@ void chol(double const *matrix, const int n, double *lower);
 void cofactor(double const *matrix, double *temp, int p, int q, int n, int const K);
 double determinant(double const *matrix, int n, int const K);
 void adjoint(double const *matrix, double *adj, int const K);
-bool inverse(double const *matrix, double const K, double *inverse);
+bool inverse(double const *matrix, int const K, double *inverse);
 
 
 #endif /* mnorm_H_ */
