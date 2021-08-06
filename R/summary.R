@@ -358,3 +358,47 @@ is.RoBMA            <- function(x){
   inherits(x, "RoBMA")
 }
 
+
+
+#' @title Interprets results of a RoBMA model.
+#'
+#' @description \code{interpret} creates a brief textual summary
+#' of a fitted RoBMA object.
+#'
+#' @param object a fitted RoBMA object
+#'
+#'
+#' @return \code{interpret} returns a character.
+#'
+#' @export
+interpret           <- function(object){
+
+  text <- BayesTools::interpret(
+    inference     = object$RoBMA[["inference"]],
+    samples       = object$RoBMA[["posteriors"]],
+    specification = list(
+      list(
+        inference           = "Effect",
+        samples             = "mu",
+        inference_name      = "effect",
+        inference_BF_name   = "BF_10",
+        samples_name        = .transformation_names(object$add_info[["output_scale"]])
+      )[any(names(object$RoBMA[["inference"]]) == "Effect")],
+      list(
+        inference           = "Heterogeneity",
+        samples             = "tau",
+        inference_name      = "heterogeneity",
+        inference_BF_name   = "BF^rf",
+        samples_name        = "tau"
+      )[any(names(object$RoBMA[["inference"]]) == "Heterogeneity")],
+      list(
+        inference           = "Bias",
+        inference_name      = "publication bias",
+        inference_BF_name   = "BF_pb"
+      )[any(names(object$RoBMA[["inference"]]) == "Bias")]
+    ),
+    method        = "Robust Bayesian meta-analysis"
+  )
+
+  return(text)
+}

@@ -1,0 +1,6 @@
+"Robust Bayesian meta-analysis found strong evidence in favor of the effect, BF_1
+0 = Inf, with mean model-averaged estimate Cohen's d = 0.353, 95% CI [-0.210,  0
+.880]. Robust Bayesian meta-analysis found strong evidence in favor of the heter
+ogeneity, BF^rf = Inf, with mean model-averaged estimate tau = 0.210, 95% CI [0.
+037, 0.725]. Robust Bayesian meta-analysis found strong evidence in favor of the
+ publication bias, BF_pb = Inf."

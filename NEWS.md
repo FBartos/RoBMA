@@ -1,3 +1,13 @@
+## to be version 2.1
+### Fixes
+- more informative error message when the JAGS module fails to load
+- correcting wrong PEESE transformation for the individual models summaries (issue #12)
+- fixing error message for missing conditional PET-PEESE
+
+### Features
+- adding `interpret` function (issue #11)
+
+
 ## version 2.0
 Please notice that this is a major release that breaks backwards compatibility.
 

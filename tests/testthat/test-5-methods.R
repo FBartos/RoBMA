@@ -326,6 +326,15 @@ test_that("Individual summary functions work", {
 
 })
 
+test_that("Interpret functions work", {
+
+  # testing consistency across all model specifications
+  for(i in 1:length(saved_fits)){
+    expect_equal(
+      gsub("(.{80})", "\\1\\\n", interpret(saved_fits[[i]])),
+      read.table(file = file.path("../results/interpret", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+  }
+})
 
 #### creating / updating the test settings ####
 if(FALSE){
@@ -357,5 +366,9 @@ if(FALSE){
     write.table(capture_output_lines(summary(saved_fits[[i]], type = "individual"), print = TRUE, width = 150), file = file.path("tests/results/summary.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
-}
+  # generate summary.individual files
+  for(i in seq_along(saved_fits)){
+    write.table(gsub("(.{80})", "\\1\\\n", interpret(saved_fits[[i]])), file = file.path("tests/results/interpret", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  }
 
+}
