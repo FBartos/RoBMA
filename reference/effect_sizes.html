@@ -73,7 +73,7 @@ effect size measures." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.7</span>
       </span>
     </div>
 
@@ -139,27 +139,43 @@ effect size measures.</p>
 
     <pre class="usage"><span class='fu'>d2r</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span>
 
+<span class='fu'>d2z</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span>
+
 <span class='fu'>d2logOR</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span>
+
+<span class='fu'>d2OR</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span>
 
 <span class='fu'>r2d</span><span class='op'>(</span><span class='va'>r</span><span class='op'>)</span>
 
 <span class='fu'>r2z</span><span class='op'>(</span><span class='va'>r</span><span class='op'>)</span>
 
-<span class='fu'>logOR2d</span><span class='op'>(</span><span class='va'>logOR</span><span class='op'>)</span>
+<span class='fu'>r2logOR</span><span class='op'>(</span><span class='va'>r</span><span class='op'>)</span>
+
+<span class='fu'>r2OR</span><span class='op'>(</span><span class='va'>r</span><span class='op'>)</span>
 
 <span class='fu'>z2r</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span>
 
-<span class='fu'>d2z</span><span class='op'>(</span><span class='va'>d</span><span class='op'>)</span>
+<span class='fu'>z2d</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span>
 
-<span class='fu'>r2logOR</span><span class='op'>(</span><span class='va'>r</span><span class='op'>)</span>
+<span class='fu'>z2logOR</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span>
 
-<span class='fu'>logOR2z</span><span class='op'>(</span><span class='va'>logOR</span><span class='op'>)</span>
+<span class='fu'>z2OR</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span>
 
 <span class='fu'>logOR2r</span><span class='op'>(</span><span class='va'>logOR</span><span class='op'>)</span>
 
-<span class='fu'>z2d</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span>
+<span class='fu'>logOR2z</span><span class='op'>(</span><span class='va'>logOR</span><span class='op'>)</span>
 
-<span class='fu'>z2logOR</span><span class='op'>(</span><span class='va'>z</span><span class='op'>)</span></pre>
+<span class='fu'>logOR2d</span><span class='op'>(</span><span class='va'>logOR</span><span class='op'>)</span>
+
+<span class='fu'>logOR2OR</span><span class='op'>(</span><span class='va'>logOR</span><span class='op'>)</span>
+
+<span class='fu'>OR2r</span><span class='op'>(</span><span class='va'>OR</span><span class='op'>)</span>
+
+<span class='fu'>OR2z</span><span class='op'>(</span><span class='va'>OR</span><span class='op'>)</span>
+
+<span class='fu'>OR2logOR</span><span class='op'>(</span><span class='va'>OR</span><span class='op'>)</span>
+
+<span class='fu'>OR2d</span><span class='op'>(</span><span class='va'>OR</span><span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -173,12 +189,16 @@ effect size measures.</p>
       <td><p>correlation coefficient.</p></td>
     </tr>
     <tr>
+      <th>z</th>
+      <td><p>Fisher's z.</p></td>
+    </tr>
+    <tr>
       <th>logOR</th>
       <td><p>log(odds ratios).</p></td>
     </tr>
     <tr>
-      <th>z</th>
-      <td><p>Fisher's z.</p></td>
+      <th>OR</th>
+      <td><p>offs ratios.</p></td>
     </tr>
     </table>
 

@@ -73,7 +73,7 @@ estimates for a &quot;RoBMA&quot; object." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.6</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.7</span>
       </span>
     </div>
 
@@ -141,6 +141,7 @@ estimates for a <code>"RoBMA"</code> object.</p>
   <span class='va'>x</span>,
   parameter <span class='op'>=</span> <span class='st'>"mu"</span>,
   conditional <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  output_scale <span class='op'>=</span> <span class='cn'>NULL</span>,
   plot_type <span class='op'>=</span> <span class='st'>"base"</span>,
   order <span class='op'>=</span> <span class='st'>"decreasing"</span>,
   order_by <span class='op'>=</span> <span class='st'>"model"</span>,
@@ -167,6 +168,12 @@ plotted. Defaults to <code>FALSE</code> which plots the model-averaged
 estimates. Note that both <code>"weightfunction"</code> and
 <code>"PET-PEESE"</code> are always ignoring the other type of
 publication bias adjustment.</p></td>
+    </tr>
+    <tr>
+      <th>output_scale</th>
+      <td><p>transform the effect sizes and the meta-analytic
+effect size estimate to a different scale. Defaults to <code>NULL</code>
+which returns the same scale as the model was estimated on.</p></td>
     </tr>
     <tr>
       <th>plot_type</th>
