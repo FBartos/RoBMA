@@ -20,6 +20,9 @@
 #' \code{"base"}.
 #' @param prior whether prior distribution should be added to
 #' figure. Defaults to \code{FALSE}.
+#' @param output_scale transform the effect sizes and the meta-analytic
+#' effect size estimate to a different scale. Defaults to \code{NULL}
+#' which returns the same scale as the model was estimated on.
 #' @param rescale_x whether the x-axis of the \code{"weightfunction"}
 #' should be re-scaled to make the x-ticks equally spaced.
 #' Defaults to \code{FALSE}.
@@ -73,15 +76,12 @@
 #' @seealso [RoBMA()]
 #' @export
 plot.RoBMA  <- function(x, parameter = "mu",
-                        conditional = FALSE, plot_type = "base", prior = FALSE,
+                        conditional = FALSE, plot_type = "base", prior = FALSE, output_scale = NULL,
                         rescale_x = FALSE, show_data = TRUE, dots_prior = NULL, ...){
 
   # check whether plotting is possible
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
-
-  # TODO: implement
-  output_scale <- NULL
 
   #check settings
   BayesTools::check_char(parameter, "parameter")
@@ -104,35 +104,27 @@ plot.RoBMA  <- function(x, parameter = "mu",
 
   ### manage transformations
   # get the settings
-  prior_scale <- x$add_info[["prior_scale"]]
+  results_scale <- x$add_info[["output_scale"]]
   if(is.null(output_scale)){
     output_scale <- x$add_info[["output_scale"]]
   }else{
     output_scale <- .transformation_var(output_scale)
   }
   # set the transformations
-  if(prior_scale != output_scale){
-    # TODO: figure out transformations, including jacobinas for effect sizes transformations - needed for the priors
-    stop("Plotting output on a different than prior scale is not possible yet.")
-    # if(parameter == "PETPEESE"){
-    #
-    #   # the transformation is inverse for PEESE
-    #   transformation           = "lin"
-    #   transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
-    #
-    # }else if(parameter == "mu"){
-    #
-    #   # this transformation needs jacobian!
-    #
-    # }else if(parameter == "tau"){
-    #
-    #   transformation           = "lin"
-    #   transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
-    #
-    # }
+  if(results_scale != output_scale){
+    if(parameter == "PETPEESE"){
+      # the transformation is inverse for PEESE
+      transformation <- eval(parse(text = paste0(".scale_", output_scale, "2", results_scale)))
+    }else if(parameter == "PET"){
+      # PET is scale invariant
+      transformation <- NULL
+    }else if(parameter == "mu"){
+      transformation <- eval(parse(text = paste0(".", results_scale, "2", output_scale)))
+    }else if(parameter == "tau"){
+      transformation <- eval(parse(text = paste0(".scale_", results_scale, "2", output_scale)))
+    }
   }else{
-    transformation           <- NULL
-    transformation_arguments <- NULL
+    transformation <- NULL
   }
 
 
@@ -213,10 +205,8 @@ plot.RoBMA  <- function(x, parameter = "mu",
   dots_prior <- .set_dots_prior(dots_prior)
 
   if(parameter == "PETPEESE" & show_data){
-    # TODO: change from 'prior_scale' to 'output_scale' when plotting scale can be changed
     data <- x[["data"]]
-    data <- combine_data(data = data, transformation = .transformation_invar(prior_scale))
-    # make sure all standard errors are within the plotting range
+    data <- combine_data(data = data, transformation = .transformation_invar(output_scale))
     if(is.null(dots[["xlim"]])){
       dots[["xlim"]] <- range(pretty(c(0, data$se)))
     }
@@ -230,8 +220,8 @@ plot.RoBMA  <- function(x, parameter = "mu",
     n_points                 = 1000,
     n_samples                = 10000,
     force_samples            = FALSE,
-    transformation           = transformation,
-    transformation_arguments = transformation_arguments,
+    transformation           = list(transformation),
+    transformation_arguments = NULL,
     transformation_settings  = FALSE,
     rescale_x                = rescale_x,
     par_name                 = NULL,
@@ -277,9 +267,6 @@ plot.RoBMA  <- function(x, parameter = "mu",
 #' ordering as supplied to the fitting function. Studies
 #' can be ordered either \code{"increasing"} or \code{"decreasing"} by
 #' effect size, or by labels \code{"alphabetical"}.
-#' @param output_scale transform the effect sizes and the meta-analytic
-#' effect size estimate to a different scale. Defaults to \code{NULL}
-#' which returns the same scale as the model was estimated on.
 #' @inheritParams plot.RoBMA
 #'
 #' @examples \dontrun{
@@ -329,7 +316,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
   ### manage transformations
   # get the settings
-  prior_scale <- x$add_info[["prior_scale"]]
+  results_scale <- x$add_info[["output_scale"]]
   if(is.null(output_scale)){
     output_scale <- x$add_info[["output_scale"]]
   }else{
@@ -337,8 +324,8 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   }
 
   # set the transformations
-  if(prior_scale != output_scale){
-    samples_mu <- .transform_mu(samples_mu, prior_scale, output_scale)
+  if(results_scale != output_scale){
+    samples_mu <- .transform_mu(samples_mu, results_scale, output_scale)
   }
 
   # obtain the posterior estimates
@@ -516,13 +503,10 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 #'
 #' @export
-plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "base", order = "decreasing", order_by = "model", ...){
+plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale = NULL, plot_type = "base", order = "decreasing", order_by = "model", ...){
 
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
-
-  # TODO:implement
-  output_scale <- NULL
 
   #check settings
   BayesTools::check_bool(conditional, "conditional")
@@ -538,35 +522,27 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "b
 
   ### manage transformations
   # get the settings
-  prior_scale <- x$add_info[["prior_scale"]]
+  results_scale <- x$add_info[["output_scale"]]
   if(is.null(output_scale)){
     output_scale <- x$add_info[["output_scale"]]
   }else{
     output_scale <- .transformation_var(output_scale)
   }
   # set the transformations
-  if(prior_scale != output_scale){
-    # TODO: figure out transformations, including jacobinas for effect sizes transformations - needed for the priors
-    stop("Plotting output on a different than prior scale is not possible yet.")
-    # if(parameter == "PEESE"){
-    #
-    #   # the transformation is inverse for PEESE
-    #   transformation           = "lin"
-    #   transformation_arguments = list(a = 0, b = .get_scale_b(output_scale, priors_scale))
-    #
-    # }else if(parameter == "mu"){
-    #
-    #   # this transformation needs jacobian!
-    #
-    # }else if(parameter == "tau"){
-    #
-    #   transformation           = "lin"
-    #   transformation_arguments = list(a = 0, b = .get_scale_b(priors_scale, output_scale))
-    #
-    # }
+  if(results_scale != output_scale){
+    if(parameter == "PETPEESE"){
+      # the transformation is inverse for PEESE
+      transformation <- eval(parse(text = paste0(".scale_", output_scale, "2", results_scale)))
+    }else if(parameter == "PET"){
+      # PET is scale invariant
+      transformation <- NULL
+    }else if(parameter == "mu"){
+      transformation <- eval(parse(text = paste0(".", results_scale, "2", output_scale)))
+    }else if(parameter == "tau"){
+      transformation <- eval(parse(text = paste0(".scale_", results_scale, "2", output_scale)))
+    }
   }else{
-    transformation           <- NULL
-    transformation_arguments <- NULL
+    transformation <- NULL
   }
 
 
@@ -606,8 +582,8 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, plot_type = "b
     prior                    = FALSE,
     condtional               = conditional,
     order                    = list(list(order, order_by)),
-    transformation           = transformation,
-    transformation_arguments = transformation_arguments,
+    transformation           = list(transformation),
+    transformation_arguments = NULL,
     transformation_settings  = FALSE,
     par_name                 = .plot.RoBMA_par_names(parameter, x, output_scale)[[1]],
     dots))

@@ -5,7 +5,9 @@
 - fixing error message for missing conditional PET-PEESE
 
 ### Features
-- adding `interpret` function (issue #11)
+- adding `interpret()` function (issue #11)
+- adding effect size transformation via `output_scale` argument to `plot()` and `plot_models()` functions
+- better handling of effect size transformations and scaling - BayesTools style back-end functions with Jacobian transformations
 
 
 ## version 2.0

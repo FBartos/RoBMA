@@ -10,6 +10,7 @@
   conditional = FALSE,
   plot_type = "base",
   prior = FALSE,
+  output_scale = NULL,
   rescale_x = FALSE,
   show_data = TRUE,
   dots_prior = NULL,
@@ -37,6 +38,10 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 
 \item{prior}{whether prior distribution should be added to
 figure. Defaults to \code{FALSE}.}
+
+\item{output_scale}{transform the effect sizes and the meta-analytic
+effect size estimate to a different scale. Defaults to \code{NULL}
+which returns the same scale as the model was estimated on.}
 
 \item{rescale_x}{whether the x-axis of the \code{"weightfunction"}
 should be re-scaled to make the x-ticks equally spaced.

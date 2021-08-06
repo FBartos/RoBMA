@@ -45,7 +45,7 @@ namespace jags {
     }
 
     // standard errors transformations
-    se_logOR2se_d::se_logOR2se_d() :ScalarFunction("se_logOR2se_d", 1)
+    se_logOR2se_d::se_logOR2se_d() :ScalarFunction("se_logOR2se_d", 2)
     {}
     bool se_logOR2se_d::checkParameterValue(vector<double const *> const &args) const
     {
@@ -99,6 +99,17 @@ namespace jags {
     double scale_logOR2z::evaluate(vector<double const *> const &args) const
     {
       return cpp_scale_logOR2z(*args[0]);
+    }
+
+    scale_logOR2r::scale_logOR2r() :ScalarFunction("scale_logOR2r", 1)
+    {}
+    bool scale_logOR2r::checkParameterValue(vector<double const *> const &args) const
+    {
+      return(true);
+    }
+    double scale_logOR2r::evaluate(vector<double const *> const &args) const
+    {
+      return cpp_scale_logOR2r(*args[0]);
     }
   }
 }

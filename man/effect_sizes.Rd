@@ -3,51 +3,77 @@
 \name{effect_sizes}
 \alias{effect_sizes}
 \alias{d2r}
+\alias{d2z}
 \alias{d2logOR}
+\alias{d2OR}
 \alias{r2d}
 \alias{r2z}
-\alias{logOR2d}
-\alias{z2r}
-\alias{d2z}
 \alias{r2logOR}
-\alias{logOR2z}
-\alias{logOR2r}
+\alias{r2OR}
+\alias{z2r}
 \alias{z2d}
 \alias{z2logOR}
+\alias{z2OR}
+\alias{logOR2r}
+\alias{logOR2z}
+\alias{logOR2d}
+\alias{logOR2OR}
+\alias{OR2r}
+\alias{OR2z}
+\alias{OR2logOR}
+\alias{OR2d}
 \title{Effect size transformations}
 \usage{
 d2r(d)
 
+d2z(d)
+
 d2logOR(d)
+
+d2OR(d)
 
 r2d(r)
 
 r2z(r)
 
-logOR2d(logOR)
-
-z2r(z)
-
-d2z(d)
-
 r2logOR(r)
 
-logOR2z(logOR)
+r2OR(r)
 
-logOR2r(logOR)
+z2r(z)
 
 z2d(z)
 
 z2logOR(z)
+
+z2OR(z)
+
+logOR2r(logOR)
+
+logOR2z(logOR)
+
+logOR2d(logOR)
+
+logOR2OR(logOR)
+
+OR2r(OR)
+
+OR2z(OR)
+
+OR2logOR(OR)
+
+OR2d(OR)
 }
 \arguments{
 \item{d}{Cohen's d.}
 
 \item{r}{correlation coefficient.}
 
+\item{z}{Fisher's z.}
+
 \item{logOR}{log(odds ratios).}
 
-\item{z}{Fisher's z.}
+\item{OR}{offs ratios.}
 }
 \description{
 Functions for transforming between different

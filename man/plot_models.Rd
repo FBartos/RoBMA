@@ -8,6 +8,7 @@ plot_models(
   x,
   parameter = "mu",
   conditional = FALSE,
+  output_scale = NULL,
   plot_type = "base",
   order = "decreasing",
   order_by = "model",
@@ -26,6 +27,10 @@ plotted. Defaults to \code{FALSE} which plots the model-averaged
 estimates. Note that both \code{"weightfunction"} and
 \code{"PET-PEESE"} are always ignoring the other type of
 publication bias adjustment.}
+
+\item{output_scale}{transform the effect sizes and the meta-analytic
+effect size estimate to a different scale. Defaults to \code{NULL}
+which returns the same scale as the model was estimated on.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to

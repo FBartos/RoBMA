@@ -45,6 +45,12 @@ double cpp_scale_z2d     (double z);
 // composite standard error transformation functions
 double cpp_scale_z2logOR (double z);
 double cpp_scale_logOR2z (double logOR);
+double cpp_scale_r2z 	 (double r);
+double cpp_scale_r2d 	 (double r);
+double cpp_scale_r2logOR (double r);
+double cpp_scale_d2r 	 (double d);
+double cpp_scale_z2r 	 (double z);
+double cpp_scale_logOR2r (double logOR);
 
 // helper functions
 double cpp_se_d           (double d, double n);

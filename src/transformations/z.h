@@ -81,6 +81,15 @@ namespace jags {
         double evaluate(std::vector<double const *> const &args) const;
     };
 
+    class scale_z2r : public ScalarFunction 
+    {
+      public:
+        scale_z2r();
+
+        bool checkParameterValue(std::vector<double const *> const &args) const;
+        double evaluate(std::vector<double const *> const &args) const;
+    };
+
   }
 }
 

@@ -78,5 +78,39 @@ namespace jags {
     {
       return cpp_se_r2se_logOR(*args[0], *args[1]);
     }
+
+    // linear scaling function (not used, for completeness)
+    scale_r2d::scale_r2d() :ScalarFunction("scale_r2d", 1)
+    {}
+    bool scale_r2d::checkParameterValue(vector<double const *> const &args) const
+    {
+      return(true);
+    }
+    double scale_r2d::evaluate(vector<double const *> const &args) const
+    {
+      return cpp_scale_r2d(*args[0]);
+    }
+
+    scale_r2z::scale_r2z() :ScalarFunction("scale_r2z", 1)
+    {}
+    bool scale_r2z::checkParameterValue(vector<double const *> const &args) const
+    {
+      return(true);
+    }
+    double scale_r2z::evaluate(vector<double const *> const &args) const
+    {
+      return cpp_scale_r2z(*args[0]);
+    }
+
+    scale_r2logOR::scale_r2logOR() :ScalarFunction("scale_r2logOR", 1)
+    {}
+    bool scale_r2logOR::checkParameterValue(vector<double const *> const &args) const
+    {
+      return(true);
+    }
+    double scale_r2logOR::evaluate(vector<double const *> const &args) const
+    {
+      return cpp_scale_r2logOR(*args[0]);
+    }
   }
 } 

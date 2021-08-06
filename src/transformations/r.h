@@ -62,6 +62,34 @@ namespace jags {
         double evaluate(std::vector<double const *> const &args) const;
     };
 
+    // linear scaling function (not used, for completeness)
+    class scale_r2d : public ScalarFunction 
+    {
+      public:
+        scale_r2d();
+
+        bool checkParameterValue(std::vector<double const *> const &args) const;
+        double evaluate(std::vector<double const *> const &args) const;
+    };
+
+    class scale_r2z : public ScalarFunction 
+    {
+      public:
+        scale_r2z();
+
+        bool checkParameterValue(std::vector<double const *> const &args) const;
+        double evaluate(std::vector<double const *> const &args) const;
+    };
+
+    class scale_r2logOR : public ScalarFunction 
+    {
+      public:
+        scale_r2logOR();
+
+        bool checkParameterValue(std::vector<double const *> const &args) const;
+        double evaluate(std::vector<double const *> const &args) const;
+    };
+
   }
 }
 

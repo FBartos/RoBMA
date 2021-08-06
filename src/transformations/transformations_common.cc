@@ -127,6 +127,26 @@ double cpp_scale_logOR2z (double logOR){
   return cpp_scale_d2z(cpp_scale_logOR2d(logOR));
 }
 
+double cpp_scale_r2z 	 (double r){
+  return r;
+}
+double cpp_scale_r2d 	 (double r){
+  return 2 * r;
+}
+double cpp_scale_r2logOR (double r){
+  return cpp_d2logOR(cpp_scale_r2d(r));
+}
+double cpp_scale_d2r 	 (double d){
+  return d / 2;
+}
+double cpp_scale_z2r 	 (double z){
+  return z;
+}
+double cpp_scale_logOR2r (double logOR){
+  return cpp_scale_d2r(cpp_scale_logOR2d(logOR));
+}
+
+
 // helper functions
 double cpp_n_d            (double d, double se){
   return (pow(d,2) + 8) / (2 * pow(se,2));

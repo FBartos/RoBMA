@@ -257,3 +257,207 @@ test_that("input check works", {
   expect_error(combine_data(d = c(NA,1), y = c(1, NA), se = c(1, 1)), "Standardized and general effect sizes cannot be combined.")
 
 })
+
+# density transformations work (utilizing Jacobian)
+test_that("density transformations works", {
+
+  # visually compares histogram of transformed samples to a transformed density of untransformed samples
+  test_transformation <- function(samples, from, to){
+
+    hist(do.call(eval(parse(text = paste0(".", from, "2", to, "$fun"))), args = list(samples)), freq = FALSE, breaks = 50,
+         main = paste0(from, "->", to), xlab = to)
+
+    if(from == "OR"){
+      den <- density(samples, from = 0)
+    }else{
+      den <- density(samples)
+    }
+
+    den_x_trans <- do.call(eval(parse(text = paste0(".", from, "2", to, "$fun"))), args = list(den$x))
+    lines(
+      den_x_trans,
+      den$y * do.call(eval(parse(text = paste0(".", from, "2", to, "$jac"))), args = list(den_x_trans))
+    )
+  }
+
+  set.seed(1)
+  x_samples <- rnorm(100000, .3, .15)
+
+  for(from in c("d", "r", "z", "logOR", "OR")){
+    for(to in c("d", "r", "z", "logOR", "OR")){
+      if(from == to){
+        next
+      }else if(from == "OR"){
+        expect_doppelganger(paste0("transformation_",from,"2",to), function()test_transformation(x_samples[x_samples > 0], from, to))
+      }else{
+        expect_doppelganger(paste0("transformation_",from,"2",to), function()test_transformation(x_samples, from, to))
+      }
+    }
+  }
+
+})
+
+# density scaling work (utilizing Jacobian)
+test_that("density scaling works", {
+
+  # visually compares histogram of transformed samples to a transformed density of untransformed samples
+  test_transformation <- function(samples, from, to){
+
+    hist(do.call(eval(parse(text = paste0(".", from, "2", to, "$fun"))), args = list(samples)), freq = FALSE, breaks = 50,
+         main = paste0(from, "->", to), xlab = to)
+
+    if(from == "OR"){
+      den <- density(samples, from = 0)
+    }else{
+      den <- density(samples)
+    }
+
+    den_x_trans <- do.call(eval(parse(text = paste0(".", from, "2", to, "$fun"))), args = list(den$x))
+    lines(
+      den_x_trans,
+      den$y * do.call(eval(parse(text = paste0(".", from, "2", to, "$jac"))), args = list(den_x_trans))
+    )
+  }
+
+  set.seed(1)
+  x_samples <- rnorm(100000, .3, .15)
+
+  for(from in c("d", "r", "z", "logOR")){
+    for(to in c("d", "r", "z", "logOR")){
+      if(from == to){
+        next
+      }else{
+        expect_doppelganger(paste0("scaling_",from,"2",to), function()test_transformation(x_samples, from, to))
+      }
+    }
+  }
+
+})
+
+# JAGS implementation works
+# density scaling work (utilizing jakobian)
+test_that("density scaling works", {
+
+  # scaling
+  var_names <- expand.grid(from = c("d", "r", "z", "logOR"), to = c("d", "r", "z", "logOR"))
+  var_names <- var_names[var_names$from != var_names$to, ]
+
+  model_syntax <-
+    "model
+    {
+      x ~ dnorm(-.45, pow(0.10, -2))
+
+      d2r_scaled     = scale_d2r(x)
+      d2z_scaled     = scale_d2z(x)
+      d2logOR_scaled = scale_d2logOR(x)
+
+      r2d_scaled     = scale_r2d(x)
+      r2z_scaled     = scale_r2z(x)
+      r2logOR_scaled = scale_r2logOR(x)
+
+      z2d_scaled     = scale_z2d(x)
+      z2r_scaled     = scale_z2r(x)
+      z2logOR_scaled = scale_z2logOR(x)
+
+      logOR2d_scaled = scale_logOR2d(x)
+      logOR2r_scaled = scale_logOR2r(x)
+      logOR2z_scaled = scale_logOR2z(x)
+
+    }"
+
+  model <- rjags::jags.model(file = textConnection(model_syntax),quiet = TRUE)
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", paste0(var_names$from, "2", var_names$to, "_scaled")),
+                               n.iter = 100, quiet = TRUE, progress.bar = "none")
+
+  for(from in c("d", "r", "z", "logOR")){
+    for(to in c("d", "r", "z", "logOR")){
+      if(from == to){
+        next
+      }else{
+        expect_equal(RoBMA:::.scale(fit[,"x"][[1]], from, to), fit[, paste0(from, "2", to, "_scaled")][[1]])
+      }
+    }
+  }
+
+
+  # effect sizes
+  model_syntax <-
+    "model
+    {
+      x ~ dnorm(-.45, pow(0.10, -2))
+
+      d2r_transformed     = d2r(x)
+      d2z_transformed     = d2z(x)
+      d2logOR_transformed = d2logOR(x)
+
+      r2d_transformed     = r2d(x)
+      r2z_transformed     = r2z(x)
+      r2logOR_transformed = r2logOR(x)
+
+      z2d_transformed     = z2d(x)
+      z2r_transformed     = z2r(x)
+      z2logOR_transformed = z2logOR(x)
+
+      logOR2d_transformed = logOR2d(x)
+      logOR2r_transformed = logOR2r(x)
+      logOR2z_transformed = logOR2z(x)
+
+    }"
+
+  model <- rjags::jags.model(file = textConnection(model_syntax),quiet = TRUE)
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", paste0(var_names$from, "2", var_names$to, "_transformed")),
+                               n.iter = 100, quiet = TRUE, progress.bar = "none")
+
+  for(from in c("d", "r", "z", "logOR")){
+    for(to in c("d", "r", "z", "logOR")){
+      if(from == to){
+        next
+      }else{
+        expect_equal(do.call(RoBMA:::.get_transformation(from, to), arg = list(fit[,"x"][[1]])),
+                     fit[, paste0(from, "2", to, "_transformed")][[1]])
+      }
+    }
+  }
+
+
+  # standard errors
+  model_syntax <-
+    "model
+    {
+      se  ~ dunif(0.10, .30)
+      x   ~ dnorm(-.45, pow(0.10, -2))
+
+      d2r_se_transformed     = se_d2se_r(se, x)
+      d2z_se_transformed     = se_d2se_z(se, x)
+      d2logOR_se_transformed = se_d2se_logOR(se, x)
+
+      r2d_se_transformed     = se_r2se_d(se, x)
+      r2z_se_transformed     = se_r2se_z(se, x)
+      r2logOR_se_transformed = se_r2se_logOR(se, x)
+
+      z2d_se_transformed     = se_z2se_d(se, x)
+      z2r_se_transformed     = se_z2se_r(se, x)
+      z2logOR_se_transformed = se_z2se_logOR(se, x)
+
+      logOR2d_se_transformed = se_logOR2se_d(se, x)
+      logOR2r_se_transformed = se_logOR2se_r(se, x)
+      logOR2z_se_transformed = se_logOR2se_z(se, x)
+    }"
+
+  model <- rjags::jags.model(file = textConnection(model_syntax),quiet = TRUE)
+  fit   <- rjags::coda.samples(model = model, variable.names = c("se", "x", paste0(var_names$from, "2", var_names$to, "_se_transformed")),
+                               n.iter = 100, quiet = TRUE, progress.bar = "none")
+
+  for(from in c("d", "r", "z", "logOR")){
+    for(to in c("d", "r", "z", "logOR")){
+      if(from == to){
+        next
+      }else{
+        expect_equal(do.call(RoBMA:::.get_transformation_se(from, to), arg = list(fit[,"se"][[1]], fit[,"x"][[1]])),
+                     fit[, paste0(from, "2", to, "_se_transformed")][[1]])
+      }
+    }
+  }
+
+
+})

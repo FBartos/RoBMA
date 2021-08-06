@@ -44,8 +44,10 @@ test_that("Parameter plots work", {
 
   # additional settings
   expect_doppelganger(paste0("plot_mu5_",i), function()plot(saved_fits[[i]], "mu", prior = TRUE, dots_prior = list(col = "blue", lty = 2), col = "red", lty = 2, xlim = c(0, 1), main = "Title"))
-  # expect_error(plot(saved_fits[[i]], "mu", output_scale = "fishers_z"))
 
+  # transformation
+  expect_doppelganger(paste0("plot_mu6_",i), function()plot(saved_fits[[i]], "mu", output_scale = "fishers_z"))
+  expect_doppelganger(paste0("plot_mu7_",i), function()plot(saved_fits[[i]], "mu", output_scale = "r", prior = TRUE))
 
 
   ### heterogeneity
@@ -71,6 +73,9 @@ test_that("Parameter plots work", {
   expect_doppelganger(paste0("plot_tau3_",i), function()plot(saved_fits[[i]], "tau", conditional = TRUE))
   expect_doppelganger(paste0("plot_tau4_",i), function()plot(saved_fits[[i]], "tau", conditional = TRUE, prior = TRUE))
 
+  # transformation
+  expect_doppelganger(paste0("plot_tau5_",i), function()plot(saved_fits[[i]], "tau", output_scale = "r"))
+  expect_doppelganger(paste0("plot_tau6_",i), function()plot(saved_fits[[i]], "tau", output_scale = "logOR", prior = TRUE))
 
   ### weightfunctions
   # default ggplot2
@@ -135,6 +140,10 @@ test_that("Parameter plots work", {
   expect_doppelganger(paste0("plot_PETPEESE2_",i), function()plot(saved_fits[[i]], "PETPEESE", prior = TRUE))
   expect_doppelganger(paste0("plot_PETPEESE3_",i), function()plot(saved_fits[[i]], "PETPEESE", conditional = TRUE))
   expect_doppelganger(paste0("plot_PETPEESE4_",i), function()plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE))
+
+  # transformation
+  expect_doppelganger(paste0("plot_PETPEESE5_",i), function()plot(saved_fits[[i]], "PETPEESE", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_PETPEESE6_",i), function()plot(saved_fits[[i]], "PETPEESE", output_scale = "r", prior = TRUE))
 })
 
 
@@ -159,8 +168,8 @@ test_that("Individual model plots work", {
   expect_doppelganger(paste0("plot_models2_",i), function()plot_models(saved_fits[[i]], conditional = TRUE))
 
   # different output scale
-  # expect_doppelganger(paste0("plot_models3_",i), plot_models(saved_fits[[i]], output_scale = "fishers_z"))
-  # expect_doppelganger(paste0("plot_models4_",i), plot_models(saved_fits[[i]], output_scale = "fishers_z", conditional = TRUE))
+  expect_doppelganger(paste0("plot_models3_",i), function()plot_models(saved_fits[[i]], output_scale = "fishers_z"))
+  expect_doppelganger(paste0("plot_models4_",i), function()plot_models(saved_fits[[i]], output_scale = "fishers_z", conditional = TRUE))
 
   # different ordering
   expect_doppelganger(paste0("plot_models5_",i), function()plot_models(saved_fits[[i]], order = "increasing", order_by = "estimate"))

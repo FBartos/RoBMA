@@ -446,6 +446,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
 #' @param r correlation coefficient.
 #' @param z Fisher's z.
 #' @param logOR log(odds ratios).
+#' @param OR offs ratios.
 #'
 #' @details All transformations are based on
 #' \insertCite{borenstein2011introduction}{RoBMA}. In case that
@@ -455,15 +456,23 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
 #' @export d2r
 #' @export d2z
 #' @export d2logOR
+#' @export d2OR
 #' @export r2d
 #' @export r2z
 #' @export r2logOR
+#' @export r2OR
 #' @export z2d
 #' @export z2r
 #' @export z2logOR
+#' @export z2OR
 #' @export logOR2d
 #' @export logOR2r
 #' @export logOR2z
+#' @export logOR2OR
+#' @export OR2d
+#' @export OR2r
+#' @export OR2z
+#' @export OR2logOR
 #'
 #' @name effect_sizes
 #'
@@ -572,33 +581,51 @@ NULL
 #' @seealso [effect_sizes()], [standard_errors()]
 NULL
 
-# main transformations
 #' @rdname effect_sizes
-d2r     <- function(d) d/sqrt(d^2 + 4)
+d2r     <- function(d) .d2r$fun(d)
 #' @rdname effect_sizes
-d2logOR <- function(d) d*pi/sqrt(3)
+d2z     <- function(d) .d2z$fun(d)
 #' @rdname effect_sizes
-r2d     <- function(r) 2 * r/sqrt(1 - r^2)
+d2logOR <- function(d) .d2logOR$fun(d)
 #' @rdname effect_sizes
-r2z     <- function(r) 0.5 * log((1 + r)/(1 - r))
-#' @rdname effect_sizes
-logOR2d <- function(logOR) logOR * sqrt(3)/pi
-#' @rdname effect_sizes
-z2r     <- function(z) (exp(2 * z) - 1)/(1 + exp(2 * z))
+d2OR    <- function(d) .d2OR$fun(d)
 
-# compound transformations
 #' @rdname effect_sizes
-d2z     <- function(d) r2z(d2r(d))
+r2d     <- function(r) .r2d$fun(r)
 #' @rdname effect_sizes
-r2logOR <- function(r) d2logOR(r2d(r))
+r2z     <- function(r) .r2z$fun(r)
 #' @rdname effect_sizes
-logOR2z <- function(logOR) d2z(logOR2d(logOR))
+r2logOR <- function(r) .r2logOR$fun(r)
 #' @rdname effect_sizes
-logOR2r <- function(logOR) d2r(logOR2d(logOR))
+r2OR    <- function(r) .r2OR$fun(r)
+
 #' @rdname effect_sizes
-z2d     <- function(z) r2d(z2r(z))
+z2r     <- function(z) .z2r$fun(z)
 #' @rdname effect_sizes
-z2logOR <- function(z) d2logOR(z2d(z))
+z2d     <- function(z) .z2d$fun(z)
+#' @rdname effect_sizes
+z2logOR <- function(z) .z2logOR$fun(z)
+#' @rdname effect_sizes
+z2OR    <- function(z) .z2OR$fun(z)
+
+#' @rdname effect_sizes
+logOR2r     <- function(logOR) .logOR2r$fun(logOR)
+#' @rdname effect_sizes
+logOR2z     <- function(logOR) .logOR2z$fun(logOR)
+#' @rdname effect_sizes
+logOR2d     <- function(logOR) .logOR2d$fun(logOR)
+#' @rdname effect_sizes
+logOR2OR    <- function(logOR) .logOR2OR$fun(logOR)
+
+#' @rdname effect_sizes
+OR2r     <- function(OR) .OR2r$fun(OR)
+#' @rdname effect_sizes
+OR2z     <- function(OR) .OR2z$fun(OR)
+#' @rdname effect_sizes
+OR2logOR <- function(OR) .OR2logOR$fun(OR)
+#' @rdname effect_sizes
+OR2d     <- function(OR) .OR2d$fun(OR)
+
 
 # sample size / standard errors calculations
 #' @rdname sample_sizes
@@ -852,43 +879,22 @@ se_z2se_logOR <- function(se_z, z){
 }
 
 # approximate linear transformations used for prior distribution - as in metaBMA package
-.scale_d2logOR <- function(d){
-  return(d * (pi/sqrt(3)))
-}
-.scale_d2z     <- function(d){
-  return(d / 2)
-}
-.scale_logOR2d <- function(logOR){
-  return(logOR / (pi/sqrt(3)))
-}
-.scale_z2d     <- function(z){
-  return(z * 2)
-}
-.scale_z2logOR <- function(z){
-  return(.scale_d2logOR(.scale_z2d(z)))
-}
-.scale_logOR2z <- function(logOR){
-  return(.scale_d2z(.scale_logOR2d(logOR)))
-}
+scale_d2r     <- function(d) .scale_d2r$fun(d)
+scale_d2z     <- function(d) .scale_d2z$fun(d)
+scale_d2logOR <- function(d) .scale_d2logOR$fun(d)
 
-.scale_d2r     <- function(d){
-  return(d / 2)
-}
-.scale_r2d     <- function(r){
-  return(r * 2)
-}
-.scale_r2logOR <- function(r){
-  return(.scale_d2logOR(.scale_r2d(r)))
-}
-.scale_logOR2r <- function(logOR){
-  return(.scale_d2r(.scale_logOR2d(logOR)))
-}
-.scale_r2z     <- function(r){
-  return(.scale_d2z(.scale_r2d(r)))
-}
-.scale_z2r     <- function(z){
-  return(.scale_z2d(.scale_d2r(z)))
-}
+scale_r2d     <- function(r) .scale_r2d$fun(r)
+scale_r2z     <- function(r) .scale_r2z$fun(r)
+scale_r2logOR <- function(r) .scale_r2logOR$fun(r)
+
+scale_z2r     <- function(z) .scale_z2r$fun(z)
+scale_z2d     <- function(z) .scale_z2d$fun(z)
+scale_z2logOR <- function(z) .scale_z2logOR$fun(z)
+
+scale_logOR2r     <- function(logOR) .scale_logOR2r$fun(logOR)
+scale_logOR2z     <- function(logOR) .scale_logOR2z$fun(logOR)
+scale_logOR2d     <- function(logOR) .scale_logOR2d$fun(logOR)
+
 
 .get_scale   <- function(from, to){
   if(any(c(from, to) %in% c("y")))
@@ -896,7 +902,7 @@ se_z2se_logOR <- function(se_z, z){
   if(from == to){
     return(function(x)x)
   }else{
-    return(eval(parse(text = paste0(".scale_", from, "2", to))))
+    return(eval(parse(text = paste0("scale_", from, "2", to))))
   }
 }
 .scale       <- function(x, from, to){
@@ -904,7 +910,6 @@ se_z2se_logOR <- function(se_z, z){
     .get_scale(from, to),
     args = list(x))
 }
-
 .get_scale_b <- function(from, to){
   return(switch(
     paste0(from, "2", to),
@@ -931,28 +936,6 @@ se_z2se_logOR <- function(se_z, z){
   }
 }
 
-# .get_transformation_PEESE <- function(from, to){
-#   if(any(c(from, to) == "y"))
-#     stop("Prior / effect size transformations are not available for unstandardized effect sizes.")
-#   if(from == to){
-#     return(function(PEESE)PEESE)
-#   }else{
-#     return(eval(parse(text = paste0(".PEESE_", from, "2", to))))
-#   }
-# }
-#
-# .PEESE_d2z     <- function(PEESE, d)PEESE * se_d(d,666666)/se_d2se_z(se_d(d,666666), d)
-# .PEESE_d2r     <- function(PEESE, d)PEESE * se_d(d,666666)/se_d2se_r(se_d(d,666666), d)
-# .PEESE_d2logOR <- function(PEESE, d)PEESE * se_d(d,666666)/se_d2se_logOR(se_d(d,666666))
-# .PEESE_r2d     <- function(PEESE, r)PEESE * se_r(r,666666)/se_r2se_d(se_r(r,666666), r)
-# .PEESE_r2z     <- function(PEESE, r)PEESE * se_r(r,666666)/se_r2se_z(se_r(r,666666), r)
-# .PEESE_r2logOR <- function(PEESE, r)PEESE * se_r(r,666666)/se_r2se_logOR(se_r(r,666666), r)
-# .PEESE_z2d     <- function(PEESE, z)PEESE * se_z(666666)/se_z2se_d(se_z(666666), z)
-# .PEESE_z2r     <- function(PEESE, z)PEESE * se_z(666666)/se_z2se_r(se_z(666666), z)
-# .PEESE_z2logOR <- function(PEESE, z)PEESE * se_z(666666)/se_z2se_logOR(se_z(666666), z)
-# .PEESE_logOR2d <- function(PEESE, logOR)PEESE * se_d2se_logOR(se_d(logOR2d(logOR), 666666))/se_d(logOR2d(logOR), 666666)
-# .PEESE_logOR2r <- function(PEESE, logOR)PEESE * se_d2se_logOR(se_d(logOR2d(logOR), 666666))/se_d2se_r(se_d(logOR2d(logOR), 666666), logOR2d(logOR))
-# .PEESE_logOR2z <- function(PEESE, logOR)PEESE * se_d2se_logOR(se_d(logOR2d(logOR), 666666))/se_d2se_z(se_d(logOR2d(logOR), 666666), logOR2d(logOR))
 
 
 .transform_mu    <- function(mu, from, to){
@@ -978,6 +961,8 @@ se_z2se_logOR <- function(se_z, z){
 # }
 
 
+
+
 #### helper functions ####
 # helper functions
 .row_NA <- function(data){
@@ -985,93 +970,3 @@ se_z2se_logOR <- function(se_z, z){
     stop("data must be a data.frame")
   apply(data, 1, anyNA)
 }
-#
-# .get_effect_and_ci <- function(add_info, CI){
-#
-#   # extract the information
-#   t  <- add_info$t
-#   d  <- add_info$d
-#   r  <- add_info$r
-#   y  <- add_info$y
-#   OR <- add_info$OR
-#   n  <- add_info$n
-#   n1 <- add_info$n1
-#   n2 <- add_info$n2
-#   se <- add_info$se
-#   lCI<- add_info$lCI
-#   uCI<- add_info$uCI
-#   effect_size <- add_info$effect_size
-#   test_type   <- add_info$test_type
-#   study_names <- add_info$study_names
-#
-#   # compute the mean and CI
-#   if(effect_size == "d"){
-#
-#     if(!is.null(uCI) & !is.null(lCI))se <- (uCI - lCI)/(2*stats::qnorm(.975))
-#     if(is.null(n) & !is.null(d) & !is.null(se))n <- .get_n_for_d(d, se)
-#
-#     if(test_type == "one.sample"){
-#       out <- psych::d.ci(psych::t2d(t = t, n1 = n), n1 = n, alpha = 1 - CI)
-#     }else if(test_type == "two.sample"){
-#       if(!is.null(n1) & !is.null(n2)){
-#         out <- psych::d.ci(psych::t2d(t = t, n1 = n1, n2 = n2), n1 = n1, n2 = n2, alpha = 1 - CI)
-#       }else{
-#         out <- psych::d.ci(psych::t2d(t = t, n = n), n = n, alpha = 1 - CI)
-#       }
-#     }
-#   }else if(effect_size == "r"){
-#
-#     if(!is.null(uCI) & !is.null(lCI)){
-#       out <- cbind(lCI, r, uCI)
-#     }else{
-#       out <- matrix(suppressWarnings(psych::r.con(r = r, n = n, p = CI, twotailed = TRUE)), ncol = 2)
-#       out <- cbind(out[,1], r, out[,2])
-#     }
-#
-#   }else if(effect_size == "y"){
-#
-#     if(!is.null(uCI) & !is.null(lCI)){
-#       out <- cbind(lCI, y, uCI)
-#     }else{
-#       out <- cbind(y + stats::qnorm((1-CI)/2) * se, y, y - stats::qnorm((1-CI)/2) * se)
-#     }
-#   }else if(effect_size == "OR"){
-#
-#     out <- cbind(lCI, OR, uCI)
-#
-#   }
-#
-#   if(is.null(study_names))study_names <- paste0("Study ", 1:nrow(out))
-#   out <- data.frame(out)
-#   colnames(out) <- c("lCI", "est", "uCI")
-#   out$name <- study_names
-#
-#   return(out)
-# }
-# .get_study_names   <- function(study_names, n_studies){
-#
-#   if(!is.null(study_names))if(length(study_names) != n_studies)stop("The study names do not match the length of supplied data.")
-#   if(is.null(study_names))study_names <- paste("Study", 1:n_studies)
-#
-#   return(study_names)
-#
-# }
-# .transform         <- function(x, effect_size, transformation){
-#   if(!is.null(effect_size)){
-#     if(effect_size == "r"){
-#       if(transformation == "cohens_d"){
-#         x   <- psych::d2r(x)
-#       }else if(transformation == "fishers_z"){
-#         x   <- psych::fisherz2r(x)
-#         x[is.nan(x)] <- ifelse(x[is.nan(x)] > 0, 1, -1)
-#       }
-#     }else if(effect_size == "OR"){
-#       if(transformation == "log_OR"){
-#         x   <- exp(x)
-#       }else if(transformation == "cohens_d"){
-#         x   <- .d2OR(x)
-#       }
-#     }
-#   }
-#   return(x)
-# }

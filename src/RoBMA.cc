@@ -63,6 +63,12 @@ namespace jags {
       insert(new scale_z2logOR);
       insert(new scale_logOR2d);
       insert(new scale_logOR2z);
+      insert(new scale_r2d);
+      insert(new scale_r2z);
+      insert(new scale_r2logOR);
+      insert(new scale_d2r);
+      insert(new scale_z2r);
+      insert(new scale_logOR2r);
     }
     
     // destructor (executed when unloading the module)

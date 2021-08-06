@@ -101,5 +101,16 @@ namespace jags {
       return cpp_scale_z2logOR(*args[0]);
     }
 
+    scale_z2r::scale_z2r() :ScalarFunction("scale_z2r", 1)
+    {}
+    bool scale_z2r::checkParameterValue(vector<double const *> const &args) const
+    {
+      return(true);
+    }
+    double scale_z2r::evaluate(vector<double const *> const &args) const
+    {
+      return cpp_scale_z2r(*args[0]);
+    }
+
   }
 }
