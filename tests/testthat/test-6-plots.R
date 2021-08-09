@@ -48,6 +48,7 @@ test_that("Parameter plots work", {
   # transformation
   expect_doppelganger(paste0("plot_mu6_",i), function()plot(saved_fits[[i]], "mu", output_scale = "fishers_z"))
   expect_doppelganger(paste0("plot_mu7_",i), function()plot(saved_fits[[i]], "mu", output_scale = "r", prior = TRUE))
+  expect_doppelganger(paste0("plot_mu8_",i), plot(saved_fits[[i]], "mu", output_scale = "logOR", prior = TRUE, plot_type = "ggplot"))
 
 
   ### heterogeneity

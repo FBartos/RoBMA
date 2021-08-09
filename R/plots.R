@@ -640,10 +640,10 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
     par_names <- list(switch(
       output_scale,
       "r"     = expression(rho),
-      "d"     = bquote("Cohen's"~italic(d)),
-      "z"     = bquote("Fisher's"~italic(z)),
-      "logOR" = bquote("log"(italic("OR"))),
-      "OR"    = bquote(italic("OR")),
+      "d"     = expression("Cohen's"~italic(d)),
+      "z"     = expression("Fisher's"~italic(z)),
+      "logOR" = expression("log"(italic("OR"))),
+      "OR"    = expression(italic("OR")),
       "y"     = expression(mu)
     ))
 
@@ -651,11 +651,11 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(tau~(rho)),
-      "d"     = bquote(tau~("Cohen's"~italic(d))),
-      "z"     = bquote(tau~("Fisher's"~italic(z))),
-      "logOR" = bquote(tau~("log"(italic("OR")))),
-      "OR"    = bquote(tau~(italic("OR"))),
+      "r"     = expression(tau~(rho)),
+      "d"     = expression(tau~("Cohen's"~italic(d))),
+      "z"     = expression(tau~("Fisher's"~italic(z))),
+      "logOR" = expression(tau~("log"(italic("OR")))),
+      "OR"    = expression(tau~(italic("OR"))),
       "y"     = expression(tau)
     ))
 
@@ -691,12 +691,12 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote("PET"~(rho)),
-      "d"     = bquote("PET"~("Cohen's"~italic(d))),
-      "z"     = bquote("PET"~("Fisher's"~italic(z))),
-      "logOR" = bquote("PET"~("log"(italic("OR")))),
-      "OR"    = bquote("PET"~(italic("OR"))),
-      "y"     = bquote("PET")
+      "r"     = expression("PET"~(rho)),
+      "d"     = expression("PET"~("Cohen's"~italic(d))),
+      "z"     = expression("PET"~("Fisher's"~italic(z))),
+      "logOR" = expression("PET"~("log"(italic("OR")))),
+      "OR"    = expression("PET"~(italic("OR"))),
+      "y"     = expression("PET")
     ))
 
     par_names <- list(bquote("PET"))
@@ -705,15 +705,15 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote("PEESE"~(rho)),
-      "d"     = bquote("PEESE"~("Cohen's"~italic(d))),
-      "z"     = bquote("PEESE"~("Fisher's"~italic(z))),
-      "logOR" = bquote("PEESE"~("log"(italic("OR")))),
-      "OR"    = bquote("PEESE"~(italic("OR"))),
-      "y"     = bquote("PEESE")
+      "r"     = expression("PEESE"~(rho)),
+      "d"     = expression("PEESE"~("Cohen's"~italic(d))),
+      "z"     = expression("PEESE"~("Fisher's"~italic(z))),
+      "logOR" = expression("PEESE"~("log"(italic("OR")))),
+      "OR"    = expression("PEESE"~(italic("OR"))),
+      "y"     = expression("PEESE")
     ))
 
   }
 
-  return(as.expression(par_names))
+  return(par_names)
 }
