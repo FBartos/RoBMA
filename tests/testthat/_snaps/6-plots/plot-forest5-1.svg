@@ -31,10 +31,9 @@
 <text x='390.93' y='544.32' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.5</text>
 <text x='481.60' y='544.32' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
 <text x='572.27' y='544.32' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.5</text>
-<text x='317.43' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='43.66px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
-<text x='361.09' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='364.09' y='573.00' style='font-size: 12.00px; font-style: italic; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>d</text>
-<text x='370.77' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='318.93' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='43.66px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
+<text x='362.59' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='365.59' y='573.00' style='font-size: 12.00px; font-style: italic; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>d</text>
 <line x1='100.80' y1='419.20' x2='100.80' y2='99.20' style='stroke-width: 0.75; stroke: none;' />
 <line x1='100.80' y1='419.20' x2='93.60' y2='419.20' style='stroke-width: 0.75; stroke: none;' />
 <line x1='100.80' y1='259.20' x2='93.60' y2='259.20' style='stroke-width: 0.75; stroke: none;' />

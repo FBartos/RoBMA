@@ -84,7 +84,6 @@
 <text x='43.20' y='47.33' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
 <text x='381.60' y='565.92' text-anchor='middle' style='font-size: 15.00px; font-family: sans;' textLength='25.03px' lengthAdjust='spacingAndGlyphs'>Lag</text>
 <text transform='translate(18.72,280.80) rotate(-90)' text-anchor='middle' style='font-size: 15.00px; font-family: sans;' textLength='133.43px' lengthAdjust='spacingAndGlyphs'>Avg. autocorrelation</text>
-<text x='365.13' y='25.92' style='font-size: 15.00px; font-family: sans;' textLength='29.18px' lengthAdjust='spacingAndGlyphs'>PET</text>
-<text x='394.31' y='25.92' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='381.60' y='25.92' text-anchor='middle' style='font-size: 15.00px; font-family: sans;' textLength='29.18px' lengthAdjust='spacingAndGlyphs'>PET</text>
 </g>
 </svg>

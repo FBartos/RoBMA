@@ -80,10 +80,9 @@
 <text x='410.66' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='12.23px' lengthAdjust='spacingAndGlyphs'>0.5</text>
 <text x='513.95' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='4.89px' lengthAdjust='spacingAndGlyphs'>1</text>
 <text x='617.23' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='12.23px' lengthAdjust='spacingAndGlyphs'>1.5</text>
-<text x='333.20' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='40.02px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
-<text x='373.22' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='2.75px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='375.97' y='568.13' style='font-size: 11.00px; font-style: italic; font-family: sans;' textLength='6.12px' lengthAdjust='spacingAndGlyphs'>d</text>
-<text x='382.09' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='2.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='334.57' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='40.02px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
+<text x='374.60' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='2.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='377.35' y='568.13' style='font-size: 11.00px; font-style: italic; font-family: sans;' textLength='6.12px' lengthAdjust='spacingAndGlyphs'>d</text>
 <text x='74.99' y='14.56' style='font-size: 13.20px; font-family: sans;' textLength='98.35px' lengthAdjust='spacingAndGlyphs'>ggplot_forest1_5</text>
 </g>
 </svg>

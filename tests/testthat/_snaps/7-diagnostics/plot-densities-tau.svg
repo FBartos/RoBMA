@@ -62,8 +62,13 @@
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <text transform='translate(18.72,266.40) rotate(-90)' text-anchor='middle' style='font-size: 15.00px; font-family: sans;' textLength='50.03px' lengthAdjust='spacingAndGlyphs'>Density</text>
-<text x='374.42' y='565.74' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='378.17' y='565.74' style='font-size: 15.00px; font-family: sans;' textLength='6.86px' lengthAdjust='spacingAndGlyphs'>τ</text>
-<text x='385.03' y='565.74' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='334.03' y='562.71' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='337.78' y='562.71' style='font-size: 15.00px; font-family: sans;' textLength='6.86px' lengthAdjust='spacingAndGlyphs'>τ</text>
+<text x='344.64' y='562.71' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='348.39' y='562.71' style='font-size: 18.75px; font-family: sans;' textLength='6.24px' lengthAdjust='spacingAndGlyphs'>(</text>
+<text x='354.64' y='562.71' style='font-size: 15.00px; font-family: sans;' textLength='54.58px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
+<text x='409.21' y='562.71' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='412.97' y='562.71' style='font-size: 15.00px; font-style: italic; font-family: sans;' textLength='8.34px' lengthAdjust='spacingAndGlyphs'>d</text>
+<text x='422.94' y='562.71' style='font-size: 18.75px; font-family: sans;' textLength='6.23px' lengthAdjust='spacingAndGlyphs'>)</text>
 </g>
 </svg>

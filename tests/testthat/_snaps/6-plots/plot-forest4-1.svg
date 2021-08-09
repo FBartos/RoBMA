@@ -35,10 +35,9 @@
 <text x='436.23' y='544.32' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.4</text>
 <text x='503.85' y='544.32' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.6</text>
 <text x='571.47' y='544.32' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.8</text>
-<text x='307.98' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='41.64px' lengthAdjust='spacingAndGlyphs'>Fisher's</text>
-<text x='349.61' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='352.62' y='573.00' style='font-size: 12.00px; font-style: italic; font-family: sans;' textLength='6.00px' lengthAdjust='spacingAndGlyphs'>z</text>
-<text x='358.62' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='309.48' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='41.64px' lengthAdjust='spacingAndGlyphs'>Fisher's</text>
+<text x='351.12' y='573.00' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='354.12' y='573.00' style='font-size: 12.00px; font-style: italic; font-family: sans;' textLength='6.00px' lengthAdjust='spacingAndGlyphs'>z</text>
 <line x1='79.20' y1='419.20' x2='79.20' y2='99.20' style='stroke-width: 0.75; stroke: none;' />
 <line x1='79.20' y1='419.20' x2='72.00' y2='419.20' style='stroke-width: 0.75; stroke: none;' />
 <line x1='79.20' y1='259.20' x2='72.00' y2='259.20' style='stroke-width: 0.75; stroke: none;' />

@@ -111,7 +111,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
     output_scale <- .transformation_var(output_scale)
   }
   # set the transformations
-  if(results_scale != output_scale){
+  if(parameter != "omega" && results_scale != output_scale){
     if(parameter == "PETPEESE"){
       # the transformation is inverse for PEESE
       transformation <- eval(parse(text = paste0(".scale_", output_scale, "2", results_scale)))
@@ -212,21 +212,23 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }
   }
 
-  plot <- do.call(BayesTools::plot_posterior, c(
-    samples                  = list(samples),
-    parameter                = parameter,
-    plot_type                = plot_type,
-    prior                    = prior,
-    n_points                 = 1000,
-    n_samples                = 10000,
-    force_samples            = FALSE,
-    transformation           = list(transformation),
-    transformation_arguments = NULL,
-    transformation_settings  = FALSE,
-    rescale_x                = rescale_x,
-    par_name                 = NULL,
-    dots_prior               = list(dots_prior),
-    dots))
+  # prepare the argument call
+  args                          <- dots
+  args$samples                  <- samples
+  args$parameter                <- parameter
+  args$plot_type                <- plot_type
+  args$prior                    <- prior
+  args$n_points                 <- 1000
+  args$n_samples                <- 10000
+  args$force_samples            <- FALSE
+  args$transformation           <- transformation
+  args$transformation_arguments <- NULL
+  args$transformation_settings  <- FALSE
+  args$rescale_x                <- rescale_x
+  args$par_name                 <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
+  args$dots_prior               <- dots_prior
+
+  plot <- do.call(BayesTools::plot_posterior, args)
 
 
   if(parameter == "PETPEESE" & show_data){
@@ -573,20 +575,22 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
   dots <- list(...)
 
-  plot <- do.call(BayesTools::plot_models, c(
-    model_list               = list(model_list),
-    samples                  = list(samples),
-    inference                = list(inference),
-    parameter                = parameter,
-    plot_type                = plot_type,
-    prior                    = FALSE,
-    condtional               = conditional,
-    order                    = list(list(order, order_by)),
-    transformation           = list(transformation),
-    transformation_arguments = NULL,
-    transformation_settings  = FALSE,
-    par_name                 = .plot.RoBMA_par_names(parameter, x, output_scale)[[1]],
-    dots))
+  # prepare the argument call
+  args                          <- dots
+  args$model_list               <- model_list
+  args$samples                  <- samples
+  args$inference                <- inference
+  args$parameter                <- parameter
+  args$plot_type                <- plot_type
+  args$prior                    <- FALSE
+  args$conditional              <- conditional
+  args$order                    <- list(order, order_by)
+  args$transformation           <- transformation
+  args$transformation_arguments <- NULL
+  args$transformation_settings  <- FALSE
+  args$par_name                 <- .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
+
+  plot <- do.call(BayesTools::plot_models, args)
 
 
   # return the plots
@@ -629,29 +633,30 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
   return(dots_prior)
 }
-.plot.RoBMA_par_names <- function(par, fit, output_scale, type = NULL){
-
-  add_type  <- if(!is.null(type)) paste0("(",type,")") else NULL
+.plot.RoBMA_par_names <- function(par, fit, output_scale){
 
   if(par == "mu"){
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(~rho~.(add_type)),
-      "d"     = bquote("Cohen's"~italic(d)~.(add_type)),
-      "z"     = bquote("Fisher's"~italic(z)~.(add_type)),
-      "logOR" = bquote("log"(italic("OR"))~.(add_type)),
-      "OR"    = bquote(~italic("OR")~.(add_type)),
-      "y"     = bquote(~mu~.(add_type))
+      "r"     = bquote(~rho),
+      "d"     = bquote("Cohen's"~italic(d)),
+      "z"     = bquote("Fisher's"~italic(z)),
+      "logOR" = bquote("log"(italic("OR"))),
+      "OR"    = bquote(~italic("OR")),
+      "y"     = bquote(~mu)
     ))
 
   }else if(par == "tau"){
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(~tau~("Fisher's"~italic(z)~"scale;"~.(type))),
-      "OR"    = bquote(~tau~("log"(italic("OR"))~"scale;"~.(type))),
-      bquote(~tau~.(add_type))
+      "r"     = bquote(~tau~(~rho)),
+      "d"     = bquote(~tau~("Cohen's"~italic(d))),
+      "z"     = bquote(~tau~("Fisher's"~italic(z))),
+      "logOR" = bquote(~tau~("log"(italic("OR")))),
+      "OR"    = bquote(~tau~(~italic("OR"))),
+      "y"     = bquote(~tau)
     ))
 
   }else if(par == "omega"){
@@ -673,24 +678,42 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
     # for(i in 1:length(par_names)){
     #   par_names[i] <- list(switch(
     #     output_scale,
-    #     "r"     = bquote(~rho[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-    #     "d"     = bquote("Cohen's"~italic(d)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-    #     "z"     = bquote("Fisher's"~italic(z)[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-    #     "logOR" = bquote("log"(italic("OR"))[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-    #     "OR"    = bquote(~italic("OR")[.(paste0("[",study_names[i],"]"))]~.(add_type)),
-    #     "y"     = bquote(~mu[.(paste0("[",study_names[i],"]"))]~.(add_type))
+    #     "r"     = bquote(~rho[.(paste0("[",study_names[i],"]"))]),
+    #     "d"     = bquote("Cohen's"~italic(d)[.(paste0("[",study_names[i],"]"))]),
+    #     "z"     = bquote("Fisher's"~italic(z)[.(paste0("[",study_names[i],"]"))]),
+    #     "logOR" = bquote("log"(italic("OR"))[.(paste0("[",study_names[i],"]"))]),
+    #     "OR"    = bquote(~italic("OR")[.(paste0("[",study_names[i],"]"))]),
+    #     "y"     = bquote(~mu[.(paste0("[",study_names[i],"]"))])
     #   ))
     # }
 
   }else if(par == "PET"){
 
-    par_names <- list(bquote("PET"~.(add_type)))
+    par_names <- list(switch(
+      output_scale,
+      "r"     = bquote(~"PET"~(~rho)),
+      "d"     = bquote(~"PET"~("Cohen's"~italic(d))),
+      "z"     = bquote(~"PET"~("Fisher's"~italic(z))),
+      "logOR" = bquote(~"PET"~("log"(italic("OR")))),
+      "OR"    = bquote(~"PET"~(~italic("OR"))),
+      "y"     = bquote(~"PET")
+    ))
+
+    par_names <- list(bquote("PET"))
 
   }else if(par == "PEESE"){
 
-    par_names <- list(bquote("PEESE"~.(add_type)))
+    par_names <- list(switch(
+      output_scale,
+      "r"     = bquote(~"PEESE"~(~rho)),
+      "d"     = bquote(~"PEESE"~("Cohen's"~italic(d))),
+      "z"     = bquote(~"PEESE"~("Fisher's"~italic(z))),
+      "logOR" = bquote(~"PEESE"~("log"(italic("OR")))),
+      "OR"    = bquote(~"PEESE"~(~italic("OR"))),
+      "y"     = bquote(~"PEESE")
+    ))
 
   }
 
-  return(par_names)
+  return(as.expression(par_names))
 }

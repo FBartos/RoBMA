@@ -84,7 +84,13 @@
 <text x='43.20' y='47.33' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
 <text x='381.60' y='565.92' text-anchor='middle' style='font-size: 15.00px; font-family: sans;' textLength='25.03px' lengthAdjust='spacingAndGlyphs'>Lag</text>
 <text transform='translate(18.72,280.80) rotate(-90)' text-anchor='middle' style='font-size: 15.00px; font-family: sans;' textLength='133.43px' lengthAdjust='spacingAndGlyphs'>Avg. autocorrelation</text>
-<text x='354.70' y='25.78' style='font-size: 15.00px; font-family: sans;' textLength='50.04px' lengthAdjust='spacingAndGlyphs'>PEESE</text>
-<text x='404.74' y='25.78' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='312.44' y='22.71' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='316.19' y='22.71' style='font-size: 15.00px; font-family: sans;' textLength='50.04px' lengthAdjust='spacingAndGlyphs'>PEESE</text>
+<text x='366.23' y='22.71' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='369.98' y='22.71' style='font-size: 18.75px; font-family: sans;' textLength='6.24px' lengthAdjust='spacingAndGlyphs'>(</text>
+<text x='376.23' y='22.71' style='font-size: 15.00px; font-family: sans;' textLength='54.58px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
+<text x='430.80' y='22.71' style='font-size: 15.00px; font-family: sans;' textLength='3.75px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='434.56' y='22.71' style='font-size: 15.00px; font-style: italic; font-family: sans;' textLength='8.34px' lengthAdjust='spacingAndGlyphs'>d</text>
+<text x='444.53' y='22.71' style='font-size: 18.75px; font-family: sans;' textLength='6.23px' lengthAdjust='spacingAndGlyphs'>)</text>
 </g>
 </svg>
