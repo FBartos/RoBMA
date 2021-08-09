@@ -5,6 +5,8 @@ context("(0) Basic tests for CRAN")
 
 test_that("Basic functionality works", {
 
+  RoBMA:::.load_RoBMA_module()
+
   # fit a default model
   d <- c(0.1, 0.2, 0.3)
   n <- c(20, 15, 10)

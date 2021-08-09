@@ -331,7 +331,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
     graphics::mtext("Lag",                  side = 1, line = 2.5, cex = 1.25)
     graphics::mtext("Avg. autocorrelation", side = 2, line = 2.5, cex = 1.25)
     if(!is.null(title)){
-      graphics::mtext(bquote(.(paste0("Model ",title))~": "~.(plot_data$parameter)), side = 3, line = 1, cex = 1.25)
+      graphics::mtext(bquote(paste("Model"," ", .(title),":"," ", .(eval(plot_data$parameter)))), side = 3, line = 1, cex = 1.25)
     }else{
       graphics::mtext(plot_data$parameter, side = 3, line = 1, cex = 1.25)
     }
@@ -344,7 +344,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
       ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.25)) +
       ggplot2::labs(x = "Lag", y = "Avg. autocorrelation")
     if(!is.null(title)){
-      graph <- graph + ggplot2::ggtitle( bquote(.(paste0("Model ",title))~": "~.(plot_data$parameter)))
+      graph <- graph + ggplot2::ggtitle(bquote(paste("Model"," ", .(title),":"," ", .(eval(plot_data$parameter)))))
     }else{
       graph <- graph + ggplot2::ggtitle(plot_data$parameter)
     }
