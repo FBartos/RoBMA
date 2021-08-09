@@ -44,3 +44,15 @@
     rjags::unload.module("RoBMA")
   }
 }
+
+.load_RoBMA_module <- function(pkgname = "RoBMA"){
+
+  if(is.null(RoBMA.private$module_location) || (!is.null(RoBMA.private$module_location) && RoBMA.private$module_location == "")){
+    libnames         <- .libPaths()
+    module_locations <- sapply(libnames, function(libname) gsub('/$','', file.path(libname, pkgname, 'libs', if(.Platform$r_arch!="") .Platform$r_arch else "")))
+    sapply(module_locations, function(module_location) rjags::load.module("RoBMA", path = module_location))
+  }else{
+    rjags::load.module("RoBMA", path = RoBMA.private$module_location)
+  }
+
+}

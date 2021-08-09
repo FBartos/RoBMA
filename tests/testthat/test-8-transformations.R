@@ -338,6 +338,10 @@ test_that("density scaling works", {
 # density scaling work (utilizing jakobian)
 test_that("density scaling works", {
 
+  # re-load the module
+  RoBMA:::.load_RoBMA_module()
+
+
   # scaling
   var_names <- expand.grid(from = c("d", "r", "z", "logOR"), to = c("d", "r", "z", "logOR"))
   var_names <- var_names[var_names$from != var_names$to, ]
@@ -419,13 +423,12 @@ test_that("density scaling works", {
     }
   }
 
-
   # standard errors
   model_syntax <-
     "model
     {
       se  ~ dunif(0.10, .30)
-      x   ~ dnorm(-.45, pow(0.10, -2))
+      x   ~ dunif(-.55, -.35)
 
       d2r_se_transformed     = se_d2se_r(se, x)
       d2z_se_transformed     = se_d2se_z(se, x)

@@ -26,6 +26,7 @@ test_that("Module can be loaded and the one-sided normal distribution works", {
     crit_y = matrix(1, ncol = 1, nrow = 10)
   )
 
+  RoBMA:::.load_RoBMA_module()
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
   fit   <- rjags::jags.samples(model = model, variable.names = "omega", n.iter = 100, quiet = TRUE, progress.bar = "none")
 
