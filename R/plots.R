@@ -622,10 +622,10 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
   }
 
   if(is.null(dots_prior[["col"]])){
-    dots_prior[["col"]]      <- "grey30"
+    dots_prior[["col"]]      <- "grey60"
   }
   if(is.null(dots_prior[["lty"]])){
-    dots_prior[["lty"]]      <- 2
+    dots_prior[["lty"]]      <- 1
   }
   if(is.null(dots_prior[["col.fill"]])){
     dots_prior[["col.fill"]] <- "#B3B3B34C" # scales::alpha("grey70", .30)
