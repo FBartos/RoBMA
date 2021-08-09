@@ -639,24 +639,24 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(~rho),
+      "r"     = expression(rho),
       "d"     = bquote("Cohen's"~italic(d)),
       "z"     = bquote("Fisher's"~italic(z)),
       "logOR" = bquote("log"(italic("OR"))),
-      "OR"    = bquote(~italic("OR")),
-      "y"     = bquote(~mu)
+      "OR"    = bquote(italic("OR")),
+      "y"     = expression(mu)
     ))
 
   }else if(par == "tau"){
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(~tau~(~rho)),
-      "d"     = bquote(~tau~("Cohen's"~italic(d))),
-      "z"     = bquote(~tau~("Fisher's"~italic(z))),
-      "logOR" = bquote(~tau~("log"(italic("OR")))),
-      "OR"    = bquote(~tau~(~italic("OR"))),
-      "y"     = bquote(~tau)
+      "r"     = bquote(tau~(rho)),
+      "d"     = bquote(tau~("Cohen's"~italic(d))),
+      "z"     = bquote(tau~("Fisher's"~italic(z))),
+      "logOR" = bquote(tau~("log"(italic("OR")))),
+      "OR"    = bquote(tau~(italic("OR"))),
+      "y"     = expression(tau)
     ))
 
   }else if(par == "omega"){
@@ -691,12 +691,12 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(~"PET"~(~rho)),
-      "d"     = bquote(~"PET"~("Cohen's"~italic(d))),
-      "z"     = bquote(~"PET"~("Fisher's"~italic(z))),
-      "logOR" = bquote(~"PET"~("log"(italic("OR")))),
-      "OR"    = bquote(~"PET"~(~italic("OR"))),
-      "y"     = bquote(~"PET")
+      "r"     = bquote("PET"~(rho)),
+      "d"     = bquote("PET"~("Cohen's"~italic(d))),
+      "z"     = bquote("PET"~("Fisher's"~italic(z))),
+      "logOR" = bquote("PET"~("log"(italic("OR")))),
+      "OR"    = bquote("PET"~(italic("OR"))),
+      "y"     = bquote("PET")
     ))
 
     par_names <- list(bquote("PET"))
@@ -705,12 +705,12 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
     par_names <- list(switch(
       output_scale,
-      "r"     = bquote(~"PEESE"~(~rho)),
-      "d"     = bquote(~"PEESE"~("Cohen's"~italic(d))),
-      "z"     = bquote(~"PEESE"~("Fisher's"~italic(z))),
-      "logOR" = bquote(~"PEESE"~("log"(italic("OR")))),
-      "OR"    = bquote(~"PEESE"~(~italic("OR"))),
-      "y"     = bquote(~"PEESE")
+      "r"     = bquote("PEESE"~(rho)),
+      "d"     = bquote("PEESE"~("Cohen's"~italic(d))),
+      "z"     = bquote("PEESE"~("Fisher's"~italic(z))),
+      "logOR" = bquote("PEESE"~("log"(italic("OR")))),
+      "OR"    = bquote("PEESE"~(italic("OR"))),
+      "y"     = bquote("PEESE")
     ))
 
   }

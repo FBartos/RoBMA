@@ -80,8 +80,7 @@
 <text x='402.26' y='556.47' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='12.23px' lengthAdjust='spacingAndGlyphs'>0.5</text>
 <text x='509.28' y='556.47' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='4.89px' lengthAdjust='spacingAndGlyphs'>1</text>
 <text x='616.30' y='556.47' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='12.23px' lengthAdjust='spacingAndGlyphs'>1.5</text>
-<text x='344.36' y='565.99' style='font-size: 11.00px; font-family: sans;' textLength='2.75px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='347.12' y='565.99' style='font-size: 11.00px; font-family: sans;' textLength='6.01px' lengthAdjust='spacingAndGlyphs'>μ</text>
+<text x='345.74' y='565.99' style='font-size: 11.00px; font-family: sans;' textLength='6.01px' lengthAdjust='spacingAndGlyphs'>μ</text>
 <text x='54.44' y='14.56' style='font-size: 13.20px; font-family: sans;' textLength='105.69px' lengthAdjust='spacingAndGlyphs'>ggplot_forest2_11</text>
 </g>
 </svg>

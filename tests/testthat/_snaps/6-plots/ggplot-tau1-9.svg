@@ -84,14 +84,13 @@
 <text x='504.90' y='552.25' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>2.5</text>
 <text x='594.10' y='552.25' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>3.0</text>
 <text x='683.30' y='552.25' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>3.5</text>
-<text x='339.38' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='341.88' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='4.57px' lengthAdjust='spacingAndGlyphs'>τ</text>
-<text x='346.46' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='348.96' y='566.31' style='font-size: 12.50px; font-family: sans;' textLength='4.16px' lengthAdjust='spacingAndGlyphs'>(</text>
-<text x='353.12' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='36.38px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
-<text x='389.50' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='392.01' y='566.31' style='font-size: 10.00px; font-style: italic; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>d</text>
-<text x='398.65' y='566.31' style='font-size: 12.50px; font-family: sans;' textLength='4.16px' lengthAdjust='spacingAndGlyphs'>)</text>
+<text x='340.63' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='4.57px' lengthAdjust='spacingAndGlyphs'>τ</text>
+<text x='345.20' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='347.71' y='566.31' style='font-size: 12.50px; font-family: sans;' textLength='4.16px' lengthAdjust='spacingAndGlyphs'>(</text>
+<text x='351.87' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='36.38px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
+<text x='388.25' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='390.75' y='566.31' style='font-size: 10.00px; font-style: italic; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>d</text>
+<text x='397.40' y='566.31' style='font-size: 12.50px; font-family: sans;' textLength='4.16px' lengthAdjust='spacingAndGlyphs'>)</text>
 <text transform='translate(12.36,281.07) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 </svg>

@@ -72,8 +72,7 @@
 <text x='371.10' y='559.01' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>2</text>
 <text x='527.20' y='559.01' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>3</text>
 <text x='683.30' y='559.01' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>4</text>
-<text x='367.56' y='568.32' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='370.06' y='568.32' style='font-size: 10.00px; font-family: sans;' textLength='4.57px' lengthAdjust='spacingAndGlyphs'>τ</text>
+<text x='368.81' y='568.32' style='font-size: 10.00px; font-family: sans;' textLength='4.57px' lengthAdjust='spacingAndGlyphs'>τ</text>
 <text transform='translate(12.36,284.45) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 </svg>

@@ -97,8 +97,7 @@
 <text x='486.23' y='559.01' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>2.5</text>
 <text x='570.38' y='559.01' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>3.0</text>
 <text x='654.54' y='559.01' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>3.5</text>
-<text x='356.46' y='568.32' style='font-size: 10.00px; font-family: sans;' textLength='2.50px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='358.96' y='568.32' style='font-size: 10.00px; font-family: sans;' textLength='4.57px' lengthAdjust='spacingAndGlyphs'>τ</text>
+<text x='357.71' y='568.32' style='font-size: 10.00px; font-family: sans;' textLength='4.57px' lengthAdjust='spacingAndGlyphs'>τ</text>
 <text transform='translate(12.36,284.45) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
 <text transform='translate(705.56,284.45) rotate(90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='46.69px' lengthAdjust='spacingAndGlyphs'>Probability</text>
 </g>
