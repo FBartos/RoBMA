@@ -137,7 +137,7 @@ of a fitted RoBMA object." />
 of a fitted RoBMA object.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>interpret</span><span class='op'>(</span><span class='va'>object</span><span class='op'>)</span></pre>
+    <pre class="usage"><span class='fu'>interpret</span><span class='op'>(</span><span class='va'>object</span>, output_scale <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -145,6 +145,11 @@ of a fitted RoBMA object.</p>
     <tr>
       <th>object</th>
       <td><p>a fitted RoBMA object</p></td>
+    </tr>
+    <tr>
+      <th>output_scale</th>
+      <td><p>transform the  meta-analytic estimates to a different
+scale. Defaults to <code>NULL</code> which returns the same scale as the model was estimated on.</p></td>
     </tr>
     </table>
 
