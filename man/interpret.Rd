@@ -4,10 +4,13 @@
 \alias{interpret}
 \title{Interprets results of a RoBMA model.}
 \usage{
-interpret(object)
+interpret(object, output_scale = NULL)
 }
 \arguments{
 \item{object}{a fitted RoBMA object}
+
+\item{output_scale}{transform the  meta-analytic estimates to a different
+scale. Defaults to \code{NULL} which returns the same scale as the model was estimated on.}
 }
 \value{
 \code{interpret} returns a character.
