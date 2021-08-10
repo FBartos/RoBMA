@@ -334,6 +334,13 @@ test_that("Interpret functions work", {
       gsub("(.{80})", "\\1\\\n", interpret(saved_fits[[i]])),
       read.table(file = file.path("../results/interpret", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
+
+  # with transformation
+  expect_equal(
+    interpret(saved_fits[[1]], output_scale = "r"),
+    "Robust Bayesian meta-analysis found weak evidence against the effect, BF_10 = 0.974, with mean model-averaged estimate correlation = 0.094, 95% CI [-0.032,  0.379]. Robust Bayesian meta-analysis found weak evidence against the heterogeneity, BF^rf = 0.858, with mean model-averaged estimate tau = 0.055, 95% CI [0.000, 0.312]. Robust Bayesian meta-analysis found weak evidence in favor of the publication bias, BF_pb = 1.17."
+  )
+
 })
 
 #### creating / updating the test settings ####

@@ -365,13 +365,25 @@ is.RoBMA            <- function(x){
 #' @description \code{interpret} creates a brief textual summary
 #' of a fitted RoBMA object.
 #'
-#' @param object a fitted RoBMA object
+#' @inheritParams summary.RoBMA
 #'
 #'
 #' @return \code{interpret} returns a character.
 #'
 #' @export
-interpret           <- function(object){
+interpret           <- function(object, output_scale = NULL){
+
+  if(is.null(output_scale)){
+    output_scale <- object$add_info[["output_scale"]]
+  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+    stop("Models estimated using the generall effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  if(object$add_info[["output_scale"]] != output_scale){
+    object <- .transform_posterior(object, object$add_info[["output_scale"]], output_scale)
+  }
 
   text <- BayesTools::interpret(
     inference     = object$RoBMA[["inference"]],
