@@ -71,23 +71,10 @@ dwnorm <- function(x, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   if(type == "two.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(abs(x[i]) >= crit_x[i, ncol(omega)-1]){
-        return(log(omega[i,ncol(omega)]))
-      }else if(abs(x[i]) < crit_x[i,1]){
-        return(log(omega[i,1]))
-      }else{
-        for(j in 2:ncol(omega)){
-          if(abs(x[i]) < crit_x[i,j] & abs(x[i]) >= crit_x[i,j-1]){
-            return(log(omega[i,j]))
-          }
-        }
-      }
-    })
-
+    w <- sapply(1:length(x), function(i) .get_log_weight_twosided(x[i], crit_x = crit_x[i, ], omega = omega[i, ]))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     # compute the denominator
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd) - stats::pnorm(-crit_x[,1], mean, sd), ncol = 1)
@@ -109,23 +96,10 @@ dwnorm <- function(x, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }else if(type == "one.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(x[i] >= crit_x[i, ncol(omega)-1]){
-        return(log(omega[i,ncol(omega)]))
-      }else if(x[i] < crit_x[i,1]){
-        return(log(omega[i,1]))
-      }else{
-        for(j in 2:ncol(omega)){
-          if(x[i] < crit_x[i,j] & x[i] >= crit_x[i,j-1]){
-            return(log(omega[i,j]))
-          }
-        }
-      }
-    })
-
+    w <- sapply(1:length(x), function(i) .get_log_weight_onesided(x[i], crit_x = crit_x[i, ], omega = omega[i, ]))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd), ncol = 1)
     # check and correct for possibly negative numbers due to numerical imprecision
@@ -287,22 +261,11 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   x <- rep(NA, n)
   for(i in 1:n){
     while(is.na(x[i])){
-      # sample a t-stat
+      # sample a normal observation
       temp_x <- stats::rnorm(1, mean = mean[i], sd = sd[i])
 
       # find it's weight
-      if(temp_x >= crit_x[i, ncol(omega)-1]){
-        temp_omega <- omega[i, ncol(omega)]
-      }else if(temp_x < crit_x[i,1]){
-        temp_omega <- omega[i,1]
-      }else{
-        for(j in 2:ncol(omega)){
-          if(temp_x < crit_x[i,j] & temp_x >= crit_x[i,j-1]){
-            temp_omega <- omega[i,j]
-            break
-          }
-        }
-      }
+      temp_omega <- exp(.get_log_weight_onesided(temp_x, crit_x = crit_x[i, ], omega = omega[i, ]))
 
       if(stats::rbinom(1, 1, prob = temp_omega) == 1){
         x[i] <- temp_x
@@ -442,23 +405,10 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   if(type == "two.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(abs(x[i]) >= crit_x[i, length(omega)-1]){
-        return(log(omega[length(omega)]))
-      }else if(abs(x[i]) < crit_x[i,1]){
-        return(log(omega[1]))
-      }else{
-        for(j in 2:length(omega)){
-          if(abs(x[i]) < crit_x[i,j] & abs(x[i]) >= crit_x[i,j-1]){
-            return(log(omega[j]))
-          }
-        }
-      }
-    })
-
+    w <- sapply(1:length(x), function(i) .get_log_weight_twosided(x[i], crit_x = crit_x[i, ], omega = omega))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     # compute the denominator
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd) - stats::pnorm(-crit_x[,1], mean, sd), ncol = 1)
@@ -478,22 +428,10 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }else if(type == "one.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(x[i] >= crit_x[i, length(omega)-1]){
-        return(log(omega[length(omega)]))
-      }else if(x[i] < crit_x[i,1]){
-        return(log(omega[1]))
-      }else{
-        for(j in 2:length(omega)){
-          if(x[i] < crit_x[i,j] & x[i] >= crit_x[i,j-1]){
-            return(log(omega[j]))
-          }
-        }
-      }
-    })
+    w <- sapply(1:length(x), function(i) .get_log_weight_onesided(x[i], crit_x = crit_x[i, ], omega = omega))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd), ncol = 1)
     denoms[denoms < 0, 1]  <- 0 # check and correct for possibly negative numbers due to numerical imprecision
@@ -574,6 +512,55 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   return(crit_x)
 }
 
+
+#### general helper functionts
+# functions for assigning weights & bounds
+.get_log_weight_onesided <- function(x, crit_x, omega){
+
+  # number of weights
+  J <- length(omega)
+
+  if(x >= crit_x[J - 1]){
+    # return the last omega if x > last crit_x
+    w <- omega[J]
+  }else if(x < crit_x[1]){
+    # return the first omega if x < first crit_x
+    w <- omega[1]
+  }else{
+    # check the remaining cutpoints sequentially
+    for(i in 2:J){
+      if( (x >= crit_x[i - 1]) && (x < crit_x[i]) ){
+        w = omega[i]
+        break
+      }
+    }
+  }
+
+  return(log(w))
+}
+.get_log_weight_twosided <- function(x, crit_x, omega){
+
+  # number of weights
+  J <- length(omega)
+
+  if(abs(x) >= crit_x[J - 1]){
+    # return the last omega if x > last crit_x
+    w <- omega[J]
+  }else if(abs(x) < crit_x[1]){
+    # return the first omega if x < first crit_x
+    w <- omega[1]
+  }else{
+    # check the remaining cutpoints sequentially
+    for(i in 2:J){
+      if( (abs(x) >= crit_x[i - 1]) && (abs(x) < crit_x[i]) ){
+        w = omega[i]
+        break
+      }
+    }
+  }
+
+  return(log(w))
+}
 
 #### legacy code for weighted-t distribution ####
 # #' @title Weighted t distribution
