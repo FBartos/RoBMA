@@ -14,7 +14,7 @@
 
 #include <JRmath.h>
 #include "../functions/mnorm.h"
-#include "../functions/get_weight.h"
+#include "../functions/tools.h"
 
 #include <iostream>
 
@@ -109,7 +109,6 @@ DWMN1::DWMN1():ArrayDist("dwmnorm_1s", 4) {}
 double DWMN1::logDensity(double const *x, unsigned int length, PDFType type, vector<double const *> const &par,
 			    vector<vector<unsigned int> > const &dims, double const *lower, double const *upper) const
 {
-
   // reassign the addresses to pointers
   const double *mu     = par[0];
   const double *sigma  = par[1];
@@ -120,83 +119,19 @@ double DWMN1::logDensity(double const *x, unsigned int length, PDFType type, vec
   const int K = dims[0][0]; // of the outcome
   const int J = dims[2][0]; // of the weights
 
-  // create dynamically allocated arrays for covariance matrix decomposition
-  double * sigma_stdev;
-  double * sigma_corr;
-
-  sigma_stdev = new double [K];
-  sigma_corr  = new double [K * (K - 1) / 2];
-
-  for(int i = 0; i < K; i++){
-    sigma_stdev[i] = sqrt(sigma[K * i + i]);
-  }
-  for(int i = 0; i < K; i++){
-    for(int j = 0; j < K && j < i; j++){
-      sigma_corr[i * (i - 1) / 2 + j] = sigma[K * i + j] / sqrt(sigma[K * i + i] * sigma[K * j + j]);
-    }
-  }
-
   // obtain product of the weights (on log scale)
   double log_w = 0;
   for(int i = 0; i < K; i++){
     log_w += log_weight_onesided(&x[i], &crit_x[i * (J - 1)], &omega[0], J);
   }
 
-
+  // the log weighted normal likelihood
   double log_lik = dmnorm(&x[0], &mu[0], &sigma[0], K) + log_w;
 
+  // get the standardizing constant
+  double log_std_const = log_std_constant_onesided(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
 
-
-
-
-  return 0;
-/*
-  // imported
-  int n = 10;
-
-
-
-
-  double correlationMatrix = 1.0;
-  int* infin = new int[n];
-  double* delta = new double[n];
-
-  for (int i = 0; i < n; ++i) {
-    infin[i] = 0; // (-inf, bound]
- //   lower[i] = 0.0;
-    delta[i] = 0.0;
-  }
-
-
-  int n =      // number of observations
-  int nu = 0;  // degrees of freedom, 0 = normal
-
-  // mvtnorm settings
-  double releps = 0;      // default in mvtnorm: 0
-  int maxpts = 25000;     // default in mvtnorm: 25000
-  double abseps = 1e-3;   // default in mvtnorm: 0.001, absolute precision
-  int rnd = 1;            // Get/PutRNGstate
-  int nu = 0; // coresponds to multivariate normal
-
-  // return values
-  double error;
-  double value;
-  int inform;
-
-  mvtnorm_C_mvtdst(&n,
-                   &nu,
-                   lower,
-                   upper,
-                   infin, correlationMatrix, delta,
-                   &maxpts, &abseps, &releps,
-                   &error, &value, &inform, &rnd);
-                   delete[] (upper);
-                   delete[] (lower);
-                   delete[] (infin);
-                   delete[] (delta);
-
-                   return value;
-                   */
+  return log_lik - log_std_const;
 }
 
 void DWMN1::randomSample(double *x, unsigned int length, vector<double const *> const &par,

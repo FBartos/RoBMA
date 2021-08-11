@@ -73,7 +73,7 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 
 OBJECTS = distributions/DWMN1.o distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o \
 		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o                       \
-		  functions/get_weight.o functions/mnorm.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+		  functions/tools.o functions/mnorm.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
 
 ###############
 
@@ -87,6 +87,6 @@ OBJECTS = distributions/DWMN1.o distributions/DWN1.o distributions/DWN2.o distri
 # PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -ljrmath-0
 # OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o        \
 	        transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o        \
-			functions/get_weight.o functions/mnorm.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+			functions/tools.o functions/mnorm.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
 
 ###############
