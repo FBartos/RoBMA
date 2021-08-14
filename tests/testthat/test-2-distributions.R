@@ -305,6 +305,10 @@ test_that("Density function works", {
 
 test_that("R and JAGS density is consistent", {
 
+  # re-load the module
+  RoBMA:::.load_RoBMA_module()
+
+
   ### one sided
   set.seed(1)
   model_syntax <-
