@@ -25,6 +25,7 @@
   }
 
   .check_BayesTools()
+  requireNamespace("mvtnorm")
 
 }
 

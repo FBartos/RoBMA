@@ -43,13 +43,13 @@ Imports:
     BayesTools (>= 0.1.3),
     runjags,
     bridgesampling,
-    mvtnorm,
     rjags,
     coda,
     psych,
     stats,
     graphics,
     extraDistr,
+    mvtnorm,
     scales,
     callr,
     Rdpack,
@@ -64,9 +64,6 @@ Suggests:
     rmarkdown,
     covr
 LinkingTo:
-    mvtnorm,
-    Rcpp,
-    RcppArmadillo,
-    Matrix
+    mvtnorm
 RdMacros: Rdpack
 VignetteBuilder: knitr

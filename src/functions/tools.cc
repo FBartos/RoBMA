@@ -79,7 +79,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   }
   for(int k = 0; k < K; k++){
     for(int j = 0; j < K && j < k; j++){
-      *(sigma_corr + k * (k - 1) / 2 + j) = *(sigma + K * k + j) / sqrt( *(sigma + K * k + k) * *(sigma + K * k + j));
+      *(sigma_corr + k * (k - 1) / 2 + j) = *(sigma + K * k + j) / sqrt( *(sigma + K * k + k) * *(sigma + K * j + j));
     }
   }
 
@@ -101,9 +101,6 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   for(int k = 0; k < K; k++){
     *(index_weights + k) = 0;
   }
-
-  //cout << "J = " << J << endl;
-  //cout << "K = " << K << endl;
 
   // iterate over all subspaces created by the cutpoints
   for(int i = 0; i < pow(J, K); i++){
@@ -135,8 +132,8 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
 	  }
     }
 
-	// get the current weight
-	std_constant += exp(log(pmnorm(&temp_lower[0], &temp_upper[0], &temp_infin[0], &mu[0], &sigma_stdev[0], &sigma_corr[0], K)) + temp_log_weight);
+	// get the current weighted probability
+	std_constant += exp(log(cpp_mnorm_cdf(&temp_lower[0], &temp_upper[0], &temp_infin[0], &mu[0], &sigma_stdev[0], &sigma_corr[0], K)) + temp_log_weight);
 
 	// increase index for the next itteration
     increase_index( &index_weights[0], K-1, J-1);
@@ -145,6 +142,40 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   return log(std_constant);
 }
 
+
+double log_std_constant_twosided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega ,const int K, const int J)
+{
+  double log_std_constant = 0;
+
+  // turn the two-sided selection into one-sided selection
+  double * omega_onesided;
+  double * crit_x_onesided;
+
+  omega_onesided  = new double [2 * J - 1];
+  crit_x_onesided = new double [2 * (J - 1) * K];
+
+  for(int i = 0; i < 2 * J - 1; i++){
+	if(i < J){
+      *(omega_onesided + i) = *(omega + (J - 1) - i);
+	}else{
+	  *(omega_onesided + i) = *(omega + i - (J - 1));
+	}
+  }
+
+  for(int k = 0; k < K; k++){
+    for(int j = 0; j < 2 * (J - 1); j++){
+	  if(j < (J - 1)){
+        *(crit_x_onesided + k * 2 * (J - 1) + j) = - *(crit_x + k * (J - 1) + (J - 2) - j);
+  	  }else{
+  	    *(crit_x_onesided + k * 2 * (J - 1) + j) =   *(crit_x + k * (J - 1) + j - (J - 1));
+      }
+    }
+  }
+
+  log_std_constant = log_std_constant_onesided(&x[0], &const_mu[0], &sigma[0], &crit_x_onesided[0], &omega_onesided[0], K, 2 * J - 1);
+
+  return log_std_constant;
+}
 
 
 // increases index carrying the cutoff coordinates by one

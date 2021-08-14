@@ -22,7 +22,7 @@ using std::cout;
 using std::endl;
 
 // wrapper around the mvtnorm package
-double pmnorm(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K)
+double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K)
 {
   // create dynamically allocated arrays for the standardized locations
   double * lower_std;
@@ -65,13 +65,18 @@ double pmnorm(double *lower, double *upper, int *infin, double *mu, double *sigm
   return value;
 }
 
-double dmnorm(double const *x, double const *mu, double const *sigma, const int K)
+double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, const int K)
 {
 
   double * sigma_chol;
   double * chol_inv;
   sigma_chol = new double [K*K];
   chol_inv   = new double [K*K];
+
+  for(int i = 0; i < K*K; i++){
+    *(sigma_chol + i) = 0;
+    *(chol_inv + i)   = 0;
+  }
 
   // lower triangle cholesky decomposition
   chol(&sigma[0], K, sigma_chol);
@@ -88,6 +93,9 @@ double dmnorm(double const *x, double const *mu, double const *sigma, const int 
   // standardized means? (based on arma::inplace_tri_mat_mult)
   double * z;
   z = new double [K];
+  for(int i = 0; i < K; i++){
+    *(z+i) = 0;
+  }
   for(int i = 0; i < K; i++){
     *(z+i) += *(x+i) - *(mu+i);
   }

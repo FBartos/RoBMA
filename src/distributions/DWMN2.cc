@@ -1,4 +1,4 @@
-#include "DWMN1.h"
+#include "DWMN2.h"
 
 #include <rng/RNG.h>
 #include <util/dim.h>
@@ -29,13 +29,13 @@ using std::endl;
 namespace jags {
   namespace RoBMA {
 
-    vector<unsigned int> DWMN1::dim(vector<vector<unsigned int> > const &dims) const
+    vector<unsigned int> DWMN2::dim(vector<vector<unsigned int> > const &dims) const
     {
       return vector<unsigned int>(1,dims[0][0]);
     }
 
 
-    bool DWMN1::checkParameterDim (vector<vector<unsigned int> > const &dims) const
+    bool DWMN2::checkParameterDim (vector<vector<unsigned int> > const &dims) const
     {
       return true;
       bool sigma_OK  = true; // check that sigma and mu dimension matches
@@ -54,7 +54,7 @@ namespace jags {
     }
 
 
-    bool DWMN1::checkParameterValue(vector<double const *> const &par, vector<vector<unsigned int> > const &dims) const
+    bool DWMN2::checkParameterValue(vector<double const *> const &par, vector<vector<unsigned int> > const &dims) const
     {
 
       const double *sigma  = par[1];
@@ -80,9 +80,9 @@ namespace jags {
     }
 
 
-    DWMN1::DWMN1():ArrayDist("dwmnorm_1s", 4) {}
+    DWMN2::DWMN2():ArrayDist("dwmnorm_2s", 4) {}
 
-    double DWMN1::logDensity(double const *x, unsigned int length, PDFType type, vector<double const *> const &par,
+    double DWMN2::logDensity(double const *x, unsigned int length, PDFType type, vector<double const *> const &par,
               vector<vector<unsigned int> > const &dims, double const *lower, double const *upper) const
     {
       // reassign the addresses to pointers
@@ -96,12 +96,12 @@ namespace jags {
       const int J = dims[2][0]; // of the weights
 
       // the log weighted normal likelihood
-      double log_lik = cpp_wmnorm_1s_lpdf(&x[0], &mu[0], &sigma[0], &omega[0], &crit_x[0], K, J);
+      double log_lik = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &omega[0], &crit_x[0], K, J);
 
       return log_lik;
     }
 
-    void DWMN1::randomSample(double *x, unsigned int length, vector<double const *> const &par,
+    void DWMN2::randomSample(double *x, unsigned int length, vector<double const *> const &par,
               vector<vector<unsigned int> > const &dims,
               double const *lower, double const *upper,
               RNG *rng) const
@@ -109,7 +109,7 @@ namespace jags {
       // not implemented
     }
 
-    void DWMN1::support(double *lower, double *upper, unsigned int length,
+    void DWMN2::support(double *lower, double *upper, unsigned int length,
               vector<double const *> const &par,
               vector<vector<unsigned int> > const &dims) const
     {
@@ -120,7 +120,7 @@ namespace jags {
       }
     }
 
-    void DWMN1::typicalValue(double *x, unsigned int length,
+    void DWMN2::typicalValue(double *x, unsigned int length,
               vector<double const *> const &par,
               vector<vector<unsigned int> > const &dims,
               double const *lower, double const *upper) const
@@ -128,7 +128,7 @@ namespace jags {
       // not implemented
     }
 
-    bool DWMN1::isSupportFixed(vector<bool> const &fixmask) const
+    bool DWMN2::isSupportFixed(vector<bool> const &fixmask) const
     {
       return true;
     }

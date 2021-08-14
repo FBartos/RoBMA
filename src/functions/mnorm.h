@@ -2,9 +2,9 @@
 #define mnorm_H_
 
 // wrapper around the mvtnorm
-double pmnorm(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K);
+double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K);
 // adapted from https://gallery.rcpp.org/articles/dmvnorm_arma/
-double dmnorm(double const *x, double const *mu, double const *sigma, const int K);
+double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, const int K);
 
 // adapted from https://www.geeksforgeeks.org/
 void chol(double const *matrix, const int n, double *lower);

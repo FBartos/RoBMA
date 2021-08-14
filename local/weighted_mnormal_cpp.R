@@ -1,7 +1,7 @@
 model_syntax1 <- "
   model{
-    omega[1] = .1
-    omega[2] ~ dunif(0.20,0.201);
+    omega[1] ~ dunif(0.20, 1);
+    omega[2] ~ dunif(0.20, 1);
     omega[3] = 1
 
     y[] ~ dwmnorm_1s(mu[], sigma[,], omega[], crit_y)
@@ -14,10 +14,10 @@ data1 <- list(
     1.5, 1.0, 0.5,
     1.0, 1.8, 0.7,
     0.5, 0.7, 1.2), nrow = 3, ncol = 3),
-  crit_y = matrix(c(
+  crit_y = t(matrix(c(
     1.25, 1.96,
     1.30, 2.05,
-    1.10, 1.50), nrow = 3, ncol = 2)
+    1.10, 1.50), nrow = 2, ncol = 3))
 )
 
 model_syntax2 <- "
@@ -44,8 +44,10 @@ data2 <- list(
 )
 
 model1 <- rjags::jags.model(file = textConnection(model_syntax1), data = data1, quiet = TRUE, n.adapt=1)
-fit1   <- rjags::jags.samples(model = model1, variable.names = "omega", n.iter = 1, quiet = TRUE, progress.bar = "none")
+data1$crit_y
 
+fit1   <- rjags::jags.samples(model = model1, variable.names = "omega", n.iter = 50)
+, quiet = TRUE, progress.bar = "none"
 mvtnorm::dmvnorm(
   x      = c(1.5, 0, 3),
   mean   = c(0.2, 0.5, -0.1),
@@ -56,7 +58,7 @@ mvtnorm::dmvnorm(
   log = T)
 
 
-model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt=2)
+model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt=10)
 fit2   <- rjags::jags.samples(model = model2, variable.names = "omega", n.iter = 2, quiet = TRUE, progress.bar = "none")
 
 mvtnorm::dmvnorm(

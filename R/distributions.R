@@ -513,6 +513,120 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 
+#' @title Weighted multivariate normal distribution
+#'
+#' @description Density function for the weighted multivariate normal
+#' distribution with \code{mean}, covariance matrix \code{sigma},
+#' critical values \code{crit_x}, and weights \code{omega}.
+#'
+#' @param x quantiles.
+#' @param p vector of probabilities.
+#' @param mean mean
+#' @param sigma covariance matrix.
+#' @param crit_x vector of critical values defining steps.
+#' @param omega vector of weights defining the probability
+#' of observing a t-statistics between each of the two steps.
+#' @param type type of weight function (defaults to \code{"two.sided"}).
+#' @param log,log.p logical; if \code{TRUE}, probabilities
+#' \code{p} are given as \code{log(p)}.
+#'
+#'
+#' @return \code{.dwmnorm_fast} returns a density of the multivariate
+#' weighted normal distribution.
+#'
+#' @name weighted_multivariate_normal
+#'
+#' @seealso \link[stats]{Normal}, [weighted_normal]
+NULL
+
+# fast computation - no input check, pre-formatted for bridge-sampling
+.dwmnorm_fast <- function(x, mean, sigma, omega, crit_x, type = "two.sided", log = TRUE){
+
+  if(type == "two.sided"){
+
+    log_w   <- sum(sapply(1:length(mean), function(k) .get_log_weight_twosided(x[k], crit_x[,k], omega)))
+    log_lik <- mvtnorm::dmvnorm(x = x, mean = mean, sigma = sigma, log = TRUE) + log_w;
+
+    log_std_constant <- .dwmnorm_log_std_constant_twosided(x, mean, sigma, crit_x, omega)
+
+    log_lik <- log_lik - log_std_constant
+
+  }else if(type == "one.sided"){
+
+    log_w   <- sum(sapply(1:length(mean), function(k) .get_log_weight_onesided(x[k], crit_x[,k], omega)))
+    log_lik <- mvtnorm::dmvnorm(x = x, mean = mean, sigma = sigma, log = TRUE) + log_w;
+
+    log_std_constant <- .dwmnorm_log_std_constant_onesided(x, mean, sigma, crit_x, omega)
+
+    log_lik <- log_lik - log_std_constant
+
+  }
+
+
+  if(log){
+    return(log_lik)
+  }else{
+    return(exp(log_lik))
+  }
+}
+
+
+# standardizing constant calculation
+.dwmnorm_log_std_constant_onesided <- function(x, mu, sigma, crit_x, omega){
+
+  std_constant <- 0
+
+  # create a matrix indexing all sub-spaces created by the cut-points
+  indexes <- as.matrix(do.call(expand.grid, args = lapply(1:length(mu), function(i) 1:length(omega))))
+
+  for(i in 1:nrow(indexes)){
+
+    # get the current lower and upper boundaries
+    temp_lower <- .dwmnorm_lower_bound(crit_x, indexes[i,])
+    temp_upper <- .dwmnorm_upper_bound(crit_x, indexes[i,])
+
+    # get the probability and weights
+    temp_log_prob   <- log(mvtnorm::pmvnorm(lower = temp_lower, upper = temp_upper, mean = mu, sigma = sigma))
+    temp_log_weight <- sum(log(omega[unlist(indexes[i,])]))
+
+    # add to the constant
+    std_constant <- std_constant + exp(temp_log_prob + temp_log_weight)
+  }
+
+  return(log(std_constant))
+}
+.dwmnorm_log_std_constant_twosided <- function(x, mu, sigma, crit_x, omega){
+
+  # turn the two-sided selection into one-sided selection
+  crit_x <- rbind(-crit_x[nrow(crit_x):1,], crit_x)
+  omega  <- c(rev(omega[-1]), omega)
+
+  log_std_constant <- .dwmnorm_log_std_constant_onesided(x = x, mu = mu, sigma = sigma, crit_x = crit_x, omega = omega)
+
+  return(log_std_constant)
+}
+
+# functions for assigning bounds
+.dwmnorm_lower_bound <- function(crit_x, index){
+  return(sapply(1:ncol(crit_x), function(k){
+    if(index[k] == 1){
+      return(-Inf)
+    }else{
+      return(crit_x[index[k] - 1, k])
+    }
+  }))
+}
+.dwmnorm_upper_bound <- function(crit_x, index){
+  return(sapply(1:ncol(crit_x), function(k){
+    if(index[k] == nrow(crit_x) + 1){
+      return(Inf)
+    }else{
+      return(crit_x[index[k], k])
+    }
+  }))
+}
+
+
 #### general helper functionts
 # functions for assigning weights & bounds
 .get_log_weight_onesided <- function(x, crit_x, omega){

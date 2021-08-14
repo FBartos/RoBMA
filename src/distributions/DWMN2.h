@@ -1,13 +1,13 @@
-#ifndef DWMN1_H_
-#define DWMN1_H_
+#ifndef DWMN2_H_
+#define DWMN2_H_
 #include <distribution/ArrayDist.h>
 
 namespace jags {
 namespace RoBMA { // module namespace
 
-class DWMN1 : public ArrayDist {
+class DWMN2 : public ArrayDist {
 public:
-  DWMN1();
+  DWMN2();
 
   double logDensity(double const *x, unsigned int length, PDFType type,
 		    std::vector<double const *> const &parameters,
@@ -32,6 +32,6 @@ public:
 };
 
 }}
-#endif /* DWMN1_H_ */
+#endif /* DWMN2_H_ */
 
 
