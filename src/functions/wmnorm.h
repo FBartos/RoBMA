@@ -3,8 +3,8 @@
 
 #include <function/ArrayFunction.h>
 
-double cpp_wmnorm_1s_lpdf(double const *x, double const *mu, double const *sigma, double const *omega, double const *crit_x, const int K, const int J);
-double cpp_wmnorm_2s_lpdf(double const *x, double const *mu, double const *sigma, double const *omega, double const *crit_x, const int K, const int J);
+double cpp_wmnorm_1s_lpdf(double const *x, double const *mu, double const *sigma, double const *crit_x, double const *omega, const int K, const int J);
+double cpp_wmnorm_2s_lpdf(double const *x, double const *mu, double const *sigma, double const *crit_x, double const *omega, const int K, const int J);
 
 
 namespace jags {

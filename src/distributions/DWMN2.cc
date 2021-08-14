@@ -37,17 +37,17 @@ namespace jags {
 
     bool DWMN2::checkParameterDim (vector<vector<unsigned int> > const &dims) const
     {
-      return true;
+
       bool sigma_OK  = true; // check that sigma and mu dimension matches
       bool omega_OK  = true; // check that omega and crit_x dimension matches
       bool crit_x_OK = true; // check that crit_x and mu dimension matches
 
       sigma_OK  = dims[0][0] == dims[1][0] && dims[1][0] == dims[1][1];
-      crit_x_OK = dims[0][0] == dims[3][0];
-      if(dims[3].size() == 1){
-        omega_OK  = dims[2][0] == 2;
+      crit_x_OK = dims[0][0] == dims[2][0];
+      if(dims[2].size() == 1){
+        omega_OK  = dims[3][0] == 2;
       }else{
-        omega_OK  = dims[2][0] == (dims[3][0] + 1);
+        omega_OK  = dims[3][0] == (dims[2][0] + 1);
       }
 
       return sigma_OK && omega_OK && crit_x_OK;
@@ -58,10 +58,10 @@ namespace jags {
     {
 
       const double *sigma  = par[1];
-      const double *omega  = par[2];
+      const double *omega  = par[3];
 
       const int K = dims[0][0];
-      const int J = dims[2][0];
+      const int J = dims[3][0];
 
       bool sigma_OK = true;  // check that sigma is symmetric and positive (not that it is semidefinite)
       bool omega_OK = true;  // check that omega is between 0 and 1
@@ -88,15 +88,15 @@ namespace jags {
       // reassign the addresses to pointers
       const double *mu     = par[0];
       const double *sigma  = par[1];
-      const double *omega  = par[2];
-      const double *crit_x = par[3];
+      const double *crit_x = par[2];
+      const double *omega  = par[3];
 
       // information about the dimensions
       const int K = dims[0][0]; // of the outcome
-      const int J = dims[2][0]; // of the weights
+      const int J = dims[3][0]; // of the weights
 
       // the log weighted normal likelihood
-      double log_lik = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &omega[0], &crit_x[0], K, J);
+      double log_lik = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
 
       return log_lik;
     }

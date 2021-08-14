@@ -13,8 +13,9 @@ using std::string;
 using std::cout;
 using std::endl;
 
-double cpp_wmnorm_1s_lpdf(double const *x, double const *mu, double const *sigma, double const *omega, double const *crit_x, const int K, const int J)
+double cpp_wmnorm_1s_lpdf(double const *x, double const *mu, double const *sigma, double const *crit_x, double const *omega, const int K, const int J)
 {
+
   // obtain product of the weights (on log scale)
   double log_w = 0;
   for(int k = 0; k < K; k++){
@@ -30,7 +31,7 @@ double cpp_wmnorm_1s_lpdf(double const *x, double const *mu, double const *sigma
   return log_lik - log_std_const;
 }
 
-double cpp_wmnorm_2s_lpdf(double const *x, double const *mu, double const *sigma, double const *omega, double const *crit_x, const int K, const int J)
+double cpp_wmnorm_2s_lpdf(double const *x, double const *mu, double const *sigma, double const *crit_x, double const *omega, const int K, const int J)
 {
   // obtain product of the weights (on log scale)
   double log_w = 0;
@@ -60,15 +61,15 @@ namespace jags {
       const double *x      = args[0];
       const double *mu     = args[1];
       const double *sigma  = args[2];
-      const double *omega  = args[3];
-      const double *crit_x = args[4];
+      const double *crit_x = args[3];
+      const double *omega  = args[4];
 
       // information about the dimensions
       const int K = dims[0][0]; // of the outcome
-      const int J = dims[3][0]; // of the weights
+      const int J = dims[4][0]; // of the weights
 
 
-      *value = cpp_wmnorm_1s_lpdf(&x[0], &mu[0], &sigma[0], &omega[0], &crit_x[0], K, J);
+      *value = cpp_wmnorm_1s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
     }
 
     bool wmnorm_1s_lpdf::checkParameterDim (vector<vector<unsigned int> > const &dims) const
@@ -96,15 +97,15 @@ namespace jags {
       const double *x      = args[0];
       const double *mu     = args[1];
       const double *sigma  = args[2];
-      const double *omega  = args[3];
-      const double *crit_x = args[4];
+      const double *crit_x = args[3];
+      const double *omega  = args[4];
 
       // information about the dimensions
       const int K = dims[0][0]; // of the outcome
-      const int J = dims[3][0]; // of the weights
+      const int J = dims[4][0]; // of the weights
 
 
-      *value = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &omega[0], &crit_x[0], K, J);
+      *value = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
     }
 
     bool wmnorm_2s_lpdf::checkParameterDim (vector<vector<unsigned int> > const &dims) const

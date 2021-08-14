@@ -326,7 +326,7 @@ test_that("R and JAGS density is consistent", {
       omega[2] ~ dunif(0, 1)
       omega[3] ~ dunif(0, 1)
 
-      log_lik = wmnorm_1s_lpdf(x, mu, sigma, omega, crit_x)
+      log_lik = wmnorm_1s_lpdf(x, mu, sigma, crit_x, omega)
     }"
 
   data <- list(
@@ -366,7 +366,7 @@ test_that("R and JAGS density is consistent", {
       omega[1] ~ dunif(0, 1)
       omega[2] ~ dunif(0, 1)
 
-      log_lik = wmnorm_2s_lpdf(x, mu, sigma, omega, crit_x)
+      log_lik = wmnorm_2s_lpdf(x, mu, sigma, crit_x, omega)
     }"
 
   data <- list(
