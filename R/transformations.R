@@ -357,6 +357,10 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     attr(output, "original_measure") <- original_measure
     class(output) <- c(class(output), "data.RoBMA")
 
+    if(anyNA(data[,"se"]) | anyNA(data[,"se"])){
+      stop("One of the effect sizes and/or standard errors could not be transformed. Please, check the input.")
+    }
+
     return(output)
   }
 }
