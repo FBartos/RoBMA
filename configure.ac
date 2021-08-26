@@ -171,15 +171,6 @@ AC_LANG_PUSH(C++)
 OCXXFLAGS=${CXXFLAGS}
 CXXFLAGS=${JAGS_CFLAGS}
 LDFLAGS="${JAGS_LIBS} ${JAGS_RPATH}"
-AC_MSG_CHECKING([version of JAGS library])
-# Need to run this trivial test program first to detect runtime linkage problems
-AC_RUN_IFELSE(
-   [AC_LANG_SOURCE([
-      #include <version.h>
-      int main() { return 0; }])],
-   [],
-   [AC_MSG_RESULT([link error])
-    AC_MSG_ERROR([Runtime link error: See the INSTALL file for help])])
 # Now we can test
 AC_LANG_POP()
 LDFLAGS=${OLDFLAGS}
