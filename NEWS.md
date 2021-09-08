@@ -3,6 +3,7 @@
 - more informative error message when the JAGS module fails to load
 - correcting wrong PEESE transformation for the individual models summaries (issue #12)
 - fixing error message for missing conditional PET-PEESE
+- fixing incorrect lower bound check for log(OR)
 
 ### Features
 - adding `interpret()` function (issue #11)

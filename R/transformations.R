@@ -67,7 +67,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   BayesTools::check_real(d[!is.na(d)],         "d",        allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(r[!is.na(r)],         "r",        allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
   BayesTools::check_real(z[!is.na(z)],         "z",        allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(logOR[!is.na(logOR)], "logOR",    allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)], "logOR",    allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
   BayesTools::check_real(t[!is.na(t)],         "t",        allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(y[!is.na(y)],         "y",        allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(se[!is.na(se)],       "se",       allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
