@@ -42,10 +42,10 @@ double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, doubl
 
   // mvtnorm settings
   double releps = 0;      // default in mvtnorm: 0
-  int maxpts    = 25000;  // default in mvtnorm: 25000
+  int    maxpts = 25000;  // default in mvtnorm: 25000
   double abseps = 1e-3;   // default in mvtnorm: 0.001, absolute precision
-  int rnd       = 1;      // Get/PutRNGstate
-  int nu        = 0;      // degrees of freedom, 0 = normal
+  int    rnd    = 1;      // Get/PutRNGstate
+  int    nu     = 0;      // degrees of freedom, 0 = normal
 
   // return values
   double error  = 0;
@@ -61,6 +61,11 @@ double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, doubl
                    delta,
                    &maxpts, &abseps, &releps,
                    &error, &value, &inform, &rnd);
+
+  // clean the memory
+  delete[] lower_std;
+  delete[] upper_std;
+  delete[] delta;
 
   return value;
 }
@@ -113,6 +118,11 @@ double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, co
     log_lik += pow(*(z+i), 2);
   }
   log_lik = - 0.5 * log_lik + diag_prod - K * 0.9189385;
+
+  // clean the memory
+  delete[] sigma_chol;
+  delete[] chol_inv;
+  delete[] z;
 
   return log_lik;
 }
@@ -190,6 +200,9 @@ double determinant(double const *matrix, int n, int const K)
     sign = -sign;
   }
 
+  // clean the memory
+  delete[] temp;
+
   return D;
 }
 
@@ -224,6 +237,9 @@ void adjoint(double const *matrix, double *adj, int const K)
             adj[K*j+i] = (sign)*(determinant(temp, K-1, K));
         }
     }
+
+  // clean the memory
+  delete[] temp;
 }
 
 // Function to calculate and store inverse, returns false if
@@ -247,6 +263,9 @@ bool inverse(double const *matrix, int const K, double *inverse)
   for (int i=0; i<K; i++)
     for (int j=0; j<K; j++)
       inverse[K*i+j] = *(adj+K*i+j)/det;
+
+  // clean the memory
+  delete[] adj;
 
   return true;
 }

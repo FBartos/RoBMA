@@ -6,7 +6,7 @@
   heterogeneity  <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "bias"))
   # extract the prior odds set by user
-  prior_weights     <- sapply(object[["models"]], function(model)model[["prior_weights_set"]])
+  prior_weights  <- sapply(object[["models"]], function(model)model[["prior_weights_set"]])
 
 
   # check whether there is a comparable model for each non-converged models
@@ -46,6 +46,7 @@
   effect         <- sapply(models, function(model)!.is_component_null(model[["priors"]], "effect"))
   heterogeneity  <- sapply(models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(models, function(model)!.is_component_null(model[["priors"]], "bias"))
+  multivariate   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "multivariate"))
 
   # obtain the parameter types
   weightfunctions <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
@@ -58,6 +59,10 @@
   components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity, "Bias" = !bias)
   parameters_null <- list("mu"     = !effect, "tau"           = !heterogeneity)
 
+  if(any(multivariate)){
+    parameters      <- c(parameters,      "rho")
+    parameters_null <- c(parameters_null, "rho" = list(!multivariate))
+  }
   if(any(weightfunctions)){
     components      <- c(components,      "bias.selection-models")
     parameters      <- c(parameters,      "omega")
@@ -121,7 +126,6 @@
       conditional  = TRUE
     )
   }
-
 
 
   # return the results

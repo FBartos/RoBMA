@@ -4,7 +4,7 @@ model_syntax1 <- "
     omega[2] ~ dunif(0.20, 1);
     omega[3] = 1
 
-    y[] ~ dwmnorm_1s(mu[], sigma[,], omega[], crit_y)
+    y[] ~ dwmnorm_2s(mu[], sigma[,], crit_y, omega[])
   }"
 
 data1 <- list(
@@ -14,10 +14,10 @@ data1 <- list(
     1.5, 1.0, 0.5,
     1.0, 1.8, 0.7,
     0.5, 0.7, 1.2), nrow = 3, ncol = 3),
-  crit_y = t(matrix(c(
+  crit_y = matrix(c(
     1.25, 1.96,
     1.30, 2.05,
-    1.10, 1.50), nrow = 2, ncol = 3))
+    1.10, 1.50), nrow = 2, ncol = 3)
 )
 
 model_syntax2 <- "
@@ -25,7 +25,7 @@ model_syntax2 <- "
     omega[1] ~ dunif(0.10,0.101);
     omega[2] = 1
 
-    y[] ~ dwmnorm_1s(mu[], sigma[,], omega[], crit_y)
+    y[] ~ dwmnorm_2s(mu[], sigma[,], crit_y, omega[])
   }"
 
 data2 <- list(
@@ -40,7 +40,7 @@ data2 <- list(
     1.25,
     1.30,
     1.05,
-    2.05), nrow = 4, ncol = 1)
+    2.05), nrow = 1, ncol = 4)
 )
 
 model1 <- rjags::jags.model(file = textConnection(model_syntax1), data = data1, quiet = TRUE, n.adapt=1)

@@ -176,7 +176,7 @@
 RoBMA <- function(
   # data specification
   d = NULL, r = NULL, logOR = NULL, z = NULL, y = NULL,
-  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL,
+  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
   data = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
@@ -199,6 +199,8 @@ RoBMA <- function(
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
   priors_bias_null           = prior_none(),
+  priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_rho_null            = NULL,
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -216,7 +218,7 @@ RoBMA <- function(
   if("data.RoBMA" %in% class(data)){
     object$data <- data
   }else{
-    object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, data = data, transformation = transformation)
+    object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, data = data, transformation = transformation)
   }
 
 
@@ -241,8 +243,8 @@ RoBMA <- function(
 
 
   ### prepare and check the settings
-  object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, object$add_info[["prior_scale"]])
-  object$models   <- .make_models(object[["priors"]])
+  object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho_null, priors_rho, object$add_info[["prior_scale"]])
+  object$models   <- .make_models(object[["priors"]], !attr(object$data, "all_independent"))
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 
 
@@ -382,8 +384,8 @@ RoBMA <- function(
 #' @seealso [RoBMA()], [summary.RoBMA()], [prior()], [check_setup()]
 #' @export
 update.RoBMA <- function(object, refit_failed = TRUE,
-                         prior_effect = NULL,      prior_heterogeneity = NULL,      prior_bias = NULL, prior_weights = NULL,
-                         prior_effect_null = NULL, prior_heterogeneity_null = NULL, prior_bias_null = NULL,
+                         prior_effect = NULL,      prior_heterogeneity = NULL,      prior_bias = NULL,      prior_rho = NULL, prior_weights = NULL,
+                         prior_effect_null = NULL, prior_heterogeneity_null = NULL, prior_bias_null = NULL, prior_rho_null = NULL,
                          study_names = NULL,
                          chains = NULL, adapt = NULL, burnin = NULL, sample = NULL, thin = NULL, autofit = NULL, parallel = NULL,
                          autofit_control = NULL, convergence_checks = NULL,
@@ -409,7 +411,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
      (!is.null(prior_bias)           | !is.null(prior_bias_null))){
 
     what_to_do <- "fit_new_model"
-    new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, object$add_info[["prior_scale"]])
+    new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_rho_null, prior_rho, object$add_info[["prior_scale"]])
 
     object$models[length(object$models) + 1]  <- list(.make_models(new_priors)[[1]])
 

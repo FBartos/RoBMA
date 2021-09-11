@@ -18,6 +18,9 @@
 #' @param lCI a vector of lower bounds of confidence intervals
 #' @param uCI a vector of upper bounds of confidence intervals
 #' @param study_names an optional argument with the names of the studies
+#' @param study_ids an optional argument specifying dependency between the
+#' studies (for using a multilevel model). Defaults to \code{NULL} for
+#' studies being independent.
 #' @param data a data frame with column names corresponding to the
 #' variable names used to supply data individually
 #' @param transformation transformation to be applied to the supplied
@@ -59,7 +62,7 @@
 #'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
-combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
+combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, study_ids = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
 
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
@@ -77,6 +80,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   BayesTools::check_real(uCI[!is.na(uCI)],     "uCI",      allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
 
+
   transformation <- .transformation_var(transformation)
 
 
@@ -88,7 +92,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     original_measure <- NULL
   }
 
-  input_variables <- c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names")
+  input_variables <- c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -97,7 +101,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names)))
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids)))
   }
 
   if(is.null(original_measure)){
@@ -121,7 +125,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   output <- data.frame(
     y  = rep(NA, nrow(data)),
     se = rep(NA, nrow(data)),
-    study_names = rep(NA, nrow(data))
+    study_names = rep(NA, nrow(data)),
+    study_ids   = rep(NA, nrow(data))
   )
 
   ### check for sufficient input
@@ -178,6 +183,16 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     data[,"study_names"] <- paste0("Study ", 1:nrow(data))
   }
 
+  # add study ids if missing
+  if(all(is.na(data[,"study_ids"]))){
+    data[,"study_ids"] <- 1:nrow(data)
+  }else{
+    # remove indicators from independent studies
+    data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
+    # assign factor levels
+    data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
+  }
+
   ### deal with general 'unstandardized' input
   if(!anyNA(data[,"y"])){
 
@@ -200,8 +215,10 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       output$y  <- data[,"y"]
       output$se <- data[,"se"]
       output$study_names <- data[,"study_names"]
+      output$study_ids   <- data[,"study_ids"]
       attr(output, "effect_measure")   <- transformation
       attr(output, "original_measure") <- original_measure
+      attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
       class(output) <- c(class(output), "data.RoBMA")
 
       return(output)
@@ -353,8 +370,10 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     output$y           <- data[,transformation]
     output$se          <- data[,"se"]
     output$study_names <- data[,"study_names"]
+    output$study_ids   <- data[,"study_ids"]
     attr(output, "effect_measure")   <- transformation
     attr(output, "original_measure") <- original_measure
+    attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
     class(output) <- c(class(output), "data.RoBMA")
 
     if(anyNA(data[,"se"]) | anyNA(data[,"se"])){

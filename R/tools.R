@@ -124,6 +124,8 @@ check_RoBMA <- function(fit){
     return(priors[["mu"]][["is_null"]])
   }else if(component == "heterogeneity"){
     return(priors[["tau"]][["is_null"]])
+  }else if(component == "multivariate"){
+    return(priors[["tau"]][["is_null"]] || priors[["rho"]][["is_null"]])
   }else if(component == "bias"){
     if(!is.null(priors[["omega"]])){
       return(priors[["omega"]][["is_null"]])

@@ -37,17 +37,17 @@ namespace jags {
 
     bool DWMN2::checkParameterDim (vector<vector<unsigned int> > const &dims) const
     {
-
       bool sigma_OK  = true; // check that sigma and mu dimension matches
       bool omega_OK  = true; // check that omega and crit_x dimension matches
       bool crit_x_OK = true; // check that crit_x and mu dimension matches
 
       sigma_OK  = dims[0][0] == dims[1][0] && dims[1][0] == dims[1][1];
-      crit_x_OK = dims[0][0] == dims[2][0];
-      if(dims[2].size() == 1){
-        omega_OK  = dims[3][0] == 2;
+      if(dims[3][0] == 2){
+        crit_x_OK = dims[0][0] == dims[2][0];
+        omega_OK  = true;
       }else{
-        omega_OK  = dims[3][0] == (dims[2][0] + 1);
+        crit_x_OK = dims[0][0] == dims[2][1];
+        omega_OK  = dims[2][0] == (dims[3][0] - 1);
       }
 
       return sigma_OK && omega_OK && crit_x_OK;
@@ -56,7 +56,6 @@ namespace jags {
 
     bool DWMN2::checkParameterValue(vector<double const *> const &par, vector<vector<unsigned int> > const &dims) const
     {
-
       const double *sigma  = par[1];
       const double *omega  = par[3];
 
@@ -97,6 +96,44 @@ namespace jags {
 
       // the log weighted normal likelihood
       double log_lik = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
+
+      // parameter printing for debuging
+      /*
+      cout << "K = " << K << endl;
+      cout << "J = " << J << endl; 
+
+      cout << "log_lik = " << log_lik << endl;
+      cout << "mu = "; 
+      for(int k = 0; k < K; k++){
+        cout << *(mu + k) << "\t";
+      }
+      cout << endl;
+
+      cout << "omega = "; 
+      for(int k = 0; k < K; k++){
+        cout << *(omega + k) << "\t";
+      }
+      cout << endl;
+
+      for(int k = 0; k < K; k++){
+        cout << "sigma[" << k << ",] = "; 
+        for(int j = 0; j < K; j++){
+          cout << *(sigma + k * K + j) << "\t";
+        }
+        cout << endl;
+      }
+
+      for(int k = 0; k < K; k++){
+        cout << "crit_x[" << k << ",] = "; 
+        for(int j = 0; j < J-1; j++){
+          cout << *(crit_x + k * (J-1) + j) << "\t";
+        }
+        cout << endl;
+      }
+      cout << endl;
+      cout << endl;
+      cout << endl;
+      */
 
       return log_lik;
     }

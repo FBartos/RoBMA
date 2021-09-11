@@ -11,14 +11,28 @@
   errors   <- NULL
   warnings <- NULL
 
+  if(!fit_control[["silent"]]){
+    cat(paste0("\nFitting model [", i, "]\n"))
+  }
+
   # don't sample the complete null model
   if(!.is_model_constant(priors)){
 
-    # generate the model syntax
-    model_syntax <- .generate_model_syntax(priors, add_info[["effect_direction"]], add_info[["prior_scale"]], add_info[["effect_measure"]])
 
-    # remove unnecessary objects from data to mitigate warnings
-    fit_data     <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
+    if(attr(model, "multivariate")){
+      # generate the model syntax
+      model_syntax <- .generate_model_syntax.mv(priors, add_info[["effect_direction"]], add_info[["prior_scale"]], add_info[["effect_measure"]], object[["data"]])
+
+      # remove unnecessary objects from data to mitigate warnings
+      fit_data     <- .fit_data.mv(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
+    }else{
+      # generate the model syntax
+      model_syntax <- .generate_model_syntax(priors, add_info[["effect_direction"]], add_info[["prior_scale"]], add_info[["effect_measure"]])
+
+      # remove unnecessary objects from data to mitigate warnings
+      fit_data     <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
+    }
+
 
     # fit the model
     fit <- BayesTools::JAGS_fit(
@@ -81,7 +95,7 @@
         fit              = fit,
         data             = fit_data,
         prior_list       = priors,
-        log_posterior    = .marglik_function,
+        log_posterior    = if(attr(model, "multivariate")) .marglik_function.mv else .marglik_function,
         maxiter          = 50000,
         silent           = fit_control[["silent"]],
         priors           = priors,
@@ -161,7 +175,7 @@
 }
 
 # tools
-.fit_data              <- function(data, priors, effect_direction, prior_scale){
+.fit_data                 <- function(data, priors, effect_direction, prior_scale){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -179,12 +193,59 @@
 
   # add critical y-values
   if(!is.null(priors[["omega"]])){
-    fit_data$crit_y  <- .get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure, effect_measure)
+    fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure, effect_measure))
   }
 
   return(fit_data)
 }
-.generate_model_syntax <- function(priors, effect_direction, priors_scale, effect_measure){
+.fit_data.mv              <- function(data, priors, effect_direction, prior_scale){
+
+  # unlist the data.frame
+  original_measure <- attr(data, "original_measure")
+  effect_measure   <- attr(data, "effect_measure")
+
+  fit_data <- list()
+
+  ### deal with the univariate data
+  # change the effect size direction (important for one-sided selection and PET/PEESE)
+  if(any(is.na(data[,"study_ids"]))){
+    if(effect_direction == "negative"){
+      fit_data$y <- - data[is.na(data[,"study_ids"]),"y"]
+    }else{
+      fit_data$y <- data[is.na(data[,"study_ids"]),"y"]
+    }
+    fit_data$se <- data[is.na(data[,"study_ids"]),"se"]
+    fit_data$K  <- length(fit_data[["y"]])
+
+    # add critical y-values
+    if(!is.null(priors[["omega"]])){
+      fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure[is.na(data[,"study_ids"])], effect_measure))
+    }
+  }
+
+
+  for(K_id in na.omit(unique(data[,"study_ids"]))){
+    if(effect_direction == "negative"){
+      fit_data[[paste0("y_", K_id)]] <- - data[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id,"y"]
+    }else{
+      fit_data[[paste0("y_", K_id)]] <- data[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id,"y"]
+    }
+    fit_data[[paste0("se_", K_id)]] <- data[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id,"se"]
+    fit_data[[paste0("K_", K_id)]]  <- length(fit_data[[paste0("y_", K_id)]])
+
+    # add critical y-values
+    if(!is.null(priors[["omega"]])){
+      fit_data[[paste0("crit_y_", K_id)]]  <- t(.get_cutoffs(fit_data[[paste0("y_", K_id)]], fit_data[[paste0("se_", K_id)]], priors[["omega"]], original_measure[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id], effect_measure))
+    }
+
+  }
+
+
+  ### add the multivariate part
+
+  return(fit_data)
+}
+.generate_model_syntax    <- function(priors, effect_direction, priors_scale, effect_measure){
 
   model_syntax <- "model{\n"
 
@@ -220,9 +281,9 @@
   if(is.null(priors[["omega"]])){
     model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
   }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[i,], omega) \n")
+    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
   }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[i,], omega) \n")
+    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
   }
 
 
@@ -231,7 +292,82 @@
 
   return(model_syntax)
 }
-.marglik_function      <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
+.generate_model_syntax.mv <- function(priors, effect_direction, priors_scale, effect_measure, data){
+
+  model_syntax <- "model{\n"
+
+  ### prior transformations
+  # the precise transformation for heterogeneity is not used due the inability to re-scale large variances
+  # instead, approximate linear scaling is employed in the same way as in metaBMA package
+  model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu",  "mu_transformed"))
+  model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "tau", "tau_transformed"))
+
+  if(!is.null(priors[["PET"]])){
+    model_syntax <- paste0(model_syntax, paste0("PET_transformed = PET\n"))
+  }else if(!is.null(priors[["PEESE"]])){
+    # don't forget that the transformation is inverse for PEESE
+    model_syntax <- paste0(model_syntax, .JAGS_scale(effect_measure, priors_scale, "PEESE", "PEESE_transformed"))
+  }
+
+
+  ### deal with the univariate data
+  if(any(is.na(data[,"study_ids"]))){
+
+    # marginalized random effects and the effect size
+    prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
+
+    eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+    # add PET/PEESE
+    if(!is.null(priors[["PET"]])){
+      eff <- paste0("(", eff, " + PET_transformed * se[i])")
+    }else if(!is.null(priors[["PEESE"]])){
+      eff <- paste0("(", eff, " + PEESE_transformed * pow(se[i],2))")
+    }
+
+    # the observed data
+    model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
+    if(is.null(priors[["omega"]])){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+    }
+    model_syntax <- paste0(model_syntax, "}\n")
+
+  }
+
+
+
+  ### individual model parts isolating the dependent observations
+  for(K_id in na.omit(unique(data[,"study_ids"]))){
+
+    eff_K <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+    # add PET/PEESE
+    if(!is.null(priors[["PET"]])){
+      eff_K <- paste0("(", eff_K, " + PET_transformed * se_",K_id,"[i])")
+    }else if(!is.null(priors[["PEESE"]])){
+      eff_K <- paste0("(", eff_K, " + PEESE_transformed * pow(se_", K_id,"[i],2))")
+    }
+
+    model_syntax <- paste0(model_syntax, .JAGS_means_vector(K_id, eff_K))
+    model_syntax <- paste0(model_syntax, .JAGS_covariance_matrix(K_id))
+
+    # the observed data
+    if(is.null(priors[["omega"]])){
+      model_syntax <- paste0(model_syntax, "y_", K_id," ~ dmnorm.vcov(eff_", K_id, ", sigma_", K_id, " )\n")
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "y_", K_id," ~ dwmnorm_1s(eff_", K_id, ", sigma_", K_id, ", crit_y_", K_id,", omega) \n")
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "y_", K_id," ~ dwmnorm_2s(eff_", K_id, ", sigma_", K_id, ", crit_y_", K_id,", omega) \n")
+    }
+  }
+
+  model_syntax <- paste0(model_syntax, "}")
+
+  return(model_syntax)
+}
+.marglik_function         <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
 
   # extract parameters
   mu  <- parameters[["mu"]]
@@ -292,9 +428,114 @@
   if(is.null(priors[["omega"]])){
     log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
   }else if(priors[["omega"]]$distribution == "one.sided"){
-    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = data[["crit_y"]], type = "one.sided", log = TRUE))
+    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
   }else if(priors[["omega"]]$distribution == "two.sided"){
-    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = data[["crit_y"]], type = "two.sided", log = TRUE))
+    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+  }
+
+  return(log_lik)
+}
+.marglik_function.mv      <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
+
+  # extract parameters
+  mu  <- parameters[["mu"]]
+  tau <- parameters[["tau"]]
+  if(!is.null(priors[["PET"]])){
+    PET    <- parameters[["PET"]]
+  }else if(!is.null(priors[["PEESE"]])){
+    PEESE  <- parameters[["PEESE"]]
+  }else if(!is.null(priors[["omega"]])){
+    omega  <- parameters[["omega"]]
+  }
+  if(!is.null(priors[["rho"]])){
+    rho <- parameters[["rho"]]
+  }
+
+  ### re-scale parameters
+  if(prior_scale != effect_measure){
+    mu_transformed  <- do.call(
+      .get_scale(prior_scale, effect_measure),
+      args = list(mu)
+    )
+    tau_transformed <- do.call(
+      .get_scale(prior_scale, effect_measure),
+      args = list(tau)
+    )
+    if(!is.null(priors[["PET"]])){
+      PET_transformed   <- PET
+    }else if(!is.null(priors[["PEESE"]])){
+      # don't forget that the transformation is inverse for PEESE
+      PEESE_transformed <- do.call(
+        .get_scale(effect_measure, prior_scale),
+        args = list(PEESE)
+      )
+    }
+  }else{
+    mu_transformed  <- mu
+    tau_transformed <- tau
+    if(!is.null(priors[["PET"]])){
+      PET_transformed   <- PET
+    }else if(!is.null(priors[["PEESE"]])){
+      PEESE_transformed <- PEESE
+    }
+  }
+
+  ### model
+
+
+  ### compute the marginal log_likelihood
+  log_lik <- 0
+
+  # the independent studies
+  if(!is.null(data[["y"]])){
+
+    # marginalized random effects and the effect size
+    pop_sd  <- sqrt(data[["se"]]^2 + tau_transformed^2)
+
+    # add PET/PEESE
+    eff <- ifelse(effect_direction == "negative", -1, 1) * mu_transformed
+    if(!is.null(priors[["PET"]])){
+      eff <- eff + PET_transformed   * data[["se"]]
+    }else if(!is.null(priors[["PEESE"]])){
+      eff <- eff + PEESE_transformed * data[["se"]]^2
+    }
+
+    if(is.null(priors[["omega"]])){
+      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
+    }else if(priors[["omega"]]$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+    }else if(priors[["omega"]]$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+    }
+  }
+
+  # the dependent studies
+  for(K_id in seq_along(grep("K_" ,names(data)))){
+
+    # construct the mean vector & add PET/PEESE
+    temp_eff <- ifelse(effect_direction == "negative", -1, 1) * mu_transformed
+    if(!is.null(priors[["PET"]])){
+      temp_eff <- temp_eff + PET_transformed   * data[[paste0("se_", K_id)]]
+    }else if(!is.null(priors[["PEESE"]])){
+      temp_eff <- temp_eff + PEESE_transformed * data[[paste0("se_", K_id)]]^2
+    }else{
+      temp_eff <- rep(temp_eff, data[[paste0("K_", K_id)]])
+    }
+
+    # construct the covariance matrix
+    temp_sigma <- diag(data[[paste0("se_", K_id)]]^2, data[[paste0("K_", K_id)]]) +
+      diag((tau_transformed * (1-rho))^2, data[[paste0("K_", K_id)]]) +
+      matrix((tau_transformed * rho)^2, ncol = data[[paste0("K_", K_id)]], nrow = data[[paste0("K_", K_id)]])
+
+
+    # the observed data
+    if(is.null(priors[["omega"]])){
+      log_lik <- log_lik + mvtnorm::dmvnorm(data[[paste0("y_", K_id)]], mean = temp_eff, sigma = temp_sigma, log = TRUE, checkSymmetry = FALSE)
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      log_lik <- log_lik + .dwmnorm_fast(data[[paste0("y_", K_id)]], mean = temp_eff, sigma = temp_sigma, omega = omega, crit_x = data[[paste0("crit_y_", K_id)]], type = "one.sided", log = TRUE)
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      log_lik <- log_lik + .dwmnorm_fast(data[[paste0("y_", K_id)]], mean = temp_eff, sigma = temp_sigma, omega = omega, crit_x = data[[paste0("crit_y_", K_id)]], type = "two.sided", log = TRUE)
+    }
   }
 
   return(log_lik)
@@ -419,5 +660,29 @@
   }else{
     return(paste0(to_par_name, " = ", "scale_", from, "2", to, "(", from_par,")", "\n"))
   }
+
+}
+.JAGS_means_vector      <- function(study_id, mean){
+
+  return(paste0(
+    "for (i in 1:K_", study_id,"){\n",
+    "  eff_", study_id, "[i] = ", mean, "\n",
+    "}\n"
+  ))
+
+}
+.JAGS_covariance_matrix <- function(study_id){
+
+  return(paste0(
+    "for (i in 1:K_", study_id,"){\n",
+    "  sigma_", study_id, "[i,i] = pow(se_", study_id, "[i],2) + pow(tau_transformed,2)\n",
+    "  for(j in 1:(i-1)){\n",
+    "    sigma_", study_id, "[i,j] = pow(tau_transformed * rho,2)\n",
+    "  }\n",
+    "  for(j in (i+1):K_", study_id,"){\n",
+    "    sigma_", study_id, "[i,j] = pow(tau_transformed * rho,2)\n",
+    "  }\n",
+    "}\n"
+  ))
 
 }

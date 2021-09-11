@@ -133,11 +133,22 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
     }
 
 	// get the current weighted probability
-	std_constant += exp(log(cpp_mnorm_cdf(&temp_lower[0], &temp_upper[0], &temp_infin[0], &mu[0], &sigma_stdev[0], &sigma_corr[0], K)) + temp_log_weight);
+	double temp_prob = cpp_mnorm_cdf(&temp_lower[0], &temp_upper[0], &temp_infin[0], &mu[0], &sigma_stdev[0], &sigma_corr[0], K);
+	// check and skip negative numbers due to numerical imprecisions for very low probabilities
+	if(temp_prob > 0){
+	  std_constant += exp(log(temp_prob) + temp_log_weight);
+	} 
+	
 
 	// increase index for the next itteration
     increase_index( &index_weights[0], K-1, J-1);
   }
+
+  // clean the memory
+  delete[] temp_lower;
+  delete[] temp_upper;
+  delete[] temp_infin;
+  delete[] index_weights;
 
   return log(std_constant);
 }
@@ -173,6 +184,10 @@ double log_std_constant_twosided(double const *x, double const *const_mu, double
   }
 
   log_std_constant = log_std_constant_onesided(&x[0], &const_mu[0], &sigma[0], &crit_x_onesided[0], &omega_onesided[0], K, 2 * J - 1);
+
+  // clean the memory
+  delete[] omega_onesided;
+  delete[] crit_x_onesided;
 
   return log_std_constant;
 }
