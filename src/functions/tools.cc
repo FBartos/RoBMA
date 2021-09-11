@@ -111,25 +111,25 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
     // assign proper upper and lower cutopoints & weight
     for(int k = 0; k < K; k++){
 
-	  // weight
-	  temp_log_weight += log(*(omega + *(index_weights + k)));
+      // weight
+      temp_log_weight += log(*(omega + *(index_weights + k)));
 
-	  // the upper and lower bounds
+      // the upper and lower bounds
       if(*(index_weights + k) == 0){
-	    // the lower bound is - infinity for the first cutpoint
-	    *(temp_lower + k) = 0;
-	    *(temp_upper + k) = *(crit_x + k * (J - 1) + *(index_weights + k));
-	    *(temp_infin + k) = 0; // 0 for lower bound =  -inf
-	  }else if(*(index_weights + k) == J - 1){
-	    // the upper bound is + infinity for the last cutpoint
-	    *(temp_lower + k) = *(crit_x + k * (J - 1) + *(index_weights + k) - 1);
-	    *(temp_upper + k) = 0;
-  	    *(temp_infin + k) = 1; // 1 for upper bound = +inf
- 	  }else{
-	    *(temp_lower + k) = *(crit_x + k * (J - 1) + *(index_weights + k) - 1);
-	    *(temp_upper + k) = *(crit_x + k * (J - 1) + *(index_weights + k));
-	    *(temp_infin + k) = 2; // 2 for neither of the bound is infinite
-	  }
+        // the lower bound is - infinity for the first cutpoint
+        *(temp_lower + k) = 0;
+        *(temp_upper + k) = *(crit_x + k * (J - 1) + *(index_weights + k));
+        *(temp_infin + k) = 0; // 0 for lower bound =  -inf
+      }else if(*(index_weights + k) == J - 1){
+        // the upper bound is + infinity for the last cutpoint
+        *(temp_lower + k) = *(crit_x + k * (J - 1) + *(index_weights + k) - 1);
+        *(temp_upper + k) = 0;
+        *(temp_infin + k) = 1; // 1 for upper bound = +inf
+      }else{
+        *(temp_lower + k) = *(crit_x + k * (J - 1) + *(index_weights + k) - 1);
+        *(temp_upper + k) = *(crit_x + k * (J - 1) + *(index_weights + k));
+        *(temp_infin + k) = 2; // 2 for neither of the bound is infinite
+      }
     }
 
 	// get the current weighted probability
@@ -166,21 +166,21 @@ double log_std_constant_twosided(double const *x, double const *const_mu, double
   crit_x_onesided = new double [2 * (J - 1) * K];
 
   for(int i = 0; i < 2 * J - 1; i++){
-	if(i < J){
-      *(omega_onesided + i) = *(omega + (J - 1) - i);
-	}else{
-	  *(omega_onesided + i) = *(omega + i - (J - 1));
-	}
+    if(i < J){
+        *(omega_onesided + i) = *(omega + (J - 1) - i);
+    }else{
+      *(omega_onesided + i) = *(omega + i - (J - 1));
+    }
   }
 
   for(int k = 0; k < K; k++){
     for(int j = 0; j < 2 * (J - 1); j++){
-	  if(j < (J - 1)){
-        *(crit_x_onesided + k * 2 * (J - 1) + j) = - *(crit_x + k * (J - 1) + (J - 2) - j);
-  	  }else{
-  	    *(crit_x_onesided + k * 2 * (J - 1) + j) =   *(crit_x + k * (J - 1) + j - (J - 1));
+      if(j < (J - 1)){
+          *(crit_x_onesided + k * 2 * (J - 1) + j) = - *(crit_x + k * (J - 1) + (J - 2) - j);
+        }else{
+          *(crit_x_onesided + k * 2 * (J - 1) + j) =   *(crit_x + k * (J - 1) + j - (J - 1));
+        }
       }
-    }
   }
 
   log_std_constant = log_std_constant_onesided(&x[0], &const_mu[0], &sigma[0], &crit_x_onesided[0], &omega_onesided[0], K, 2 * J - 1);
