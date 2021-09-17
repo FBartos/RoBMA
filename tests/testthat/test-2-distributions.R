@@ -390,4 +390,60 @@ test_that("R and JAGS density is consistent", {
   }), tolerance = 1e-3)
 
 
+  ### two sided: normal vs. as vector
+  library(RoBMA)
+  set.seed(1)
+  model_syntax <-
+    "model
+    {
+      omega[1] ~ dunif(0, 1)
+      omega[2] = 1
+
+      x ~ dwmnorm_2s_v(mu, se2, tau2, rho2, crit_x, omega, indx)
+    }"
+
+  data <- list(
+    x    = rnorm(5),
+    mu   = c(1.1, 1.2, 2.1, 2.2, 2.3),
+    se2  = c(.11, .12, .21, .22, .23),
+    tau2 = .05,
+    rho2 = .30^2,
+    crit_x = matrix(c(
+      1.01,
+      1.02,
+      2.01,
+      2.02,
+      2.03), nrow = 1, ncol = 5),
+    indx = c(2,5)
+  )
+
+  model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE, n.adapt = 10)
+  fit   <- rjags::coda.samples(model = model, variable.names = "omega", n.iter = 10000, quiet = TRUE, progress.bar = "none")
+
+
+  set.seed(1)
+  model_syntax2 <-
+    "model
+    {
+      omega[1] ~ dunif(0, 1)
+      omega[2] = 1
+
+      x1 ~ dwmnorm_2s(mu1, sigma1, crit_x1, omega)
+      x2 ~ dwmnorm_2s(mu2, sigma2, crit_x2, omega)
+    }"
+
+  data2 <- list(
+    x1      = data$x[1:2],
+    x2      = data$x[3:5],
+    mu1     = data$mu[1:2],
+    mu2     = data$mu[3:5],
+    sigma1  = diag(data$se2[1:2], 2) + diag(data$tau2 * (1-data$rho2), 2) + matrix(data$tau2 * data$rho2, 2, 2),
+    sigma2  = diag(data$se2[3:5], 3) + diag(data$tau2 * (1-data$rho2), 3) + matrix(data$tau2 * data$rho2, 3, 3),
+    crit_x1 = data$crit_x[,1:2, drop = FALSE],
+    crit_x2 = data$crit_x[,3:5, drop = FALSE]
+  )
+
+  model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt = 10)
+  fit2   <- rjags::coda.samples(model = model, variable.names = "omega", n.iter = 10000, quiet = TRUE, progress.bar = "none")
+
 })

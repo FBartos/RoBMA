@@ -205,6 +205,7 @@
   effect_measure   <- attr(data, "effect_measure")
 
   fit_data <- list()
+  data     <- data[order(data[,"study_ids"]),]
 
   ### deal with the univariate data
   # change the effect size direction (important for one-sided selection and PET/PEESE)
@@ -224,23 +225,21 @@
   }
 
 
-  for(K_id in na.omit(unique(data[,"study_ids"]))){
-    if(effect_direction == "negative"){
-      fit_data[[paste0("y_", K_id)]] <- - data[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id,"y"]
-    }else{
-      fit_data[[paste0("y_", K_id)]] <- data[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id,"y"]
-    }
-    fit_data[[paste0("se_", K_id)]] <- data[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id,"se"]
-    fit_data[[paste0("K_", K_id)]]  <- length(fit_data[[paste0("y_", K_id)]])
+  if(effect_direction == "negative"){
+    fit_data$y_v <- - data[!is.na(data[,"study_ids"]),"y"]
+  }else{
+    fit_data$y_v <- data[!is.na(data[,"study_ids"]),"y"]
+  }
+  fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
+  fit_data$se2_v <- data[!is.na(data[,"study_ids"]),"se"]^2
+  fit_data$K_v  <- length(fit_data[["y_v"]])
 
-    # add critical y-values
-    if(!is.null(priors[["omega"]])){
-      fit_data[[paste0("crit_y_", K_id)]]  <- t(.get_cutoffs(fit_data[[paste0("y_", K_id)]], fit_data[[paste0("se_", K_id)]], priors[["omega"]], original_measure[!is.na(data[,"study_ids"]) & data[,"study_ids"] == K_id], effect_measure))
-    }
-
+  # add critical y-values
+  if(!is.null(priors[["omega"]])){
+    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], fit_data[["se_v"]], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
   }
 
-
+  fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"study_ids"]),"study_ids"])][-1] - 1, fit_data[["K_v"]])
   ### add the multivariate part
 
   return(fit_data)
@@ -340,27 +339,26 @@
 
 
   ### individual model parts isolating the dependent observations
-  for(K_id in na.omit(unique(data[,"study_ids"]))){
+  model_syntax <- paste0(model_syntax, paste0("tau_transformed2 = pow(tau_transformed, 2)\n"))
+  model_syntax <- paste0(model_syntax, paste0("rho2 = pow(rho, 2)\n"))
 
-    eff_K <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
-    # add PET/PEESE
-    if(!is.null(priors[["PET"]])){
-      eff_K <- paste0("(", eff_K, " + PET_transformed * se_",K_id,"[i])")
-    }else if(!is.null(priors[["PEESE"]])){
-      eff_K <- paste0("(", eff_K, " + PEESE_transformed * pow(se_", K_id,"[i],2))")
-    }
+  eff_v <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+  model_syntax <- paste0(model_syntax, "for(i in 1:K_v){\n")
+  if(!is.null(priors[["PET"]])){
+    eff_v <- paste0(eff_v, " + PET_transformed * se_v[i]")
+  }else if(!is.null(priors[["PEESE"]])){
+    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v[i]")
+  }
+  model_syntax <- paste0(model_syntax, paste0("  eff_v[i] = ", eff_v, "\n"))
+  model_syntax <- paste0(model_syntax, "}\n")
 
-    model_syntax <- paste0(model_syntax, .JAGS_means_vector(K_id, eff_K))
-    model_syntax <- paste0(model_syntax, .JAGS_covariance_matrix(K_id))
-
-    # the observed data
-    if(is.null(priors[["omega"]])){
-      model_syntax <- paste0(model_syntax, "y_", K_id," ~ dmnorm.vcov(eff_", K_id, ", sigma_", K_id, " )\n")
-    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-      model_syntax <- paste0(model_syntax, "y_", K_id," ~ dwmnorm_1s(eff_", K_id, ", sigma_", K_id, ", crit_y_", K_id,", omega) \n")
-    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-      model_syntax <- paste0(model_syntax, "y_", K_id," ~ dwmnorm_2s(eff_", K_id, ", sigma_", K_id, ", crit_y_", K_id,", omega) \n")
-    }
+  # the observed data
+  if(is.null(priors[["omega"]])){
+    model_syntax <- paste0(model_syntax, "y_", K_id," ~ dmnorm.vcov(eff_", K_id, ", sigma_", K_id, " )\n")
+  }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+    model_syntax <- paste0(model_syntax, "y_v ~ dwmnorm_1s_v(eff_v, se2_v, tau_transformed2, rho2, crit_y_v, omega, indx_v) \n")
+  }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+    model_syntax <- paste0(model_syntax, "y_v ~ dwmnorm_2s_v(eff_v, se2_v, tau_transformed2, rho2, crit_y_v, omega, indx_v) \n")
   }
 
   model_syntax <- paste0(model_syntax, "}")
@@ -675,12 +673,12 @@
 
   return(paste0(
     "for (i in 1:K_", study_id,"){\n",
-    "  sigma_", study_id, "[i,i] = pow(se_", study_id, "[i],2) + pow(tau_transformed,2)\n",
+    "  sigma_", study_id, "[i,i] = pow(se_", study_id, "[i],2) + tau_transformed2\n",
     "  for(j in 1:(i-1)){\n",
-    "    sigma_", study_id, "[i,j] = pow(tau_transformed * rho,2)\n",
+    "    sigma_", study_id, "[i,j] = cov\n",
     "  }\n",
     "  for(j in (i+1):K_", study_id,"){\n",
-    "    sigma_", study_id, "[i,j] = pow(tau_transformed * rho,2)\n",
+    "    sigma_", study_id, "[i,j] = cov\n",
     "  }\n",
     "}\n"
   ))

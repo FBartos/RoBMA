@@ -148,7 +148,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   delete[] temp_lower;
   delete[] temp_upper;
   delete[] temp_infin;
-  delete[] index_weights;
+  //delete[] index_weights; // This crahses the code :( 
 
   return log(std_constant);
 }
