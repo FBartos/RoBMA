@@ -2,7 +2,7 @@
 #include <JRmath.h>
 #include <cmath>
 
-#include "../functions/mnorm.h"
+#include "mnorm.h"
 
 #include <iostream>
 

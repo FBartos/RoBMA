@@ -3,8 +3,11 @@
 #include "distributions/DWT2.h"
 #include "distributions/DWN1.h"
 #include "distributions/DWN2.h"
+#include "distributions/DMN.h"
 #include "distributions/DWMN1.h"
 #include "distributions/DWMN2.h"
+#include "distributions/DMNv.h"
+#include "distributions/DWMN1v.h"
 #include "distributions/DWMN2v.h"
 
 #include "transformations/d.h"
@@ -12,6 +15,7 @@
 #include "transformations/z.h"
 #include "transformations/logOR.h"
 
+#include "functions/mnorm.h"
 #include "functions/wmnorm.h"
 
 namespace jags {
@@ -32,8 +36,11 @@ namespace jags {
       insert(new DWT2);
       insert(new DWN1);
       insert(new DWN2);
+      insert(new DMN);
       insert(new DWMN1);
       insert(new DWMN2);
+      insert(new DMNv);
+      insert(new DWMN1v);
       insert(new DWMN2v);
 
       //effect sizes transformations
@@ -79,8 +86,12 @@ namespace jags {
       insert(new scale_logOR2r);
 
       // likelihood functions
+      insert(new mnorm_lpdf);
       insert(new wmnorm_1s_lpdf);
       insert(new wmnorm_2s_lpdf);
+      insert(new mnorm_v_lpdf);
+      insert(new wmnorm_1s_v_lpdf);
+      insert(new wmnorm_2s_v_lpdf);
     }
 
     // destructor (executed when unloading the module)

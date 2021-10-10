@@ -10,9 +10,9 @@
 
 
 #include <JRmath.h>
-#include "../functions/mnorm.h"
-#include "../functions/wmnorm.h"
-#include "../functions/tools.h"
+#include "../source/mnorm.h"
+#include "../source/wmnorm.h"
+#include "../source/tools.h"
 
 #include <iostream>
 

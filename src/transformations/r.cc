@@ -1,11 +1,10 @@
 #include "r.h"
-#include "transformations_common.h"
+#include "../source/transformations.h"
 #include <util/nainf.h>
 #include <JRmath.h>
 #include <cmath>
 
 using std::vector;
-using std::string;
 using std::fabs;
 
 namespace jags {
