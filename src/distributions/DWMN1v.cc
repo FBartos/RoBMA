@@ -114,37 +114,10 @@ namespace jags {
         int indx_start = *(indx + i) - temp_K;
 
         // construct the covariance matricies and mean vectors for each set of observations
-        double * temp_x;
-        double * temp_mu;
-        double * temp_sigma;
-        double * temp_crit_x;
-
-        temp_x      = new double [temp_K];
-        temp_mu     = new double [temp_K];
-        temp_sigma  = new double [temp_K * temp_K];
-        temp_crit_x = new double [temp_K * (J - 1)];
-
-        for(int k = 0; k < temp_K; k++){
-
-          // observations and means
-          *(temp_x  + k) = *(x  + indx_start + k);
-          *(temp_mu + k) = *(mu + indx_start + k);
-
-          // sigma
-          for(int j = 0; j < temp_K; j++){
-            if(k == j){
-              *(temp_sigma + k * temp_K + j) = *(se2 + indx_start + k) + *tau2;
-            }else{
-              *(temp_sigma + k * temp_K + j) = cov;
-            }
-          }
-
-          // crit_x
-          for(int j = 0; j < J - 1 ; j++){
-            *(temp_crit_x + k * (J - 1) + j) = *(crit_x + (indx_start + k) * (J - 1) + j);
-          }
-        }
-
+        double * temp_x       = extract_x_v(&x[0], indx_start, temp_K);
+        double * temp_mu      = extract_mu_v(&mu[0], indx_start, temp_K);
+        double * temp_sigma   = extract_sigma_v(&se2[0], &tau2[0], cov, indx_start, temp_K);
+        double * temp_crit_x  = extract_crit_x_v(&crit_x[0], indx_start, temp_K, J);
 
         // the log weighted normal likelihood
         log_lik += cpp_wmnorm_1s_lpdf(&temp_x[0], &temp_mu[0], &temp_sigma[0], &temp_crit_x[0], &omega[0], temp_K, J);

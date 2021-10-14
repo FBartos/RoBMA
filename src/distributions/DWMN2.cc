@@ -97,44 +97,6 @@ namespace jags {
       // the log weighted normal likelihood
       double log_lik = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
 
-      // parameter printing for debuging
-      /*
-      cout << "K = " << K << endl;
-      cout << "J = " << J << endl; 
-
-      cout << "log_lik = " << log_lik << endl;
-      cout << "mu = "; 
-      for(int k = 0; k < K; k++){
-        cout << *(mu + k) << "\t";
-      }
-      cout << endl;
-
-      cout << "omega = "; 
-      for(int k = 0; k < K; k++){
-        cout << *(omega + k) << "\t";
-      }
-      cout << endl;
-
-      for(int k = 0; k < K; k++){
-        cout << "sigma[" << k << ",] = "; 
-        for(int j = 0; j < K; j++){
-          cout << *(sigma + k * K + j) << "\t";
-        }
-        cout << endl;
-      }
-
-      for(int k = 0; k < K; k++){
-        cout << "crit_x[" << k << ",] = "; 
-        for(int j = 0; j < J-1; j++){
-          cout << *(crit_x + k * (J-1) + j) << "\t";
-        }
-        cout << endl;
-      }
-      cout << endl;
-      cout << endl;
-      cout << endl;
-      */
-
       return log_lik;
     }
 

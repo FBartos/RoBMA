@@ -137,8 +137,8 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
 	// check and skip negative numbers due to numerical imprecisions for very low probabilities
 	if(temp_prob > 0){
 	  std_constant += exp(log(temp_prob) + temp_log_weight);
-	} 
-	
+	}
+
 
 	// increase index for the next itteration
     increase_index( &index_weights[0], K-1, J-1);
@@ -148,7 +148,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   delete[] temp_lower;
   delete[] temp_upper;
   delete[] temp_infin;
-  //delete[] index_weights; // This crahses the code :( 
+  //delete[] index_weights; // This crahses the code :(
 
   return log(std_constant);
 }
@@ -194,11 +194,78 @@ double log_std_constant_twosided(double const *x, double const *const_mu, double
 
 
 // increases index carrying the cutoff coordinates by one
-void increase_index(int *index, int i, int max_i){
+void increase_index(int *index, int i, int max_i)
+{
   if( *(index + i) == (max_i)){
     *(index + i) = 0;
     increase_index(&index[0], i-1, max_i);
   }else{
     *(index + i) += 1;
   }
+}
+
+
+// parsing vector input into different pieces
+double * extract_x_v(const double *x_v, int indx_start, int K)
+{
+  double * this_x;
+  this_x = new double [K];
+
+  // cout << "x = ";
+  for(int k = 0; k < K; k++){
+    *(this_x + k) = *(x_v  + indx_start + k);
+    // cout << *(this_x + k) << "\t";
+  }
+
+  return &this_x[0];
+}
+
+double * extract_mu_v(const double *mu_v,  int indx_start, int K)
+{
+  double * this_mu;
+  this_mu = new double [K];
+
+  // cout << "mu = ";
+  for(int k = 0; k < K; k++){
+    *(this_mu + k) = *(mu_v + indx_start + k);
+    // cout << *(this_mu + k) << "\t";
+  }
+
+  return &this_mu[0];
+}
+
+double * extract_sigma_v(const double *se2_v, const double *tau2, double cov, int indx_start, int K)
+{
+  double * this_sigma;
+  this_sigma  = new double [K * K];
+
+  for(int k = 0; k < K; k++){
+    // cout << "sigma[" << k << ",] = ";
+    for(int j = 0; j < K; j++){
+      if(k == j){
+        *(this_sigma + k * K + j) = *(se2_v + indx_start + k) + *tau2;
+      }else{
+        *(this_sigma + k * K + j) = cov;
+      }
+      // cout << *(this_sigma + k * K + j) << "\t";
+    }
+  }
+
+  return &this_sigma[0];
+}
+
+double * extract_crit_x_v(const double *crit_x_v, int indx_start, int K, const int J)
+{
+  double * this_crit_x;
+  this_crit_x  = new double [K * (J-1)];
+
+  for(int k = 0; k < K; k++){
+    // cout << "crit_x[" << k << ",] = ";
+    for(int j = 0; j < J - 1 ; j++){
+      *(this_crit_x + k * (J - 1) + j) = *(crit_x_v + (indx_start + k) * (J - 1) + j);
+      // cout << *(this_crit_x + k * (J-1) + j) << "\t";
+    }
+  }
+
+  return &this_crit_x[0];
 }
