@@ -71,7 +71,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0.15</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.0</span>
       </span>
     </div>
 
@@ -129,6 +129,29 @@
       <small>Source: <a href='https://github.com/FBartos/RoBMA/blob/master/NEWS.md'><code>NEWS.md</code></a></small>
     </div>
 
+    <div id="version-21" class="section level2">
+<h2 class="hasAnchor">
+<a href="#version-21" class="anchor"></a>version 2.1</h2>
+<div id="fixes" class="section level3">
+<h3 class="hasAnchor">
+<a href="#fixes" class="anchor"></a>Fixes</h3>
+<ul>
+<li>more informative error message when the JAGS module fails to load</li>
+<li>correcting wrong PEESE transformation for the individual models summaries (issue <a href='https://github.com/FBartos/RoBMA/issues/12'>#12</a>)</li>
+<li>fixing error message for missing conditional PET-PEESE</li>
+<li>fixing incorrect lower bound check for log(OR)</li>
+</ul>
+</div>
+<div id="features" class="section level3">
+<h3 class="hasAnchor">
+<a href="#features" class="anchor"></a>Features</h3>
+<ul>
+<li>adding <code><a href="../reference/interpret.html">interpret()</a></code> function (issue <a href='https://github.com/FBartos/RoBMA/issues/11'>#11</a>)</li>
+<li>adding effect size transformation via <code>output_scale</code> argument to <code><a href="https://rdrr.io/r/graphics/plot.default.html">plot()</a></code> and <code><a href="../reference/plot_models.html">plot_models()</a></code> functions</li>
+<li>better handling of effect size transformations and scaling - BayesTools style back-end functions with Jacobian transformations</li>
+</ul>
+</div>
+</div>
     <div id="version-20" class="section level2">
 <h2 class="hasAnchor">
 <a href="#version-20" class="anchor"></a>version 2.0</h2>
