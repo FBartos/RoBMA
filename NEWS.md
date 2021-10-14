@@ -1,4 +1,4 @@
-## to be version 2.1
+## version 2.1
 ### Fixes
 - more informative error message when the JAGS module fails to load
 - correcting wrong PEESE transformation for the individual models summaries (issue #12)
