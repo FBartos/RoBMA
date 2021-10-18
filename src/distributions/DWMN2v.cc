@@ -105,7 +105,6 @@ namespace jags {
       double log_lik = 0;
 
       for(int i = 0; i < I; i++){
-        cout << i << endl;
         int temp_K;
         if(i == 0){
           temp_K = *(indx + i);
