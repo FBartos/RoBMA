@@ -540,7 +540,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 NULL
 
 # fast computation - no input check, pre-formatted for bridge-sampling
-.dwmnorm_fast <- function(x, mean, sigma, omega, crit_x, type = "two.sided", log = TRUE){
+.dwmnorm_fast   <- function(x, mean, sigma, omega, crit_x, type = "two.sided", log = TRUE){
 
   if(type == "two.sided"){
 
@@ -560,6 +560,62 @@ NULL
 
     log_lik <- log_lik - log_std_constant
 
+  }
+
+
+  if(log){
+    return(log_lik)
+  }else{
+    return(exp(log_lik))
+  }
+}
+.dwmnorm_v_fast <- function(x_v, mean_v, se2_v, tau2, rho, crit_x_v, omega, indx_v, type = "two.sided", log = TRUE){
+
+  log_lik <- 0
+
+  for(i in seq_along(indx_v)){
+
+    # break into the individual observations
+    if(i == 1){
+      temp_K <- indx_v[i]
+    }else{
+      temp_K <- indx_v[i] - indx_v[i - 1]
+    }
+    indx_start <- indx_v[i] - temp_K + 1
+
+    temp_index <- indx_start:indx_v[i]
+
+    temp_x      <- x_v[temp_index]
+    temp_mu     <- mean_v[temp_index]
+    temp_sigma  <- diag(se2_v[temp_index] + tau2 * (1-rho), nrow = temp_K, ncol = temp_K) + matrix(tau2 * rho, nrow = temp_K, ncol = temp_K)
+    if(type != "none"){
+      temp_crit_x <- crit_x_v[,temp_index,drop = FALSE]
+    }
+
+
+    if(type == "two.sided"){
+
+      temp_log_w   <- sum(sapply(1:length(temp_mu), function(k) .get_log_weight_twosided(temp_x[k], temp_crit_x[,k], omega)))
+      temp_log_lik <- mvtnorm::dmvnorm(x = temp_x, mean = temp_mu, sigma = temp_sigma, log = TRUE) + temp_log_w;
+
+      temp_log_std_constant <- .dwmnorm_log_std_constant_twosided(temp_x, temp_mu, temp_sigma, temp_crit_x, omega)
+
+      log_lik <- log_lik + (temp_log_lik - temp_log_std_constant)
+
+    }else if(type == "one.sided"){
+
+      temp_log_w   <- sum(sapply(1:length(temp_mu), function(k) .get_log_weight_onesided(temp_x[k], temp_crit_x[,k], omega)))
+      temp_log_lik <- mvtnorm::dmvnorm(x = temp_x, mean = temp_mu, sigma = temp_sigma, log = TRUE) + temp_log_w;
+
+      temp_log_std_constant <- .dwmnorm_log_std_constant_onesided(temp_x, temp_mu, temp_sigma, temp_crit_x, omega)
+
+      log_lik <- log_lik + (temp_log_lik - temp_log_std_constant)
+
+    }else if(type == "none"){
+
+      log_lik <- log_lik + mvtnorm::dmvnorm(x = temp_x, mean = temp_mu, sigma = temp_sigma, log = TRUE)
+
+    }
   }
 
 
@@ -598,7 +654,7 @@ NULL
 .dwmnorm_log_std_constant_twosided <- function(x, mu, sigma, crit_x, omega){
 
   # turn the two-sided selection into one-sided selection
-  crit_x <- rbind(-crit_x[nrow(crit_x):1,], crit_x)
+  crit_x <- rbind(-crit_x[nrow(crit_x):1,,drop=FALSE], crit_x)
   omega  <- c(rev(omega[-1]), omega)
 
   log_std_constant <- .dwmnorm_log_std_constant_onesided(x = x, mu = mu, sigma = sigma, crit_x = crit_x, omega = omega)

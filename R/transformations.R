@@ -183,15 +183,10 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     data[,"study_names"] <- paste0("Study ", 1:nrow(data))
   }
 
-  # add study ids if missing
-  if(all(is.na(data[,"study_ids"]))){
-    data[,"study_ids"] <- 1:nrow(data)
-  }else{
-    # remove indicators from independent studies
-    data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
-    # assign factor levels
-    data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
-  }
+  # remove indicators from independent studies
+  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
+  # assign factor levels
+  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
 
   ### deal with general 'unstandardized' input
   if(!anyNA(data[,"y"])){

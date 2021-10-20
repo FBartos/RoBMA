@@ -337,11 +337,10 @@
   }
 
 
-
-  ### individual model parts isolating the dependent observations
+  ### deal with the multivariate data
   model_syntax <- paste0(model_syntax, paste0("tau_transformed2 = pow(tau_transformed, 2)\n"))
-  model_syntax <- paste0(model_syntax, paste0("rho2 = pow(rho, 2)\n"))
 
+  # create the mean vector
   eff_v <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
   model_syntax <- paste0(model_syntax, "for(i in 1:K_v){\n")
   if(!is.null(priors[["PET"]])){
@@ -354,11 +353,11 @@
 
   # the observed data
   if(is.null(priors[["omega"]])){
-    model_syntax <- paste0(model_syntax, "y_", K_id," ~ dmnorm.vcov(eff_", K_id, ", sigma_", K_id, " )\n")
+    model_syntax <- paste0(model_syntax, "y_v ~ dmnorm_v(eff_v, se2_v, tau_transformed2, rho, indx_v)\n")
   }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "y_v ~ dwmnorm_1s_v(eff_v, se2_v, tau_transformed2, rho2, crit_y_v, omega, indx_v) \n")
+    model_syntax <- paste0(model_syntax, "y_v ~ dwmnorm_1s_v(eff_v, se2_v, tau_transformed2, rho, crit_y_v, omega, indx_v) \n")
   }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "y_v ~ dwmnorm_2s_v(eff_v, se2_v, tau_transformed2, rho2, crit_y_v, omega, indx_v) \n")
+    model_syntax <- paste0(model_syntax, "y_v ~ dwmnorm_2s_v(eff_v, se2_v, tau_transformed2, rho, crit_y_v, omega, indx_v) \n")
   }
 
   model_syntax <- paste0(model_syntax, "}")
@@ -484,7 +483,7 @@
   ### compute the marginal log_likelihood
   log_lik <- 0
 
-  # the independent studies
+  ### the independent studies
   if(!is.null(data[["y"]])){
 
     # marginalized random effects and the effect size
@@ -507,33 +506,25 @@
     }
   }
 
-  # the dependent studies
-  for(K_id in seq_along(grep("K_" ,names(data)))){
 
-    # construct the mean vector & add PET/PEESE
-    temp_eff <- ifelse(effect_direction == "negative", -1, 1) * mu_transformed
-    if(!is.null(priors[["PET"]])){
-      temp_eff <- temp_eff + PET_transformed   * data[[paste0("se_", K_id)]]
-    }else if(!is.null(priors[["PEESE"]])){
-      temp_eff <- temp_eff + PEESE_transformed * data[[paste0("se_", K_id)]]^2
-    }else{
-      temp_eff <- rep(temp_eff, data[[paste0("K_", K_id)]])
-    }
+  ### the dependent studies
+  # construct the mean vector & add PET/PEESE
+  temp_eff <- ifelse(effect_direction == "negative", -1, 1) * mu_transformed
+  if(!is.null(priors[["PET"]])){
+    temp_eff <- temp_eff + PET_transformed   * data[["se_v"]]
+  }else if(!is.null(priors[["PEESE"]])){
+    temp_eff <- temp_eff + PEESE_transformed * data[["se2_v"]]
+  }else{
+    temp_eff <- rep(temp_eff, data[["K_v"]])
+  }
 
-    # construct the covariance matrix
-    temp_sigma <- diag(data[[paste0("se_", K_id)]]^2, data[[paste0("K_", K_id)]]) +
-      diag((tau_transformed * (1-rho))^2, data[[paste0("K_", K_id)]]) +
-      matrix((tau_transformed * rho)^2, ncol = data[[paste0("K_", K_id)]], nrow = data[[paste0("K_", K_id)]])
-
-
-    # the observed data
-    if(is.null(priors[["omega"]])){
-      log_lik <- log_lik + mvtnorm::dmvnorm(data[[paste0("y_", K_id)]], mean = temp_eff, sigma = temp_sigma, log = TRUE, checkSymmetry = FALSE)
-    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-      log_lik <- log_lik + .dwmnorm_fast(data[[paste0("y_", K_id)]], mean = temp_eff, sigma = temp_sigma, omega = omega, crit_x = data[[paste0("crit_y_", K_id)]], type = "one.sided", log = TRUE)
-    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-      log_lik <- log_lik + .dwmnorm_fast(data[[paste0("y_", K_id)]], mean = temp_eff, sigma = temp_sigma, omega = omega, crit_x = data[[paste0("crit_y_", K_id)]], type = "two.sided", log = TRUE)
-    }
+  # the observed data
+  if(is.null(priors[["omega"]])){
+    log_lik <- log_lik + .dwmnorm_v_fast(data[["y_v"]], mean_v = temp_eff, se2_v = data[["se2_v"]], tau2 = tau_transformed^2, rho = rho, type = "none", indx_v = data[["indx_v"]], log = TRUE)
+  }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+    log_lik <- log_lik + .dwmnorm_v_fast(data[["y_v"]], mean_v = temp_eff, se2_v = data[["se2_v"]], tau2 = tau_transformed^2, rho = rho, crit_x_v = data[["crit_y_v"]], omega = omega, indx_v = data[["indx_v"]], type = "one.sided", log = TRUE)
+  }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+    log_lik <- log_lik + .dwmnorm_v_fast(data[["y_v"]], mean_v = temp_eff, se2_v = data[["se2_v"]], tau2 = tau_transformed^2, rho = rho, crit_x_v = data[["crit_y_v"]], omega = omega, indx_v = data[["indx_v"]], type = "two.sided", log = TRUE)
   }
 
   return(log_lik)
