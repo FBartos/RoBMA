@@ -23,23 +23,12 @@ RoBMA.options    <- function(...){
 
 	opts <- list(...)
 
-	if(length(opts) > 0){
+	for(i in seq_along(opts)){
 
-		options    <- RoBMA.private$options
-		recognised <- pmatch(names(opts), names(options))
+	  if(!names(opts)[i] %in% names(RoBMA.private))
+	    stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep=""))
 
-		if(any(is.na(recognised))){
-			warning(paste("Igoring unmatched or ambiguous option(s): ", paste(names(opts)[is.na(recognised)], collapse=", ")))
-      opts <- opts[!is.na(recognised)]
-		}
-
-		optnames <- names(options)[recognised[!is.na(recognised)]]
-
-		if(length(optnames)>0) for(i in 1:length(optnames)){
-			options[optnames[i]] <- opts[[i]]
-		}
-
-		assign("options", options , envir = RoBMA.private)
+	  assign(names(opts)[i], opts[[i]] , envir = RoBMA.private)
 	}
 
 	return(invisible(RoBMA.private$options))
@@ -51,13 +40,11 @@ RoBMA.get_option <- function(name){
 	if(length(name)!=1)
 	  stop("Only 1 option can be retrieved at a time")
 
-	opt <- pmatch(name,names(RoBMA.private$options))
-
-	if(is.na(opt))
+	if(!opt %in% names(RoBMA.private))
 	  stop(paste("Unmatched or ambiguous option '", name, "'", sep=""))
 
 	# Use eval as some defaults are put in using 'expression' to avoid evaluating at load time:
-	return(eval(RoBMA.private$options[[opt]]))
+	return(eval(RoBMA.private[[name]]))
 }
 
 
