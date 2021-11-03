@@ -43,7 +43,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.1</span>
       </span>
     </div>
 
@@ -66,10 +66,13 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
-      <a href="articles/CustomEnsembles.html">Fitting custom meta-analytic ensembles</a>
+      <a href="articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
-      <a href="articles/ReproducingBMA.html">Reproducing BMA</a>
+      <a href="articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
+    </li>
+    <li>
+      <a href="articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
     </li>
   </ul>
 </li>
@@ -131,9 +134,9 @@
 <p>The 2.0 version brings several updates to the package:</p>
 <ul>
 <li>naming of the arguments specifying prior distributions for the different parameters/components of the models changed (<code>priors_mu</code> -&gt; <code>priors_effect</code>, <code>priors_tau</code> -&gt; <code>priors_heterogeneity</code>, and <code>priors_omega</code> -&gt; <code>priors_bias</code>),</li>
-<li>prior distributions for specifying weight functions now use a dedicated function (<code><a href="reference/prior.html">prior(distribution = "two.sided", parameters = ...)</a></code> -&gt; <code><a href="reference/prior_weightfunction.html">prior_weightfunction(distribution = "two.sided", parameters = ...)</a></code>),</li>
+<li>prior distributions for specifying weight functions now use a dedicated function (<code>prior(distribution = "two.sided", parameters = ...)</code> -&gt; <code>prior_weightfunction(distribution = "two.sided", parameters = ...)</code>),</li>
 <li>new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (<code><a href="reference/prior_none.html">prior_none()</a></code>),</li>
-<li>new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (<code><a href="reference/prior_PET.html">prior_PET(distribution = "Cauchy", parameters = ...)</a></code> and <code><a href="reference/prior_PEESE.html">prior_PEESE(distribution = "Cauchy", parameters = ...)</a></code>),</li>
+<li>new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (<code>prior_PET(distribution = "Cauchy", parameters = ...)</code> and <code>prior_PEESE(distribution = "Cauchy", parameters = ...)</code>),</li>
 <li>new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al. (2021)),</li>
 <li>new <code>model_type</code> argument allowing to specify different “pre-canned” models (<code>"PSMA"</code> = RoBMA-PSMA, <code>"PP"</code> = RoBMA-PP, <code>"2w"</code> = corresponding to Maier et al. (in press)),</li>
 <li>

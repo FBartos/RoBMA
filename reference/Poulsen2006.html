@@ -6,7 +6,10 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Sample sizes to standard errors calculations — sample_sizes • RoBMA</title>
+<title>5 studies with a tactile outcome assessment from
+Poulsen et al. (2006)
+ of the effect of potassium-containing toothpaste
+on dentine hypersensitivity — Poulsen2006 • RoBMA</title>
 
 
 <!-- jquery -->
@@ -39,9 +42,17 @@
 
 
 
-<meta property="og:title" content="Sample sizes to standard errors calculations — sample_sizes" />
-<meta property="og:description" content="Functions for transforming between standard
-errors and sample sizes (assuming equal sample sizes per group)." />
+<meta property="og:title" content="5 studies with a tactile outcome assessment from
+Poulsen et al. (2006)
+ of the effect of potassium-containing toothpaste
+on dentine hypersensitivity — Poulsen2006" />
+<meta property="og:description" content="The data set contains Cohen's d effect sizes, standard errors,
+and labels for 5 studies assessing the tactile outcome from a meta-analysis of
+the effect of potassium-containing toothpaste on dentine hypersensitivity
+(Poulsen et al. 2006)
+ which was used as an example in
+Bartoš et al. (2021)
+." />
 
 
 
@@ -130,74 +141,44 @@ errors and sample sizes (assuming equal sample sizes per group)." />
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Sample sizes to standard errors calculations</h1>
-    <small class="dont-index">Source: <a href='https://github.com/FBartos/RoBMA/blob/master/R/transformations.R'><code>R/transformations.R</code></a></small>
-    <div class="hidden name"><code>sample_sizes.Rd</code></div>
+    <h1>5 studies with a tactile outcome assessment from
+Poulsen et al. (2006)
+ of the effect of potassium-containing toothpaste
+on dentine hypersensitivity</h1>
+    <small class="dont-index">Source: <a href='https://github.com/FBartos/RoBMA/blob/master/R/data.R'><code>R/data.R</code></a></small>
+    <div class="hidden name"><code>Poulsen2006.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>Functions for transforming between standard
-errors and sample sizes (assuming equal sample sizes per group).</p>
+    <p>The data set contains Cohen's d effect sizes, standard errors,
+and labels for 5 studies assessing the tactile outcome from a meta-analysis of
+the effect of potassium-containing toothpaste on dentine hypersensitivity
+(Poulsen et al. 2006)
+ which was used as an example in
+Bartoš et al. (2021)
+.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>se_d</span><span class='op'>(</span><span class='va'>d</span>, <span class='va'>n</span><span class='op'>)</span>
+    <pre class="usage"><span class='va'>Poulsen2006</span></pre>
 
-<span class='fu'>n_d</span><span class='op'>(</span><span class='va'>d</span>, <span class='va'>se</span><span class='op'>)</span>
 
-<span class='fu'>se_r</span><span class='op'>(</span><span class='va'>r</span>, <span class='va'>n</span><span class='op'>)</span>
+    <h2 class="hasAnchor" id="format"><a class="anchor" href="#format"></a>Format</h2>
 
-<span class='fu'>n_r</span><span class='op'>(</span><span class='va'>r</span>, <span class='va'>se</span><span class='op'>)</span>
+    <p>A data.frame with 3 columns and 5 observations.</p>
+    <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-<span class='fu'>se_z</span><span class='op'>(</span><span class='va'>n</span><span class='op'>)</span>
-
-<span class='fu'>n_z</span><span class='op'>(</span><span class='va'>se</span><span class='op'>)</span></pre>
-
-    <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
-    <table class="ref-arguments">
-    <colgroup><col class="name" /><col class="desc" /></colgroup>
-    <tr>
-      <th>d</th>
-      <td><p>Cohen's d</p></td>
-    </tr>
-    <tr>
-      <th>n</th>
-      <td><p>sample size of the corresponding effect size</p></td>
-    </tr>
-    <tr>
-      <th>se</th>
-      <td><p>standard error of the corresponding effect size</p></td>
-    </tr>
-    <tr>
-      <th>r</th>
-      <td><p>correlation coefficient</p></td>
-    </tr>
-    </table>
-
-    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
-
-    <p>Calculations for Cohen's d, Fisher's z, and log(OR) are
-based on (Borenstein et al. 2011)
-. Calculations
-for correlation coefficient were modified to make the standard error
-corresponding to the computed on Fisher's z scale under the same sample
-size (in order to make all other transformations consistent). In case that
-a direct transformation is not available, the transformations
-are chained to provide the effect size of interest.</p>
-<p>Note that sample size and standard error calculation for log(OR)
-is not available. The standard error is highly dependent on the
-odds within the groups and sample sizes for individual events are
-required. Theoretically, the sample size could be obtained by
-transforming the effect size and standard error to a different measure
-and obtaining the sample size using corresponding function, however,
-it leads to a very poor approximation and it is not recommended.</p>
+    <p>a data.frame.</p>
     <h2 class="hasAnchor" id="references"><a class="anchor" href="#references"></a>References</h2>
 
-    <p>Borenstein M, Hedges LV, Higgins JP, Rothstein HR (2011).
-<em>Introduction to meta-analysis</em>.
-John Wiley \&amp; Sons.</p>
-    <h2 class="hasAnchor" id="see-also"><a class="anchor" href="#see-also"></a>See also</h2>
-
-    <div class='dont-index'><p><code><a href='effect_sizes.html'>effect_sizes()</a></code>, <code><a href='standard_errors.html'>standard_errors()</a></code></p></div>
+    <p>Bartoš F, Gronau QF, Timmers B, Otte WM, Ly A, Wagenmakers E (2021).
+&#8220;Bayesian model-averaged meta-analysis in medicine.&#8221;
+<em>Statistics in Medicine</em>.
+doi: <a href='https://doi.org/10.1002/sim.9170'>10.1002/sim.9170</a>
+.<br /><br /> Poulsen S, Errboe M, Mevil YL, Glenny A (2006).
+&#8220;Potassium containing toothpastes for dentine hypersensitivity.&#8221;
+<em>Cochrane Database of Systematic Reviews</em>.
+doi: <a href='https://doi.org/10.1002/14651858.cd001476.pub2'>10.1002/14651858.cd001476.pub2</a>
+.</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

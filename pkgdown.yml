@@ -3,6 +3,7 @@ pkgdown: 1.6.1
 pkgdown_sha: ~
 articles:
   CustomEnsembles: CustomEnsembles.html
+  MedicineBMA: MedicineBMA.html
   ReproducingBMA: ReproducingBMA.html
-last_built: 2021-10-14T06:13Z
+last_built: 2021-11-03T08:47Z
 

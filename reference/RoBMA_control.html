@@ -74,7 +74,7 @@ criteria), and values for the convergence checks." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.1</span>
       </span>
     </div>
 
@@ -97,10 +97,13 @@ criteria), and values for the convergence checks." />
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="../articles/CustomEnsembles.html">Fitting custom meta-analytic ensembles</a>
+      <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
-      <a href="../articles/ReproducingBMA.html">Reproducing BMA</a>
+      <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
+    </li>
+    <li>
+      <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
     </li>
   </ul>
 </li>
@@ -188,7 +191,7 @@ Defaults to <code>NULL</code>.</p></td>
       <td><p>list with the time and unit specifying the maximum
 autofitting process per model. Passed to <a href='https://rdrr.io/r/base/difftime.html'>difftime</a> function
 (possible units are <code>"secs", "mins", "hours", "days", "weeks", "years"</code>).
-Defaults to <code><a href='https://rdrr.io/r/base/list.html'>list(time = 60, unit = "mins")</a></code>.</p></td>
+Defaults to <code>list(time = 60, unit = "mins")</code>.</p></td>
     </tr>
     <tr>
       <th>sample_extend</th>

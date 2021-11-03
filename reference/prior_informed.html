@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Creates a prior distribution for PET or PEESE models — prior_PET • RoBMA</title>
+<title>Creates an informed prior distribution based on research — prior_informed • RoBMA</title>
 
 
 <!-- jquery -->
@@ -39,10 +39,9 @@
 
 
 
-<meta property="og:title" content="Creates a prior distribution for PET or PEESE models — prior_PET" />
-<meta property="og:description" content="prior creates a prior distribution for fitting a PET or
-PEESE style models in RoBMA. The prior distribution can be visualized
-by the plot function." />
+<meta property="og:title" content="Creates an informed prior distribution based on research — prior_informed" />
+<meta property="og:description" content="prior_informed creates an informed prior distribution based on past
+research. The prior can be visualized by the plot function." />
 
 
 
@@ -131,97 +130,101 @@ by the plot function." />
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Creates a prior distribution for PET or PEESE models</h1>
+    <h1>Creates an informed prior distribution based on research</h1>
     <small class="dont-index">Source: <a href='https://github.com/FBartos/RoBMA/blob/master/R/priors.R'><code>R/priors.R</code></a></small>
-    <div class="hidden name"><code>prior_PET.Rd</code></div>
+    <div class="hidden name"><code>prior_informed.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p><code>prior</code> creates a prior distribution for fitting a PET or
-PEESE style models in RoBMA. The prior distribution can be visualized
-by the <code>plot</code> function.</p>
+    <p><code>prior_informed</code> creates an informed prior distribution based on past
+research. The prior can be visualized by the <code>plot</code> function.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>prior_PET</span><span class='op'>(</span>
-  <span class='va'>distribution</span>,
-  <span class='va'>parameters</span>,
-  truncation <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>lower <span class='op'>=</span> <span class='fl'>0</span>, upper <span class='op'>=</span> <span class='cn'>Inf</span><span class='op'>)</span>,
-  prior_weights <span class='op'>=</span> <span class='fl'>1</span>
-<span class='op'>)</span></pre>
+    <pre class="usage"><span class='fu'>prior_informed</span><span class='op'>(</span><span class='va'>name</span>, parameter <span class='op'>=</span> <span class='cn'>NULL</span>, type <span class='op'>=</span> <span class='st'>"smd"</span><span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
-      <th>distribution</th>
-      <td><p>name of the prior distribution. The
-possible options are</p><dl>
-<dt><code>"point"</code></dt><dd><p>for a point density characterized by a
-<code>location</code> parameter.</p></dd>
-<dt><code>"normal"</code></dt><dd><p>for a normal distribution characterized
-by a <code>mean</code> and <code>sd</code> parameters.</p></dd>
-<dt><code>"lognormal"</code></dt><dd><p>for a lognormal distribution characterized
-by a <code>meanlog</code> and <code>sdlog</code> parameters.</p></dd>
-<dt><code>"cauchy"</code></dt><dd><p>for a Cauchy distribution characterized
-by a <code>location</code> and <code>scale</code> parameters. Internally
-converted into a generalized t-distribution with <code>df = 1</code>.</p></dd>
-<dt><code>"t"</code></dt><dd><p>for a generalized t-distribution characterized
-by a <code>location</code>, <code>scale</code>, and <code>df</code> parameters.</p></dd>
-<dt><code>"gamma"</code></dt><dd><p>for a gamma distribution characterized
-by either <code>shape</code> and <code>rate</code>, or <code>shape</code> and
-<code>scale</code> parameters. The later is internally converted to
-the <code>shape</code> and <code>rate</code> parametrization</p></dd>
-<dt><code>"invgamma"</code></dt><dd><p>for an inverse-gamma distribution
-characterized by a <code>shape</code> and <code>scale</code> parameters. The
-JAGS part uses a 1/gamma distribution with a shape and rate
-parameter.</p></dd>
-<dt><code>"beta"</code></dt><dd><p>for a beta distribution
-characterized by an <code>alpha</code> and <code>beta</code> parameters.</p></dd>
-<dt><code>"exp"</code></dt><dd><p>for an exponential distribution
-characterized by either <code>rate</code> or <code>scale</code>
-parameter. The later is internally converted to
-<code>rate</code>.</p></dd>
-<dt><code>"uniform"</code></dt><dd><p>for a uniform distribution defined on a
-range from <code>a</code> to <code>b</code></p></dd>
+      <th>name</th>
+      <td><p>name of the prior distribution. There are many options based on prior psychological
+or medical research.
+For psychology, the possible options are</p><dl>
+<dt><code>"van Erp"</code></dt><dd><p>for an informed prior distribution for the heterogeneity parameter tau
+of meta-analytic effect size estimates based on standardized mean differences
+(van Erp et al. 2017),</p></dd>
+<dt><code>"Oosterwijk"</code></dt><dd><p>for an informed prior distribution for the effect sizes expected in
+social psychology based on prior elicitation with dr. Oosterwijk
+(Gronau et al. 2017).</p></dd>
 
-</dl></td>
+</dl><p>For medicine, the possible options are based on BartoÃ…Â¡ et al. (2021)
+who developed empirical prior distributions for the effect size and heterogeneity parameters of the
+continuous standardized outcomes based on the Cochrane database of systematic reviews.
+Use <code>"Cochrane"</code> for a prior distribution based on the whole database or call
+<code>print(prior_informed_medicine_names)</code> to inspect the names of
+all 46 subfields and set the appropriate <code>parameter</code> and <code>type</code>.</p></td>
     </tr>
     <tr>
-      <th>parameters</th>
-      <td><p>list of appropriate parameters for a given
-<code>distribution</code>.</p></td>
+      <th>parameter</th>
+      <td><p>parameter name describing what prior distribution is supposed to be produced in cases
+where the <code>name</code> corresponds to multiple prior distributions. Relevant only for the empirical medical
+prior distributions.</p></td>
     </tr>
     <tr>
-      <th>truncation</th>
-      <td><p>list with two elements, <code>lower</code> and
-<code>upper</code>, that define the lower and upper truncation of the
-distribution. Defaults to <code>list(lower = -Inf, upper = Inf)</code>.
-The truncation is automatically set to the bounds of the support.</p></td>
-    </tr>
-    <tr>
-      <th>prior_weights</th>
-      <td><p>prior odds associated with a given distribution.
-The value is passed into the model fitting function, which creates models
-corresponding to all combinations of prior distributions for each of
-the model parameters and sets the model priors odds to the product
-of its prior distributions.</p></td>
+      <th>type</th>
+      <td><p>prior type describing what prior distribution is supposed to be produced in cases
+where the <code>name</code> and <code>parameter</code> correspond to multiple prior distributions. Relevant only for
+the empirical medical prior distributions.</p></td>
     </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p><code>prior_PET</code> and <code>prior_PEESE</code> return an object of class 'prior'.</p>
+    <p><code>prior_informed</code> returns an object of class 'prior'.</p>
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
+
+    <p>Further details can be found in van Erp et al. (2017)
+,
+Gronau et al. (2017)
+, and
+Bartoš et al. (2021)
+.</p>
+    <h2 class="hasAnchor" id="references"><a class="anchor" href="#references"></a>References</h2>
+
+    <p>Bartoš F, Gronau QF, Timmers B, Otte WM, Ly A, Wagenmakers E (2021).
+&#8220;Bayesian model-averaged meta-analysis in medicine.&#8221;
+<em>Statistics in Medicine</em>.
+doi: <a href='https://doi.org/10.1002/sim.9170'>10.1002/sim.9170</a>
+.<br /><br /> Gronau QF, Van Erp S, Heck DW, Cesario J, Jonas KJ, Wagenmakers E (2017).
+&#8220;A Bayesian model-averaged meta-analysis of the power pose effect with informed and default priors: The case of felt power.&#8221;
+<em>Comprehensive Results in Social Psychology</em>, <b>2</b>(1), 123--138.
+doi: <a href='https://doi.org/10.1080/23743603.2017.1326760'>10.1080/23743603.2017.1326760</a>
+.<br /><br /> van Erp S, Verhagen J, Grasman RP, Wagenmakers E (2017).
+&#8220;Estimates of between-study heterogeneity for 705 meta-analyses reported in Psychological Bulletin from 1990--2013.&#8221;
+<em>Journal of Open Psychology Data</em>, <b>5</b>(1).
+doi: <a href='https://doi.org/10.5334/jopd.33'>10.5334/jopd.33</a>
+.</p>
     <h2 class="hasAnchor" id="see-also"><a class="anchor" href="#see-also"></a>See also</h2>
 
-    <div class='dont-index'><p><code><a href='https://fbartos.github.io/BayesTools/reference/plot.prior.html'>plot.prior()</a></code>, <code><a href='https://fbartos.github.io/BayesTools/reference/prior.html'>prior()</a></code></p></div>
+    <div class='dont-index'><p><code><a href='https://fbartos.github.io/BayesTools/reference/prior.html'>prior()</a></code>, <a href='https://fbartos.github.io/BayesTools/reference/prior_informed_medicine_names.html'>prior_informed_medicine_names</a></p></div>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
-    <pre class="examples"><span class='r-in'><span class='co'># create a half-Cauchy prior distribution</span></span>
-<span class='r-in'><span class='co'># (PET and PEESE specific functions automatically set lower truncation at 0)</span></span>
-<span class='r-in'><span class='va'>p1</span> <span class='op'>&lt;-</span> <span class='fu'>prior_PET</span><span class='op'>(</span>distribution <span class='op'>=</span> <span class='st'>"Cauchy"</span>, parameters <span class='op'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/list.html'>list</a></span><span class='op'>(</span>location <span class='op'>=</span> <span class='fl'>0</span>, scale <span class='op'>=</span> <span class='fl'>1</span><span class='op'>)</span><span class='op'>)</span></span>
+    <pre class="examples"><span class='r-in'><span class='co'># prior distribution representing expected effect sizes in social psychology</span></span>
+<span class='r-in'><span class='co'># based on prior elicitation with dr. Oosterwijk</span></span>
+<span class='r-in'><span class='va'>p1</span> <span class='op'>&lt;-</span> <span class='fu'>prior_informed</span><span class='op'>(</span><span class='st'>"Oosterwijk"</span><span class='op'>)</span></span>
 <span class='r-in'></span>
+<span class='r-in'><span class='co'># the prior distribution can be visualized using the plot function</span></span>
+<span class='r-in'><span class='co'># (see ?plot.prior for all options)</span></span>
 <span class='r-in'><span class='fu'><a href='https://rdrr.io/r/graphics/plot.default.html'>plot</a></span><span class='op'>(</span><span class='va'>p1</span><span class='op'>)</span></span>
-<span class='r-plt img'><img src='prior_PET-1.png' alt='' width='700' height='433' /></span>
+<span class='r-plt img'><img src='prior_informed-1.png' alt='' width='700' height='433' /></span>
+<span class='r-in'></span>
+<span class='r-in'></span>
+<span class='r-in'><span class='co'># empirical prior distribution for the standardized mean differences from the oral health</span></span>
+<span class='r-in'><span class='co'># medical subfield based on meta-analytic effect size estimates from the</span></span>
+<span class='r-in'><span class='co'># Cochrane database of systematic reviews</span></span>
+<span class='r-in'><span class='va'>p2</span> <span class='op'>&lt;-</span> <span class='fu'>prior_informed</span><span class='op'>(</span><span class='st'>"Oral Health"</span>, parameter <span class='op'>=</span> <span class='st'>"effect"</span>, type <span class='op'>=</span> <span class='st'>"smd"</span><span class='op'>)</span></span>
+<span class='r-in'><span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span><span class='op'>(</span><span class='va'>p2</span><span class='op'>)</span></span>
+<span class='r-out co'><span class='r-pr'>#&gt;</span> Student-t(0, 0.51, 5)</span>
 </pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

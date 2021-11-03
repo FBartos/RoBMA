@@ -74,7 +74,7 @@ the ensemble configuration prior to fitting all of the models." />
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.1.1</span>
       </span>
     </div>
 
@@ -97,10 +97,13 @@ the ensemble configuration prior to fitting all of the models." />
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="../articles/CustomEnsembles.html">Fitting custom meta-analytic ensembles</a>
+      <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
-      <a href="../articles/ReproducingBMA.html">Reproducing BMA</a>
+      <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
+    </li>
+    <li>
+      <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
     </li>
   </ul>
 </li>
@@ -182,13 +185,13 @@ about the different model types.</p></td>
       <td><p>list of prior distributions for the effect size (<code>mu</code>)
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 a standard normal distribution
-<code><a href='prior.html'>prior(distribution = "normal", parameters = list(mean = 0, sd = 1))</a></code>.</p></td>
+<code>prior(distribution = "normal", parameters = list(mean = 0, sd = 1))</code>.</p></td>
     </tr>
     <tr>
       <th>priors_heterogeneity</th>
       <td><p>list of prior distributions for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-<code><a href='prior.html'>prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))</a></code> that
+<code>prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))</code> that
 is based on heterogeneities estimates from psychology (van Erp et al. 2017)
 .</p></td>
     </tr>
@@ -196,7 +199,7 @@ is based on heterogeneities estimates from psychology (van Erp et al. 2017)
       <th>priors_bias</th>
       <td><p>list of prior distributions for the publication bias adjustment
 component that will be treated as belonging to the alternative hypothesis.
-Defaults to <code><a href='https://rdrr.io/r/base/list.html'>list(
+Defaults to <code>list(
 prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),
     steps = c(0.05)),             prior_weights = 1/12),
 prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),
@@ -213,7 +216,7 @@ prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0
      prior_weights = 1/4),
 prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
      prior_weights = 1/4)
-)</a></code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2021)
+)</code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2021)
 .</p></td>
     </tr>
     <tr>
@@ -221,14 +224,14 @@ prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0
       <td><p>list of prior distributions for the effect size (<code>mu</code>)
 parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero,
-<code><a href='prior.html'>prior(distribution = "point", parameters = list(location = 0))</a></code>.</p></td>
+<code>prior(distribution = "point", parameters = list(location = 0))</code>.</p></td>
     </tr>
     <tr>
       <th>priors_heterogeneity_null</th>
       <td><p>list of prior distributions for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero (a fixed effect meta-analytic models),
-<code><a href='prior.html'>prior(distribution = "point", parameters = list(location = 0))</a></code>.</p></td>
+<code>prior(distribution = "point", parameters = list(location = 0))</code>.</p></td>
     </tr>
     <tr>
       <th>priors_bias_null</th>
