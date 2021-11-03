@@ -3,7 +3,7 @@
 \docType{data}
 \name{Bem2011}
 \alias{Bem2011}
-\title{9 experimental studies from from
+\title{9 experimental studies from
 \insertCite{bem2011feeling;textual}{RoBMA} as described in
 \insertCite{bem2011must;textual}{RoBMA}}
 \format{

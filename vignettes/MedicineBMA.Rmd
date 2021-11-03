@@ -1,0 +1,167 @@
+---
+title: "Informed Bayesian Model-Averaged Meta-Analysis in Medicine"
+author: "František Bartoš"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+vignette: >
+  %\VignetteIndexEntry{Informed Bayesian Model-Averaged Meta-Analysis in Medicine}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+is_check <- ("CheckExEnv" %in% search()) ||
+              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
+              !file.exists("../models/ReproducingBMA/BMA_PowerPoseTest.RDS")
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = !is_check,
+  dev      = "png")
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+```{r include = FALSE}
+library(RoBMA)
+# we pre-load the RoBMA models, the fitting time is around 2-5 minutes
+fit_BMA   <- readRDS(file = "../models/MedicineBMA/fit_BMA.RDS")
+fit_BMAb  <- readRDS(file = "../models/MedicineBMA/fit_BMAb.RDS")
+fit_RoBMA <- readRDS(file = "../models/MedicineBMA/fit_RoBMA.RDS")
+```
+
+
+Bayesian model-averaged meta-analysis allows researchers to seamlessly incorporate available prior information into the analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. This vignette illustrates how to do this with an example from @bartos2021bayesian, who developed informed prior distributions for meta-analyses of continuous outcomes based on the Cochrane database of systematic reviews. Then, we extend the example by incorporating publication bias adjustment with robust Bayesian meta-analysis [@bartos2021no; @maier2020robust].
+
+
+### Reproducing Informed Bayesian Model-Averaged Meta-Analysis (BMA)
+
+We illustrate how to fit the informed BMA (not adjusting for publication bias) using the `RoBMA` R package. For this purpose, we reproduce the dentine hypersensitivity example from @bartos2021bayesian, who reanalyzed five studies with a tactile outcome assessment that were subjected to a meta-analysis by @poulsen2006potassium. 
+
+We load the dentine hypersensitivity data included in the package.
+
+```{r}
+library(RoBMA)
+
+data("Poulsen2006", package = "RoBMA")
+Poulsen2006
+``` 
+
+To reproduce the analysis from the example, we need to set informed empirical prior distributions for the effect sizes ($\mu$) and heterogeneity ($\tau$) parameters that @bartos2021bayesian obtained from the Cochrane database of systematic reviews. We can either set them manually,
+``` r
+fit_BMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
+                 priors_effect        = prior(distribution = "t", parameters = list(location = 0, scale = 0.51, df = 5)),
+                 priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1.79, scale = 0.28)),
+                 priors_bias          = NULL,
+                 transformation = "cohens_d", seed = 1, parallel = TRUE)
+```
+with `priors_effect` and `priors_heterogeneity` corresponding to the $\delta \sim T(0,0.51,5)$ and $\tau \sim InvGamma(1.79,0.28)$ informed prior distributions for the "oral health" subfield and removing the publication bias adjustment models by setting `priors_bias = NULL`$^1$.
+
+Alternatively, we can utilize the `informed_prior` function that prepares informed prior distributions for the individual medical subfields automatically.
+``` r
+fit_BMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
+                 priors_effect        = prior_informed(name = "oral health", parameter = "effect", type = "smd"),
+                 priors_heterogeneity = prior_informed(name = "oral health", parameter = "heterogeneity", type = "smd"),
+                 priors_bias          = NULL,
+                 transformation = "cohens_d", seed = 1, parallel = TRUE)
+```
+The `name` argument specifies the medical subfield name (use `print(BayesTools::prior_informed_medicine_names)` to check names of all available subfields). The `parameter` argument specifies whether we want prior distribution for the effect size or heterogeneity. Finally, the `type` argument specifies what type of measure we use for the meta-analysis (only standardized mean differences `smd` are available at the time of writing the vignette; see `?prior_informed` for more details regarding the informed prior distributions).
+
+We obtain the output with the `summary` function. Adding the `conditional = TRUE` argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true$^2$.
+
+```{r}
+summary(fit_BMA, conditional = TRUE)
+```
+
+The output from the `summary.RoBMA()` function has 3 parts. The first one under the 'Robust Bayesian Meta-Analysis' heading provides a basic summary of the fitted models by component types (presence of the Effect/Heterogeneity/Publication bias). We can see that there are no models correcting for publication bias (we disabled them by setting `priors_bias = NULL`). Furthermore, the table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components. The results  show that the inclusion Bayes factor for the effect corresponds to the one reported in @bartos2021bayesian package, $\text{BF}_{10} = 218.53$ and $\text{BF}_{\text{rf}} = 3.52$ (up to an MCMC error). 
+
+The second part under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). We ignore this section and move to the last part.
+
+The third part under the 'Conditional estimates' heading displays the conditional effect size estimate corresponding to the one reported in @bartos2021bayesian, $\delta = 1.082$, 95% CI [0.686,1.412], and a heterogeneity estimate (not reported previously).
+
+
+### Visualizating the Results
+
+The `RoBMA` package provides extensive options for visualizing the results. Here, we visualize the prior (grey) and posterior (black) distribution for the mean parameter.
+
+```{r fig_mu_BMA, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+plot(fit_BMA, parameter = "mu", prior = TRUE)
+```
+
+By default, the function plots the model-averaged estimates across all models; the arrows represent the probability of a spike, and the lines represent the posterior density under models assuming non-zero effect. The secondary y-axis (right) shows the probability of the spike (at value 0) decreasing from .50, to 0.005 (also obtainable from the 'Robust Bayesian Meta-Analysis' field in `summary.RoBMA()` function).
+
+To visualize the conditional effect size estimate, we can add the `conditional = TRUE` argument,
+ 
+```{r fig_mu_BMA_cond, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE)
+```
+which displays only the model-averaged posterior distribution of the effect size parameter for models assuming the presence of the effect.
+
+We can also visualize the estimates from the individual models used in the ensemble. We do that with the `plot_models()` function, which visualizes the effect size estimates and 95% CI of each specified model included in the ensemble. Model 1 corresponds to the fixed effect model assuming the absence of the effect, $H_0^{\text{f}}$, Model 2 corresponds to the random effect model assuming the absence of the effect, $H_0^{\text{r}}$, Model 3 corresponds to the fixed effect model assuming the presence of the effect, $H_3^{\text{f}}$, and Model 4 corresponds to the random effect model assuming the presence of the effect, $H_1^{\text{r}}$,). The size of the square representing the mean estimate reflects the posterior model probability of the model, which is also displayed in the right-hand side panel. The bottom part of the figure shows the model averaged-estimate that is a combination of the individual model posterior distributions weighted by the posterior model probabilities.
+
+```{r fig_models, dpi = 300, fig.height = 4.5, fig.width = 7, out.width = '75%', fig.align = "center"}
+plot_models(fit_BMA)
+```
+We see that the posterior model probability of the first two models decreased to essentially zero (when rounding to two decimals), completely omitting their estimates from the figure. Furthermore, the much larger box of Model 4 (the random effect model assuming the presence of the effect) shows that Model 4 received the largest share of the posterior probability, $P(H_1^{\text{r}}) = 0.77$)
+
+The last type of visualization that we show here is the forest plot. It displays the original studies' effects and the meta-analytic estimate within one figure. It can be requested by using the `forest()` function. Here, we again set the `conditional = TRUE` argument to display the conditional model-averaged effect size estimate at the bottom.
+
+```{r fig_forest, dpi = 300, fig.height = 4.5, fig.width = 7, out.width = '75%', fig.align = "center"}
+forest(fit_BMA, conditional = TRUE)
+```
+
+For more options provided by the plotting function, see its documentation using `?plot.RoBMA()`, `?plot_models()`, and `?forest()`.
+
+
+### Adjusting for Publication Bias with Robust Bayesian Meta-Analysis
+
+Finally, we illustrate how to adjust our informed BMA for publication bias with robust Bayesian meta-analysis [@bartos2021no, @maier2020robust]. In short, we specify additional models assuming the presence of the publication bias and correcting for it by either specifying a selection model operating on $p$-values [@vevea1995general] or by specifying a publication bias adjustment method correcting for the relationship between effect sizes and standard errors -- PET-PEESE [@stanley2017limitations; @stanley2014meta]. See @bartos2020adjusting for a tutorial.
+
+To obtain a proper before and after publication bias adjustment comparison, we fit the informed BMA model but using the default effect size transformation (Fisher's $z$).
+
+``` r
+fit_BMAb <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
+                  priors_effect        = prior_informed(name = "oral health", parameter = "effect", type = "smd"),
+                  priors_heterogeneity = prior_informed(name = "oral health", parameter = "heterogeneity", type = "smd"),
+                  priors_bias          = NULL,
+                  seed = 1, parallel = TRUE)
+```
+```{r}
+summary(fit_BMAb, conditional = TRUE)
+```
+
+We obtain noticeably stronger evidence for the presence of the effect. This is a result of placing more weights on the fixed-effect models, especially the fixed-effect model assuming the presence of the effect $H_1^f$. The increase in the posterior model probability of $H_1^f$ is, in our case, the fact that it predicted the data slightly better after removing the correlation between effect sizes and standard errors (a result of using Cohen's $d$ for model fitting). Nevertheless, the conditional effect size estimate stayed almost the same.
+
+Now, we fit the publication bias-adjusted model by simply removing the `priors_bias = NULL`, which allows us to obtain the default 36 models ensemble called RoBMA-PSMA [@bartos2021no].
+
+``` r
+fit_RoBMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
+                   priors_effect        = prior_informed(name = "oral health", parameter = "effect", type = "smd"),
+                   priors_heterogeneity = prior_informed(name = "oral health", parameter = "heterogeneity", type = "smd"),
+                   seed = 1, parallel = TRUE)
+```
+```{r}
+summary(fit_RoBMA, conditional = TRUE)
+```
+
+We notice that additional values in the 'Components summary' table in the 'Bias' row. The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. When comparing the RoBMA to the second BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect $\text{BF}_{10} = 6.02$ vs. $\text{BF}_{10} = 347.93$, which still, however, presents moderate evidence for the presence of the effect. We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias $\text{BF}_{pb} = 2.30$, which can be interpreted as weak evidence in favor of the publication bias.
+
+We can also compare the publication bias unadjusted and publication bias-adjusted conditional effect size estimates. Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) slightly decreases the estimated effect to $\delta = 0.838$, 95% CI [-0.035, 1.297] with a much wider confidence interval, as visualized in the prior and posterior conditional effect size estimate plot.
+
+```{r fig_mu_RoBMA_cond, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE)
+```
+
+                 
+### Footnotes
+
+$^1$ The additional setting `transformation = "cohens_d"` allows us to get more comparable results with the `metaBMA` R package since RoBMA otherwise internally transforms the effect sizes to Fisher's $z$ for the fitting purposes and the `seed = 1` and `parallel = TRUE` options grant us exact reproducibility of the results and parallelization of the fitting process.
+
+$^2$ The Model-averaged estimates that `RoBMA` returns by default model-averaged across all specified models -- a different behavior from the `metaBMA` package that by default returns what we call "conditional" estimates in `RoBMA`.
+
+### References

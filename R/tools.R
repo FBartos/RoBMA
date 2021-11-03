@@ -17,12 +17,23 @@ check_RoBMA <- function(fit){
 
 .is_model_constant         <- function(priors){
   # checks whether there is at least one non-nill prior
-  return(all(sapply(priors, function(prior)is.prior.point(prior) | is.prior.none(prior))) & is.null(priors[["omega"]]))
+  return(all(sapply(priors, function(prior) is.prior.point(prior) | is.prior.none(prior))) & is.null(priors[["omega"]]))
 }
 .remove_model_posteriors   <- function(object){
   for(i in seq_along(object[["models"]])){
     if(inherits(object$models[[i]][["fit"]], "runjags")){
       object$models[[i]]$fit[["mcmc"]] <- NULL
+    }
+  }
+  return(object)
+}
+.remove_model_margliks     <- function(object){
+  for(i in seq_along(object[["models"]])){
+    if(inherits(object$models[[i]][["marglik"]], "bridge")){
+      object$models[[i]]$marglik[["q11"]] <- NULL
+      object$models[[i]]$marglik[["q12"]] <- NULL
+      object$models[[i]]$marglik[["q21"]] <- NULL
+      object$models[[i]]$marglik[["q22"]] <- NULL
     }
   }
   return(object)

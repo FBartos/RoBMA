@@ -3,7 +3,7 @@
 \docType{data}
 \name{Anderson2010}
 \alias{Anderson2010}
-\title{27 experimental studies from from
+\title{27 experimental studies from
 \insertCite{anderson2010violent;textual}{RoBMA} that meet the best practice criteria}
 \format{
 A data.frame with 3 columns and 23 observations.

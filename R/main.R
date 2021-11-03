@@ -297,6 +297,7 @@ RoBMA <- function(
   ### remove model posteriors if asked to
   if(save == "min"){
     object <- .remove_model_posteriors(object)
+    object <- .remove_model_margliks(object)
   }
 
 
@@ -499,6 +500,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   ### remove model posteriors if asked to
   if(save == "min"){
     object <- .remove_model_posteriors(object)
+    object <- .remove_model_margliks(object)
   }
 
   return(object)

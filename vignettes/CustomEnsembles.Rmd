@@ -1,5 +1,5 @@
 ---
-title: "Fitting custom meta-analytic ensembles"
+title: "Fitting Custom Meta-Analytic Ensembles"
 author: "František Bartoš"
 date: "`r Sys.Date()`"
 output:
@@ -8,7 +8,7 @@ output:
 bibliography: ../inst/REFERENCES.bib
 csl: ../inst/apa.csl
 vignette: >
-  %\VignetteIndexEntry{Fitting custom meta-analytic ensembles}
+  %\VignetteIndexEntry{Fitting Custom Meta-Analytic Ensembles}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
@@ -29,11 +29,11 @@ if(.Platform$OS.type == "windows"){
 }
 ```
 
-By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions' weights. This results in the 36 meta-analytic models using the default settings [@bartos2021no]$^1$. In [another vignette](ReproducingBMA.html), we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017bayesian]. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see @bartos2020adjusting for a tutorial paper on customizing the model ensemble with JASP). 
+By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions' weights. This results in the 36 meta-analytic models using the default settings [@bartos2021no]$^1$. In [another vignette](ReproducingBMA.html), we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see @bartos2020adjusting for a tutorial paper on customizing the model ensemble with JASP). 
 
 Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that the ensemble can perform as intended a priori to drawing inference from it. The following sections are only for illustrating the functionality of the package. We provide a completely discussion with the relevant sources in the Example section of @bartos2021no.
 
-### The dataset
+### The Dataset
 
 To illustrate the custom model building procedure, we use data from the infamous @bem2011feeling "Feeling the future" pre-cognition study. We use coding of the results as summarized by Bem in one of his later replies [@bem2011must]. 
 
@@ -44,7 +44,7 @@ data("Bem2011", package = "RoBMA")
 Bem2011
 ```
 
-### The custom ensemble
+### The Custom Ensemble
 
 We consider the following scenarios as plausible explanations for the data, and decide to include only those models into the meta-analytic ensemble:
 
@@ -154,7 +154,7 @@ fit <- readRDS(file = "../models/CustomEnsembles/Bem_update2.RDS")
 summary(fit, type = "models")
 ```
 
-### Using the fitted ensemble
+### Using the Fitted Ensemble
 
 Finally, we use the `summary()` function to inspect the model results. The results from our custom ensemble indicate weak evidence for the absence of the pre-cognition effect, $\text{BF}_{10} = 0.584$ -> $\text{BF}_{01} = 1.71$, moderate evidence for the absence of heterogeneity, $\text{BF}_{\text{rf}} = 0.132$ -> $\text{BF}_{\text{fr}} = 7.58$, and moderate evidence for the presence of the publication bias, $\text{BF}_{\text{pb}} = 3.21$. 
 

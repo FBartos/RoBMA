@@ -1,5 +1,5 @@
 ---
-title: "Reproducing BMA"
+title: "Reproducing Bayesian Model-Averaged Meta-Analysis"
 author: "František Bartoš"
 date: "`r Sys.Date()`"
 output:
@@ -8,7 +8,7 @@ output:
 bibliography: ../inst/REFERENCES.bib
 csl: ../inst/apa.csl
 vignette: >
-  %\VignetteIndexEntry{Reproducing BMA}
+  %\VignetteIndexEntry{Reproducing Bayesian Model-Averaged Meta-Analysis}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
@@ -36,7 +36,7 @@ fit_RoBMA_test <- readRDS(file = "../models/ReproducingBMA/PowerPoseTest.RDS")
 fit_RoBMA_est  <- readRDS(file = "../models/ReproducingBMA/PowerPoseEst.RDS")
 ```
 
-By default, the package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in 'classical' Bayesian Model-Averaged Meta-Analysis [@gronau2017bayesian, @gronau2020primer]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020adjusting for a tutorial on fitting (custom) models in JASP.
+By default, the package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in 'classical' Bayesian Model-Averaged Meta-Analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020adjusting for a tutorial on fitting (custom) models in JASP.
 
 
 ### Reproducing Bayesian Model-Averaged Meta-Analysis (BMA)
@@ -109,7 +109,7 @@ The output from the `summary.RoBMA()` function has 2 parts. The first one under 
 The second part under the 'Model-averaged estimates' heading displays the parameter estimates. The results for the unrestricted Cauchy model specified for estimation show the effect size estimate $\mu = 0.22$, 95% CI [0.10, 0.35] that also mirrors the one obtained from `metaBMA` package.
 
 
-### Visualizating the results
+### Visualizating the Results
 
 RoBMA provides extensive options for visualizing the results. Here, we visualize the prior (grey) and posterior (black) distribution for the mean parameter.
 
