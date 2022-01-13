@@ -52,7 +52,7 @@ jobs:
         run: |
           remotes::install_deps(dependencies = TRUE)
           install.packages("pkgdown", type = "binary")
-          remotes::install_github("FBartos/BayesTools")
+          remotes::install_version("BayesTools", "0.1.3")
         shell: Rscript {0}
 
       - name: Install package

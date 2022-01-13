@@ -85,7 +85,7 @@ jobs:
         run: |
           remotes::install_deps(dependencies = TRUE)
           remotes::install_cran("rcmdcheck")
-          remotes::install_github("FBartos/BayesTools")
+          remotes::install_version("BayesTools", "0.1.3")
           install.packages("devtools")
           install.packages("testhat")
           install.packages("vdiffr")
@@ -103,7 +103,7 @@ jobs:
         run: |
           remotes::install_deps(dependencies = TRUE)
           remotes::install_cran("rcmdcheck")
-          remotes::install_github("FBartos/BayesTools")
+          remotes::install_version("BayesTools", "0.1.3")
           install.packages("devtools")
           install.packages("testhat")
           install.packages("vdiffr")
