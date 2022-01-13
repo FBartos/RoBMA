@@ -1,3 +1,8 @@
+## version 2.1.2
+### Fixes
+- adding Windows ucrt patch (thanks to Tomas Kalibera)
+- adding BayesTools version check
+
 ## version 2.1.1
 ### Fixes
 - incorrectly formatted citations in vignettes and capitalization

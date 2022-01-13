@@ -73,3 +73,48 @@ assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
 assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
 assign("min_jags_major",  4,                              envir = RoBMA.private)
 assign("max_jags_major",  4,                              envir = RoBMA.private)
+
+
+# check proper BayesTools package version
+.check_BayesTools <- function(){
+
+  RoBMA.version      <- try(utils::packageVersion("RoBMA"))
+  BayesTools.version <- try(utils::packageVersion("BayesTools"))
+
+  if(inherits(RoBMA.version, "try-error") | inherits(BayesTools.version, "try-error")){
+    return(invisible(FALSE))
+  }
+
+  if(is.null(RoBMA.version) | is.null(BayesTools.version)){
+    return(invisible(FALSE))
+  }
+
+  BayesTools_min <- switch(
+    paste0(RoBMA.version, collapse = "."),
+    "2.1.1" = "0.1.3",
+    "2.1.2" = "0.1.3",
+    stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
+  )
+  BayesTools_max <- switch(
+    paste0(RoBMA.version, collapse = "."),
+    "2.1.1" = "0.1.3",
+    "2.1.2" = "0.1.3",
+    stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
+  )
+
+  min_OK <- all(as.integer(strsplit(BayesTools_min, ".", fixed = TRUE)[[1]]) <= unlist(BayesTools.version))
+  max_OK <- all(as.integer(strsplit(BayesTools_max, ".", fixed = TRUE)[[1]]) >= unlist(BayesTools.version))
+
+  if(min_OK && max_OK){
+    return(invisible(TRUE))
+  }else{
+    warning(sprintf(
+      "RoBMA version %1$s requires BayesTools version higher or equal %2$s and lower or equal %3$s.",
+      paste0(RoBMA.version, collapse = "."),
+      BayesTools_min,
+      BayesTools_max
+    ), call.=FALSE)
+    return(invisible(FALSE))
+  }
+}
+

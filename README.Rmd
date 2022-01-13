@@ -38,6 +38,7 @@ We also prepared multiple vignettes that illustrate functionality of the package
 
  - [Reproducing Bayesian model-averaged meta-analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
  - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+ - [Informed Bayesian model-averaged meta-analysis in medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
 
 
 ## Updates

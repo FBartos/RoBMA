@@ -1,0 +1,90 @@
+######################################################################################################
+###  This file is based on file in the runjags package (version 2.0)
+###  The previous version of the file is Copyright (C) Matthew Denwood, licensed under GPL-2.
+###
+###  The previous file is based on that in the rjags package (version 3-10)
+###  Original file is Copyright (C) Martyn Plummer, licensed under GPL-2
+###
+###  Note:  This windows makefile requires the JAGS_ROOT variable to be set
+###
+###  This file allows compilation with JAGS 4 (or later) without modifying RoBMA.
+###  To force the package to compile assuming a given JAGS version is installed, use the 
+###  JAGS_MAJOR_FORCED environmental variable.  This might be necessary on windows if you have
+###  JAGS installed in a non-standard location.
+###  
+######################################################################################################
+
+## Conditionally set the JAGS_ROOT variable (if it is not already set) to a location specified by the CRAN team:
+JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.0
+
+## Use the old ABI to match JAGS 4.x compilation on Windows:
+#PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0
+PKG_CXXFLAGS=
+## Note: this behaviour will be changed (and RoBMA updated) before JAGS 5 is released
+## If you are trying to compile this version of RoBMA against JAGS 5 you may need to remove this PKG_CXXFLAGS line
+
+###############
+###  Flags
+###  The installed major version of JAGS is needed at this stage - we try to guess this from JAGS_ROOT
+###  If you have a non-standard JAGS install (and therefore JAGS_ROOT variable), then see the README file
+###############
+
+# We need to introduce spaces so that we can fool word into splitting the $(JAGS_ROOT) path:
+space :=
+space +=
+
+# First check to see if JAGS_MAJOR_VERSION is defined in the environment and pass that as JAGS_MAJOR_FORCED to -D
+ifneq ($(strip $(JAGS_MAJOR_VERSION)),)
+JAGS_MAJOR = $(strip $(JAGS_MAJOR_VERSION))
+JAGS_MAJOR_ASSUMED = $(strip 0)
+else
+
+# Check if the JAGS_ROOT is standard i.e. we can extract a major version:
+JAGS_VERSION_PRESENT = $(findstring JAGS-,$(JAGS_ROOT))
+
+# If we can detect and extract a JAGS major version:
+ifneq ($(strip $(JAGS_VERSION_PRESENT)),)
+# First substitute / for space:
+JAGS_ROOT_SUB = $(subst /,$(space),$(JAGS_ROOT))
+# Then isolate the JAGS-x.x.x part:
+JAGS_FULL_VERS = $(word $(words $(JAGS_ROOT_SUB)),$(JAGS_ROOT_SUB))
+# Then substitute / for space and extract the major version
+JAGS_MAJOR_ASSUMED = $(strip $(word 2,$(subst .,$(space),$(subst -,$(space),$(JAGS_FULL_VERS)))))
+else
+# Otherwise make an assumption about JAGS_MAJOR and give a warning:
+JAGS_MAJOR_ASSUMED = $(strip 4)
+$(warning The major version of JAGS could not be determined from $(JAGS_ROOT) - assuming version $(JAGS_MAJOR_ASSUMED) (otherwise the Makevars.win file may need to be modified))
+endif
+
+JAGS_MAJOR = $(strip $(JAGS_MAJOR_ASSUMED))
+
+endif
+
+# Set the CPPFLAGS accordingly
+# Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
+JAGS_MAJOR_ASSUMED := 4 
+PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION)
+
+PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0
+
+
+###############
+### Objects to be compiled
+### NB: the objects in distributions/jags are only necessary for JAGS <=3, and are excluded by the sources when compiling against JAGS >= 4
+###############
+
+OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+
+###############
+
+
+
+###############
+#### If you still have compilation problems (after reading README) then you can use the following code instead.  Deleting everything above this line and uncomment the two relevant lines below.
+###############
+
+# PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include"
+# PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4
+# OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+
+###############

@@ -25,14 +25,14 @@ heterogeneity, and publication bias components (including selection,
 PET, and PEESE style models). The package provides convenient functions
 for summary, visualizations, and fit diagnostics.
 
-See our new pre-print Bartoš et al. (2021)
+See our new pre-print Bartoš, Maier, Wagenmakers, et al. (2021)
 (<https://doi.org/10.31234/osf.io/kvsp7>) for the description of the
 newest version, RoBMA-PSMA, or our previous paper introducing the method
 Maier et al. (in press) (<https://doi.org/10.31234/osf.io/u4cns>). The
 previous version of the methods is also implemented within the the
 user-friendly graphical user interface of JASP (JASP Team, 2020) and
-accompanied by a tutorial paper with more examples (Bartoš et al., 2020)
-(<https://doi.org/10.31234/osf.io/75bqn>).
+accompanied by a tutorial paper with more examples (Bartoš, Maier,
+Quintana, et al., 2021) (<https://doi.org/10.31234/osf.io/75bqn>).
 
 We also prepared multiple vignettes that illustrate functionality of the
 package:
@@ -41,12 +41,15 @@ package:
     (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
 -   [Fitting custom meta-analytic
     ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+-   [Informed Bayesian model-averaged meta-analysis in
+    medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
 
 ## Updates
 
 The package was updated to version 2.0 to provides Bayesian
 model-averaging across selection models and PET-PEESE (as described in
-Bartoš et al. (2021) at <https://doi.org/10.31234/osf.io/kvsp7>).
+Bartoš, Maier, Wagenmakers, et al. (2021) at
+<https://doi.org/10.31234/osf.io/kvsp7>).
 
 ### Backwards Compatibility
 
@@ -81,7 +84,7 @@ The 2.0 version brings several updates to the package:
     `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
 -   new default prior distribution specification for the publication
     bias adjustment part of the models (corresponding to the RoBMA-PSMA
-    model from Bartoš et al. (2021)),
+    model from Bartoš, Maier, Wagenmakers, et al. (2021)),
 -   new `model_type` argument allowing to specify different “pre-canned”
     models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` =
     corresponding to Maier et al. (in press)),
@@ -117,12 +120,12 @@ devtools::install_github("fbartos/RoBMA")
 ## Example
 
 To illustrate the functionality of the package, we fit the RoBMA-PSMA
-model from the example in Bartoš et al. (2021) to adjust for publication
-bias in the infamous Bem (2011) “Feeling the future” pre-cognition
-study. The RoBMA-PSMA model combines six selection models and PET-PEESE
-to adjust for publication bias. As in the pre-print, we analyze the data
-as described by Bem et al. (2011) in his reply to methodological
-critiques.
+model from the example in Bartoš, Maier, Wagenmakers, et al. (2021) to
+adjust for publication bias in the infamous Bem (2011) “Feeling the
+future” pre-cognition study. The RoBMA-PSMA model combines six selection
+models and PET-PEESE to adjust for publication bias. As in the
+pre-print, we analyze the data as described by Bem et al. (2011) in his
+reply to methodological critiques.
 
 First, we load the package and the data set included in the package.
 
@@ -330,9 +333,10 @@ line-spacing="2">
 
 <div id="ref-bartos2020adjusting" class="csl-entry">
 
-Bartoš, F., Maier, M., & Wagenmakers, E.-J. (2020). Adjusting for
-publication bias in JASP — selection models and robust Bayesian
-meta-analysis. In *PsyArXiv*. <https://doi.org/10.31234/osf.io/75bqn>
+Bartoš, F., Maier, M., Quintana, D. S., & Wagenmakers, E.-J. (2021).
+Adjusting for publication bias in JASP & R – selection models,
+PET-PEESE, and robust Bayesian meta-analysis. In *PsyArXiv*.
+<https://doi.org/10.31234/osf.io/75bqn>
 
 </div>
 

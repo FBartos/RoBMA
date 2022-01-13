@@ -24,11 +24,13 @@
     }
   }
 
+  .check_BayesTools()
+
 }
 
 .onAttach <- function(libname, pkgname){
 
-  packageStartupMessage("This is a 2.1 version of the RoBMA package (see NEWS for detailed overview of the changes).")
+  # packageStartupMessage("This is a 2.1 version of the RoBMA package (see NEWS for detailed overview of the changes).")
 
 }
 
