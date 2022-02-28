@@ -62,7 +62,14 @@
 #' @param priors_bias_null list of prior weight functions for the \code{omega} parameter
 #' that will be treated as belonging to the null hypothesis. Defaults no publication
 #' bias adjustment, \code{prior_none()}.
-#' @param chains a number of chains of the MCMC algorithm
+#' @param priors_rho list of prior distributions for the variance allocation (\code{rho})
+#' parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+#' users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
+#' an experimental feature and see News for more details. Defaults to a beta distribution
+#' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
+#' @param priors_rho_null list of prior distributions for the variance allocation (\code{rho})
+#' parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
+#' @param chains a number of chains of the MCMC algorithm.
 #' @param sample a number of sampling iterations of the MCMC algorithm.
 #' Defaults to \code{5000}.
 #' @param burnin a number of burnin iterations of the MCMC algorithm.
@@ -221,6 +228,9 @@ RoBMA <- function(
     object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, data = data, transformation = transformation)
   }
 
+  if(!attr(object$data, "all_independent")){
+    .multivariate_warning()
+  }
 
   ### check MCMC settings
   object$fit_control        <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
@@ -346,6 +356,13 @@ RoBMA <- function(
 #' @param prior_bias_null prior distribution for the publication bias adjustment
 #' component that will be treated as belonging to the null hypothesis.
 #' Defaults to \code{NULL}.
+#' @param prior_rho prior distributions for the variance allocation (\code{rho})
+#' parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+#' users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
+#' an experimental feature and see News for more details. Defaults to a beta distribution
+#' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
+#' @param prior_rho_null prior distributions for the variance allocation (\code{rho})
+#' parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
 #' @param prior_weights either a single value specifying prior model weight
 #' of a newly specified model using priors argument, or a vector of the
 #' same length as already fitted models to update their prior weights.
@@ -413,7 +430,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     what_to_do <- "fit_new_model"
     new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_rho_null, prior_rho, object$add_info[["prior_scale"]])
 
-    object$models[length(object$models) + 1]  <- list(.make_models(new_priors)[[1]])
+    object$models[length(object$models) + 1]  <- list(.make_models(new_priors, !attr(object$data, "all_independent"))[[1]])
 
     if(!is.null(prior_weights)){
       object$models[[length(object$models)]]$prior_weights     <- prior_weights

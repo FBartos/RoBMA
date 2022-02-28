@@ -3,17 +3,17 @@ skip_on_cran()
 
 # the plotting functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", 1:12, ".RDS")
+saved_files <- paste0("fit_", 1:13, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
 }
 
 # alternative components present in the models:
-effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12)
-heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12)
-weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11)
-PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11)
+effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13)
+heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13)
+weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13)
+PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13)
 no_weightfunctions <- c(3, 8, 12)
 no_PETPEESE        <- c(2, 8, 10, 12)
 
@@ -145,6 +145,10 @@ test_that("Parameter plots work", {
   # transformation
   expect_doppelganger(paste0("plot_PETPEESE5_",i), function()plot(saved_fits[[i]], "PETPEESE", output_scale = "logOR"))
   expect_doppelganger(paste0("plot_PETPEESE6_",i), function()plot(saved_fits[[i]], "PETPEESE", output_scale = "r", prior = TRUE))
+
+  ### 3-level structure
+  expect_doppelganger(paste0("plot_rho_",13),  function()plot(saved_fits[[13]], "rho"))
+  expect_doppelganger(paste0("plot_rho2_",13), function()plot(saved_fits[[13]], "rho"))
 })
 
 

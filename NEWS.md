@@ -1,3 +1,7 @@
+## to be version 2.2
+### Features
+- three-level meta-analysis by specifying `study_ids` argument in `RoBMA`. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).
+
 ## version 2.1.2
 ### Fixes
 - adding Windows ucrt patch (thanks to Tomas Kalibera)

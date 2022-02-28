@@ -3,7 +3,7 @@ skip_on_cran()
 skip_on_covr()
 
 # test objects
-saved_files <- paste0("fit_", 1:12, ".RDS")
+saved_files <- paste0("fit_", 1:13, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
@@ -181,6 +181,14 @@ test_that("Convergence warnings work", {
   )
 })
 
+test_that("3-level models work", {
+
+  fit13 <- suppressWarnings(try_parallel(RoBMA(d = d, se = d_se, study_ids = c(1,1,2), seed = 1, parallel = TRUE,
+                              autofit = FALSE, thin = 2, sample = 1000, burnin = 500, adapt = 100, chains = 1)))
+  fit13 <- remove_time(fit13)
+  expect_equal(clean_all(saved_fits[[13]]), clean_all(fit13))
+
+})
 
 #### creating / updating the test settings ####
 if(FALSE){

@@ -85,6 +85,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   BayesTools::check_bool(short_name, "short_name")
   BayesTools::check_bool(remove_spike_0, "remove_spike_0")
 
+  # apply version changes to RoBMA object
+  object <- .update_object(object)
+
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]
   }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
@@ -176,6 +179,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     }
     if(any(components == "Heterogeneity")){
       parameters[["Heterogeneity"]] <- "tau"
+      if(!attr(object$data, "all_independent")){
+        parameters[["Var. allocation"]] <- "rho"
+      }
     }
     if(any(components == "Bias")){
       parameters[["Bias"]] <- c("PET", "PEESE", "omega")
@@ -211,6 +217,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     }
     if(any(components == "Heterogeneity")){
       parameters[["Heterogeneity"]] <- "tau"
+      if(!attr(object$data, "all_independent")){
+        parameters[["Var. allocation"]] <- "rho"
+      }
     }
     if(any(components == "Bias")){
       parameters[["Bias"]] <- c("PET", "PEESE", "omega")

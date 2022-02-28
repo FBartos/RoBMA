@@ -26,6 +26,8 @@ check_setup(
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location
     = 0)),
   priors_bias_null = prior_none(),
+  priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_rho_null = NULL,
   models = FALSE,
   silent = FALSE
 )
@@ -82,6 +84,15 @@ a point null hypotheses at zero (a fixed effect meta-analytic models),
 \item{priors_bias_null}{list of prior weight functions for the \code{omega} parameter
 that will be treated as belonging to the null hypothesis. Defaults no publication
 bias adjustment, \code{prior_none()}.}
+
+\item{priors_rho}{list of prior distributions for the variance allocation (\code{rho})
+parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
+an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
+\item{priors_rho_null}{list of prior distributions for the variance allocation (\code{rho})
+parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{models}{should the models' details be printed.}
 

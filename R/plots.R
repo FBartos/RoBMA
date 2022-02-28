@@ -92,12 +92,15 @@ plot.RoBMA  <- function(x, parameter = "mu",
   BayesTools::check_bool(rescale_x, "rescale_x")
   BayesTools::check_bool(show_data, "show_data")
 
+  # apply version changes to RoBMA object
+  x <- .update_object(x)
+
   # deal with bad parameter names for PET-PEESE, weightfunction
   if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
     parameter <- "omega"
   }else if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) == "petpeese"){
     parameter <- "PETPEESE"
-  }else if(!parameter %in% c("mu", "tau")){
+  }else if(!parameter %in% c("mu", "tau", "rho")){
     stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
   }
 
@@ -117,6 +120,9 @@ plot.RoBMA  <- function(x, parameter = "mu",
       transformation <- eval(parse(text = paste0(".scale_", output_scale, "2", results_scale)))
     }else if(parameter == "PET"){
       # PET is scale invariant
+      transformation <- NULL
+    }else if(parameter == "rho"){
+      # rho is scale invariant
       transformation <- NULL
     }else if(parameter == "mu"){
       transformation <- eval(parse(text = paste0(".", results_scale, "2", output_scale)))
@@ -175,12 +181,13 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }
   }
 
-  if(parameter %in% c("mu", "tau", "omega")){
+  if(parameter %in% c("mu", "tau", "rho", "omega")){
     if(conditional && is.null(samples[[parameter]])){
       switch(
         parameter,
         "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect."),
         "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity."),
+        "rho"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the three-level structure. Please, verify that you specified at least one model assuming the presence of the three-level structure."),
         "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of selection models publication bias adjustment. Please, verify that you specified at least one model assuming the presence of selection models publication bias adjustment.")
       )
     }else if(is.null(samples[[parameter]])){
@@ -188,6 +195,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
         parameter,
         "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the effect. Please, verify that you specified at least one model for the effect."),
         "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the heterogeneity. Please, verify that you specified at least one model for the heterogeneity."),
+        "rho"   = stop("The ensemble does not contain any posterior samples model-averaged across the three-level structure. Please, verify that you specified at least one model for the three-level structure."),
         "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the selection models publication bias adjustment. Please, verify that you specified at least one selection models publication bias adjustment.")
       )
     }
