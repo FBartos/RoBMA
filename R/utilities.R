@@ -80,12 +80,14 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
     paste0(RoBMA.version, collapse = "."),
     "2.1.1" = "0.1.3",
     "2.1.2" = "0.1.3",
+    "2.2.0" = "0.1.3",
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
   BayesTools_max <- switch(
     paste0(RoBMA.version, collapse = "."),
     "2.1.1" = "0.1.3",
     "2.1.2" = "0.1.3",
+    "2.2.0" = "0.1.3",
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
