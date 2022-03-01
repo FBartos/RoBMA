@@ -140,7 +140,9 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   	}
 
 	  // increase index for the next iteration
-    increase_index( &index_weights[0], K-1, J-1);
+	  if((i + 1) < pow(J, K)){
+	    increase_index( &index_weights[0], K-1, J-1);
+	  }
   }
 
   // clean the memory
@@ -150,7 +152,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   delete[] temp_lower;
   delete[] temp_upper;
   delete[] temp_infin;
-  //delete[] index_weights; // This crahses the code :(
+  delete[] index_weights;
 
   return log(std_constant);
 }
