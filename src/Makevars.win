@@ -61,7 +61,7 @@ endif
 
 # Set the CPPFLAGS accordingly
 # Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
-PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=0$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION)
+PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION)
 
 PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 
@@ -76,7 +76,7 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
 		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
 		  functions/wmnorm.o functions/mnorm.o \
 		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
-		  init.o RoBMA.o testRoBMA.o \
+		  init.o RoBMA.o testRoBMA.o
 
 ###############
 
