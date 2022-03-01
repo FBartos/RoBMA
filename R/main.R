@@ -276,7 +276,7 @@ RoBMA <- function(
 
     fitting_order <- .fitting_priority(object[["models"]])
 
-    cl <- parallel::makePSOCKcluster(floor(RoBMA:::RoBMA.private[["max_cores"]] / object$fit_control[["chains"]]))
+    cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
     parallel::clusterEvalQ(cl, {library("RoBMA")})
     parallel::clusterExport(cl, "object", envir = environment())
     object$models <- parallel::parLapplyLB(cl, fitting_order, .fit_RoBMA_model, object = object)[order(fitting_order)]
