@@ -47,13 +47,12 @@ jobs:
         run: |
           brew update
           brew upgrade llvm # temporary step because macOS image still contains Clang 9 by default
-      - name: configure
+
+      - name: configure lang on macOS (compilation issues with RoBMA)
+        if: runner.os == 'macOS'
         run: |
           export CXX="/usr/local/opt/llvm/bin/clang++" # Switch to Clang 10
-          cmake CMakeLists.txt
-      - name: make
-        run: make
-        
+
       - name: Query dependencies
         run: |
           install.packages('remotes')
