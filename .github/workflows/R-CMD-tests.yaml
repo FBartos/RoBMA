@@ -100,7 +100,7 @@ jobs:
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
           JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.2.0"
-          JAGS_MAJOR_FORCED: 4
+          JAGS_MAJOR_VERSION: 4
         run: |
           remotes::install_deps(dependencies = TRUE)
           remotes::install_cran("rcmdcheck")
