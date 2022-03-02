@@ -71,23 +71,10 @@ dwnorm <- function(x, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   if(type == "two.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(abs(x[i]) >= crit_x[i, ncol(omega)-1]){
-        return(log(omega[i,ncol(omega)]))
-      }else if(abs(x[i]) < crit_x[i,1]){
-        return(log(omega[i,1]))
-      }else{
-        for(j in 2:ncol(omega)){
-          if(abs(x[i]) < crit_x[i,j] & abs(x[i]) >= crit_x[i,j-1]){
-            return(log(omega[i,j]))
-          }
-        }
-      }
-    })
-
+    w <- sapply(1:length(x), function(i) .get_log_weight_twosided(x[i], crit_x = crit_x[i, ], omega = omega[i, ]))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     # compute the denominator
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd) - stats::pnorm(-crit_x[,1], mean, sd), ncol = 1)
@@ -109,23 +96,10 @@ dwnorm <- function(x, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }else if(type == "one.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(x[i] >= crit_x[i, ncol(omega)-1]){
-        return(log(omega[i,ncol(omega)]))
-      }else if(x[i] < crit_x[i,1]){
-        return(log(omega[i,1]))
-      }else{
-        for(j in 2:ncol(omega)){
-          if(x[i] < crit_x[i,j] & x[i] >= crit_x[i,j-1]){
-            return(log(omega[i,j]))
-          }
-        }
-      }
-    })
-
+    w <- sapply(1:length(x), function(i) .get_log_weight_onesided(x[i], crit_x = crit_x[i, ], omega = omega[i, ]))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd), ncol = 1)
     # check and correct for possibly negative numbers due to numerical imprecision
@@ -287,22 +261,11 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   x <- rep(NA, n)
   for(i in 1:n){
     while(is.na(x[i])){
-      # sample a t-stat
+      # sample a normal observation
       temp_x <- stats::rnorm(1, mean = mean[i], sd = sd[i])
 
       # find it's weight
-      if(temp_x >= crit_x[i, ncol(omega)-1]){
-        temp_omega <- omega[i, ncol(omega)]
-      }else if(temp_x < crit_x[i,1]){
-        temp_omega <- omega[i,1]
-      }else{
-        for(j in 2:ncol(omega)){
-          if(temp_x < crit_x[i,j] & temp_x >= crit_x[i,j-1]){
-            temp_omega <- omega[i,j]
-            break
-          }
-        }
-      }
+      temp_omega <- exp(.get_log_weight_onesided(temp_x, crit_x = crit_x[i, ], omega = omega[i, ]))
 
       if(stats::rbinom(1, 1, prob = temp_omega) == 1){
         x[i] <- temp_x
@@ -442,23 +405,10 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   if(type == "two.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(abs(x[i]) >= crit_x[i, length(omega)-1]){
-        return(log(omega[length(omega)]))
-      }else if(abs(x[i]) < crit_x[i,1]){
-        return(log(omega[1]))
-      }else{
-        for(j in 2:length(omega)){
-          if(abs(x[i]) < crit_x[i,j] & abs(x[i]) >= crit_x[i,j-1]){
-            return(log(omega[j]))
-          }
-        }
-      }
-    })
-
+    w <- sapply(1:length(x), function(i) .get_log_weight_twosided(x[i], crit_x = crit_x[i, ], omega = omega))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     # compute the denominator
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd) - stats::pnorm(-crit_x[,1], mean, sd), ncol = 1)
@@ -478,22 +428,10 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }else if(type == "one.sided"){
 
     # assign appropriate weights to the current values
-    w <- sapply(1:length(x),function(i){
-      if(x[i] >= crit_x[i, length(omega)-1]){
-        return(log(omega[length(omega)]))
-      }else if(x[i] < crit_x[i,1]){
-        return(log(omega[1]))
-      }else{
-        for(j in 2:length(omega)){
-          if(x[i] < crit_x[i,j] & x[i] >= crit_x[i,j-1]){
-            return(log(omega[j]))
-          }
-        }
-      }
-    })
+    w <- sapply(1:length(x), function(i) .get_log_weight_onesided(x[i], crit_x = crit_x[i, ], omega = omega))
 
     # compute the nominator
-    nom <- stats::dnorm(x, mean, sd, log = T)+w
+    nom <- stats::dnorm(x, mean, sd, log = TRUE) + w
 
     denoms  <- matrix(stats::pnorm(crit_x[,1], mean, sd), ncol = 1)
     denoms[denoms < 0, 1]  <- 0 # check and correct for possibly negative numbers due to numerical imprecision
@@ -574,6 +512,225 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   return(crit_x)
 }
 
+
+#' @title Weighted multivariate normal distribution
+#'
+#' @description Density function for the weighted multivariate normal
+#' distribution with \code{mean}, covariance matrix \code{sigma},
+#' critical values \code{crit_x}, and weights \code{omega}.
+#'
+#' @param x quantiles.
+#' @param p vector of probabilities.
+#' @param mean mean
+#' @param sigma covariance matrix.
+#' @param crit_x vector of critical values defining steps.
+#' @param omega vector of weights defining the probability
+#' of observing a t-statistics between each of the two steps.
+#' @param type type of weight function (defaults to \code{"two.sided"}).
+#' @param log,log.p logical; if \code{TRUE}, probabilities
+#' \code{p} are given as \code{log(p)}.
+#'
+#'
+#' @return \code{.dwmnorm_fast} returns a density of the multivariate
+#' weighted normal distribution.
+#'
+#' @name weighted_multivariate_normal
+#'
+#' @seealso \link[stats]{Normal}, [weighted_normal]
+NULL
+
+# fast computation - no input check, pre-formatted for bridge-sampling
+.dwmnorm_fast   <- function(x, mean, sigma, omega, crit_x, type = "two.sided", log = TRUE){
+
+  if(type == "two.sided"){
+
+    log_w   <- sum(sapply(1:length(mean), function(k) .get_log_weight_twosided(x[k], crit_x[,k], omega)))
+    log_lik <- mvtnorm::dmvnorm(x = x, mean = mean, sigma = sigma, log = TRUE) + log_w;
+
+    log_std_constant <- .dwmnorm_log_std_constant_twosided(x, mean, sigma, crit_x, omega)
+
+    log_lik <- log_lik - log_std_constant
+
+  }else if(type == "one.sided"){
+
+    log_w   <- sum(sapply(1:length(mean), function(k) .get_log_weight_onesided(x[k], crit_x[,k], omega)))
+    log_lik <- mvtnorm::dmvnorm(x = x, mean = mean, sigma = sigma, log = TRUE) + log_w;
+
+    log_std_constant <- .dwmnorm_log_std_constant_onesided(x, mean, sigma, crit_x, omega)
+
+    log_lik <- log_lik - log_std_constant
+
+  }
+
+
+  if(log){
+    return(log_lik)
+  }else{
+    return(exp(log_lik))
+  }
+}
+.dwmnorm_v_fast <- function(x_v, mean_v, se2_v, tau2, rho, crit_x_v, omega, indx_v, type = "two.sided", log = TRUE){
+
+  log_lik <- 0
+
+  for(i in seq_along(indx_v)){
+
+    # break into the individual observations
+    if(i == 1){
+      temp_K <- indx_v[i]
+    }else{
+      temp_K <- indx_v[i] - indx_v[i - 1]
+    }
+    indx_start <- indx_v[i] - temp_K + 1
+
+    temp_index <- indx_start:indx_v[i]
+
+    temp_x      <- x_v[temp_index]
+    temp_mu     <- mean_v[temp_index]
+    temp_sigma  <- diag(se2_v[temp_index] + tau2 * (1-rho), nrow = temp_K, ncol = temp_K) + matrix(tau2 * rho, nrow = temp_K, ncol = temp_K)
+    if(type != "none"){
+      temp_crit_x <- crit_x_v[,temp_index,drop = FALSE]
+    }
+
+
+    if(type == "two.sided"){
+
+      temp_log_w   <- sum(sapply(1:length(temp_mu), function(k) .get_log_weight_twosided(temp_x[k], temp_crit_x[,k], omega)))
+      temp_log_lik <- mvtnorm::dmvnorm(x = temp_x, mean = temp_mu, sigma = temp_sigma, log = TRUE) + temp_log_w;
+
+      temp_log_std_constant <- .dwmnorm_log_std_constant_twosided(temp_x, temp_mu, temp_sigma, temp_crit_x, omega)
+
+      log_lik <- log_lik + (temp_log_lik - temp_log_std_constant)
+
+    }else if(type == "one.sided"){
+
+      temp_log_w   <- sum(sapply(1:length(temp_mu), function(k) .get_log_weight_onesided(temp_x[k], temp_crit_x[,k], omega)))
+      temp_log_lik <- mvtnorm::dmvnorm(x = temp_x, mean = temp_mu, sigma = temp_sigma, log = TRUE) + temp_log_w;
+
+      temp_log_std_constant <- .dwmnorm_log_std_constant_onesided(temp_x, temp_mu, temp_sigma, temp_crit_x, omega)
+
+      log_lik <- log_lik + (temp_log_lik - temp_log_std_constant)
+
+    }else if(type == "none"){
+
+      log_lik <- log_lik + mvtnorm::dmvnorm(x = temp_x, mean = temp_mu, sigma = temp_sigma, log = TRUE)
+
+    }
+  }
+
+
+  if(log){
+    return(log_lik)
+  }else{
+    return(exp(log_lik))
+  }
+}
+
+
+# standardizing constant calculation
+.dwmnorm_log_std_constant_onesided <- function(x, mu, sigma, crit_x, omega){
+
+  std_constant <- 0
+
+  # create a matrix indexing all sub-spaces created by the cut-points
+  indexes <- as.matrix(do.call(expand.grid, args = lapply(1:length(mu), function(i) 1:length(omega))))
+
+  for(i in 1:nrow(indexes)){
+
+    # get the current lower and upper boundaries
+    temp_lower <- .dwmnorm_lower_bound(crit_x, indexes[i,])
+    temp_upper <- .dwmnorm_upper_bound(crit_x, indexes[i,])
+
+    # get the probability and weights
+    temp_log_prob   <- log(mvtnorm::pmvnorm(lower = temp_lower, upper = temp_upper, mean = mu, sigma = sigma))
+    temp_log_weight <- sum(log(omega[unlist(indexes[i,])]))
+
+    # add to the constant
+    std_constant <- std_constant + exp(temp_log_prob + temp_log_weight)
+  }
+
+  return(log(std_constant))
+}
+.dwmnorm_log_std_constant_twosided <- function(x, mu, sigma, crit_x, omega){
+
+  # turn the two-sided selection into one-sided selection
+  crit_x <- rbind(-crit_x[nrow(crit_x):1,,drop=FALSE], crit_x)
+  omega  <- c(rev(omega[-1]), omega)
+
+  log_std_constant <- .dwmnorm_log_std_constant_onesided(x = x, mu = mu, sigma = sigma, crit_x = crit_x, omega = omega)
+
+  return(log_std_constant)
+}
+
+# functions for assigning bounds
+.dwmnorm_lower_bound <- function(crit_x, index){
+  return(sapply(1:ncol(crit_x), function(k){
+    if(index[k] == 1){
+      return(-Inf)
+    }else{
+      return(crit_x[index[k] - 1, k])
+    }
+  }))
+}
+.dwmnorm_upper_bound <- function(crit_x, index){
+  return(sapply(1:ncol(crit_x), function(k){
+    if(index[k] == nrow(crit_x) + 1){
+      return(Inf)
+    }else{
+      return(crit_x[index[k], k])
+    }
+  }))
+}
+
+
+#### general helper functionts
+# functions for assigning weights & bounds
+.get_log_weight_onesided <- function(x, crit_x, omega){
+
+  # number of weights
+  J <- length(omega)
+
+  if(x >= crit_x[J - 1]){
+    # return the last omega if x > last crit_x
+    w <- omega[J]
+  }else if(x < crit_x[1]){
+    # return the first omega if x < first crit_x
+    w <- omega[1]
+  }else{
+    # check the remaining cutpoints sequentially
+    for(i in 2:J){
+      if( (x >= crit_x[i - 1]) && (x < crit_x[i]) ){
+        w = omega[i]
+        break
+      }
+    }
+  }
+
+  return(log(w))
+}
+.get_log_weight_twosided <- function(x, crit_x, omega){
+
+  # number of weights
+  J <- length(omega)
+
+  if(abs(x) >= crit_x[J - 1]){
+    # return the last omega if x > last crit_x
+    w <- omega[J]
+  }else if(abs(x) < crit_x[1]){
+    # return the first omega if x < first crit_x
+    w <- omega[1]
+  }else{
+    # check the remaining cutpoints sequentially
+    for(i in 2:J){
+      if( (abs(x) >= crit_x[i - 1]) && (abs(x) < crit_x[i]) ){
+        w = omega[i]
+        break
+      }
+    }
+  }
+
+  return(log(w))
+}
 
 #### legacy code for weighted-t distribution ####
 # #' @title Weighted t distribution

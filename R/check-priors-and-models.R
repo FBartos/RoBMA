@@ -1,5 +1,5 @@
 ### functions for creating model objects
-.check_and_list_priors            <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, prior_scale){
+.check_and_list_priors            <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho_null, priors_rho, prior_scale){
 
   if(!is.null(model_type) & length(model_type == 1)){
     # precanned models
@@ -13,22 +13,26 @@
         prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
         prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
         prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-        prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),             prior_weights = 1/4),
-        prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),             prior_weights = 1/4)
+        prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),   prior_weights = 1/4),
+        prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf), prior_weights = 1/4)
       )
+      priors_rho                <- NULL
       priors_effect_null        <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null          <- prior_none()
+      priors_rho_null           <- NULL
     }else if(model_type == "pp"){
       priors_effect          <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
       priors_heterogeneity   <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
       priors_bias            <- list(
-        prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),  prior_weights = 1/2),
+        prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),    prior_weights = 1/2),
         prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),  prior_weights = 1/2)
       )
+      priors_rho                 <- NULL
       priors_effect_null         <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null           <- prior_none()
+      priors_rho_null            <- NULL
     }else if(model_type == "2w"){
       priors_effect              <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
       priors_heterogeneity       <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
@@ -36,9 +40,11 @@
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),        prior_weights = 1/2),
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),  prior_weights = 1/2)
       )
+      priors_rho                 <- NULL
       priors_effect_null         <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null           <- prior_none()
+      priors_rho_null            <- NULL
     }else{
       stop("Unknown 'model_type'.")
     }
@@ -48,13 +54,14 @@
   priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
   priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
   priors$bias           <- .check_and_list_component_priors(priors_bias_null,            priors_bias,           "bias")
+  priors$rho            <- .check_and_list_component_priors(priors_rho_null,             priors_rho,            "rho")
 
   return(priors)
 }
 .check_and_list_component_priors  <- function(priors_null, priors_alt, component){
 
   # check that at least one prior is specified (either null or alternative)
-  if(is.null(priors_null) & is.null(priors_alt))
+  if(component != "rho" && (is.null(priors_null) & is.null(priors_alt)))
     stop(paste0("At least one prior needs to be specified for the ", component," parameter (either null or alternative)."))
 
   # create an empty list if user didn't specified priors
@@ -132,28 +139,45 @@
       if(!(is.prior.PET(priors[[p]]) | is.prior.PEESE(priors[[p]]) | is.prior.weightfunction(priors[[p]]) | is.prior.none(priors[[p]])))
         stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the bias component."))
     }
+  }else if(component == "rho"){
+
+    for(p in seq_along(priors)){
+
+      # check for allowed priors
+      if(!(priors[[p]][["distribution"]] == "beta"))
+        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
+    }
   }
 
   return(priors)
 }
-.make_models  <- function(priors){
+.make_models  <- function(priors, multivariate){
 
   # create models according to the set priors
   models <- NULL
   for(effect in priors[["effect"]]){
     for(heterogeneity in priors[["heterogeneity"]]){
       for(bias in priors[["bias"]]){
-        models <- c(
-          models,
-          list(.make_model(effect, heterogeneity, bias, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]]))
-        )
+        if(!is.null(priors[["rho"]]) && multivariate){
+          for(rho in priors[["rho"]]){
+            models <- c(
+              models,
+              list(.make_model(effect, heterogeneity, bias, rho, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * rho[["prior_weights"]]))
+            )
+          }
+        }else{
+          models <- c(
+            models,
+            list(.make_model(effect, heterogeneity, bias, NULL, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]]))
+          )
+        }
       }
     }
   }
 
   return(models)
 }
-.make_model   <- function(prior_effect, prior_heterogeneity, prior_bias, prior_weights){
+.make_model   <- function(prior_effect, prior_heterogeneity, prior_bias, prior_rho, prior_weights){
 
   priors <- list()
 
@@ -166,6 +190,10 @@
   }else if(is.prior.weightfunction(prior_bias)){
     priors$omega  <- prior_bias
   }
+  # add 3 level structure only if there is heterogeneity
+  if(!(prior_heterogeneity[["distribution"]] == "point" && prior_heterogeneity$parameters[["location"]] == 0) && !is.null(prior_rho)){
+    priors$rho    <- prior_rho
+  }
 
   model <- list(
     priors         = priors,
@@ -173,6 +201,7 @@
     prior_weights_set = prior_weights
   )
   class(model) <- "RoBMA.model"
+  attr(model, "multivariate") <- !is.null(priors$rho)
 
   return(model)
 }

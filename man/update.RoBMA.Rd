@@ -10,10 +10,12 @@
   prior_effect = NULL,
   prior_heterogeneity = NULL,
   prior_bias = NULL,
+  prior_rho = NULL,
   prior_weights = NULL,
   prior_effect_null = NULL,
   prior_heterogeneity_null = NULL,
   prior_bias_null = NULL,
+  prior_rho_null = NULL,
   study_names = NULL,
   chains = NULL,
   adapt = NULL,
@@ -48,6 +50,12 @@ Defaults to \code{NULL}.}
 component that will be treated as belonging to the alternative hypothesis.
 Defaults to \code{NULL}.}
 
+\item{prior_rho}{prior distributions for the variance allocation (\code{rho})
+parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
+an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
 \item{prior_weights}{either a single value specifying prior model weight
 of a newly specified model using priors argument, or a vector of the
 same length as already fitted models to update their prior weights.}
@@ -64,9 +72,12 @@ Defaults to \code{NULL}.}
 component that will be treated as belonging to the null hypothesis.
 Defaults to \code{NULL}.}
 
+\item{prior_rho_null}{prior distributions for the variance allocation (\code{rho})
+parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
+
 \item{study_names}{an optional argument with the names of the studies}
 
-\item{chains}{a number of chains of the MCMC algorithm}
+\item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{adapt}{a number of adaptation iterations of the MCMC algorithm.
 Defaults to \code{500}.}

@@ -3,13 +3,22 @@
 #include "distributions/DWT2.h"
 #include "distributions/DWN1.h"
 #include "distributions/DWN2.h"
+#include "distributions/DMN.h"
+#include "distributions/DWMN1.h"
+#include "distributions/DWMN2.h"
+#include "distributions/DMNv.h"
+#include "distributions/DWMN1v.h"
+#include "distributions/DWMN2v.h"
 
 #include "transformations/d.h"
 #include "transformations/r.h"
 #include "transformations/z.h"
 #include "transformations/logOR.h"
 
-namespace jags { 
+#include "functions/mnorm.h"
+#include "functions/wmnorm.h"
+
+namespace jags {
   namespace RoBMA { // module namespace
 
     // JAGS module class
@@ -21,13 +30,19 @@ namespace jags {
 
     // constructor (executed when loading the module)
     RoBMAModule::RoBMAModule() : Module("RoBMA"){
-      
+
       // distributions
       insert(new DWT1);
       insert(new DWT2);
       insert(new DWN1);
       insert(new DWN2);
-      
+      insert(new DMN);
+      insert(new DWMN1);
+      insert(new DWMN2);
+      insert(new DMNv);
+      insert(new DWMN1v);
+      insert(new DWMN2v);
+
       //effect sizes transformations
       insert(new d2z);
       insert(new d2r);
@@ -69,8 +84,16 @@ namespace jags {
       insert(new scale_d2r);
       insert(new scale_z2r);
       insert(new scale_logOR2r);
+
+      // likelihood functions
+      insert(new mnorm_lpdf);
+      insert(new wmnorm_1s_lpdf);
+      insert(new wmnorm_2s_lpdf);
+      insert(new mnorm_v_lpdf);
+      insert(new wmnorm_1s_v_lpdf);
+      insert(new wmnorm_2s_v_lpdf);
     }
-    
+
     // destructor (executed when unloading the module)
     RoBMAModule::~RoBMAModule() {
       std::vector<Function*> const &fvec = functions();

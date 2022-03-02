@@ -17,6 +17,7 @@ combine_data(
   lCI = NULL,
   uCI = NULL,
   study_names = NULL,
+  study_ids = NULL,
   data = NULL,
   transformation = "fishers_z",
   return_all = FALSE
@@ -47,6 +48,10 @@ transformations are unavailable with this type of input)}
 \item{uCI}{a vector of upper bounds of confidence intervals}
 
 \item{study_names}{an optional argument with the names of the studies}
+
+\item{study_ids}{an optional argument specifying dependency between the
+studies (for using a multilevel model). Defaults to \code{NULL} for
+studies being independent.}
 
 \item{data}{a data frame with column names corresponding to the
 variable names used to supply data individually}

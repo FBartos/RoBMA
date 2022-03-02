@@ -124,6 +124,12 @@ check_RoBMA <- function(fit){
     return(priors[["mu"]][["is_null"]])
   }else if(component == "heterogeneity"){
     return(priors[["tau"]][["is_null"]])
+  }else if(component == "multivariate"){
+    if(priors[["tau"]][["is_null"]] || is.null(priors[["rho"]])){
+      return(TRUE)
+    }else{
+      return(priors[["rho"]][["is_null"]])
+    }
   }else if(component == "bias"){
     if(!is.null(priors[["omega"]])){
       return(priors[["omega"]][["is_null"]])
@@ -135,4 +141,16 @@ check_RoBMA <- function(fit){
       return(TRUE)
     }
   }
+}
+.multivariate_warning        <- function(){
+  warning("You are about to estimate multivariate models. Note that this is an extremely computationaly expensive experimental feature.", immediate. = TRUE)
+}
+.update_object               <- function(object){
+
+  # 2.1 -> 2.2
+  if(is.null(attr(object$data, "all_independent"))){
+    attr(object$data, "all_independent") <- TRUE
+  }
+
+  return(object)
 }

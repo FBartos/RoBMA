@@ -1,5 +1,5 @@
-#ifndef transformations_common_H_
-#define transformations_common_H_
+#ifndef transformations_H_
+#define transformations_H_
 
 
 double pi ();
@@ -59,4 +59,4 @@ double cpp_se_z           (double n);
 double cpp_n_d            (double d, double se);
 double cpp_n_r            (double r, double se);
 double cpp_n_z            (double se);
-#endif /* transformations_common_H_ */
+#endif /* transformations_H_ */

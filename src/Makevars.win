@@ -63,7 +63,7 @@ endif
 # Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
 PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION)
 
-PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0
+PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 
 
 ###############
@@ -71,7 +71,12 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0
 ### NB: the objects in distributions/jags are only necessary for JAGS <=3, and are excluded by the sources when compiling against JAGS >= 4
 ###############
 
-OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
+ 		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
+		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
+		  functions/wmnorm.o functions/mnorm.o \
+		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
+		  init.o RoBMA.o testRoBMA.o
 
 ###############
 
@@ -82,7 +87,12 @@ OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distrib
 ###############
 
 # PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include"
-# PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4
-# OBJECTS = distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o transformations/transformations_common.o init.o RoBMA.o testRoBMA.o
+# PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -ljrmath-0
+# OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMT2v.o distributions/DWMT1v.o distributions/DWMT2v.o \
+# 	  	    distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
+#           transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
+#		    functions/wmnorm.o functions/mnorm.o \ 
+#		    source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \ 
+#		    init.o RoBMA.o testRoBMA.o
 
 ###############

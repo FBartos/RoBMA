@@ -17,6 +17,7 @@ RoBMA(
   uCI = NULL,
   t = NULL,
   study_names = NULL,
+  study_ids = NULL,
   data = NULL,
   transformation = if (is.null(y)) "fishers_z" else "none",
   prior_scale = if (is.null(y)) "cohens_d" else "none",
@@ -42,6 +43,8 @@ RoBMA(
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location
     = 0)),
   priors_bias_null = prior_none(),
+  priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_rho_null = NULL,
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -82,6 +85,10 @@ transformations are unavailable with this type of input)}
 \item{t}{a vector of t/z-statistics}
 
 \item{study_names}{an optional argument with the names of the studies}
+
+\item{study_ids}{an optional argument specifying dependency between the
+studies (for using a multilevel model). Defaults to \code{NULL} for
+studies being independent.}
 
 \item{data}{a data object created by the \code{combine_data} function. This is
 an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
@@ -159,7 +166,16 @@ a point null hypotheses at zero (a fixed effect meta-analytic models),
 that will be treated as belonging to the null hypothesis. Defaults no publication
 bias adjustment, \code{prior_none()}.}
 
-\item{chains}{a number of chains of the MCMC algorithm}
+\item{priors_rho}{list of prior distributions for the variance allocation (\code{rho})
+parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
+an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
+\item{priors_rho_null}{list of prior distributions for the variance allocation (\code{rho})
+parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
+
+\item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}

@@ -1,6 +1,9 @@
 # adapted from the runjags package version 2.2.0
 .onLoad <- function(libname, pkgname){
 
+  requireNamespace("runjags")
+  requireNamespace("mvtnorm")
+
   RoBMA.private$RoBMA_version <- utils::packageDescription(pkgname, fields = 'Version')
 
   # Get and save the library location, getting rid of any trailing / caused by r_arch being empty:

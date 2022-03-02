@@ -29,11 +29,13 @@ check_setup <- function(
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
   priors_bias_null           = prior_none(),
+  priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_rho_null            = NULL,
   models = FALSE, silent = FALSE){
 
   object <- list()
-  object$priors   <- .check_and_list_priors(tolower(model_type), priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, object$add_info[["prior_scale"]])
-  object$models   <- .make_models(object[["priors"]])
+  object$priors   <- .check_and_list_priors(tolower(model_type), priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho, priors_rho_null, object$add_info[["prior_scale"]])
+  object$models   <- .make_models(object[["priors"]], multivariate = FALSE)
 
 
   ### model types overview
