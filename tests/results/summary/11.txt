@@ -17,4 +17,5 @@
 "omega[0,0.1] 1.000  1.000  1.000 1.000"
 "omega[0.1,1] 0.886  1.000  0.200 1.000"
 "PET          0.383  0.000  0.000 1.679"
+"The estimates are summarized on the none scale (priors were specified on the none scale)."
 "(Estimated publication weights omega correspond to two-sided p-values.)"

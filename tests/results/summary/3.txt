@@ -14,3 +14,4 @@
 "tau   0.108  0.000  0.000 0.627"
 "PET   0.264  0.000  0.000 1.647"
 "PEESE 0.213  0.000  0.000 2.679"
+"The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."

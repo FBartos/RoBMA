@@ -18,4 +18,5 @@
 "omega[0,0.1] 1.000  1.000  1.000 1.000"
 "omega[0.1,1] 0.833  1.000  0.210 1.000"
 "PET          0.371  0.100  0.000 1.732"
+"The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
 "(Estimated publication weights omega correspond to one-sided p-values.)"

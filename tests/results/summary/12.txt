@@ -13,3 +13,4 @@
 "     Mean Median 0.025 0.975"
 "mu  0.448  0.467 0.000 0.885"
 "tau 0.000  0.000 0.000 0.000"
+"The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."

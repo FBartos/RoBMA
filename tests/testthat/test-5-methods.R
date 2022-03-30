@@ -36,10 +36,10 @@ test_that("Summary functions work", {
       ""                                                                       ,
       "Robust Bayesian meta-analysis"                                          ,
       "Components summary:"                                                    ,
-      "              Models Prior prob. Post. prob. Inclusion log(1/BF)"       ,
-      "Effect         18/36       0.500       0.493               0.026"       ,
-      "Heterogeneity  18/36       0.500       0.462               0.153"       ,
-      "Bias           32/36       0.500       0.540              -0.159"       ,
+      "              Models Prior prob. Post. prob. log(Exclusion BF)"         ,
+      "Effect         18/36       0.500       0.493             0.026"         ,
+      "Heterogeneity  18/36       0.500       0.462             0.153"         ,
+      "Bias           32/36       0.500       0.540            -0.159"         ,
       ""                                                                       ,
       "Model-averaged estimates:"                                              ,
       "                   Mean Median   0.1   0.5   0.9"                       ,
@@ -53,6 +53,7 @@ test_that("Summary functions work", {
       "omega[0.975,1]    0.801  1.000 0.136 1.000 1.000"                       ,
       "PET               0.110  0.000 0.000 0.000 0.401"                       ,
       "PEESE             0.087  0.000 0.000 0.000 0.000"                       ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
       "(Estimated publication weights omega correspond to one-sided p-values.)",
       ""                                                                       ,
       "Conditional estimates:"                                                 ,
@@ -67,6 +68,7 @@ test_that("Summary functions work", {
       "omega[0.975,1]    0.435  0.304 0.040 0.304 1.000"                       ,
       "PET               0.825  0.753 0.167 0.753 1.564"                       ,
       "PEESE             1.690  1.540 0.347 1.540 3.201"                       ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
       "(Estimated publication weights omega correspond to one-sided p-values.)")
   )
 
@@ -117,10 +119,12 @@ test_that("Summary functions work", {
        "     Mean Median 0.025 0.975"                                               ,
        "mu  0.000  0.000 0.000 0.000"                                               ,
        "tau 0.000  0.000 0.000 0.000"                                               ,
+       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
        ""                                                                           ,
        "Conditional estimates:"                                                     ,
        "[1] Mean   Median 0.025  0.975 "                                            ,
-       "<0 rows> (or 0-length row.names)")
+       "<0 rows> (or 0-length row.names)"                                           ,
+       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).")
   )
 })
 
@@ -143,7 +147,7 @@ test_that("Models summary functions work", {
       ""                                                                                                                         ,
       "Robust Bayesian meta-analysis"                                                                                            ,
       "Models overview:"                                                                                                         ,
-      " Model Prior Effect Prior Heterogeneity            Prior Bias           Prior prob. log(marglik) Post. prob. Inclusion BF",
+      " Model Prior Effect Prior Heterogeneity              Prior Bias         Prior prob. log(marglik) Post. prob. Inclusion BF",
       "     1         S(0)                S(0)                                       0.083        -2.90       0.043        0.499",
       "     2         S(0)                S(0) omega[2s: .1] ~ CumD(1, 1)            0.083        -2.60       0.059        0.686",
       "     3         S(0)                S(0)           PET ~ N(0, 1)[0, Inf]       0.083        -1.46       0.185        2.492",
@@ -301,7 +305,8 @@ test_that("Individual summary functions work", {
       "mu           0.353 0.275 -0.195  0.357 0.883     0.00306          0.011 8076 1.000"          ,
       "tau          0.211 0.204  0.037  0.149 0.738     0.00249          0.012 6744 1.000"          ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"          ,
-      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA   NA    NA"
+      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA   NA    NA"          ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     ))
 
   # test no spikes
@@ -320,7 +325,8 @@ test_that("Individual summary functions work", {
       ""                                                                                                                                          ,
       "Parameter estimates:"                                                                                                                      ,
       "[1] Mean           SD             lCI            Median         uCI            error(MCMC)    error(MCMC)/SD ESS            R-hat         ",
-      "<0 rows> (or 0-length row.names)"
+      "<0 rows> (or 0-length row.names)"                                                                                                          ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     ))
 
 
@@ -346,7 +352,11 @@ test_that("Interpret functions work", {
 #### creating / updating the test settings ####
 if(FALSE){
 
-  saved_fits       <- readRDS(file = "tests/results/saved_fits.RDS")
+  saved_files <- paste0("fit_", 1:13, ".RDS")
+  saved_fits  <- list()
+  for(i in seq_along(saved_files)){
+    saved_fits[[i]] <- readRDS(file = file.path("tests/results/fits", saved_files[i]))
+  }
 
   # generate print files
   for(i in seq_along(saved_fits)){

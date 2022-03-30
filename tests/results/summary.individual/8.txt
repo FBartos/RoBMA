@@ -12,3 +12,4 @@
 "Parameter estimates:"
 "[1] Mean           SD             lCI            Median         uCI            error(MCMC)    error(MCMC)/SD ESS            R-hat         "
 "<0 rows> (or 0-length row.names)"
+"The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."

@@ -192,7 +192,7 @@ test_that("3-level models work", {
 
 #### creating / updating the test settings ####
 if(FALSE){
-  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12)
+  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13)
 
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])

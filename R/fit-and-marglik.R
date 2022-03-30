@@ -124,20 +124,21 @@
 
   }else{
 
-    fit_data       <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
-    converged      <- TRUE
-    has_posterior  <- FALSE
-    fit            <- list()
-    class(fit)     <- "null_model"
-    marglik        <- list()
-    marglik$logml  <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE))
-    class(marglik) <- "bridge"
+    fit_data                <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
+    converged               <- TRUE
+    has_posterior           <- FALSE
+    fit                     <- list()
+    attr(fit, "prior_list") <- priors
+    class(fit)              <- "null_model"
+    marglik                 <- list()
+    marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE))
+    class(marglik)          <- "bridge"
 
   }
 
   # add model summaries
   if(has_posterior){
-    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, prior_list = priors, warnings = warnings)
+    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings)
     if(add_info[["prior_scale"]] != "y"){
       fit_summaries <- .runjags_summary_list(fit, priors, add_info[["prior_scale"]], warnings)
     }else{
@@ -602,7 +603,6 @@
 
     summary_list[[measure]] <- BayesTools::runjags_estimates_table(
       fit             = fit,
-      prior_list      = priors,
       transformations = transformations,
       warnings        = warnings,
       footnotes       = .scale_note(priors_scale, measure),

@@ -947,11 +947,10 @@ scale_logOR2d     <- function(logOR) .scale_logOR2d$fun(logOR)
 }
 
 .scale_note <- function(prior_scale, output_scale){
-  if(prior_scale == output_scale){
-    return(NULL)
-  }else{
-    return(paste0("The estimates are summarized on the ", .transformation_names(output_scale)," scale (priors were specified on the ", .transformation_names(prior_scale), " scale)."))
-  }
+  return(sprintf(
+    "The estimates are summarized on the %1$s scale (priors were specified on the %2$s scale).",
+    .transformation_names(output_scale),
+    .transformation_names(prior_scale)))
 }
 
 

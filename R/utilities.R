@@ -76,23 +76,17 @@ assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = Ro
     return(invisible(FALSE))
   }
 
-  BayesTools_min <- switch(
+  BayesTools_required <- switch(
     paste0(RoBMA.version, collapse = "."),
-    "2.1.1" = "0.1.3",
-    "2.1.2" = "0.1.3",
-    "2.2.0" = "0.1.3",
-    stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
-  )
-  BayesTools_max <- switch(
-    paste0(RoBMA.version, collapse = "."),
-    "2.1.1" = "0.1.3",
-    "2.1.2" = "0.1.3",
-    "2.2.0" = "0.1.3",
+    "2.1.1" = c("0.1.3", "0.1.3"),
+    "2.1.2" = c("0.1.3", "0.1.3"),
+    "2.2.0" = c("0.1.3", "0.1.3"),
+    "2.2.1" = c("0.2.3", "0.2.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
-  min_OK <- all(as.integer(strsplit(BayesTools_min, ".", fixed = TRUE)[[1]]) <= unlist(BayesTools.version))
-  max_OK <- all(as.integer(strsplit(BayesTools_max, ".", fixed = TRUE)[[1]]) >= unlist(BayesTools.version))
+  min_OK <- all(as.integer(strsplit(BayesTools_required[1], ".", fixed = TRUE)[[1]]) <= unlist(BayesTools.version))
+  max_OK <- all(as.integer(strsplit(BayesTools_required[2], ".", fixed = TRUE)[[1]]) >= unlist(BayesTools.version))
 
   if(min_OK && max_OK){
     return(invisible(TRUE))
@@ -100,9 +94,9 @@ assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = Ro
     warning(sprintf(
       "RoBMA version %1$s requires BayesTools version higher or equal %2$s and lower or equal %3$s.",
       paste0(RoBMA.version, collapse = "."),
-      BayesTools_min,
-      BayesTools_max
-    ), call.=FALSE)
+      BayesTools_required[1],
+      BayesTools_required[2]
+    ), call.= FALSE)
     return(invisible(FALSE))
   }
 }

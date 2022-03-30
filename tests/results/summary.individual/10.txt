@@ -16,3 +16,4 @@
 "tau          0.211 0.204  0.037  0.149 0.738     0.00249          0.012 6744 1.000"
 "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"
 "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA   NA    NA"
+"The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."

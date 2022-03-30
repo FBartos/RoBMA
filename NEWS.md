@@ -1,3 +1,8 @@
+## version 2.2.1
+### Changes
+- message about the effect size scale of parameter estimates is always shown
+- compatibility with BayesTools 0.2.0+
+
 ## version 2.2
 ### Features
 - three-level meta-analysis by specifying `study_ids` argument in `RoBMA`. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).

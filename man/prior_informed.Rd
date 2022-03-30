@@ -18,7 +18,7 @@ of meta-analytic effect size estimates based on standardized mean differences
 social psychology based on prior elicitation with dr. Oosterwijk
 (Gronau et al. 2017).}
 }
-For medicine, the possible options are based on BartoÃ…Â¡ et al. (2021)
+For medicine, the possible options are based on BartoÅ¡ et al. (2021)
 who developed empirical prior distributions for the effect size and heterogeneity parameters of the
 continuous standardized outcomes based on the Cochrane database of systematic reviews.
 Use \code{"Cochrane"} for a prior distribution based on the whole database or call

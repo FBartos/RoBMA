@@ -52,6 +52,7 @@ test_that("Basic functionality works", {
       "omega[0.975,1]     0.781  1.000  0.017 1.000"                                                 ,
       "PET                0.045  0.000  0.000 0.641"                                                 ,
       "PEESE              0.045  0.000  0.000 0.614"                                                 ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
       "(Estimated publication weights omega correspond to one-sided p-values.)"                      ,
       "\033[0;31mModel (2): ESS 45 is lower than the set target (500).\033[0m"                       ,
       "\033[0;31mModel (3): ESS 39 is lower than the set target (500).\033[0m"                       ,
