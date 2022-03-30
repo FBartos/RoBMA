@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.1</span>
       </span>
     </div>
 
@@ -87,7 +87,7 @@
       <h1 data-toc-skip>Fitting Custom Meta-Analytic Ensembles</h1>
                         <h4 data-toc-skip class="author">František Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2022-03-03</h4>
+            <h4 data-toc-skip class="date">2022-03-30</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/CustomEnsembles.Rmd" class="external-link"><code>vignettes/CustomEnsembles.Rmd</code></a></small>
       <div class="hidden name"><code>CustomEnsembles.Rmd</code></div>
@@ -107,6 +107,8 @@
 <span class="co">#&gt; Loading required namespace: runjags</span>
 <span class="co">#&gt; Loading required namespace: mvtnorm</span>
 <span class="co">#&gt; module RoBMA loaded</span>
+<span class="co">#&gt; Warning: RoBMA version 2.2.1 requires BayesTools version higher or equal 0.2.3</span>
+<span class="co">#&gt; and lower or equal 0.2.999.</span>
 
 <span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Bem2011"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span>
 <span class="va">Bem2011</span>
@@ -295,7 +297,8 @@
 <span class="co">#&gt; omega[0.05,0.1] 0.938  1.000 0.014  1.000</span>
 <span class="co">#&gt; omega[0.1,1]    0.935  1.000 0.012  1.000</span>
 <span class="co">#&gt; PET             0.820  0.000 0.000  2.601</span>
-<span class="co">#&gt; PEESE           7.284  0.000 0.000 25.508</span></code></pre></div>
+<span class="co">#&gt; PEESE           7.284  0.000 0.000 25.508</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></code></pre></div>
 <p>The finalized ensemble can be treated as any other <code>RoBMA</code> ensemble using the <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="../reference/plot_models.html">plot_models()</a></code>, <code><a href="../reference/forest.html">forest()</a></code>, and <code><a href="../reference/diagnostics.html">diagnostics()</a></code> functions. For example, we can use the <code><a href="../reference/plot.RoBMA.html">plot.RoBMA()</a></code> with the <code>parameter = "mu", prior = TRUE</code> arguments to plot the prior (grey) and posterior distribution (black) for the effect size. The function visualizes the model-averaged estimates across all models by default. The arrows stand for the probability of a spike, here, at the value 0. The secondary y-axis (right) shows the probability of the value 0, increasing from 0.71, to 0.81.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>

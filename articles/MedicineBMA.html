@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.1</span>
       </span>
     </div>
 
@@ -87,7 +87,7 @@
       <h1 data-toc-skip>Informed Bayesian Model-Averaged Meta-Analysis in Medicine</h1>
                         <h4 data-toc-skip class="author">František Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2022-03-03</h4>
+            <h4 data-toc-skip class="date">2022-03-30</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/MedicineBMA.Rmd" class="external-link"><code>vignettes/MedicineBMA.Rmd</code></a></small>
       <div class="hidden name"><code>MedicineBMA.Rmd</code></div>
@@ -150,11 +150,13 @@
 <span class="co">#&gt;      Mean Median 0.025 0.975</span>
 <span class="co">#&gt; mu  1.076  1.088 0.664 1.422</span>
 <span class="co">#&gt; tau 0.231  0.208 0.000 0.726</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
 <span class="co">#&gt; </span>
 <span class="co">#&gt; Conditional estimates:</span>
 <span class="co">#&gt;      Mean Median 0.025 0.975</span>
 <span class="co">#&gt; mu  1.082  1.090 0.701 1.422</span>
-<span class="co">#&gt; tau 0.297  0.255 0.075 0.779</span></code></pre></div>
+<span class="co">#&gt; tau 0.297  0.255 0.075 0.779</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></code></pre></div>
 <p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 3 parts. The first one under the ‘Robust Bayesian Meta-Analysis’ heading provides a basic summary of the fitted models by component types (presence of the Effect/Heterogeneity/Publication bias). We can see that there are no models correcting for publication bias (we disabled them by setting <code>priors_bias = NULL</code>). Furthermore, the table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components. The results show that the inclusion Bayes factor for the effect corresponds to the one reported in <span class="citation">Bartoš, Gronau, et al. (2021)</span> package, <span class="math inline">\(\text{BF}_{10} = 218.53\)</span> and <span class="math inline">\(\text{BF}_{\text{rf}} = 3.52\)</span> (up to an MCMC error).</p>
 <p>The second part under the ‘Model-averaged estimates’ heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). We ignore this section and move to the last part.</p>
 <p>The third part under the ‘Conditional estimates’ heading displays the conditional effect size estimate corresponding to the one reported in <span class="citation">Bartoš, Gronau, et al. (2021)</span>, <span class="math inline">\(\delta = 1.082\)</span>, 95% CI [0.686,1.412], and a heterogeneity estimate (not reported previously).</p>
@@ -212,11 +214,13 @@
 <span class="co">#&gt;      Mean Median 0.025 0.975</span>
 <span class="co">#&gt; mu  1.045  1.052 0.705 1.344</span>
 <span class="co">#&gt; tau 0.186  0.163 0.000 0.623</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
 <span class="co">#&gt; </span>
 <span class="co">#&gt; Conditional estimates:</span>
 <span class="co">#&gt;      Mean Median 0.025 0.975</span>
 <span class="co">#&gt; mu  1.048  1.053 0.720 1.344</span>
-<span class="co">#&gt; tau 0.256  0.220 0.064 0.681</span></code></pre></div>
+<span class="co">#&gt; tau 0.256  0.220 0.064 0.681</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></code></pre></div>
 <p>We obtain noticeably stronger evidence for the presence of the effect. This is a result of placing more weights on the fixed-effect models, especially the fixed-effect model assuming the presence of the effect <span class="math inline">\(H_1^f\)</span>. The increase in the posterior model probability of <span class="math inline">\(H_1^f\)</span> is, in our case, the fact that it predicted the data slightly better after removing the correlation between effect sizes and standard errors (a result of using Cohen’s <span class="math inline">\(d\)</span> for model fitting). Nevertheless, the conditional effect size estimate stayed almost the same.</p>
 <p>Now, we fit the publication bias-adjusted model by simply removing the <code>priors_bias = NULL</code>, which allows us to obtain the default 36 models ensemble called RoBMA-PSMA <span class="citation">(Bartoš, Maier, Wagenmakers, et al., 2021)</span>.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
@@ -252,6 +256,7 @@
 <span class="co">#&gt; omega[0.975,1]    0.897  1.000 0.057  1.000</span>
 <span class="co">#&gt; PET               0.931  0.000 0.000  4.927</span>
 <span class="co">#&gt; PEESE             1.131  0.000 0.000 12.261</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
 <span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span>
 <span class="co">#&gt; </span>
 <span class="co">#&gt; Conditional estimates:</span>
@@ -266,6 +271,7 @@
 <span class="co">#&gt; omega[0.975,1]    0.518  0.425  0.010  1.000</span>
 <span class="co">#&gt; PET               2.909  3.136  0.171  5.614</span>
 <span class="co">#&gt; PEESE             7.048  6.034  0.375 18.162</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
 <span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></code></pre></div>
 <p>We notice that additional values in the ‘Components summary’ table in the ‘Bias’ row. The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. When comparing the RoBMA to the second BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect <span class="math inline">\(\text{BF}_{10} = 6.02\)</span> vs. <span class="math inline">\(\text{BF}_{10} = 347.93\)</span>, which still, however, presents moderate evidence for the presence of the effect. We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias <span class="math inline">\(\text{BF}_{pb} = 2.30\)</span>, which can be interpreted as weak evidence in favor of the publication bias.</p>
 <p>We can also compare the publication bias unadjusted and publication bias-adjusted conditional effect size estimates. Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) slightly decreases the estimated effect to <span class="math inline">\(\delta = 0.838\)</span>, 95% CI [-0.035, 1.297] with a much wider confidence interval, as visualized in the prior and posterior conditional effect size estimate plot.</p>

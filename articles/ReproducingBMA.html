@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.1</span>
       </span>
     </div>
 
@@ -87,7 +87,7 @@
       <h1 data-toc-skip>Reproducing Bayesian Model-Averaged Meta-Analysis</h1>
                         <h4 data-toc-skip class="author">František Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2022-03-03</h4>
+            <h4 data-toc-skip class="date">2022-03-30</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/ReproducingBMA.Rmd" class="external-link"><code>vignettes/ReproducingBMA.Rmd</code></a></small>
       <div class="hidden name"><code>ReproducingBMA.Rmd</code></div>
@@ -189,6 +189,7 @@
 <span class="co">#&gt;      Mean Median 0.025 0.975</span>
 <span class="co">#&gt; mu  0.213  0.217 0.000 0.348</span>
 <span class="co">#&gt; tau 0.022  0.000 0.000 0.178</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
 
 <span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA_est</span><span class="op">)</span>
 <span class="co">#&gt; Call:</span>
@@ -209,7 +210,8 @@
 <span class="co">#&gt; Model-averaged estimates:</span>
 <span class="co">#&gt;      Mean Median 0.025 0.975</span>
 <span class="co">#&gt; mu  0.220  0.220 0.096 0.346</span>
-<span class="co">#&gt; tau 0.019  0.000 0.000 0.152</span></code></pre></div>
+<span class="co">#&gt; tau 0.019  0.000 0.000 0.152</span>
+<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></code></pre></div>
 <p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 2 parts. The first one under the “Robust Bayesian Meta-Analysis” heading provides a basic summary of the fitted models by component types (presence of the Effect/Heterogeneity/Publication bias). We can see that there are no models correcting for publication bias (we disabled them by setting <code>priors_bias = NULL</code>). Furthermore, the table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components. The results for the half-Cauchy model specified for testing show that the inclusion BF is basically identical to the one computed by the <code>metaBMA</code> package, <span class="math inline">\(\text{BF}_{10} = 33.11\)</span>.</p>
 <p>The second part under the ‘Model-averaged estimates’ heading displays the parameter estimates. The results for the unrestricted Cauchy model specified for estimation show the effect size estimate <span class="math inline">\(\mu = 0.22\)</span>, 95% CI [0.10, 0.35] that also mirrors the one obtained from <code>metaBMA</code> package.</p>
 </div>
