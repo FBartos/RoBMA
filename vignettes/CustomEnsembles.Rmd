@@ -29,6 +29,47 @@ if(.Platform$OS.type == "windows"){
 }
 ```
 
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+
+data("Bem2011", package = "RoBMA")
+fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
+             priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL,
+             priors_effect_null        = prior("spike", parameters = list(location = 0)),
+             priors_heterogeneity_null = prior("spike", parameters = list(location = 0)),
+             priors_bias_null          = prior_none(),
+             seed = 1)
+
+fit <- update(fit,
+              prior_effect             = prior("normal", parameters = list(mean = .15, sd = .10), truncation = list(lower = 0)),
+              prior_heterogeneity_null = prior("spike",  parameters = list(location = 0)),
+              prior_bias_null          = prior_none())
+saveRDS(fit, file = "../models/CustomEnsembles/Bem_update1.RDS")
+
+fit <- update(fit,
+              prior_effect        = prior("normal", parameters = list(mean = .15, sd = .10), truncation = list(lower = 0)),
+              prior_heterogeneity = prior("invgamma", parameters = list(shape = 1, scale = .15)),
+              prior_bias_null     = prior_none())
+fit <- update(fit,
+              prior_effect_null        = prior("spike",     parameters = list(location = 0)),
+              prior_heterogeneity_null = prior("spike",     parameters = list(location = 0)),
+              prior_bias               = prior_weightfunction("one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05))))
+fit <- update(fit,
+              prior_effect_null        = prior("spike",     parameters = list(location = 0)),
+              prior_heterogeneity_null = prior("spike",     parameters = list(location = 0)),
+              prior_bias               = prior_weightfunction("one.sided", parameters = list(alpha = c(1, 1, 1), steps = c(0.05, 0.10))))
+fit <- update(fit,
+              prior_effect_null        = prior("spike",     parameters = list(location = 0)),
+              prior_heterogeneity_null = prior("spike",     parameters = list(location = 0)),
+              prior_bias               = prior_PET("Cauchy", parameters = list(0, 1),  truncation = list(lower = 0)))
+fit <- update(fit,
+              prior_effect_null        = prior("spike",     parameters = list(location = 0)),
+              prior_heterogeneity_null = prior("spike",     parameters = list(location = 0)),
+              prior_bias               = prior_PEESE("Cauchy", parameters = list(0, 5),  truncation = list(lower = 0)))
+saveRDS(fit, file = "../models/CustomEnsembles/Bem_update2.RDS")
+```
+
 By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions' weights. This results in the 36 meta-analytic models using the default settings [@bartos2021no]$^1$. In [another vignette](ReproducingBMA.html), we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see @bartos2020adjusting for a tutorial paper on customizing the model ensemble with JASP). 
 
 Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that the ensemble can perform as intended a priori to drawing inference from it. The following sections are only for illustrating the functionality of the package. We provide a completely discussion with the relevant sources in the Example section of @bartos2021no.

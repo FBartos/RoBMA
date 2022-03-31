@@ -83,7 +83,8 @@ jobs:
         run: |
           remotes::install_deps(dependencies = TRUE)
           remotes::install_cran("rcmdcheck")
-          remotes::install_version("BayesTools", "0.2.3")
+          #remotes::install_version("BayesTools", "0.2.3")
+          remotes::install_github("FBartos/BayesTools@v0.2.3")
         shell: Rscript {0}
 
       - name: Check

@@ -77,7 +77,8 @@ jobs:
           install.packages(c("remotes"))
           remotes::install_deps(dependencies = TRUE)
           remotes::install_cran("covr")
-          remotes::install_version("BayesTools", "0.2.3")
+          #remotes::install_version("BayesTools", "0.2.3")
+          remotes::install_github("FBartos/BayesTools@v0.2.3")
         shell: Rscript {0}
 
       - name: Test coverage

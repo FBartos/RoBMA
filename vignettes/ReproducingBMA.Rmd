@@ -36,6 +36,38 @@ fit_RoBMA_test <- readRDS(file = "../models/ReproducingBMA/PowerPoseTest.RDS")
 fit_RoBMA_est  <- readRDS(file = "../models/ReproducingBMA/PowerPoseEst.RDS")
 ```
 
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+
+data("power_pose", package = "metaBMA")
+
+fit_RoBMA_test <- RoBMA(d = power_pose$effectSize, se = power_pose$SE, study_names = power_pose$study,
+                        priors_effect  = prior(
+                          distribution = "cauchy",
+                          parameters = list(location = 0, scale = 1/sqrt(2)),
+                          truncation = list(0, Inf)),
+                        priors_heterogeneity = prior(
+                          distribution = "invgamma",
+                          parameters = list(shape = 1, scale = 0.15)),
+                        priors_bias = NULL,
+                        transformation = "cohens_d", seed = 1, parallel = TRUE)
+
+fit_RoBMA_est  <- RoBMA(d = power_pose$effectSize, se = power_pose$SE, study_names = power_pose$study,
+                        priors_effect  = prior(
+                          distribution = "cauchy",
+                          parameters = list(location = 0, scale = 1/sqrt(2))),
+                        priors_heterogeneity = prior(
+                          distribution = "invgamma",
+                          parameters = list(shape = 1, scale = 0.15)),
+                        priors_bias = NULL,
+                        priors_effect_null = NULL,
+                        transformation = "cohens_d", seed = 2, parallel = TRUE)
+
+saveRDS(fit_RoBMA_test, file = "../models/ReproducingBMA/PowerPoseTest.RDS")
+saveRDS(fit_RoBMA_est, file = "../models/ReproducingBMA/PowerPoseEst.RDS")
+```
+
 By default, the package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in 'classical' Bayesian Model-Averaged Meta-Analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020adjusting for a tutorial on fitting (custom) models in JASP.
 
 
