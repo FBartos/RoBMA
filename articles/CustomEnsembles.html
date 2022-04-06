@@ -87,7 +87,7 @@
       <h1 data-toc-skip>Fitting Custom Meta-Analytic Ensembles</h1>
                         <h4 data-toc-skip class="author">František Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2022-03-31</h4>
+            <h4 data-toc-skip class="date">2022-04-06</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/CustomEnsembles.Rmd" class="external-link"><code>vignettes/CustomEnsembles.Rmd</code></a></small>
       <div class="hidden name"><code>CustomEnsembles.Rmd</code></div>
@@ -96,8 +96,8 @@
 
     
     
-<p>By default, the <code><a href="../reference/RoBMA.html">RoBMA()</a></code> function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions’ weights. This results in the 36 meta-analytic models using the default settings <span class="citation">(Bartoš, Maier, Wagenmakers, et al., 2021)</span><span class="math inline">\(^1\)</span>. In <a href="ReproducingBMA.html">another vignette</a>, we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) <span class="citation">(Bartoš, Gronau, et al., 2021; Gronau et al., 2017, 2021)</span>. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see <span class="citation">Bartoš, Maier, Quintana, et al. (2021)</span> for a tutorial paper on customizing the model ensemble with JASP).</p>
-<p>Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that the ensemble can perform as intended a priori to drawing inference from it. The following sections are only for illustrating the functionality of the package. We provide a completely discussion with the relevant sources in the Example section of <span class="citation">Bartoš, Maier, Wagenmakers, et al. (2021)</span>.</p>
+<p>By default, the <code><a href="../reference/RoBMA.html">RoBMA()</a></code> function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions’ weights. This results in the 36 meta-analytic models using the default settings <span class="citation">(Bartoš, Maier, et al., 2021)</span><span class="math inline">\(^1\)</span>. In <a href="ReproducingBMA.html">another vignette</a>, we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) <span class="citation">(Bartoš, Gronau, et al., 2021; Gronau et al., 2017, 2021)</span>. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see <span class="citation">Bartoš et al. (n.d.)</span> for a tutorial paper on customizing the model ensemble with JASP).</p>
+<p>Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that the ensemble can perform as intended a priori to drawing inference from it. The following sections are only for illustrating the functionality of the package. We provide a completely discussion with the relevant sources in the Example section of <span class="citation">Bartoš, Maier, et al. (2021)</span>.</p>
 <div class="section level3">
 <h3 id="the-dataset">The Dataset<a class="anchor" aria-label="anchor" href="#the-dataset"></a>
 </h3>
@@ -197,7 +197,7 @@
 <h4 id="models-3-4-4">Models 3-4.4<a class="anchor" aria-label="anchor" href="#models-3-4-4"></a>
 </h4>
 <p>Before we add the remaining models to the ensemble using the <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> function, we need to decide on the remaining prior distributions. Specifically, on the prior distribution for the heterogeneity parameter <span class="math inline">\(\tau\)</span>, and the publication bias adjustment parameters <span class="math inline">\(\omega\)</span> (for the selection models’ weightfunctions) and PET and PEESE for the PET and PEESE adjustment.</p>
-<p>For Model 3, we use the usual inverse-gamma(1, .15) prior distribution based on empirical heterogeneity estimates <span class="citation">(Erp et al., 2017)</span> for the heterogeneity parameter <span class="math inline">\(\tau\)</span>. For Models 4.1-4.4 we use the default settings for the publication bias adjustments as outlined the Appendix B of <span class="citation">(Bartoš, Maier, Wagenmakers, et al., 2021)</span>.</p>
+<p>For Model 3, we use the usual inverse-gamma(1, .15) prior distribution based on empirical heterogeneity estimates <span class="citation">(Erp et al., 2017)</span> for the heterogeneity parameter <span class="math inline">\(\tau\)</span>. For Models 4.1-4.4 we use the default settings for the publication bias adjustments as outlined the Appendix B of <span class="citation">(Bartoš, Maier, et al., 2021)</span>.</p>
 <p>Now, we just need to add the remaining models to the ensemble using the <code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> function as already illustrated.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="co">### adding Model 3</span>
@@ -322,7 +322,7 @@
 <p>Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp; Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in medicine. <em>Statistics in Medicine</em>. <a href="https://doi.org/10.1002/sim.9170" class="external-link">https://doi.org/10.1002/sim.9170</a></p>
 </div>
 <div id="ref-bartos2020adjusting">
-<p>Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (2021). Adjusting for publication bias in JASP &amp; R – selection models, PET-PEESE, and robust Bayesian meta-analysis. In <em>PsyArXiv</em>. <a href="https://doi.org/10.31234/osf.io/75bqn" class="external-link">https://doi.org/10.31234/osf.io/75bqn</a></p>
+<p>Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (n.d.). Adjusting for publication bias in JASP &amp; R – selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>. <a href="https://doi.org/10.31234/osf.io/75bqn" class="external-link">https://doi.org/10.31234/osf.io/75bqn</a></p>
 </div>
 <div id="ref-bartos2021no">
 <p>Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp; Stanley, T. D. (2021). <em>Need to choose: Robust Bayesian meta-analysis with competing publication bias adjustment methods</em>. PsyArXiv. <a href="https://doi.org/10.31234/osf.io/kvsp7" class="external-link">https://doi.org/10.31234/osf.io/kvsp7</a></p>
