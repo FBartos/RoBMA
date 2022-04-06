@@ -243,7 +243,7 @@ bool inverse(double const *matrix, int const K, double *inverse)
   // Find determinant of A[][]
   double det = determinant(&matrix[0], K, K);
   if (det == 0){
-    cout << "Singular matrix, can't find its inverse" << endl;
+    //cout << "Singular matrix, can't find its inverse" << endl;
     return false;
   }
 
