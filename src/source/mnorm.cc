@@ -8,12 +8,6 @@
 #include <vector>
 #include <array>
 #include <JRmath.h>
-#include <iostream>
-
-using std::log;
-using std::sqrt;
-using std::cout;
-using std::endl;
 
 // wrapper around the mvtnorm package
 double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K)
@@ -86,7 +80,7 @@ double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, co
   // product of the diagonal ellements
   double diag_prod = 0;
   for(int i = 0; i < K; i++){
-    diag_prod += log(*(chol_inv+K*i+i));
+    diag_prod += std::log(*(chol_inv+K*i+i));
   }
 
   // standardized means? (based on arma::inplace_tri_mat_mult)
@@ -109,7 +103,7 @@ double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, co
   // log lik
   double log_lik = 0;
   for(int i = 0; i < K; i++){
-    log_lik += pow(*(z+i), 2);
+    log_lik += std::pow(*(z+i), 2);
   }
   log_lik = - 0.5 * log_lik + diag_prod - K * 0.9189385;
 
@@ -133,8 +127,8 @@ void chol(double const *matrix, const int n, double *lower)
 			if (j == i) {
         // summation for diagnols
 				for (int k = 0; k < j; k++)
-					sum += pow(lower[n*j+k], 2);
-				lower[n*j+j] = sqrt(*(matrix+n*j+j) -	sum);
+					sum += std::pow(lower[n*j+k], 2);
+				lower[n*j+j] = std::sqrt(*(matrix+n*j+j) -	sum);
 			} else {
 				// Evaluating L(i, j) using L(j, j)
 				for (int k = 0; k < j; k++)

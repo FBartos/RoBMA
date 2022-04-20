@@ -1,13 +1,10 @@
 #include "wmnorm.h"
 #include "mnorm.h"
 #include "tools.h"
-#include <iostream>
+
 #include <util/nainf.h>
 #include <JRmath.h>
 #include <cmath>
-
-using std::cout;
-using std::endl;
 
 double cpp_wmnorm_1s_lpdf(double const *x, double const *mu, double const *sigma, double const *crit_x, double const *omega, const int K, const int J)
 {

@@ -3,11 +3,6 @@
 #include <JRmath.h>
 #include <cmath>
 
-using std::exp;
-using std::sqrt;
-using std::pow;
-using std::log;
-
 double pi(){
   return 3.14159265358979323846;
 }
@@ -15,22 +10,22 @@ double pi(){
 // based on Borenstein, M., Hedges, L. V., Higgins, J. P., & Rothstein, H. R. (2011). Introduction to meta-analysis. John Wiley & Sons.
 // main effect size transformation functions
 double cpp_d2r        (double d){
-  return d / sqrt(pow(d, 2) + 4);
+  return d / std::sqrt(std::pow(d, 2) + 4);
 }
 double cpp_d2logOR    (double d){
-  return d * pi() / sqrt(3);
+  return d * pi() / std::sqrt(3);
 }
 double cpp_r2d        (double r){
-  return 2 * r / sqrt( 1 - pow(r, 2) );
+  return 2 * r / std::sqrt( 1 - std::pow(r, 2) );
 }
 double cpp_r2z        (double r){
-  return 0.5 * log( (1 + r) / (1 - r) );
+  return 0.5 * std::log( (1 + r) / (1 - r) );
 }
 double cpp_logOR2d    (double logOR){
-  return logOR * sqrt(3)/pi();
+  return logOR * std::sqrt(3)/pi();
 }
 double cpp_z2r        (double z){
-  return (exp(2 * z) - 1) / (1 + exp(2 * z));
+  return (std::exp(2 * z) - 1) / (1 + std::exp(2 * z));
 }
 
 // composite functions
@@ -55,16 +50,16 @@ double cpp_z2logOR    (double z){
 
 // main standard error transformation functions
 double cpp_se_d2se_logOR  (double se_d){
-  return sqrt(pow(se_d, 2) * pow(pi(), 2) / 3);
+  return std::sqrt(std::pow(se_d, 2) * std::pow(pi(), 2) / 3);
 }
 double cpp_se_d2se_r      (double se_d, double d){
-  return sqrt( (pow(4, 2) * pow(se_d, 2)) / pow( pow(d, 2) + 4, 3) );
+  return std::sqrt( (std::pow(4, 2) * std::pow(se_d, 2)) / std::pow( std::pow(d, 2) + 4, 3) );
 }
 double cpp_se_r2se_d      (double se_r, double r){
-  return sqrt( (4 * pow(se_r, 2)) / pow( 1 - pow(r, 2), 3) );
+  return std::sqrt( (4 * std::pow(se_r, 2)) / std::pow( 1 - std::pow(r, 2), 3) );
 }
 double cpp_se_logOR2se_d  (double se_logOR){
-  return sqrt( pow(se_logOR, 2) * 3 / pow(pi(), 2) );
+  return std::sqrt( std::pow(se_logOR, 2) * 3 / std::pow(pi(), 2) );
 }
 
 // composite standard error transformation functions
@@ -107,13 +102,13 @@ double cpp_se_z2se_logOR  (double se_z, double z){
 
 // linear scaling function
 double cpp_scale_d2logOR (double d){
-  return d * (pi()/sqrt(3));
+  return d * (pi()/std::sqrt(3));
 }
 double cpp_scale_d2z     (double d){
   return d / 2;
 }
 double cpp_scale_logOR2d (double logOR){
-  return logOR / (pi()/sqrt(3));
+  return logOR / (pi()/std::sqrt(3));
 }
 double cpp_scale_z2d     (double z){
   return z * 2;
@@ -149,7 +144,7 @@ double cpp_scale_logOR2r (double logOR){
 
 // helper functions
 double cpp_n_d            (double d, double se){
-  return (pow(d,2) + 8) / (2 * pow(se,2));
+  return (std::pow(d,2) + 8) / (2 * std::pow(se,2));
 }
 double cpp_n_r            (double r, double se){
   // (r^4 - 2*r^2 + se^2 + 1)/se^2 : according to the Borenstein, however, it is not consistent with the remaining
@@ -158,17 +153,17 @@ double cpp_n_r            (double r, double se){
   return cpp_n_d(d, se_d);
 }
 double cpp_n_z            (double se){
-  return (3 * pow(se,2) + 1) / pow(se,2);
+  return (3 * std::pow(se,2) + 1) / std::pow(se,2);
 }
 double cpp_se_d           (double d, double n){
-  return sqrt( 4 / n + pow(d,2) / ( 2 * n));
+  return std::sqrt( 4 / n + std::pow(d,2) / ( 2 * n));
 }
 double cpp_se_r           (double r, double n){
-  // sqrt((1-r^2)^2/(n-1)) : according to the Borenstein, however, it is not consistent with the remaining transformations
+  // std::sqrt((1-r^2)^2/(n-1)) : according to the Borenstein, however, it is not consistent with the remaining transformations
   double d    = cpp_r2d(r);
   double se_d = cpp_se_d(d, n);
   return cpp_se_d2se_r(se_d, d);
 }
 double cpp_se_z           (double n){
-  return sqrt( 1 / (n - 3));
+  return std::sqrt( 1 / (n - 3));
 }

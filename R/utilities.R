@@ -81,12 +81,15 @@ assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = Ro
     "2.1.1" = c("0.1.3", "0.1.3"),
     "2.1.2" = c("0.1.3", "0.1.3"),
     "2.2.0" = c("0.1.3", "0.1.3"),
-    "2.2.1" = c("0.2.3", "0.2.999"),
+    "2.2.1" = c("0.2.3", "999.999.999"),
+    "2.2.2" = c("0.2.3", "999.999.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
-  min_OK <- all(as.integer(strsplit(BayesTools_required[1], ".", fixed = TRUE)[[1]]) <= unlist(BayesTools.version))
-  max_OK <- all(as.integer(strsplit(BayesTools_required[2], ".", fixed = TRUE)[[1]]) >= unlist(BayesTools.version))
+  min_OK <- sum(as.numeric(strsplit(BayesTools_required[1], ".", fixed = TRUE)[[1]]) * c(1e9, 1e6, 1e3)) <=
+    sum(unlist(BayesTools.version) * c(1e9, 1e6, 1e3))
+  max_OK <- sum(as.numeric(strsplit(BayesTools_required[2], ".", fixed = TRUE)[[1]]) * c(1e9, 1e6, 1e3)) >=
+    sum(unlist(BayesTools.version) * c(1e9, 1e6, 1e3))
 
   if(min_OK && max_OK){
     return(invisible(TRUE))

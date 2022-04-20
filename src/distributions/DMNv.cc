@@ -8,33 +8,20 @@
 #include <vector>
 #include <array>
 
-
 #include <JRmath.h>
 #include "../source/mnorm.h"
 #include "../source/tools.h"
 
-#include <iostream>
-
-
-using std::vector;
-using std::log;
-using std::exp;
-using std::sqrt;
-using std::fabs;
-using std::cout;
-using std::endl;
-
-
 namespace jags {
   namespace RoBMA {
 
-    vector<unsigned int> DMNv::dim(vector<vector<unsigned int> > const &dims) const
+    std::vector<unsigned int> DMNv::dim(std::vector<std::vector<unsigned int> > const &dims) const
     {
-      return vector<unsigned int>(1,dims[0][0]);
+      return std::vector<unsigned int>(1,dims[0][0]);
     }
 
 
-    bool DMNv::checkParameterDim (vector<vector<unsigned int> > const &dims) const
+    bool DMNv::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
     {
       bool se2_OK   = true; // check that standard errors squared and mu dimension matches
       bool tau2_OK  = true; // check that tau squared is a single double
@@ -48,7 +35,7 @@ namespace jags {
     }
 
 
-    bool DMNv::checkParameterValue(vector<double const *> const &par, vector<vector<unsigned int> > const &dims) const
+    bool DMNv::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
     {
       const double *tau2  = par[2];
       const double *rho   = par[3];
@@ -65,8 +52,8 @@ namespace jags {
 
     DMNv::DMNv():ArrayDist("dmnorm_v", 5) {}
 
-    double DMNv::logDensity(double const *x, unsigned int length, PDFType type, vector<double const *> const &par,
-              vector<vector<unsigned int> > const &dims, double const *lower, double const *upper) const
+    double DMNv::logDensity(double const *x, unsigned int length, PDFType type, std::vector<double const *> const &par,
+              std::vector<std::vector<unsigned int> > const &dims, double const *lower, double const *upper) const
     {
       // reassign the addresses to pointers
       const double *mu     = par[0];
@@ -109,8 +96,8 @@ namespace jags {
       return log_lik;
     }
 
-    void DMNv::randomSample(double *x, unsigned int length, vector<double const *> const &par,
-              vector<vector<unsigned int> > const &dims,
+    void DMNv::randomSample(double *x, unsigned int length, std::vector<double const *> const &par,
+              std::vector<std::vector<unsigned int> > const &dims,
               double const *lower, double const *upper,
               RNG *rng) const
     {
@@ -118,8 +105,8 @@ namespace jags {
     }
 
     void DMNv::support(double *lower, double *upper, unsigned int length,
-              vector<double const *> const &par,
-              vector<vector<unsigned int> > const &dims) const
+              std::vector<double const *> const &par,
+              std::vector<std::vector<unsigned int> > const &dims) const
     {
       // no idea whether this is correct
       for (unsigned int i = 0; i < length; ++i) {
@@ -129,14 +116,14 @@ namespace jags {
     }
 
     void DMNv::typicalValue(double *x, unsigned int length,
-              vector<double const *> const &par,
-              vector<vector<unsigned int> > const &dims,
+              std::vector<double const *> const &par,
+              std::vector<std::vector<unsigned int> > const &dims,
               double const *lower, double const *upper) const
     {
       // not implemented
     }
 
-    bool DMNv::isSupportFixed(vector<bool> const &fixmask) const
+    bool DMNv::isSupportFixed(std::vector<bool> const &fixmask) const
     {
       return true;
     }

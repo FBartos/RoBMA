@@ -6,7 +6,11 @@ output:       github_document
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-
+```{r include = FALSE, eval = FALSE}
+library(RoBMA)
+fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, seed = 1)
+saveRDS(fit, file = "models/README/Bem2011.RDS")
+```
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -49,7 +53,7 @@ The package was updated to version 2.0 to provides Bayesian model-averaging acro
 
 Please note that the RoBMA 2.0 is not backwards compatible with the previous versions of RoBMA. Use 
 ``` r
-remotes::install_version("RoBMA", version = 1.2.1)
+remotes::install_version("RoBMA", version = "1.2.1")
 ```
 to install the previous version if needed. 
 (Or use the source packages archived with at OSF repositories associated with the corresponding projects.)

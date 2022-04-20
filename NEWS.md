@@ -1,3 +1,7 @@
+## version 2.2.2
+### Fixes
+- updating the C++ to compile on M1 Mac
+
 ## version 2.2.1
 ### Changes
 - message about the effect size scale of parameter estimates is always shown

@@ -4,17 +4,10 @@
 
 #include "mnorm.h"
 
-#include <iostream>
-
-using std::log;
-using std::fabs;
-using std::cout;
-using std::endl;
-
 // assigns log of weights product corresponding to the outcome x based on a one-sided weightfunction
 double log_weight_onesided(double const *x, double const *crit_x, double const *omega, const int J)
 {
-	double w;
+	double w = -68;
 
 	if(*x >= *(crit_x + J - 2)){
 	// return the last omega if x > last crit_x
@@ -32,14 +25,14 @@ double log_weight_onesided(double const *x, double const *crit_x, double const *
 		}
 	}
 
-	return log(w);
+	return std::log(w);
 }
 
 // assigns log of weights product corresponding to the outcome x based on a two-sided weightfunction
 double log_weight_twosided(double const *x, double const *crit_x, double const *omega, const int J)
 {
-	double w;
-	double abs_x = fabs(*x);
+	double w = -68;
+	double abs_x = std::fabs(*x);
 
 	if(abs_x >= *(crit_x + J - 2)){
 	// return the last omega if abs(x) > last crit_x
@@ -56,7 +49,7 @@ double log_weight_twosided(double const *x, double const *crit_x, double const *
 			}
 		}
 	}
-	return log(w);
+	return std::log(w);
 }
 
 
@@ -74,12 +67,12 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   mu          = new double [K];
 
   for(int k = 0; k < K; k++){
-    *(sigma_stdev + k) = sqrt( *(sigma+ K * k + k) );
+    *(sigma_stdev + k) = std::sqrt( *(sigma+ K * k + k) );
     *(mu + k)          = *(const_mu + k);
   }
   for(int k = 0; k < K; k++){
     for(int j = 0; j < K && j < k; j++){
-      *(sigma_corr + k * (k - 1) / 2 + j) = *(sigma + K * k + j) / sqrt( *(sigma + K * k + k) * *(sigma + K * j + j));
+      *(sigma_corr + k * (k - 1) / 2 + j) = *(sigma + K * k + j) / std::sqrt( *(sigma + K * k + k) * *(sigma + K * j + j));
     }
   }
 
@@ -103,7 +96,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   }
 
   // iterate over all subspaces created by the cutpoints
-  for(int i = 0; i < pow(J, K); i++){
+  for(int i = 0; i < std::pow(J, K); i++){
 
   	// reset the current weight
   	temp_log_weight = 0;
@@ -112,7 +105,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
     for(int k = 0; k < K; k++){
 
       // weight
-      temp_log_weight += log(*(omega + *(index_weights + k)));
+      temp_log_weight += std::log(*(omega + *(index_weights + k)));
 
       // the upper and lower bounds
       if(*(index_weights + k) == 0){
@@ -136,11 +129,11 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   	double temp_prob = cpp_mnorm_cdf(&temp_lower[0], &temp_upper[0], &temp_infin[0], &mu[0], &sigma_stdev[0], &sigma_corr[0], K);
   	// check and skip negative numbers due to numerical impressions for very low probabilities
   	if(temp_prob > 0){
-  	  std_constant += exp(log(temp_prob) + temp_log_weight);
+  	  std_constant += std::exp(std::log(temp_prob) + temp_log_weight);
   	}
 
 	  // increase index for the next iteration
-	  if((i + 1) < pow(J, K)){
+	  if((i + 1) < std::pow(J, K)){
 	    increase_index( &index_weights[0], K-1, J-1);
 	  }
   }
@@ -154,7 +147,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   delete[] temp_infin;
   delete[] index_weights;
 
-  return log(std_constant);
+  return std::log(std_constant);
 }
 
 
