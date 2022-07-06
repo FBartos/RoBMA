@@ -83,6 +83,7 @@ assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = Ro
     "2.2.0" = c("0.1.3", "0.1.3"),
     "2.2.1" = c("0.2.3", "999.999.999"),
     "2.2.2" = c("0.2.3", "999.999.999"),
+    "2.2.3" = c("0.2.3", "999.999.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
