@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 2.2.2
+Version: 2.2.3
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -34,8 +34,8 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.2
-SystemRequirements: JAGS >= 4.3.0 (https://mcmc-jags.sourceforge.io/)
+RoxygenNote: 7.2.0
+SystemRequirements: JAGS >= 4.3.1 (https://mcmc-jags.sourceforge.io/)
 NeedsCompilation: yes
 Depends:
     R (>= 4.0.0)
@@ -51,7 +51,6 @@ Imports:
     extraDistr,
     mvtnorm,
     scales,
-    callr,
     Rdpack,
     ggplot2
 Suggests:
