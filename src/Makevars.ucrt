@@ -15,7 +15,7 @@
 ######################################################################################################
 
 ## Conditionally set the JAGS_ROOT variable (if it is not already set) to a location specified by the CRAN team:
-JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.0
+JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.1
 
 ## Use the old ABI to match JAGS 4.x compilation on Windows:
 #PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0

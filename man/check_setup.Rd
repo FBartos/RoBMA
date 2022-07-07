@@ -15,7 +15,8 @@ check_setup(
     1), steps = c(0.05, 0.1)), prior_weights = 1/12), prior_weightfunction(distribution =
     "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights =
     1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha =
-    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12),     
+    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12), 
+    
     prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1,
     1), steps = c(0.05, 0.5)), prior_weights = 1/12), prior_weightfunction(distribution =
     "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)),

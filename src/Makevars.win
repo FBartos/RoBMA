@@ -8,14 +8,14 @@
 ###  Note:  This windows makefile requires the JAGS_ROOT variable to be set
 ###
 ###  This file allows compilation with JAGS 4 (or later) without modifying RoBMA.
-###  To force the package to compile assuming a given JAGS version is installed, use the 
+###  To force the package to compile assuming a given JAGS version is installed, use the
 ###  JAGS_MAJOR_FORCED environmental variable.  This might be necessary on windows if you have
 ###  JAGS installed in a non-standard location.
-###  
+###
 ######################################################################################################
 
 ## Conditionally set the JAGS_ROOT variable (if it is not already set) to a location specified by the CRAN team:
-JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.0
+JAGS_ROOT ?= /c/progra~1/JAGS/JAGS-4.3.1
 
 ## Use the old ABI to match JAGS 4.x compilation on Windows:
 PKG_CXXFLAGS = -D_GLIBCXX_USE_CXX11_ABI=0
@@ -91,8 +91,8 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
 # OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMT2v.o distributions/DWMT1v.o distributions/DWMT2v.o \
 # 	  	    distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 #           transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
-#		    functions/wmnorm.o functions/mnorm.o \ 
-#		    source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \ 
+#		    functions/wmnorm.o functions/mnorm.o \
+#		    source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
 #		    init.o RoBMA.o testRoBMA.o
 
 ###############

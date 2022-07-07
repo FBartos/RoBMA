@@ -62,7 +62,7 @@ jobs:
       - name: Install JAGS (windows-latest)
         if: runner.os == 'Windows'
         run: |
-          curl.exe -o wjags.exe --url https://deac-fra.dl.sourceforge.net/project/mcmc-jags/JAGS/4.x/Windows/JAGS-4.2.0-Rtools33.exe
+          curl.exe -o wjags.exe --url https://deac-fra.dl.sourceforge.net/project/mcmc-jags/JAGS/4.x/Windows/JAGS-4.3.1.exe
           wjags.exe /S
           del wjags.exe
         shell: cmd
@@ -77,8 +77,6 @@ jobs:
         run: |
           remotes::install_deps(dependencies = TRUE)
           install.packages("pkgdown")
-          #remotes::install_version("BayesTools", "0.2.3")
-          remotes::install_github("FBartos/BayesTools@v0.2.3")
         shell: Rscript {0}
 
       - name: Install package

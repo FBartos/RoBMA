@@ -1,3 +1,7 @@
+## version 2.2.3
+### Fixes
+- updating the Makevars to install with R 4.2 and JAGS 4.3.1
+
 ## version 2.2.2
 ### Fixes
 - updating the C++ to compile on M1 Mac
