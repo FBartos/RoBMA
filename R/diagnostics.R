@@ -65,7 +65,7 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
                   lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 
   # check settings
-  if(class(fit) != "RoBMA")
+  if(!is.RoBMA(fit))
     stop("Diagnostics are available only for RoBMA models.")
   if(fit$add_info$save == "min")
     stop("Diagnostics cannot be produced because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' while fitting the model (see ?RoBMA for more details).")
