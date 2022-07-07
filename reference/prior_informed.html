@@ -18,7 +18,7 @@ research. The prior can be visualized by the plot function."><!-- mathjax --><sc
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -71,7 +71,7 @@ research. The prior can be visualized by the <code>plot</code> function.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="fu">prior_informed</span><span class="op">(</span><span class="va">name</span>, parameter <span class="op">=</span> <span class="cn">NULL</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">prior_informed</span><span class="op">(</span><span class="va">name</span>, parameter <span class="op">=</span> <span class="cn">NULL</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -90,24 +90,31 @@ social psychology based on prior elicitation with dr. Oosterwijk
 (Gronau et al. 2017).</p></dd>
 
 
-</dl><p>For medicine, the possible options are based on BartoÅ¡ et al. (2021)
+</dl><p>For medicine, the possible options are based on Bartoš et al. (2021)
 who developed empirical prior distributions for the effect size and heterogeneity parameters of the
 continuous standardized outcomes based on the Cochrane database of systematic reviews.
 Use <code>"Cochrane"</code> for a prior distribution based on the whole database or call
 <code>print(prior_informed_medicine_names)</code> to inspect the names of
 all 46 subfields and set the appropriate <code>parameter</code> and <code>type</code>.</p></dd>
+
+
 <dt>parameter</dt>
 <dd><p>parameter name describing what prior distribution is supposed to be produced in cases
 where the <code>name</code> corresponds to multiple prior distributions. Relevant only for the empirical medical
 prior distributions.</p></dd>
+
+
 <dt>type</dt>
 <dd><p>prior type describing what prior distribution is supposed to be produced in cases
 where the <code>name</code> and <code>parameter</code> correspond to multiple prior distributions. Relevant only for
 the empirical medical prior distributions.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p><code>prior_informed</code> returns an object of class 'prior'.</p>
+    
+
+<p><code>prior_informed</code> returns an object of class 'prior'.</p>
     </div>
     <div id="details">
     <h2>Details</h2>
@@ -123,15 +130,15 @@ Bartoš et al. (2021)
     <p>Bartoš F, Gronau QF, Timmers B, Otte WM, Ly A, Wagenmakers E (2021).
 “Bayesian model-averaged meta-analysis in medicine.”
 <em>Statistics in Medicine</em>.
-doi: <a href="https://doi.org/10.1002/sim.9170" class="external-link">10.1002/sim.9170</a>
+<a href="https://doi.org/10.1002/sim.9170" class="external-link">doi:10.1002/sim.9170</a>
 .<br><br> Gronau QF, Van Erp S, Heck DW, Cesario J, Jonas KJ, Wagenmakers E (2017).
 “A Bayesian model-averaged meta-analysis of the power pose effect with informed and default priors: The case of felt power.”
 <em>Comprehensive Results in Social Psychology</em>, <b>2</b>(1), 123--138.
-doi: <a href="https://doi.org/10.1080/23743603.2017.1326760" class="external-link">10.1080/23743603.2017.1326760</a>
+<a href="https://doi.org/10.1080/23743603.2017.1326760" class="external-link">doi:10.1080/23743603.2017.1326760</a>
 .<br><br> van Erp S, Verhagen J, Grasman RP, Wagenmakers E (2017).
 “Estimates of between-study heterogeneity for 705 meta-analyses reported in Psychological Bulletin from 1990--2013.”
 <em>Journal of Open Psychology Data</em>, <b>5</b>(1).
-doi: <a href="https://doi.org/10.5334/jopd.33" class="external-link">10.5334/jopd.33</a>
+<a href="https://doi.org/10.5334/jopd.33" class="external-link">doi:10.5334/jopd.33</a>
 .</p>
     </div>
     <div id="see-also">
@@ -141,21 +148,21 @@ doi: <a href="https://doi.org/10.5334/jopd.33" class="external-link">10.5334/jop
 
     <div id="ref-examples">
     <h2>Examples</h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span class="co"># prior distribution representing expected effect sizes in social psychology</span></span>
-<span class="r-in"><span class="co"># based on prior elicitation with dr. Oosterwijk</span></span>
-<span class="r-in"><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">prior_informed</span><span class="op">(</span><span class="st">"Oosterwijk"</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># the prior distribution can be visualized using the plot function</span></span>
-<span class="r-in"><span class="co"># (see ?plot.prior for all options)</span></span>
-<span class="r-in"><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">p1</span><span class="op">)</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># prior distribution representing expected effect sizes in social psychology</span></span></span>
+<span class="r-in"><span><span class="co"># based on prior elicitation with dr. Oosterwijk</span></span></span>
+<span class="r-in"><span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">prior_informed</span><span class="op">(</span><span class="st">"Oosterwijk"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># the prior distribution can be visualized using the plot function</span></span></span>
+<span class="r-in"><span><span class="co"># (see ?plot.prior for all options)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">p1</span><span class="op">)</span></span></span>
 <span class="r-plt img"><img src="prior_informed-1.png" alt="" width="700" height="433"></span>
-<span class="r-in"></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># empirical prior distribution for the standardized mean differences from the oral health</span></span>
-<span class="r-in"><span class="co"># medical subfield based on meta-analytic effect size estimates from the</span></span>
-<span class="r-in"><span class="co"># Cochrane database of systematic reviews</span></span>
-<span class="r-in"><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu">prior_informed</span><span class="op">(</span><span class="st">"Oral Health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span></span>
-<span class="r-in"><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p2</span><span class="op">)</span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># empirical prior distribution for the standardized mean differences from the oral health</span></span></span>
+<span class="r-in"><span><span class="co"># medical subfield based on meta-analytic effect size estimates from the</span></span></span>
+<span class="r-in"><span><span class="co"># Cochrane database of systematic reviews</span></span></span>
+<span class="r-in"><span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu">prior_informed</span><span class="op">(</span><span class="st">"Oral Health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Student-t(0, 0.51, 5)</span>
 </code></pre></div>
     </div>
@@ -171,7 +178,7 @@ doi: <a href="https://doi.org/10.5334/jopd.33" class="external-link">10.5334/jop
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>

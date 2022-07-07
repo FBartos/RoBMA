@@ -20,7 +20,7 @@ arguments or vectors with individual values can be passed."><!-- mathjax --><scr
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -75,60 +75,88 @@ arguments or vectors with individual values can be passed.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="fu">combine_data</span><span class="op">(</span>
-  d <span class="op">=</span> <span class="cn">NULL</span>,
-  r <span class="op">=</span> <span class="cn">NULL</span>,
-  z <span class="op">=</span> <span class="cn">NULL</span>,
-  logOR <span class="op">=</span> <span class="cn">NULL</span>,
-  t <span class="op">=</span> <span class="cn">NULL</span>,
-  y <span class="op">=</span> <span class="cn">NULL</span>,
-  se <span class="op">=</span> <span class="cn">NULL</span>,
-  v <span class="op">=</span> <span class="cn">NULL</span>,
-  n <span class="op">=</span> <span class="cn">NULL</span>,
-  lCI <span class="op">=</span> <span class="cn">NULL</span>,
-  uCI <span class="op">=</span> <span class="cn">NULL</span>,
-  study_names <span class="op">=</span> <span class="cn">NULL</span>,
-  study_ids <span class="op">=</span> <span class="cn">NULL</span>,
-  data <span class="op">=</span> <span class="cn">NULL</span>,
-  transformation <span class="op">=</span> <span class="st">"fishers_z"</span>,
-  return_all <span class="op">=</span> <span class="cn">FALSE</span>
-<span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">combine_data</span><span class="op">(</span></span>
+<span>  d <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  r <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  z <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  logOR <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  t <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  y <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  se <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  v <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  n <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  lCI <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  uCI <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  study_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  study_ids <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  transformation <span class="op">=</span> <span class="st">"fishers_z"</span>,</span>
+<span>  return_all <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>d</dt>
 <dd><p>a vector of effect sizes measured as Cohen's d</p></dd>
+
+
 <dt>r</dt>
 <dd><p>a vector of effect sizes measured as correlations</p></dd>
+
+
 <dt>z</dt>
 <dd><p>a vector of effect sizes measured as Fisher's z</p></dd>
+
+
 <dt>logOR</dt>
 <dd><p>a vector of effect sizes measured as log odds ratios</p></dd>
+
+
 <dt>t</dt>
 <dd><p>a vector of t/z-statistics</p></dd>
+
+
 <dt>y</dt>
 <dd><p>a vector of unspecified effect sizes (note that effect size
 transformations are unavailable with this type of input)</p></dd>
+
+
 <dt>se</dt>
 <dd><p>a vector of standard errors of the effect sizes</p></dd>
+
+
 <dt>v</dt>
 <dd><p>a vector of variances of the effect sizes</p></dd>
+
+
 <dt>n</dt>
 <dd><p>a vector of overall sample sizes</p></dd>
+
+
 <dt>lCI</dt>
 <dd><p>a vector of lower bounds of confidence intervals</p></dd>
+
+
 <dt>uCI</dt>
 <dd><p>a vector of upper bounds of confidence intervals</p></dd>
+
+
 <dt>study_names</dt>
 <dd><p>an optional argument with the names of the studies</p></dd>
+
+
 <dt>study_ids</dt>
 <dd><p>an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to <code>NULL</code> for
 studies being independent.</p></dd>
+
+
 <dt>data</dt>
 <dd><p>a data frame with column names corresponding to the
 variable names used to supply data individually</p></dd>
+
+
 <dt>transformation</dt>
 <dd><p>transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to
@@ -138,13 +166,18 @@ and does not bias PET and PEESE style models. The other options are
 <code>"cohens_d"</code>, correlation coefficient <code>"r"</code> and <code>"logOR"</code>.
 Supplying <code>"none"</code> will treat the effect sizes as unstandardized and
 refrain from any transformations.</p></dd>
+
+
 <dt>return_all</dt>
 <dd><p>whether data frame containing all filled values should be
 returned. Defaults to <code>FALSE</code></p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p><code>combine_data</code> returns a data.frame.</p>
+    
+
+<p><code>combine_data</code> returns a data.frame.</p>
     </div>
     <div id="details">
     <h2>Details</h2>
@@ -185,7 +218,7 @@ supplied, steps 4-9 are skipped.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>

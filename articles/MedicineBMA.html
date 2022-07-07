@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -87,7 +87,7 @@
       <h1 data-toc-skip>Informed Bayesian Model-Averaged Meta-Analysis in Medicine</h1>
                         <h4 data-toc-skip class="author">František Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2022-04-20</h4>
+            <h4 data-toc-skip class="date">2022-07-07</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/MedicineBMA.Rmd" class="external-link"><code>vignettes/MedicineBMA.Rmd</code></a></small>
       <div class="hidden name"><code>MedicineBMA.Rmd</code></div>
@@ -103,60 +103,60 @@
 <p>We illustrate how to fit the informed BMA (not adjusting for publication bias) using the <code>RoBMA</code> R package. For this purpose, we reproduce the dentine hypersensitivity example from <span class="citation">Bartoš, Gronau, et al. (2021)</span>, who reanalyzed five studies with a tactile outcome assessment that were subjected to a meta-analysis by <span class="citation">Poulsen et al. (2006)</span>.</p>
 <p>We load the dentine hypersensitivity data included in the package.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span>
-
-<span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Poulsen2006"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span>
-<span class="va">Poulsen2006</span>
-<span class="co">#&gt;           d        se               study</span>
-<span class="co">#&gt; 1 0.9073050 0.2720456     STD-Schiff-1994</span>
-<span class="co">#&gt; 2 0.7207589 0.1977769  STD-Silverman-1996</span>
-<span class="co">#&gt; 3 1.3305829 0.2721648   STD-Sowinski-2000</span>
-<span class="co">#&gt; 4 1.7688872 0.2656483 STD-Schiff-2000-(2)</span>
-<span class="co">#&gt; 5 1.3286828 0.3582617     STD-Schiff-1998</span></code></pre></div>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Poulsen2006"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span></span>
+<span><span class="va">Poulsen2006</span></span>
+<span><span class="co">#&gt;           d        se               study</span></span>
+<span><span class="co">#&gt; 1 0.9073050 0.2720456     STD-Schiff-1994</span></span>
+<span><span class="co">#&gt; 2 0.7207589 0.1977769  STD-Silverman-1996</span></span>
+<span><span class="co">#&gt; 3 1.3305829 0.2721648   STD-Sowinski-2000</span></span>
+<span><span class="co">#&gt; 4 1.7688872 0.2656483 STD-Schiff-2000-(2)</span></span>
+<span><span class="co">#&gt; 5 1.3286828 0.3582617     STD-Schiff-1998</span></span></code></pre></div>
 <p>To reproduce the analysis from the example, we need to set informed empirical prior distributions for the effect sizes (<span class="math inline">\(\mu\)</span>) and heterogeneity (<span class="math inline">\(\tau\)</span>) parameters that <span class="citation">Bartoš, Gronau, et al. (2021)</span> obtained from the Cochrane database of systematic reviews. We can either set them manually,</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">fit_BMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,
-                 priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"t"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span>, scale <span class="op">=</span> <span class="fl">0.51</span>, df <span class="op">=</span> <span class="fl">5</span><span class="op">)</span><span class="op">)</span>,
-                 priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"invgamma"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">1.79</span>, scale <span class="op">=</span> <span class="fl">0.28</span><span class="op">)</span><span class="op">)</span>,
-                 priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,
-                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">fit_BMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
+<span>                 priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"t"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span>, scale <span class="op">=</span> <span class="fl">0.51</span>, df <span class="op">=</span> <span class="fl">5</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>                 priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"invgamma"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">1.79</span>, scale <span class="op">=</span> <span class="fl">0.28</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>                 priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p>with <code>priors_effect</code> and <code>priors_heterogeneity</code> corresponding to the <span class="math inline">\(\delta \sim T(0,0.51,5)\)</span> and <span class="math inline">\(\tau \sim InvGamma(1.79,0.28)\)</span> informed prior distributions for the “oral health” subfield and removing the publication bias adjustment models by setting <code>priors_bias = NULL</code><span class="math inline">\(^1\)</span>.</p>
 <p>Alternatively, we can utilize the <code>informed_prior</code> function that prepares informed prior distributions for the individual medical subfields automatically.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">fit_BMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,
-                 priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,
-                 priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,
-                 priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,
-                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">fit_BMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
+<span>                 priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
+<span>                 priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
+<span>                 priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p>The <code>name</code> argument specifies the medical subfield name (use <code>print(BayesTools::prior_informed_medicine_names)</code> to check names of all available subfields). The <code>parameter</code> argument specifies whether we want prior distribution for the effect size or heterogeneity. Finally, the <code>type</code> argument specifies what type of measure we use for the meta-analysis (only standardized mean differences <code>smd</code> are available at the time of writing the vignette; see <code><a href="../reference/prior_informed.html">?prior_informed</a></code> for more details regarding the informed prior distributions).</p>
 <p>We obtain the output with the <code>summary</code> function. Adding the <code>conditional = TRUE</code> argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true<span class="math inline">\(^2\)</span>.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>
-<span class="co">#&gt; Call:</span>
-<span class="co">#&gt; RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, </span>
-<span class="co">#&gt;     transformation = "cohens_d", priors_effect = prior_informed(name = "oral health", </span>
-<span class="co">#&gt;         parameter = "effect", type = "smd"), priors_heterogeneity = prior_informed(name = "oral health", </span>
-<span class="co">#&gt;         parameter = "heterogeneity", type = "smd"), priors_bias = NULL, </span>
-<span class="co">#&gt;     parallel = TRUE, seed = 1)</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Robust Bayesian meta-analysis</span>
-<span class="co">#&gt; Components summary:</span>
-<span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span>
-<span class="co">#&gt; Effect           2/4       0.500       0.995      217.517</span>
-<span class="co">#&gt; Heterogeneity    2/4       0.500       0.778        3.511</span>
-<span class="co">#&gt; Bias             0/4       0.000       0.000        0.000</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Model-averaged estimates:</span>
-<span class="co">#&gt;      Mean Median 0.025 0.975</span>
-<span class="co">#&gt; mu  1.076  1.088 0.664 1.422</span>
-<span class="co">#&gt; tau 0.231  0.208 0.000 0.726</span>
-<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Conditional estimates:</span>
-<span class="co">#&gt;      Mean Median 0.025 0.975</span>
-<span class="co">#&gt; mu  1.082  1.090 0.701 1.422</span>
-<span class="co">#&gt; tau 0.297  0.255 0.075 0.779</span>
-<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, </span></span>
+<span><span class="co">#&gt;     transformation = "cohens_d", priors_effect = prior_informed(name = "oral health", </span></span>
+<span><span class="co">#&gt;         parameter = "effect", type = "smd"), priors_heterogeneity = prior_informed(name = "oral health", </span></span>
+<span><span class="co">#&gt;         parameter = "heterogeneity", type = "smd"), priors_bias = NULL, </span></span>
+<span><span class="co">#&gt;     parallel = TRUE, seed = 1)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
+<span><span class="co">#&gt; Components summary:</span></span>
+<span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
+<span><span class="co">#&gt; Effect           2/4       0.500       0.995      217.517</span></span>
+<span><span class="co">#&gt; Heterogeneity    2/4       0.500       0.778        3.511</span></span>
+<span><span class="co">#&gt; Bias             0/4       0.000       0.000        0.000</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Model-averaged estimates:</span></span>
+<span><span class="co">#&gt;      Mean Median 0.025 0.975</span></span>
+<span><span class="co">#&gt; mu  1.076  1.088 0.664 1.422</span></span>
+<span><span class="co">#&gt; tau 0.231  0.208 0.000 0.726</span></span>
+<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Conditional estimates:</span></span>
+<span><span class="co">#&gt;      Mean Median 0.025 0.975</span></span>
+<span><span class="co">#&gt; mu  1.082  1.090 0.701 1.422</span></span>
+<span><span class="co">#&gt; tau 0.297  0.255 0.075 0.779</span></span>
+<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span></code></pre></div>
 <p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 3 parts. The first one under the ‘Robust Bayesian Meta-Analysis’ heading provides a basic summary of the fitted models by component types (presence of the Effect/Heterogeneity/Publication bias). We can see that there are no models correcting for publication bias (we disabled them by setting <code>priors_bias = NULL</code>). Furthermore, the table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components. The results show that the inclusion Bayes factor for the effect corresponds to the one reported in <span class="citation">Bartoš, Gronau, et al. (2021)</span> package, <span class="math inline">\(\text{BF}_{10} = 218.53\)</span> and <span class="math inline">\(\text{BF}_{\text{rf}} = 3.52\)</span> (up to an MCMC error).</p>
 <p>The second part under the ‘Model-averaged estimates’ heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). We ignore this section and move to the last part.</p>
 <p>The third part under the ‘Conditional estimates’ heading displays the conditional effect size estimate corresponding to the one reported in <span class="citation">Bartoš, Gronau, et al. (2021)</span>, <span class="math inline">\(\delta = 1.082\)</span>, 95% CI [0.686,1.412], and a heterogeneity estimate (not reported previously).</p>
@@ -166,20 +166,20 @@
 </h3>
 <p>The <code>RoBMA</code> package provides extensive options for visualizing the results. Here, we visualize the prior (grey) and posterior (black) distribution for the mean parameter.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_mu_BMA-1.png" width="75%" style="display: block; margin: auto;"></p>
 <p>By default, the function plots the model-averaged estimates across all models; the arrows represent the probability of a spike, and the lines represent the posterior density under models assuming non-zero effect. The secondary y-axis (right) shows the probability of the spike (at value 0) decreasing from .50, to 0.005 (also obtainable from the ‘Robust Bayesian Meta-Analysis’ field in <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function).</p>
 <p>To visualize the conditional effect size estimate, we can add the <code>conditional = TRUE</code> argument,</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_mu_BMA_cond-1.png" width="75%" style="display: block; margin: auto;"> which displays only the model-averaged posterior distribution of the effect size parameter for models assuming the presence of the effect.</p>
 <p>We can also visualize the estimates from the individual models used in the ensemble. We do that with the <code><a href="../reference/plot_models.html">plot_models()</a></code> function, which visualizes the effect size estimates and 95% CI of each specified model included in the ensemble. Model 1 corresponds to the fixed effect model assuming the absence of the effect, <span class="math inline">\(H_0^{\text{f}}\)</span>, Model 2 corresponds to the random effect model assuming the absence of the effect, <span class="math inline">\(H_0^{\text{r}}\)</span>, Model 3 corresponds to the fixed effect model assuming the presence of the effect, <span class="math inline">\(H_3^{\text{f}}\)</span>, and Model 4 corresponds to the random effect model assuming the presence of the effect, <span class="math inline">\(H_1^{\text{r}}\)</span>,). The size of the square representing the mean estimate reflects the posterior model probability of the model, which is also displayed in the right-hand side panel. The bottom part of the figure shows the model averaged-estimate that is a combination of the individual model posterior distributions weighted by the posterior model probabilities.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="../reference/plot_models.html">plot_models</a></span><span class="op">(</span><span class="va">fit_BMA</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_models.html">plot_models</a></span><span class="op">(</span><span class="va">fit_BMA</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_models-1.png" width="75%" style="display: block; margin: auto;"> We see that the posterior model probability of the first two models decreased to essentially zero (when rounding to two decimals), completely omitting their estimates from the figure. Furthermore, the much larger box of Model 4 (the random effect model assuming the presence of the effect) shows that Model 4 received the largest share of the posterior probability, <span class="math inline">\(P(H_1^{\text{r}}) = 0.77\)</span>)</p>
 <p>The last type of visualization that we show here is the forest plot. It displays the original studies’ effects and the meta-analytic estimate within one figure. It can be requested by using the <code><a href="../reference/forest.html">forest()</a></code> function. Here, we again set the <code>conditional = TRUE</code> argument to display the conditional model-averaged effect size estimate at the bottom.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_forest-1.png" width="75%" style="display: block; margin: auto;"></p>
 <p>For more options provided by the plotting function, see its documentation using <code>?plot.RoBMA()</code>, <code>?plot_models()</code>, and <code>?forest()</code>.</p>
 </div>
@@ -189,94 +189,94 @@
 <p>Finally, we illustrate how to adjust our informed BMA for publication bias with robust Bayesian meta-analysis <span class="citation">(Bartoš, Maier, et al., 2021, p. @maier2020robust)</span>. In short, we specify additional models assuming the presence of the publication bias and correcting for it by either specifying a selection model operating on <span class="math inline">\(p\)</span>-values <span class="citation">(Vevea &amp; Hedges, 1995)</span> or by specifying a publication bias adjustment method correcting for the relationship between effect sizes and standard errors – PET-PEESE <span class="citation">(Stanley, 2017; Stanley &amp; Doucouliagos, 2014)</span>. See <span class="citation">Bartoš et al. (n.d.)</span> for a tutorial.</p>
 <p>To obtain a proper before and after publication bias adjustment comparison, we fit the informed BMA model but using the default effect size transformation (Fisher’s <span class="math inline">\(z\)</span>).</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">fit_BMAb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,
-                  priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,
-                  priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,
-                  priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,
-                  seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">fit_BMAb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
+<span>                  priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
+<span>                  priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
+<span>                  priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>                  seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_BMAb</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>
-<span class="co">#&gt; Call:</span>
-<span class="co">#&gt; RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, </span>
-<span class="co">#&gt;     priors_effect = prior_informed(name = "oral health", parameter = "effect", </span>
-<span class="co">#&gt;         type = "smd"), priors_heterogeneity = prior_informed(name = "oral health", </span>
-<span class="co">#&gt;         parameter = "heterogeneity", type = "smd"), priors_bias = NULL, </span>
-<span class="co">#&gt;     parallel = TRUE, seed = 1)</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Robust Bayesian meta-analysis</span>
-<span class="co">#&gt; Components summary:</span>
-<span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span>
-<span class="co">#&gt; Effect           2/4       0.500       0.997      347.932</span>
-<span class="co">#&gt; Heterogeneity    2/4       0.500       0.723        2.608</span>
-<span class="co">#&gt; Bias             0/4       0.000       0.000        0.000</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Model-averaged estimates:</span>
-<span class="co">#&gt;      Mean Median 0.025 0.975</span>
-<span class="co">#&gt; mu  1.045  1.052 0.705 1.344</span>
-<span class="co">#&gt; tau 0.186  0.163 0.000 0.623</span>
-<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Conditional estimates:</span>
-<span class="co">#&gt;      Mean Median 0.025 0.975</span>
-<span class="co">#&gt; mu  1.048  1.053 0.720 1.344</span>
-<span class="co">#&gt; tau 0.256  0.220 0.064 0.681</span>
-<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_BMAb</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, </span></span>
+<span><span class="co">#&gt;     priors_effect = prior_informed(name = "oral health", parameter = "effect", </span></span>
+<span><span class="co">#&gt;         type = "smd"), priors_heterogeneity = prior_informed(name = "oral health", </span></span>
+<span><span class="co">#&gt;         parameter = "heterogeneity", type = "smd"), priors_bias = NULL, </span></span>
+<span><span class="co">#&gt;     parallel = TRUE, seed = 1)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
+<span><span class="co">#&gt; Components summary:</span></span>
+<span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
+<span><span class="co">#&gt; Effect           2/4       0.500       0.997      347.932</span></span>
+<span><span class="co">#&gt; Heterogeneity    2/4       0.500       0.723        2.608</span></span>
+<span><span class="co">#&gt; Bias             0/4       0.000       0.000        0.000</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Model-averaged estimates:</span></span>
+<span><span class="co">#&gt;      Mean Median 0.025 0.975</span></span>
+<span><span class="co">#&gt; mu  1.045  1.052 0.705 1.344</span></span>
+<span><span class="co">#&gt; tau 0.186  0.163 0.000 0.623</span></span>
+<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Conditional estimates:</span></span>
+<span><span class="co">#&gt;      Mean Median 0.025 0.975</span></span>
+<span><span class="co">#&gt; mu  1.048  1.053 0.720 1.344</span></span>
+<span><span class="co">#&gt; tau 0.256  0.220 0.064 0.681</span></span>
+<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span></code></pre></div>
 <p>We obtain noticeably stronger evidence for the presence of the effect. This is a result of placing more weights on the fixed-effect models, especially the fixed-effect model assuming the presence of the effect <span class="math inline">\(H_1^f\)</span>. The increase in the posterior model probability of <span class="math inline">\(H_1^f\)</span> is, in our case, the fact that it predicted the data slightly better after removing the correlation between effect sizes and standard errors (a result of using Cohen’s <span class="math inline">\(d\)</span> for model fitting). Nevertheless, the conditional effect size estimate stayed almost the same.</p>
 <p>Now, we fit the publication bias-adjusted model by simply removing the <code>priors_bias = NULL</code>, which allows us to obtain the default 36 models ensemble called RoBMA-PSMA <span class="citation">(Bartoš, Maier, et al., 2021)</span>.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="va">fit_RoBMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,
-                   priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,
-                   priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,
-                   seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">fit_RoBMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
+<span>                   priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
+<span>                   priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
+<span>                   seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>
-<span class="co">#&gt; Call:</span>
-<span class="co">#&gt; RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, </span>
-<span class="co">#&gt;     priors_effect = prior_informed(name = "oral health", parameter = "effect", </span>
-<span class="co">#&gt;         type = "smd"), priors_heterogeneity = prior_informed(name = "oral health", </span>
-<span class="co">#&gt;         parameter = "heterogeneity", type = "smd"), parallel = TRUE, </span>
-<span class="co">#&gt;     seed = 1)</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Robust Bayesian meta-analysis</span>
-<span class="co">#&gt; Components summary:</span>
-<span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span>
-<span class="co">#&gt; Effect         18/36       0.500       0.858        6.022</span>
-<span class="co">#&gt; Heterogeneity  18/36       0.500       0.714        2.502</span>
-<span class="co">#&gt; Bias           32/36       0.500       0.697        2.304</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Model-averaged estimates:</span>
-<span class="co">#&gt;                    Mean Median 0.025  0.975</span>
-<span class="co">#&gt; mu                0.722  0.880 0.000  1.283</span>
-<span class="co">#&gt; tau               0.202  0.161 0.000  0.799</span>
-<span class="co">#&gt; omega[0,0.025]    1.000  1.000 1.000  1.000</span>
-<span class="co">#&gt; omega[0.025,0.05] 0.943  1.000 0.329  1.000</span>
-<span class="co">#&gt; omega[0.05,0.5]   0.874  1.000 0.071  1.000</span>
-<span class="co">#&gt; omega[0.5,0.95]   0.855  1.000 0.042  1.000</span>
-<span class="co">#&gt; omega[0.95,0.975] 0.866  1.000 0.050  1.000</span>
-<span class="co">#&gt; omega[0.975,1]    0.897  1.000 0.057  1.000</span>
-<span class="co">#&gt; PET               0.931  0.000 0.000  4.927</span>
-<span class="co">#&gt; PEESE             1.131  0.000 0.000 12.261</span>
-<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
-<span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span>
-<span class="co">#&gt; </span>
-<span class="co">#&gt; Conditional estimates:</span>
-<span class="co">#&gt;                    Mean Median  0.025  0.975</span>
-<span class="co">#&gt; mu                0.838  0.938 -0.035  1.297</span>
-<span class="co">#&gt; tau               0.285  0.227  0.064  0.906</span>
-<span class="co">#&gt; omega[0,0.025]    1.000  1.000  1.000  1.000</span>
-<span class="co">#&gt; omega[0.025,0.05] 0.736  0.829  0.092  1.000</span>
-<span class="co">#&gt; omega[0.05,0.5]   0.411  0.373  0.014  0.951</span>
-<span class="co">#&gt; omega[0.5,0.95]   0.320  0.249  0.008  0.919</span>
-<span class="co">#&gt; omega[0.95,0.975] 0.376  0.311  0.009  0.958</span>
-<span class="co">#&gt; omega[0.975,1]    0.518  0.425  0.010  1.000</span>
-<span class="co">#&gt; PET               2.909  3.136  0.171  5.614</span>
-<span class="co">#&gt; PEESE             7.048  6.034  0.375 18.162</span>
-<span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span>
-<span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, </span></span>
+<span><span class="co">#&gt;     priors_effect = prior_informed(name = "oral health", parameter = "effect", </span></span>
+<span><span class="co">#&gt;         type = "smd"), priors_heterogeneity = prior_informed(name = "oral health", </span></span>
+<span><span class="co">#&gt;         parameter = "heterogeneity", type = "smd"), parallel = TRUE, </span></span>
+<span><span class="co">#&gt;     seed = 1)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
+<span><span class="co">#&gt; Components summary:</span></span>
+<span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
+<span><span class="co">#&gt; Effect         18/36       0.500       0.858        6.022</span></span>
+<span><span class="co">#&gt; Heterogeneity  18/36       0.500       0.714        2.502</span></span>
+<span><span class="co">#&gt; Bias           32/36       0.500       0.697        2.304</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Model-averaged estimates:</span></span>
+<span><span class="co">#&gt;                    Mean Median 0.025  0.975</span></span>
+<span><span class="co">#&gt; mu                0.722  0.880 0.000  1.283</span></span>
+<span><span class="co">#&gt; tau               0.202  0.161 0.000  0.799</span></span>
+<span><span class="co">#&gt; omega[0,0.025]    1.000  1.000 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.943  1.000 0.329  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.874  1.000 0.071  1.000</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.855  1.000 0.042  1.000</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.866  1.000 0.050  1.000</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.897  1.000 0.057  1.000</span></span>
+<span><span class="co">#&gt; PET               0.931  0.000 0.000  4.927</span></span>
+<span><span class="co">#&gt; PEESE             1.131  0.000 0.000 12.261</span></span>
+<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
+<span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Conditional estimates:</span></span>
+<span><span class="co">#&gt;                    Mean Median  0.025  0.975</span></span>
+<span><span class="co">#&gt; mu                0.838  0.938 -0.035  1.297</span></span>
+<span><span class="co">#&gt; tau               0.285  0.227  0.064  0.906</span></span>
+<span><span class="co">#&gt; omega[0,0.025]    1.000  1.000  1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.736  0.829  0.092  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.411  0.373  0.014  0.951</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.320  0.249  0.008  0.919</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.376  0.311  0.009  0.958</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.518  0.425  0.010  1.000</span></span>
+<span><span class="co">#&gt; PET               2.909  3.136  0.171  5.614</span></span>
+<span><span class="co">#&gt; PEESE             7.048  6.034  0.375 18.162</span></span>
+<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
+<span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span></code></pre></div>
 <p>We notice that additional values in the ‘Components summary’ table in the ‘Bias’ row. The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. When comparing the RoBMA to the second BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect <span class="math inline">\(\text{BF}_{10} = 6.02\)</span> vs. <span class="math inline">\(\text{BF}_{10} = 347.93\)</span>, which still, however, presents moderate evidence for the presence of the effect. We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias <span class="math inline">\(\text{BF}_{pb} = 2.30\)</span>, which can be interpreted as weak evidence in favor of the publication bias.</p>
 <p>We can also compare the publication bias unadjusted and publication bias-adjusted conditional effect size estimates. Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) slightly decreases the estimated effect to <span class="math inline">\(\delta = 0.838\)</span>, 95% CI [-0.035, 1.297] with a much wider confidence interval, as visualized in the prior and posterior conditional effect size estimate plot.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_mu_RoBMA_cond-1.png" width="75%" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level3">
@@ -338,7 +338,7 @@
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer>

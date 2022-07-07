@@ -18,7 +18,7 @@ a "RoBMA" object.'><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aja
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -71,39 +71,49 @@ a <code>"RoBMA"</code> object.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="fu">forest</span><span class="op">(</span>
-  <span class="va">x</span>,
-  conditional <span class="op">=</span> <span class="cn">FALSE</span>,
-  plot_type <span class="op">=</span> <span class="st">"base"</span>,
-  output_scale <span class="op">=</span> <span class="cn">NULL</span>,
-  order <span class="op">=</span> <span class="cn">NULL</span>,
-  <span class="va">...</span>
-<span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">forest</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>,</span>
+<span>  conditional <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
+<span>  output_scale <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  order <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>x</dt>
 <dd><p>a fitted RoBMA object</p></dd>
+
+
 <dt>conditional</dt>
 <dd><p>whether conditional estimates should be
 plotted. Defaults to <code>FALSE</code> which plots the model-averaged
 estimates. Note that both <code>"weightfunction"</code> and
 <code>"PET-PEESE"</code> are always ignoring the other type of
 publication bias adjustment.</p></dd>
+
+
 <dt>plot_type</dt>
 <dd><p>whether to use a base plot <code>"base"</code>
 or ggplot2 <code>"ggplot"</code> for plotting. Defaults to
 <code>"base"</code>.</p></dd>
+
+
 <dt>output_scale</dt>
 <dd><p>transform the effect sizes and the meta-analytic
 effect size estimate to a different scale. Defaults to <code>NULL</code>
 which returns the same scale as the model was estimated on.</p></dd>
+
+
 <dt>order</dt>
 <dd><p>order of the studies. Defaults to <code>NULL</code> -
 ordering as supplied to the fitting function. Studies
 can be ordered either <code>"increasing"</code> or <code>"decreasing"</code> by
 effect size, or by labels <code>"alphabetical"</code>.</p></dd>
+
+
 <dt>...</dt>
 <dd><p>list of additional graphical arguments
 to be passed to the plotting function. Supported arguments
@@ -112,31 +122,37 @@ are <code>lwd</code>, <code>lty</code>, <code>col</code>, <code>col.fill</code>,
 to adjust the line thickness, line type, line color, fill color,
 x-label, y-label, title, x-axis range, and y-axis range
 respectively.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p><code>forest</code> returns either <code>NULL</code> if <code>plot_type = "base"</code>or an object object of class 'ggplot2' if <code>plot_type = "ggplot2"</code>.</p>
+    
+
+<p><code>forest</code> returns either <code>NULL</code> if <code>plot_type = "base"</code></p>
+
+
+<p>or an object object of class 'ggplot2' if <code>plot_type = "ggplot2"</code>.</p>
     </div>
 
     <div id="ref-examples">
     <h2>Examples</h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span>
-<span class="r-in"><span class="co"># using the example data from Anderson et al. 2010 and fitting the default model</span></span>
-<span class="r-in"><span class="co"># (note that the model can take a while to fit)</span></span>
-<span class="r-in"><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>r <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">r</span>, n <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">n</span>, study_names <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">labels</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co">### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"</span></span>
-<span class="r-in"><span class="co"># the forest function creates a forest plot for a fitted RoBMA object, for example,</span></span>
-<span class="r-in"><span class="co"># the forest plot for the individual studies and the model-averaged effect size estimate</span></span>
-<span class="r-in"><span class="fu">forest</span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># the conditional effect size estimate</span></span>
-<span class="r-in"><span class="fu">forest</span><span class="op">(</span><span class="va">fit</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># or transforming the effect size estimates to Fisher's z</span></span>
-<span class="r-in"><span class="fu">forest</span><span class="op">(</span><span class="va">fit</span>, output_scale <span class="op">=</span> <span class="st">"fishers_z"</span><span class="op">)</span></span>
-<span class="r-in"><span class="op">}</span></span>
-<span class="r-in"></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span><span class="co"># using the example data from Anderson et al. 2010 and fitting the default model</span></span></span>
+<span class="r-in"><span><span class="co"># (note that the model can take a while to fit)</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>r <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">r</span>, n <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">n</span>, study_names <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">labels</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"</span></span></span>
+<span class="r-in"><span><span class="co"># the forest function creates a forest plot for a fitted RoBMA object, for example,</span></span></span>
+<span class="r-in"><span><span class="co"># the forest plot for the individual studies and the model-averaged effect size estimate</span></span></span>
+<span class="r-in"><span><span class="fu">forest</span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># the conditional effect size estimate</span></span></span>
+<span class="r-in"><span><span class="fu">forest</span><span class="op">(</span><span class="va">fit</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># or transforming the effect size estimates to Fisher's z</span></span></span>
+<span class="r-in"><span><span class="fu">forest</span><span class="op">(</span><span class="va">fit</span>, output_scale <span class="op">=</span> <span class="st">"fishers_z"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
   </div>
@@ -151,7 +167,7 @@ respectively.</p></dd>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>

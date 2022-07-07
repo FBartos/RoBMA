@@ -20,7 +20,7 @@ mean, standard deviation sd, steps steps
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -75,85 +75,108 @@ and random generation for the weighted normal distribution with
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="fu">dwnorm</span><span class="op">(</span>
-  <span class="va">x</span>,
-  <span class="va">mean</span>,
-  <span class="va">sd</span>,
-  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  <span class="va">omega</span>,
-  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  type <span class="op">=</span> <span class="st">"two.sided"</span>,
-  log <span class="op">=</span> <span class="cn">FALSE</span>
-<span class="op">)</span>
-
-<span class="fu">pwnorm</span><span class="op">(</span>
-  <span class="va">q</span>,
-  <span class="va">mean</span>,
-  <span class="va">sd</span>,
-  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  <span class="va">omega</span>,
-  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  type <span class="op">=</span> <span class="st">"two.sided"</span>,
-  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,
-  log.p <span class="op">=</span> <span class="cn">FALSE</span>
-<span class="op">)</span>
-
-<span class="fu">qwnorm</span><span class="op">(</span>
-  <span class="va">p</span>,
-  <span class="va">mean</span>,
-  <span class="va">sd</span>,
-  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  <span class="va">omega</span>,
-  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  type <span class="op">=</span> <span class="st">"two.sided"</span>,
-  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,
-  log.p <span class="op">=</span> <span class="cn">FALSE</span>
-<span class="op">)</span>
-
-<span class="fu">rwnorm</span><span class="op">(</span>
-  <span class="va">n</span>,
-  <span class="va">mean</span>,
-  <span class="va">sd</span>,
-  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  <span class="va">omega</span>,
-  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,
-  type <span class="op">=</span> <span class="st">"two.sided"</span>
-<span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dwnorm</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>,</span>
+<span>  <span class="va">mean</span>,</span>
+<span>  <span class="va">sd</span>,</span>
+<span>  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">omega</span>,</span>
+<span>  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"two.sided"</span>,</span>
+<span>  log <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">pwnorm</span><span class="op">(</span></span>
+<span>  <span class="va">q</span>,</span>
+<span>  <span class="va">mean</span>,</span>
+<span>  <span class="va">sd</span>,</span>
+<span>  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">omega</span>,</span>
+<span>  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"two.sided"</span>,</span>
+<span>  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  log.p <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">qwnorm</span><span class="op">(</span></span>
+<span>  <span class="va">p</span>,</span>
+<span>  <span class="va">mean</span>,</span>
+<span>  <span class="va">sd</span>,</span>
+<span>  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">omega</span>,</span>
+<span>  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"two.sided"</span>,</span>
+<span>  lower.tail <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  log.p <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">rwnorm</span><span class="op">(</span></span>
+<span>  <span class="va">n</span>,</span>
+<span>  <span class="va">mean</span>,</span>
+<span>  <span class="va">sd</span>,</span>
+<span>  steps <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">crit_x</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">omega</span>,</span>
+<span>  crit_x <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">steps</span><span class="op">)</span><span class="op">)</span> <span class="cn">NULL</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"two.sided"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>x, q</dt>
 <dd><p>vector of quantiles.</p></dd>
+
+
 <dt>mean</dt>
 <dd><p>mean</p></dd>
+
+
 <dt>sd</dt>
 <dd><p>standard deviation.</p></dd>
+
+
 <dt>steps</dt>
 <dd><p>vector of steps for the weight function.</p></dd>
+
+
 <dt>omega</dt>
 <dd><p>vector of weights defining the probability
 of observing a t-statistics between each of the two steps.</p></dd>
+
+
 <dt>crit_x</dt>
 <dd><p>vector of critical values defining steps
 (if <code>steps</code> are not supplied).</p></dd>
+
+
 <dt>type</dt>
 <dd><p>type of weight function (defaults to <code>"two.sided"</code>).</p></dd>
+
+
 <dt>log, log.p</dt>
 <dd><p>logical; if <code>TRUE</code>, probabilities
 <code>p</code> are given as <code>log(p)</code>.</p></dd>
+
+
 <dt>lower.tail</dt>
 <dd><p>logical; if <code>TRUE</code> (default), probabilities
 are \(P[X \le x]\), otherwise, \(P[X \ge x]\).</p></dd>
+
+
 <dt>p</dt>
 <dd><p>vector of probabilities.</p></dd>
+
+
 <dt>n</dt>
 <dd><p>number of observations. If length(n) &gt; 1, the length
 is taken to be the number required.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p><code>dwnorm</code> gives the density, <code>dwnorm</code> gives the
+    
+
+<p><code>dwnorm</code> gives the density, <code>dwnorm</code> gives the
 distribution function, <code>qwnorm</code> gives the quantile function,
 and <code>rwnorm</code> generates random deviates.</p>
     </div>
@@ -181,7 +204,7 @@ supplied as a vectors (<code>mean</code>, <code>sd</code>) or matrices (<code>st
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>

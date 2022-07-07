@@ -18,7 +18,7 @@ standard errors of different effect size measures."><!-- mathjax --><script src=
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -71,49 +71,64 @@ standard errors of different effect size measures.</p>
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="fu">se_d2se_logOR</span><span class="op">(</span><span class="va">se_d</span>, <span class="va">logOR</span><span class="op">)</span>
-
-<span class="fu">se_d2se_r</span><span class="op">(</span><span class="va">se_d</span>, <span class="va">d</span><span class="op">)</span>
-
-<span class="fu">se_r2se_d</span><span class="op">(</span><span class="va">se_r</span>, <span class="va">r</span><span class="op">)</span>
-
-<span class="fu">se_logOR2se_d</span><span class="op">(</span><span class="va">se_logOR</span>, <span class="va">logOR</span><span class="op">)</span>
-
-<span class="fu">se_d2se_z</span><span class="op">(</span><span class="va">se_d</span>, <span class="va">d</span><span class="op">)</span>
-
-<span class="fu">se_r2se_z</span><span class="op">(</span><span class="va">se_r</span>, <span class="va">r</span><span class="op">)</span>
-
-<span class="fu">se_r2se_logOR</span><span class="op">(</span><span class="va">se_r</span>, <span class="va">r</span><span class="op">)</span>
-
-<span class="fu">se_logOR2se_r</span><span class="op">(</span><span class="va">se_logOR</span>, <span class="va">logOR</span><span class="op">)</span>
-
-<span class="fu">se_logOR2se_z</span><span class="op">(</span><span class="va">se_logOR</span>, <span class="va">logOR</span><span class="op">)</span>
-
-<span class="fu">se_z2se_d</span><span class="op">(</span><span class="va">se_z</span>, <span class="va">z</span><span class="op">)</span>
-
-<span class="fu">se_z2se_r</span><span class="op">(</span><span class="va">se_z</span>, <span class="va">z</span><span class="op">)</span>
-
-<span class="fu">se_z2se_logOR</span><span class="op">(</span><span class="va">se_z</span>, <span class="va">z</span><span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">se_d2se_logOR</span><span class="op">(</span><span class="va">se_d</span>, <span class="va">logOR</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_d2se_r</span><span class="op">(</span><span class="va">se_d</span>, <span class="va">d</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_r2se_d</span><span class="op">(</span><span class="va">se_r</span>, <span class="va">r</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_logOR2se_d</span><span class="op">(</span><span class="va">se_logOR</span>, <span class="va">logOR</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_d2se_z</span><span class="op">(</span><span class="va">se_d</span>, <span class="va">d</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_r2se_z</span><span class="op">(</span><span class="va">se_r</span>, <span class="va">r</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_r2se_logOR</span><span class="op">(</span><span class="va">se_r</span>, <span class="va">r</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_logOR2se_r</span><span class="op">(</span><span class="va">se_logOR</span>, <span class="va">logOR</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_logOR2se_z</span><span class="op">(</span><span class="va">se_logOR</span>, <span class="va">logOR</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_z2se_d</span><span class="op">(</span><span class="va">se_z</span>, <span class="va">z</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_z2se_r</span><span class="op">(</span><span class="va">se_z</span>, <span class="va">z</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">se_z2se_logOR</span><span class="op">(</span><span class="va">se_z</span>, <span class="va">z</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>se_d</dt>
 <dd><p>standard error of Cohen's d</p></dd>
+
+
 <dt>logOR</dt>
 <dd><p>log(odds ratios)</p></dd>
+
+
 <dt>d</dt>
 <dd><p>Cohen's d</p></dd>
+
+
 <dt>se_r</dt>
 <dd><p>standard error of correlation coefficient</p></dd>
+
+
 <dt>r</dt>
 <dd><p>correlation coefficient</p></dd>
+
+
 <dt>se_logOR</dt>
 <dd><p>standard error of log(odds ratios)</p></dd>
+
+
 <dt>se_z</dt>
 <dd><p>standard error of Fisher's z</p></dd>
+
+
 <dt>z</dt>
 <dd><p>Fisher's z</p></dd>
+
 </dl></div>
     <div id="details">
     <h2>Details</h2>
@@ -164,7 +179,7 @@ John Wiley \&amp; Sons.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>

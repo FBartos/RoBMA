@@ -22,7 +22,7 @@ summary(object, type = "individual").'><!-- mathjax --><script src="https://cdnj
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -79,26 +79,30 @@ or even more detailed information by
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="fu">diagnostics</span><span class="op">(</span>
-  <span class="va">fit</span>,
-  <span class="va">parameter</span>,
-  <span class="va">type</span>,
-  plot_type <span class="op">=</span> <span class="st">"base"</span>,
-  show_models <span class="op">=</span> <span class="cn">NULL</span>,
-  lags <span class="op">=</span> <span class="fl">30</span>,
-  title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">|</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,
-  <span class="va">...</span>
-<span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">diagnostics</span><span class="op">(</span></span>
+<span>  <span class="va">fit</span>,</span>
+<span>  <span class="va">parameter</span>,</span>
+<span>  <span class="va">type</span>,</span>
+<span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
+<span>  show_models <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  lags <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">|</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>fit</dt>
 <dd><p>a fitted RoBMA object</p></dd>
+
+
 <dt>parameter</dt>
 <dd><p>a parameter to be plotted. Either
 <code>"mu"</code>, <code>"tau"</code>, <code>"omega"</code>, <code>"PET"</code>,
 or <code>"PEESE"</code>.</p></dd>
+
+
 <dt>type</dt>
 <dd><p>type of MCMC diagnostic to be plotted.
 Options are <code>"chains"</code> for the chains' trace plots,
@@ -106,28 +110,44 @@ Options are <code>"chains"</code> for the chains' trace plots,
 chains, and <code>"densities"</code> for the overlaying
 densities of the individual chains. Can be abbreviated to
 first letters.</p></dd>
+
+
 <dt>plot_type</dt>
 <dd><p>whether to use a base plot <code>"base"</code>
 or ggplot2 <code>"ggplot"</code> for plotting. Defaults to
 <code>"base"</code>.</p></dd>
+
+
 <dt>show_models</dt>
 <dd><p>MCMC diagnostics of which models should be
 plotted. Defaults to <code>NULL</code> which plots MCMC diagnostics
 for a specified parameter for every model that is part of the
 ensemble.</p></dd>
+
+
 <dt>lags</dt>
 <dd><p>number of lags to be shown for
 <code>type = "autocorrelation"</code>. Defaults to <code>30</code>.</p></dd>
+
+
 <dt>title</dt>
 <dd><p>whether the model number should be displayed in title.
 Defaults to <code>TRUE</code> when more than one model is selected.</p></dd>
+
+
 <dt>...</dt>
 <dd><p>additional arguments to be passed to
 <a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a> if <code>plot_type = "base"</code>.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p><code>diagnostics</code> returns either <code>NULL</code> if <code>plot_type = "base"</code>or an object/list of objects (depending on the number of parameters to be plotted)
+    
+
+<p><code>diagnostics</code> returns either <code>NULL</code> if <code>plot_type = "base"</code></p>
+
+
+<p>or an object/list of objects (depending on the number of parameters to be plotted)
 of class 'ggplot2' if <code>plot_type = "ggplot2"</code>.</p>
     </div>
     <div id="details">
@@ -142,27 +162,27 @@ of class 'ggplot2' if <code>plot_type = "ggplot2"</code>.</p>
 
     <div id="ref-examples">
     <h2>Examples</h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span>
-<span class="r-in"><span class="co"># using the example data from Anderson et al. 2010 and fitting the default model</span></span>
-<span class="r-in"><span class="co"># (note that the model can take a while to fit)</span></span>
-<span class="r-in"><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>r <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">r</span>, n <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">n</span>, study_names <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">labels</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co">### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"</span></span>
-<span class="r-in"><span class="co"># diagnostics function allows to visualize diagnostics of a fitted RoBMA object, for example,</span></span>
-<span class="r-in"><span class="co"># the trace plot for the mean parameter in each model model</span></span>
-<span class="r-in"><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"chain"</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># in order to show the trace plot only for the 11th model, add show_models parameter</span></span>
-<span class="r-in"><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"chain"</span>, show_models <span class="op">=</span> <span class="fl">11</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># furthermore, the autocorrelations</span></span>
-<span class="r-in"><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"autocorrelation"</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># and overlying densities for each plot can also be visualize</span></span>
-<span class="r-in"><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"densities"</span><span class="op">)</span></span>
-<span class="r-in"><span class="op">}</span></span>
-<span class="r-in"></span>
-<span class="r-in"></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span><span class="co"># using the example data from Anderson et al. 2010 and fitting the default model</span></span></span>
+<span class="r-in"><span><span class="co"># (note that the model can take a while to fit)</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>r <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">r</span>, n <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">n</span>, study_names <span class="op">=</span> <span class="va">Anderson2010</span><span class="op">$</span><span class="va">labels</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">### ggplot2 version of all of the plots can be obtained by adding 'model_type = "ggplot"</span></span></span>
+<span class="r-in"><span><span class="co"># diagnostics function allows to visualize diagnostics of a fitted RoBMA object, for example,</span></span></span>
+<span class="r-in"><span><span class="co"># the trace plot for the mean parameter in each model model</span></span></span>
+<span class="r-in"><span><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"chain"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># in order to show the trace plot only for the 11th model, add show_models parameter</span></span></span>
+<span class="r-in"><span><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"chain"</span>, show_models <span class="op">=</span> <span class="fl">11</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># furthermore, the autocorrelations</span></span></span>
+<span class="r-in"><span><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"autocorrelation"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># and overlying densities for each plot can also be visualize</span></span></span>
+<span class="r-in"><span><span class="fu">diagnostics</span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"densities"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
   </div>
@@ -177,7 +197,7 @@ of class 'ggplot2' if <code>plot_type = "ggplot2"</code>.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>

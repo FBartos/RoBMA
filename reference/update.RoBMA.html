@@ -30,7 +30,7 @@ refit_failed == FALSE.
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.2.3</span>
       </span>
     </div>
 
@@ -92,132 +92,183 @@ results by specifying new <code>control</code> argument and setting
 </ol></div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="co"># S3 method for RoBMA</span>
-<span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span>
-  <span class="va">object</span>,
-  refit_failed <span class="op">=</span> <span class="cn">TRUE</span>,
-  prior_effect <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_heterogeneity <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_bias <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_rho <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_weights <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_effect_null <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_heterogeneity_null <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_bias_null <span class="op">=</span> <span class="cn">NULL</span>,
-  prior_rho_null <span class="op">=</span> <span class="cn">NULL</span>,
-  study_names <span class="op">=</span> <span class="cn">NULL</span>,
-  chains <span class="op">=</span> <span class="cn">NULL</span>,
-  adapt <span class="op">=</span> <span class="cn">NULL</span>,
-  burnin <span class="op">=</span> <span class="cn">NULL</span>,
-  sample <span class="op">=</span> <span class="cn">NULL</span>,
-  thin <span class="op">=</span> <span class="cn">NULL</span>,
-  autofit <span class="op">=</span> <span class="cn">NULL</span>,
-  parallel <span class="op">=</span> <span class="cn">NULL</span>,
-  autofit_control <span class="op">=</span> <span class="cn">NULL</span>,
-  convergence_checks <span class="op">=</span> <span class="cn">NULL</span>,
-  save <span class="op">=</span> <span class="st">"all"</span>,
-  seed <span class="op">=</span> <span class="cn">NULL</span>,
-  silent <span class="op">=</span> <span class="cn">TRUE</span>,
-  <span class="va">...</span>
-<span class="op">)</span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S3 method for RoBMA</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span></span>
+<span>  <span class="va">object</span>,</span>
+<span>  refit_failed <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  prior_effect <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_heterogeneity <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_bias <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_rho <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_effect_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_heterogeneity_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_bias_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_rho_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  study_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  chains <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  adapt <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  burnin <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  sample <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  thin <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  autofit <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  parallel <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  autofit_control <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  convergence_checks <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  save <span class="op">=</span> <span class="st">"all"</span>,</span>
+<span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  silent <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>object</dt>
 <dd><p>a fitted RoBMA object</p></dd>
+
+
 <dt>refit_failed</dt>
 <dd><p>whether failed models should be refitted. Relevant only
 if new priors or <code>prior_weights</code> are not supplied. Defaults to <code>TRUE</code>.</p></dd>
+
+
 <dt>prior_effect</dt>
 <dd><p>prior distribution for the effect size (<code>mu</code>)
 parameter that will be treated as belonging to the alternative hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>prior_heterogeneity</dt>
 <dd><p>prior distribution for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the alternative hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>prior_bias</dt>
 <dd><p>prior distribution for the publication bias adjustment
 component that will be treated as belonging to the alternative hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>prior_rho</dt>
 <dd><p>prior distributions for the variance allocation (<code>rho</code>)
 parameter that will be treated as belonging to the alternative hypothesis. This setting allows
 users to fit a three-level meta-analysis when <code>study_ids</code> are supplied. Note that this is
 an experimental feature and see News for more details. Defaults to a beta distribution
 <code>prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))</code>.</p></dd>
+
+
 <dt>prior_weights</dt>
 <dd><p>either a single value specifying prior model weight
 of a newly specified model using priors argument, or a vector of the
 same length as already fitted models to update their prior weights.</p></dd>
+
+
 <dt>prior_effect_null</dt>
 <dd><p>prior distribution for the effect size (<code>mu</code>)
 parameter that will be treated as belonging to the null hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>prior_heterogeneity_null</dt>
 <dd><p>prior distribution for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the null hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>prior_bias_null</dt>
 <dd><p>prior distribution for the publication bias adjustment
 component that will be treated as belonging to the null hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>prior_rho_null</dt>
 <dd><p>prior distributions for the variance allocation (<code>rho</code>)
 parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
+
+
 <dt>study_names</dt>
 <dd><p>an optional argument with the names of the studies</p></dd>
+
+
 <dt>chains</dt>
 <dd><p>a number of chains of the MCMC algorithm.</p></dd>
+
+
 <dt>adapt</dt>
 <dd><p>a number of adaptation iterations of the MCMC algorithm.
 Defaults to <code>500</code>.</p></dd>
+
+
 <dt>burnin</dt>
 <dd><p>a number of burnin iterations of the MCMC algorithm.
 Defaults to <code>2000</code>.</p></dd>
+
+
 <dt>sample</dt>
 <dd><p>a number of sampling iterations of the MCMC algorithm.
 Defaults to <code>5000</code>.</p></dd>
+
+
 <dt>thin</dt>
 <dd><p>a thinning of the chains of the MCMC algorithm. Defaults to
 <code>1</code>.</p></dd>
+
+
 <dt>autofit</dt>
 <dd><p>whether the model should be fitted until the convergence
 criteria (specified in <code>autofit_control</code>) are satisfied. Defaults to
 <code>TRUE</code>.</p></dd>
+
+
 <dt>parallel</dt>
 <dd><p>whether the individual models should be fitted in parallel.
 Defaults to <code>FALSE</code>. The implementation is not completely stable
 and might cause a connection error.</p></dd>
+
+
 <dt>autofit_control</dt>
 <dd><p>allows to pass autofit control settings with the
 <code><a href="RoBMA_control.html">set_autofit_control()</a></code> function. See <code><a href="RoBMA_control.html">?set_autofit_control</a></code> for
 options and default settings.</p></dd>
+
+
 <dt>convergence_checks</dt>
 <dd><p>automatic convergence checks to assess the fitted
 models, passed with <code><a href="RoBMA_control.html">set_convergence_checks()</a></code> function. See
 <code><a href="RoBMA_control.html">?set_convergence_checks</a></code> for options and default settings.</p></dd>
+
+
 <dt>save</dt>
 <dd><p>whether all models posterior distributions should be kept
 after obtaining a model-averaged result. Defaults to <code>"all"</code> which
 does not remove anything. Set to <code>"min"</code> to significantly reduce
 the size of final object, however, some model diagnostics and further
 manipulation with the object will not be possible.</p></dd>
+
+
 <dt>seed</dt>
 <dd><p>a seed to be set before model fitting, marginal likelihood
 computation, and posterior mixing for reproducibility of results. Defaults
 to <code>NULL</code> - no seed is set.</p></dd>
+
+
 <dt>silent</dt>
 <dd><p>whether all print messages regarding the fitting process
 should be suppressed. Defaults to <code>TRUE</code>. Note that <code>parallel = TRUE</code>
 also suppresses all messages.</p></dd>
+
+
 <dt>...</dt>
 <dd><p>additional arguments.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p><code>RoBMA</code> returns an object of class 'RoBMA'.</p>
+    
+
+<p><code>RoBMA</code> returns an object of class 'RoBMA'.</p>
     </div>
     <div id="details">
     <h2>Details</h2>
@@ -230,29 +281,29 @@ also suppresses all messages.</p></dd>
 
     <div id="ref-examples">
     <h2>Examples</h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span>
-<span class="r-in"><span class="co"># using the example data from Bem 2011 and fitting the default (RoBMA-PSMA) model</span></span>
-<span class="r-in"><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">study</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># the update function allows us to change the prior model weights of each model</span></span>
-<span class="r-in"><span class="va">fit1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span><span class="va">fit</span>, prior_weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># add an additional model with different priors specification</span></span>
-<span class="r-in"><span class="co"># (see '?prior' for more information)</span></span>
-<span class="r-in"><span class="va">fit2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span><span class="va">fit</span>,</span>
-<span class="r-in">               priors_effect_null <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"point"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span>,</span>
-<span class="r-in">               priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"normal"</span>,</span>
-<span class="r-in">                                  parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span class="r-in">                                  truncation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>lower <span class="op">=</span> <span class="fl">0</span>, upper <span class="op">=</span> <span class="cn">Inf</span><span class="op">)</span><span class="op">)</span>,</span>
-<span class="r-in">               priors_bias <span class="op">=</span> <span class="fu"><a href="prior_weightfunction.html">prior_weightfunction</a></span><span class="op">(</span><span class="st">"one-sided"</span>,</span>
-<span class="r-in">                                    parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>cuts <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">.05</span>, <span class="fl">.10</span>, <span class="fl">.20</span><span class="op">)</span>,</span>
-<span class="r-in">                                                      alpha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span class="r-in"></span>
-<span class="r-in"><span class="co"># refit the models with an increased number of sample iterations</span></span>
-<span class="r-in"><span class="va">fit3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span><span class="va">fit</span>, sample <span class="op">=</span> <span class="fl">10000</span><span class="op">)</span></span>
-<span class="r-in"><span class="op">}</span></span>
-<span class="r-in"></span>
-<span class="r-in"></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span><span class="co"># using the example data from Bem 2011 and fitting the default (RoBMA-PSMA) model</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">study</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># the update function allows us to change the prior model weights of each model</span></span></span>
+<span class="r-in"><span><span class="va">fit1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span><span class="va">fit</span>, prior_weights <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># add an additional model with different priors specification</span></span></span>
+<span class="r-in"><span><span class="co"># (see '?prior' for more information)</span></span></span>
+<span class="r-in"><span><span class="va">fit2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span><span class="va">fit</span>,</span></span>
+<span class="r-in"><span>               priors_effect_null <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"point"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"normal"</span>,</span></span>
+<span class="r-in"><span>                                  parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                                  truncation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>lower <span class="op">=</span> <span class="fl">0</span>, upper <span class="op">=</span> <span class="cn">Inf</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>               priors_bias <span class="op">=</span> <span class="fu"><a href="prior_weightfunction.html">prior_weightfunction</a></span><span class="op">(</span><span class="st">"one-sided"</span>,</span></span>
+<span class="r-in"><span>                                    parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>cuts <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">.05</span>, <span class="fl">.10</span>, <span class="fl">.20</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                                                      alpha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># refit the models with an increased number of sample iterations</span></span></span>
+<span class="r-in"><span><span class="va">fit3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/update.html" class="external-link">update</a></span><span class="op">(</span><span class="va">fit</span>, sample <span class="op">=</span> <span class="fl">10000</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
   </div>
@@ -267,7 +318,7 @@ also suppresses all messages.</p></dd>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.2.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.5.</p>
 </div>
 
       </footer></div>
