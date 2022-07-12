@@ -214,6 +214,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       attr(output, "effect_measure")   <- transformation
       attr(output, "original_measure") <- original_measure
       attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+      attr(output, "weighted")         <- FALSE
       class(output) <- c(class(output), "data.RoBMA")
 
       return(output)
@@ -369,6 +370,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     attr(output, "effect_measure")   <- transformation
     attr(output, "original_measure") <- original_measure
     attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+    attr(output, "weighted")         <- FALSE
     class(output) <- c(class(output), "data.RoBMA")
 
     if(anyNA(data[,"se"]) | anyNA(data[,"se"])){

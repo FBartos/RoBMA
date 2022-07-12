@@ -30,6 +30,7 @@ PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath -llapack
 
 OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
  		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
+		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
 		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
 		  functions/wmnorm.o functions/mnorm.o \
 		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \

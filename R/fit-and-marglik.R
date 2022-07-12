@@ -27,10 +27,10 @@
       fit_data     <- .fit_data.mv(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
     }else{
       # generate the model syntax
-      model_syntax <- .generate_model_syntax(priors, add_info[["effect_direction"]], add_info[["prior_scale"]], add_info[["effect_measure"]])
+      model_syntax <- .generate_model_syntax(priors, add_info[["effect_direction"]], add_info[["prior_scale"]], add_info[["effect_measure"]], attr(model, "weighted"))
 
       # remove unnecessary objects from data to mitigate warnings
-      fit_data     <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
+      fit_data     <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]], attr(model, "weighted"))
     }
 
 
@@ -95,7 +95,7 @@
         fit              = fit,
         data             = fit_data,
         prior_list       = priors,
-        log_posterior    = if(attr(model, "multivariate")) .marglik_function.mv else .marglik_function,
+        log_posterior    = if(attr(model, "multivariate")) .marglik_function.mv  else .marglik_function,
         maxiter          = 50000,
         silent           = fit_control[["silent"]],
         priors           = priors,
@@ -124,14 +124,20 @@
 
   }else{
 
-    fit_data                <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]])
+    fit_data                <- .fit_data(object[["data"]], priors, add_info[["effect_direction"]], add_info[["prior_scale"]], attr(model, "weighted"))
     converged               <- TRUE
     has_posterior           <- FALSE
     fit                     <- list()
     attr(fit, "prior_list") <- priors
     class(fit)              <- "null_model"
     marglik                 <- list()
-    marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE))
+
+    if(attr(model, "weighted")){
+      marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE) + log(fit_data[["weight"]]))
+    }else{
+      marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE))
+    }
+
     class(marglik)          <- "bridge"
 
   }
@@ -176,7 +182,7 @@
 }
 
 # tools
-.fit_data                 <- function(data, priors, effect_direction, prior_scale){
+.fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -195,6 +201,11 @@
   # add critical y-values
   if(!is.null(priors[["omega"]])){
     fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure, effect_measure))
+  }
+
+  # add weights proportional to the number of estimates from a study
+  if(weighted){
+    fit_data$weight <- .get_id_weights(data)
   }
 
   return(fit_data)
@@ -245,7 +256,7 @@
 
   return(fit_data)
 }
-.generate_model_syntax    <- function(priors, effect_direction, priors_scale, effect_measure){
+.generate_model_syntax    <- function(priors, effect_direction, priors_scale, effect_measure, weighted){
 
   model_syntax <- "model{\n"
 
@@ -278,14 +289,23 @@
   }
 
   # the observed data
-  if(is.null(priors[["omega"]])){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
-  }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
-  }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+  if(weighted){
+    if(is.null(priors[["omega"]])){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(",     eff, ",", prec, ", weight[i])\n")
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega, weight[i]) \n")
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega, weight[i]) \n")
+    }
+  }else{
+    if(is.null(priors[["omega"]])){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+    }
   }
-
 
   model_syntax <- paste0(model_syntax, "}\n")
   model_syntax <- paste0(model_syntax, "}")
@@ -423,13 +443,24 @@
   log_lik <- 0
 
   # the individual studies
-  if(is.null(priors[["omega"]])){
-    log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
-  }else if(priors[["omega"]]$distribution == "one.sided"){
-    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
-  }else if(priors[["omega"]]$distribution == "two.sided"){
-    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+  if(!is.null(data[["weight"]])){
+    if(is.null(priors[["omega"]])){
+      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) + log(data[["weight"]]))
+    }else if(priors[["omega"]]$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) + log(data[["weight"]]))
+    }else if(priors[["omega"]]$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) + log(data[["weight"]]))
+    }
+  }else{
+    if(is.null(priors[["omega"]])){
+      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
+    }else if(priors[["omega"]]$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+    }else if(priors[["omega"]]$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+    }
   }
+
 
   return(log_lik)
 }
@@ -611,7 +642,26 @@
 
   return(summary_list)
 }
+.get_id_weights         <- function(data){
 
+  weights <- rep(NA, nrow(data))
+
+  # create table of number of estimates per study
+  ids_weights <- data.frame(
+    id     = names(table(data[,"study_ids"])),
+    weight = 1/as.vector(table(data[,"study_ids"]))
+  )
+
+  # fill their weights
+  for(i in seq_along(ids_weights$id)){
+    weights[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weights$id[i]] <- 1/ids_weights$weight[ids_weights$id == ids_weights$id[i]]
+  }
+
+  # assign all remaining studies weight 1
+  weights[is.na(weights)] <- 1
+
+  return(weights)
+}
 
 # JAGS tools for model building and marginal likelihood
 .JAGS_transformation    <- function(from, to, from_par, to_par_name){

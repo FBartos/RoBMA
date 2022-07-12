@@ -18,12 +18,15 @@ remove_time  <- function(fit){
   }
   return(fit)
 }
-clean_all  <- function(fit, only_samples = TRUE){
+clean_all  <- function(fit, only_samples = TRUE, remove_call = FALSE){
   if(only_samples){
     fit$data     <- NULL
     fit$add_info <- NULL
     fit$control  <- NULL
     fit$models   <- NULL
+  }
+  if(remove_call){
+    fit$call <- NULL
   }
   return(fit)
 }
@@ -188,6 +191,25 @@ test_that("3-level models work", {
   fit13 <- remove_time(fit13)
   expect_equal(clean_all(saved_fits[[13]]), clean_all(fit13))
 
+})
+
+test_that("weighted models work", {
+
+  # all weights == 1 should correspond to fit1
+  temp_data <- combine_data(
+    d         = d,
+    se        = d_se,
+    study_ids = seq_along(d)
+  )
+  attr(temp_data, "all_independent") <- FALSE
+
+  fit1w <- try_parallel(suppressWarnings(RoBMA(data = temp_data, weighted = TRUE, seed = 1, parallel = TRUE)))
+  fit1w <- remove_time(fit1w)
+  expect_equal(clean_all(saved_fits[[1]], remove_call = TRUE), clean_all(fit1w, remove_call = TRUE))
+
+  # check that the models are actually weighted
+  expect_true(all(grepl("dwwn", sapply(c(2:7,  11:16, 20:25, 29:34), function(i) as.character(fit1w$models[[i]]$fit$model)))))
+  expect_true(all(grepl("dwn",  sapply(c(8:10, 17:19, 26:28, 35:36), function(i) as.character(fit1w$models[[i]]$fit$model)))))
 })
 
 #### creating / updating the test settings ####

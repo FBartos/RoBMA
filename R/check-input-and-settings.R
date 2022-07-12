@@ -35,7 +35,7 @@ check_setup <- function(
 
   object <- list()
   object$priors   <- .check_and_list_priors(tolower(model_type), priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho, priors_rho_null, object$add_info[["prior_scale"]])
-  object$models   <- .make_models(object[["priors"]], multivariate = FALSE)
+  object$models   <- .make_models(object[["priors"]], multivariate = FALSE, weighted = FALSE)
 
 
   ### model types overview
@@ -391,7 +391,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   dots <- list(...)
 
-  known_dots <- c("is_JASP")
+  known_dots <- c("is_JASP", "weighted")
   if(any(!names(dots) %in% known_dots))
     stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
 
@@ -399,6 +399,12 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     dots[["is_JASP"]] <- FALSE
   }else{
     dots[["is_JASP"]] <- TRUE
+  }
+
+  if(is.null(dots[["weighted"]])){
+    dots[["weighted"]] <- FALSE
+  }else{
+    BayesTools::check_bool(dots[["weighted"]], "weighted")
   }
 
   return(dots)

@@ -151,7 +151,7 @@
 
   return(priors)
 }
-.make_models  <- function(priors, multivariate){
+.make_models  <- function(priors, multivariate, weighted){
 
   # create models according to the set priors
   models <- NULL
@@ -162,13 +162,13 @@
           for(rho in priors[["rho"]]){
             models <- c(
               models,
-              list(.make_model(effect, heterogeneity, bias, rho, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * rho[["prior_weights"]]))
+              list(.make_model(effect, heterogeneity, bias, rho, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * rho[["prior_weights"]], multivariate, weighted))
             )
           }
         }else{
           models <- c(
             models,
-            list(.make_model(effect, heterogeneity, bias, NULL, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]]))
+            list(.make_model(effect, heterogeneity, bias, NULL, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]], multivariate, weighted))
           )
         }
       }
@@ -177,7 +177,7 @@
 
   return(models)
 }
-.make_model   <- function(prior_effect, prior_heterogeneity, prior_bias, prior_rho, prior_weights){
+.make_model   <- function(prior_effect, prior_heterogeneity, prior_bias, prior_rho, prior_weights, multivariate, weighted){
 
   priors <- list()
 
@@ -201,7 +201,9 @@
     prior_weights_set = prior_weights
   )
   class(model) <- "RoBMA.model"
-  attr(model, "multivariate") <- !is.null(priors$rho)
+
+  attr(model, "multivariate") <- multivariate && !is.null(priors$rho)
+  attr(model, "weighted")     <- weighted
 
   return(model)
 }
