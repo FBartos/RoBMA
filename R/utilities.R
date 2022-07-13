@@ -61,6 +61,7 @@ assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
 assign("min_jags_major",  4,                              envir = RoBMA.private)
 assign("max_jags_major",  4,                              envir = RoBMA.private)
 assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = RoBMA.private)
+assign("check_scaling",   TRUE,                                       envir = RoBMA.private)
 
 # check proper BayesTools package version
 .check_BayesTools <- function(){
@@ -78,13 +79,14 @@ assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = Ro
 
   BayesTools_required <- switch(
     paste0(RoBMA.version, collapse = "."),
-    "2.1.1" = c("0.1.3", "0.1.3"),
-    "2.1.2" = c("0.1.3", "0.1.3"),
-    "2.2.0" = c("0.1.3", "0.1.3"),
-    "2.2.1" = c("0.2.3", "999.999.999"),
-    "2.2.2" = c("0.2.3", "999.999.999"),
-    "2.2.3" = c("0.2.3", "999.999.999"),
-    "2.3.0" = c("0.2.3", "999.999.999"),
+    "2.1.1" = c("0.1.3",  "0.1.3"),
+    "2.1.2" = c("0.1.3",  "0.1.3"),
+    "2.2.0" = c("0.1.3",  "0.1.3"),
+    "2.2.1" = c("0.2.3",  "999.999.999"),
+    "2.2.2" = c("0.2.3",  "999.999.999"),
+    "2.2.3" = c("0.2.3",  "999.999.999"),
+    "2.3.0" = c("0.2.3",  "999.999.999"),
+    "2.4.0" = c("0.2.13", "999.999.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
