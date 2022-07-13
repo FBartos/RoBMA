@@ -103,7 +103,7 @@ The 2.0 version brings several updates to the package:
 
 ## Installation
 
-The package requires [JAGS 4.3.0](https://mcmc-jags.sourceforge.io/) to
+The package requires [JAGS 4.3.1](https://mcmc-jags.sourceforge.io/) to
 be installed. The release version can be installed from CRAN:
 
 ``` r

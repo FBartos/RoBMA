@@ -145,6 +145,9 @@ check_RoBMA <- function(fit){
 .multivariate_warning        <- function(){
   warning("You are about to estimate multivariate models. Note that this is an extremely computationaly expensive experimental feature.", immediate. = TRUE)
 }
+.weighted_warning        <- function(){
+  warning("You are about to estimate weighted models. Note that this is an experimental feature.", immediate. = TRUE)
+}
 .update_object               <- function(object){
 
   # 2.1 -> 2.2
