@@ -158,7 +158,7 @@ check_RoBMA <- function(fit){
 .multivariate_warning        <- function(){
   warning("You are about to estimate multivariate models. Note that this is an extremely computationaly expensive experimental feature.", immediate. = TRUE, call. = FALSE)
 }
-.weighted_warning        <- function(){
+.weighted_warning            <- function(){
   warning("You are about to estimate weighted models. Note that this is an experimental feature.", immediate. = TRUE, call. = FALSE)
 }
 .update_object               <- function(object){
@@ -225,9 +225,9 @@ check_RoBMA <- function(fit){
 }
 .is_weighted     <- function(object){
   if(.is_regression(object)){
-    return(!attr(object[["data"]][["outcome"]], "weighted"))
+    return(attr(object[["data"]][["outcome"]], "weighted"))
   }else{
-    return(!attr(object[["data"]], "weighted"))
+    return(attr(object[["data"]], "weighted"))
   }
 }
 .is_regression   <- function(object){

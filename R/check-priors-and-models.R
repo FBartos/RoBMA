@@ -384,7 +384,7 @@
     warning(sprintf("You are about to estimate %i models based on the model formula and prior specification.", nrow(grid)), immediate. = TRUE, call. = FALSE)
 
   ### create empty models objects for fitting
-  models <- lapply(1:nrow(grid), function(i) .make_model.reg(models_base[[grid[i,1]]], grid[i,-1], priors))
+  models <- lapply(1:nrow(grid), function(i) .make_model.reg(models_base[[grid[i,1]]], grid[i,-1,drop=FALSE], priors))
 
   return(models)
 }
