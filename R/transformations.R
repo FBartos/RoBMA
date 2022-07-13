@@ -413,6 +413,31 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     }
   }
 
+  for(type in c("posteriors_predictors", "posteriors_predictors_conditional")){
+
+    for(i in seq_along(object$RoBMA[[type]])){
+
+      if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.factor")){
+        for(j in 1:ncol(object$RoBMA[[type]][[i]])){
+          object$RoBMA[[type]][[i]][,j] <- .transform_mu(
+            object$RoBMA[[type]][[i]][,j],
+            current_scale,
+            output_scale
+          )
+        }
+      }else if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.simple")){
+        object$RoBMA[[type]][[i]] <- .transform_mu(
+          object$RoBMA[[type]][[i]],
+          current_scale,
+          output_scale
+        )
+      }
+
+    }
+
+  }
+
+
   object$add_info[["output_scale"]] <- output_scale
 
   return(object)

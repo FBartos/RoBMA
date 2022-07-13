@@ -164,17 +164,17 @@ check_RoBMA <- function(fit){
 .update_object               <- function(object){
 
   # 2.1 -> 2.2
-  if(is.null(attr(object$data, "all_independent"))){
+  if(is.null(object[["formula"]]) && is.null(attr(object$data, "all_independent"))){
     attr(object$data, "all_independent") <- TRUE
   }
 
   # 2.2 -> 2.3
-  if(!is.null(attr(object$data, "all_independent")) && is.null(attr(object$data, "weighted"))){
+  if(is.null(object[["formula"]]) && !is.null(attr(object$data, "all_independent")) && is.null(attr(object$data, "weighted"))){
     attr(object$data, "weighted") <- FALSE
   }
 
   # 2.3 -> 2.4
-  if(!all(names(object[["add_info"]]) %in% c("predictors", "predictors_test", "standardize_predictors"))){
+  if(!all(c("predictors", "predictors_test", "standardize_predictors") %in% names(object[["add_info"]]))){
     object[["add_info"]][["predictors"]]             <- NULL
     object[["add_info"]][["predictors_test"]]        <- NULL
     object[["add_info"]][["standardize_predictors"]] <- NULL
@@ -193,7 +193,10 @@ check_RoBMA <- function(fit){
       "errors"
     )]
   }
-  if(!all(names(object[["RoBMA"]]) %in% c("inference_predictors", "inference_predictors_conditional", "posteriors_predictors", "posteriors_predictors_conditional"))){
+  if(!all("version" %in% names(object[["add_info"]]))){
+    object[["add_info"]][["version"]] <- utils::packageVersion("RoBMA")
+  }
+  if(!all(c("inference_predictors", "inference_predictors_conditional", "posteriors_predictors", "posteriors_predictors_conditional") %in% names(object[["RoBMA"]]))){
     object[["RoBMA"]][["inference_predictors"]]              <- NULL
     object[["RoBMA"]][["inference_predictors_conditional"]]  <- NULL
     object[["RoBMA"]][["posteriors_predictors"]]             <- NULL
@@ -211,6 +214,24 @@ check_RoBMA <- function(fit){
   }
 
   return(object)
+}
+
+.is_multivariate <- function(object){
+  if(.is_regression(object)){
+    return(!attr(object[["data"]][["outcome"]], "all_independent"))
+  }else{
+    return(!attr(object[["data"]], "all_independent"))
+  }
+}
+.is_weighted     <- function(object){
+  if(.is_regression(object)){
+    return(!attr(object[["data"]][["outcome"]], "weighted"))
+  }else{
+    return(!attr(object[["data"]], "weighted"))
+  }
+}
+.is_regression   <- function(object){
+  return(!is.null(object[["formula"]]))
 }
 
 .BayesTools_parameter_name   <- function(parameter){

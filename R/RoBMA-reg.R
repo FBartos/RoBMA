@@ -103,7 +103,7 @@ RoBMA.reg <- function(
   object$formula <- formula
 
   # switch between multivariate and weighted models
-  if(!attr(object$data[["outcome"]], "all_independent")){
+  if(.is_multivariate(object)){
     if(dots[["weighted"]]){
       .weighted_warning()
       attr(object$data[["outcome"]], "all_independent") <- TRUE
@@ -131,7 +131,7 @@ RoBMA.reg <- function(
     priors_rho_null = priors_rho_null, priors_rho = priors_rho,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
-  object$models     <- .make_models.reg(object[["priors"]], !attr(object$data[["outcome"]], "all_independent"), attr(object$data[["outcome"]], "weighted"))
+  object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
 
 
   ### additional information
