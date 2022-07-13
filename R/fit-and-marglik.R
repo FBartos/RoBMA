@@ -178,15 +178,15 @@
 
       data_outcome    <- object[["data"]][["outcome"]]
       const_location  <- priors[["terms"]][["intercept"]]$parameters[["location"]]
-      fit_priors      <- c(priors[names(priors) != "terms"], priors["terms"])
-      names(fit_priors)[names(fit_priors) %in% names(priors["terms"])] <- paste0("mu_", names(fit_priors)[names(fit_priors) %in% names(priors["terms"])])
+      fit_priors      <- c(priors[names(priors) != "terms"], priors[["terms"]])
+      names(fit_priors)[names(fit_priors) %in% names(priors[["terms"]])] <- paste0("mu_", names(fit_priors)[names(fit_priors) %in% names(priors[["terms"]])])
     }else if(inherits(model, "RoBMA.model")){
       data_outcome    <- object[["data"]]
       fit_priors      <- priors
       const_location  <- priors$mu$parameters[["location"]]
     }
 
-    if(fit_priors[["tau"]]$parametes[["location"]] != 0)
+    if(fit_priors[["tau"]]$parameters[["location"]] != 0)
       stop("All constant model cannot include non zero heterogeneity parameter.")
 
     fit_data                <- .fit_data(
@@ -199,7 +199,7 @@
     converged               <- TRUE
     has_posterior           <- FALSE
     fit                     <- list()
-    attr(fit, "prior_list") <- priors
+    attr(fit, "prior_list") <- fit_priors
     class(fit)              <- "null_model"
     marglik                 <- list()
 
@@ -527,7 +527,9 @@
 
   ### compute the marginal log_likelihood
   log_lik <- 0
-
+# print(eff)
+# print(sum(abs(data[["y"]] - eff)))
+# print("---------------")
   # the individual studies
   if(!is.null(data[["weight"]])){
     if(is.null(priors[["omega"]])){
