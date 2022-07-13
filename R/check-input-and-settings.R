@@ -209,6 +209,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 
 
+
 .update_fit_control     <- function(old_fit_control, chains, adapt, burnin, sample, thin, autofit, parallel, cores, silent, seed){
 
   if(is.null(chains)){
@@ -333,27 +334,35 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   convergence_checks[["balance_probability"]] <- balance_probability
   return(convergence_checks)
 }
-.check_and_list_add_info  <- function(model_type, prior_scale, output_scale, effect_measure, effect_direction, seed, save, warnings, errors){
+.check_and_list_add_info  <- function(model_type, predictors = NULL, predictors_test = NULL, prior_scale, output_scale, effect_measure, effect_direction, standardize_predictors = NULL, seed, save, warnings, errors){
 
   BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative"))
   BayesTools::check_real(seed, "seed", allow_NULL = TRUE)
   BayesTools::check_char(save, "save", allow_values = c("min", "all"))
   model_type <- .check_and_set_model_type(model_type, prior_scale)
+  BayesTools::check_char(predictors, "predictors", allow_NULL = TRUE, check_length = 0)
+  BayesTools::check_char(predictors_test, "predictors_test", allow_NULL = TRUE, check_length = 0)
+  BayesTools::check_bool(standardize_predictors, "standardize_predictors", allow_NULL = TRUE)
 
   if((prior_scale == "y" & effect_measure != "y") | (prior_scale != "y" & effect_measure == "y"))
     stop("Prior / effect size transformations are not available for unstandardized effect sizes.", call. = FALSE)
 
-  return(list(
-    model_type       = model_type,
-    prior_scale      = prior_scale,
-    output_scale     = output_scale,
-    effect_measure   = effect_measure,
-    effect_direction = effect_direction,
-    seed             = seed,
-    save             = save,
-    warnings         = warnings,
-    errors           = errors
-  ))
+  add_info <- list(
+    model_type             = model_type,
+    predictors             = predictors,
+    predictors_test        = predictors_test,
+    prior_scale            = prior_scale,
+    output_scale           = output_scale,
+    effect_measure         = effect_measure,
+    effect_direction       = effect_direction,
+    standardize_predictors = standardize_predictors,
+    seed                   = seed,
+    save                   = save,
+    warnings               = warnings,
+    errors                 = errors
+  )
+
+  return(add_info)
 }
 .check_and_set_model_type <- function(model_type, prior_scale){
 
