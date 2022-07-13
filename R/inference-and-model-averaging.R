@@ -101,12 +101,13 @@
 
     # define inference options
     components_predictors      <- NULL
-    parameters_predictors      <- NULL
+    parameters_predictors      <- "mu_intercept"
     components_predictors_null <- list()
-    parameters_predictors_null <- list()
+    parameters_predictors_null <- list("mu_intercept" = !effect)
 
     components_predictors_distributions      <- NULL
     components_predictors_distributions_null <- list()
+
 
     # predictors
     for(i in seq_along(predictors_test)){
@@ -156,6 +157,7 @@
         seed         = object$add_info[["seed"]],
         conditional  = FALSE
       )
+      posteriors_predictors <- BayesTools::transform_orthonormal_samples(posteriors_predictors)
     }
 
     # deal with the possibility of only null models models
@@ -169,6 +171,7 @@
         seed         = object$add_info[["seed"]],
         conditional  = TRUE
       )
+      posteriors_predictors_conditional <- BayesTools::transform_orthonormal_samples(posteriors_predictors_conditional)
     }
   }else{
     # create empty objects in case of no predictors
@@ -256,11 +259,10 @@
       return(out)
     })))
   }else{
-    coefs        <- NULL
+    coefs        <- c("mu" = mean(RoBMA$posteriors[["mu"]]))
   }
   return(c(
-    "mu"     = mean(RoBMA$posteriors[["mu"]]),
-    if(!is.null(coefs)) coefs,
+    coefs,
     "tau"    = mean(RoBMA$posteriors[["tau"]]),
     "rho"    = if(!is.null(RoBMA$posteriors[["rho"]]))   mean(RoBMA$posteriors[["rho"]]),
     if(!is.null(RoBMA$posteriors[["omega"]])) apply(RoBMA$posteriors[["omega"]], 2, mean),

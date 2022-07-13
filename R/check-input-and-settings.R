@@ -359,7 +359,8 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     seed                   = seed,
     save                   = save,
     warnings               = warnings,
-    errors                 = errors
+    errors                 = errors,
+    version                = utils::packageVersion("RoBMA")
   )
 
   return(add_info)

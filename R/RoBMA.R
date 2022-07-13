@@ -229,7 +229,7 @@ RoBMA <- function(
   }
 
   # switch between multivariate and weighted models
-  if(!attr(object$data, "all_independent")){
+  if(.is_multivariate(object)){
     if(dots[["weighted"]]){
       .weighted_warning()
       attr(object$data, "all_independent") <- TRUE
@@ -261,7 +261,7 @@ RoBMA <- function(
 
   ### prepare and check the settings
   object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho_null, priors_rho, object$add_info[["prior_scale"]])
-  object$models   <- .make_models(object[["priors"]], !attr(object$data, "all_independent"), attr(object$data, "weighted"))
+  object$models   <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 
 
@@ -437,7 +437,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     what_to_do <- "fit_new_model"
     new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_rho_null, prior_rho, object$add_info[["prior_scale"]])
 
-    object$models[length(object$models) + 1]  <- list(.make_models(new_priors, !attr(object$data, "all_independent"), attr(object$data, "weighted"))[[1]])
+    object$models[length(object$models) + 1]  <- list(.make_models(new_priors, .is_multivariate(object), .is_weighted(object))[[1]])
 
     if(!is.null(prior_weights)){
       object$models[[length(object$models)]]$prior_weights     <- prior_weights

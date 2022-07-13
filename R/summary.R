@@ -88,6 +88,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   # apply version changes to RoBMA object
   object <- .update_object(object)
 
+  # check the scales
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]
   }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
@@ -103,7 +104,6 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     type        <- "diagnostics"
   }
 
-  object[["add_info"]][["warnings"]]
 
   if(substr(type,1,1) == "e"){
 
@@ -152,8 +152,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       )
     }
 
-
-    ### return results
+    # create the output object
     output <- list(
       call       = object[["call"]],
       title      = "Robust Bayesian meta-analysis",
@@ -161,9 +160,62 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       estimates  = estimates
     )
 
-    if(conditional){
-      output$estimates_conditional <- estimates_conditional
+    # add meta-regression summaries
+    if(!is.null(object[["formula"]])){
+      # rename the inference components
+      for(i in seq_along(object$RoBMA[["inference_predictors"]])){
+        attr(object$RoBMA[["inference_predictors"]][[i]], "parameter_name") <- gsub("(mu) ", "", attr(object$RoBMA[["inference_predictors"]][[i]], "parameter_name"), fixed = TRUE)
+      }
+      components_predictors <- BayesTools::ensemble_inference_table(
+        inference  = object$RoBMA[["inference_predictors"]],
+        parameters = names(object$RoBMA[["inference_predictors"]]),
+        logBF      = logBF,
+        BF01       = BF01,
+        title      = "Meta-regression components summary:"
+      )
+
+      # obtain estimates tables
+      estimates_predictors <- BayesTools::ensemble_estimates_table(
+        samples        = object$RoBMA[["posteriors_predictors"]],
+        parameters     = names(object$RoBMA[["posteriors_predictors"]]),
+        probs          = probs,
+        title          = "Model-averaged meta-regression estimates:",
+        formula_prefix = FALSE,
+        footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+        warnings       = .collect_errors_and_warnings(object)
+      )
+
+      # deal with possibly empty table in case of no alternative models
+      if(is.null(object$RoBMA[["posteriors_conditional"]])){
+        estimates_predictors_conditional                    <- data.frame(matrix(nrow = 0, ncol = length(probs) + 2))
+        colnames(estimates_predictors_conditional)          <- c("Mean", "Median", probs)
+        class(estimates_predictors_conditional)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(estimates_predictors_conditional))
+        attr(estimates_predictors_conditional, "type")      <- rep("estimate", ncol(estimates_predictors_conditional))
+        attr(estimates_predictors_conditional, "rownames")  <- TRUE
+        attr(estimates_predictors_conditional, "title")     <- "Conditional meta-regression estimates:"
+        attr(estimates_predictors_conditional, "footnotes") <- .scale_note(object$add_info[["prior_scale"]], output_scale)
+        attr(estimates_predictors_conditional, "warnings")  <- .collect_errors_and_warnings(object)
+      }else{
+        estimates_predictors_conditional <- BayesTools::ensemble_estimates_table(
+          samples    = object$RoBMA[["posteriors_predictors_conditional"]],
+          parameters = names(object$RoBMA[["posteriors_predictors_conditional"]]),
+          probs      = probs,
+          title      = "Conditional meta-regression estimates:",
+          formula_prefix = FALSE,
+          footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
+          warnings   = .collect_errors_and_warnings(object)
+        )
+      }
+
+
+      output$components_predictors <- components_predictors
+      output$estimates_predictors  <- estimates_predictors
+      if(conditional){
+        output$estimates_predictors_conditional <- estimates_predictors_conditional
+      }
+
     }
+
 
     class(output) <- "summary.RoBMA"
     attr(output, "type") <- "ensemble"
@@ -173,13 +225,21 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   }else if(substr(type,1,1) == "m"){
 
     components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")]
+
     parameters <- list()
     if(any(components == "Effect")){
-      parameters[["Effect"]] <- "mu"
+      if(.is_regression(object)){
+        parameters[["intercept"]] <- "mu_intercept"
+        for(i in seq_along(object$add_info[["predictors"]])){
+          parameters[[object$add_info[["predictors"]][i]]] <- .BayesTools_parameter_name(object$add_info[["predictors"]][i])
+        }
+      }else{
+        parameters[["Effect"]] <- "mu"
+      }
     }
     if(any(components == "Heterogeneity")){
       parameters[["Heterogeneity"]] <- "tau"
-      if(!attr(object$data, "all_independent")){
+      if(.is_multivariate(object)){
         parameters[["Var. allocation"]] <- "rho"
       }
     }
@@ -211,13 +271,21 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   }else if(substr(type,1,1) == "d"){
 
     components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")]
+
     parameters <- list()
     if(any(components == "Effect")){
-      parameters[["Effect"]] <- "mu"
+      if(.is_regression(object)){
+        parameters[["intercept"]] <- "mu_intercept"
+        for(i in seq_along(object$add_info[["predictors"]])){
+          parameters[[object$add_info[["predictors"]][i]]] <- .BayesTools_parameter_name(object$add_info[["predictors"]][i])
+        }
+      }else{
+        parameters[["Effect"]] <- "mu"
+      }
     }
     if(any(components == "Heterogeneity")){
       parameters[["Heterogeneity"]] <- "tau"
-      if(!attr(object$data, "all_independent")){
+      if(.is_multivariate(object)){
         parameters[["Var. allocation"]] <- "rho"
       }
     }
@@ -313,12 +381,27 @@ print.summary.RoBMA <- function(x, ...){
     cat("\n")
     print(x[["components"]])
 
+    if(!is.null(x[["components_predictors"]])){
+      cat("\n")
+      print(x[["components_predictors"]])
+    }
+
     cat("\n")
     print(x[["estimates"]])
+
+    if(!is.null(x[["estimates_predictors"]])){
+      cat("\n")
+      print(x[["estimates_predictors"]])
+    }
 
     if(!is.null(x[["estimates_conditional"]])){
       cat("\n")
       print(x[["estimates_conditional"]])
+    }
+
+    if(!is.null(x[["estimates_predictors_conditional"]])){
+      cat("\n")
+      print(x[["estimates_predictors_conditional"]])
     }
 
     return(invisible())
