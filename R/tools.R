@@ -163,54 +163,54 @@ check_RoBMA <- function(fit){
 }
 .update_object               <- function(object){
 
-  # 2.1 -> 2.2
-  if(is.null(object[["formula"]]) && is.null(attr(object$data, "all_independent"))){
-    attr(object$data, "all_independent") <- TRUE
-  }
-
-  # 2.2 -> 2.3
-  if(is.null(object[["formula"]]) && !is.null(attr(object$data, "all_independent")) && is.null(attr(object$data, "weighted"))){
-    attr(object$data, "weighted") <- FALSE
-  }
-
-  # 2.3 -> 2.4
-  if(!all(c("predictors", "predictors_test", "standardize_predictors") %in% names(object[["add_info"]]))){
-    object[["add_info"]][["predictors"]]             <- NULL
-    object[["add_info"]][["predictors_test"]]        <- NULL
-    object[["add_info"]][["standardize_predictors"]] <- NULL
-    object[["add_info"]] <- object[["add_info"]][c(
-      "model_type",
-      "predictors",
-      "predictors_test",
-      "prior_scale",
-      "output_scale",
-      "effect_measure",
-      "effect_direction",
-      "standardize_predictors",
-      "seed",
-      "save",
-      "warnings",
-      "errors"
-    )]
-  }
+  # no package version number saved prior to 2.4
   if(!all("version" %in% names(object[["add_info"]]))){
-    object[["add_info"]][["version"]] <- utils::packageVersion("RoBMA")
-  }
-  if(!all(c("inference_predictors", "inference_predictors_conditional", "posteriors_predictors", "posteriors_predictors_conditional") %in% names(object[["RoBMA"]]))){
-    object[["RoBMA"]][["inference_predictors"]]              <- NULL
-    object[["RoBMA"]][["inference_predictors_conditional"]]  <- NULL
-    object[["RoBMA"]][["posteriors_predictors"]]             <- NULL
-    object[["RoBMA"]][["posteriors_predictors_conditional"]] <- NULL
-    object[["RoBMA"]] <- object[["RoBMA"]][c(
-      "inference",
-      "inference_conditional",
-      "inference_predictors",
-      "inference_predictors_conditional",
-      "posteriors",
-      "posteriors_conditional",
-      "posteriors_predictors",
-      "posteriors_predictors_conditional"
-    )]
+
+    # 2.1 -> 2.2
+    if(is.null(object[["formula"]]) && is.null(attr(object$data, "all_independent"))){
+      attr(object$data, "all_independent") <- TRUE
+    }
+
+    # 2.2 -> 2.3
+    if(is.null(object[["formula"]]) && !is.null(attr(object$data, "all_independent")) && is.null(attr(object$data, "weighted"))){
+      attr(object$data, "weighted") <- FALSE
+    }
+
+    # 2.3 -> 2.4
+    if(!all(c("predictors", "predictors_test", "standardize_predictors") %in% names(object[["add_info"]]))){
+      object[["add_info"]][["predictors"]]             <- NULL
+      object[["add_info"]][["predictors_test"]]        <- NULL
+      object[["add_info"]][["standardize_predictors"]] <- NULL
+      object[["add_info"]] <- object[["add_info"]][c(
+        "model_type",
+        "predictors",
+        "predictors_test",
+        "prior_scale",
+        "output_scale",
+        "effect_measure",
+        "effect_direction",
+        "standardize_predictors",
+        "seed",
+        "save",
+        "warnings",
+        "errors"
+      )]
+    }
+    if(!all("version" %in% names(object[["add_info"]]))){
+      object[["add_info"]][["version"]] <- utils::packageVersion("RoBMA")
+    }
+    if(!all(c("inference_predictors", "inference_predictors_conditional", "posteriors_predictors", "posteriors_predictors_conditional") %in% names(object[["RoBMA"]]))){
+      object[["RoBMA"]] <- list(
+        "inference"                         = object[["RoBMA"]][["inference"]],
+        "inference_conditional"             = object[["RoBMA"]][["inference_conditional"]],
+        "inference_predictors"              = NULL,
+        "inference_predictors_conditional"  = NULL,
+        "posteriors"                        = object[["RoBMA"]][["posteriors"]],
+        "posteriors_conditional"            = object[["RoBMA"]][["posteriors_conditional"]],
+        "posteriors_predictors"             = NULL,
+        "posteriors_predictors_conditional" = NULL
+      )
+    }
   }
 
   return(object)

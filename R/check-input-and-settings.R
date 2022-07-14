@@ -34,7 +34,7 @@ check_setup <- function(
   models = FALSE, silent = FALSE){
 
   object <- list()
-  object$priors   <- .check_and_list_priors(tolower(model_type), priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho, priors_rho_null, object$add_info[["prior_scale"]])
+  object$priors   <- .check_and_list_priors(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho, priors_rho_null, "d")
   object$models   <- .make_models(object[["priors"]], multivariate = FALSE, weighted = FALSE)
 
 
@@ -367,7 +367,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 .check_and_set_model_type <- function(model_type, prior_scale){
 
-  if(!is.null(model_type)){
+  if(length(model_type) != 0){
     model_type <- tolower(model_type)
     BayesTools::check_char(model_type, "model_type", allow_values = c("psma", "2w", "pp"))
     if(prior_scale != "d")

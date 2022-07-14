@@ -160,6 +160,10 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       estimates  = estimates
     )
 
+    if(conditional){
+      output$estimates_conditional <- estimates_conditional
+    }
+
     # add meta-regression summaries
     if(!is.null(object[["formula"]])){
       # rename the inference components
