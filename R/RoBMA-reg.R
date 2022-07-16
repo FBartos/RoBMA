@@ -308,6 +308,11 @@ RoBMA.reg <- function(
   attr(data_predictors, "variables_info") <- data_predictors_info
 
 
+  output <- list(
+    outcome    = data_outcome,
+    predictors = data_predictors
+  )
+
   # throw warnings and errors
   if(length(to_warn) > 0){
     scaling_warning <- paste0("The continuous predictors ", paste0("'", to_warn, "'", collapse = ", "), " are not scaled. Note that extra care need to be taken when specifying prior distributions for unscaled predictors.")
@@ -321,10 +326,7 @@ RoBMA.reg <- function(
     stop(paste0("The following variable names are internally reserved keywords and cannot be used: ",
                 paste0(" '", attr(data_predictors, "terms")[attr(data_predictors, "terms") %in% .reserved_words()], "' ", collapse = ", ")))
 
-  return(list(
-    outcome    = data_outcome,
-    predictors = data_predictors
-  ))
+  return(output)
 }
 .pred_scale   <- function(x, predictor_info){
   (x - predictor_info[["mean"]]) / predictor_info[["sd"]]
