@@ -1,6 +1,10 @@
+## version 2.3.1
+### Fixes
+- fixing weighted meta-analysis parameterization 
+
 ## version 2.3
 ### Features
-- weighted meta-analysis by specifying `study_ids` argument in `RoBMA` and setting `weighted = TRUE`. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.
+- weighted meta-analysis by specifying `study_ids` argument in `RoBMA()` and setting `weighted = TRUE`. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.
 
 ## version 2.2.3
 ### Fixes

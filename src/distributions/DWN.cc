@@ -47,7 +47,7 @@ double DWN::logDensity(double const *x, unsigned int length, PDFType type,
   double weight  = *par[2];
 
   // compute the nominator
-  double log_lik = dnorm(*x, mu, std::sqrt(var), true) + std::log(weight);
+  double log_lik = dnorm(*x, mu, std::sqrt(var), true) * weight;
 
   return log_lik;
 }
