@@ -205,7 +205,7 @@
 
     # weighted vs unweighted models
     if(attr(model, "weighted")){
-      marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE) + log(fit_data[["weight"]]))
+      marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE) * fit_data[["weight"]])
     }else{
       marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE))
     }
