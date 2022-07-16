@@ -458,7 +458,7 @@ is.RoBMA            <- function(x){
   inherits(x, "RoBMA")
 }
 
-#' @rdname is.RoBMA.reg
+#' @rdname is.RoBMA
 is.RoBMA.reg        <- function(x){
   inherits(x, "RoBMA.reg")
 }

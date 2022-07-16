@@ -2,6 +2,9 @@
 % Please edit documentation in R/diagnostics.R
 \name{diagnostics}
 \alias{diagnostics}
+\alias{diagnostics_autocorrelation}
+\alias{diagnostics_trace}
+\alias{diagnostics_density}
 \title{Checks a fitted RoBMA object}
 \usage{
 diagnostics(
@@ -11,6 +14,34 @@ diagnostics(
   plot_type = "base",
   show_models = NULL,
   lags = 30,
+  title = is.null(show_models) | length(show_models) > 1,
+  ...
+)
+
+diagnostics_autocorrelation(
+  fit,
+  parameter = NULL,
+  plot_type = "base",
+  show_models = NULL,
+  lags = 30,
+  title = is.null(show_models) | length(show_models) > 1,
+  ...
+)
+
+diagnostics_trace(
+  fit,
+  parameter = NULL,
+  plot_type = "base",
+  show_models = NULL,
+  title = is.null(show_models) | length(show_models) > 1,
+  ...
+)
+
+diagnostics_density(
+  fit,
+  parameter = NULL,
+  plot_type = "base",
+  show_models = NULL,
   title = is.null(show_models) | length(show_models) > 1,
   ...
 )

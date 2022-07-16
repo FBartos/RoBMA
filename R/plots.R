@@ -104,7 +104,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
     parameter_samples <- "PETPEESE"
   }else if(parameter %in% c("mu", "tau", "rho")){
     parameter         <- parameter
-    parameter_samples <- "parameter"
+    parameter_samples <- parameter
   }else if(is.RoBMA.reg(x) && parameter %in% x$add_info[["predictors"]]){
     parameter         <- parameter
     parameter_samples <- .BayesTools_parameter_name(parameter)
