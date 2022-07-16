@@ -120,7 +120,7 @@ double DWWN2::logDensity(double const *x, unsigned int length, PDFType type,
   }
 
   // compute the log likelihood
-  double log_lik = nom-std::log(denom)+std::log(weight);
+  double log_lik = (nom-std::log(denom)) * weight;
 
   return log_lik;
 }

@@ -133,7 +133,7 @@
     marglik                 <- list()
 
     if(attr(model, "weighted")){
-      marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE) + log(fit_data[["weight"]]))
+      marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE) * fit_data[["weight"]])
     }else{
       marglik$logml           <- sum(stats::dnorm(fit_data[["y"]], priors$mu$parameters[["location"]], fit_data[["se"]], log = TRUE))
     }
@@ -445,11 +445,11 @@
   # the individual studies
   if(!is.null(data[["weight"]])){
     if(is.null(priors[["omega"]])){
-      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) + log(data[["weight"]]))
+      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) * data[["weight"]])
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) + log(data[["weight"]]))
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) + log(data[["weight"]]))
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
     }
   }else{
     if(is.null(priors[["omega"]])){
@@ -654,7 +654,7 @@
 
   # fill their weights
   for(i in seq_along(ids_weights$id)){
-    weights[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weights$id[i]] <- 1/ids_weights$weight[ids_weights$id == ids_weights$id[i]]
+    weights[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weights$id[i]] <- ids_weights$weight[ids_weights$id == ids_weights$id[i]]
   }
 
   # assign all remaining studies weight 1
