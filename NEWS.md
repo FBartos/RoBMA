@@ -1,7 +1,4 @@
-## version 2.4
-### Features
-- meta-regression with `RoBMA.reg()` function
-
+## version 2.3.1
 ### Fixes
 - fixing weighted meta-analysis parameterization 
 
