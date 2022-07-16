@@ -264,6 +264,10 @@ RoBMA <- function(
   object$models   <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 
+  if(dots[["do_not_fit"]]){
+    return(object)
+  }
+
 
   ### fit the models and compute marginal likelihoods
   if(!object$fit_control[["parallel"]]){

@@ -417,6 +417,12 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     BayesTools::check_bool(dots[["weighted"]], "weighted")
   }
 
+  if(is.null(dots[["do_not_fit"]])){
+    dots[["do_not_fit"]] <- FALSE
+  }else{
+    BayesTools::check_bool(dots[["do_not_fit"]], "do_not_fit")
+  }
+
   return(dots)
 }
 .JASP_progress_bar_start <- function(n){

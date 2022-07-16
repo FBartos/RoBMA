@@ -150,6 +150,10 @@ RoBMA.reg <- function(
     errors                 = NULL
   )
 
+  if(dots[["do_not_fit"]]){
+    return(object)
+  }
+
 
   ### fit the models and compute marginal likelihoods
   if(!object$fit_control[["parallel"]]){
