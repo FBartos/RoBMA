@@ -240,5 +240,6 @@ check_RoBMA <- function(fit){
 .output_parameter_names      <- function(parameter){
   return(BayesTools::format_parameter_names(parameter, formula_parameters = "mu", formula_prefix = FALSE))
 }
-.reserved_words              <- function() c("intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE",
+.reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE",
+                                             "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
                                              "d", "t", "r", "z", "y", "logOR", "lCI", "uCI", "v", "se", "n")

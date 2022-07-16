@@ -97,11 +97,23 @@ plot.RoBMA  <- function(x, parameter = "mu",
 
   # deal with bad parameter names for PET-PEESE, weightfunction
   if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
-    parameter <- "omega"
+    parameter         <- "omega"
+    parameter_samples <- "omega"
   }else if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) == "petpeese"){
-    parameter <- "PETPEESE"
-  }else if(!parameter %in% c("mu", "tau", "rho")){
-    stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
+    parameter         <- "PETPEESE"
+    parameter_samples <- "PETPEESE"
+  }else if(parameter %in% c("mu", "tau", "rho")){
+    parameter         <- parameter
+    parameter_samples <- "parameter"
+  }else if(is.RoBMA.reg(x) && parameter %in% x$add_info[["predictors"]]){
+    parameter         <- parameter
+    parameter_samples <- .BayesTools_parameter_name(parameter)
+  }else{
+    if(is.RoBMA.reg(x)){
+      stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE') or any of the specified predictors: ", paste0("'", x$add_info[["predictors"]], "'", collapse = ", "), ". See '?plot.RoBMA' for more details."))
+    }else{
+      stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE'). See '?plot.RoBMA' for more details."))
+    }
   }
 
 
@@ -124,7 +136,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }else if(parameter == "rho"){
       # rho is scale invariant
       transformation <- NULL
-    }else if(parameter == "mu"){
+    }else if(parameter == "mu" | parameter %in% x$add_info[["predictors"]]){
       transformation <- eval(parse(text = paste0(".", results_scale, "2", output_scale)))
     }else if(parameter == "tau"){
       transformation <- eval(parse(text = paste0(".scale_", results_scale, "2", output_scale)))
@@ -174,10 +186,14 @@ plot.RoBMA  <- function(x, parameter = "mu",
     )
 
   }else{
-    if(conditional){
+    if(conditional & parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "omega")){
       samples <- x[["RoBMA"]][["posteriors_conditional"]]
-    }else{
+    }else if(conditional & parameter %in% x$add_info[["predictors"]]){
+      samples <- x[["RoBMA"]][["posteriors_predictors_conditional"]]
+    }else if(!conditional &  parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "omega")){
       samples <- x[["RoBMA"]][["posteriors"]]
+    }else if(!conditional &  parameter %in% x$add_info[["predictors"]]){
+      samples <- x[["RoBMA"]][["posteriors_predictors"]]
     }
   }
 
@@ -206,10 +222,31 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }else if(is.null(samples[["mu"]]) || is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
       stop("The ensemble does not contain any posterior samples model-averaged across the PET-PEESE publication bias adjustment. Please, verify that you specified at least one PET-PEESE publication bias adjustment.")
     }
+  }else if(parameter %in% x$add_info[["predictors"]]){
+    if(conditional && is.null(samples[[parameter_samples]])){
+      stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the '%1$s' predictor. Please, verify that you specified at least one model assuming the presence of '%1$s' predictor.", parameter))
+    }else if(is.null(samples[[parameter_samples]])){
+      stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the '%1$s' predictor. Please, verify that you specified at least one model containing the '%1$s' predictor.", parameter))
+    }
   }
 
 
-  dots       <- .set_dots_plot(...)
+  if(parameter %in% x$add_info[["predictors"]]){
+    if(inherits(samples[[parameter_samples]], "mixed_posteriors.factor")){
+      if(attr(samples[[parameter_samples]],"orthonormal")){
+        n_levels <- length(attr(samples[[parameter_samples]],"level_names"))
+      }else if(attr(samples[[parameter_samples]],"treatment")){
+        n_levels <- length(attr(x$add_info[["predictors"]],"level_names")) - 1
+      }
+    }else{
+      n_levels <- 1
+    }
+  }else{
+    n_levels <- 1
+  }
+
+
+  dots       <- .set_dots_plot(..., n_levels = n_levels)
   dots_prior <- .set_dots_prior(dots_prior)
 
   if(parameter == "PETPEESE" & show_data){
@@ -223,7 +260,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
   # prepare the argument call
   args                          <- dots
   args$samples                  <- samples
-  args$parameter                <- parameter
+  args$parameter                <- parameter_samples
   args$plot_type                <- plot_type
   args$prior                    <- prior
   args$n_points                 <- 1000
@@ -236,7 +273,8 @@ plot.RoBMA  <- function(x, parameter = "mu",
   args$par_name                 <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
   args$dots_prior               <- dots_prior
 
-  plot <- do.call(BayesTools::plot_posterior, args)
+  # suppress messages about transformations
+  plot <- suppressMessages(do.call(BayesTools::plot_posterior, args))
 
 
   if(parameter == "PETPEESE" & show_data){
@@ -611,11 +649,13 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
 
 
-.set_dots_plot        <- function(...){
+.set_dots_plot        <- function(..., n_levels = 1){
 
   dots <- list(...)
-  if(is.null(dots[["col"]])){
+  if(is.null(dots[["col"]]) & n_levels == 1){
     dots[["col"]]      <- "black"
+  }else if(is.null(dots[["col"]]) & n_levels > 1){
+    dots[["col"]]      <- scales::viridis_pal()(n_levels + 1)[1:n_levels]
   }
   if(is.null(dots[["col.fill"]])){
     dots[["col.fill"]] <- "#4D4D4D4C" # scales::alpha("grey30", .30)

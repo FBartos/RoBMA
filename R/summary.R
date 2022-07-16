@@ -447,11 +447,20 @@ print.summary.RoBMA <- function(x, ...){
 #' @param x an object to test
 #'
 #'
-#' @return \code{is.RoBMA} returns a boolean.
+#' @return returns a boolean.
 #'
-#' @export
+#' @name is.RoBMA
+#' @export is.RoBMA
+#' @export is.RoBMA.reg
+
+#' @rdname is.RoBMA
 is.RoBMA            <- function(x){
   inherits(x, "RoBMA")
+}
+
+#' @rdname is.RoBMA.reg
+is.RoBMA.reg        <- function(x){
+  inherits(x, "RoBMA.reg")
 }
 
 
