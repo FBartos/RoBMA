@@ -186,11 +186,11 @@ plot.RoBMA  <- function(x, parameter = "mu",
     )
 
   }else{
-    if(conditional & parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "omega")){
+    if(conditional & parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "PETPEESE", "omega")){
       samples <- x[["RoBMA"]][["posteriors_conditional"]]
     }else if(conditional & parameter %in% x$add_info[["predictors"]]){
       samples <- x[["RoBMA"]][["posteriors_predictors_conditional"]]
-    }else if(!conditional &  parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "omega")){
+    }else if(!conditional &  parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "PETPEESE", "omega")){
       samples <- x[["RoBMA"]][["posteriors"]]
     }else if(!conditional &  parameter %in% x$add_info[["predictors"]]){
       samples <- x[["RoBMA"]][["posteriors_predictors"]]
