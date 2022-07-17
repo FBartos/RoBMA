@@ -6,7 +6,7 @@
 #include "distributions/DWN.h"
 #include "distributions/DWWN1.h"
 #include "distributions/DWWN2.h"
-#include "distributions/DMN.h"
+//#include "distributions/DMN.h"
 #include "distributions/DWMN1.h"
 #include "distributions/DWMN2.h"
 #include "distributions/DMNv.h"
@@ -42,7 +42,7 @@ namespace jags {
       insert(new DWN);
       insert(new DWWN1);
       insert(new DWWN2);
-      insert(new DMN);
+      //insert(new DMN);
       insert(new DWMN1);
       insert(new DWMN2);
       insert(new DMNv);

@@ -1,0 +1,301 @@
+---
+title: "Robust Bayesian Model-Averaged Meta-Regression"
+author: "František Bartoš"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+vignette: >
+  %\VignetteIndexEntry{"Robust Bayesian Model-Averaged Meta-Regression}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+is_check <- ("CheckExEnv" %in% search()) ||
+              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
+              !file.exists("../models/MetaRegression/fit_RoBMA.RDS")
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = !is_check,
+  dev      = "png")
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+```{r include = FALSE}
+library(RoBMA)
+# we pre-load the RoBMA models, the fitting time is loong
+fit_linear <- readRDS(file = "../models/MetaRegression/fit_linear.RDS")
+fit_linear_weighted <- readRDS(file = "../models/MetaRegression/fit_linear_weighted.RDS")
+fit_RoBMA   <- readRDS(file = "../models/MetaRegression/fit_RoBMA.RDS")
+
+```
+
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+data("Kroupova2021", package = "RoBMA")
+Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
+
+fit_fixed <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+
+  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "cohens_d",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+fit_fixed_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+  study_ids = Kroupova2021$study,
+
+  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "cohens_d",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+fit_random_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+  study_ids = Kroupova2021$study,
+
+  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
+  prior_scale   = "cohens_d",
+
+  # remove the remaining model components
+  priors_bias               = NULL,
+  priors_heterogeneity_null = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+Kroupova2021$z_se  <- se_r2se_z(se_r = Kroupova2021$se, r = Kroupova2021$r)
+fit_regression_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1 + z_se,
+  data      = Kroupova2021,
+  study_ids = Kroupova2021$study,
+  test_predictors        = "z_se",
+  standardize_predictors = FALSE
+
+  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  priors = list("z_se" = prior("normal", parameters = list(mean = 0, sd = 1))),
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
+  prior_scale   = "cohens_d",
+
+  # remove the remaining model components
+  priors_bias               = NULL,
+  priors_heterogeneity_null = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+fit_RoBMA <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1,
+  data       = Kroupova2021,
+  model_type = "PSMA"
+
+  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+fit_RoBMA_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1,
+  data       = Kroupova2021,
+  study_ids  = Kroupova2021$study,
+  model_type = "PSMA"
+
+  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+fit_regression_full_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data       = Kroupova2021,
+  study_ids  = Kroupova2021$study,tw
+  test_predictors = "",
+  
+  model_type = "PSMA", 
+  priors     = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+  ) 
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+saveRDS(fit_linear,                 file = "../models/MetaRegression/fit_linear.RDS")
+saveRDS(fit_linear_weighted,        file = "../models/MetaRegression/fit_linear_weighted.RDS")
+saveRDS(fit_RoBMA, file = "../models/MedicineBMA/fit_RoBMA.RDS")
+```
+
+With the 2.4 update, the RoBMA package allows researchers to extend the robust Bayesian meta-analysis with meta-regression. This vignette illustrates this functionality on an example from @kroupova2021student who performed a meta-analysis of the relationship between student employment and educational outcomes. Since many of the original studies reported multiple estimates, we further use the down-weighting functionality (implemented in the 2.3 update) that down-weights the estimates proportionately to the number of estimates from each study.$^1$
+
+### Data Set and Preliminary Analyses 
+
+We begin by loading the shortened version of the data set included in the package (see \url{http://meta-analysis.cz/students/} for the original version of the data set which includes additional covariates).
+
+```{r}
+library(RoBMA)
+
+data("Kroupova2021", package = "RoBMA")
+head(Kroupova2021)
+``` 
+
+The present data set contains the:
+
+ - effect size from each study transformed into partial correlation coefficients (r),
+ - the standard error (se),
+ - study identification (study),
+ - total sample size (sample_size),
+ - type of the educational outcome (educational_outcome),
+ - intensity of the employment (employment_intensity, with missing values),
+ - gender of the studied student population (students_gender),
+ - the study location (location),
+ - the design of the study (design),
+ - whether the study controlled for endogenity,
+ - and whether the study controlled for motivation.
+
+(See the original article by @kroupova2021student for more detailed information about the data set.)
+
+Before we start analyzing the data, we remove studies with missing standard errors, 
+```{r}
+Kroupova2021 <- Kroupova2021[!is.na(Kroupova2021$se),]
+nrow(Kroupova2021)            # the number of estimates
+length(unique(Kroupova2021))  # the number of studies
+```
+which leaves us with 861 estimates from 69 studies (which corresponds to the main data set used by @kroupova2021student).
+
+We start by fitting a simple fixed-effect meta-analytic model with the metafor package [@metafor] to explore the data set collected by @kroupova2021student.
+```{r}
+fit_metafor <- metafor::rma(yi = Kroupova2021$r, sei = Kroupova2021$se, method = "FE")
+summary(fit_metafor)
+```
+We find a very small but statistically significant negative relationship between student employment and education results $r = -0.0105$ (SE = $0.0005$). 
+
+However, this summary does not account for clustering of the effect sizes within studies, therefore, we further use the `robust()` function from the metafor package to obtain robust standard errors.
+```{r}
+metafor::robust(fit_metafor, cluster = Kroupova2021$study)
+```
+Now, the increased standard error, (SE = $0.0052$), makes the mean effect size estimate barely statistically significant. 
+
+We further perform a simple meta-regression with standard errors as a predictor to assess the extend of publication bias.
+```{r}
+fit_metafor.reg <- metafor::rma(yi = Kroupova2021$r, sei = Kroupova2021$se, mods = Kroupova2021$se, method = "FE")
+metafor::robust(fit_metafor.reg, cluster = Kroupova2021$study)
+```
+The mean effect size estimates is no longer statistically significant $r = -0.0062$, 95% CI $[-0.0076, -0.0214]$ with a notable but statistically non-significant regression coefficient of the standard errors $-0.3575$, 95% CI $[-1.5040, 0.7890]$. 
+
+If we were to perform an ordinary least square regression with clustered standard errors as @kroupova2021student, 
+```{r}
+summary(fixest::feols(r ~ se, cluster = ~ study, data = Kroupova2021))
+```
+we obtain results very similar to the reported values in Table 3, a statistically non-significant effect size estimate $r = 0.0061$ (SE = $0.0127$) and a statistically significant regression coefficient of the standard errors $-0.8806$ (SE = $0.3424$) hinting at possible publication bias (with the differences from Table 3 attributable the implementation differences between Stata and R). 
+
+Before we move on to estimating RoBMA, we estimate the clustered OLS regression with effect sizes and standard errors transformed to Fishers'$z$. We prefer using Fishers'$z$ transformed effect sizes since they do not have range restriction, scale linearly, and are by definition uncorrelated with their standard errors. We use the transformation functions implemented in the RoBMA package,
+```{r}
+Kroupova2021$se <- se_r2se_z(se_r = Kroupova2021$se, r = Kroupova2021$r)
+Kroupova2021$z  <- r2z(r = Kroupova2021$r)
+Kroupova2021    <- Kroupova2021[,-1] # remove the "r" column 
+```
+and estimate the clustered OLS regression, 
+```{r}
+summary(fixest::feols(z ~ se, cluster = ~ study, data = Kroupova2021))
+```
+which shows comparable results (as transformation from r to z is almost linear for small r).
+
+
+### Robust Bayesian Meta-Analysis
+
+We begin our Bayesian analysis by estimating a few simpler meta-regression models. This helps us to illustrate functionality of the `RoBMA.reg` function which we will use to the fullest later.
+
+We start by estimating a simple Bayesian fixed-effect meta-analysis, similar to the one estimated with the metafor package,
+```
+fit_linear <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+```
+where we specify the intercept only model via the `formula = ~ 1` argument, set a slightly informative prior for the effect size parameter via the `priors_effect` argument, and remove the publication bias and heterogeneity model components by setting them to NULL (note that the function automatically identifies the effect sizes and standard errors from the supplied data frame by name, e.g., r, d, z, logOR, se...).
+
+We can interrogate the estimated model with the summary function
+```{r}
+summary(fit_linear)
+```
+and obtain a very small effect size estimates similar to the initial analysis, $z = -0.010$, 95% CI $[-0.011 -0.009]$, accompanied by an extreme evidence in favor of the effect $\text{BF}_{10} = 4.60 \times 10^{85}$. 
+
+We extend this simple model by adding `study_ids = Kroupova2021$study` and `weighted = TRUE` arguments which allow us to down-weighting the estimates proportionatelly to the number of estimates within each cluster.
+```
+fit_linear_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+  study_ids = Kroupova2021$study,
+
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+```
+```{r}
+summary(fit_linear_weighted)
+```
+As in the initial case, accounting for the clustering widens the 95% credible intervals of the effect size estimate, $[-0.016, -0.010]$, and drastically reduces the evidence in favor of the presence of the effect $\text{BF}_{10} = 8.97 \times 10^{10}$ (althought it still remains extreme).
+
+
+
+### Footnotes
+
+$^1$ A better alternative would be specifying a multivariate hierarchical meta-regression model. However, the multivariate weighted normal likelihood function becomes computationally too expensive with number of estimated per study is larger than five (and is extremely slow even with a few estimates per study).
+
+### References
