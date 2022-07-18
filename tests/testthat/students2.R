@@ -151,8 +151,16 @@ saveRDS(fit_RoBMA_weighted,                  file = "../models/MetaRegression/fi
 
 
 
+library(RoBMA)
+data("Kroupova2021", package = "RoBMA")
+Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
 
 job::job({
+
+
+  missing <- list.files("../models/MetaRegression/fit_RoBMA_regression_full_weighted/")
+  missing <- gsub("m_", "", missing)
+  missing <- gsub(".RDS", "", missing)
 
   fit_RoBMA_regression_full_weighted <- RoBMA.reg(
     # specify the model formula and data input
@@ -175,15 +183,12 @@ job::job({
     parallel = FALSE, seed = 1, weighted = TRUE, do_not_fit = TRUE
   )
 
-  cl <- parallel::makeCluster(20)
-  parallel::clusterExport(cl, c("fit_RoBMA_regression_full_weighted"))
-  parallel::parSapplyLB(cl, seq_along(fit_RoBMA_regression_full_weighted$models)[-1], function(i){
+  missing <- seq_along(fit_RoBMA_regression_full_weighted$models)[!seq_along(fit_RoBMA_regression_full_weighted$models) %in% as.numeric(missing)]
 
-    library(RoBMA)
+  for(i in missing){
     temp_model <- RoBMA:::.fit_RoBMA_model(fit_RoBMA_regression_full_weighted, i)
     saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_RoBMA_regression_full_weighted/", "m_", i, ".RDS"), compress = "xz")
-
-  })
+  }
 
 })
 
