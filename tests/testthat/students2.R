@@ -188,3 +188,44 @@ job::job({
 })
 
 
+
+fit_RoBMA_regression_weighted <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data       = Kroupova2021,
+  study_ids  = Kroupova2021$study,
+  test_predictors = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+
+  model_type       = "PSMA",
+  effect_direction = "negative",
+  priors     = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal")
+  ),
+
+  # some additional settings
+  parallel = FALSE, seed = 1, weighted = TRUE, do_not_fit = TRUE
+)
+
+missing <- list.files("../models/MetaRegression/fit_RoBMA_regression_weighted/")
+missing <- gsub("m_", "", missing)
+missing <- gsub(".RDS", "", missing)
+missing <- seq_along(fit_RoBMA_regression_weighted$models)[!seq_along(fit_RoBMA_regression_weighted$models) %in% as.numeric(missing)]
+
+cl <- parallel::makeCluster(23)
+parallel::clusterExport(cl, c("fit_RoBMA_regression_weighted"))
+parallel::parSapplyLB(cl, missing, function(i){
+
+  library(RoBMA)
+  temp_model <- RoBMA:::.fit_RoBMA_model(fit_RoBMA_regression_weighted, i)
+  saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_RoBMA_regression_weighted/", "m_", i, ".RDS"), compress = "xz")
+
+})
+
+
+parallel::stopCluster(cl)
+
+
