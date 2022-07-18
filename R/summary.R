@@ -198,7 +198,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
       # deal with possibly empty table in case of no alternative models
       if(conditional){
-        if(is.null(object$RoBMA[["posteriors_conditional"]])){
+        if(is.null(object$RoBMA[["posteriors_predictors_conditional"]])){
           estimates_predictors_conditional                    <- data.frame(matrix(nrow = 0, ncol = length(probs) + 2))
           colnames(estimates_predictors_conditional)          <- c("Mean", "Median", probs)
           class(estimates_predictors_conditional)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(estimates_predictors_conditional))

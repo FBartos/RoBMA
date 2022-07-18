@@ -230,7 +230,70 @@ parallel::parSapplyLB(cl, missing, function(i){
 
 })
 
-
 parallel::stopCluster(cl)
 
 
+
+
+
+
+
+
+
+
+
+for(i in seq_along(fit_RoBMA_regression_full_weighted$models)){
+  fit_RoBMA_regression_full_weighted$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_RoBMA_regression_full_weighted/", "m_", i, ".RDS"))
+}
+object <- fit_RoBMA_regression_full_weighted
+
+sum(!RoBMA:::.get_model_convergence(object))
+
+object$models        <- BayesTools::models_inference(object[["models"]])
+object$RoBMA         <- RoBMA:::.ensemble_inference(object)
+object$coefficients  <- RoBMA:::.compute_coeficients(object[["RoBMA"]])
+
+### collect and print errors and warnings
+object$add_info[["errors"]]   <- c(object$add_info[["errors"]],   RoBMA:::.get_model_errors(object))
+object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], RoBMA:::.get_model_warnings(object))
+RoBMA:::.print_errors_and_warnings(object)
+
+class(object) <- c("RoBMA", "RoBMA.reg")
+
+fit_RoBMA_regression_full_weighted  <- object
+saveRDS(fit_RoBMA_regression_full_weighted , file = "../models/MetaRegression/fit_RoBMA_regression_full_weighted .RDS", compress = "xz")
+
+
+object <- .remove_model_posteriors(object)
+object <- .remove_model_margliks(object)
+saveRDS(object, file = "../models/MetaRegression/fit_RoBMA_regression_full_weighted .RDS", compress = "xz")
+
+
+
+
+# fit_RoBMA_regression_weighted
+for(i in seq_along(fit_RoBMA_regression_weighted$models)){
+  fit_RoBMA_regression_weighted$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_RoBMA_regression_weighted/", "m_", i, ".RDS"))
+}
+object <- fit_RoBMA_regression_weighted
+
+sum(!RoBMA:::.get_model_convergence(object))
+
+object$models        <- BayesTools::models_inference(object[["models"]])
+object$RoBMA         <- RoBMA:::.ensemble_inference(object)
+object$coefficients  <- RoBMA:::.compute_coeficients(object[["RoBMA"]])
+
+### collect and print errors and warnings
+object$add_info[["errors"]]   <- c(object$add_info[["errors"]],   RoBMA:::.get_model_errors(object))
+object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], RoBMA:::.get_model_warnings(object))
+RoBMA:::.print_errors_and_warnings(object)
+
+class(object) <- c("RoBMA", "RoBMA.reg")
+
+fit_RoBMA_regression_weighted <- object
+saveRDS(fit_RoBMA_regression_weighted, file = "../models/MetaRegression/fit_RoBMA_regression_weighted.RDS", compress = "xz")
+
+
+object <- .remove_model_posteriors(object)
+object <- .remove_model_margliks(object)
+saveRDS(object, file = "../models/MetaRegression/fit_RoBMA_regression_weighted.RDS", compress = "xz")
