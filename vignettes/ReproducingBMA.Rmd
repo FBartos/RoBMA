@@ -68,7 +68,7 @@ saveRDS(fit_RoBMA_test, file = "../models/ReproducingBMA/PowerPoseTest.RDS")
 saveRDS(fit_RoBMA_est, file = "../models/ReproducingBMA/PowerPoseEst.RDS")
 ```
 
-By default, the package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in 'classical' Bayesian Model-Averaged Meta-Analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020adjusting for a tutorial on fitting (custom) models in JASP.
+By default, the RoBMA package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, the package has been designed so it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in 'classical' Bayesian Model-Averaged Meta-Analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. See [this vignette](CustomEnsembles.html) if you are interested in building more customized ensembles or @bartos2020adjusting for a tutorial on fitting (custom) models in JASP.
 
 
 ### Reproducing Bayesian Model-Averaged Meta-Analysis (BMA)

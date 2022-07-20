@@ -55,8 +55,8 @@ Imports:
     ggplot2
 Suggests:
     parallel,
-    rstan,
     metaBMA,
+    fixest,
     testthat,
     vdiffr,
     knitr,

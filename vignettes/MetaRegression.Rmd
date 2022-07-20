@@ -8,7 +8,7 @@ output:
 bibliography: ../inst/REFERENCES.bib
 csl: ../inst/apa.csl
 vignette: >
-  %\VignetteIndexEntry{"Robust Bayesian Model-Averaged Meta-Regression}
+  %\VignetteIndexEntry{Robust Bayesian Model-Averaged Meta-Regression}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
@@ -17,7 +17,7 @@ vignette: >
 ```{r setup, include = FALSE}
 is_check <- ("CheckExEnv" %in% search()) ||
               any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
-              !file.exists("../models/MetaRegression/fit_RoBMA.RDS")
+              !file.exists("../models/MetaRegression/fit_BFE.RDS")
 knitr::opts_chunk$set(
   collapse  = TRUE,
   comment   = "#>",
@@ -28,141 +28,40 @@ if(.Platform$OS.type == "windows"){
 }
 ```
 ```{r include = FALSE}
-library(RoBMA)
+#library(RoBMA)
 # we pre-load the RoBMA models, the fitting time is loong
-fit_linear <- readRDS(file = "../models/MetaRegression/fit_linear.RDS")
-fit_linear_weighted <- readRDS(file = "../models/MetaRegression/fit_linear_weighted.RDS")
-fit_RoBMA   <- readRDS(file = "../models/MetaRegression/fit_RoBMA.RDS")
+fit_BFE  <- readRDS(file = "../models/MetaRegression/fit_BFE.RDS")
+fit_wBFE <- readRDS(file = "../models/MetaRegression/fit_wBFE.RDS")
+fit_BFE10  <- readRDS(file = "../models/MetaRegression/fit_BFE10.RDS")
+fit_wBFE10 <- readRDS(file = "../models/MetaRegression/fit_wBFE10.RDS")
+fit_BFE10  <- readRDS(file = "../models/MetaRegression/fit_BFE10.RDS")
+#fit_wPSMA     <- readRDS(file = "../models/MetaRegression/fit_wPSMA.RDS")
+#fit_wPSMA_reg <- readRDS(file = "../models/MetaRegression/fit_wPSMA_reg.RDS")
+
 
 ```
-
 ```{r include = FALSE, eval = FALSE}
 # R package version updating
 library(RoBMA)
 data("Kroupova2021", package = "RoBMA")
 Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
 
-fit_fixed <- RoBMA.reg(
-  # specify the model formula and data input
-  formula   = ~ 1,
-  data      = Kroupova2021,
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias          = NULL,
-  priors_heterogeneity = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1
-)
-fit_fixed_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula   = ~ 1,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias          = NULL,
-  priors_heterogeneity = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-fit_random_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula   = ~ 1,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias               = NULL,
-  priors_heterogeneity_null = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-Kroupova2021$z_se  <- se_r2se_z(se_r = Kroupova2021$se, r = Kroupova2021$r)
-fit_regression_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula   = ~ 1 + z_se,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
-  test_predictors        = "z_se",
-  standardize_predictors = FALSE
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors = list("z_se" = prior("normal", parameters = list(mean = 0, sd = 1))),
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias               = NULL,
-  priors_heterogeneity_null = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-fit_RoBMA <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1,
-  data       = Kroupova2021,
-  model_type = "PSMA"
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  # some additional settings
-  parallel = TRUE, seed = 1
-)
-fit_RoBMA_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,
-  model_type = "PSMA"
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-fit_regression_full_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,tw
-  test_predictors = "",
-  
-  model_type = "PSMA", 
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    location           = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-  ) 
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
 saveRDS(fit_linear,                 file = "../models/MetaRegression/fit_linear.RDS")
 saveRDS(fit_linear_weighted,        file = "../models/MetaRegression/fit_linear_weighted.RDS")
 saveRDS(fit_RoBMA, file = "../models/MedicineBMA/fit_RoBMA.RDS")
 ```
 
-With the 2.4 update, the RoBMA package allows researchers to extend the robust Bayesian meta-analysis with meta-regression. This vignette illustrates this functionality on an example from @kroupova2021student who performed a meta-analysis of the relationship between student employment and educational outcomes. Since many of the original studies reported multiple estimates, we further use the down-weighting functionality (implemented in the 2.3 update) that down-weights the estimates proportionately to the number of estimates from each study.$^1$
+The `RoBMA.reg()` function extends the robust Bayesian meta-analysis framework with meta-regression. We illustrates this functionality on an example from @kroupova2021student who performed meta-analysis of the relationship between student employment and educational outcomes. Since many of the original studies reported multiple estimates, we also demonstrate the estimates down-weighting functionality which allows us to draw conservative inference with clustered estimates.
 
-### Data Set and Preliminary Analyses 
+
+### Introduction
+
+In the original article, @kroupova2021student conducted an outstanding analysis of the data. @kroupova2021student used several publication bias adjustment techniques to assess the mean meta-analytic effect size beyond publication bias and further used Bayesian and frequentist model-averaging techniques to estimate the effect of various covariates. In this vignette, we attempt to combine both analysis using the robust Bayesian meta-analysis framework [@maier2020robust; @bartos2021no] and draw inference about the publication bias and covariates simultaneously using Bayesian model-averaging [@hinne2019conceptual; @hoeting1999bayesian; @leamer1978specification].
+
+We start by (1) briefly outlining the data set, (2) performing a few preliminary analyses to illustrate the effect of publication bias and accounting for multiple estimates from a single study, and (3) slowly building up the robust Bayesian meta-analytic ensemble.
+
+
+### Data Set 
 
 We begin by loading the shortened version of the data set included in the package (see \url{http://meta-analysis.cz/students/} for the original version of the data set which includes additional covariates).
 
@@ -173,10 +72,10 @@ data("Kroupova2021", package = "RoBMA")
 head(Kroupova2021)
 ``` 
 
-The present data set contains the:
+The shortened data set contains the:
 
  - effect size from each study transformed into partial correlation coefficients (r),
- - the standard error (se),
+ - the standard error of the partial correlation coefficients (se),
  - study identification (study),
  - total sample size (sample_size),
  - type of the educational outcome (educational_outcome),
@@ -195,54 +94,97 @@ Kroupova2021 <- Kroupova2021[!is.na(Kroupova2021$se),]
 nrow(Kroupova2021)            # the number of estimates
 length(unique(Kroupova2021))  # the number of studies
 ```
-which leaves us with 861 estimates from 69 studies (which corresponds to the main data set used by @kroupova2021student).
+which leaves us with 861 estimates from 69 studies -- data set corresponding to the one used by @kroupova2021student.
 
-We start by fitting a simple fixed-effect meta-analytic model with the metafor package [@metafor] to explore the data set collected by @kroupova2021student.
-```{r}
-fit_metafor <- metafor::rma(yi = Kroupova2021$r, sei = Kroupova2021$se, method = "FE")
-summary(fit_metafor)
-```
-We find a very small but statistically significant negative relationship between student employment and education results $r = -0.0105$ (SE = $0.0005$). 
 
-However, this summary does not account for clustering of the effect sizes within studies, therefore, we further use the `robust()` function from the metafor package to obtain robust standard errors.
-```{r}
-metafor::robust(fit_metafor, cluster = Kroupova2021$study)
-```
-Now, the increased standard error, (SE = $0.0052$), makes the mean effect size estimate barely statistically significant. 
+### Preliminary Analyses
 
-We further perform a simple meta-regression with standard errors as a predictor to assess the extend of publication bias.
-```{r}
-fit_metafor.reg <- metafor::rma(yi = Kroupova2021$r, sei = Kroupova2021$se, mods = Kroupova2021$se, method = "FE")
-metafor::robust(fit_metafor.reg, cluster = Kroupova2021$study)
-```
-The mean effect size estimates is no longer statistically significant $r = -0.0062$, 95% CI $[-0.0076, -0.0214]$ with a notable but statistically non-significant regression coefficient of the standard errors $-0.3575$, 95% CI $[-1.5040, 0.7890]$. 
-
-If we were to perform an ordinary least square regression with clustered standard errors as @kroupova2021student, 
+We begin out analysis by reproducing one of the results reported in Table 3 of @kroupova2021student -- an ordinary least square (OLS) regression with clustered standard errors (first column). To perform the analysis in R, we use the `fixest` R package [@fixest] and use the standard errors as a predictor.
 ```{r}
 summary(fixest::feols(r ~ se, cluster = ~ study, data = Kroupova2021))
 ```
-we obtain results very similar to the reported values in Table 3, a statistically non-significant effect size estimate $r = 0.0061$ (SE = $0.0127$) and a statistically significant regression coefficient of the standard errors $-0.8806$ (SE = $0.3424$) hinting at possible publication bias (with the differences from Table 3 attributable the implementation differences between Stata and R). 
+We obtain results practically indistinguishable for the reported values in Table 3 (up to differences in R and Stata implementations). We find a statistically non-significant effect size estimate $r = 0.0061$ (SE = $0.0127$) and a statistically significant regression coefficient of the standard errors $-0.8806$ (SE = $0.3424$) hinting at possible publication bias.
 
-Before we move on to estimating RoBMA, we estimate the clustered OLS regression with effect sizes and standard errors transformed to Fishers'$z$. We prefer using Fishers'$z$ transformed effect sizes since they do not have range restriction, scale linearly, and are by definition uncorrelated with their standard errors. We use the transformation functions implemented in the RoBMA package,
+Before we move on to estimating RoBMA, we (1) re-estimate the OLS regression with clustered standard errors with effect sizes and standard errors transformed to Fishers'$z$ and (2) fit a frequentist meta-analytic models with and without standard error clustering to illustrate its effect on the inference.
+
+#### Fisher's z Effect Size Transformation
+
+We prefer using Fishers'$z$ transformed effect sizes since they
+
+ - do not have range restriction -- better accommodate the usual normality assumptions about standard errors distribution,
+ - scale linearly -- a change from $r = 0.00$ to $r = 0.10$ has a very different meaning that change from $r = 0.90$ to $r = 1.00$,
+ - and are by definition uncorrelated with their standard errors -- which is a requirement for proper functioning of Bayesian PET-PEESE publication bias adjustment. 
+ 
+(See Appendix C of @bartos2020adjusting for more details.)
+ 
+Since the transformation between (partial) correlation coefficients and Fisher's $z$,<br>
+$z = \frac{1}{2}\text{ln}(\frac{1 + r}{1 - r})$.
+
+We use the transformation functions implemented in the RoBMA package to update the data set,
 ```{r}
 Kroupova2021$se <- se_r2se_z(se_r = Kroupova2021$se, r = Kroupova2021$r)
 Kroupova2021$z  <- r2z(r = Kroupova2021$r)
-Kroupova2021    <- Kroupova2021[,-1] # remove the "r" column 
+Kroupova2021    <- Kroupova2021[,-1] # remove the "r" column to simplify later analyses
 ```
-and estimate the clustered OLS regression, 
+and estimate the clustered OLS regression on Fisher's z scale.
 ```{r}
 summary(fixest::feols(z ~ se, cluster = ~ study, data = Kroupova2021))
 ```
-which shows comparable results (as transformation from r to z is almost linear for small r).
+Since the effect size transformation is almost linear for correlation coefficients around zero the results of the OLS regression remain practically unchanged.
+
+#### Dependent Effect Sizes and Frequentist Meta-Analyses
+
+We finish our preliminary analysis by fitting multiple frequentist meta-analytic models to illustrate the effect of clustering standard errors. We use the the metafor R package [@metafor] and fit a simple fixed-effect meta-analytic model.
+```{r}
+fit_metafor <- metafor::rma(yi = z, sei = se, method = "FE", data = Kroupova2021)
+summary(fit_metafor)
+```
+We find a very small but statistically significant negative relationship between student employment and education results $r = -0.0105$ (SE = $0.0005$). However, this summary does not account for clustering of the effect sizes within studies. Therefore, we use the `robust()` function to obtain the clustered standard errors.
+```{r}
+metafor::robust(fit_metafor, cluster = study)
+```
+We notice that accounting for the repeated estimates from each study results in a ten-fold (!) increase in the standard error of the mean effect size estimate, SE = $0.0052$. The increased standard error subsequently widens the confidence intervals and turns the previously statistically significant result into a statistically non-significant one.
+
+We can further extend the analysis to adjust for the relationship between standard errors and effect sizes, as in the OLS regression by specifying the `mods  = se` argument.
+```{r}
+fit_metafor_reg <- metafor::rma(yi = z, sei = se, mods = se, method = "FE", data = Kroupova2021)
+metafor::robust(fit_metafor_reg, cluster = study)
+```
+The mean effect size estimates remains statistically non-significant $r = -0.0062$ (SE = $0.0075$) with a notable but statistically non-significant regression coefficient of the standard errors $-0.3575$ (SE = $0.5662$) echoing the results of the previous OLS analysis. 
+
+Importantly, these analyses highlights the need of accounting for clustering, especially in these large meta-analytic estimates with multiple estimates from a single study. Not adjusting for the dependencies in the data set, i.e., treating each effect size estimate as an independent new piece of information results in an overconfident inference.
 
 
 ### Robust Bayesian Meta-Analysis
 
-We begin our Bayesian analysis by estimating a few simpler meta-regression models. This helps us to illustrate functionality of the `RoBMA.reg` function which we will use to the fullest later.
+We begin our Bayesian analysis by estimating a few simpler meta-regression models. This helps us to illustrate functionality of the `RoBMA.reg` function which we will use to the fullest later. However, before we get into that, let us highlight few important feature of Bayesian (model-averaged) estimation and hypothesis testing.
 
-We start by estimating a simple Bayesian fixed-effect meta-analysis, similar to the one estimated with the metafor package,
+#### Bayesian (Model-Averaged) Estimation and Hypothesis Testing
+
+As usually described, Bayesian statistics are entirely based on nothing else but a thorough application of the laws of probability using the Bayes' theorem. Here, we will provide intuition behind the relevance and choices of different prior distributions -- the main difference from the frequentist analysis (see @bartos2021no for more details).
+
+To perform **Bayesian estimation**, we specify prior distributions over the parameters, $p(\theta)$, select a likelihood of the data $p(\text{data} \mid \theta)$, and obtain the posterior distribution of the parameters given the data,<br>
+$p(\theta \mid \text{data}) = \frac{p(\theta)p(\text{data} \mid \theta)}{p(\text{data})}$.<br>
+We can specify informed parameter prior distributions to incorporate additional information into the inference (which is not included in the data) or less informative prior distributions that let the posterior parameter distributions to be almost entirely determined by data. The denominator in the previous equation, $p(\text{data}) = \int p(\theta) p(\text{data} \mid \theta) d \theta$ is also known as the marginal likelihood and quantifies how likely are the data under the specified model and it plays a crucial role in Bayesian hypothesis testing.
+
+In **Bayesian hypothesis testing**, we specify multiple competing models, e.g.:
+
+ - fixed-effect model assuming the absence of the effect, $\mathcal{M}_0 \text{: } \mu = 0$, $p(\text{data} \mid \mathcal{M}_0) \text{: } \text{y}_k \sim \text{Normal}(0, \text{se}_k)$ 
+ - fixed-effect model assuming the presence of the effect $\mathcal{M}_1 \text{: } \mu = f(.)$, $p(\text{data} \mid \mathcal{M}_1) \text{: } \text{y}_k \sim \text{Normal}(\mu, \text{se}_k)$,
+
+where $\text{y}$ denotes the effect sizes and $\text{se}$ denotes the standard errors of the $k$-th study. Then, comparing the marginal likelihoods of the models -- the relative predictive performance -- allows us to compute the evidence in favor of each model, also known as the Bayes factor [@kass1995bayes; @rouder2019teaching; @wrinch1921on],<br>
+$\text{BF}_{10} = \frac{p(\text{data} \mid \mathcal{M}_1)}{p(\text{data} \mid \mathcal{M}_0)}$.<br>
+Since these two models differ only in the prior distribution for the effect, $f(.)$, specification of the prior distribution defines the model comparison and the hypothesis test. Importantly, specifying different prior distributions corresponds to different hypothesis test -- asking different questions, and asking different questions necessarily results in different answers.
+
+Consequently, in Bayesian estimation we can often get away with specifying wide "non-informative" prior distributions on the parameters. However, specification of such distribution in Bayesian hypothesis testing would result in a extreme evidence in favor of the null hypothesis. The reason for that is that the very wide "non-informative" prior distribution would put an excessive amount of prior probability on very unlikely values (e.g., extremely large effect sizes), then, the observed data would be simply more likely under the null hypothesis of no effect. This property is sometimes referred to as the Jeffreys-Lindley paradox [@wagenmakers2021history]. A common suggestion could be to use parameter estimates with credible intervals instead of Bayes factors to reduce the dependency on prior distributions. This however violates the basic logic of probability theory -- one cannot evaluating the evidence in the favor/against the absence of the effect, $\mu = 0$, when one assigns it zero probability in the first place (which happens with any continuous distribution).
+
+**Bayesian model-averaging** allows us to specify a multitude of models, each with a different likelihood -- encoding a different assumption about the data generating process, e.g., additive heterogeneity or publication bias and the different modes how the publication bias operates. We then weight results from each model proportionally to their relative predictive performance -- using the marginal likelihoods -- which allows to draw more robust inferences by acknowledging the uncertainty about the data generating process.
+
+#### Bayesian Estimation with Fixed-Effect Meta-Analysis without Clustering
+
+We start by performing Bayesian estimation with a simple Bayesian fixed-effect meta-analysis, similar to the one estimated with the metafor package,
 ```
-fit_linear <- RoBMA.reg(
+fit_BFE <- RoBMA.reg(
   # specify the model formula and data input
   formula   = ~ 1,
   data      = Kroupova2021,
@@ -250,6 +192,82 @@ fit_linear <- RoBMA.reg(
   # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
   priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
   prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+  priors_effect_null   = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+```
+where we specify the intercept only model via the `formula = ~ 1` argument, set a slightly informative prior for the effect size parameter via the `priors_effect` argument, and remove the publication bias, heterogeneity, and no effect model components by setting them to `NULL` (note that the function automatically identifies the effect sizes and standard errors from the supplied data frame by name, e.g., r, d, z, logOR, se...).
+
+We can interrogate the estimated model with the summary function, using the `type = "individual"` argument to obtain detailed summary of the (individual) models. 
+```{r}
+summary(fit_BFE, type = "individual")
+```
+We find a very small effect size estimates similar to the initial analysis, $z = -0.010$, 95% CI $[-0.011 -0.009]$. This analysis, however, does not account for clustering of the effect size estimates.
+
+#### Down-Weighting Effect Size Estimates to Adjust for Clustering
+
+Unfortunately, there is currently no computationally feasibly way of adjusting for multiple effect size estimates from a single study corresponding to the frequentist adjustment that would be applicable to selection models. The issue is that the multivariate weighted normal distribution becomes too computationally expensive when estimating models with more than 3-5 effect size estimates per cluster. There are multiple ways of side stepping this issue that we employed in previous articles, e.g., performing a sensitivity analysis with the most precise effect size estimates from each study [@maier2022nudge; @bartos2022adjusting] or bootstrapping a single effect size estimate from each study [@maier2022publication]. These approaches however come at the limitation that all but one of the effect size estimates is completely discarded (in each bootstrap) which greatly reduces the information about the distribution of effect sizes which is crucial for inference about the heterogeneity and publication bias (consequently, the sensitivity analyses result in much weaker inference about those two model components).
+
+There, here we explore a new way of dealing with the dependency of effect size estimates -- down-weighting the data likelihood proportionally to the number of effect size estimates from a given study. In other words, each effect size estimate from study $k$ with $N_k$ effect size estimates contributes only $1/N_k$ of the information towards to likelihood,<br>
+$p_{\text{weighted}}(\text{data} \mid \theta) = \prod_1^K p(\text{y}_k, \text{se}_k \mid \theta)^{1/N_k}$.<br>
+Subsequently, multiple effect size estimates from a single study provide as much information as if the study contained only a single effect size estimate. If all effect size estimates come from a different study, the expression simplifies to the usual likelihood. 
+
+This procedure is similar to the idea behind power-priors where only a proportion of the information provided by historical data is used in the model [@ibrahim2000power]. Intuitively, this procedure should also correspond to a continuous version of bootstrapping one effect size estimate from each study, however, with the advantage of much lower computational cost and keeping information about distribution of effect sizes which is important for the heterogeneity and publication bias. It is important to note however, that this procedure will be much conservative than the usual clustering adjustments as it reduces the amount of information obtained from each single study. If the multiple effect size estimates from a single study are partially independent, they contain more than more than the assumed -- down-weighted -- amouth of information.
+
+#### Down-Weighted Fixed-Effect Meta-Analysis
+
+We continue in Bayesian estimation and adjust the previously specified simple Bayesian fixed-effect meta-analysis by adjusting for the clustered effect size estimates using the down-weighting procedure. We estimate the modified model by adding `study_ids = Kroupova2021$study` and `weighted = TRUE`.
+```
+fit_wBFE <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+  study_ids = Kroupova2021$study,
+  weighted  = TRUE,
+
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+  priors_effect_null   = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+```
+```{r}
+summary(fit_wBFE, type = "individual")
+```
+As in the frequentist case, accounting for clustering of the effect size estimates widens the 95% credible intervals of the mean effect size estimate, $z = -0.013$, 95% CI $[-0.016, -0.010]$.
+
+#### Bayesian Hypothesis Testing with Fixed-Effect Meta-Analysis
+
+As mentioned in the first subsection, prior distributions on the parameters of interest define the corresponding hypothesis test. We could use the default prior distribution specification defined in @bartos2021no and tested in a large simulation study, however, we would expect much smaller relationship in our example. Therefore, we specify a more informed prior distribution for the effect size, $\mu \sim \text{Normal}(0, 0.25)$ on the Fisher's $z$ scale, which concentrates most of the prior probability mass on partial correlation coefficients within the $[-0.30, 0.30]$ range. This deliberation and model specification should be performed prior to the data collection, so the hypothesis test is not informed by the actual data at hand -- specifying a hypothesis in line with the observed data can only confirm what we have already learned [@asimov1988prelude].
+
+We specify the Bayesian hypothesis test by fitting two models, one assuming presence of the effect with the aforementioned prior distribution, and one assuming absence of the effect, i.e., $\mu = 0$. To do that, we use the `priors_effect` and `priors_effect_null` arguments in the function call.
+
+```r
+fit_wBFE10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021, 
+  study_ids = Kroupova2021$study,
+  weighted  = TRUE,
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
 
   # remove the remaining model components
   priors_bias          = NULL,
@@ -259,43 +277,142 @@ fit_linear <- RoBMA.reg(
   parallel = TRUE, seed = 1
 )
 ```
-where we specify the intercept only model via the `formula = ~ 1` argument, set a slightly informative prior for the effect size parameter via the `priors_effect` argument, and remove the publication bias and heterogeneity model components by setting them to NULL (note that the function automatically identifies the effect sizes and standard errors from the supplied data frame by name, e.g., r, d, z, logOR, se...).
-
-We can interrogate the estimated model with the summary function
+Now the function estimated both models simultaneously. We can obtain the model inference based on the complete model ensemble with the summary function but without specifying the `type` argument.
 ```{r}
-summary(fit_linear)
+summary(fit_wBFE10)
 ```
-and obtain a very small effect size estimates similar to the initial analysis, $z = -0.010$, 95% CI $[-0.011 -0.009]$, accompanied by an extreme evidence in favor of the effect $\text{BF}_{10} = 4.60 \times 10^{85}$. 
+The results reveal extreme evidence in favor of the specified hypothesis of small effect, $\text{BF}_{10} = 3.59 \times 10^{12}$. Furthermore, we find that the more concentrated prior distribution under the models assuming presence of the effect do not lead to more prior shrinkage, so we also use them for the estimation purposes in the following analyses.
 
-We extend this simple model by adding `study_ids = Kroupova2021$study` and `weighted = TRUE` arguments which allow us to down-weighting the estimates proportionatelly to the number of estimates within each cluster.
-```
-fit_linear_weighted <- RoBMA.reg(
+We can quickly check what would be the results if we specified the same model without the clustering adjustment by omitting the `study_ids` and `weighted` arguments from the previous function call.
+```r
+fit_BFE10 <- RoBMA.reg(
   # specify the model formula and data input
   formula   = ~ 1,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
+  data      = Kroupova2021, 
 
-  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  prior_scale   = "fishers_z",
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
 
   # remove the remaining model components
   priors_bias          = NULL,
   priors_heterogeneity = NULL,
 
   # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
+  parallel = TRUE, seed = 1
 )
 ```
 ```{r}
-summary(fit_linear_weighted)
+summary(fit_BFE10)
 ```
-As in the initial case, accounting for the clustering widens the 95% credible intervals of the effect size estimate, $[-0.016, -0.010]$, and drastically reduces the evidence in favor of the presence of the effect $\text{BF}_{10} = 8.97 \times 10^{10}$ (althought it still remains extreme).
+Unsurprisingly, we would have found even stronger evidence in presence of the effect, $\text{BF}_{10} = 3.83 \times 10^{86}$. 
+
+With the successful verification of the results of down-weighting of the effect size estimates, we move on towards a publication bias adjustment (we employ the down-weighting adjustment in all subsequent analyses). 
+
+#### Publication Bias Adjustment with RoBMA-PSMA
+
+In the previous subsections, we illustrated the main concepts required for performing the robust Bayesian meta-analysis. Now, we move forwards and apply the RoBMA-PSMA publication bias adjustment model to the data [@bartos2021no]. The only difference from the default settings is that we keep the informed prior distribution for the effect -- allowing us to test for the presence of small effects, and account for the clustered data by down-weighting the effect size estimates.
+
+We estimate the RoBMA-PSMA ensemble by removing the `priors_bias = null` and `priors_heterogeneity = null` from the previous function calls. This allows us to specify the whole set of publication bias adjustment model -- six weight-functions, PET, and PEESE models, and also account for additive heterogeneity (use `?RoBMA` for more details about the default values). We further specify the `effect_direction = "negative"` argument which tells the model what is the expected direction of publication bias. This knowledge is important for specifying the one-sided weight functions which assume that estimates in the expected direction are more likely to get published, and the Bayesian version of PET and PEESE models that assume positive relationship between effect sizes and standard errors.
+```r
+fit_wPSMA <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE, 
+  
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
+  
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+```
+```{r}
+#summary(fit_wPSMA)
+```
+The summary function now summarizes result of a 36 models combined into a single meta-analytic ensemble. This allows us to draw inference using a diverse set of models with different assumption about the data-generating process. We find that after adjusting for publication bias and additive heterogeneity with RoBMA-PSMA, the evidence in favor of the presence of the effect essentially disappears, $\text{BF}_{10} = x \times 10^{x}$. The model-averaged effect size estimates (averaging across all specified models) further reduces to $z = -x$, 95% CI $[-x -x]$. Moreover, we find extreme evidence in favor of publication bias, $\text{BF}_{\text{pb}} = x \times 10^{x}$, and additive heterogeneity, $\text{BF}^{\text{rf}} = x \times 10^{x}$. These overall results based on RoBMA-PSMA further support the conclusions obtained by @kroupova2021student about the lack of evidence for the presence of the effect and a considerable amount of publication bias.
+
+We can also visualize the posterior effect size estimate using the `plot()` function. We set the `effect_size = "r"` argument to transforms the effect size estimates to the correlation coefficients and add the `prior = TRUE` argument to overlay the prior distribution on top of the Figure.
+```{r fit_wPSMA, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+#plot(fit_wPSMA, parameter = "mu", prior = TRUE, effect_size = "r")
+```
+The grey and black arrows depict the prior and posterior probability of the zero effect (secondary $y$-axis). The increased length of the black arrow signifies the increased posterior probability of the absence of the effect. The continuous grey and black densities then correspond to the densities under the alternative hypotheses. The black posterior density notably shrinks toward zero which highlights that only very small effects are plausible under the alternative hypothesis.
+
+#### Specifying Bayesian Meta-Regression
+
+All Bayesian analyses so far did not adjust for covariates and could have easily been performed with the `RoBMA()` function. Now, we turn our attention to estimating the effect of covariates and fully utilizing the formula syntax available in `RoBMA.reg()` function. First, we only estimate the effect of one categorical covariate, the study location, using the Bayesian fixed-effect meta-analysis model already employed earlier and then we test for presence of its effect with a Bayesian hypothesis test. 
+
+The only difference between the meta-analysis and the meta-regression model is that the mean parameter $\mu$ is modeled as a linear function of predictors and regression coefficients (including the intercept). However, the Bayesian meta-regression approach presents us with one more challenge -- specifying prior distributions for the regression coefficients. The important thing is to keep in mind that the intercept of the meta-regression model is equivalent to the mean meta-analytic effect -- without predictors. Ideally, we want to parametrize the meta-regression model in a way that preserves the meaning of the intercept. 
+
+When considering **continuous covariates** this can be achieved by simply standardizing the predictor variable, i.e., centering it around its mean and scaling according to the standard deviation (this does not apply to regression of standard errors or standard errors squared -- their scale is bounded to the scale of the effect sizes itself and should be therefore specified using the PET and PEESE models in the `priors_bias` section of the model). Consequently, the regression coefficient for the scaled continuous predictor can be interpreted as difference in the meta-analytic effect size estimate between the mean effect and one standard deviation of the predictor. The prior distributions can be then specified to test the desired hypotheses, e.g., a truncated normal prior distribution on the regression coefficient, $\beta \sim \text{Normal}_{[0, \infty]}(0.10, 0.05)$, can represent a hypothesis of a small positive effect centered around the mean value of 0.10.
+
+When considering **categorical covariates** things can get a bit more involved. The usual way of treating categorical covariates in regression -- dummy coding -- has two main issues. First, the often arbitrary default category becomes absorbed by the intercept -- the intercept no longer corresponds to the mean meta-analytic effect and changes its meaning according to choice of the default category. Second, the dummy encoding translates the regression coefficients of the categorical covariate to differences from the default category -- again, different choice of the default category leads to different meaning of the regression coefficients. Subsequently, using dummy encoding makes the choice of the default category crucial for specifying the prior distributions and the subsequent hypothesis tests. If this is our desired behavior, then dummy encoding is the way to go but we are often interested in a more general question -- do the categories differ among each other. In that case, coding with different properties is desired: a coding that (1) keeps the intercept as the mean meta-analytic effect and (2) specifies a prior distribution for differences of the individual categories from the mean meta-analytic effect. These proprieties can be obtained by using the `orthonormal` encoding (contrast) as specified by @rouder2012default. The corresponding specification can be easily obtained via the `prior_factor()` function by specifying the `contrasts = "orthonormal"` argument (the dummy coding can be obtained by specifying `contrasts = "treatment"`).
+
+#### Accounting for Covariates with Fixed-Effect Meta-Regression
 
 
+#### Accounting for Covariates while Adjusting for Publication Bias
 
-### Footnotes
+Finally, we extend the previously specified robust Bayesian meta-analyses to also estimate the effect of covariates. First, we specify a meta-regression model with a relatively wide default prior distributions for the covariates (see `?RoBMA.reg` for more details). We specify the model by extending the `formula` argument with the corresponding meta-regression specification. We further add the `test_predictors = ""` argument specifies the ensemble such all covariates are put into the model (we test for the presence of the effect of covariates in the following section using more informed prior distributions).
 
-$^1$ A better alternative would be specifying a multivariate hierarchical meta-regression model. However, the multivariate weighted normal likelihood function becomes computationally too expensive with number of estimated per study is larger than five (and is extremely slow even with a few estimates per study).
+
+```r
+fit_wPSMA_reg <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE, 
+  test_predictors  = "",
+  
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
+  
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+```
+
+
+```r
+fit_wPSMA_reg10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE, 
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+  
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  priors              = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+  ),
+  prior_scale         = "fishers_z",
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+```
+
 
 ### References
