@@ -203,12 +203,13 @@ fit_RoBMA_regression_weighted <- RoBMA.reg(
 
   model_type       = "PSMA",
   effect_direction = "negative",
+  priors_effect    = prior("normal", list(mean = 0, sd = 0.40)),
   priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    location           = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal")
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal")
   ),
 
   # some additional settings
@@ -289,11 +290,117 @@ object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], RoBMA:::.get_m
 RoBMA:::.print_errors_and_warnings(object)
 
 class(object) <- c("RoBMA", "RoBMA.reg")
-
+summary(object)
 fit_RoBMA_regression_weighted <- object
 saveRDS(fit_RoBMA_regression_weighted, file = "../models/MetaRegression/fit_RoBMA_regression_weighted.RDS", compress = "xz")
-
 
 object <- .remove_model_posteriors(object)
 object <- .remove_model_margliks(object)
 saveRDS(object, file = "../models/MetaRegression/fit_RoBMA_regression_weighted.RDS", compress = "xz")
+
+
+xxx <- summary(object, "m", short_name = T)
+xxx$summary[order(xxx$summary$post_prob, decreasing = T),][1:10,]
+
+
+fit_RoBMA_regression_weighted_1 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data       = Kroupova2021,
+  study_ids  = Kroupova2021$study,
+  test_predictors = c("location", "endogenity_control"),
+
+  effect_direction = "negative",
+  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
+  priors     = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal")
+  ),
+  priors_bias = list(
+    prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
+    prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
+  ),
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+
+fit_RoBMA_regression_weighted_2 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data       = Kroupova2021,
+  study_ids  = Kroupova2021$study,
+  test_predictors = c("location", "endogenity_control"),
+
+  effect_direction = "negative",
+  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
+  priors     = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    location           = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    endogenity_control = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment")
+  ),
+  priors_bias = list(
+    prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
+    prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
+  ),
+
+  # some additional settings
+  parallel = TRUE, seed = 1, weighted = TRUE
+)
+
+summary(fit_RoBMA_regression_weighted_1)
+summary(fit_RoBMA_regression_weighted_2)
+
+
+fit_RoBMA_regression_1 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data       = Kroupova2021,
+  test_predictors = c("location", "endogenity_control"),
+
+  effect_direction = "negative",
+  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
+  priors     = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal")
+  ),
+  priors_bias = list(
+    prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
+    prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
+  ),
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+
+fit_RoBMA_regression_2 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data       = Kroupova2021,
+  test_predictors = c("location", "endogenity_control"),
+
+  effect_direction = "negative",
+  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
+  priors     = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    location           = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
+    endogenity_control = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment")
+  ),
+  priors_bias = list(
+    prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
+    prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
+  ),
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)

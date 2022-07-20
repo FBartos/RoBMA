@@ -218,7 +218,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
             warnings   = .collect_errors_and_warnings(object)
           )
         }
-        estimates_predictors_conditional <- estimates_predictors_conditional
+        output$estimates_predictors_conditional <- estimates_predictors_conditional
       }
 
     }
