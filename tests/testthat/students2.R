@@ -248,16 +248,15 @@ for(i in seq_along(fit_RoBMA_regression_full_weighted$models)){
 }
 object <- fit_RoBMA_regression_full_weighted
 
-sum(!RoBMA:::.get_model_convergence(object))
-
 object$models        <- BayesTools::models_inference(object[["models"]])
 object$RoBMA         <- RoBMA:::.ensemble_inference(object)
 object$coefficients  <- RoBMA:::.compute_coeficients(object[["RoBMA"]])
 
-### collect and print errors and warnings
 object$add_info[["errors"]]   <- c(object$add_info[["errors"]],   RoBMA:::.get_model_errors(object))
 object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], RoBMA:::.get_model_warnings(object))
-RoBMA:::.print_errors_and_warnings(object)
+
+object <- .remove_model_posteriors(object)
+object <- .remove_model_margliks(object)
 
 class(object) <- c("RoBMA", "RoBMA.reg")
 

@@ -741,9 +741,9 @@ The model estimation now takes considerably more time as we need to estimate 36 
 ```{r}
 summary(fit_wPSMA_reg)
 ```
-We obtain similar results about the main model structure as in the down-weighted RoBMA-PSMA model not including covariates. After accounting for covariates, we find moderate evidence in the favor of the absence of the effect, $\text{BF}_{01} = 1/0.127 = 7.87$, extreme evidence in favor additive heterogeneity, $\text{BF}^{\text{rf}} = 3.49 \times 10^{76}$ (which notably decreased as a result of adding covariates), and extreme evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 556.49$.
+We obtain similar results about the main model structure as in the down-weighted RoBMA-PSMA model not including covariates. After accounting for covariates, we find moderate evidence in the favor of the absence of the effect, $\text{BF}_{01} = 1/0.143 = 6.99$, extreme evidence in favor additive heterogeneity, $\text{BF}^{\text{rf}} = 3.78 \times 10^{78}$, and strong evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 15.04$ (which notably decreased as a result of incorporating covariates into the model ensemble).
 
-More interesting are the model-averaged meta-regression estimates -- note that all models assume presence of the predictors, therefore, the model-averaging happens across models assuming the presence/absence of the mean effect, heterogeneity, and publication bias. In general, we find rather small differences from the mean meta-analytic effect size due to covariates: the largest difference is due to the Germany location.
+More interesting are the model-averaged meta-regression estimates -- since all models assume presence of the predictors, the model-averaging happens across models assuming the presence/absence of the mean effect, heterogeneity, and publication bias. In general, we find rather small differences from the mean meta-analytic effect size due to covariates, with the largest differences being estimated for studies performed in Germany.
 
 
 #### Testing the Effect of Covariates while Adjusting for Publication Bias
@@ -786,6 +786,10 @@ As we saw in the last example, specifying the combination of all models can resu
 
 1) Specify and save the model ensemble without estimating the models by adding the `do_not_fit = TRUE` argument.
 ```r
+library(RoBMA)
+data("Kroupova2021", package = "RoBMA")
+Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
+
 fit_wPSMA_reg10 <- RoBMA.reg(
   # specify the model formula and data input
   formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
