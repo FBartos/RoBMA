@@ -39,7 +39,7 @@ fit_wPSMA       <- readRDS(file = "../models/MetaRegression/fit_wPSMA.RDS")
 fit_wBFE_reg    <- readRDS(file = "../models/MetaRegression/fit_wBFE_reg.RDS")
 fit_wBFE_reg10  <- readRDS(file = "../models/MetaRegression/fit_wBFE_reg10.RDS")
 fit_wPSMA_reg   <- readRDS(file = "../models/MetaRegression/fit_wPSMA_reg.RDS")
-#fit_wPSMA_reg10 <- readRDS(file = "../models/MetaRegression/fit_wPSMA_reg10.RDS")
+fit_wPSMA_reg10 <- readRDS(file = "../models/MetaRegression/fit_wPSMA_reg10.RDS")
 ```
 ```{r include = FALSE, eval = FALSE}
 # R package version updating
@@ -187,7 +187,7 @@ fit_wBFE_reg10 <- RoBMA.reg(
 )
 fit_wPSMA_reg <- RoBMA.reg(
   # specify the model formula and data input
-  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogeneity_control,
   data             = Kroupova2021,
   effect_direction = "negative",
   study_ids        = Kroupova2021$study,
@@ -201,7 +201,7 @@ fit_wPSMA_reg <- RoBMA.reg(
     students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+    endogeneity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
   priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   priors_effect_null  = prior("spike",  parameters = list(location = 0)),
@@ -213,12 +213,12 @@ fit_wPSMA_reg <- RoBMA.reg(
 
 fit_wPSMA_reg10 <- RoBMA.reg(
   # specify the model formula and data input
-  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogeneity_control,
   data             = Kroupova2021,
   effect_direction = "negative",
   study_ids        = Kroupova2021$study,
   weighted         = TRUE, 
-  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogeneity_control"),
   
   # specify informative prior for the effect size parameter under the alternative hypothesis
   # and a specify a null hypothesis of no effect
@@ -227,7 +227,7 @@ fit_wPSMA_reg10 <- RoBMA.reg(
     students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+    endogeneity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
   priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   priors_effect_null  = prior("spike",  parameters = list(location = 0)),
@@ -256,12 +256,12 @@ parallel::stopCluster(cl)
 
 fit_wPSMA_reg10 <- RoBMA.reg(
   # specify the model formula and data input
-  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogeneity_control,
   data             = Kroupova2021,
   effect_direction = "negative",
   study_ids        = Kroupova2021$study,
   weighted         = TRUE, 
-  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogeneity_control"),
   
   # specify informative prior for the effect size parameter under the alternative hypothesis
   # and a specify a null hypothesis of no effect
@@ -270,7 +270,7 @@ fit_wPSMA_reg10 <- RoBMA.reg(
     students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+    endogeneity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
   priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   priors_effect_null  = prior("spike",  parameters = list(location = 0)),
@@ -308,21 +308,23 @@ saveRDS(fit_wPSMA_reg,   file = "../models/MetaRegression/fit_wPSMA_reg.RDS",   
 saveRDS(fit_wPSMA_reg10, file = "../models/MetaRegression/fit_wPSMA_reg10.RDS", compress = "xz")
 ```
 
-The `RoBMA.reg()` function extends the robust Bayesian meta-analysis framework with meta-regression. We illustrates this functionality on an example from @kroupova2021student who performed meta-analysis of the relationship between student employment and educational outcomes. Since many of the original studies reported multiple estimates, we also demonstrate the estimates down-weighting functionality which allows us to draw conservative inference with clustered estimates.
+The `RoBMA.reg()` function extends the robust Bayesian meta-analysis framework with meta-regression. We illustrate the meta-regression functionality on an example of student employment and educational outcomes from  @kroupova2021student. Since many of the original studies reported multiple estimates, we also demonstrate the estimates' down-weighting functionality, which allows us to draw conservative inferences with clustered estimates.
 
 
 ### Introduction
 
-In the original article, @kroupova2021student conducted an outstanding analysis of the data. @kroupova2021student employed several publication bias adjustment techniques to assess the mean meta-analytic effect size beyond publication bias and further used Bayesian and frequentist model-averaging techniques to estimate the effect of various covariates. In this vignette, we attempt to combine both analysis using the robust Bayesian meta-analysis framework [@maier2020robust; @bartos2021no] and draw inference about the publication bias and covariates simultaneously using Bayesian model-averaging [@hinne2019conceptual; @hoeting1999bayesian; @leamer1978specification].
+In the original article, @kroupova2021student conducted an outstanding data analysis. @kroupova2021student employed multiple publication bias adjustment procedures to assess the mean meta-analytic effect size beyond publication bias and further used Bayesian and frequentist model-averaging procedures to estimate the effect of various covariates. In this vignette, we attempt to combine both analyses using the robust Bayesian meta-analysis framework [@maier2020robust; @bartos2021no] and draw inference about the publication bias and covariates simultaneously using Bayesian model-averaging [@hinne2019conceptual; @hoeting1999bayesian; @leamer1978specification].
 
-In this longer vignette, we start by briefly outlining the data set in the "Data Set" section. We continue with the "Preliminary Analyses" section where we perform a few frequentist preliminary analyses to illustrate the effect of publication bias and accounting for multiple estimates from a single study. We finish with with a "Robust Bayesian Meta-Analysis" section where we slowly building up the robust Bayesian meta-analytic ensemble. We achieve that in a sequence of multiple steps. 
+We start by briefly outlining the data set in the "Data Set" section. We continue with the "Preliminary Analyses" section, where we perform a few frequentists' preliminary analyses to illustrate the effect of publication bias and accounting for multiple estimates from a single study. We finish with the "Robust Bayesian Meta-Analysis" section, where we slowly build up the robust Bayesian meta-analytic ensemble. We achieve that in a sequence of multiple steps.
 
-First, we overview the basics of Bayesian estimation, hypothesis testing, model-averaging, and the role of the prior distributions which provides us with the necessary theoretical foundation for the rest of the vignette. Second, we apply this knowledge and estimate simple Bayesian meta-analytic models. Third, we outline the likelihood down-weighting procedure that we use to adjust for dependency of effect size estimates from a single study. Fourth, we apply the down-weighting technique to a simple Bayesian meta-analytic model and discuss the results. Five, we apply the down-weighting technique to Bayesian hypothesis testing in a simple meta-analytic model and apply the down-weighting in all subsequent analyses. Six, we extend the simple models to adjust for publication bias with RoBMA-PSMA. Seven, we discuss parameterization and prior distributions for different kinds of covariates in Bayesian meta-regression. Eight, we showcase a simple case of Bayesian estimation and hypothesis testing using of the Bayesian meta-regression. Nine, we extend the RoBMA-PSMA model by estimating the effect of covariates while simultaneously adjusting for publication bias. Ten, specify a RoBMA-PSMA model that simultaneously performs hypothesis tests for the effect of covariates while simultaneously tests and adjusts for the effect of publication bias.
+First, we overview the basics of Bayesian estimation, hypothesis testing, model-averaging, and the role of the prior distributions, which provides us with the necessary theoretical foundation for the rest of the vignette. Second, we apply this knowledge and estimate a simple Bayesian meta-analytic model. Third, we outline the likelihood down-weighting procedure which we use to deal with the clustered effect size estimates. Fourth, we apply the down-weighting procedure to the simple Bayesian meta-analytic model and discuss its effects on Bayesian estimation. Five, we perform Bayesian hypothesis testing with a simple Bayesian meta-analytic model and discuss the effects of the down-weighting procedure on the hypothesis test (we apply the down-weighting procedure in all subsequent analyses). Six, we extend the simple models to adjust for publication bias and additive heterogeneity with RoBMA-PSMA model ensemble. Seven, we discuss parameterization and prior distributions for different kinds of covariates in Bayesian meta-regression. Eight, we showcase a simple case of Bayesian estimation and hypothesis testing in the context of Bayesian meta-regression. Nine, we extend the RoBMA-PSMA model by estimating the effect of covariates while simultaneously adjusting for publication bias. Ten, specify a RoBMA-PSMA model that simultaneously performs hypothesis tests for the effect of covariates while simultaneously testing and adjusting for publication bias and additive heterogeneity.
+
+Finally, we briefly discuss the methods and results in the "Conclusions" section.
 
 
 ### Data Set 
 
-We begin by loading the shortened version of the data set included in the package (see \url{http://meta-analysis.cz/students/} for the original version of the data set which includes additional covariates).
+We begin by loading the shortened version of the data set included in the package (see [meta-analysis.cz/students](http://meta-analysis.cz/students/) for the original version of the data set, which includes additional covariates).
 
 ```{r}
 library(RoBMA)
@@ -331,55 +333,53 @@ data("Kroupova2021", package = "RoBMA")
 head(Kroupova2021)
 ``` 
 
-The shortened data set contains the:
+The shortened data set contains the following variables:
 
  - effect size from each study transformed into partial correlation coefficients (r),
  - the standard error of the partial correlation coefficients (se),
  - study identification (study),
  - total sample size (sample_size),
  - type of the educational outcome (educational_outcome),
- - intensity of the employment (employment_intensity, with missing values),
+ - the intensity of the employment (employment_intensity, with missing values),
  - gender of the studied student population (students_gender),
  - the study location (location),
  - the design of the study (design),
- - whether the study controlled for endogenity,
+ - whether the study controlled for endogeneity,
  - and whether the study controlled for motivation.
 
 (See the original article by @kroupova2021student for more detailed information about the data set.)
 
-Before we start analyzing the data, we remove studies with missing standard errors, 
+Before we start analyzing the data, we remove studies with missing standard errors. 
 ```{r}
 Kroupova2021 <- Kroupova2021[!is.na(Kroupova2021$se),]
-nrow(Kroupova2021)            # the number of estimates
-length(unique(Kroupova2021))  # the number of studies
+nrow(Kroupova2021)                  # the number of estimates
+length(unique(Kroupova2021$study))  # the number of studies
 ```
-which leaves us with 861 estimates from 69 studies -- data set corresponding to the one used by @kroupova2021student.
+That leaves us with 861 estimates from 69 studies -- a data set corresponding to the one used by @kroupova2021student.
 
 
 ### Preliminary Analyses
 
-We begin out analysis by reproducing one of the results reported in Table 3 of @kroupova2021student -- an ordinary least square (OLS) regression with clustered standard errors (first column). To perform the analysis in R, we use the `fixest` R package [@fixest] and use the standard errors as a predictor.
+We begin our meta-analysis journey by reproducing one of the results reported in Table 3 of @kroupova2021student -- an ordinary least square (OLS) regression with clustered standard errors (first column). To perform the analysis in R, we use the `fixest` R package [@fixest] and include the standard errors as a predictor in the model formula.
 ```{r}
 summary(fixest::feols(r ~ se, cluster = ~ study, data = Kroupova2021))
 ```
-We obtain results practically indistinguishable for the reported values in Table 3 (up to differences in R and Stata implementations). We find a statistically non-significant effect size estimate $r = 0.0061$ (SE = $0.0127$) and a statistically significant regression coefficient of the standard errors $-0.8806$ (SE = $0.3424$) hinting at possible publication bias.
+We obtain results practically indistinguishable for the reported values in Table 3 (up to differences in R and Stata implementations). We find a statistically non-significant effect size estimate of $r = 0.0061$ (SE = $0.0127$) and a statistically significant regression coefficient of the standard errors $-0.8806$ (SE = $0.3424$), hinting at possible publication bias.
 
-Before we move on to estimating RoBMA, we (1) re-estimate the OLS regression with clustered standard errors with effect sizes and standard errors transformed to Fishers'$z$ and (2) fit a frequentist meta-analytic models with and without standard error clustering to illustrate its effect on the inference.
+Before we estimate our Bayesian meta-analytic models, we (1) re-estimate the OLS regression with clustered standard errors with effect sizes and standard errors transformed to Fishers'$z$ and (2) fit a simple frequentist meta-analytic models with and without standard error clustering to illustrate the effect of adjusting for multiple effect sizes from a single study on the resulting inference.
 
 #### Fisher's z Effect Size Transformation
 
-We prefer using Fishers'$z$ transformed effect sizes since they
+We prefer using Fishers'$z$ transformed effect sizes, $z = \frac{1}{2}\text{ln}(\frac{1 + r}{1 - r})$, since the Fishers'$z$ transformed effect sizes
 
  - do not have range restriction -- better accommodate the usual normality assumptions about standard errors distribution,
- - scale linearly -- a change from $r = 0.00$ to $r = 0.10$ has a very different meaning that change from $r = 0.90$ to $r = 1.00$,
- - and are by definition uncorrelated with their standard errors -- which is a requirement for proper functioning of Bayesian PET-PEESE publication bias adjustment. 
+ - scale linearly -- a change from $r = 0.00$ to $r = 0.10$ has a very different meaning than a change from $r = 0.90$ to $r = 1.00$,
+ - and are by definition uncorrelated with their standard errors -- which is a requirement for the proper functioning of Bayesian PET-PEESE publication bias adjustment. 
  
 (See Appendix C of @bartos2020adjusting for more details.)
- 
-Since the transformation between (partial) correlation coefficients and Fisher's $z$,<br>
-$z = \frac{1}{2}\text{ln}(\frac{1 + r}{1 - r})$.
 
-We use the transformation functions implemented in the RoBMA package to update the data set,
+
+We use the effect size and effect size standard error transformation functions implemented in the RoBMA package to update the data set,
 ```{r}
 Kroupova2021$se <- se_r2se_z(se_r = Kroupova2021$se, r = Kroupova2021$r)
 Kroupova2021$z  <- r2z(r = Kroupova2021$r)
@@ -389,43 +389,43 @@ and estimate the clustered OLS regression on Fisher's z scale.
 ```{r}
 summary(fixest::feols(z ~ se, cluster = ~ study, data = Kroupova2021))
 ```
-Since the effect size transformation is almost linear for correlation coefficients around zero the results of the OLS regression remain practically unchanged.
+Since the effect size transformation is almost linear for correlation coefficients around zero, the results of the OLS regression remain practically unchanged.
 
 #### Dependent Effect Sizes and Frequentist Meta-Analyses
 
-We finish our preliminary analysis by fitting multiple frequentist meta-analytic models to illustrate the effect of clustering standard errors. We use the the metafor R package [@metafor] and fit a simple fixed-effect meta-analytic model.
+We finish our preliminary analysis by fitting multiple frequentist meta-analytic models to illustrate the effect of clustering standard errors. We use the metafor R package [@metafor] and fit a simple fixed-effect meta-analytic model.
 ```{r}
 fit_metafor <- metafor::rma(yi = z, sei = se, method = "FE", data = Kroupova2021)
 summary(fit_metafor)
 ```
-We find a very small but statistically significant negative relationship between student employment and education results $r = -0.0105$ (SE = $0.0005$). However, this summary does not account for clustering of the effect sizes within studies. Therefore, we use the `robust()` function to obtain the clustered standard errors.
+We find a very small but statistically significant negative relationship between student employment and education results $r = -0.0105$ (SE = $0.0005$). However, this summary does not account for the clustering of the effect sizes within studies. Therefore, we use the `robust()` function to obtain the clustered standard errors.
 ```{r}
 metafor::robust(fit_metafor, cluster = study)
 ```
 We notice that accounting for the repeated estimates from each study results in a ten-fold (!) increase in the standard error of the mean effect size estimate, SE = $0.0052$. The increased standard error subsequently widens the confidence intervals and turns the previously statistically significant result into a statistically non-significant one.
 
-We can further extend the analysis to adjust for the relationship between standard errors and effect sizes, as in the OLS regression by specifying the `mods  = se` argument.
+We can further extend the analysis by adjusting for the relationship between standard errors and effect sizes, as in the OLS regression, by specifying the `mods = se` argument.
 ```{r}
 fit_metafor_reg <- metafor::rma(yi = z, sei = se, mods = se, method = "FE", data = Kroupova2021)
 metafor::robust(fit_metafor_reg, cluster = study)
 ```
-The mean effect size estimates remains statistically non-significant $r = -0.0062$ (SE = $0.0075$) with a notable but statistically non-significant regression coefficient of the standard errors $-0.3575$ (SE = $0.5662$) echoing the results of the previous OLS analysis. 
+The mean effect size estimate remains statistically non-significant $r = -0.0062$ (SE = $0.0075$) with a notable but statistically non-significant regression coefficient of the standard errors $-0.3575$ (SE = $0.5662$), echoing the results of the previous OLS analysis. 
 
-Importantly, these analyses highlights the need of accounting for clustering, especially in these large meta-analytic estimates with multiple estimates from a single study. Not adjusting for the dependencies in the data set, i.e., treating each effect size estimate as an independent new piece of information results in an overconfident inference.
+Importantly, these analyses highlight the need to account for clustering, especially in these large meta-analytic data sets with multiple estimates from a single study. Not adjusting for the dependencies in the data set, i.e., treating each effect size estimate as an independent new piece of information, results in an overconfident inference.
 
 
 ### Robust Bayesian Meta-Analysis
 
-We begin our Bayesian analysis by estimating a few simpler meta-regression models. This helps us to illustrate functionality of the `RoBMA.reg` function which we will use to the fullest later. However, before we get into that, let us highlight few important feature of Bayesian (model-averaged) estimation and hypothesis testing.
+Now we transition into the Bayesian framework and highlight a few crucial characteristics of Bayesian (model-averaged) estimation and hypothesis testing before ultimately moving on and estimating increasingly more complex meta-analytic models with the `RoBMA.reg()` function.
 
 
 #### Bayesian (Model-Averaged) Estimation and Hypothesis Testing
 
-As usually described, Bayesian statistics are entirely based on nothing else but a thorough application of the laws of probability using the Bayes' theorem. Here, we will provide intuition behind the relevance and choices of different prior distributions -- the main difference from the frequentist analysis (see @bartos2021no for more details).
+As usually described, Bayesian statistics are founded on a thorough application of the laws of probability using Bayes’ theorem. Here, we will provide intuition behind the relevance and choices of prior distributions for Bayesian estimation and hypothesis testing –- which forms the main difference from the frequentist analysis (see @bartos2021no for more details).
 
 To perform **Bayesian estimation**, we specify prior distributions over the parameters, $p(\theta)$, select a likelihood of the data $p(\text{data} \mid \theta)$, and obtain the posterior distribution of the parameters given the data,<br>
 $p(\theta \mid \text{data}) = \frac{p(\theta)p(\text{data} \mid \theta)}{p(\text{data})}$.<br>
-We can specify informed parameter prior distributions to incorporate additional information into the inference (which is not included in the data) or less informative prior distributions that let the posterior parameter distributions to be almost entirely determined by data. The denominator in the previous equation, $p(\text{data}) = \int p(\theta) p(\text{data} \mid \theta) d \theta$ is also known as the marginal likelihood and quantifies how likely are the data under the specified model and it plays a crucial role in Bayesian hypothesis testing.
+We can specify informed parameter prior distributions to incorporate additional information into the inference (which is not included in the data) or less informative prior distributions that let the posterior parameter distributions be almost entirely determined by data. The denominator in the previous equation, $p(\text{data}) = \int p(\theta) p(\text{data} \mid \theta) d \theta$ is also known as the marginal likelihood and quantifies how likely are the data under the specified model, which plays a crucial role in the Bayesian hypothesis testing.
 
 In **Bayesian hypothesis testing**, we specify multiple competing models, e.g.:
 
@@ -434,16 +434,16 @@ In **Bayesian hypothesis testing**, we specify multiple competing models, e.g.:
 
 where $\text{y}$ denotes the effect sizes and $\text{se}$ denotes the standard errors of the $k$-th study. Then, comparing the marginal likelihoods of the models -- the relative predictive performance -- allows us to compute the evidence in favor of each model, also known as the Bayes factor [@kass1995bayes; @rouder2019teaching; @wrinch1921on],<br>
 $\text{BF}_{10} = \frac{p(\text{data} \mid \mathcal{M}_1)}{p(\text{data} \mid \mathcal{M}_0)}$.<br>
-Since these two models differ only in the prior distribution for the effect, $f(.)$, specification of the prior distribution defines the model comparison and the hypothesis test. Importantly, specifying different prior distributions corresponds to different hypothesis test -- asking different questions, and asking different questions necessarily results in different answers.
+Since these two models differ only in the prior distribution for the meta-analytic effect parameter, $f(.)$, the specification of the prior distribution defines the model comparison and the hypothesis test. Importantly, specifying different prior distributions corresponds to specifying different hypothesis tests -- asking different questions, and asking different questions necessarily results in different answers.
 
-Consequently, in Bayesian estimation we can often get away with specifying wide "non-informative" prior distributions on the parameters. However, specification of such distribution in Bayesian hypothesis testing would result in a extreme evidence in favor of the null hypothesis. The reason for that is that the very wide "non-informative" prior distribution would put an excessive amount of prior probability on very unlikely values (e.g., extremely large effect sizes), then, the observed data would be simply more likely under the null hypothesis of no effect. This property is sometimes referred to as the Jeffreys-Lindley paradox [@wagenmakers2021history]. A common suggestion could be to use parameter estimates with credible intervals instead of Bayes factors to reduce the dependency on prior distributions. This however violates the basic logic of probability theory -- one cannot evaluating the evidence in the favor/against the absence of the effect, $\mu = 0$, when one assigns it zero probability in the first place (which happens with any continuous distribution).
+While we can often get away with specifying wide “non-informative” prior distributions in Bayesian estimation, specifying such distribution would result in extreme evidence in favor of the null hypothesis in Bayesian hypothesis testing. The reason for that is that the very wide "non-informative" prior distribution would put an excessive amount of prior probability on implausible parameter values (e.g., extremely large effect sizes); then, the observed data would be simply more likely under the null hypothesis of no effect. This property is sometimes referred to as the Jeffreys-Lindley paradox [@wagenmakers2021history]. A common suggestion to mitigate the effect of prior distributions could be using the parameter estimates with credible intervals instead of Bayes factors. This suggestion however violates the basic logic of probability theory – one cannot evaluate the evidence in the favor/against the absence of the effect, $\mu = 0$, when one assigns it zero probability in the first place (which happens with any continuous distribution).
 
-**Bayesian model-averaging** allows us to specify a multitude of models, each with a different likelihood -- encoding a different assumption about the data generating process, e.g., additive heterogeneity or publication bias and the different modes how the publication bias operates. We then weight results from each model proportionally to their relative predictive performance -- using the marginal likelihoods -- which allows to draw more robust inferences by acknowledging the uncertainty about the data generating process.
+**Bayesian model-averaging** allows us to specify a multitude of models, each with a different likelihood -– encoding a different assumption about the data generating process, e.g., additive heterogeneity or publication bias and the different modes of how the publication bias operates. We then weight results from each model proportionally to their relative predictive performance –- using the marginal likelihoods -– which allows us to draw more robust inferences by acknowledging the uncertainty about the data generating process.
 
 
-#### Bayesian Estimation with Fixed-Effect Meta-Analysis without Clustering
+#### Bayesian Estimation with Fixed-Effect Meta-Analysis
 
-We start by performing Bayesian estimation with a simple Bayesian fixed-effect meta-analysis, similar to the one estimated with the metafor package,
+We start by performing Bayesian estimation with a simple Bayesian fixed-effect meta-analysis, similar to the one estimated with the metafor package. We use the `RoBMA.reg()` function and specify an  intercept only model via the `formula = ~ 1` argument, set a slightly informative prior for the effect size parameter via the `priors_effect` argument, and remove the publication bias, heterogeneity, and no effect model components by setting them to `NULL` (note that the function automatically identifies the effect sizes and standard errors from the supplied data frame by name, e.g., r, d, z, logOR, se...).
 ```
 fit_BFE <- RoBMA.reg(
   # specify the model formula and data input
@@ -463,9 +463,9 @@ fit_BFE <- RoBMA.reg(
   parallel = TRUE, seed = 1
 )
 ```
-where we specify the intercept only model via the `formula = ~ 1` argument, set a slightly informative prior for the effect size parameter via the `priors_effect` argument, and remove the publication bias, heterogeneity, and no effect model components by setting them to `NULL` (note that the function automatically identifies the effect sizes and standard errors from the supplied data frame by name, e.g., r, d, z, logOR, se...).
 
-We can interrogate the estimated model with the summary function, using the `type = "individual"` argument to obtain detailed summary of the (individual) models. 
+
+We can interrogate the estimated model with the summary function, using the `type = "individual"` argument to obtain a detailed summary of the (individual) models. 
 ```{r}
 summary(fit_BFE, type = "individual")
 ```
@@ -474,18 +474,18 @@ We find a very small effect size estimates similar to the initial analysis, $z =
 
 #### Down-Weighting Effect Size Estimates to Adjust for Clustering
 
-Unfortunately, there is currently no computationally feasibly way of adjusting for multiple effect size estimates from a single study corresponding to the frequentist adjustment that would be applicable to selection models. The issue is that the multivariate weighted normal distribution becomes too computationally expensive when estimating models with more than 3-5 effect size estimates per cluster. There are multiple ways of side stepping this issue that we employed in previous articles, e.g., performing a sensitivity analysis with the most precise effect size estimates from each study [@maier2022nudge; @bartos2022adjusting] or bootstrapping a single effect size estimate from each study [@maier2022publication]. These approaches however come at the limitation that all but one of the effect size estimates is completely discarded (in each bootstrap) which greatly reduces the information about the distribution of effect sizes which is crucial for inference about the heterogeneity and publication bias (consequently, the sensitivity analyses result in much weaker inference about those two model components).
+Unfortunately, there is currently no computationally feasibly way of adjusting for multiple effect size estimates from a single study corresponding to the frequentist adjustment that would apply to selection models, which form an essential part of the RoBMA-PSMA model ensemble. The issue is that the required multivariate weighted normal distribution becomes too computationally expensive when estimating models with more than 3-5 effect size estimates per cluster. There are multiple ways of sidestepping this issue that we employed in previous articles, e.g., performing a sensitivity analysis with the most precise effect size estimates from each study [@maier2022nudge; @bartos2022adjusting] or bootstrapping a single effect size estimate from each study [@maier2022publication]. These approaches, however, come with the limitation that information from all but one of the effect size estimates is completely discarded (in each bootstrap), which greatly reduces the information about the distribution of effect sizes which is crucial for inference about the heterogeneity and publication bias (consequently, the sensitivity analyses result in much weaker inference about those two model components).
 
-There, here we explore a new way of dealing with the dependency of effect size estimates -- down-weighting the data likelihood proportionally to the number of effect size estimates from a given study. In other words, each effect size estimate from study $k$ with $N_k$ effect size estimates contributes only $1/N_k$ of the information towards to likelihood,<br>
+Here we explore a new way of dealing with the dependency of effect size estimates -- down-weighting the data likelihood proportionally to the number of effect size estimates from a given study. In other words, each effect size estimate from study $k$ with $N_k$ effect size estimates contributes only $1/N_k$ of the information towards the likelihood,<br>
 $p_{\text{weighted}}(\text{data} \mid \theta) = \prod_1^K p(\text{y}_k, \text{se}_k \mid \theta)^{1/N_k}$.<br>
 Subsequently, multiple effect size estimates from a single study provide as much information as if the study contained only a single effect size estimate. If all effect size estimates come from a different study, the expression simplifies to the usual likelihood. 
 
-This procedure is similar to the idea behind power-priors where only a proportion of the information provided by historical data is used in the model [@ibrahim2000power]. Intuitively, this procedure should also correspond to a continuous version of bootstrapping one effect size estimate from each study, however, with the advantage of much lower computational cost and keeping information about distribution of effect sizes which is important for the heterogeneity and publication bias. It is important to note however, that this procedure will be much conservative than the usual clustering adjustments as it reduces the amount of information obtained from each single study. If the multiple effect size estimates from a single study are partially independent, they contain more than more than the assumed -- down-weighted -- amouth of information.
+This procedure is similar to the idea behind power-priors, where the model uses only a proportion of the information provided by (historical) data [@ibrahim2000power]. Intuitively, this procedure should also correspond to a continuous version of bootstrapping one effect size estimate from each study; however, with the advantage of much lower computational cost and keeping information about the distribution of effect sizes which is essential for evaluating the heterogeneity and publication bias. However, it is important to note that this procedure will be much more conservative than the usual clustering adjustments as it reduces the amount of information obtained from every single study. If the multiple effect size estimates from a single study are partially independent, they contain more than the assumed -- down-weighted -- amount of information.
 
 
 #### Down-Weighted Fixed-Effect Meta-Analysis
 
-We continue in Bayesian estimation and adjust the previously specified simple Bayesian fixed-effect meta-analysis by adjusting for the clustered effect size estimates using the down-weighting procedure. We estimate the modified model by adding `study_ids = Kroupova2021$study` and `weighted = TRUE`.
+Now we use the down-weighting procedure and refit the previously specified Bayesian fixed-effect meta-analysis while adjusting for the clustered effect size estimate. We do that by extending the previous function call by adding the `study_ids = Kroupova2021$study` and `weighted = TRUE` arguments.
 ```
 fit_wBFE <- RoBMA.reg(
   # specify the model formula and data input
@@ -515,9 +515,9 @@ As in the frequentist case, accounting for clustering of the effect size estimat
 
 #### Bayesian Hypothesis Testing with Fixed-Effect Meta-Analysis
 
-As mentioned in the first subsection, prior distributions on the parameters of interest define the corresponding hypothesis test. We could use the default prior distribution specification defined in @bartos2021no and tested in a large simulation study, however, we would expect much smaller relationship in our example. Therefore, we specify a more informed prior distribution for the effect size, $\mu \sim \text{Normal}(0, 0.25)$ on the Fisher's $z$ scale, which concentrates most of the prior probability mass on partial correlation coefficients within the $[-0.30, 0.30]$ range. This deliberation and model specification should be performed prior to the data collection, so the hypothesis test is not informed by the actual data at hand -- specifying a hypothesis in line with the observed data can only confirm what we have already learned [@asimov1988prelude].
+As described in the description of Bayesian hypothesis testing, prior distributions on the parameters of interest define the corresponding hypothesis test. We could use the default prior distribution specification defined and tested in an extensive simulation study by @bartos2021no; however, we would expect to see a much smaller relationship in our example. Therefore, we specify a more informed prior distribution for the effect size, $\mu \sim \text{Normal}(0, 0.25)$ on the Fisher's $z$ scale, which concentrates most of the prior probability mass on partial correlation coefficients within the $[-0.25, 0.25]$ range. Deliberation about the model and prior distribution specifications should be performed prior to the data collection, so the hypothesis test is not informed by the actual data at hand -- specifying a hypothesis in line with the observed data can only confirm what we have already learned [@asimov1988prelude].
 
-We specify the Bayesian hypothesis test by fitting two models, one assuming presence of the effect with the aforementioned prior distribution, and one assuming absence of the effect, i.e., $\mu = 0$. To do that, we use the `priors_effect` and `priors_effect_null` arguments in the function call.
+We specify the Bayesian hypothesis test by fitting two models, one assuming the presence of the effect with the aforementioned prior distribution and one assuming the absence of the effect, i.e., $\mu = 0$. To do that, we use the `priors_effect` and `priors_effect_null` arguments in the function call.
 
 ```r
 fit_wBFE10 <- RoBMA.reg(
@@ -541,11 +541,11 @@ fit_wBFE10 <- RoBMA.reg(
   parallel = TRUE, seed = 1
 )
 ```
-Now the function estimated both models simultaneously. We can obtain the model inference based on the complete model ensemble with the summary function but without specifying the `type` argument.
+Now the `RoBMA.reg()` function estimated both models simultaneously. We can obtain the model inference based on the complete model ensemble with the summary function without specifying the `type` argument.
 ```{r}
 summary(fit_wBFE10)
 ```
-The results reveal extreme evidence in favor of the specified hypothesis of small effect, $\text{BF}_{10} = 3.59 \times 10^{12}$. Furthermore, we find that the more concentrated prior distribution under the models assuming presence of the effect do not lead to more prior shrinkage, so we also use them for the estimation purposes in the following analyses.
+The results reveal extreme evidence in favor of the hypothesis of the small effect, $\text{BF}_{10} = 3.59 \times 10^{12}$. Furthermore, we find that the more concentrated prior distribution under the models assuming the presence of the effect does not lead to more prior shrinkage. To simplify the following analyses, we use the more informed prior distribution for Bayesian estimation in the following analyses.
 
 We can quickly check what would be the results if we specified the same model without the clustering adjustment by omitting the `study_ids` and `weighted` arguments from the previous function call.
 ```r
@@ -571,16 +571,16 @@ fit_BFE10 <- RoBMA.reg(
 ```{r}
 summary(fit_BFE10)
 ```
-Unsurprisingly, we would have found even stronger evidence in presence of the effect, $\text{BF}_{10} = 3.83 \times 10^{86}$. 
+Unsurprisingly, we would have found even stronger evidence in the presence of the effect, $\text{BF}_{10} = 3.83 \times 10^{86}$. 
 
-With the successful verification of the results of down-weighting of the effect size estimates, we move on towards a publication bias adjustment (we employ the down-weighting adjustment in all subsequent analyses). 
+After successfully verifying the results of the down-weighting procedure in both Bayesian estimation and hypothesis testing, we move on towards a publication bias adjustment (we employ the down-weighting adjustment in all subsequent analyses).
 
 
 #### Publication Bias Adjustment with RoBMA-PSMA
 
-In the previous subsections, we illustrated the main concepts required for performing the robust Bayesian meta-analysis. Now, we move forwards and apply the RoBMA-PSMA publication bias adjustment model to the data [@bartos2021no]. The only difference from the default settings is that we keep the informed prior distribution for the effect -- allowing us to test for the presence of small effects, and account for the clustered data by down-weighting the effect size estimates.
+The previous subsections illustrated the main concepts required for performing the robust Bayesian meta-analysis. Now, we move forwards and apply the RoBMA-PSMA publication bias adjustment to the data  [@bartos2021no]. The only difference from the default settings is that we keep the informed prior distribution for the effect -- allowing us to test for the presence of small effects, and we account for the clustered data by down-weighting the effect size estimates.
 
-We estimate the RoBMA-PSMA ensemble by removing the `priors_bias = null` and `priors_heterogeneity = null` from the previous function calls. This allows us to specify the whole set of publication bias adjustment model -- six weight-functions, PET, and PEESE models, and also account for additive heterogeneity (use `?RoBMA` for more details about the default values). We further specify the `effect_direction = "negative"` argument which tells the model what is the expected direction of publication bias. This knowledge is important for specifying the one-sided weight functions which assume that estimates in the expected direction are more likely to get published, and the Bayesian version of PET and PEESE models that assume positive relationship between effect sizes and standard errors.
+We estimate the RoBMA-PSMA ensemble by removing the `priors_bias = null` and `priors_heterogeneity = null` from the previous function calls. This allows us to specify the whole set of publication bias adjustment models -- six weight-functions, PET, and PEESE models, and also account for additive heterogeneity (use `?RoBMA` for more details about the default values). We further specify the `effect_direction = "negative"` argument, which tells the model the expected direction of publication bias. This setting is important for specifying the one-sided weight functions, which assume that effect size estimates in the expected direction are more likely to get published, and the Bayesian version of PET and PEESE models, which assume a positive relationship between effect sizes and standard errors.
 ```r
 fit_wPSMA <- RoBMA.reg(
   # specify the model formula and data input
@@ -603,37 +603,37 @@ fit_wPSMA <- RoBMA.reg(
 ```{r}
 summary(fit_wPSMA)
 ```
-The summary function now summarizes result of a 36 models combined into a single meta-analytic ensemble. This allows us to draw inference using a diverse set of models with different assumption about the data-generating process. We find that after adjusting for publication bias and additive heterogeneity with RoBMA-PSMA, the evidence in favor of the presence of the effect not only disappears -- it actually turns into moderate evidence in the favor of absence of the effect, $\text{BF}_{10} = 0.127$. In other words, the data are $0.127$ times more likely under the alternative hypothesis than under the null hypothesis, which can be translated into the data being $1/0.127$ times more likely under the null hypothesis than under the alternative hypothesis, $\text{BF}_{01} = 1/0.127 = 7.87$.
+The summary function now summarizes the result of 36 models combined into a single meta-analytic ensemble. Interrogating the complete ensemble allows us to draw inferences using a diverse set of models with different assumptions about the data-generating process. We find that after adjusting for publication bias and additive heterogeneity with RoBMA-PSMA, the evidence in favor of the presence of the effect does not only disappears -- it turns into moderate evidence in favor of the absence of the effect, $\text{BF}_{10} = 0.127$. In other words, the data are $0.127$ times more likely under the alternative hypothesis than under the null hypothesis, which can be translated into the data being $1/0.127$ times more likely under the null hypothesis than under the alternative hypothesis, $\text{BF}_{01} = 1/0.127 = 7.87$.
 
-The model-averaged effect size estimates (averaging across all specified models) essentially reduces to zero, $z = -0.002$, 95% CI $[-0.028,  0.000]$. We further find extreme evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 556.49$, and additive heterogeneity, $\text{BF}^{\text{rf}} = 3.49 \times 10^{76}$. Conveniently, this summary can be also generated by the `interpret()` function.
+The model-averaged effect size estimate (model-averaging across all specified models) essentially reduces to zero, $z = -0.002$, 95% CI $[-0.028,  0.000]$. We further find extreme evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 556.49$, and additive heterogeneity, $\text{BF}^{\text{rf}} = 3.49 \times 10^{76}$. Conveniently, the `interpret()` function can automatically generate the textual summary.
 ```{r}
 interpret(fit_wPSMA)
 ```
 
-Overall, our publication bias adjustment results based on down-weighted RoBMA-PSMA strongly support and even extend the conclusions of @kroupova2021student. Not only do the data lack evidence in favor of the presence of the effect, the data even provide evidence in favor of the absence of the effect and the presence of publication bias.
+Overall, our publication bias adjustment results based on down-weighted RoBMA-PSMA strongly support and even extend the conclusions of @kroupova2021student. Not only do the data lack evidence in favor of the presence of the effect, the data even provide evidence in favor of the absence of the effect and the presence of publication bias and additive heterogeneity.
 
 We can also visualize the posterior effect size estimate using the `plot()` function. We add the `prior = TRUE` argument to overlay the prior distribution on top of the Figure.
 ```{r fit_wPSMA, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
 par(mar = c(4, 4, 1, 4)) # set nice plotting margin
 plot(fit_wPSMA, parameter = "mu", prior = TRUE)
 ```
-The grey and black arrows depict the prior and posterior probability of the zero effect (secondary $y$-axis). The increased length of the black arrow signifies the increased posterior probability of models assuming the absence of the effect. The continuous grey and black densities then correspond to the prior and posterior distributions of the effect size under the models assuming presence of the effect. The black posterior density notably shrinks toward zero further highlighting that that only very small effects are plausible under the alternative hypothesis.
+The grey and black arrows depict the prior and posterior probability of the zero effect (secondary *y*-axis). The increased length of the black arrow signifies the increased posterior probability of models assuming the absence of the effect. The continuous grey and black densities then correspond to the prior and posterior distributions of the effect size under the models assuming the presence of the effect. The black posterior density notably shrinks toward zero, further highlighting that only minimal effects are plausible under the alternative hypothesis.
 
 
 #### Specifying Bayesian Meta-Regression
 
-All Bayesian analyses so far did not adjust for covariates and could have easily been performed with the `RoBMA()` function. Now, we turn our attention to estimating the effect of covariates and fully utilizing the formula syntax available in `RoBMA.reg()` function. First, we only estimate the effect of one categorical covariate, the study location, using the Bayesian fixed-effect meta-analysis model already employed earlier and then we test for presence of its effect with a Bayesian hypothesis test. 
+All Bayesian analyses so far did not adjust for covariates and could have easily been performed with the `RoBMA()` function. Now, we focus on estimating covariates' effect and fully utilizing the formula syntax available in `RoBMA.reg()` function. Before we showcase the meta-regression functionality by estimating and testing the effect of one categorical covariate, the study location, using the Bayesian fixed-effect meta-analysis model already employed earlier, we briefly discuss the parameterization and prior distributions for meta-regression.
 
-The only difference between the meta-analysis and the meta-regression model is that the mean parameter $\mu$ is modeled as a linear function of predictors and regression coefficients (including the intercept). However, the Bayesian meta-regression approach presents us with one more challenge -- specifying prior distributions for the regression coefficients. The important thing is to keep in mind that the intercept of the meta-regression model is equivalent to the mean meta-analytic effect -- without predictors. Ideally, we want to parametrize the meta-regression model in a way that preserves the meaning of the intercept. 
+The only difference between the meta-analysis and the meta-regression model is that the mean parameter $\mu$ is modeled as a linear function of predictors and regression coefficients (including the intercept). However, the Bayesian meta-regression approach presents another challenge -- specifying prior distributions for the regression coefficients. The important thing is to remember that the intercept of the meta-regression model is equivalent to the mean meta-analytic effect -- without predictors. Ideally, we want to parametrize the meta-regression model to preserve the intercept's meaning.
 
-When considering **continuous covariates** this can be achieved by simply standardizing the predictor variable, i.e., centering it around its mean and scaling according to the standard deviation (this does not apply to regression of standard errors or standard errors squared -- their scale is bounded to the scale of the effect sizes itself and should be therefore specified using the PET and PEESE models in the `priors_bias` section of the model). Consequently, the regression coefficient for the scaled continuous predictor can be interpreted as difference in the meta-analytic effect size estimate between the mean effect and one standard deviation of the predictor. The prior distributions can be then specified to test the desired hypotheses, e.g., a truncated normal prior distribution on the regression coefficient, $\beta \sim \text{Normal}_{[0, \infty]}(0.10, 0.05)$, can represent a hypothesis of a small positive effect centered around the mean value of 0.10.
+When considering **continuous covariates**, this can be achieved by simply standardizing the predictor variable. In other words, the continuous covariate is centered around its mean and scaled by its standard deviation (this does not apply to regression of standard errors or standard errors squared – their scale is bounded to the scale of the effect sizes itself and should be therefore specified using the PET and PEESE models in the `priors_bias section` of the model). Consequently, the regression coefficient for the scaled continuous predictor can be interpreted as a difference in the meta-analytic effect size estimate at the mean of the predictor and one standard deviation of the predictor. The prior distributions can be then specified to test the desired hypotheses, e.g., a truncated normal prior distribution on the regression coefficient,  $\beta \sim \text{Normal}_{[0, \infty]}(0.10, 0.05)$, can represent a hypothesis of a small positive effect centered around the mean value of 0.10.
 
-When considering **categorical covariates** things can get a bit more involved. The usual way of treating categorical covariates in regression -- dummy coding -- has two main issues. First, the often arbitrary default category becomes absorbed by the intercept -- the intercept no longer corresponds to the mean meta-analytic effect and changes its meaning according to choice of the default category. Second, the dummy encoding translates the regression coefficients of the categorical covariate to differences from the default category -- again, different choice of the default category leads to different meaning of the regression coefficients. Subsequently, using dummy encoding makes the choice of the default category crucial for specifying the prior distributions and the subsequent hypothesis tests. If this is our desired behavior, then dummy encoding is the way to go but we are often interested in a more general question -- do the categories differ among each other. In that case, coding with different properties is desired: a coding that (1) keeps the intercept as the mean meta-analytic effect and (2) specifies a prior distribution for differences of the individual categories from the mean meta-analytic effect. These proprieties can be obtained by using the `orthonormal` encoding (contrast) as specified by @rouder2012default. The corresponding specification can be easily obtained via the `prior_factor()` function by specifying the `contrasts = "orthonormal"` argument (the dummy coding can be obtained by specifying `contrasts = "treatment"`).
+When considering **categorical covariates**, the model specification gets a bit more complicated. The usual way of treating categorical covariates in regression -- dummy coding -- has two main issues. First, the often arbitrary default category becomes absorbed by the intercept -- the intercept no longer corresponds to the mean meta-analytic effect and changes its meaning according to the choice of the default category. Second, the dummy encoding translates the regression coefficients of the categorical covariate to differences from the default category -- again, different choice of the default category leads to a different meaning of the regression coefficients (in cases with more levels). Subsequently, using dummy encoding makes the choice of the default category crucial for specifying the prior distributions and the subsequent hypothesis tests. If this is our desired behavior, then dummy encoding is the preferred way for specifying the model. However, we are often interested in a more general question -- do the levels of the categorical predictor differ from each other. In that case, coding with different properties is desired: a coding that (1) keeps the intercept as the mean meta-analytic effect and (2) specifies a prior distribution for differences of the individual categories from the mean meta-analytic effect. These proprieties can be obtained by using the orthonormal encoding (contrast) as specified by @rouder2012default. The corresponding specification can be easily obtained via the `prior_factor()` function by specifying the `contrasts = "orthonormal"` argument (the dummy coding can be obtained by specifying `contrasts = "treatment"`).
 
 
 #### Performing a Fixed-Effect Meta-Regression
 
-Before we take the final step of our journey -- adding covariates to the publication bias adjustment meta-analysis, we illustrate the meta-regression functionality by fitting a simple fixed-effect meta-regression estimating the effect of study location. To do so, we extend the function call used to estimate the down-weighted fixed-effect meta-analysis by adding the `education_outcome` variable as a predictor to the formula argument, `formula = ~ 1 + education_outcome`. Then, we use the `test_predictors = ""` argument to specify that we only want to estimate the effect of the educational outcome. In other words, we are not interested in testing the presence of the effect of the predictor yet. Lastly, we specify a wide prior distribution with the aforementioned orthonormal contrast by setting a list a prior distribution for the predictor name in the `prior` argument.
+Before we take the final step of our journey – adding covariates to the publication bias adjustment meta-analysis, we illustrate the meta-regression functionality by fitting a simple fixed-effect meta-regression to estimate the effect of study location. To do so, we extend the function call used to estimate the down-weighted fixed-effect meta-analysis by adding the `location` variable as a predictor to the formula argument, `formula = ~ 1 + location`.  Then, we use the `test_predictors = ""` argument to specify that we only want to estimate the effect of the study location. In other words, we are not interested in testing the presence of the effect of the predictor yet. Lastly, we specify a wide prior distribution with the aforementioned orthonormal contrast for the location covariate by specifying a named list of prior distributions (with the covariate names pointing to the predictors) for the `prior` argument.
 
 ```r
 fit_wBFE_reg <- RoBMA.reg(
@@ -663,16 +663,16 @@ fit_wBFE_reg <- RoBMA.reg(
 ```{r}
 summary(fit_wBFE_reg, type = "individual")
 ```
-The `summary()` function returns the parameter estimates. The intercept estimate $z = -0.008$, 95% CI $[-0.022,  0.008]$, which corresponds to the mean meta-analytic effect since we use the orthonormal function for our categorical covariate, and, more notably, the regression estimates for the differences of each location from the intercept. The most interesting is probably the positive estimate of Germany, $z = 0.062$, 95% CI $[0.023, 0.103]$. 
+The `summary()` function returns the parameter estimates. The intercept estimate $z = -0.008$, 95% CI $[-0.022,  0.008]$, corresponds to the mean meta-analytic effect since we use the orthonormal contrast for our categorical covariate. The remaining estimates correspond to the regression parameters for the differences of each location level from the intercept. The most interesting is the positive estimate of Germany, $z = 0.062$, 95% CI $[0.023, 0.103]$. 
 
-We use the `plot()` function to visualize the prior and posterior distribution for the regression parameters of the location predictor. This allows us to cast a bit more light into the workings of the prior distribution specification for the categorical predictor with the orthonormal contrast.
+We use the `plot()` function to visualize the prior and posterior distribution for the regression parameters of the location predictor. This allows us to cast a bit more light on the workings of the prior distribution specification for the categorical predictor with the orthonormal contrast.
 ```{r fit_wBFE_reg, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
 par(mar = c(4, 4, 1, 0)) # set nice plotting margin
 plot(fit_wBFE_reg, parameter = "location", prior = TRUE)
 ```
-We see only one grey line -- the prior distribution for the differences from the intercept is equivalent for all levels of the predictor. The colorful peaked distributions then correspond to the posterior distributions of differences from the intercept for each individual location. The posterior distributions for the Europe, USA, and Other countries are clustered closely together on the left side while the posterior distribution for Germany is standing on its own on the right side. A careful observer might notice that the posterior distribution are balanced around the zero value -- that is due to the orthonormal specification of the prior distribution. In order to obtain estimates for differences from the intercept for all categorical predictor levels, we must specify a constraint on the estimates -- a sum to zero contraint in the orthonormal case.
+We see only one grey line -- the prior distribution for the differences from the intercept, which is equivalent for all predictor levels. The colorful peaked distributions correspond to the posterior distributions of differences from the intercept for each individual location. The posterior distributions for Europe, the USA, and Other countries are grouped closely next to each other on the left from zero, while the posterior distribution for Germany is standing on its own on the right from zero. A careful observer might notice that the posterior distributions are balanced around the zero value -- a  consequence of the orthonormal specification of the prior distribution. In order to obtain estimates for differences from the intercept for all levels of the categorical predictor, we must specify a constraint on the estimates -- a sum to zero constraint in the orthonormal case.
 
-We further illustrate how to test for the presence of the effect of a covariate. As in the "Bayesian Hypothesis Testing with Fixed-Effect Meta-Analysis" section, we need to specify at least two models to compare. One specifying a hypothesis of the absence of the covariate effect, i.e., all location levels do not differ from the intercept, and another one specifying a hypothesis of the presence of the covariate effect, i.e., at least one location differs from the intercept. Importantly, the prior distribution on the differences from the intercept corresponds to the alternative hypothesis and defines the hypothesis test. Specifying an overly wide prior distribution, as in the previous estimation model, would necessarily result in evidence in favor of the null hypothesis of no difference. This would have been a result of us comparing a model assuming rather large differences among the location to a model assuming no differences among the locations -- and small differences among the locations would be more consistent with the model assuming no differences. Therefore, we need to carefully specify a prior distribution that reflects our actual hypothesis about the differences between locations. Again, we would ideally specify the prior distribution before collecting and analyzing the data. Even though we already saw the estimates under the models assuming presence of the effect, I think that it would be insensible to expect anything but small differences from the intercept, e.g., $\pm 0.10z$, for any potential covariate. Therefore, we set the standard deviation of the prior distribution to $0.10$. 
+We further illustrate how to test for the presence of the effect of a covariate. As in the "Bayesian Hypothesis Testing with Fixed-Effect Meta-Analysis" section, we need to specify at least two models. The first model specifies a hypothesis of the absence of the covariate effect, i.e., all location levels do not differ from the intercept. The second model specifies a hypothesis of the presence of the covariate effect, i.e., at least one location differs from the intercept. Importantly, the prior distribution on the differences from the intercept corresponds to the alternative hypothesis and defines the hypothesis test. Specifying an overly wide prior distribution, as in the previous estimation model, would necessarily result in evidence in favor of the null hypothesis of no difference. This would have been a result of us comparing a model assuming rather large differences among the different locations to a model assuming no differences among the locations -- small differences among the locations would be more consistent with the model assuming no differences. Therefore, we need to carefully specify a prior distribution that reflects our actual hypothesis about the differences between locations. Again, we would ideally specify the prior distribution before collecting and analyzing the data. Even though we already saw the estimates under the models assuming the presence of the effect, we think that it would be insensible to expect anything but small differences from the intercept, e.g., $\pm 0.10z$, for any potential covariate. Therefore, we set the standard deviation of the prior distribution to $0.10$. 
 ```r
 fit_wBFE_reg10 <- RoBMA.reg(
   # specify the model formula and data input
@@ -701,19 +701,19 @@ fit_wBFE_reg10 <- RoBMA.reg(
 ```{r}
 summary(fit_wBFE_reg10)
 ```
-Using the default settings of the `summary()` function, we again obtain information about the model ensemble, now consisting of only two models. Both of the specified models $2/2$ included the intercept therefore we do not learn about the evidence in favor or against the mean meta-analytic effect (since we removed the null models assuming absence of the null effect by setting `priors_effect_null = NULL`). However, one of the models assumes absence of the location effect and the second model assumes presence of the location effect. That allows us to learn, that under the down-weighted fixed-effect meta-analytic model, there is extreme evidence in favor of differences in the effect according to the location, $\text{BF}_{\text{location}} = 2732$. 
+Using the default settings of the `summary()` function, we again obtain information about the model ensemble, now consisting of only two models. Both of the specified models $2/2$ assumed the presence of the mean effect, the intercept, therefore we do not learn about the evidence in favor or against the mean meta-analytic effect (since we removed the null models assuming the absence of the null effect by setting `priors_effect_null = NULL`). However, one model assumes the absence of differences in the effect according to the location, and the second assumes the presence if differences in the effect according to the location. That allows us to learn that, under the down-weighted fixed-effect meta-analytic model, there is extreme evidence in favor of differences in the effect according to the location, $\text{BF}_{\text{location}} = 2732$. 
 
-The summary also provides us with the model-averaged estimates across both models. Since the model assuming presence of the differences in the effect according to the location is much more likely, the model-averaged posterior estimates are almost entirely based on it. We see that the posterior distribution is almost identical to the weighted fixed-effect meta-regression model used for estimation. The touch smaller estimates are just a result of the more concentrated prior distributions providing us with some additional shrinkage. Since the difference between the estimates is, again, almost negligible, we continue using the more informed prior distributions for the remainder of the vignette.
+The summary also provides us with the model-averaged estimates across both models. Since the model assuming the presence of the differences in the effect according to the location is much more likely, the model-averaged posterior estimates are almost entirely based on it. We see that the posterior distribution is almost identical to the weighted fixed-effect meta-regression model used for estimation. The touch smaller estimates are just a result of the more concentrated prior distributions providing us with some additional shrinkage. Since the difference between the estimates is, again, almost negligible, we simplify the following analyses by using the more informed prior distributions in the remainder of the vignette.
 
 
 #### Estimating the Effect of Covariates while Adjusting for Publication Bias
 
-Finally, we extend the previously specified robust Bayesian meta-analyses to also estimate the effect of covariates. First, we specify a meta-regression model with the informed prior prior distributions for the covariates (used in the previous subsection). We specify the model by extending the `formula` argument with the following five predictors: education_outcome, students_gender, location, design, and endogenity_control. We again set the `test_predictors = ""` so all covariates are entered directly into the model (as we test for the presence of covariates in the following section).
+Finally, we extend the previously specified robust Bayesian meta-analyses to estimate the effect of covariates. First, we specify a meta-regression model with the informed prior distributions for the covariates (used in the previous subsection). We specify the model by extending the `formula` argument with the following five predictors: education_outcome, students_gender, location, design, and endogeneity_control. We again set the `test_predictors = ""` so all covariates are entered directly into the model (we test for the presence of covariates in the following section).
 
 ```r
 fit_wPSMA_reg <- RoBMA.reg(
   # specify the model formula and data input
-  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogeneity_control,
   data             = Kroupova2021,
   effect_direction = "negative",
   study_ids        = Kroupova2021$study,
@@ -727,7 +727,7 @@ fit_wPSMA_reg <- RoBMA.reg(
     students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+    endogeneity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
   priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   priors_effect_null  = prior("spike",  parameters = list(location = 0)),
@@ -737,29 +737,29 @@ fit_wPSMA_reg <- RoBMA.reg(
   parallel = TRUE, seed = 1
 )
 ```
-The model estimation now takes considerably more time as we need to estimate 36 meta-regression models with different assumptions about the presence or absence of the meta-analytic effect, additive heterogeneity, and publication bias. Each of the specified models contains all 5 categorical predictors, further complicating the MCMC estimation routine. After around an hour of running on a high-end CPU (AMD Ryzen 9 3950x, 12t/24c), we can summarize the estimated model.
+The model estimation now takes considerably more time as we need to estimate 36 meta-regression models with different assumptions about the presence or absence of the meta-analytic effect, additive heterogeneity, and publication bias. Each specified model contains all five categorical predictors, further complicating the MCMC estimation routine. After around an hour of running on a high-end CPU (AMD Ryzen 9 3950x, 12t/24c), we can summarize the estimated model.
 ```{r}
 summary(fit_wPSMA_reg)
 ```
-We obtain similar results about the main model structure as in the down-weighted RoBMA-PSMA model not including covariates. After accounting for covariates, we find moderate evidence in the favor of the absence of the effect, $\text{BF}_{01} = 1/0.143 = 6.99$, extreme evidence in favor additive heterogeneity, $\text{BF}^{\text{rf}} = 3.78 \times 10^{78}$, and strong evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 15.04$ (which notably decreased as a result of incorporating covariates into the model ensemble).
+We obtain similar results about the main model structure as in the down-weighted RoBMA-PSMA model, not including covariates. After accounting for covariates, we find moderate evidence in the favor of the absence of the effect, $\text{BF}_{01} = 1/0.143 = 6.99$, extreme evidence in favor additive heterogeneity, $\text{BF}^{\text{rf}} = 3.78 \times 10^{78}$, and strong evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 15.04$ (which notably decreased as a result of incorporating covariates into the model ensemble).
 
-More interesting are the model-averaged meta-regression estimates -- since all models assume presence of the predictors, the model-averaging happens across models assuming the presence/absence of the mean effect, heterogeneity, and publication bias. In general, we find rather small differences from the mean meta-analytic effect size due to covariates, with the largest differences being estimated for studies performed in Germany.
+More interesting are the model-averaged meta-regression estimates -- since all models assume the presence of the predictors, the model-averaging happens across models assuming the presence/absence of the mean effect, heterogeneity, and publication bias. Overall, we find rather small differences from the mean meta-analytic effect size due to covariates, with the largest differences estimated for studies performed in Germany.
 
 
 #### Testing the Effect of Covariates while Adjusting for Publication Bias
 
-We finish the analysis by combining all the puzzle pieces together. We specify a down-weighted RoBMA-PSMA meta-regression model that also tests for the presence of the effect of covariates. It is important to note that the default RoBMA-PSMA model ensemble without covariates already contains 36 models. Adding and testing for the presence vs absence of every single covariate multiplies the model count by two. Therefore, specifying the combination of all RoBMA-PSMA models under the different covariate specifications results in $36 \times 2  \times 2  \times 2  \times 2  \times 2  = 36  \times 2^5 = 1152$ models. We are currently working on implementing spike and slab prior distributions that simplify the model estimation procedure, however, in the meantime we need to use parallel computing to estimate all the specified models (which takes around a day on my high-end PC, see the "End Notes" for a code snippet that allows to estimate the individual models separately and merge them later).
+We finish the analysis by combining all the puzzle pieces. We specify a down-weighted RoBMA-PSMA meta-regression model that tests for the presence of the effect of covariates. It is important to note that the default RoBMA-PSMA model ensemble without covariates already contains 36 models. Adding and testing for each covariate's presence vs absence multiplies the model count by two. Therefore, specifying the combination of all RoBMA-PSMA models under the different covariate specifications results in $36 \times 2  \times 2  \times 2  \times 2  \times 2  = 36  \times 2^5 = 1152$ models. We are currently working on implementing spike and slab prior distributions that simplify the model estimation procedure. These developments are not finished yet; therefore, we rely on parallel computing to estimate all the specified models (which takes around a day on a high-end PC, see the "End Notes" for a code snippet that allows us to estimate the individual models separately and merge them later).
 
-We specify the down-weighted RoBMA-PSMA meta-regression ensemble that tests for the presence vs absence of the covariates by specifying all covariates names in the `test_predictors` argument.
+We specify the down-weighted RoBMA-PSMA meta-regression ensemble that tests for the covariates' presence vs absence by specifying all covariates' names in the `test_predictors` argument.
 ```r
 fit_wPSMA_reg10 <- RoBMA.reg(
   # specify the model formula and data input
-  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogeneity_control,
   data             = Kroupova2021,
   effect_direction = "negative",
   study_ids        = Kroupova2021$study,
   weighted         = TRUE, 
-  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogeneity_control"),
   
   # specify informative prior for the effect size parameter under the alternative hypothesis
   # and a specify a null hypothesis of no effect
@@ -770,7 +770,7 @@ fit_wPSMA_reg10 <- RoBMA.reg(
     students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+    endogeneity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
   prior_scale         = "fishers_z",
 
@@ -778,6 +778,22 @@ fit_wPSMA_reg10 <- RoBMA.reg(
   parallel = TRUE, seed = 1
 )
 ```
+```{r}
+summary(fit_wPSMA_reg10)
+```
+The rather long summary provides us with the inference drawn across all 1152 estimated models. The results for the main model components do not change drastically, and we obtain results that are halfway in between the results from RoBMA-PSMA not accounting for covariates and RoBMA-PSMA assuming the presence of the effect of covariates. After accounting for the uncertainty of including covariates into the model ensemble, we find moderate evidence in the favor of the absence of the effect, $\text{BF}_{01} = 1/0.142 = 7.04$, extreme evidence in favor additive heterogeneity, $\text{BF}^{\text{rf}} = 2.27 \times 10^{76}$, and extreme evidence in favor of publication bias, $\text{BF}_{\text{pb}} = 182.2$. As before, these results are well aligned with the conclusions of @kroupova2021student.
+
+Furthermore, when simultaneously accounting for the uncertainty about the presence of the mean effect, heterogeneity, and publication bias, we find not find evidence in favor of differences in the effect size due to covariates. Moreover, we find strong evidence in favor of the absence of difference in the effect sizes due to the type of educational outcomes, $\text{BF}_{\neg \text{education outcome}} = 20.05$, students' gender, $\text{BF}_{\neg \text{students' gender}} = 15.55$, and study location, $\text{BF}_{\neg \text{location}} = 16.26$, and moderate evidence in favor of the absence of difference in the effect sizes due to the study design, $\text{BF}_{\neg \text{design}} = 5.63$, and endogeneity control, $\text{BF}_{\neg \text{endogeneity control}} = 5.95$. The evidence against the effect of covariates is at odds with the conclusions of @kroupova2021student. There are multiple possible reasons for it. Accounting for publication bias mitigates some of the differences between studies that were previously attributed to covariates, or the down-weighting procedure reduces the amount of information regarding covariates too much -- there are only 69 unique studies at the end, which makes it difficult to estimate and find evidence in favor of the rather small differences due to covariates (e.g., only one study was run in Germany). 
+
+The overall support for the absence of differences in the effect due to covariates is consequently reflected in the model-averaged regression estimates. Since most of the posterior model probability is concentrated on models assuming zero effect of covariates, the mean regression coefficients and credible intervals are aggressively shrunk towards zero.
+
+
+### Conclusions
+
+We illustrated the robust Bayesian meta-regression analysis that simultaneously accounts for the uncertainty about the presence vs absence of the effect, heterogeneity, publication bias, and differences due to covariates. Furthermore, we used the effect size estimates down-weighting procedure that allows us to draw conservative inferences and account for multiple effect sizes from a single study.
+
+We used the data set of @kroupova2021student containing effect size estimates of the effect of students’ employment on educational outcomes. We built the model ensemble piece-by-piece and illustrated the Bayesian estimation, hypothesis testing, effect size estimates, down-weighting, and meta-regression. First, we illustrated each concept with simple meta-analytic models, and then we combined all concepts into one complex meta-analytic model ensemble. Our analysis mainly supports the conclusions of @kroupova2021student -- we find moderate evidence against the mean meta-analytic effect and extreme evidence in favor of publication bias and heterogeneity. However, after down-weighting the effect size estimates to account for clustering and accounting for the uncertainty about the effect, publication bias, and heterogeneity, we no longer find evidence in favor of the differences in the meta-analytic effect size due to comparatives.
+
 
 
 ### End Notes -- Estimating Individual Models in Parallel
@@ -792,12 +808,12 @@ Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
 
 fit_wPSMA_reg10 <- RoBMA.reg(
   # specify the model formula and data input
-  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogeneity_control,
   data             = Kroupova2021,
   effect_direction = "negative",
   study_ids        = Kroupova2021$study,
   weighted         = TRUE, 
-  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogeneity_control"),
   
   # specify informative prior for the effect size parameter under the alternative hypothesis
   # and a specify a null hypothesis of no effect
@@ -806,7 +822,7 @@ fit_wPSMA_reg10 <- RoBMA.reg(
     students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
     design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+    endogeneity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
   priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   priors_effect_null  = prior("spike",  parameters = list(location = 0)),

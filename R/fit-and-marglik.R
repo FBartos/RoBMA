@@ -180,6 +180,7 @@
       const_location  <- priors[["terms"]][["intercept"]]$parameters[["location"]]
       fit_priors      <- c(priors[names(priors) != "terms"], priors[["terms"]])
       names(fit_priors)[names(fit_priors) %in% names(priors[["terms"]])] <- paste0("mu_", names(fit_priors)[names(fit_priors) %in% names(priors[["terms"]])])
+      fit_priors      <- .add_priors_levels(fit_priors, object[["data"]][["predictors"]])
     }else if(inherits(model, "RoBMA.model")){
       data_outcome    <- object[["data"]]
       fit_priors      <- priors
@@ -773,6 +774,17 @@
 
   return(weights)
 }
+.add_priors_levels      <- function(priors, data){
+
+  for(v in names(data)[sapply(data, function(d) is.factor(d))]){
+    attr(priors[[.BayesTools_parameter_name(v)]], "levels")      <- length(levels(data[[v]]))
+    attr(priors[[.BayesTools_parameter_name(v)]], "level_names") <- levels(data[[v]])
+    attr(priors[[.BayesTools_parameter_name(v)]], "parameter")   <- "mu"
+    class(priors[[.BayesTools_parameter_name(v)]])               <- c(class(priors[[.BayesTools_parameter_name(v)]]), "prior.factor")
+  }
+
+  return(priors)
+}
 
 .generate_model_formula_list       <- function(formula){
 
@@ -800,7 +812,6 @@
 
   return(priors)
 }
-
 
 
 # JAGS tools for model building and marginal likelihood

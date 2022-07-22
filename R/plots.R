@@ -270,7 +270,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
   args$transformation_arguments <- NULL
   args$transformation_settings  <- FALSE
   args$rescale_x                <- rescale_x
-  args$par_name                 <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
+  args$par_name                 <- if(parameter %in% c("mu", "tau", x$add_info[["predictors"]])) .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
   args$dots_prior               <- dots_prior
 
   # suppress messages about transformations
@@ -655,7 +655,7 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
   if(is.null(dots[["col"]]) & n_levels == 1){
     dots[["col"]]      <- "black"
   }else if(is.null(dots[["col"]]) & n_levels > 1){
-    dots[["col"]]      <- scales::viridis_pal()(n_levels + 1)[1:n_levels]
+    dots[["col"]]      <- grDevices::palette.colors(n = n_levels + 1, palette = "Okabe-Ito")[-1]
   }
   if(is.null(dots[["col.fill"]])){
     dots[["col.fill"]] <- "#4D4D4D4C" # scales::alpha("grey30", .30)
@@ -761,6 +761,17 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
       "y"     = expression("PEESE")
     ))
 
+  }else{
+
+    par_names <- list(switch(
+      output_scale,
+      "r"     = bquote(.(par)~(rho)),
+      "d"     = bquote(.(par)~("Cohen's"~italic(d))),
+      "z"     = bquote(.(par)~("Fisher's"~italic(z))),
+      "logOR" = bquote(.(par)~("log"(italic("OR")))),
+      "OR"    = bquote(.(par)~(italic("OR"))),
+      "y"     = bquote(.(par))
+    ))
   }
 
   return(par_names)
