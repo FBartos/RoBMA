@@ -17,3 +17,5 @@ RoBMA.Rcheck
 .Rprofile
 /doc/
 /Meta/
+models/MetaRegression/fit_wPSMA_reg10/*.RDS
+models/MetaRegression/fit_PSMA_reg10/*.RDS
