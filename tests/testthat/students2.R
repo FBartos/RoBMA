@@ -2,14 +2,53 @@ library(RoBMA)
 data("Kroupova2021", package = "RoBMA")
 Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
 
-fit_fixed <- RoBMA.reg(
+
+fit_BFE <- RoBMA.reg(
   # specify the model formula and data input
   formula   = ~ 1,
   data      = Kroupova2021,
 
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
   priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  prior_scale   = "cohens_d",
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+  priors_effect_null   = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+fit_wBFE <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+  study_ids = Kroupova2021$study,
+  weighted  = TRUE,
+
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+  priors_effect_null   = NULL,
+
+  # some additional settings
+  parallel = TRUE, seed = 1
+)
+fit_BFE10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula   = ~ 1,
+  data      = Kroupova2021,
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
 
   # remove the remaining model components
   priors_bias          = NULL,
@@ -18,388 +57,399 @@ fit_fixed <- RoBMA.reg(
   # some additional settings
   parallel = TRUE, seed = 1
 )
-fit_fixed_weighted <- RoBMA.reg(
+fit_wBFE10 <- RoBMA.reg(
   # specify the model formula and data input
   formula   = ~ 1,
   data      = Kroupova2021,
   study_ids = Kroupova2021$study,
+  weighted  = TRUE,
 
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  prior_scale   = "cohens_d",
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
 
   # remove the remaining model components
   priors_bias          = NULL,
   priors_heterogeneity = NULL,
 
   # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
+  parallel = TRUE, seed = 1
 )
-fit_random_weighted <- RoBMA.reg(
+fit_wPSMA <- RoBMA.reg(
   # specify the model formula and data input
-  formula   = ~ 1,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias               = NULL,
-  priors_heterogeneity_null = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-Kroupova2021$z_se  <- se_r2se_z(se_r = Kroupova2021$se, r = Kroupova2021$r)
-fit_BMA_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula   = ~ 1,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-fit_BMA_regression_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula   = ~ 1 + z_se,
-  data      = Kroupova2021,
-  study_ids = Kroupova2021$study,
-  test_predictors        = "z_se",
-  standardize_predictors = FALSE,
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  priors = list("z_se" = prior("normal", parameters = list(mean = 0, sd = 1))),
-  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15)),
-  prior_scale   = "cohens_d",
-
-  # remove the remaining model components
-  priors_bias = NULL,
-
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-fit_RoBMA <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1,
-  data       = Kroupova2021,
-  model_type       = "PSMA",
+  formula          = ~ 1,
+  data             = Kroupova2021,
   effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE,
 
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
+
   # some additional settings
   parallel = TRUE, seed = 1
 )
-fit_RoBMA_weighted <- RoBMA.reg(
+fit_wBFE_reg <- RoBMA.reg(
   # specify the model formula and data input
-  formula    = ~ 1,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,
-  model_type       = "PSMA",
-  effect_direction = "negative",
-
-  # specify slightly informative prior for the effect size parameter (on Cohens'd scale)
-  # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
-)
-fit_RoBMA_regression_full_weighted <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,
+  formula         = ~ 1 + location,
+  data            = Kroupova2021,
+  study_ids       = Kroupova2021$study,
   test_predictors = "",
+  weighted        = TRUE,
 
-  model_type       = "PSMA",
-  effect_direction = "negative",
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    location           = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal")
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
+  priors       = list(
+    location = prior_factor("mnormal", list(mean = 0, sd = 0.50), contrast = "orthonormal")
   ),
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 1)),
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+  priors_effect_null   = NULL,
 
   # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
+  parallel = TRUE, seed = 1
 )
-
-debug(RoBMA:::.fit_RoBMA_model)
-
-apply(Kroupova2021, 2, anyNA)
-
-
-
-saveRDS(fit_fixed,                 file = "../models/MetaRegression/fit_fixed.RDS", compress = "xz")
-saveRDS(fit_fixed_weighted,        file = "../models/MetaRegression/fit_fixed_weighted.RDS", compress = "xz")
-saveRDS(fit_random_weighted,                  file = "../models/MetaRegression/fit_random_weighted.RDS", compress = "xz")
-saveRDS(fit_BMA_weighted,                  file = "../models/MetaRegression/fit_BMA_weighted.RDS", compress = "xz")
-saveRDS(fit_BMA_regression_weighted,                  file = "../models/MetaRegression/fit_BMA_regression_weighted.RDS", compress = "xz")
-saveRDS(fit_RoBMA,                  file = "../models/MetaRegression/fit_RoBMA.RDS", compress = "xz")
-saveRDS(fit_RoBMA_weighted,                  file = "../models/MetaRegression/fit_RoBMA_weighted.RDS", compress = "xz")
-
-
-
-library(RoBMA)
-data("Kroupova2021", package = "RoBMA")
-Kroupova2021    <- Kroupova2021[!is.na(Kroupova2021$se),]
-
-job::job({
-
-
-  missing <- list.files("../models/MetaRegression/fit_RoBMA_regression_full_weighted/")
-  missing <- gsub("m_", "", missing)
-  missing <- gsub(".RDS", "", missing)
-
-  fit_RoBMA_regression_full_weighted <- RoBMA.reg(
-    # specify the model formula and data input
-    formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-    data       = Kroupova2021,
-    study_ids  = Kroupova2021$study,
-    test_predictors = "",
-
-    model_type       = "PSMA",
-    effect_direction = "negative",
-    priors     = list(
-      education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-      students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-      location           = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-      design             = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal"),
-      endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.5), contrast = "orthonormal")
-    ),
-
-    # some additional settings
-    parallel = FALSE, seed = 1, weighted = TRUE, do_not_fit = TRUE
-  )
-
-  missing <- seq_along(fit_RoBMA_regression_full_weighted$models)[!seq_along(fit_RoBMA_regression_full_weighted$models) %in% as.numeric(missing)]
-
-  for(i in missing){
-    temp_model <- RoBMA:::.fit_RoBMA_model(fit_RoBMA_regression_full_weighted, i)
-    saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_RoBMA_regression_full_weighted/", "m_", i, ".RDS"), compress = "xz")
-  }
-
-})
-
-
-
-fit_RoBMA_regression_weighted <- RoBMA.reg(
+fit_wBFE_reg10 <- RoBMA.reg(
   # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,
-  test_predictors = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+  formula         = ~ 1 + location,
+  data            = Kroupova2021,
+  study_ids       = Kroupova2021$study,
+  test_predictors = "location",
+  weighted        = TRUE,
 
-  model_type       = "PSMA",
-  effect_direction = "negative",
-  priors_effect    = prior("normal", list(mean = 0, sd = 0.40)),
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    location           = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal")
+  # specify slightly informative prior for the effect size parameter (on Fisher's z scale)
+  priors       = list(
+    location = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
+  priors_effect = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  prior_scale   = "fishers_z",
+
+  # remove the remaining model components
+  priors_bias          = NULL,
+  priors_heterogeneity = NULL,
+  priors_effect_null   = NULL,
 
   # some additional settings
-  parallel = FALSE, seed = 1, weighted = TRUE, do_not_fit = TRUE
+  parallel = TRUE, seed = 1
+)
+fit_wPSMA_reg <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE,
+  test_predictors  = "",
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+  ),
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
+
+  # some additional settings
+  parallel = TRUE, seed = 1
 )
 
-missing <- list.files("../models/MetaRegression/fit_RoBMA_regression_weighted/")
+fit_wPSMA_reg10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE,
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+  ),
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
+
+  # some additional settings
+  parallel = FALSE, seed = 1, do_not_fit = TRUE
+)
+
+missing <- list.files("../models/MetaRegression/fit_wPSMA_reg10/")
 missing <- gsub("m_", "", missing)
 missing <- gsub(".RDS", "", missing)
-missing <- seq_along(fit_RoBMA_regression_weighted$models)[!seq_along(fit_RoBMA_regression_weighted$models) %in% as.numeric(missing)]
+missing <- seq_along(fit_wPSMA_reg10$models)[!seq_along(fit_wPSMA_reg10$models) %in% as.numeric(missing)]
 
 cl <- parallel::makeCluster(23)
-parallel::clusterExport(cl, c("fit_RoBMA_regression_weighted"))
+parallel::clusterExport(cl, c("fit_wPSMA_reg10"))
 parallel::parSapplyLB(cl, missing, function(i){
 
   library(RoBMA)
-  temp_model <- RoBMA:::.fit_RoBMA_model(fit_RoBMA_regression_weighted, i)
-  saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_RoBMA_regression_weighted/", "m_", i, ".RDS"), compress = "xz")
+  temp_model <- RoBMA:::.fit_RoBMA_model(fit_wPSMA_reg10, i)
+  saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_wPSMA_reg10/", "m_", i, ".RDS"), compress = "xz")
 
 })
 
 parallel::stopCluster(cl)
 
+fit_wPSMA_reg10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  study_ids        = Kroupova2021$study,
+  weighted         = TRUE,
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
 
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+  ),
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
 
+  # some additional settings
+  parallel = FALSE, seed = 1, do_not_fit = TRUE
+)
 
-
-
-
-
-
-
-
-for(i in seq_along(fit_RoBMA_regression_full_weighted$models)){
-  fit_RoBMA_regression_full_weighted$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_RoBMA_regression_full_weighted/", "m_", i, ".RDS"))
+for(i in seq_along(fit_PSMA_reg10$models)){
+  fit_PSMA_reg10$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_PSMA_reg10/", "m_", i, ".RDS"))
 }
-object <- fit_RoBMA_regression_full_weighted
 
-object$models        <- BayesTools::models_inference(object[["models"]])
-object$RoBMA         <- RoBMA:::.ensemble_inference(object)
-object$coefficients  <- RoBMA:::.compute_coeficients(object[["RoBMA"]])
+fit_PSMA_reg10$models        <- BayesTools::models_inference(fit_PSMA_reg10[["models"]])
+fit_PSMA_reg10$RoBMA         <- RoBMA:::.ensemble_inference(fit_PSMA_reg10)
+fit_PSMA_reg10$coefficients  <- RoBMA:::.compute_coeficients(fit_PSMA_reg10[["RoBMA"]])
 
-object$add_info[["errors"]]   <- c(object$add_info[["errors"]],   RoBMA:::.get_model_errors(object))
-object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], RoBMA:::.get_model_warnings(object))
+fit_PSMA_reg10$add_info[["errors"]]   <- c(fit_PSMA_reg10$add_info[["errors"]],   RoBMA:::.get_model_errors(fit_PSMA_reg10))
+fit_PSMA_reg10$add_info[["warnings"]] <- c(fit_PSMA_reg10$add_info[["warnings"]], RoBMA:::.get_model_warnings(fit_PSMA_reg10))
 
-object <- .remove_model_posteriors(object)
-object <- .remove_model_margliks(object)
+fit_PSMA_reg10 <- RoBMA:::.remove_model_posteriors(fit_PSMA_reg10)
+fit_PSMA_reg10 <- RoBMA:::.remove_model_margliks(fit_PSMA_reg10)
 
-class(object) <- c("RoBMA", "RoBMA.reg")
+class(fit_PSMA_reg10) <- c("RoBMA", "RoBMA.reg")
 
-fit_RoBMA_regression_full_weighted  <- object
-saveRDS(fit_RoBMA_regression_full_weighted , file = "../models/MetaRegression/fit_RoBMA_regression_full_weighted .RDS", compress = "xz")
+fit_wPSMA <- RoBMA:::.remove_model_posteriors(fit_wPSMA)
+fit_wPSMA <- RoBMA:::.remove_model_margliks(fit_wPSMA)
+
+fit_wPSMA_reg <- RoBMA:::.remove_model_posteriors(fit_wPSMA_reg)
+fit_wPSMA_reg <- RoBMA:::.remove_model_margliks(fit_wPSMA_reg)
+
+saveRDS(fit_BFE,  file = "../models/MetaRegression/fit_BFE.RDS",  compress = "xz")
+saveRDS(fit_wBFE, file = "../models/MetaRegression/fit_wBFE.RDS", compress = "xz")
+saveRDS(fit_BFE10,  file = "../models/MetaRegression/fit_BFE10.RDS",  compress = "xz")
+saveRDS(fit_wBFE10, file = "../models/MetaRegression/fit_wBFE10.RDS", compress = "xz")
+saveRDS(fit_wPSMA,       file = "../models/MetaRegression/fit_wPSMA.RDS",       compress = "xz")
+saveRDS(fit_wBFE_reg ,   file = "../models/MetaRegression/fit_wBFE_reg.RDS",    compress = "xz")
+saveRDS(fit_wBFE_reg10 , file = "../models/MetaRegression/fit_wBFE_reg10.RDS",  compress = "xz")
+saveRDS(fit_wPSMA_reg,   file = "../models/MetaRegression/fit_wPSMA_reg.RDS",   compress = "xz")
+saveRDS(fit_PSMA_reg10, file = "../models/MetaRegression/fit_PSMA_reg10.RDS", compress = "xz")
 
 
-object <- .remove_model_posteriors(object)
-object <- .remove_model_margliks(object)
-saveRDS(object, file = "../models/MetaRegression/fit_RoBMA_regression_full_weighted .RDS", compress = "xz")
 
 
+fit_PSMA_reg10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
 
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+  ),
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
 
-# fit_RoBMA_regression_weighted
-for(i in seq_along(fit_RoBMA_regression_weighted$models)){
-  fit_RoBMA_regression_weighted$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_RoBMA_regression_weighted/", "m_", i, ".RDS"))
+  # some additional settings
+  parallel = FALSE, seed = 1, do_not_fit = TRUE
+)
+
+missing <- list.files("../models/MetaRegression/fit_PSMA_reg10/")
+missing <- gsub("m_", "", missing)
+missing <- gsub(".RDS", "", missing)
+missing <- seq_along(fit_PSMA_reg10$models)[!seq_along(fit_PSMA_reg10$models) %in% as.numeric(missing)]
+
+cl <- parallel::makeCluster(23)
+parallel::clusterExport(cl, c("fit_PSMA_reg10"))
+parallel::parSapplyLB(cl, missing, function(i){
+
+  library(RoBMA)
+  temp_model <- RoBMA:::.fit_RoBMA_model(fit_PSMA_reg10, i)
+  saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_PSMA_reg10/", "m_", i, ".RDS"), compress = "xz")
+
+})
+
+parallel::stopCluster(cl)
+
+fit_PSMA_reg10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  effect_direction = "negative",
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
+  ),
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  prior_scale         = "fishers_z",
+
+  # some additional settings
+  parallel = FALSE, seed = 1, do_not_fit = TRUE
+)
+
+for(i in seq_along(fit_PSMA_reg10$models)){
+  fit_PSMA_reg10$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_PSMA_reg10/", "m_", i, ".RDS"))
 }
-object <- fit_RoBMA_regression_weighted
 
-sum(!RoBMA:::.get_model_convergence(object))
+fit_PSMA_reg10$models        <- BayesTools::models_inference(fit_PSMA_reg10[["models"]])
+fit_PSMA_reg10$RoBMA         <- RoBMA:::.ensemble_inference(fit_PSMA_reg10)
+fit_PSMA_reg10$coefficients  <- RoBMA:::.compute_coeficients(fit_PSMA_reg10[["RoBMA"]])
 
-object$models        <- BayesTools::models_inference(object[["models"]])
-object$RoBMA         <- RoBMA:::.ensemble_inference(object)
-object$coefficients  <- RoBMA:::.compute_coeficients(object[["RoBMA"]])
+fit_PSMA_reg10$add_info[["errors"]]   <- c(fit_PSMA_reg10$add_info[["errors"]],   RoBMA:::.get_model_errors(fit_PSMA_reg10))
+fit_PSMA_reg10$add_info[["warnings"]] <- c(fit_PSMA_reg10$add_info[["warnings"]], RoBMA:::.get_model_warnings(fit_PSMA_reg10))
 
-### collect and print errors and warnings
-object$add_info[["errors"]]   <- c(object$add_info[["errors"]],   RoBMA:::.get_model_errors(object))
-object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], RoBMA:::.get_model_warnings(object))
-RoBMA:::.print_errors_and_warnings(object)
+fit_PSMA_reg10 <- RoBMA:::.remove_model_posteriors(fit_PSMA_reg10)
+fit_PSMA_reg10 <- RoBMA:::.remove_model_margliks(fit_PSMA_reg10)
 
-class(object) <- c("RoBMA", "RoBMA.reg")
-summary(object)
-fit_RoBMA_regression_weighted <- object
-saveRDS(fit_RoBMA_regression_weighted, file = "../models/MetaRegression/fit_RoBMA_regression_weighted.RDS", compress = "xz")
+class(fit_PSMA_reg10) <- c("RoBMA", "RoBMA.reg")
 
-object <- .remove_model_posteriors(object)
-object <- .remove_model_margliks(object)
-saveRDS(object, file = "../models/MetaRegression/fit_RoBMA_regression_weighted.RDS", compress = "xz")
+saveRDS(fit_PSMA_reg10, file = "../models/MetaRegression/fit_PSMA_reg10.RDS", compress = "xz")
+summary(fit_PSMA_reg10)
 
 
-xxx <- summary(object, "m", short_name = T)
-xxx$summary[order(xxx$summary$post_prob, decreasing = T),][1:10,]
 
 
-fit_RoBMA_regression_weighted_1 <- RoBMA.reg(
+
+
+
+fit_3PP_reg10 <- RoBMA.reg(
   # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,
-  test_predictors = c("location", "endogenity_control"),
-
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  study_ids        = Kroupova2021$study,
   effect_direction = "negative",
-  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    location           = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal")
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
-  priors_bias = list(
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  priors_bias         = list(
     prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
     prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
   ),
+  prior_scale         = "fishers_z",
 
   # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
+  parallel = FALSE, seed = 1, do_not_fit = TRUE
 )
 
-fit_RoBMA_regression_weighted_2 <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  study_ids  = Kroupova2021$study,
-  test_predictors = c("location", "endogenity_control"),
+missing <- list.files("../models/MetaRegression/fit_3PP_reg10/")
+missing <- gsub("m_", "", missing)
+missing <- gsub(".RDS", "", missing)
+missing <- seq_along(fit_3PP_reg10$models)[!seq_along(fit_3PP_reg10$models) %in% as.numeric(missing)]
 
+cl <- parallel::makeCluster(23)
+parallel::clusterExport(cl, c("fit_3PP_reg10"))
+parallel::parSapplyLB(cl, missing, function(i){
+
+  library(RoBMA)
+  temp_model <- RoBMA:::.fit_RoBMA_model(fit_3PP_reg10, i)
+  saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_3PP_reg10/", "m_", i, ".RDS"), compress = "xz")
+
+})
+
+parallel::stopCluster(cl)
+
+fit_3PP_reg10 <- RoBMA.reg(
+  # specify the model formula and data input
+  formula          = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
+  data             = Kroupova2021,
+  study_ids        = Kroupova2021$study,
   effect_direction = "negative",
-  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    location           = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    endogenity_control = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment")
+  test_predictors  = c("education_outcome", "students_gender", "location", "design", "endogenity_control"),
+
+  # specify informative prior for the effect size parameter under the alternative hypothesis
+  # and a specify a null hypothesis of no effect
+  priors             = list(
+    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    location           = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    design             = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal"),
+    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.10), contrast = "orthonormal")
   ),
-  priors_bias = list(
+  priors_effect       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  priors_effect_null  = prior("spike",  parameters = list(location = 0)),
+  priors_bias         = list(
     prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
     prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
   ),
+  prior_scale         = "fishers_z",
 
   # some additional settings
-  parallel = TRUE, seed = 1, weighted = TRUE
+  parallel = FALSE, seed = 1, do_not_fit = TRUE
 )
 
-summary(fit_RoBMA_regression_weighted_1)
-summary(fit_RoBMA_regression_weighted_2)
+for(i in seq_along(fit_3PP_reg10$models)){
+  fit_3PP_reg10$models[[i]] <- readRDS(paste0("../models/MetaRegression/fit_3PP_reg10/", "m_", i, ".RDS"))
+}
 
+fit_3PP_reg10$models        <- BayesTools::models_inference(fit_3PP_reg10[["models"]])
+fit_3PP_reg10$RoBMA         <- RoBMA:::.ensemble_inference(fit_3PP_reg10)
+fit_3PP_reg10$coefficients  <- RoBMA:::.compute_coeficients(fit_3PP_reg10[["RoBMA"]])
 
-fit_RoBMA_regression_1 <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  test_predictors = c("location", "endogenity_control"),
+fit_3PP_reg10$add_info[["errors"]]   <- c(fit_3PP_reg10$add_info[["errors"]],   RoBMA:::.get_model_errors(fit_3PP_reg10))
+fit_3PP_reg10$add_info[["warnings"]] <- c(fit_3PP_reg10$add_info[["warnings"]], RoBMA:::.get_model_warnings(fit_3PP_reg10))
 
-  effect_direction = "negative",
-  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    location           = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    endogenity_control = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal")
-  ),
-  priors_bias = list(
-    prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
-    prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
-  ),
+fit_3PP_reg10 <- RoBMA:::.remove_model_posteriors(fit_3PP_reg10)
+fit_3PP_reg10 <- RoBMA:::.remove_model_margliks(fit_3PP_reg10)
 
-  # some additional settings
-  parallel = TRUE, seed = 1
-)
+class(fit_3PP_reg10) <- c("RoBMA", "RoBMA.reg")
 
-fit_RoBMA_regression_2 <- RoBMA.reg(
-  # specify the model formula and data input
-  formula    = ~ 1 + education_outcome + students_gender + location + design + endogenity_control,
-  data       = Kroupova2021,
-  test_predictors = c("location", "endogenity_control"),
-
-  effect_direction = "negative",
-  priors_effect    = prior("normal", list(mean = 0, sd = 1)),
-  priors     = list(
-    education_outcome  = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    students_gender    = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    location           = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment"),
-    design             = prior_factor("mnormal", list(mean = 0, sd = 0.20), contrast = "orthonormal"),
-    endogenity_control = prior_factor("normal", list(mean = 0, sd = 0.20), contrast = "treatment")
-  ),
-  priors_bias = list(
-    prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2),
-    prior_PEESE(distribution = "Cauchy", parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/2)
-  ),
-
-  # some additional settings
-  parallel = TRUE, seed = 1
-)
+saveRDS(fit_3PP_reg10, file = "../models/MetaRegression/fit_3PP_reg10.RDS", compress = "xz")
+summary(fit_3PP_reg10)

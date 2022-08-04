@@ -18,6 +18,11 @@
   # don't sample the complete null model
   if(!.is_model_constant(priors)){
 
+    if(attr(model, "multivariate")){
+      object[["data"]] <- .order_data.mv(object[["data"]], inherits(model, "RoBMA.reg.model"))
+    }
+
+
     # deal with regression vs basic models
     if(inherits(model, "RoBMA.reg.model")){
       data_outcome       <- object[["data"]][["outcome"]]
@@ -41,7 +46,8 @@
         effect_direction = add_info[["effect_direction"]],
         priors_scale     = add_info[["prior_scale"]],
         effect_measure   = add_info[["effect_measure"]],
-        data             = data_outcome
+        data             = data_outcome,
+        regression       = inherits(model, "RoBMA.reg.model")
         )
 
       # remove unnecessary objects from data to mitigate warnings
@@ -317,7 +323,7 @@
   }
   fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
   fit_data$se2_v <- data[!is.na(data[,"study_ids"]),"se"]^2
-  fit_data$K_v  <- length(fit_data[["y_v"]])
+  fit_data$K_v   <- length(fit_data[["y_v"]])
 
   # add critical y-values
   if(!is.null(priors[["omega"]])){
@@ -328,6 +334,30 @@
   ### add the multivariate part
 
   return(fit_data)
+}
+.order_data.mv            <- function(data, regression){
+  # prepares data in a better order for the subsequent vectorization of multivariate distributions
+
+  if(regression){
+    ids <- data[["outcome"]]$study_ids
+  }else{
+    ids <- data$study_ids
+  }
+
+  # first independent and then dependent estimates
+  ordering <- order(ifelse(is.na(ids), -1, ids))
+
+  # re-order the data set and predictors
+  if(regression){
+    data[["outcome"]] <- data[["outcome"]][ordering,]
+    for(i in seq_along(data[["predictors"]])){
+      data[["predictors"]][[i]] <- data[["predictors"]][[i]][ordering]
+    }
+  }else{
+    data <- data[ordering,]
+  }
+
+  return(data)
 }
 .generate_model_syntax    <- function(priors, effect_direction, priors_scale, effect_measure, weighted, regression){
 
@@ -399,14 +429,21 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.mv <- function(priors, effect_direction, priors_scale, effect_measure, data){
+.generate_model_syntax.mv <- function(priors, effect_direction, priors_scale, effect_measure, data, regression){
 
   model_syntax <- "model{\n"
 
   ### prior transformations
   # the precise transformation for heterogeneity is not used due the inability to re-scale large variances
   # instead, approximate linear scaling is employed in the same way as in metaBMA package
-  model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu",  "mu_transformed"))
+  # deal with mu as a vector or scalar based on whether it is regression or not
+  if(regression){
+    model_syntax <- paste0(model_syntax, "for(i in 1:(K+K_v)){\n")
+    model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu[i]",  "mu_transformed[i]"))
+    model_syntax <- paste0(model_syntax, "}\n")
+  }else{
+    model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu",  "mu_transformed"))
+  }
   model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "tau", "tau_transformed"))
 
   if(!is.null(priors[["PET"]])){
@@ -423,7 +460,13 @@
     # marginalized random effects and the effect size
     prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
 
-    eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+    # deal with mu as a vector or scalar based on whether it is regression or not
+    if(regression){
+      eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed[i]", "mu_transformed[i]")
+    }else{
+      eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+    }
+
     # add PET/PEESE
     if(!is.null(priors[["PET"]])){
       eff <- paste0("(", eff, " + PET_transformed * se[i])")
@@ -449,12 +492,17 @@
   model_syntax <- paste0(model_syntax, paste0("tau_transformed2 = pow(tau_transformed, 2)\n"))
 
   # create the mean vector
-  eff_v <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+  # deal with mu as a vector or scalar based on whether it is regression or not
+  if(regression){
+    eff_v <- ifelse(effect_direction == "negative", "-1 * mu_transformed[K+i]", "mu_transformed[K+i]")
+  }else{
+    eff_v <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+  }
   model_syntax <- paste0(model_syntax, "for(i in 1:K_v){\n")
   if(!is.null(priors[["PET"]])){
-    eff_v <- paste0(eff_v, " + PET_transformed * se_v[i]")
+    eff_v <- paste0(eff_v, " + PET_transformed * se_v")
   }else if(!is.null(priors[["PEESE"]])){
-    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v[i]")
+    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v")
   }
   model_syntax <- paste0(model_syntax, paste0("  eff_v[i] = ", eff_v, "\n"))
   model_syntax <- paste0(model_syntax, "}\n")

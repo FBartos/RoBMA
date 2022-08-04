@@ -109,9 +109,6 @@ RoBMA.reg <- function(
       attr(object$data[["outcome"]], "all_independent") <- TRUE
       attr(object$data[["outcome"]], "weighted")        <- TRUE
     }else{
-      stop("Multivariate regression models are not implemented.")
-      # data ordering for the predictors needs to be solved
-      # the vector form breaks the independent and dependent effect sizes
       .multivariate_warning()
     }
   }
