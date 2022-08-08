@@ -1,3 +1,7 @@
+## version 2.5
+### Features
+- `NoBMA` and `NoBMA.reg()` functions as wrappers around `RoBMA` `RoBMA.reg()` functions for simpler specification of publication bias undajusted Bayesian model-averaged meta-analysis
+
 ## version 2.4
 ### Features
 - meta-regression with `RoBMA.reg()` function
