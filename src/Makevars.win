@@ -75,7 +75,7 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
  		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
 		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
-		  functions/wmnorm.o functions/mnorm.o \
+		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
 		  init.o RoBMA.o testRoBMA.o
 
@@ -88,12 +88,12 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
 ###############
 
 # PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include"
-# PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -ljrmath-0
+# PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -ljrmath-0 -llapack
 # OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMT2v.o distributions/DWMT1v.o distributions/DWMT2v.o \
 # 	  	    distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 # 		    distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
 #           transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
-#		    functions/wmnorm.o functions/mnorm.o \
+#		  	functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 #		    source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
 #		    init.o RoBMA.o testRoBMA.o
 
