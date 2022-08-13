@@ -386,13 +386,18 @@ fit_3PP_reg10 <- RoBMA.reg(
   prior_scale         = "fishers_z",
 
   # some additional settings
-  parallel = FALSE, seed = 1, do_not_fit = TRUE
+  parallel = FALSE, silent = FALSE, seed = 1, do_not_fit = TRUE
 )
 
 missing <- list.files("../models/MetaRegression/fit_3PP_reg10/")
 missing <- gsub("m_", "", missing)
 missing <- gsub(".RDS", "", missing)
 missing <- seq_along(fit_3PP_reg10$models)[!seq_along(fit_3PP_reg10$models) %in% as.numeric(missing)]
+
+for(i in missing){
+  temp_model <- RoBMA:::.fit_RoBMA_model(fit_3PP_reg10, i)
+  saveRDS(temp_model, file = paste0("../models/MetaRegression/fit_3PP_reg10/", "m_", i, ".RDS"), compress = "xz")
+}
 
 cl <- parallel::makeCluster(23)
 parallel::clusterExport(cl, c("fit_3PP_reg10"))
