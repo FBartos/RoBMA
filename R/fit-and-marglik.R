@@ -316,22 +316,23 @@
   }
 
 
+  ### add the multivariate part
   if(effect_direction == "negative"){
     fit_data$y_v <- - data[!is.na(data[,"study_ids"]),"y"]
   }else{
     fit_data$y_v <- data[!is.na(data[,"study_ids"]),"y"]
   }
-  fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
   fit_data$se2_v <- data[!is.na(data[,"study_ids"]),"se"]^2
   fit_data$K_v   <- length(fit_data[["y_v"]])
 
   # add critical y-values
   if(!is.null(priors[["omega"]])){
     fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], fit_data[["se_v"]], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
+  }else if(!is.null(priors[["PET"]])){
+    fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
   }
 
   fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"study_ids"]),"study_ids"])][-1] - 1, fit_data[["K_v"]])
-  ### add the multivariate part
 
   return(fit_data)
 }
@@ -500,9 +501,9 @@
   }
   model_syntax <- paste0(model_syntax, "for(i in 1:K_v){\n")
   if(!is.null(priors[["PET"]])){
-    eff_v <- paste0(eff_v, " + PET_transformed * se_v")
+    eff_v <- paste0(eff_v, " + PET_transformed * se_v[i]")
   }else if(!is.null(priors[["PEESE"]])){
-    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v")
+    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v[i]")
   }
   model_syntax <- paste0(model_syntax, paste0("  eff_v[i] = ", eff_v, "\n"))
   model_syntax <- paste0(model_syntax, "}\n")

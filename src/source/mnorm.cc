@@ -12,7 +12,6 @@
 #include "../matrix/matrix.h"
 
 using namespace std;
-;
 
 // wrapper around the mvtnorm package
 double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K)
