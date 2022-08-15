@@ -69,7 +69,7 @@
 
 #' @rdname diagnostics
 diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = NULL,
-                  lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
+                        lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 
   # check settings
   if(!is.RoBMA(fit))

@@ -1,9 +1,16 @@
 ## version 2.4
 ### Features
 - meta-regression with `RoBMA.reg()` function
+- new vignette on hierarchical Bayesian model-averaged meta-analysis
+- new vignette on robust Bayesian model-averaged meta-regression
+- faster implementation of JAGS multivariate normal distribution (based on the BUGS JAGS module)
 
+### Changes
+- reworked interface for the hierarchical models. Prior distributions are now specified via the `priors_hierarchical` and `priors_hierarchical_null` arguments instead of `priors_rho` and `priors_rho_null`. The model summary now shows `Hierarchical` component summary.
+
+## version 2.3.1
 ### Fixes
-- fixing weighted meta-analysis parameterization 
+- fixing weighted meta-analysis parameterization
 
 ## version 2.3
 ### Features

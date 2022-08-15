@@ -46,7 +46,7 @@
   effect         <- sapply(models, function(model)!.is_component_null(model[["priors"]], "effect"))
   heterogeneity  <- sapply(models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(models, function(model)!.is_component_null(model[["priors"]], "bias"))
-  multivariate   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "multivariate"))
+  hierarchical   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "hierarchical"))
 
   # obtain the parameter types
   weightfunctions <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
@@ -59,9 +59,11 @@
   components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity, "Bias" = !bias)
   parameters_null <- list("mu"     = !effect, "tau"           = !heterogeneity)
 
-  if(any(multivariate)){
+  if(any(hierarchical)){
+    components      <- c(components,      "Hierarchical")
     parameters      <- c(parameters,      "rho")
-    parameters_null <- c(parameters_null, "rho" = list(!multivariate))
+    components_null <- c(components_null, "Hierarchical" = list(!hierarchical))
+    parameters_null <- c(parameters_null, "rho" = list(!hierarchical))
   }
   if(any(weightfunctions)){
     components      <- c(components,      "bias.selection-models")

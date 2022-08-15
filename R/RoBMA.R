@@ -62,13 +62,13 @@
 #' @param priors_bias_null list of prior weight functions for the \code{omega} parameter
 #' that will be treated as belonging to the null hypothesis. Defaults no publication
 #' bias adjustment, \code{prior_none()}.
-#' @param priors_rho list of prior distributions for the variance allocation (\code{rho})
-#' parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-#' users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
-#' an experimental feature and see News for more details. Defaults to a beta distribution
+#' @param priors_hierarchical list of prior distributions for the correlation of random effects
+#' (\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+#' users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+#' Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 #' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
-#' @param priors_rho_null list of prior distributions for the variance allocation (\code{rho})
-#' parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
+#' @param priors_hierarchical_null list of prior distributions for the correlation of random effects
+#' (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
 #' @param chains a number of chains of the MCMC algorithm.
 #' @param sample a number of sampling iterations of the MCMC algorithm.
 #' Defaults to \code{5000}.
@@ -206,8 +206,8 @@ RoBMA <- function(
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
   priors_bias_null           = prior_none(),
-  priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null            = NULL,
+  priors_hierarchical                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null            = NULL,
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -260,7 +260,7 @@ RoBMA <- function(
 
 
   ### prepare and check the settings
-  object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho_null, priors_rho, object$add_info[["prior_scale"]])
+  object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, object$add_info[["prior_scale"]])
   object$models   <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 
@@ -367,13 +367,13 @@ RoBMA <- function(
 #' @param prior_bias_null prior distribution for the publication bias adjustment
 #' component that will be treated as belonging to the null hypothesis.
 #' Defaults to \code{NULL}.
-#' @param prior_rho prior distributions for the variance allocation (\code{rho})
-#' parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-#' users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
-#' an experimental feature and see News for more details. Defaults to a beta distribution
+#' @param priors_hierarchical prior distribution for the correlation of random effects
+#' (\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+#' users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+#' Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 #' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
-#' @param prior_rho_null prior distributions for the variance allocation (\code{rho})
-#' parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
+#' @param priors_hierarchical_null prior distribution for the correlation of random effects
+#' (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
 #' @param prior_weights either a single value specifying prior model weight
 #' of a newly specified model using priors argument, or a vector of the
 #' same length as already fitted models to update their prior weights.
@@ -412,8 +412,8 @@ RoBMA <- function(
 #' @seealso [RoBMA()], [summary.RoBMA()], [prior()], [check_setup()]
 #' @export
 update.RoBMA <- function(object, refit_failed = TRUE,
-                         prior_effect = NULL,      prior_heterogeneity = NULL,      prior_bias = NULL,      prior_rho = NULL, prior_weights = NULL,
-                         prior_effect_null = NULL, prior_heterogeneity_null = NULL, prior_bias_null = NULL, prior_rho_null = NULL,
+                         prior_effect = NULL,      prior_heterogeneity = NULL,      prior_bias = NULL,      prior_hierarchical = NULL, prior_weights = NULL,
+                         prior_effect_null = NULL, prior_heterogeneity_null = NULL, prior_bias_null = NULL, prior_hierarchical_null = NULL,
                          study_names = NULL,
                          chains = NULL, adapt = NULL, burnin = NULL, sample = NULL, thin = NULL, autofit = NULL, parallel = NULL,
                          autofit_control = NULL, convergence_checks = NULL,
@@ -439,7 +439,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
      (!is.null(prior_bias)           | !is.null(prior_bias_null))){
 
     what_to_do <- "fit_new_model"
-    new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_rho_null, prior_rho, object$add_info[["prior_scale"]])
+    new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_hierarchical_null, prior_hierarchical, object$add_info[["prior_scale"]])
 
     object$models[length(object$models) + 1]  <- list(.make_models(new_priors, .is_multivariate(object), .is_weighted(object))[[1]])
 

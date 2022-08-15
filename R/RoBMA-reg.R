@@ -77,8 +77,8 @@ RoBMA.reg <- function(
     priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
     priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
     priors_bias_null           = prior_none(),
-    priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-    priors_rho_null            = NULL,
+    priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+    priors_hierarchical_null   = NULL,
 
     prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.5)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
@@ -125,7 +125,7 @@ RoBMA.reg <- function(
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_bias_null = priors_bias_null, priors_bias = priors_bias,
-    priors_rho_null = priors_rho_null, priors_rho = priors_rho,
+    priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
   object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
