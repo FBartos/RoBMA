@@ -211,6 +211,7 @@ check_RoBMA <- function(fit){
         "posteriors_predictors_conditional" = NULL
       )
     }
+    names(object[["priors"]])[names(object[["priors"]]) == "rho"] <- "hierarchical"
   }
 
   return(object)

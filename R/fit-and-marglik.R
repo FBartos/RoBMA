@@ -327,7 +327,7 @@
 
   # add critical y-values
   if(!is.null(priors[["omega"]])){
-    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], fit_data[["se_v"]], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
+    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], data[!is.na(data[,"study_ids"]),"se"], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
   }else if(!is.null(priors[["PET"]])){
     fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
   }
