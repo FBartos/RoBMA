@@ -367,12 +367,12 @@ RoBMA <- function(
 #' @param prior_bias_null prior distribution for the publication bias adjustment
 #' component that will be treated as belonging to the null hypothesis.
 #' Defaults to \code{NULL}.
-#' @param priors_hierarchical prior distribution for the correlation of random effects
+#' @param prior_hierarchical prior distribution for the correlation of random effects
 #' (\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
 #' users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
 #' Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 #' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
-#' @param priors_hierarchical_null prior distribution for the correlation of random effects
+#' @param prior_hierarchical_null prior distribution for the correlation of random effects
 #' (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
 #' @param prior_weights either a single value specifying prior model weight
 #' of a newly specified model using priors argument, or a vector of the

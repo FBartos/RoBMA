@@ -5,6 +5,7 @@
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
 #'
+#' @param formula a formula for the meta-regression model
 #' @param test_predictors vector of predictor names that will be test
 #' (i.e., assigned both the null and alternative prior distributions).
 #' Defaults to \code{NULL}, no parameters are tested and only used for
