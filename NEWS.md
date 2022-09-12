@@ -11,7 +11,7 @@
 
 ## version 2.3.1
 ### Fixes
-- fixing weighted meta-analysis parameterization
+- fixing weighted meta-analysis parameterization 
 
 ## version 2.3
 ### Features
