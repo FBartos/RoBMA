@@ -9,10 +9,10 @@
 /* lapack prototypes */
 extern "C"
 {
-    void dsyev_(char* jobz, char* uplo, int* n, double* a, int* lda,
+    void dsyev_(const char* jobz, const char* uplo, int* n, double* a, int* lda,
                 double* w, double* work, int* lwork, int* info );
 
-    void dgesv_(const int* n, const int* nrhs, double* a, 
+    void dgesv_(const int* n, const int* nrhs, double* a,
 		            const int* lda,	int* ipiv, double* b, const int* ldb,
 		            int* info);
 

@@ -71,10 +71,10 @@ double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, co
 
   double loglik = 0;
   vector<double> delta(K);
-  for (unsigned int i = 0; i < K; ++i) {
+  for (int i = 0; i < K; ++i) {
     delta[i] = x[i] - mu[i];
     loglik -= (delta[i] * T[i + i * K] * delta[i])/2;
-    for (unsigned int j = 0; j < i; ++j) {
+    for (int j = 0; j < i; ++j) {
       loglik -= delta[i] * T[i + j * K] * delta[j];
     }
   }
