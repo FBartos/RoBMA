@@ -3,6 +3,7 @@
 - meta-regression with `RoBMA.reg()` function
 - new vignette on hierarchical Bayesian model-averaged meta-analysis
 - new vignette on robust Bayesian model-averaged meta-regression
+- adding vignette from AMPPS tutorial
 - faster implementation of JAGS multivariate normal distribution (based on the BUGS JAGS module)
 
 ### Changes
