@@ -70,3 +70,23 @@
 #' @references
 #' \insertAllCited{}
 "Kroupova2021"
+
+#' @title 18 studies of a relationship between acculturation mismatch and
+#' intergenerational cultural conflict collected by
+#' \insertCite{lui2015intergenerational;textual}{RoBMA}
+#'
+#' @description The data set contains correlation coefficients r,
+#' sample sizes n, and labels for each study assessing the
+#' relationship between acculturation mismatch (that is the result of the contrast
+#' between the collectivist cultures of Asian and Latin immigrant groups
+#' and the individualist culture in the United States) and intergenerational cultural
+#' conflict \insertCite{lui2015intergenerational}{RoBMA} which was used as an
+#' example in \insertCite{bartos2020adjusting;textual}{RoBMA}.
+#'
+#' @format A data.frame with 3 columns and 18 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Lui2015"

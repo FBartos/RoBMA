@@ -25,7 +25,8 @@ RoBMA.reg(
     1), steps = c(0.05, 0.1)), prior_weights = 1/12), prior_weightfunction(distribution =
     "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights =
     1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha =
-    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12),     
+    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12), 
+    
     prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1,
     1), steps = c(0.05, 0.5)), prior_weights = 1/12), prior_weightfunction(distribution =
     "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)),
@@ -33,15 +34,15 @@ RoBMA.reg(
     truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy",
     parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/4)),
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location
-    = 0)),
+  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
+    0)),
   priors_bias_null = prior_none(),
   priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
   priors_hierarchical_null = NULL,
   prior_covariates = prior("normal", parameters = list(mean = 0, sd = 0.5)),
   prior_covariates_null = prior("spike", parameters = list(location = 0)),
-  prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.5),
-    contrast = "orthonormal"),
+  prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.5), contrast
+    = "orthonormal"),
   prior_factors_null = prior("spike", parameters = list(location = 0)),
   chains = 3,
   sample = 5000,

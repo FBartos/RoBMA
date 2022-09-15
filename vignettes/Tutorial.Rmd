@@ -29,6 +29,8 @@ if(.Platform$OS.type == "windows"){
 ```
 ```{r include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+data("Lui2015", package = "RoBMA")
+df <- Lui2015
 # preload the fitted model
 fit_RoBMA  <- readRDS(file = "../models/Tutorial/fit_RoBMA_Lui2015.RDS")
 fit_RoBMA2 <- readRDS(file = "../models/Tutorial/fit_RoBMA_perinull_Lui2015.RDS")
@@ -36,9 +38,8 @@ fit_RoBMA2 <- readRDS(file = "../models/Tutorial/fit_RoBMA_perinull_Lui2015.RDS"
 ```{r include = FALSE, eval = FALSE}
 # R package version updating
 library(RoBMA)
-
-df <- read.csv(file = "../models/Tutorial/Lui2015.csv")
-
+data("Lui2015", package = "RoBMA")
+df <- Lui2015
 fit_RoBMA <- RoBMA(r = df$r, n = df$n, seed = 1, model = "PSMA", parallel = TRUE, save = "min")
 
 fit_RoBMA2 <- RoBMA(r = df$r, n = df$n, seed = 2, parallel = TRUE, save = "min",
@@ -89,10 +90,12 @@ library("RoBMA")
 @lui2015intergenerational studied how the acculturation mismatch (AM) that is the result of the contrast between the collectivist cultures of Asian and Latin immigrant groups and the individualist culture in the United States correlates with intergenerational cultural conflict (ICC). @lui2015intergenerational meta-analyzed 18 independent studies correlating AM with ICC. A standard reanalysis indicates a significant effect of AM on increased ICC, r = 0.250, p < .001.
 
 #### Data manipulation
-First, we load the Lui2015.csv file into R with the `read.csv()` function and inspect the first six data entries with the `head()` function.
+First, we load the Lui2015.csv file into R with the `read.csv()` function and inspect the first six data entries with the `head()` function (the data set is also included in the package and can accessed via the `data("Lui2015", package = "RoBMA")` call).
 
+```r
+df <- read.csv(file = "Lui2015.csv")
+```
 ```{r}
-df <- read.csv(file = "../models/Tutorial/Lui2015.csv")
 head(df)
 ```
 
