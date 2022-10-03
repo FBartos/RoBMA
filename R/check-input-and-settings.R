@@ -401,7 +401,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   dots <- list(...)
 
-  known_dots <- c("is_JASP", "weighted", "do_not_fit")
+  known_dots <- c("is_JASP", "weighted", "do_not_fit", "weighted_type")
   if(any(!names(dots) %in% known_dots))
     stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
 
@@ -415,6 +415,15 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     dots[["weighted"]] <- FALSE
   }else{
     BayesTools::check_bool(dots[["weighted"]], "weighted")
+
+    # select weight type
+    if(is.null(dots[["weighted_type"]])){
+      attr(dots[["weighted"]], "type") <- "inverse"
+    }else{
+      BayesTools::check_char(dots[["weighted_type"]], "weighted", allow_values = c("inverse", "inverse_sqrt"))
+      attr(dots[["weighted"]], "type") <- dots[["weighted_type"]]
+      dots[["weighted_type"]] <- NULL
+    }
   }
 
   if(is.null(dots[["do_not_fit"]])){

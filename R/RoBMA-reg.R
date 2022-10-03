@@ -108,7 +108,7 @@ RoBMA.reg <- function(
     if(dots[["weighted"]]){
       .weighted_warning()
       attr(object$data[["outcome"]], "all_independent") <- TRUE
-      attr(object$data[["outcome"]], "weighted")        <- TRUE
+      attr(object$data[["outcome"]], "weighted")        <- dots[["weighted"]]
     }else{
       .multivariate_warning()
     }

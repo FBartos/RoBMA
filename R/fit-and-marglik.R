@@ -75,7 +75,8 @@
         priors           = fit_priors,
         effect_direction = add_info[["effect_direction"]],
         prior_scale      = add_info[["prior_scale"]],
-        weighted         = attr(model, "weighted")
+        weighted         = attr(model, "weighted"),
+        weighted_type    = attr(model, "weighted_type")
       )
     }
 
@@ -201,7 +202,8 @@
       priors           = priors,
       effect_direction = add_info[["effect_direction"]],
       prior_scale      = add_info[["prior_scale"]],
-      weighted         = attr(model, "weighted")
+      weighted         = attr(model, "weighted"),
+      weighted_type    = attr(model, "weighted_type")
     )
     converged               <- TRUE
     has_posterior           <- FALSE
@@ -261,7 +263,7 @@
 }
 
 # tools
-.fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted){
+.fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -284,7 +286,7 @@
 
   # add weights proportional to the number of estimates from a study
   if(weighted){
-    fit_data$weight <- .get_id_weights(data)
+    fit_data$weight <- .get_id_weights(data, weighted_type)
   }
 
   return(fit_data)
@@ -803,14 +805,18 @@
 
   return(summary_list)
 }
-.get_id_weights         <- function(data){
+.get_id_weights         <- function(data, type){
 
   weights <- rep(NA, nrow(data))
 
   # create table of number of estimates per study
   ids_weights <- data.frame(
     id     = names(table(data[,"study_ids"])),
-    weight = 1/as.vector(table(data[,"study_ids"]))
+    weight = switch(
+      type,
+      "inverse"      = 1/as.vector(table(data[,"study_ids"])),
+      "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+    )
   )
 
   # fill their weights

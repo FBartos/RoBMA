@@ -233,7 +233,7 @@ RoBMA <- function(
     if(dots[["weighted"]]){
       .weighted_warning()
       attr(object$data, "all_independent") <- TRUE
-      attr(object$data, "weighted")        <- TRUE
+      attr(object$data, "weighted")        <- dots[["weighted"]]
     }else{
       .multivariate_warning()
     }

@@ -5,6 +5,7 @@
 - new vignette on robust Bayesian model-averaged meta-regression
 - adding vignette from AMPPS tutorial
 - faster implementation of JAGS multivariate normal distribution (based on the BUGS JAGS module)
+- ability to use inverse square weights in the weighted meta-analysis by setting a `weighted_type = "inverse_sqrt"` argument 
 
 ### Changes
 - reworked interface for the hierarchical models. Prior distributions are now specified via the `priors_hierarchical` and `priors_hierarchical_null` arguments instead of `priors_rho` and `priors_rho_null`. The model summary now shows `Hierarchical` component summary.

@@ -363,8 +363,9 @@
   )
   class(model) <- "RoBMA.model"
 
-  attr(model, "multivariate") <- multivariate && !is.null(priors$rho)
-  attr(model, "weighted")     <- weighted
+  attr(model, "multivariate")  <- multivariate && !is.null(priors$rho)
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
 
   return(model)
 }
@@ -430,8 +431,9 @@
   )
 
   class(model) <- "RoBMA.reg.model"
-  attr(model, "multivariate") <- attr(model_base, "multivariate")
-  attr(model, "weighted")     <- attr(model_base, "weighted")
+  attr(model, "multivariate")  <- attr(model_base, "multivariate")
+  attr(model, "weighted")      <- attr(model_base, "weighted")
+  attr(model, "weighted_type") <- attr(model_base, "weighted_type")
 
   return(model)
 }
