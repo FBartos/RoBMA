@@ -144,9 +144,12 @@ RoBMA.reg <- function(
     standardize_predictors = standardize_predictors,
     seed                   = seed,
     save                   = save,
-    warnings               = .check_effect_direction(object),
+    warnings               = NULL,
     errors                 = NULL
   )
+
+  # the check requires the 'add_info' object already created
+  object$add_info[["warnings"]] <- .check_effect_direction(object)
 
   if(dots[["do_not_fit"]]){
     return(object)
@@ -241,7 +244,7 @@ RoBMA.reg <- function(
     return_all     = FALSE)
 
   ### obtain the predictors part
-  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI")]
+  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI"), drop = FALSE]
 
   if(attr(stats::terms(formula), "response") == 1){
     formula[2] <- NULL

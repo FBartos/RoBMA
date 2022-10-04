@@ -380,12 +380,18 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   warnings <- NULL
 
+  if(!is.null(object$data[["outcome"]])){
+    data <- object$data[["outcome"]]
+  }else{
+    data <- object[["data"]]
+  }
+
   # check whether majority of effect sizes are in expected direction. throw warning if not.
-  if(any(sapply(object$priors$omega, function(p)p$distribution) == "one.sided") |
-     any(grepl("PET", sapply(object$priors$omega, function(p)p$distribution)))  |
-     any(grepl("PEESE", sapply(object$priors$omega, function(p)p$distribution)))){
-    if(stats::median(object$data$y) > 0 & object$control$effect_direction == "negative" |
-       stats::median(object$data$y) < 0 & object$control$effect_direction == "positive"){
+  if(any(sapply(object$priors[["bias"]], function(p) p[["distribution"]]) == "one.sided") |
+     any(grepl("PET",   sapply(object$priors[["bias"]], function(p) p[["distribution"]])))  |
+     any(grepl("PEESE", sapply(object$priors[["bias"]], function(p) p[["distribution"]])))){
+    if(stats::median(data[["y"]]) > 0 & object$add_info[["effect_direction"]] == "negative" |
+       stats::median(data[["y"]]) < 0 & object$add_info[["effect_direction"]] == "positive"){
       warnings <- "The majority of effect sizes is in the oposite direction than expected. The direction of effect sizes is important for the one-sided weight functions. Please, check the 'effect_direction' argument in 'RoBMA' fitting function."
     }
   }
