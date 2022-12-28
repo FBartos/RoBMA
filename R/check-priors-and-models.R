@@ -208,6 +208,15 @@
 
   return(priors_main)
 }
+.check_and_list_priors.bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, prior_baseline){
+
+  priors <- list()
+  priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
+  priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
+  priors$pi             <- .check_and_list_component_priors(NULL,                        prior_baseline,              "pi")
+
+  return(priors)
+}
 .check_and_list_component_priors  <- function(priors_null, priors_alt, component){
 
   # check that at least one prior is specified (either null or alternative)
@@ -298,7 +307,6 @@
 
     }
 
-
   }else if(component == "bias"){
 
     for(p in seq_along(priors)){
@@ -306,6 +314,23 @@
       # check for allowed priors
       if(!(is.prior.PET(priors[[p]]) | is.prior.PEESE(priors[[p]]) | is.prior.weightfunction(priors[[p]]) | is.prior.none(priors[[p]])))
         stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the bias component."))
+    }
+
+  }else if(component == "rho"){
+
+    for(p in seq_along(priors)){
+
+      # check for allowed priors
+      if(!(priors[[p]][["distribution"]] == "beta"))
+        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
+    }
+  }else if(component == "pi"){
+
+    for(p in seq_along(priors)){
+
+      # check for allowed priors
+      if(!(priors[[p]][["distribution"]] == "beta"))
+        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
     }
   }
 
@@ -323,14 +348,28 @@
           for(hierarchical in priors[["hierarchical"]]){
             models <- c(
               models,
-              list(.make_model(effect, heterogeneity, bias, hierarchical, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * hierarchical[["prior_weights"]], multivariate, weighted))
-            )
+              list(.make_model(
+                prior_effect        = effect,
+                prior_heterogeneity = heterogeneity,
+                prior_bias          = bias,
+                prior_rho           = rho,
+                prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * rho[["prior_weights"]],
+                multivariate        = multivariate,
+                weighted            = weighted
+            )))
           }
         }else{
           models <- c(
             models,
-            list(.make_model(effect, heterogeneity, bias, NULL, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]], multivariate, weighted))
-          )
+            list(.make_model(
+              prior_effect        = effect,
+              prior_heterogeneity = heterogeneity,
+              prior_bias          = bias,
+              prior_rho           = NULL,
+              prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]],
+              multivariate        = multivariate,
+              weighted            = weighted
+          )))
         }
       }
     }
@@ -434,6 +473,59 @@
   attr(model, "multivariate")  <- attr(model_base, "multivariate")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+
+  return(model)
+}
+
+.make_models.bi  <- function(priors, K, weighted){
+
+  # create models according to the set priors
+  models <- NULL
+  for(effect in priors[["effect"]]){
+    for(heterogeneity in priors[["heterogeneity"]]){
+      models <- c(
+        models,
+        list(.make_model.bi(
+          prior_effect        = effect,
+          prior_heterogeneity = heterogeneity,
+          prior_baseline            = priors[["pi"]][[1]],
+          prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]],
+          K                   = K,
+          weighted            = weighted
+      )))
+    }
+  }
+
+  return(models)
+}
+.make_model.bi   <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, K, weighted){
+
+  priors <- list()
+
+  priors$mu    <- prior_effect
+  priors$tau   <- prior_heterogeneity
+
+  # a small hack to create independent priors for the baseline probabilities
+  # (TODO: use prior_vector when/if implemented in BayesTools)
+  priors$pi    <- prior_factor(
+    distribution = prior_baseline[["distribution"]],
+    parameters   = prior_baseline[["parameters"]],
+    truncation   = prior_baseline[["truncation"]],
+    contrast     = "treatment"
+  )
+  attr(priors$pi, "levels")      <- K + 1
+  attr(priors$pi, "interaction") <- FALSE
+
+  model <- list(
+    priors            = priors,
+    prior_weights     = prior_weights,
+    prior_weights_set = prior_weights
+  )
+  class(model) <- "BiBMA.model"
+
+  attr(model, "multivariate") <- FALSE
+  attr(model, "random")       <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
+  attr(model, "weighted")     <- weighted
 
   return(model)
 }

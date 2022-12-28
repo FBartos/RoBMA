@@ -261,6 +261,179 @@
 
   return(model)
 }
+.fit_BiBMA_model       <- function(object, i){
+
+  model              <- object[["models"]][[i]]
+  priors             <- model[["priors"]]
+  fit_control        <- object[["fit_control"]]
+  autofit_control    <- object[["autofit_control"]]
+  convergence_checks <- object[["convergence_checks"]]
+  add_info           <- object[["add_info"]]
+
+  errors   <- NULL
+  warnings <- NULL
+
+  if(!fit_control[["silent"]]){
+    cat(paste0("\nFitting model [", i, "]\n"))
+  }
+
+  ### the model is never constant as there needs to be a prior for pi
+  # deal with regression vs basic models
+  if(inherits(model, "BiBMA.reg.model")){
+    data_outcome       <- object[["data"]][["outcome"]]
+    fit_priors         <- priors[names(priors) != "terms"]
+    formula_list       <- .generate_model_formula_list(object[["formula"]])
+    formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
+    formula_prior_list <- .generate_model_formula_prior_list(priors)
+  }else if(inherits(model, "BiBMA.model")){
+    data_outcome       <- object[["data"]]
+    fit_priors         <- priors
+    formula_list       <- NULL
+    formula_data_list  <- NULL
+    formula_prior_list <- NULL
+  }
+
+  model_syntax <- .generate_model_syntax.bi(
+    priors           = fit_priors,
+    random           = attr(model, "random"),
+    weighted         = attr(model, "weighted"),
+    regression       = inherits(model, "BiBMA.reg.model")
+  )
+
+  # remove unnecessary objects from data to mitigate warnings
+  fit_data     <- .fit_data.bi(
+    data             = data_outcome,
+    weighted         = attr(model, "weighted")
+  )
+
+  # additional settings for the random effects model
+  if(attr(model, "random")){
+    add_parameters <- paste0("delta[",1:fit_data[["K"]],"]")
+    add_bounds     <- list(
+      "lb" = rep(-Inf, fit_data[["K"]]),
+      "ub" = rep( Inf, fit_data[["K"]])
+    )
+    names(add_bounds[["lb"]]) <- add_parameters
+    names(add_bounds[["ub"]]) <- add_parameters
+  }
+
+  # fit the model
+  fit <- BayesTools::JAGS_fit(
+    model_syntax       = model_syntax,
+    data               = fit_data,
+    prior_list         = fit_priors,
+    formula_list       = formula_list,
+    formula_data_list  = formula_data_list,
+    formula_prior_list = formula_prior_list,
+    add_parameters     = if(attr(model, "random")) add_parameters,
+    chains             = fit_control[["chains"]],
+    adapt              = fit_control[["adapt"]],
+    burnin             = fit_control[["burnin"]],
+    sample             = fit_control[["sample"]],
+    thin               = fit_control[["thin"]],
+    autofit            = fit_control[["autofit"]],
+    autofit_control    = autofit_control,
+    parallel           = fit_control[["parallel"]],
+    cores              = fit_control[["cores"]],
+    silent             = fit_control[["silent"]],
+    seed               = fit_control[["seed"]],
+    required_packages  = "RoBMA"
+  )
+
+  # assess the model fit and deal with errors
+  if(inherits(fit, "error")){
+
+    if(grepl("Unknown function", fit$message))
+      stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
+
+    fit            <- list()
+    converged      <- FALSE
+    has_posterior  <- FALSE
+    errors         <- c(errors, fit$message)
+    # deal with failed models
+    marglik        <- list()
+    marglik$logml  <- NA
+    class(marglik) <- "bridge"
+
+  }else{
+
+    has_posterior <- TRUE
+    check_fit     <- BayesTools::JAGS_check_convergence(
+      fit          = fit,
+      prior_list   = attr(fit, "prior_list"),
+      max_Rhat     = convergence_checks[["max_Rhat"]],
+      min_ESS      = convergence_checks[["min_ESS"]],
+      max_error    = convergence_checks[["max_error"]],
+      max_SD_error = convergence_checks[["max_SD_error"]]
+    )
+    warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
+    if(convergence_checks[["remove_failed"]] && !check_fit){
+      converged <- FALSE
+    }else{
+      converged <- TRUE
+    }
+
+  }
+
+  # compute marginal likelihood
+  if(length(fit) != 0){
+
+    marglik <- BayesTools::JAGS_bridgesampling(
+      fit                = fit,
+      data               = fit_data,
+      prior_list         = fit_priors,
+      formula_list       = formula_list,
+      formula_data_list  = formula_data_list,
+      formula_prior_list = formula_prior_list,
+      add_parameters     = if(attr(model, "random")) add_parameters,
+      add_bounds         = if(attr(model, "random")) add_bounds,
+      log_posterior      = .marglik_function.bi,
+      maxiter            = 50000,
+      silent             = fit_control[["silent"]],
+      priors             = priors,
+      random             = attr(model, "random")
+    )
+
+    # deal with failed marginal likelihoods
+    if(inherits(marglik, "error")){
+
+      errors         <- c(errors, marglik$message)
+      converged      <- FALSE
+      marglik        <- list()
+      marglik$logml  <- NA
+      class(marglik) <- "bridge"
+
+    }else{
+
+      # forward warnings if present
+      warnings <- c(warnings, attr(marglik, "warnings"))
+
+    }
+  }
+
+
+  # add model summaries
+  if(has_posterior){
+    fit_summary <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_orthonormal = TRUE, formula_prefix = FALSE, remove_parameters = c("pi", if(attr(model, "random")) paste0("delta[",1:fit_data[["K"]],"]")))
+  }else{
+    fit_summary <- BayesTools::runjags_estimates_empty_table()
+  }
+
+  model <- c(
+    model,
+    fit           = list(fit),
+    fit_summary   = list(fit_summary),
+    marglik       = list(marglik),
+    errors        = list(errors),
+    warnings      = list(warnings),
+    converged     = converged,
+    has_posterior = has_posterior,
+    output_scale  = add_info[["prior_scale"]],
+    prior_scale   = add_info[["prior_scale"]]
+  )
+
+  return(model)
+}
 
 # tools
 .fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
@@ -335,6 +508,23 @@
   }
 
   fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"study_ids"]),"study_ids"])][-1] - 1, fit_data[["K_v"]])
+
+  return(fit_data)
+}
+.fit_data.bi              <- function(data, weighted){
+
+  # unlist the data frame
+  fit_data <- list()
+  fit_data$x1 <- data[["x1"]]
+  fit_data$x2 <- data[["x2"]]
+  fit_data$n1 <- data[["n1"]]
+  fit_data$n2 <- data[["n2"]]
+  fit_data$K  <- nrow(data)
+
+  # add weights proportional to the number of estimates from a study
+  if(weighted){
+    fit_data$weight <- .get_id_weights(data)
+  }
 
   return(fit_data)
 }
@@ -523,6 +713,41 @@
 
   return(model_syntax)
 }
+.generate_model_syntax.bi <- function(priors, random, weighted, regression){
+
+  model_syntax <- "model{\n"
+
+  ### priors and model are always specified on log(OR) scale
+  # no need to apply transformations here
+
+  ### model
+  model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
+
+  # deal with the random/fixed models (they are not marginalized as in the normal case) & meta-regression
+  if(random && regression){
+    model_syntax <- paste0(model_syntax, "  delta[i] ~ dnorm(mu[i], 1/pow(tau,2))\n")
+  }else if(random && !regression){
+    model_syntax <- paste0(model_syntax, "  delta[i] ~ dnorm(mu, 1/pow(tau,2))\n")
+  }else if(!random && regression){
+    model_syntax <- paste0(model_syntax, "  delta[i] = mu[i]\n")
+  }else if(!random && !regression){
+    model_syntax <- paste0(model_syntax, "  delta[i] = mu\n")
+  }
+
+  # the observed data
+  if(weighted){
+    model_syntax <- paste0(model_syntax, "  x1[i] ~ dwbinom(exp(log(pi[i]) - 0.5 * delta[i]), n1[i], weight[i])\n")
+    model_syntax <- paste0(model_syntax, "  x2[i] ~ dwbinom(exp(log(pi[i]) + 0.5 * delta[i]), n2[i], weight[i])\n")
+  }else{
+    model_syntax <- paste0(model_syntax, "  x1[i] ~ dbinom(exp(log(pi[i]) - 0.5 * delta[i]), n1[i])\n")
+    model_syntax <- paste0(model_syntax, "  x2[i] ~ dbinom(exp(log(pi[i]) + 0.5 * delta[i]), n2[i])\n")
+  }
+
+  model_syntax <- paste0(model_syntax, "}\n")
+  model_syntax <- paste0(model_syntax, "}")
+
+  return(model_syntax)
+}
 .marglik_function         <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
 
   # extract parameters
@@ -701,6 +926,36 @@
 
   return(log_lik)
 }
+.marglik_function.bi      <- function(parameters, data, priors, random){
+
+  # extract parameters
+  mu    <- parameters[["mu"]]
+  if(random){
+    delta <- unlist(parameters[paste0("delta[",1:data[["K"]],"]")])
+  }else{
+    delta <- parameters[["delta"]]
+  }
+  tau   <- parameters[["tau"]]
+  pi    <- parameters[["pi"]]
+
+  ### compute the marginal log_likelihood
+  log_lik <- 0
+
+  # deal with random effects
+  if(!(is.prior.point(priors[["tau"]]) && priors[["tau"]]$parameters[["location"]] == 0)){
+    log_lik <- log_lik + sum(stats::dnorm(x = delta, mean = mu, sd = tau,log = TRUE))
+  }
+
+  if(!is.null(data[["weight"]])){
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = pi * exp(-(1/2)*delta), size = data[["n1"]], log = TRUE) * data[["weight"]])
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = pi * exp(+(1/2)*delta), size = data[["n2"]], log = TRUE) * data[["weight"]])
+  }else{
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = pi * exp(-(1/2)*delta), size = data[["n1"]], log = TRUE))
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = pi * exp(+(1/2)*delta), size = data[["n2"]], log = TRUE))
+  }
+
+  return(log_lik)
+}
 
 # additional tools
 .fitting_priority       <- function(models){
@@ -711,11 +966,11 @@
 
     difficulty <- 0
 
-    if(inherits(model, "RoBMA.model")){
+    if(inherits(model, "RoBMA.model") | inherits(model, "BiBMA.model")){
       if(is.prior.simple(model$priors[["mu"]])){
         difficulty <- difficulty + 1
       }
-    }else if(inherits(model, "RoBMA.reg.model")){
+    }else if(inherits(model, "RoBMA.reg.model") | inherits(model, "BiBMA.reg.model")){
       difficulty <-  difficulty + sum(sapply(model$priors[["terms"]], function(prior){
         if(is.prior.point(prior)){
           return(0)
