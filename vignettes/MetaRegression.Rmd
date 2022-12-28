@@ -898,4 +898,56 @@ class(fit_wPSMA_reg10) <- c("RoBMA", "RoBMA.reg")
 summary(fit_wPSMA_reg10)
 ```
 
+
+
+```{r include = FALSE, eval = FALSE}
+# data file preparation
+students <- data.frame(readxl::read_excel("C:/Users/fbart/Downloads/students.xlsx"))
+
+head(students)
+
+# create a shorter data-set
+df <- data.frame(
+  # effect size and standard errors
+  r  = students$pcc,
+  se = students$se_pcc,
+
+  study       = students$study,
+  sample_size = students$sample_size_full,
+
+  # outcome type
+  education_outcome = ifelse(students$education_test == 1, "test",
+                     ifelse(students$education_choice == 1, "choice",
+                            ifelse(students$education_attainment == 1, "attainment", NA))),
+
+  employment_intensity = ifelse(students$low_intensity_employment == 1, "low",
+                                ifelse(students$medium_intensity_employment == 1, "medium",
+                                       ifelse(students$high_intensity_employment == 1, "high", NA))),
+
+  # students
+  students_gender = ifelse(students$male_students == 1, "male",
+               ifelse(students$female_students == 1, "female",
+                      ifelse(students$mixed_gender_students == 1, "mixed", NA))),
+
+  # location
+  location = ifelse(students$usa == 1, "USA",
+                    ifelse(students$germany == 1, "Germany",
+                           ifelse(students$europe == 1, "Europe", "Other"))),
+
+  # design
+  design = ifelse(students$longitudinal_data == 1, "longitudinal",
+                  ifelse(students$crosssectional_data == 1, "crosssectional", NA)),
+
+  # endogeneity
+  endogenity_control = ifelse(students$endogeneity_control == 1, "Yes", "No"),
+
+  # motivation
+  motivation_control = ifelse(students$motivation_control == 1, "Yes", "No")
+)
+
+Kroupova2021 <- df
+save(Kroupova2021, file = "data/Kroupova2021.RData", version = 2)
+
+```
+
 ### References

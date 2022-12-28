@@ -137,8 +137,8 @@ check_RoBMA <- function(fit){
     }
   }else if(component == "heterogeneity"){
     return(priors[["tau"]][["is_null"]])
-  }else if(component == "multivariate"){
-    if(priors[["tau"]][["is_null"]] || is.null(priors[["rho"]])){
+  }else if(component == "hierarchical"){
+    if((is.prior.point(priors[["tau"]]) && priors[["tau"]]$parameters[["location"]] == 0) || is.null(priors[["rho"]])){
       return(TRUE)
     }else{
       return(priors[["rho"]][["is_null"]])
@@ -211,6 +211,7 @@ check_RoBMA <- function(fit){
         "posteriors_predictors_conditional" = NULL
       )
     }
+    names(object[["priors"]])[names(object[["priors"]]) == "rho"] <- "hierarchical"
   }
 
   return(object)

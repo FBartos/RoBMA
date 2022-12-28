@@ -41,11 +41,11 @@ RoBMA(
     truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy",
     parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/4)),
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location
-    = 0)),
+  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
+    0)),
   priors_bias_null = prior_none(),
-  priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null = NULL,
+  priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null = NULL,
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -167,14 +167,14 @@ a point null hypotheses at zero (a fixed effect meta-analytic models),
 that will be treated as belonging to the null hypothesis. Defaults no publication
 bias adjustment, \code{prior_none()}.}
 
-\item{priors_rho}{list of prior distributions for the variance allocation (\code{rho})
-parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a three-level meta-analysis when \code{study_ids} are supplied. Note that this is
-an experimental feature and see News for more details. Defaults to a beta distribution
+\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
 
-\item{priors_rho_null}{list of prior distributions for the variance allocation (\code{rho})
-parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
+\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{chains}{a number of chains of the MCMC algorithm.}
 

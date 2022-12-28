@@ -36,15 +36,15 @@
 <polyline points='99.94,544.60 99.94,22.78 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
 <polyline points='599.02,544.60 599.02,22.78 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
 <polygon points='593.83,170.29 604.21,170.29 604.21,159.90 593.83,159.90 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
-<polygon points='599.02,402.29 599.02,372.64 599.02,402.29 599.02,431.94 ' style='stroke-width: 1.07; stroke: none; fill: #000000;' />
+<polygon points='599.02,402.29 599.02,372.64 599.02,402.29 599.02,431.94 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #000000;' />
 <polyline points='599.02,520.89 599.02,46.50 ' style='stroke-width: 1.07; stroke-dasharray: 1.42,4.27; stroke-linecap: butt;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <text x='5.48' y='405.32' style='font-size: 8.80px; font-family: sans;' textLength='64.58px' lengthAdjust='spacingAndGlyphs'>Model-Averaged</text>
 <text x='5.48' y='168.13' style='font-size: 8.80px; font-family: sans;' textLength='31.31px' lengthAdjust='spacingAndGlyphs'>Model 1</text>
-<text x='714.52' y='405.56' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='63.61px' lengthAdjust='spacingAndGlyphs'>0.00 [0.00, 0.00]</text>
-<text x='714.52' y='167.89' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='63.61px' lengthAdjust='spacingAndGlyphs'>0.00 [0.00, 0.00]</text>
-<text x='714.52' y='138.64' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='85.62px' lengthAdjust='spacingAndGlyphs'>BF = Inf [1.00 -&gt; 1.00]</text>
+<text x='714.52' y='405.32' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='63.61px' lengthAdjust='spacingAndGlyphs'>0.00 [0.00, 0.00]</text>
+<text x='714.52' y='168.13' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='63.61px' lengthAdjust='spacingAndGlyphs'>0.00 [0.00, 0.00]</text>
+<text x='714.52' y='138.48' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='85.62px' lengthAdjust='spacingAndGlyphs'>BF = Inf [1.00 -&gt; 1.00]</text>
 <polyline points='99.94,547.34 99.94,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='599.02,547.34 599.02,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <text x='99.94' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='7.82px' lengthAdjust='spacingAndGlyphs'>-1</text>

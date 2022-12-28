@@ -29,12 +29,12 @@ check_setup <- function(
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
   priors_bias_null           = prior_none(),
-  priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null            = NULL,
+  priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null   = NULL,
   models = FALSE, silent = FALSE){
 
   object <- list()
-  object$priors   <- .check_and_list_priors(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho, priors_rho_null, "d")
+  object$priors   <- .check_and_list_priors(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical, priors_hierarchical_null, "d")
   object$models   <- .make_models(object[["priors"]], multivariate = FALSE, weighted = FALSE)
 
 
@@ -380,12 +380,18 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   warnings <- NULL
 
+  if(!is.null(object$data[["outcome"]])){
+    data <- object$data[["outcome"]]
+  }else{
+    data <- object[["data"]]
+  }
+
   # check whether majority of effect sizes are in expected direction. throw warning if not.
-  if(any(sapply(object$priors$omega, function(p)p$distribution) == "one.sided") |
-     any(grepl("PET", sapply(object$priors$omega, function(p)p$distribution)))  |
-     any(grepl("PEESE", sapply(object$priors$omega, function(p)p$distribution)))){
-    if(stats::median(object$data$y) > 0 & object$control$effect_direction == "negative" |
-       stats::median(object$data$y) < 0 & object$control$effect_direction == "positive"){
+  if(any(sapply(object$priors[["bias"]], function(p) p[["distribution"]]) == "one.sided") |
+     any(grepl("PET",   sapply(object$priors[["bias"]], function(p) p[["distribution"]])))  |
+     any(grepl("PEESE", sapply(object$priors[["bias"]], function(p) p[["distribution"]])))){
+    if(stats::median(data[["y"]]) > 0 & object$add_info[["effect_direction"]] == "negative" |
+       stats::median(data[["y"]]) < 0 & object$add_info[["effect_direction"]] == "positive"){
       warnings <- "The majority of effect sizes is in the oposite direction than expected. The direction of effect sizes is important for the one-sided weight functions. Please, check the 'effect_direction' argument in 'RoBMA' fitting function."
     }
   }
@@ -401,7 +407,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   dots <- list(...)
 
-  known_dots <- c("is_JASP", "weighted", "do_not_fit")
+  known_dots <- c("is_JASP", "weighted", "do_not_fit", "weighted_type")
   if(any(!names(dots) %in% known_dots))
     stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
 
@@ -415,6 +421,15 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     dots[["weighted"]] <- FALSE
   }else{
     BayesTools::check_bool(dots[["weighted"]], "weighted")
+
+    # select weight type
+    if(is.null(dots[["weighted_type"]])){
+      attr(dots[["weighted"]], "type") <- "inverse"
+    }else{
+      BayesTools::check_char(dots[["weighted_type"]], "weighted", allow_values = c("inverse", "inverse_sqrt"))
+      attr(dots[["weighted"]], "type") <- dots[["weighted_type"]]
+      dots[["weighted_type"]] <- NULL
+    }
   }
 
   if(is.null(dots[["do_not_fit"]])){

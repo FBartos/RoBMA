@@ -40,9 +40,12 @@ See our new pre-print @bartos2021no (https://doi.org/10.31234/osf.io/kvsp7) for 
 
 We also prepared multiple vignettes that illustrate functionality of the package:
 
+ - [Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
  - [Reproducing Bayesian model-averaged meta-analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
- - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+ - [Hierarchical Bayesian model-averaged meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
  - [Informed Bayesian model-averaged meta-analysis in medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
+ - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+ - [Robust Bayesian model-averaged meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
 
 
 ## Updates

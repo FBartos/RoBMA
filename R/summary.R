@@ -115,7 +115,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     # obtain components overview
     components <- BayesTools::ensemble_inference_table(
       inference  = object$RoBMA[["inference"]],
-      parameters = names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")],
+      parameters = names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical")],
       logBF      = logBF,
       BF01       = BF01,
       title      = "Components summary:"
@@ -231,7 +231,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
   }else if(substr(type,1,1) == "m"){
 
-    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")]
+    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical")]
 
     parameters <- list()
     if(any(components == "Effect")){
@@ -247,7 +247,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     if(any(components == "Heterogeneity")){
       parameters[["Heterogeneity"]] <- "tau"
       if(.is_multivariate(object)){
-        parameters[["Var. allocation"]] <- "rho"
+        parameters[["Hierarchical"]] <- "rho"
       }
     }
     if(any(components == "Bias")){
@@ -277,7 +277,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
   }else if(substr(type,1,1) == "d"){
 
-    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias")]
+    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical")]
 
     parameters <- list()
     if(any(components == "Effect")){
@@ -293,7 +293,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     if(any(components == "Heterogeneity")){
       parameters[["Heterogeneity"]] <- "tau"
       if(.is_multivariate(object)){
-        parameters[["Var. allocation"]] <- "rho"
+        parameters[["Hierarchical"]] <- "rho"
       }
     }
     if(any(components == "Bias")){

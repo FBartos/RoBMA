@@ -21,9 +21,9 @@ Description: A framework for estimating ensembles of meta-analytic models
     combine the competing meta-analytic models into a model ensemble, weights 
     the posterior parameter distributions based on posterior model probabilities 
     and uses Bayes factors to test for the presence or absence of the
-    individual components (e.g., effect vs. no effect; Bartoš et al., 2021, 
-    <doi:10.31234/osf.io/kvsp7>; Maier, Bartoš & Wagenmakers, in press, 
-    <doi:10.31234/osf.io/u4cns>). Users can define a wide range of non-informative 
+    individual components (e.g., effect vs. no effect; Bartoš et al., 2022, 
+    <doi:10.1002/jrsm.1594>; Maier, Bartoš & Wagenmakers, 2022, 
+    <doi:10.1037/met0000405>). Users can define a wide range of non-informative 
     or informative prior distributions for the effect size, heterogeneity, 
     and publication bias components (including selection models and PET-PEESE). 
     The package provides convenient functions for summary, visualizations, and 
@@ -34,7 +34,7 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.0
+RoxygenNote: 7.2.1
 SystemRequirements: JAGS >= 4.3.1 (https://mcmc-jags.sourceforge.io/)
 NeedsCompilation: yes
 Depends:
@@ -42,13 +42,9 @@ Depends:
 Imports:
     BayesTools (>= 0.2.0),
     runjags,
-    bridgesampling,
     rjags,
-    coda,
-    psych,
     stats,
     graphics,
-    extraDistr,
     mvtnorm,
     scales,
     Rdpack,
@@ -56,7 +52,10 @@ Imports:
 Suggests:
     parallel,
     metaBMA,
+    metafor,
+    weightr,
     fixest,
+    metadat,
     testthat,
     vdiffr,
     knitr,

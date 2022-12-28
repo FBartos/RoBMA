@@ -75,7 +75,8 @@
         priors           = fit_priors,
         effect_direction = add_info[["effect_direction"]],
         prior_scale      = add_info[["prior_scale"]],
-        weighted         = attr(model, "weighted")
+        weighted         = attr(model, "weighted"),
+        weighted_type    = attr(model, "weighted_type")
       )
     }
 
@@ -201,7 +202,8 @@
       priors           = priors,
       effect_direction = add_info[["effect_direction"]],
       prior_scale      = add_info[["prior_scale"]],
-      weighted         = attr(model, "weighted")
+      weighted         = attr(model, "weighted"),
+      weighted_type    = attr(model, "weighted_type")
     )
     converged               <- TRUE
     has_posterior           <- FALSE
@@ -261,7 +263,7 @@
 }
 
 # tools
-.fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted){
+.fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -284,7 +286,7 @@
 
   # add weights proportional to the number of estimates from a study
   if(weighted){
-    fit_data$weight <- .get_id_weights(data)
+    fit_data$weight <- .get_id_weights(data, weighted_type)
   }
 
   return(fit_data)
@@ -316,22 +318,23 @@
   }
 
 
+  ### add the multivariate part
   if(effect_direction == "negative"){
     fit_data$y_v <- - data[!is.na(data[,"study_ids"]),"y"]
   }else{
     fit_data$y_v <- data[!is.na(data[,"study_ids"]),"y"]
   }
-  fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
   fit_data$se2_v <- data[!is.na(data[,"study_ids"]),"se"]^2
   fit_data$K_v   <- length(fit_data[["y_v"]])
 
   # add critical y-values
   if(!is.null(priors[["omega"]])){
-    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], fit_data[["se_v"]], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
+    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], data[!is.na(data[,"study_ids"]),"se"], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
+  }else if(!is.null(priors[["PET"]])){
+    fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
   }
 
   fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"study_ids"]),"study_ids"])][-1] - 1, fit_data[["K_v"]])
-  ### add the multivariate part
 
   return(fit_data)
 }
@@ -500,9 +503,9 @@
   }
   model_syntax <- paste0(model_syntax, "for(i in 1:K_v){\n")
   if(!is.null(priors[["PET"]])){
-    eff_v <- paste0(eff_v, " + PET_transformed * se_v")
+    eff_v <- paste0(eff_v, " + PET_transformed * se_v[i]")
   }else if(!is.null(priors[["PEESE"]])){
-    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v")
+    eff_v <- paste0(eff_v, " + PEESE_transformed * se2_v[i]")
   }
   model_syntax <- paste0(model_syntax, paste0("  eff_v[i] = ", eff_v, "\n"))
   model_syntax <- paste0(model_syntax, "}\n")
@@ -802,14 +805,18 @@
 
   return(summary_list)
 }
-.get_id_weights         <- function(data){
+.get_id_weights         <- function(data, type){
 
   weights <- rep(NA, nrow(data))
 
   # create table of number of estimates per study
   ids_weights <- data.frame(
     id     = names(table(data[,"study_ids"])),
-    weight = 1/as.vector(table(data[,"study_ids"]))
+    weight = switch(
+      type,
+      "inverse"      = 1/as.vector(table(data[,"study_ids"])),
+      "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+    )
   )
 
   # fill their weights

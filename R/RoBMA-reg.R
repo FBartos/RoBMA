@@ -5,6 +5,7 @@
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
 #'
+#' @param formula a formula for the meta-regression model
 #' @param test_predictors vector of predictor names that will be test
 #' (i.e., assigned both the null and alternative prior distributions).
 #' Defaults to \code{NULL}, no parameters are tested and only used for
@@ -77,8 +78,8 @@ RoBMA.reg <- function(
     priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
     priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
     priors_bias_null           = prior_none(),
-    priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-    priors_rho_null            = NULL,
+    priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+    priors_hierarchical_null   = NULL,
 
     prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.5)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
@@ -107,7 +108,7 @@ RoBMA.reg <- function(
     if(dots[["weighted"]]){
       .weighted_warning()
       attr(object$data[["outcome"]], "all_independent") <- TRUE
-      attr(object$data[["outcome"]], "weighted")        <- TRUE
+      attr(object$data[["outcome"]], "weighted")        <- dots[["weighted"]]
     }else{
       .multivariate_warning()
     }
@@ -125,7 +126,7 @@ RoBMA.reg <- function(
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_bias_null = priors_bias_null, priors_bias = priors_bias,
-    priors_rho_null = priors_rho_null, priors_rho = priors_rho,
+    priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
   object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
@@ -143,9 +144,12 @@ RoBMA.reg <- function(
     standardize_predictors = standardize_predictors,
     seed                   = seed,
     save                   = save,
-    warnings               = .check_effect_direction(object),
+    warnings               = NULL,
     errors                 = NULL
   )
+
+  # the check requires the 'add_info' object already created
+  object$add_info[["warnings"]] <- .check_effect_direction(object)
 
   if(dots[["do_not_fit"]]){
     return(object)
@@ -240,7 +244,7 @@ RoBMA.reg <- function(
     return_all     = FALSE)
 
   ### obtain the predictors part
-  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI")]
+  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI"), drop = FALSE]
 
   if(attr(stats::terms(formula), "response") == 1){
     formula[2] <- NULL

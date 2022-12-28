@@ -1,5 +1,5 @@
 ### functions for creating model objects
-.check_and_list_priors      <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho_null, priors_rho, prior_scale){
+.check_and_list_priors      <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, prior_scale){
 
   # format the model-type (in RoBMA.reg, the add_info check is run only after .check_and_list_priors)
   model_type <- .check_and_set_model_type(model_type, prior_scale)
@@ -19,11 +19,11 @@
         prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),   prior_weights = 1/4),
         prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf), prior_weights = 1/4)
       )
-      priors_rho                <- NULL
+      priors_hierarchical       <- NULL
       priors_effect_null        <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null          <- prior_none()
-      priors_rho_null           <- NULL
+      priors_hierarchical_null  <- NULL
     }else if(model_type == "pp"){
       priors_effect          <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
       priors_heterogeneity   <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
@@ -31,11 +31,11 @@
         prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),    prior_weights = 1/2),
         prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),  prior_weights = 1/2)
       )
-      priors_rho                 <- NULL
+      priors_hierarchical        <- NULL
       priors_effect_null         <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null           <- prior_none()
-      priors_rho_null            <- NULL
+      priors_hierarchical_null   <- NULL
     }else if(model_type == "2w"){
       priors_effect              <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
       priors_heterogeneity       <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
@@ -43,11 +43,11 @@
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),        prior_weights = 1/2),
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),  prior_weights = 1/2)
       )
-      priors_rho                 <- NULL
+      priors_hierarchical        <- NULL
       priors_effect_null         <- prior(distribution = "point", parameters = list(location = 0))
       priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null           <- prior_none()
-      priors_rho_null            <- NULL
+      priors_hierarchical_null   <- NULL
     }else{
       stop("Unknown 'model_type'.")
     }
@@ -57,7 +57,7 @@
   priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
   priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
   priors$bias           <- .check_and_list_component_priors(priors_bias_null,            priors_bias,           "bias")
-  priors$rho            <- .check_and_list_component_priors(priors_rho_null,             priors_rho,            "rho")
+  priors$hierarchical   <- .check_and_list_component_priors(priors_hierarchical_null,    priors_hierarchical,   "hierarchical")
 
   return(priors)
 }
@@ -65,7 +65,7 @@
                                         priors_effect_null, priors_effect,
                                         priors_heterogeneity_null, priors_heterogeneity,
                                         priors_bias_null, priors_bias,
-                                        priors_rho_null, priors_rho,
+                                        priors_hierarchical_null, priors_hierarchical,
                                         prior_covariates_null, prior_covariates,
                                         prior_factors_null, prior_factors){
 
@@ -77,8 +77,8 @@
     priors_heterogeneity      = priors_heterogeneity,
     priors_bias_null          = priors_bias_null,
     priors_bias               = priors_bias,
-    priors_rho_null           = priors_rho_null,
-    priors_rho                = priors_rho,
+    priors_hierarchical_null  = priors_hierarchical_null,
+    priors_hierarchical       = priors_hierarchical,
     prior_scale               = prior_scale
   )
 
@@ -211,7 +211,7 @@
 .check_and_list_component_priors  <- function(priors_null, priors_alt, component){
 
   # check that at least one prior is specified (either null or alternative)
-  if(component != "rho" && (is.null(priors_null) & is.null(priors_alt)))
+  if(component != "hierarchical" && (is.null(priors_null) & is.null(priors_alt)))
     stop(paste0("At least one prior needs to be specified for the ", component," parameter (either null or alternative)."))
 
   # create an empty list if user didn't specified priors
@@ -251,7 +251,7 @@
 
 
   # check that the passed priors are supported for the component (and replace none placeholders)
-  if(component %in% c("effect", "heterogeneity")){
+  if(component %in% c("effect", "heterogeneity", "hierarchical")){
 
     for(p in seq_along(priors)){
 
@@ -276,6 +276,24 @@
           priors[[p]]$truncation[["lower"]] <- 0
           warning(paste0("The range of a prior distribution for ", component, " component cannot be negative. The lower truncation point was set to zero."), immediate. = TRUE)
         }
+      }else if(component == "hierarchical"){
+        if(priors[[p]][["distribution"]] == "point" && abs(priors[[p]]$parameters[["location"]]) > 1){
+          stop("The location of a point prior distribution for the hierarchical correlation must be within [-1, 1] interval.")
+        }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[p]]$parameters[["a"]] < -1 | priors[[p]]$parameters[["b"]] > 1)){
+          stop("The uniform prior distribution for the hierarchical correlation cannot be defined outsied of the [-1, 1] interval.")
+        }
+
+        if(priors[[p]]$truncation[["lower"]] < -1){
+          priors[[p]]$truncation[["lower"]] <- -1
+          warning("The range of a prior distribution for the hierarchical correlation cannot be lower than -1. The lower truncation point was set to -1.", immediate. = TRUE)
+        }
+        if(priors[[p]]$truncation[["upper"]] > 1){
+          priors[[p]]$truncation[["lower"]] <- 1
+          warning("The range of a prior distribution for the hierarchical correlation cannot be higher than 1. The upper truncation point was set to 1.", immediate. = TRUE)
+        }
+        if(priors[[p]]$truncation[["lower"]] > priors[[p]]$truncation[["upper"]]){
+          stop("Invalid lower and upper truncation points for the hierarchical correlation.", immediate. = TRUE)
+        }
       }
 
     }
@@ -289,14 +307,6 @@
       if(!(is.prior.PET(priors[[p]]) | is.prior.PEESE(priors[[p]]) | is.prior.weightfunction(priors[[p]]) | is.prior.none(priors[[p]])))
         stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the bias component."))
     }
-  }else if(component == "rho"){
-
-    for(p in seq_along(priors)){
-
-      # check for allowed priors
-      if(!(priors[[p]][["distribution"]] == "beta"))
-        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
-    }
   }
 
   return(priors)
@@ -309,11 +319,11 @@
   for(effect in priors[["effect"]]){
     for(heterogeneity in priors[["heterogeneity"]]){
       for(bias in priors[["bias"]]){
-        if(!is.null(priors[["rho"]]) && multivariate){
-          for(rho in priors[["rho"]]){
+        if(!is.null(priors[["hierarchical"]]) && multivariate){
+          for(hierarchical in priors[["hierarchical"]]){
             models <- c(
               models,
-              list(.make_model(effect, heterogeneity, bias, rho, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * rho[["prior_weights"]], multivariate, weighted))
+              list(.make_model(effect, heterogeneity, bias, hierarchical, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * hierarchical[["prior_weights"]], multivariate, weighted))
             )
           }
         }else{
@@ -328,7 +338,7 @@
 
   return(models)
 }
-.make_model      <- function(prior_effect, prior_heterogeneity, prior_bias, prior_rho, prior_weights, multivariate, weighted){
+.make_model      <- function(prior_effect, prior_heterogeneity, prior_bias, prior_hierarchical, prior_weights, multivariate, weighted){
 
   priors <- list()
 
@@ -342,19 +352,20 @@
     priors$omega  <- prior_bias
   }
   # add 3 level structure only if there is heterogeneity
-  if(!(prior_heterogeneity[["distribution"]] == "point" && prior_heterogeneity$parameters[["location"]] == 0) && !is.null(prior_rho)){
-    priors$rho    <- prior_rho
+  if(!(prior_heterogeneity[["distribution"]] == "point" && prior_heterogeneity$parameters[["location"]] == 0) && !is.null(prior_hierarchical)){
+    priors$rho <- prior_hierarchical
   }
 
   model <- list(
-    priors         = priors,
+    priors            = priors,
     prior_weights     = prior_weights,
     prior_weights_set = prior_weights
   )
   class(model) <- "RoBMA.model"
 
-  attr(model, "multivariate") <- multivariate && !is.null(priors$rho)
-  attr(model, "weighted")     <- weighted
+  attr(model, "multivariate")  <- multivariate && !is.null(priors$rho)
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
 
   return(model)
 }
@@ -420,8 +431,9 @@
   )
 
   class(model) <- "RoBMA.reg.model"
-  attr(model, "multivariate") <- attr(model_base, "multivariate")
-  attr(model, "weighted")     <- attr(model_base, "weighted")
+  attr(model, "multivariate")  <- attr(model_base, "multivariate")
+  attr(model, "weighted")      <- attr(model_base, "weighted")
+  attr(model, "weighted_type") <- attr(model_base, "weighted_type")
 
   return(model)
 }
