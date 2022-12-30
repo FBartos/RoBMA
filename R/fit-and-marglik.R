@@ -306,17 +306,6 @@
     weighted         = attr(model, "weighted")
   )
 
-  # additional settings for the random effects model (not marginalized out as in the normal case)
-  if(attr(model, "random")){
-    add_parameters <- paste0("delta[",1:fit_data[["K"]],"]")
-    add_bounds     <- list(
-      "lb" = rep(-Inf, fit_data[["K"]]),
-      "ub" = rep( Inf, fit_data[["K"]])
-    )
-    names(add_bounds[["lb"]]) <- add_parameters
-    names(add_bounds[["ub"]]) <- add_parameters
-  }
-
   # fit the model
   fit <- BayesTools::JAGS_fit(
     model_syntax       = model_syntax,
@@ -325,7 +314,6 @@
     formula_list       = formula_list,
     formula_data_list  = formula_data_list,
     formula_prior_list = formula_prior_list,
-    add_parameters     = if(attr(model, "random")) add_parameters,
     chains             = fit_control[["chains"]],
     adapt              = fit_control[["adapt"]],
     burnin             = fit_control[["burnin"]],
@@ -385,8 +373,6 @@
       formula_list       = formula_list,
       formula_data_list  = formula_data_list,
       formula_prior_list = formula_prior_list,
-      add_parameters     = if(attr(model, "random")) add_parameters,
-      add_bounds         = if(attr(model, "random")) add_bounds,
       log_posterior      = .marglik_function.bi,
       maxiter            = 50000,
       silent             = fit_control[["silent"]],
@@ -411,18 +397,38 @@
     }
   }
 
-
   # add model summaries
   if(has_posterior){
-    fit_summary <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_orthonormal = TRUE, formula_prefix = FALSE, remove_parameters = c("pi", if(attr(model, "random")) paste0("delta[",1:fit_data[["K"]],"]")))
+    fit_summary   <- BayesTools::runjags_estimates_table(
+      fit                   = fit,
+      warnings              = warnings,
+      transform_orthonormal = TRUE,
+      formula_prefix        = FALSE,
+      remove_parameters     = c("pi", if(attr(model, "random")) "gamma")
+    )
+    fit_summaries <- .runjags_summary_list(
+      fit               = fit,
+      priors            = attr(fit, "prior_list"),
+      priors_scale      = add_info[["prior_scale"]],
+      warnings          = warnings,
+      remove_parameters = c("pi", if(attr(model, "random")) "gamma")
+    )
   }else{
-    fit_summary <- BayesTools::runjags_estimates_empty_table()
+    fit_summary    <- BayesTools::runjags_estimates_empty_table()
+    fit_summaries  <- list(
+      "d"     = BayesTools::runjags_estimates_empty_table(),
+      "r"     = BayesTools::runjags_estimates_empty_table(),
+      "logOR" = BayesTools::runjags_estimates_empty_table(),
+      "z"     = BayesTools::runjags_estimates_empty_table()
+    )
   }
+
 
   model <- c(
     model,
     fit           = list(fit),
     fit_summary   = list(fit_summary),
+    fit_summaries = list(fit_summaries),
     marglik       = list(marglik),
     errors        = list(errors),
     warnings      = list(warnings),
@@ -724,19 +730,20 @@
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
   # deal with the random/fixed models (they are not marginalized as in the normal case) & meta-regression
+  # using non-central parameterization
   if(random && regression){
-    model_syntax <- paste0(model_syntax, "  delta[i] ~ dnorm(mu[i], 1/pow(tau,2))\n")
+    eff <- "(mu[i] + gamma[i] * tau)"
   }else if(random && !regression){
-    model_syntax <- paste0(model_syntax, "  delta[i] ~ dnorm(mu, 1/pow(tau,2))\n")
+    eff <- "(mu + gamma[i] * tau)"
   }else if(!random && regression){
-    model_syntax <- paste0(model_syntax, "  delta[i] = mu[i]\n")
+    eff <- "mu[i]"
   }else if(!random && !regression){
-    model_syntax <- paste0(model_syntax, "  delta[i] = mu\n")
+    eff <- "mu"
   }
 
   # transform the parameters to the probability scale
-  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) - 0.5 * delta[i]\n")
-  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) + 0.5 * delta[i]\n")
+  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) - 0.5 * ", eff, "\n")
+  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) + 0.5 * ", eff, "\n")
 
   # the observed data
   if(weighted){
@@ -934,21 +941,15 @@
 
   # extract parameters
   mu    <- parameters[["mu"]]
-  if(random){
-    delta <- unlist(parameters[paste0("delta[",1:data[["K"]],"]")])
-  }else{
-    delta <- parameters[["delta"]]
-  }
-  tau   <- parameters[["tau"]]
   pi    <- parameters[["pi"]]
+  if(random){
+    delta <- mu + parameters[["gamma"]] * parameters[["tau"]]
+  }else{
+    delta <- mu
+  }
 
   ### compute the marginal log_likelihood
   log_lik <- 0
-
-  # deal with random effects
-  if(!(is.prior.point(priors[["tau"]]) && priors[["tau"]]$parameters[["location"]] == 0)){
-    log_lik <- log_lik + sum(stats::dnorm(x = delta, mean = mu, sd = tau,log = TRUE))
-  }
 
   # transform to probabilities
   p1 = .inv_logit( .logit(pi) - 0.5 * delta)
@@ -1003,7 +1004,7 @@
 
   return(order(fitting_difficulty, decreasing = TRUE))
 }
-.runjags_summary_list   <- function(fit, priors, priors_scale, warnings){
+.runjags_summary_list   <- function(fit, priors, priors_scale, warnings, remove_parameters = NULL){
 
   summary_list <- list()
 
@@ -1062,7 +1063,8 @@
       transform_orthonormal = TRUE,
       formula_prefix        = FALSE,
       warnings              = warnings,
-      footnotes             = .scale_note(priors_scale, measure)
+      footnotes             = .scale_note(priors_scale, measure),
+      remove_parameters     = remove_parameters
     )
   }
 

@@ -526,6 +526,8 @@
 }
 .make_model.bi   <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, K, weighted){
 
+  is_random <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
+
   priors <- list()
 
   priors$mu    <- prior_effect
@@ -535,6 +537,12 @@
   # specify the number of levels
   attr(priors$pi, "levels") <- K
 
+  # add non-central random effects
+  if(is_random){
+    priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(priors$gamma, "levels") <- K
+  }
+
   model <- list(
     priors            = priors,
     prior_weights     = prior_weights,
@@ -543,8 +551,10 @@
   class(model) <- "BiBMA.model"
 
   attr(model, "multivariate") <- FALSE
-  attr(model, "random")       <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
+  attr(model, "random")       <- is_random
   attr(model, "weighted")     <- weighted
+
+
 
   return(model)
 }
