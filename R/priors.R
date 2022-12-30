@@ -60,3 +60,23 @@ prior_informed <- BayesTools::prior_informed
 #' @export
 contr.orthonormal <- BayesTools::contr.orthonormal
 
+#' @title Independent contrast matrix
+#'
+#' @description Return a matrix of independent contrasts -- a level for each term.
+#'
+#' @param n a vector of levels for a factor, or the number of levels
+#' @param contrasts logical indicating whether contrasts should be computed
+#'
+#' @examples
+#' contr.independent(c(1, 2))
+#' contr.independent(c(1, 2, 3))
+#'
+#' @references
+#' \insertAllCited{}
+#'
+#' @return A matrix with n rows and k columns, with k = n if \code{contrasts = TRUE} and k = n
+#' if \code{contrasts = FALSE}.
+#'
+#' @export
+contr.independent <- BayesTools::contr.independent
+

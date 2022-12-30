@@ -306,7 +306,7 @@
     weighted         = attr(model, "weighted")
   )
 
-  # additional settings for the random effects model
+  # additional settings for the random effects model (not marginalized out as in the normal case)
   if(attr(model, "random")){
     add_parameters <- paste0("delta[",1:fit_data[["K"]],"]")
     add_bounds     <- list(
@@ -734,13 +734,17 @@
     model_syntax <- paste0(model_syntax, "  delta[i] = mu\n")
   }
 
+  # transform the parameters to the probability scale
+  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) - 0.5 * delta[i]\n")
+  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) + 0.5 * delta[i]\n")
+
   # the observed data
   if(weighted){
-    model_syntax <- paste0(model_syntax, "  x1[i] ~ dwbinom(exp(log(pi[i]) - 0.5 * delta[i]), n1[i], weight[i])\n")
-    model_syntax <- paste0(model_syntax, "  x2[i] ~ dwbinom(exp(log(pi[i]) + 0.5 * delta[i]), n2[i], weight[i])\n")
+    model_syntax <- paste0(model_syntax, "  x1[i] ~ dwbinom(p1[i], n1[i], weight[i])\n")
+    model_syntax <- paste0(model_syntax, "  x2[i] ~ dwbinom(p2[i], n2[i], weight[i])\n")
   }else{
-    model_syntax <- paste0(model_syntax, "  x1[i] ~ dbinom(exp(log(pi[i]) - 0.5 * delta[i]), n1[i])\n")
-    model_syntax <- paste0(model_syntax, "  x2[i] ~ dbinom(exp(log(pi[i]) + 0.5 * delta[i]), n2[i])\n")
+    model_syntax <- paste0(model_syntax, "  x1[i] ~ dbinom(p1[i], n1[i])\n")
+    model_syntax <- paste0(model_syntax, "  x2[i] ~ dbinom(p2[i], n2[i])\n")
   }
 
   model_syntax <- paste0(model_syntax, "}\n")
@@ -946,12 +950,16 @@
     log_lik <- log_lik + sum(stats::dnorm(x = delta, mean = mu, sd = tau,log = TRUE))
   }
 
+  # transform to probabilities
+  p1 = .inv_logit( .logit(pi) - 0.5 * delta)
+  p2 = .inv_logit( .logit(pi) + 0.5 * delta)
+
   if(!is.null(data[["weight"]])){
-    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = pi * exp(-(1/2)*delta), size = data[["n1"]], log = TRUE) * data[["weight"]])
-    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = pi * exp(+(1/2)*delta), size = data[["n2"]], log = TRUE) * data[["weight"]])
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = p1, size = data[["n1"]], log = TRUE) * data[["weight"]])
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = p2, size = data[["n2"]], log = TRUE) * data[["weight"]])
   }else{
-    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = pi * exp(-(1/2)*delta), size = data[["n1"]], log = TRUE))
-    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = pi * exp(+(1/2)*delta), size = data[["n2"]], log = TRUE))
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = p1, size = data[["n1"]], log = TRUE))
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = p2, size = data[["n2"]], log = TRUE))
   }
 
   return(log_lik)
@@ -1123,6 +1131,9 @@
   return(priors)
 }
 
+# marginal likelihood computation function
+.logit     <- function(x) log(x/(1-x))
+.inv_logit <- function(x) 1/(1+exp(-x))
 
 # JAGS tools for model building and marginal likelihood
 .JAGS_transformation    <- function(from, to, from_par, to_par_name){

@@ -69,6 +69,9 @@ distributions.}
 \item{\code{"treatment"}}{for contrasts using the first level as a comparison
 group and setting equal prior distribution on differences between the individual
 factor levels and the comparison level.}
+\item{\code{"independent"}}{for contrasts specifying dependent prior distribution
+for each factor level (note that this leads to an overparameterized model if the
+intercept is included).}
 }}
 }
 \value{

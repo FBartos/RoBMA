@@ -18,7 +18,9 @@ BiBMA(
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
     0)),
-  prior_baseline = prior("beta", parameters = list(alpha = 1/2, beta = 1/2)),
+  priors_baseline = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast
+    = "independent"),
+  priors_baseline_null = NULL,
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -76,9 +78,12 @@ parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero (a fixed effect meta-analytic models),
 \code{prior(distribution = "point", parameters = list(location = 0))}.}
 
-\item{prior_baseline}{prior distributions for the shared intercept (\code{pi})
-across all models. Defaults to Jeffreys' prior distribution
-\code{prior("beta", parameters = list(alpha = 1/2, beta = 1/2))}.}
+\item{priors_baseline}{prior distributions for independent intercepts (\code{pi})
+for each study. Defaults to a uniform prior distribution
+\code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.}
+
+\item{priors_baseline_null}{prior distributions for the null hypothesis about
+independent intercepts (\code{pi}) for each study. Defaults to \code{NULL}.}
 
 \item{chains}{a number of chains of the MCMC algorithm.}
 

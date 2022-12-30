@@ -208,12 +208,12 @@
 
   return(priors_main)
 }
-.check_and_list_priors.bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, prior_baseline){
+.check_and_list_priors.bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_baseline_null, priors_baseline){
 
   priors <- list()
   priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
   priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
-  priors$pi             <- .check_and_list_component_priors(NULL,                        prior_baseline,              "pi")
+  priors$baseline       <- .check_and_list_component_priors(priors_baseline_null,        priors_baseline,       "baseline")
 
   return(priors)
 }
@@ -289,7 +289,7 @@
         if(priors[[p]][["distribution"]] == "point" && abs(priors[[p]]$parameters[["location"]]) > 1){
           stop("The location of a point prior distribution for the hierarchical correlation must be within [-1, 1] interval.")
         }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[p]]$parameters[["a"]] < -1 | priors[[p]]$parameters[["b"]] > 1)){
-          stop("The uniform prior distribution for the hierarchical correlation cannot be defined outsied of the [-1, 1] interval.")
+          stop("The uniform prior distribution for the hierarchical correlation cannot be defined outside of the [-1, 1] interval.")
         }
 
         if(priors[[p]]$truncation[["lower"]] < -1){
@@ -324,13 +324,37 @@
       if(!(priors[[p]][["distribution"]] == "beta"))
         stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
     }
-  }else if(component == "pi"){
+  }else if(component == "baseline"){
 
     for(p in seq_along(priors)){
 
-      # check for allowed priors
-      if(!(priors[[p]][["distribution"]] == "beta"))
-        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
+      # do not allow empty priors
+      if(is.prior.none(priors[[p]])){
+        stop("The baseline probability cannot be undefined.")
+      }
+
+      if(!is.prior.independent(priors[[p]])){
+        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the baseline probability component."))
+      }
+
+      if(priors[[p]][["distribution"]] == "point" && (priors[[p]]$parameters[["location"]] > 1 || priors[[p]]$parameters[["location"]] < 0)){
+        stop("The location of a point prior distribution for the baseline probability must be within [0, 1] interval.")
+      }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[p]]$parameters[["a"]] < 0 | priors[[p]]$parameters[["b"]] > 1)){
+        stop("The uniform prior distribution for the baseline probability cannot be defined outside of the [0, 1] interval.")
+      }
+
+      if(priors[[p]]$truncation[["lower"]] < 0){
+        priors[[p]]$truncation[["lower"]] <- 0
+        warning("The range of a prior distribution for the baseline probability cannot be lower than 0. The lower truncation point was set to 0.", immediate. = TRUE)
+      }
+      if(priors[[p]]$truncation[["upper"]] > 1){
+        priors[[p]]$truncation[["lower"]] <- 1
+        warning("The range of a prior distribution for the baseline probability cannot be higher than 1. The upper truncation point was set to 1.", immediate. = TRUE)
+      }
+      if(priors[[p]]$truncation[["lower"]] > priors[[p]]$truncation[["upper"]]){
+        stop("Invalid lower and upper truncation points for the baseline probability.", immediate. = TRUE)
+      }
+
     }
   }
 
@@ -352,8 +376,8 @@
                 prior_effect        = effect,
                 prior_heterogeneity = heterogeneity,
                 prior_bias          = bias,
-                prior_rho           = rho,
-                prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * rho[["prior_weights"]],
+                prior_hierarchical  = hierarchical,
+                prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * hierarchical[["prior_weights"]],
                 multivariate        = multivariate,
                 weighted            = weighted
             )))
@@ -365,7 +389,7 @@
               prior_effect        = effect,
               prior_heterogeneity = heterogeneity,
               prior_bias          = bias,
-              prior_rho           = NULL,
+              prior_hierarchical  = NULL,
               prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]],
               multivariate        = multivariate,
               weighted            = weighted
@@ -483,16 +507,18 @@
   models <- NULL
   for(effect in priors[["effect"]]){
     for(heterogeneity in priors[["heterogeneity"]]){
-      models <- c(
-        models,
-        list(.make_model.bi(
-          prior_effect        = effect,
-          prior_heterogeneity = heterogeneity,
-          prior_baseline            = priors[["pi"]][[1]],
-          prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]],
-          K                   = K,
-          weighted            = weighted
-      )))
+      for(baseline in priors[["baseline"]]){
+        models <- c(
+          models,
+          list(.make_model.bi(
+            prior_effect        = effect,
+            prior_heterogeneity = heterogeneity,
+            prior_baseline      = baseline,
+            prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * baseline[["prior_weights"]],
+            K                   = K,
+            weighted            = weighted
+        )))
+      }
     }
   }
 
@@ -504,17 +530,10 @@
 
   priors$mu    <- prior_effect
   priors$tau   <- prior_heterogeneity
+  priors$pi    <- prior_baseline
 
-  # a small hack to create independent priors for the baseline probabilities
-  # (TODO: use prior_vector when/if implemented in BayesTools)
-  priors$pi    <- prior_factor(
-    distribution = prior_baseline[["distribution"]],
-    parameters   = prior_baseline[["parameters"]],
-    truncation   = prior_baseline[["truncation"]],
-    contrast     = "treatment"
-  )
-  attr(priors$pi, "levels")      <- K + 1
-  attr(priors$pi, "interaction") <- FALSE
+  # specify the number of levels
+  attr(priors$pi, "levels") <- K
 
   model <- list(
     priors            = priors,

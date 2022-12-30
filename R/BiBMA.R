@@ -9,9 +9,11 @@
 #' @param x2 a vector with the number of successes in the second group
 #' @param n1 a vector with the number of observations in the first group
 #' @param n2 a vector with the number of observations in the second group
-#' @param prior_baseline prior distributions for the shared intercept (\code{pi})
-#' across all models. Defaults to Jeffreys' prior distribution
-#' \code{prior("beta", parameters = list(alpha = 1/2, beta = 1/2))}.
+#' @param priors_baseline prior distributions for independent intercepts (\code{pi})
+#' for each study. Defaults to a uniform prior distribution
+#' \code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.
+#' @param priors_baseline_null prior distributions for the null hypothesis about
+#' independent intercepts (\code{pi}) for each study. Defaults to \code{NULL}.
 #' @inheritParams RoBMA
 #' @inheritParams combine_data
 #'
@@ -34,7 +36,8 @@ BiBMA <- function(
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
 
-  prior_baseline         = prior("beta", parameters = list(alpha = 1/2, beta = 1/2)),
+  priors_baseline        = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
+  priors_baseline_null   = NULL,
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -73,7 +76,7 @@ BiBMA <- function(
   object$priors     <- .check_and_list_priors.bi(
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
-    prior_baseline = prior_baseline)
+    priors_baseline_null = priors_baseline_null, priors_baseline = priors_baseline)
   object$models     <- .make_models.bi(object[["priors"]], nrow(object$data), .is_weighted(object))
 
 
