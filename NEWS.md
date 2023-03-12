@@ -1,3 +1,8 @@
+## version 2.3.2
+### Fixes
+- suppressing start-up message 
+- cleaning up imports
+
 ## version 2.3.1
 ### Fixes
 - fixing weighted meta-analysis parameterization 

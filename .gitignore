@@ -17,3 +17,4 @@ RoBMA.Rcheck
 .Rprofile
 /doc/
 /Meta/
+models/MetaRegression/*
