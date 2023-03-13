@@ -49,6 +49,7 @@ Imports:
     mvtnorm,
     scales,
     Rdpack,
+    rlang,
     ggplot2
 Suggests:
     parallel,

@@ -199,9 +199,17 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
 
   }else if(plot_type == "ggplot"){
 
-    graph <- ggplot2::ggplot(plot_data$samp, ggplot2::aes_string(x = "iteration", y = "value", color = "chain")) +
+    graph <- ggplot2::ggplot(
+      data    = data.frame(
+        x     = plot_data$samp$iteration,
+        y     = plot_data$samp$value,
+        color = plot_data$samp$chain),
+      mapping = ggplot2::aes(
+        x     = .data[["x"]],
+        y     = .data[["y"]],
+        color = .data[["color"]])) +
       ggplot2::geom_path() +
-      ggplot2::scale_color_manual(values = .diagnostics_color(plot_data$nchains))
+      ggplot2::scale_color_manual(name = "chain", values = .diagnostics_color(plot_data$nchains))
     temp_x_range <- range(plot_data$samp$iteration)
     temp_y_range <- range(plot_data$samp$value)
     graph <- graph + ggplot2::scale_x_continuous(
@@ -283,9 +291,15 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
 
   }else if(plot_type == "ggplot"){
 
-    graph <-  ggplot2::ggplot(plot_data$samp, ggplot2::aes_string(x = "value")) +
-      ggplot2::geom_density(mapping = ggplot2::aes_string(fill = "chain"), color = "black", alpha = .5) +
-      ggplot2::scale_fill_manual(values = .diagnostics_color(plot_data$nchains))
+    graph <-  ggplot2::ggplot(
+      data    = data.frame(
+        x    = plot_data$samp$value,
+        fill = plot_data$samp$chain),
+      mapping = ggplot2::aes(
+        x    = .data[["x"]],
+        fill = .data[["fill"]])) +
+      ggplot2::geom_density(color = "black", alpha = .5) +
+      ggplot2::scale_fill_manual(name = "chain", values = .diagnostics_color(plot_data$nchains))
     temp_y_max   <- max(ggplot2::ggplot_build(graph)$data[[1]]$density)
     temp_x_range <- if(par == "omega") c(0, 1) else range(plot_data$samp$value)
     graph <- graph +  ggplot2::scale_y_continuous(
@@ -339,8 +353,14 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
     graph <- NULL
 
   }else if(plot_type == "ggplot"){
-    graph     <- ggplot2::ggplot(ac_dat, ggplot2::aes_string(x = "lag", y = "ac")) +
-      ggplot2::geom_bar(size = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun = "mean") +
+    graph     <- ggplot2::ggplot(
+      data    = data.frame(
+        x     = ac_dat$lag,
+        y     = ac_dat$ac),
+      mapping = ggplot2::aes(
+        x     = .data[["x"]],
+        y     = .data[["y"]])) +
+      ggplot2::geom_bar(linewidth = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun = "mean") +
       ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.25)) +
       ggplot2::labs(x = "Lag", y = "Avg. autocorrelation")
     if(!is.null(title)){
