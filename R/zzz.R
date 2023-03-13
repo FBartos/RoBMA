@@ -12,7 +12,10 @@
     module_location <- NULL
     warning('The RoBMA module could not be loaded.', call. = FALSE)
   }else{
-    rjags::load.module("RoBMA", path = module_location)
+    rjags::load.module("RoBMA", path = module_location, quiet = TRUE)
+    if(!"RoBMA" %in% rjags::list.modules()){
+      warning('The RoBMA module could not be loaded.', call. = FALSE)
+    }
   }
 
   RoBMA.private$module_location <- module_location

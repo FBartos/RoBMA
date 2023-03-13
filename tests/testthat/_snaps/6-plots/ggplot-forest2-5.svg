@@ -56,7 +56,7 @@
 <polygon points='336.30,127.52 340.21,127.52 340.21,123.61 336.30,123.61 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
 <polygon points='380.66,206.58 384.57,206.58 384.57,202.68 380.66,202.68 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
 <polygon points='427.91,285.65 431.82,285.65 431.82,281.74 427.91,281.74 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
-<polygon points='250.79,441.82 379.89,422.06 485.23,441.82 379.89,461.59 ' style='stroke-width: 1.07; stroke: none; fill: #000000;' />
+<polygon points='250.79,441.82 379.89,422.06 485.23,441.82 379.89,461.59 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #000000;' />
 <polyline points='295.24,520.89 295.24,46.50 ' style='stroke-width: 1.07; stroke-dasharray: 1.42,4.27; stroke-linecap: butt;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
@@ -64,10 +64,10 @@
 <text x='5.48' y='128.59' style='font-size: 8.80px; font-family: sans;' textLength='29.85px' lengthAdjust='spacingAndGlyphs'>Study 1</text>
 <text x='5.48' y='207.66' style='font-size: 8.80px; font-family: sans;' textLength='29.85px' lengthAdjust='spacingAndGlyphs'>Study 2</text>
 <text x='5.48' y='286.72' style='font-size: 8.80px; font-family: sans;' textLength='29.85px' lengthAdjust='spacingAndGlyphs'>Study 3</text>
-<text x='714.52' y='444.73' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.54px' lengthAdjust='spacingAndGlyphs'>0.40 [-0.21, 0.89]</text>
-<text x='714.52' y='128.71' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.54px' lengthAdjust='spacingAndGlyphs'>0.20 [-0.96, 1.43]</text>
-<text x='714.52' y='207.59' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.54px' lengthAdjust='spacingAndGlyphs'>0.41 [-0.55, 1.46]</text>
-<text x='714.52' y='286.98' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.05px' lengthAdjust='spacingAndGlyphs'>0.63 [ 0.05, 1.26]</text>
+<text x='714.52' y='444.85' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.54px' lengthAdjust='spacingAndGlyphs'>0.40 [-0.21, 0.89]</text>
+<text x='714.52' y='128.59' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.54px' lengthAdjust='spacingAndGlyphs'>0.20 [-0.96, 1.43]</text>
+<text x='714.52' y='207.66' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.54px' lengthAdjust='spacingAndGlyphs'>0.41 [-0.55, 1.46]</text>
+<text x='714.52' y='286.72' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='66.05px' lengthAdjust='spacingAndGlyphs'>0.63 [ 0.05, 1.26]</text>
 <polyline points='81.20,547.34 81.20,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='188.22,547.34 188.22,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='295.24,547.34 295.24,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />

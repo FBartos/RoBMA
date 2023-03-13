@@ -41,8 +41,8 @@ RoBMA(
     truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy",
     parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/4)),
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location
-    = 0)),
+  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
+    0)),
   priors_bias_null = prior_none(),
   priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
   priors_rho_null = NULL,

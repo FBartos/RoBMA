@@ -25,5 +25,7 @@
 ##'
 ##' @references \insertAllCited{}
 ##' @importFrom BayesTools is.prior is.prior.none is.prior.point is.prior.simple is.prior.PET is.prior.PEESE is.prior.weightfunction
+##' @importFrom Rdpack reprompt
+##' @importFrom rlang .data
 "_PACKAGE"
 
