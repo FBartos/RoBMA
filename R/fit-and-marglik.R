@@ -742,8 +742,8 @@
   }
 
   # transform the parameters to the probability scale
-  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) - 0.5 * ", eff, "\n")
-  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) + 0.5 * ", eff, "\n")
+  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) + 0.5 * ", eff, "\n")
+  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) - 0.5 * ", eff, "\n")
 
   # the observed data
   if(weighted){
@@ -952,8 +952,8 @@
   log_lik <- 0
 
   # transform to probabilities
-  p1 = .inv_logit( .logit(pi) - 0.5 * delta)
-  p2 = .inv_logit( .logit(pi) + 0.5 * delta)
+  p1 = .inv_logit( .logit(pi) + 0.5 * delta)
+  p2 = .inv_logit( .logit(pi) - 0.5 * delta)
 
   if(!is.null(data[["weight"]])){
     log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = p1, size = data[["n1"]], log = TRUE) * data[["weight"]])
