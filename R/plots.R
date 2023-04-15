@@ -233,7 +233,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
 
   if(parameter %in% x$add_info[["predictors"]]){
     if(inherits(samples[[parameter_samples]], "mixed_posteriors.factor")){
-      if(attr(samples[[parameter_samples]],"orthonormal")){
+      if(attr(samples[[parameter_samples]],"orthonormal") || attr(samples[[parameter_samples]],"meandif")){
         n_levels <- length(attr(samples[[parameter_samples]],"level_names"))
       }else if(attr(samples[[parameter_samples]],"treatment")){
         n_levels <- length(attr(x$add_info[["predictors"]],"level_names")) - 1
