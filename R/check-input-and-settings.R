@@ -400,7 +400,24 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   return(warnings)
 }
+.check_predictors_scaling <- function(object){
 
+  warnings   <- NULL
+  predictors <- object[["data"]][["predictors"]]
+
+  # check that all continuous predictors are centered and scale
+  for(i in seq_along(predictors)){
+
+    if(attr(predictors, "variables_info")[[i]][["type"]] == "continuous"){
+      if(!(isTRUE(all.equal(attr(predictors, "variables_info")[[i]][["mean"]], 0)) && isTRUE(all.equal(attr(predictors, "variables_info")[[i]][["sd"]], 1)))){
+        warnings <- c(warnings, paste0("The continuous predictor '",names(predictors[i]),"' is not standardized. Be cafefull about the specified prior distribution and hypothesis test."))
+      }
+    }
+
+  }
+
+  return(warnings)
+}
 
 # some functions for the JASP implementation
 .RoBMA_collect_dots      <- function(...){

@@ -149,7 +149,8 @@ RoBMA.reg <- function(
   )
 
   # the check requires the 'add_info' object already created
-  object$add_info[["warnings"]] <- .check_effect_direction(object)
+  object$add_info[["warnings"]] <- c(.check_effect_direction(object), .check_predictors_scaling(object))
+
 
   if(dots[["do_not_fit"]]){
     return(object)
