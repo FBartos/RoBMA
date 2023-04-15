@@ -225,7 +225,7 @@
 
   # add model summaries
   if(has_posterior){
-    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_orthonormal = TRUE, formula_prefix = FALSE)
+    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE)
     if(add_info[["prior_scale"]] != "y"){
       fit_summaries <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings)
     }else{
@@ -794,12 +794,12 @@
     }
 
     summary_list[[measure]] <- BayesTools::runjags_estimates_table(
-      fit                   = fit,
-      transformations       = transformations,
-      transform_orthonormal = TRUE,
-      formula_prefix        = FALSE,
-      warnings              = warnings,
-      footnotes             = .scale_note(priors_scale, measure)
+      fit               = fit,
+      transformations   = transformations,
+      transform_factors = TRUE,
+      formula_prefix    = FALSE,
+      warnings          = warnings,
+      footnotes         = .scale_note(priors_scale, measure)
     )
   }
 

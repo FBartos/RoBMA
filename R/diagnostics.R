@@ -152,18 +152,18 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
     }else{
 
       # get the parameter name
-      args                          <- dots
-      args$fit                      <- fit$models[[i]][["fit"]]
-      args$parameter                <- parameter_samples
-      args$parameter_names          <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, fit, fit$add_info[["prior_scale"]])[[1]]
-      args$type                     <- type
-      args$plot_type                <- plot_type
-      args$lags                     <- lags
-      args$transformations          <- NULL
-      args$transform_orthonormal    <- TRUE
-      args$short_name               <- FALSE
-      args$parameter_names          <- FALSE
-      args$formula_prefix           <- FALSE
+      args                   <- dots
+      args$fit               <- fit$models[[i]][["fit"]]
+      args$parameter         <- parameter_samples
+      args$parameter_names   <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, fit, fit$add_info[["prior_scale"]])[[1]]
+      args$type              <- type
+      args$plot_type         <- plot_type
+      args$lags              <- lags
+      args$transformations   <- NULL
+      args$transform_factors <- TRUE
+      args$short_name        <- FALSE
+      args$parameter_names   <- FALSE
+      args$formula_prefix    <- FALSE
 
       if(!is.null(title) && title){
         args$main <- paste0("Model ", i)

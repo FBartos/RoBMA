@@ -159,7 +159,7 @@
         seed         = object$add_info[["seed"]],
         conditional  = FALSE
       )
-      posteriors_predictors <- BayesTools::transform_orthonormal_samples(posteriors_predictors)
+      posteriors_predictors <- BayesTools::transform_factor_samples(posteriors_predictors)
     }
 
     # deal with the possibility of only null models models
@@ -173,7 +173,7 @@
         seed         = object$add_info[["seed"]],
         conditional  = TRUE
       )
-      posteriors_predictors_conditional <- BayesTools::transform_orthonormal_samples(posteriors_predictors_conditional)
+      posteriors_predictors_conditional <- BayesTools::transform_factor_samples(posteriors_predictors_conditional)
     }
   }else{
     # create empty objects in case of no predictors
