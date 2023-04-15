@@ -19,7 +19,7 @@
 #' @param prior_covariates a prior distributions for the regression parameter
 #' of continuous covariates on the effect size under the alternative hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a relatively wide normal
-#' distribution \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 0.5))}.
+#' distribution \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 0.25))}.
 #' @param prior_covariates_null a prior distributions for the regression parameter
 #' of continuous covariates on the effect size under the null hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a no effect
@@ -27,8 +27,8 @@
 #' @param prior_factors a prior distributions for the regression parameter
 #' of categorical covariates on the effect size under the alternative hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a relatively wide
-#' multivariate normal distribution specifying orthonormal contrasts
-#' \code{prior_factor("mnormal", parameters = list(mean = 0, sd = 0.50), contrast = "orthonormal")}.
+#' multivariate normal distribution specifying differences from the mean contrasts
+#' \code{prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif")}.
 #' @param prior_factors_null a prior distributions for the regression parameter
 #' of categorical covariates on the effect size under the null hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a no effect
@@ -81,9 +81,9 @@ RoBMA.reg <- function(
     priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
     priors_hierarchical_null   = NULL,
 
-    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.5)),
+    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
-    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.50), contrast = "orthonormal"),
+    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
     prior_factors_null     = prior("spike",  parameters = list(location = 0)),
 
     # MCMC fitting settings

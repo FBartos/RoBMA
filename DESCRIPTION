@@ -43,7 +43,6 @@ Imports:
     BayesTools (>= 0.2.0),
     runjags,
     rjags,
-    coda,
     stats,
     graphics,
     mvtnorm,
