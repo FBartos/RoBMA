@@ -3,7 +3,7 @@ skip_on_cran()
 skip_on_covr()
 
 # test objects
-saved_files <- paste0("fit_", 1:13, ".RDS")
+saved_files <- paste0("fit_", 1:15, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
@@ -18,7 +18,7 @@ remove_time  <- function(fit){
   }
   return(fit)
 }
-clean_all  <- function(fit, only_samples = TRUE, remove_call = FALSE){
+clean_all    <- function(fit, only_samples = TRUE, remove_call = FALSE){
   if(only_samples){
     fit$data     <- NULL
     fit$add_info <- NULL
@@ -212,9 +212,49 @@ test_that("weighted models work", {
   expect_true(all(grepl("dwn",  sapply(c(8:10, 17:19, 26:28, 35:36), function(i) as.character(fit1w$models[[i]]$fit$model)))))
 })
 
+test_that("BMA regression work", {
+
+  df_reg <- data.frame(
+    d       = c(rep(-1, 5), rep(0, 5), rep(1, 5)),
+    se      = rep(0.1, 15),
+    mod_cat = c(rep("A", 5), rep("B", 5), rep("C", 5)),
+    mod_con = c((1:15)/15)
+  )
+
+  fit_14 <- try_parallel(suppressWarnings(RoBMA.reg(~ mod_cat + mod_con, data = df_reg, priors_bias = NULL, seed = 1, parallel = TRUE)))
+  fit_14 <- remove_time(fit_14)
+  expect_equal(clean_all(saved_fits[[14]]), clean_all(fit_14))
+})
+
+test_that("RoBMA (simplified) regression with custom priors work", {
+
+  df_reg <- data.frame(
+    d       = scale(c((1:15)/15)),
+    se      = rep(0.1, 15),
+    mod_con = scale(c((1:15)/15))
+  )
+
+  fit_15 <- try_parallel(suppressWarnings(RoBMA.reg(~ mod_con, data = df_reg,
+                                                    priors = list(
+                                                      "mod_con" = list(
+                                                        "null" = prior("normal", list(0,    0.05)),
+                                                        "alt"  = prior("normal", list(0.30, 0.15))
+                                                      )
+                                                    ),
+                                                    priors_effect_null   = NULL,
+                                                    priors_heterogeneity = NULL,
+                                                    priors_bias          = list(
+                                                      prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/2),
+                                                      prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)
+                                                    ),
+                                                    seed = 1, parallel = TRUE)))
+  fit_15 <- remove_time(fit_15)
+  expect_equal(clean_all(saved_fits[[15]]), clean_all(fit_15))
+})
+
 #### creating / updating the test settings ####
 if(FALSE){
-  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13)
+  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13, fit_14, fit_15)
 
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])
@@ -226,7 +266,7 @@ if(FALSE){
 
   # package version update
   # test objects
-  saved_files <- paste0("fit_", 1:13, ".RDS")
+  saved_files <- paste0("fit_", 1:15, ".RDS")
   saved_fits  <- list()
   for(i in seq_along(saved_files)){
     temp_fit <- readRDS(file = file.path("tests/results/fits", saved_files[i]))

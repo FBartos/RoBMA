@@ -1,0 +1,7 @@
+"Call:"
+"RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "
+"    parallel = TRUE, seed = 1)"
+""
+"Estimates:"
+"       intercept mod_cat [dif: A] mod_cat [dif: B] mod_cat [dif: C]          mod_con              tau "
+"   -5.630498e-06    -8.829242e-01     5.118620e-04     8.824123e-01     5.606741e-02     1.958103e-03 "

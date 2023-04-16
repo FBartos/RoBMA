@@ -352,7 +352,7 @@ test_that("Interpret functions work", {
 #### creating / updating the test settings ####
 if(FALSE){
 
-  saved_files <- paste0("fit_", 1:13, ".RDS")
+  saved_files <- paste0("fit_", 1:15, ".RDS")
   saved_fits  <- list()
   for(i in seq_along(saved_files)){
     saved_fits[[i]] <- readRDS(file = file.path("tests/results/fits", saved_files[i]))
