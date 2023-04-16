@@ -3,19 +3,20 @@ skip_on_cran()
 
 # the plotting functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", 1:13, ".RDS")
+saved_files <- paste0("fit_", 1:15, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
 }
 
 # alternative components present in the models:
-effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13)
-heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13)
-weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13)
-PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13)
-no_weightfunctions <- c(3, 8, 12)
-no_PETPEESE        <- c(2, 8, 10, 12)
+effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15)
+heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14)
+weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13, 15)
+PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13, 15)
+no_weightfunctions <- c(3, 8, 12, 14)
+no_PETPEESE        <- c(2, 8, 10, 12, 14)
+metaregression     <- c(14, 15)
 
 test_that("Parameter plots work", {
 
