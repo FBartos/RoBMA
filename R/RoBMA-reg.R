@@ -48,9 +48,9 @@
 #' \insertAllCited{}
 #'
 #'
-#' @return \code{RoBMA} returns an object of class 'RoBMA'.
+#' @return \code{RoBMA.reg} returns an object of class 'RoBMA.reg'.
 #'
-#' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup()]
+#' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup.reg()]
 #' @export
 RoBMA.reg <- function(
     formula, data, test_predictors = NULL, study_names = NULL, study_ids = NULL,
@@ -129,7 +129,7 @@ RoBMA.reg <- function(
     priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
-  object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
+  object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object), dots[["do_not_fit"]])
 
 
   ### additional information
