@@ -260,7 +260,13 @@ RoBMA <- function(
 
 
   ### prepare and check the settings
-  object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, object$add_info[["prior_scale"]])
+  object$priors   <- .check_and_list_priors(
+    model_type = object$add_info[["model_type"]],
+    priors_effect_null = priors_effect_null, priors_effect = priors_effect,
+    priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
+    priors_bias_null = priors_bias_null, priors_bias = priors_bias,
+    priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
+    prior_scale = object$add_info[["prior_scale"]])
   object$models   <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 
