@@ -104,15 +104,12 @@ RoBMA.reg <- function(
   object$formula <- formula
 
   # switch between multivariate and weighted models
-  if(.is_multivariate(object)){
-    if(dots[["weighted"]]){
-      .weighted_warning()
-      attr(object$data[["outcome"]], "all_independent") <- TRUE
-      attr(object$data[["outcome"]], "weighted")        <- dots[["weighted"]]
-    }else{
-      .multivariate_warning()
-    }
-  }
+  if(attr(object$data[["outcome"]], "weighted"))
+    .weighted_warning()
+
+  if(.is_multivariate(object))
+    .multivariate_warning()
+
 
   ### check MCMC settings
   object$fit_control        <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
@@ -228,24 +225,25 @@ RoBMA.reg <- function(
 
   ### deal with the effect sizes
   data_outcome <- combine_data(
-    d     = if("d"     %in%  colnames(data)) data[,"d"],
-    r     = if("r"     %in%  colnames(data)) data[,"r"],
-    z     = if("z"     %in%  colnames(data)) data[,"z"],
-    logOR = if("logOR" %in%  colnames(data)) data[,"logOR"],
-    t     = if("t"     %in%  colnames(data)) data[,"t"],
-    y     = if("y"     %in%  colnames(data)) data[,"y"],
-    se    = if("se"    %in%  colnames(data)) data[,"se"],
-    v     = if("v"     %in%  colnames(data)) data[,"v"],
-    n     = if("n"     %in%  colnames(data)) data[,"n"],
-    lCI   = if("lCI"   %in%  colnames(data)) data[,"lCI"],
-    uCI   = if("uCI"   %in%  colnames(data)) data[,"uCI"],
+    d      = if("d"      %in%  colnames(data)) data[,"d"],
+    r      = if("r"      %in%  colnames(data)) data[,"r"],
+    z      = if("z"      %in%  colnames(data)) data[,"z"],
+    logOR  = if("logOR"  %in%  colnames(data)) data[,"logOR"],
+    t      = if("t"      %in%  colnames(data)) data[,"t"],
+    y      = if("y"      %in%  colnames(data)) data[,"y"],
+    se     = if("se"     %in%  colnames(data)) data[,"se"],
+    v      = if("v"      %in%  colnames(data)) data[,"v"],
+    n      = if("n"      %in%  colnames(data)) data[,"n"],
+    lCI    = if("lCI"    %in%  colnames(data)) data[,"lCI"],
+    uCI    = if("uCI"    %in%  colnames(data)) data[,"uCI"],
+    weight = if("weight" %in%  colnames(data)) data[,"weight"],
     study_names    = study_names,
     study_ids      = study_ids,
     transformation = transformation,
     return_all     = FALSE)
 
   ### obtain the predictors part
-  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI"), drop = FALSE]
+  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
 
   if(attr(stats::terms(formula), "response") == 1){
     formula[2] <- NULL
@@ -265,7 +263,6 @@ RoBMA.reg <- function(
       attr(attr(model_frame, "terms"), "dataClasses")[[i]] <- "factor"
     }
   }
-
 
 
   model_frame     <- as.list(model_frame)

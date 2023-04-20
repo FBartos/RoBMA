@@ -687,7 +687,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     if(is.null(dots[["weighted_type"]])){
       attr(dots[["weighted"]], "type") <- "inverse"
     }else{
-      BayesTools::check_char(dots[["weighted_type"]], "weighted", allow_values = c("inverse", "inverse_sqrt"))
+      BayesTools::check_char(dots[["weighted_type"]], "weighted", allow_values = c("inverse", "inverse_sqrt", "custom"))
       attr(dots[["weighted"]], "type") <- dots[["weighted_type"]]
       dots[["weighted_type"]] <- NULL
     }

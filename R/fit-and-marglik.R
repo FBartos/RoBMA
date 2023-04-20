@@ -214,7 +214,7 @@
 
     # weighted vs unweighted models
     if(attr(model, "weighted")){
-      marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE) * fit_data[["weight"]])
+      marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]] / sqrt(fit_data[["weight"]]), log = TRUE))
     }else{
       marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE))
     }
@@ -391,8 +391,12 @@
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
   # marginalized random effects and the effect size
-  prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
-  reg_std  <- "pow( pow(se[i],2) + pow(tau_transformed,2), 1/2)"
+  if(weighted){
+    prec     <- "1 / ( pow(se[i],2) / weight[i] + pow(tau_transformed,2) )"
+  }else{
+    prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
+  }
+
 
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
@@ -409,22 +413,12 @@
   }
 
   # the observed data
-  if(weighted){
-    if(is.null(priors[["omega"]])){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(",     eff, ",", prec, ", weight[i])\n")
-    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega, weight[i]) \n")
-    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega, weight[i]) \n")
-    }
-  }else{
-    if(is.null(priors[["omega"]])){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
-    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
-    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
-    }
+  if(is.null(priors[["omega"]])){
+    model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
+  }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+  }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
   }
 
   model_syntax <- paste0(model_syntax, "}\n")
@@ -567,7 +561,12 @@
 
   ### model
   # marginalized random effects and the effect size
-  pop_sd  <- sqrt(data[["se"]]^2 + tau_transformed^2)
+  if(!is.null(data[["weight"]])){
+    pop_sd  <- sqrt(data[["se"]]^2 / data[["weight"]] + tau_transformed^2)
+  }else{
+    pop_sd  <- sqrt(data[["se"]]^2 + tau_transformed^2)
+  }
+
 
   # add PET/PEESE
   eff <- ifelse(effect_direction == "negative", -1, 1) * mu_transformed
@@ -579,26 +578,14 @@
 
   ### compute the marginal log_likelihood
   log_lik <- 0
-# print(eff)
-# print(sum(abs(data[["y"]] - eff)))
-# print("---------------")
+
   # the individual studies
-  if(!is.null(data[["weight"]])){
-    if(is.null(priors[["omega"]])){
-      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) * data[["weight"]])
-    }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
-    }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
-    }
-  }else{
-    if(is.null(priors[["omega"]])){
-      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
-    }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
-    }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
-    }
+  if(is.null(priors[["omega"]])){
+    log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
+  }else if(priors[["omega"]]$distribution == "one.sided"){
+    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+  }else if(priors[["omega"]]$distribution == "two.sided"){
+    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
   }
 
 
@@ -807,27 +794,32 @@
 }
 .get_id_weights         <- function(data, type){
 
-  weights <- rep(NA, nrow(data))
+  weight <- rep(NA, nrow(data))
 
   # create table of number of estimates per study
-  ids_weights <- data.frame(
-    id     = names(table(data[,"study_ids"])),
-    weight = switch(
-      type,
-      "inverse"      = 1/as.vector(table(data[,"study_ids"])),
-      "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+  if(!is.null(data[,"weight"]) && !anyNA(data[,"weight"])){
+    weight <- data[,"weight"]
+  }else{
+    ids_weight <- data.frame(
+      id     = names(table(data[,"study_ids"])),
+      weight = switch(
+        type,
+        "inverse"      = 1/as.vector(table(data[,"study_ids"])),
+        "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+      )
     )
-  )
 
-  # fill their weights
-  for(i in seq_along(ids_weights$id)){
-    weights[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weights$id[i]] <- ids_weights$weight[ids_weights$id == ids_weights$id[i]]
+    # fill their weights
+    for(i in seq_along(ids_weight$id)){
+      weight[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weight$id[i]] <- ids_weight$weight[ids_weight$id == ids_weight$id[i]]
+    }
+
+    # assign all remaining studies weight 1
+    weight[is.na(weight)] <- 1
   }
 
-  # assign all remaining studies weight 1
-  weights[is.na(weights)] <- 1
 
-  return(weights)
+  return(weight)
 }
 .add_priors_levels      <- function(priors, data){
 
