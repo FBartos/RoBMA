@@ -11,6 +11,7 @@ BiBMA(
   n2,
   study_names = NULL,
   study_ids = NULL,
+  weight = NULL,
   model_type = NULL,
   priors_effect = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
   priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1,

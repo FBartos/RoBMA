@@ -18,6 +18,7 @@ combine_data(
   uCI = NULL,
   study_names = NULL,
   study_ids = NULL,
+  weight = NULL,
   data = NULL,
   transformation = "fishers_z",
   return_all = FALSE

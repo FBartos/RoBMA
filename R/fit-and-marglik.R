@@ -303,7 +303,8 @@
   # remove unnecessary objects from data to mitigate warnings
   fit_data     <- .fit_data.bi(
     data             = data_outcome,
-    weighted         = attr(model, "weighted")
+    weighted         = attr(model, "weighted"),
+    weighted_type    = attr(model, "weighted_type")
   )
 
   # fit the model
@@ -400,11 +401,11 @@
   # add model summaries
   if(has_posterior){
     fit_summary   <- BayesTools::runjags_estimates_table(
-      fit                   = fit,
-      warnings              = warnings,
-      transform_orthonormal = TRUE,
-      formula_prefix        = FALSE,
-      remove_parameters     = c("pi", if(attr(model, "random")) "gamma")
+      fit                = fit,
+      warnings           = warnings,
+      transform_factors  = TRUE,
+      formula_prefix     = FALSE,
+      remove_parameters  = c("pi", if(attr(model, "random")) "gamma")
     )
     fit_summaries <- .runjags_summary_list(
       fit               = fit,
@@ -517,7 +518,7 @@
 
   return(fit_data)
 }
-.fit_data.bi              <- function(data, weighted){
+.fit_data.bi              <- function(data, weighted, weighted_type){
 
   # unlist the data frame
   fit_data <- list()
@@ -529,7 +530,7 @@
 
   # add weights proportional to the number of estimates from a study
   if(weighted){
-    fit_data$weight <- .get_id_weights(data)
+    fit_data$weight <- .get_id_weights(data, weighted_type)
   }
 
   return(fit_data)
@@ -1055,13 +1056,13 @@
     }
 
     summary_list[[measure]] <- BayesTools::runjags_estimates_table(
-      fit                   = fit,
-      transformations       = transformations,
-      transform_orthonormal = TRUE,
-      formula_prefix        = FALSE,
-      warnings              = warnings,
-      footnotes             = .scale_note(priors_scale, measure),
-      remove_parameters     = remove_parameters
+      fit               = fit,
+      transformations   = transformations,
+      transform_factors = TRUE,
+      formula_prefix    = FALSE,
+      warnings          = warnings,
+      footnotes         = .scale_note(priors_scale, measure),
+      remove_parameters = remove_parameters
     )
   }
 

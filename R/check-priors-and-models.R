@@ -554,7 +554,5 @@
   attr(model, "random")       <- is_random
   attr(model, "weighted")     <- weighted
 
-
-
   return(model)
 }

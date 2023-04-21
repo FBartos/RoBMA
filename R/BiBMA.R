@@ -26,7 +26,7 @@
 #' @export
 BiBMA <- function(
   # data specification
-  x1, x2, n1, n2, study_names = NULL, study_ids = NULL,
+  x1, x2, n1, n2, study_names = NULL, study_ids = NULL, weight = NULL,
 
   # prior specification
   model_type   = NULL,
@@ -52,19 +52,15 @@ BiBMA <- function(
 
 
   ### prepare & check the data
-  object$data <- .combine_data.bi(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids)
+  object$data <- .combine_data.bi(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = weight)
 
   # switch between multivariate and weighted models
-  if(.is_multivariate(object)){
-    if(dots[["weighted"]]){
-      .weighted_warning()
-      attr(object$data, "all_independent") <- TRUE
-      attr(object$data, "weighted")        <- TRUE
-    }else{
-      stop("Multivariate outcomes are not implemented for binomial outcomes.")
-      .multivariate_warning()
-    }
-  }
+  if(attr(object$data, "weighted"))
+    .weighted_warning()
+
+  if(.is_multivariate(object))
+    stop("Multivariate outcomes are not implemented for binomial outcomes.")
+
 
   ### check MCMC settings
   object$fit_control        <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
@@ -126,7 +122,6 @@ BiBMA <- function(
 
   }
 
-  object <<- object
   # create ensemble only if at least one model converged
   if(any(.get_model_convergence(object))){
 

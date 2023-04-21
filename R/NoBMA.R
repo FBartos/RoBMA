@@ -114,9 +114,9 @@ NoBMA.reg <- function(
     priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
     priors_rho_null            = NULL,
 
-    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.5)),
+    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
-    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.50), contrast = "orthonormal"),
+    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
     prior_factors_null     = prior("spike",  parameters = list(location = 0)),
 
     # MCMC fitting settings

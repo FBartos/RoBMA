@@ -23,10 +23,10 @@ NoBMA.reg(
     0)),
   priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
   priors_rho_null = NULL,
-  prior_covariates = prior("normal", parameters = list(mean = 0, sd = 0.5)),
+  prior_covariates = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   prior_covariates_null = prior("spike", parameters = list(location = 0)),
-  prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.5), contrast
-    = "orthonormal"),
+  prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25),
+    contrast = "meandif"),
   prior_factors_null = prior("spike", parameters = list(location = 0)),
   chains = 3,
   sample = 5000,
@@ -117,7 +117,7 @@ a point null hypotheses at zero (a fixed effect meta-analytic models),
 \item{prior_covariates}{a prior distributions for the regression parameter
 of continuous covariates on the effect size under the alternative hypothesis
 (unless set explicitly in \code{priors}). Defaults to a relatively wide normal
-distribution \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 0.5))}.}
+distribution \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 0.25))}.}
 
 \item{prior_covariates_null}{a prior distributions for the regression parameter
 of continuous covariates on the effect size under the null hypothesis
@@ -127,8 +127,8 @@ of continuous covariates on the effect size under the null hypothesis
 \item{prior_factors}{a prior distributions for the regression parameter
 of categorical covariates on the effect size under the alternative hypothesis
 (unless set explicitly in \code{priors}). Defaults to a relatively wide
-multivariate normal distribution specifying orthonormal contrasts
-\code{prior_factor("mnormal", parameters = list(mean = 0, sd = 0.50), contrast = "orthonormal")}.}
+multivariate normal distribution specifying differences from the mean contrasts
+\code{prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif")}.}
 
 \item{prior_factors_null}{a prior distributions for the regression parameter
 of categorical covariates on the effect size under the null hypothesis

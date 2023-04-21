@@ -390,7 +390,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   }
 }
 
-.combine_data.bi <- function(x1, x2, n1, n2, study_names = NULL, study_ids = NULL){
+.combine_data.bi <- function(x1, x2, n1, n2, study_names = NULL, study_ids = NULL, weight = NULL){
 
   BayesTools::check_int(x1[!is.na(x1)], "x1", check_length = FALSE,      lower = 0)
   BayesTools::check_int(x2[!is.na(x2)], "x2", check_length = length(x1), lower = 0)
@@ -412,6 +412,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     study_ids <- rep(NA, length(x1))
   }
 
+  # add weights if missing
+  if(all(is.na(weight))){
+    weight    <- rep(NA, length(x1))
+  }
+
   # remove indicators from independent studies
   study_ids[!study_ids %in% study_ids[duplicated(study_ids)]] <- NA
   # assign factor levels
@@ -423,14 +428,15 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     n1          = n1,
     n2          = n2,
     study_names = study_names,
-    study_ids   = study_ids
+    study_ids   = study_ids,
+    weight      = weight
   )
 
 
   attr(output, "effect_measure")   <- "freq"
   attr(output, "outcome")          <- "freq"
   attr(output, "all_independent")  <- all(is.na(output[,"study_ids"]))
-  attr(output, "weighted")         <- FALSE
+  attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
   class(output) <- c(class(output), "data.BiBMA")
 
   return(output)
