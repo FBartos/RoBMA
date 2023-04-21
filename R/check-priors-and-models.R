@@ -433,7 +433,7 @@
   return(model)
 }
 
-.make_models.reg <- function(priors, multivariate, weighted){
+.make_models.reg <- function(priors, multivariate, weighted, do_not_fit){
 
   models_base <- .make_models(priors = priors, multivariate = multivariate, weighted = weighted)
 
@@ -454,7 +454,7 @@
 
   grid <- do.call(expand.grid, grid)
 
-  if(nrow(grid) > 50)
+  if(nrow(grid) > 50 && !do_not_fit)
     warning(sprintf("You are about to estimate %i models based on the model formula and prior specification.", nrow(grid)), immediate. = TRUE, call. = FALSE)
 
   ### create empty models objects for fitting

@@ -2,7 +2,7 @@ context("(7) Diagnostics plots")
 skip_on_cran()
 
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", 1, ".RDS")
+saved_files <- paste0("fit_", c(1, 15), ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
@@ -10,6 +10,7 @@ for(i in seq_along(saved_files)){
 
 test_that("Diagnostic plots work", {
 
+  # RoBMA
   chains_mu    <- diagnostics(saved_fits[[1]], "mu",    "chains", plot_type = "ggplot")
   chains_tau   <- diagnostics(saved_fits[[1]], "tau",   "chains", plot_type = "ggplot")
   chains_omega <- diagnostics(saved_fits[[1]], "omega", "chains", plot_type = "ggplot")
@@ -87,4 +88,15 @@ test_that("Diagnostic plots work", {
   expect_doppelganger(paste0("plot_chains_PEESE"),          function()diagnostics(saved_fits[[1]], "PEESE", "chains",          show_models = 36))
   expect_doppelganger(paste0("plot_autocorrelation_PEESE"), function()diagnostics(saved_fits[[1]], "PEESE", "autocorrelation", show_models = 36))
   expect_doppelganger(paste0("plot_densities_PEESE"),       function()diagnostics(saved_fits[[1]], "PEESE", "densities",       show_models = 36))
+
+  ### RoBMA.reg
+  chains_mu       <- diagnostics(saved_fits[[2]], "mu",        "chains", plot_type = "ggplot")
+  chains_omega    <- diagnostics(saved_fits[[2]], "omega",     "chains", plot_type = "ggplot")
+  chains_PET      <- diagnostics(saved_fits[[2]], "PET",       "chains", plot_type = "ggplot")
+  chains_mod_con  <- diagnostics(saved_fits[[2]], "mod_con",   "chains", plot_type = "ggplot")
+
+  expect_doppelganger("plot_chains.reg_mu",      chains_mu[[6]])
+  expect_doppelganger("plot_chains.reg_omega",   chains_omega[[5]])
+  expect_doppelganger("plot_chains.reg_PET",     chains_PET[[6]])
+  expect_doppelganger("plot_chains.reg_mod_con", chains_mod_con[[6]])
 })

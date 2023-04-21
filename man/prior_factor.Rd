@@ -9,7 +9,7 @@ prior_factor(
   parameters,
   truncation = list(lower = -Inf, upper = Inf),
   prior_weights = 1,
-  contrast = "orthonormal"
+  contrast = "meandif"
 )
 }
 \arguments{
@@ -61,6 +61,13 @@ of its prior distributions.}
 
 \item{contrast}{type of contrast for the prior distribution. The possible options are
 \describe{
+\item{\code{"meandif"}}{for contrast centered around the grand mean
+with equal marginal distributions, making the prior distribution exchangeable
+across factor levels. In contrast to \code{"orthonormal"}, the marginal distributions
+are identical regardless of the number of factor levels and the specified prior
+distribution corresponds to the difference from grand mean for each factor level.
+Only supports \code{distribution = "mnormal"} and \code{distribution = "mt"}
+which generates the corresponding multivariate normal/t distributions.}
 \item{\code{"orthonormal"}}{for contrast centered around the grand mean
 with equal marginal distributions, making the prior distribution exchangeable
 across factor levels. Only supports \code{distribution = "mnormal"} and

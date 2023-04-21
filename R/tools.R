@@ -243,4 +243,4 @@ check_RoBMA <- function(fit){
 }
 .reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE",
                                              "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
-                                             "d", "t", "r", "z", "y", "logOR", "lCI", "uCI", "v", "se", "n")
+                                             "d", "t", "r", "z", "y", "logOR", "lCI", "uCI", "v", "se", "n", "weight")

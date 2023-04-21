@@ -233,7 +233,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
 
   if(parameter %in% x$add_info[["predictors"]]){
     if(inherits(samples[[parameter_samples]], "mixed_posteriors.factor")){
-      if(attr(samples[[parameter_samples]],"orthonormal")){
+      if(attr(samples[[parameter_samples]],"orthonormal") || attr(samples[[parameter_samples]],"meandif")){
         n_levels <- length(attr(samples[[parameter_samples]],"level_names"))
       }else if(attr(samples[[parameter_samples]],"treatment")){
         n_levels <- length(attr(x$add_info[["predictors"]],"level_names")) - 1
@@ -359,7 +359,13 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   }else{
     samples_mu <- x[["RoBMA"]][["posteriors"]][["mu"]]
   }
-  data <- x[["data"]]
+
+  if(is.RoBMA.reg(x)){
+    data <- x[["data"]][["outcome"]]
+  }else{
+    data <- x[["data"]]
+  }
+
 
 
   ### manage transformations
@@ -595,29 +601,57 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
 
   ### prepare input
-  if(conditional){
+  if(is.RoBMA.reg(x) && parameter == "mu"){
 
-    model_list <- x[["models"]]
-    samples    <- x[["RoBMA"]][["posteriors_conditional"]]
-    inference  <- x[["RoBMA"]][["inference_conditional"]]
+    if(conditional){
 
-    # check whether the input exists
-    if(parameter == "mu" && is.null(samples[["mu"]]))
-      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
-    if(parameter == "tau" && is.null(samples[["tau"]]))
-      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity.")
+      model_list <- x[["models"]]
+      samples    <- x[["RoBMA"]][["posteriors_predictors_conditional"]]
+      inference  <- x[["RoBMA"]][["inference_conditional"]]
+
+      # check whether the input exists
+      if(parameter == "mu_intercept" && is.null(samples[["mu_intercept"]]))
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
+
+    }else{
+
+      model_list <- x[["models"]]
+      samples    <- x[["RoBMA"]][["posteriors_predictors"]]
+      inference  <- x[["RoBMA"]][["inference"]]
+
+    }
+
+    parameter <- "mu_intercept"
+    names(samples)[names(samples) == "mu_intercept"]     <- "mu_intercept"
+    names(inference)[names(inference) == "Effect"]       <- "mu_intercept"
 
   }else{
 
-    model_list <- x[["models"]]
-    samples    <- x[["RoBMA"]][["posteriors"]]
-    inference  <- x[["RoBMA"]][["inference"]]
+    if(conditional){
 
+      model_list <- x[["models"]]
+      samples    <- x[["RoBMA"]][["posteriors_conditional"]]
+      inference  <- x[["RoBMA"]][["inference_conditional"]]
+
+      # check whether the input exists
+      if(parameter == "mu" && is.null(samples[["mu"]]))
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect.")
+      if(parameter == "tau" && is.null(samples[["tau"]]))
+        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity.")
+
+    }else{
+
+      model_list <- x[["models"]]
+      samples    <- x[["RoBMA"]][["posteriors"]]
+      inference  <- x[["RoBMA"]][["inference"]]
+
+    }
+
+    # deal with the non-matching names
+    names(inference)[names(inference) == "Effect"]        <- "mu"
+    names(inference)[names(inference) == "Heterogeneity"] <- "tau"
   }
 
-  # deal with the non-matching names
-  names(inference)[names(inference) == "Effect"]        <- "mu"
-  names(inference)[names(inference) == "Heterogeneity"] <- "tau"
 
   dots <- list(...)
 
@@ -683,7 +717,7 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 }
 .plot.RoBMA_par_names <- function(par, fit, output_scale){
 
-  if(par == "mu"){
+  if(par %in% c("mu", "mu_intercept")){
 
     par_names <- list(switch(
       output_scale,

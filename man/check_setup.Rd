@@ -108,5 +108,5 @@ implied by the specified prior distributions. It is useful for checking
 the ensemble configuration prior to fitting all of the models.
 }
 \seealso{
-\code{\link[=RoBMA]{RoBMA()}}
+\code{\link[=check_setup.reg]{check_setup.reg()}} \code{\link[=RoBMA]{RoBMA()}}
 }

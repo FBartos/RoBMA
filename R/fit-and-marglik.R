@@ -225,7 +225,7 @@
 
   # add model summaries
   if(has_posterior){
-    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_orthonormal = TRUE, formula_prefix = FALSE)
+    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE)
     if(add_info[["prior_scale"]] != "y"){
       fit_summaries <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings)
     }else{
@@ -587,8 +587,7 @@
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
   # marginalized random effects and the effect size
-  prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
-  reg_std  <- "pow( pow(se[i],2) + pow(tau_transformed,2), 1/2)"
+  prec <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
 
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
@@ -815,9 +814,7 @@
 
   ### compute the marginal log_likelihood
   log_lik <- 0
-# print(eff)
-# print(sum(abs(data[["y"]] - eff)))
-# print("---------------")
+
   # the individual studies
   if(!is.null(data[["weight"]])){
     if(is.null(priors[["omega"]])){
@@ -1072,27 +1069,32 @@
 }
 .get_id_weights         <- function(data, type){
 
-  weights <- rep(NA, nrow(data))
+  weight <- rep(NA, nrow(data))
 
   # create table of number of estimates per study
-  ids_weights <- data.frame(
-    id     = names(table(data[,"study_ids"])),
-    weight = switch(
-      type,
-      "inverse"      = 1/as.vector(table(data[,"study_ids"])),
-      "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+  if(!is.null(data[,"weight"]) && !anyNA(data[,"weight"])){
+    weight <- data[,"weight"]
+  }else{
+    ids_weight <- data.frame(
+      id     = names(table(data[,"study_ids"])),
+      weight = switch(
+        type,
+        "inverse"      = 1/as.vector(table(data[,"study_ids"])),
+        "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+      )
     )
-  )
 
-  # fill their weights
-  for(i in seq_along(ids_weights$id)){
-    weights[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weights$id[i]] <- ids_weights$weight[ids_weights$id == ids_weights$id[i]]
+    # fill their weights
+    for(i in seq_along(ids_weight$id)){
+      weight[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weight$id[i]] <- ids_weight$weight[ids_weight$id == ids_weight$id[i]]
+    }
+
+    # assign all remaining studies weight 1
+    weight[is.na(weight)] <- 1
   }
 
-  # assign all remaining studies weight 1
-  weights[is.na(weights)] <- 1
 
-  return(weights)
+  return(weight)
 }
 .add_priors_levels      <- function(priors, data){
 

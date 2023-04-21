@@ -60,23 +60,29 @@ prior_informed <- BayesTools::prior_informed
 #' @export
 contr.orthonormal <- BayesTools::contr.orthonormal
 
-#' @title Independent contrast matrix
+#' @title Mean difference contrast matrix
 #'
-#' @description Return a matrix of independent contrasts -- a level for each term.
+#' @description Return a matrix of mean difference contrasts.
+#' This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
+#' distributions on difference between the gran mean and factor level are identical independent
+#' of the number of factor levels (which does not hold for the orthonormal contrast). Furthermore,
+#' the contrast is re-scaled so the specified prior distribution exactly corresponds to the prior
+#' distribution on difference between each factor level and the grand mean -- this is approximately
+#' twice the scale of \code{contr.orthonormal}.
 #'
 #' @param n a vector of levels for a factor, or the number of levels
 #' @param contrasts logical indicating whether contrasts should be computed
 #'
 #' @examples
-#' contr.independent(c(1, 2))
-#' contr.independent(c(1, 2, 3))
+#' contr.meandif(c(1, 2))
+#' contr.meandif(c(1, 2, 3))
 #'
 #' @references
 #' \insertAllCited{}
 #'
-#' @return A matrix with n rows and k columns, with k = n if \code{contrasts = TRUE} and k = n
+#' @return A matrix with n rows and k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n
 #' if \code{contrasts = FALSE}.
 #'
 #' @export
-contr.independent <- BayesTools::contr.independent
+contr.meandif <- BayesTools::contr.meandif
 

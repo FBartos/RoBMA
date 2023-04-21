@@ -19,7 +19,7 @@
 #' @param prior_covariates a prior distributions for the regression parameter
 #' of continuous covariates on the effect size under the alternative hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a relatively wide normal
-#' distribution \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 0.5))}.
+#' distribution \code{prior(distribution = "normal", parameters = list(mean = 0, sd = 0.25))}.
 #' @param prior_covariates_null a prior distributions for the regression parameter
 #' of continuous covariates on the effect size under the null hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a no effect
@@ -27,8 +27,8 @@
 #' @param prior_factors a prior distributions for the regression parameter
 #' of categorical covariates on the effect size under the alternative hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a relatively wide
-#' multivariate normal distribution specifying orthonormal contrasts
-#' \code{prior_factor("mnormal", parameters = list(mean = 0, sd = 0.50), contrast = "orthonormal")}.
+#' multivariate normal distribution specifying differences from the mean contrasts
+#' \code{prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif")}.
 #' @param prior_factors_null a prior distributions for the regression parameter
 #' of categorical covariates on the effect size under the null hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a no effect
@@ -48,9 +48,9 @@
 #' \insertAllCited{}
 #'
 #'
-#' @return \code{RoBMA} returns an object of class 'RoBMA'.
+#' @return \code{RoBMA.reg} returns an object of class 'RoBMA.reg'.
 #'
-#' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup()]
+#' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup.reg()]
 #' @export
 RoBMA.reg <- function(
     formula, data, test_predictors = NULL, study_names = NULL, study_ids = NULL,
@@ -81,9 +81,9 @@ RoBMA.reg <- function(
     priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
     priors_hierarchical_null   = NULL,
 
-    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.5)),
+    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
-    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.50), contrast = "orthonormal"),
+    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
     prior_factors_null     = prior("spike",  parameters = list(location = 0)),
 
     # MCMC fitting settings
@@ -104,15 +104,12 @@ RoBMA.reg <- function(
   object$formula <- formula
 
   # switch between multivariate and weighted models
-  if(.is_multivariate(object)){
-    if(dots[["weighted"]]){
-      .weighted_warning()
-      attr(object$data[["outcome"]], "all_independent") <- TRUE
-      attr(object$data[["outcome"]], "weighted")        <- dots[["weighted"]]
-    }else{
-      .multivariate_warning()
-    }
-  }
+  if(attr(object$data[["outcome"]], "weighted"))
+    .weighted_warning()
+
+  if(.is_multivariate(object))
+    .multivariate_warning()
+
 
   ### check MCMC settings
   object$fit_control        <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
@@ -129,7 +126,7 @@ RoBMA.reg <- function(
     priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
-  object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
+  object$models     <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object), dots[["do_not_fit"]])
 
 
   ### additional information
@@ -149,7 +146,8 @@ RoBMA.reg <- function(
   )
 
   # the check requires the 'add_info' object already created
-  object$add_info[["warnings"]] <- .check_effect_direction(object)
+  object$add_info[["warnings"]] <- c(.check_effect_direction(object), .check_predictors_scaling(object))
+
 
   if(dots[["do_not_fit"]]){
     return(object)
@@ -227,24 +225,25 @@ RoBMA.reg <- function(
 
   ### deal with the effect sizes
   data_outcome <- combine_data(
-    d     = if("d"     %in%  colnames(data)) data[,"d"],
-    r     = if("r"     %in%  colnames(data)) data[,"r"],
-    z     = if("z"     %in%  colnames(data)) data[,"z"],
-    logOR = if("logOR" %in%  colnames(data)) data[,"logOR"],
-    t     = if("t"     %in%  colnames(data)) data[,"t"],
-    y     = if("y"     %in%  colnames(data)) data[,"y"],
-    se    = if("se"    %in%  colnames(data)) data[,"se"],
-    v     = if("v"     %in%  colnames(data)) data[,"v"],
-    n     = if("n"     %in%  colnames(data)) data[,"n"],
-    lCI   = if("lCI"   %in%  colnames(data)) data[,"lCI"],
-    uCI   = if("uCI"   %in%  colnames(data)) data[,"uCI"],
+    d      = if("d"      %in%  colnames(data)) data[,"d"],
+    r      = if("r"      %in%  colnames(data)) data[,"r"],
+    z      = if("z"      %in%  colnames(data)) data[,"z"],
+    logOR  = if("logOR"  %in%  colnames(data)) data[,"logOR"],
+    t      = if("t"      %in%  colnames(data)) data[,"t"],
+    y      = if("y"      %in%  colnames(data)) data[,"y"],
+    se     = if("se"     %in%  colnames(data)) data[,"se"],
+    v      = if("v"      %in%  colnames(data)) data[,"v"],
+    n      = if("n"      %in%  colnames(data)) data[,"n"],
+    lCI    = if("lCI"    %in%  colnames(data)) data[,"lCI"],
+    uCI    = if("uCI"    %in%  colnames(data)) data[,"uCI"],
+    weight = if("weight" %in%  colnames(data)) data[,"weight"],
     study_names    = study_names,
     study_ids      = study_ids,
     transformation = transformation,
     return_all     = FALSE)
 
   ### obtain the predictors part
-  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI"), drop = FALSE]
+  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
 
   if(attr(stats::terms(formula), "response") == 1){
     formula[2] <- NULL
@@ -264,7 +263,6 @@ RoBMA.reg <- function(
       attr(attr(model_frame, "terms"), "dataClasses")[[i]] <- "factor"
     }
   }
-
 
 
   model_frame     <- as.list(model_frame)

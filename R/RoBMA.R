@@ -184,7 +184,7 @@ RoBMA <- function(
   # data specification
   d = NULL, r = NULL, logOR = NULL, z = NULL, y = NULL,
   se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
-  data = NULL,
+  data = NULL, weight = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
   effect_direction = "positive",
@@ -225,19 +225,16 @@ RoBMA <- function(
   if("data.RoBMA" %in% class(data)){
     object$data <- data
   }else{
-    object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, data = data, transformation = transformation)
+    object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight, data = data, transformation = transformation)
   }
 
   # switch between multivariate and weighted models
-  if(.is_multivariate(object)){
-    if(dots[["weighted"]]){
-      .weighted_warning()
-      attr(object$data, "all_independent") <- TRUE
-      attr(object$data, "weighted")        <- dots[["weighted"]]
-    }else{
-      .multivariate_warning()
-    }
-  }
+  if(attr(object$data, "weighted"))
+    .weighted_warning()
+
+  if(.is_multivariate(object))
+    .multivariate_warning()
+
 
   ### check MCMC settings
   object$fit_control        <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
@@ -260,7 +257,13 @@ RoBMA <- function(
 
 
   ### prepare and check the settings
-  object$priors   <- .check_and_list_priors(object$add_info[["model_type"]], priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, object$add_info[["prior_scale"]])
+  object$priors   <- .check_and_list_priors(
+    model_type = object$add_info[["model_type"]],
+    priors_effect_null = priors_effect_null, priors_effect = priors_effect,
+    priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
+    priors_bias_null = priors_bias_null, priors_bias = priors_bias,
+    priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
+    prior_scale = object$add_info[["prior_scale"]])
   object$models   <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 

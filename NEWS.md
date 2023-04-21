@@ -10,6 +10,7 @@
 - new vignette on robust Bayesian model-averaged meta-regression
 - adding vignette from AMPPS tutorial
 - faster implementation of JAGS multivariate normal distribution (based on the BUGS JAGS module)
+- incorporating `weight` argument in the `RoBMA` and `combine_data` functions in order to pass `custom` likelihood weights
 - ability to use inverse square weights in the weighted meta-analysis by setting a `weighted_type = "inverse_sqrt"` argument 
 
 ### Changes
