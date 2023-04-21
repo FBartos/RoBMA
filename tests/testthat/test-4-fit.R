@@ -195,105 +195,19 @@ test_that("3-level models work", {
 
 test_that("weighted models work", {
 
-  # all weights == 1 should correspond to fit1
   temp_data <- combine_data(
-    d         = rep(d,3),
-    se        = rep(d_se,3),
-    weight    = rep(1/3,9)
+    d         = c(d[1], rep(d[2], 2), rep(d[3], 3)),
+    se        = c(d_se[1], rep(d_se[2], 2), rep(d_se[3], 3)),
+    weight    = c(1, rep(1/2, 2), rep(1/3, 3))
   )
 
   fit1w <- try_parallel(suppressWarnings(RoBMA(data = temp_data, seed = 1, parallel = TRUE)))
   fit1w <- remove_time(fit1w)
   expect_equal(clean_all(saved_fits[[1]], remove_call = TRUE), clean_all(fit1w, remove_call = TRUE))
 
-  fit1w$models[[19]]$fit_summary
-  saved_fits[[1]]$models[[19]]$fit_summary
-
-  fit1w$models[[28]]$fit_summary
-  saved_fits[[1]]$models[[28]]$fit_summary
-
-  fit1w$models[[28]]$fit$model
-
-
-
-  mw1 <- "
-model{
-mu ~ dnorm(0,1)
-inv_tau ~ dgamma(1,0.15)
-tau = pow(inv_tau, -1)
-mu_transformed = scale_d2z(mu)
-tau_transformed = scale_d2z(tau)
-for(i in 1:K){
-y[i] ~ dnorm(mu_transformed,1 / ( pow(se[i],2) / weight[i] + pow(tau_transformed,2) ) )
-}
-}
-"
-
-mw2 <- "
-model{
-mu ~ dnorm(0,1)
-inv_tau ~ dgamma(1,0.15)
-tau = pow(inv_tau, -1)
-mu_transformed = scale_d2z(mu)
-tau_transformed = scale_d2z(tau)
-for(i in 1:K){
-y[i] ~ dnorm(mu_transformed,1 / ( pow(se[i],2) / weight[i] + pow(tau_transformed,2)  / weight[i] ) )
-}
-}
-"
-
-mw3 <- "
-model{
-mu ~ dnorm(0,1)
-inv_tau ~ dgamma(1,0.15)
-tau = pow(inv_tau, -1)
-mu_transformed = scale_d2z(mu)
-tau_transformed = scale_d2z(tau)
-for(i in 1:K){
-y[i] ~ dwnorm(mu_transformed,1 / ( pow(se[i],2) + pow(tau_transformed,2) ), weight[i] )
-}
-}
-"
-
-m <- "
-model{
-mu ~ dnorm(0,1)
-inv_tau ~ dgamma(1,0.15)
-tau = pow(inv_tau, -1)
-mu_transformed = scale_d2z(mu)
-tau_transformed = scale_d2z(tau)
-for(i in 1:K){
-y[i] ~ dnorm(mu_transformed,1 / ( pow(se[i],2) + pow(tau_transformed,2) ) )
-}
-}
-"
-
-dw <- list(
-  "y"  = c(0.100335347731075, 0.202732554054082, 0.309519604203112, 0.100335347731075, 0.202732554054082, 0.309519604203112, 0.100335347731075, 0.202732554054082, 0.309519604203112),
-  "se" = c(0.288675134594813, 0.242535625036333, 0.145864991497894, 0.288675134594813, 0.242535625036333, 0.145864991497894, 0.288675134594813, 0.242535625036333, 0.145864991497894),
-  "K"  = 9,
-  "weight" = c(0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333)
-)
-d <- list(
-  "y" = c(0.100335347731075, 0.202732554054082, 0.309519604203112),
-  "se"=  c(0.288675134594813, 0.242535625036333, 0.145864991497894),
-  "K" = 3
-)
-
-fit  <- runjags::run.jags(model = m, monitor = c("mu", "tau"), data = d)
-fitw1 <- runjags::run.jags(model = mw1, monitor = c("mu", "tau"), data = dw)
-fitw2 <- runjags::run.jags(model = mw2, monitor = c("mu", "tau"), data = dw)
-fitw3 <- runjags::run.jags(model = mw3, monitor = c("mu", "tau"), data = dw)
-
-as.data.frame(fit$summaries)[,c(4, 5, 1, 3)]
-as.data.frame(fitw1$summaries)[,c(4, 5, 1, 3)]
-as.data.frame(fitw2$summaries)[,c(4, 5, 1, 3)]
-as.data.frame(fitw3$summaries)[,c(4, 5, 1, 3)]
-
-
-
   # check that the models are actually weighted
-  expect_true(all(grepl("pow(se[i],2) / weight[i]", sapply(fit1w$models[-1], function(m) as.character(m$fit$model)), fixed = T)))
+  expect_true(all(grepl("dwwn", sapply(c(2:7,  11:16, 20:25, 29:34), function(i) as.character(fit1w$models[[i]]$fit$model)))))
+  expect_true(all(grepl("dwn",  sapply(c(8:10, 17:19, 26:28, 35:36), function(i) as.character(fit1w$models[[i]]$fit$model)))))
 })
 
 test_that("BMA regression work", {

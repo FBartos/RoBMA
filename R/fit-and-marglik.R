@@ -214,7 +214,7 @@
 
     # weighted vs unweighted models
     if(attr(model, "weighted")){
-      marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]] / sqrt(fit_data[["weight"]]), log = TRUE))
+      marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE) * fit_data[["weight"]])
     }else{
       marglik$logml <- sum(stats::dnorm(fit_data[["y"]], const_location, fit_data[["se"]], log = TRUE))
     }
@@ -391,12 +391,7 @@
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
   # marginalized random effects and the effect size
-  if(weighted){
-    prec     <- "1 / ( pow(se[i],2) / weight[i] + pow(tau_transformed,2) )"
-  }else{
-    prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
-  }
-
+  prec <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
 
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
@@ -413,12 +408,22 @@
   }
 
   # the observed data
-  if(is.null(priors[["omega"]])){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
-  }else if(grepl("one.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
-  }else if(grepl("two.sided", priors[["omega"]]$distribution)){
-    model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+  if(weighted){
+    if(is.null(priors[["omega"]])){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(",     eff, ",", prec, ", weight[i])\n")
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega, weight[i]) \n")
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega, weight[i]) \n")
+    }
+  }else{
+    if(is.null(priors[["omega"]])){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",     eff, ",", prec, " )\n")
+    }else if(grepl("one.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_1s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+    }else if(grepl("two.sided", priors[["omega"]]$distribution)){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_2s(", eff, ",", prec, ", crit_y[,i], omega) \n")
+    }
   }
 
   model_syntax <- paste0(model_syntax, "}\n")
@@ -561,12 +566,7 @@
 
   ### model
   # marginalized random effects and the effect size
-  if(!is.null(data[["weight"]])){
-    pop_sd  <- sqrt(data[["se"]]^2 / data[["weight"]] + tau_transformed^2)
-  }else{
-    pop_sd  <- sqrt(data[["se"]]^2 + tau_transformed^2)
-  }
-
+  pop_sd  <- sqrt(data[["se"]]^2 + tau_transformed^2)
 
   # add PET/PEESE
   eff <- ifelse(effect_direction == "negative", -1, 1) * mu_transformed
@@ -580,12 +580,22 @@
   log_lik <- 0
 
   # the individual studies
-  if(is.null(priors[["omega"]])){
-    log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
-  }else if(priors[["omega"]]$distribution == "one.sided"){
-    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
-  }else if(priors[["omega"]]$distribution == "two.sided"){
-    log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+  if(!is.null(data[["weight"]])){
+    if(is.null(priors[["omega"]])){
+      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) * data[["weight"]])
+    }else if(priors[["omega"]]$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
+    }else if(priors[["omega"]]$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
+    }
+  }else{
+    if(is.null(priors[["omega"]])){
+      log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
+    }else if(priors[["omega"]]$distribution == "one.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+    }else if(priors[["omega"]]$distribution == "two.sided"){
+      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+    }
   }
 
 
