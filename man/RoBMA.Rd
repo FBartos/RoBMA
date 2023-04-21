@@ -19,6 +19,7 @@ RoBMA(
   study_names = NULL,
   study_ids = NULL,
   data = NULL,
+  weight = NULL,
   transformation = if (is.null(y)) "fishers_z" else "none",
   prior_scale = if (is.null(y)) "cohens_d" else "none",
   effect_direction = "positive",
