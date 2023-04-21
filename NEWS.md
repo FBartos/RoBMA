@@ -15,6 +15,11 @@
 ### Changes
 - reworked interface for the hierarchical models. Prior distributions are now specified via the `priors_hierarchical` and `priors_hierarchical_null` arguments instead of `priors_rho` and `priors_rho_null`. The model summary now shows `Hierarchical` component summary.
 
+## version 2.3.2
+### Fixes
+- suppressing start-up message 
+- cleaning up imports
+
 ## version 2.3.1
 ### Fixes
 - fixing weighted meta-analysis parameterization 

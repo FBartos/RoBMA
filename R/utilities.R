@@ -47,13 +47,14 @@ RoBMA.get_option <- function(name){
 	return(eval(RoBMA.private[[name]]))
 }
 
-
+# export the function directly to suppress import warnings
+.runjags__findjags <- function() runjags::findjags()
 
 # adapted from the runjags package version 2.2.0
 RoBMA.private <- new.env()
 # Use 'expression' for functions to avoid having to evaluate before the package is fully loaded:
 assign("defaultoptions",  list(
-  jagspath = expression(runjags::findjags()),
+  jagspath = expression(.runjags__findjags()),
   envir    = RoBMA.private))
 
 assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
@@ -86,6 +87,8 @@ assign("check_scaling",   TRUE,                                       envir = Ro
     "2.2.2" = c("0.2.3",  "999.999.999"),
     "2.2.3" = c("0.2.3",  "999.999.999"),
     "2.3.0" = c("0.2.3",  "999.999.999"),
+    "2.3.1" = c("0.2.3", "999.999.999"),
+    "2.3.2" = c("0.2.3", "999.999.999"),
     "2.4.0" = c("0.2.13", "999.999.999"),
     "2.5.0" = c("0.2.14", "999.999.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
