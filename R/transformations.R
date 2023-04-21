@@ -398,6 +398,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   BayesTools::check_int(n2[!is.na(n2)], "n2", check_length = length(x1), lower = 0)
   BayesTools::check_char(study_names, "study_names", allow_NULL = TRUE, check_length = length(x1))
   BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = length(x1))
+  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = length(x1), lower = 0, allow_bound = FALSE)
 
   if(any(x1 > n1) | any(x2 > n2))
     stop("Number of events cannot be larger than the number of observations")
@@ -436,7 +437,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   attr(output, "effect_measure")   <- "freq"
   attr(output, "outcome")          <- "freq"
   attr(output, "all_independent")  <- all(is.na(output[,"study_ids"]))
-  attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
+  attr(output, "weighted")         <- !all(is.na(output[,"weight"]))
   class(output) <- c(class(output), "data.BiBMA")
 
   return(output)

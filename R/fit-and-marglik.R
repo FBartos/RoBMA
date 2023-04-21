@@ -747,6 +747,7 @@
 
   # the observed data
   if(weighted){
+    stop("This is not enough to take fraction of the likelihood properly -- also the non-marginalized random effects need to be repeated among the same observations.")
     model_syntax <- paste0(model_syntax, "  x1[i] ~ dwbinom(p1[i], n1[i], weight[i])\n")
     model_syntax <- paste0(model_syntax, "  x2[i] ~ dwbinom(p2[i], n2[i], weight[i])\n")
   }else{

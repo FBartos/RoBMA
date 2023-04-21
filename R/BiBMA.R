@@ -26,7 +26,7 @@
 #' @export
 BiBMA <- function(
   # data specification
-  x1, x2, n1, n2, study_names = NULL, study_ids = NULL, weight = NULL,
+  x1, x2, n1, n2, study_names = NULL, study_ids = NULL,
 
   # prior specification
   model_type   = NULL,
@@ -52,7 +52,7 @@ BiBMA <- function(
 
 
   ### prepare & check the data
-  object$data <- .combine_data.bi(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = weight)
+  object$data <- .combine_data.bi(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = NULL)
 
   # switch between multivariate and weighted models
   if(attr(object$data, "weighted"))
