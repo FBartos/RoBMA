@@ -653,7 +653,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   for(i in seq_along(predictors)){
 
     if(attr(predictors, "variables_info")[[i]][["type"]] == "continuous"){
-      if(!(isTRUE(all.equal(mean(predictors[[i]]), 0)) && isTRUE(all.equal(sd(mean(predictors[[i]])), 1)))){
+      if(!(isTRUE(all.equal(mean(predictors[[i]]), 0)) && isTRUE(all.equal(stats::sd(mean(predictors[[i]])), 1)))){
         warnings <- c(warnings, paste0("The continuous predictor '",names(predictors[i]),"' is not standardized. Be cafefull about the specified prior distribution and hypothesis test."))
       }
     }

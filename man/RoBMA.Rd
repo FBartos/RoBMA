@@ -96,6 +96,9 @@ studies being independent.}
 an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
 directly. I.e., you cannot pass the a data.frame and reference to the columns.}
 
+\item{weight}{specifies likelihood weights of the individual estimates.
+Notes that this is an untested experimental feature.}
+
 \item{transformation}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to
 \code{"fishers_z"}. We highly recommend using \code{"fishers_z"}
