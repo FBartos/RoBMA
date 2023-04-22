@@ -54,6 +54,9 @@ transformations are unavailable with this type of input)}
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
 
+\item{weight}{specifies likelihood weights of the individual estimates.
+Notes that this is an untested experimental feature.}
+
 \item{data}{a data frame with column names corresponding to the
 variable names used to supply data individually}
 

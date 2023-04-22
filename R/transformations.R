@@ -31,6 +31,8 @@
 #' \code{"cohens_d"}, correlation coefficient \code{"r"} and \code{"logOR"}.
 #' Supplying \code{"none"} will treat the effect sizes as unstandardized and
 #' refrain from any transformations.
+#' @param weight specifies likelihood weights of the individual estimates.
+#' Notes that this is an untested experimental feature.
 #' @param return_all whether data frame containing all filled values should be
 #' returned. Defaults to \code{FALSE}
 #'

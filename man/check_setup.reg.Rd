@@ -8,7 +8,7 @@ and formula}
 check_setup.reg(
   formula,
   data,
-  test_predictors = NULL,
+  test_predictors = TRUE,
   study_names = NULL,
   study_ids = NULL,
   transformation = if (any(colnames(data) != "y")) "fishers_z" else "none",
@@ -59,8 +59,13 @@ directly. I.e., you cannot pass the a data.frame and reference to the columns.}
 
 \item{test_predictors}{vector of predictor names that will be test
 (i.e., assigned both the null and alternative prior distributions).
-Defaults to \code{NULL}, no parameters are tested and only used for
-adjustment.}
+Defaults to \code{TRUE}, all predictors are tested using the default
+prior distributions (i.e., \code{prior_covariates},
+\code{prior_covariates_null}, \code{prior_factors}, and
+\code{prior_factors_null}). To only estimate
+and adjust for the effect of predictors use \code{FALSE}. If
+\code{priors} is specified, any settings in \code{test_predictors}
+is overridden.}
 
 \item{study_names}{an optional argument with the names of the studies}
 
@@ -96,7 +101,18 @@ direction. Defaults to \code{"positive"} (another option is \code{"negative"}).}
 specify both the null and alternative hypothesis prior distributions
 for each predictor by assigning the corresponding element of the named
 list with another named list (with \code{"null"} and
-\code{"alt"}).}
+\code{"alt"}).
+If only one prior is specified for a given parameter, it is
+assumed to correspond to the alternative hypotheses and the default null
+hypothesis is specified (i.e., \code{prior_covariates_null} or
+\code{prior_factors_null}).
+If a named list with only one named prior distribution is provided (either
+\code{"null"} or \code{"alt"}), only this prior distribution is used and no
+default distribution is filled in.
+Parameters without specified prior distributions are assumed to be only adjusted
+for using the default alternative hypothesis prior distributions (i.e.,
+\code{prior_covariates} or \code{prior_factors}).
+If \code{priors} is specified, \code{test_predictors} is ignored.}
 
 \item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override

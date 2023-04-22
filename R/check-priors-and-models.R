@@ -100,42 +100,22 @@
     stop(paste0("The following prior names are internally reserved keywords and cannot be used: ",
                 paste0(" '", names(priors)[names(priors) %in% .reserved_words()], "' ", collapse = ", ")), call. = FALSE)
 
+
   # completely the prior distribution specification
-  if(is.null(priors) && (!is.null(test_predictors) && length(test_predictors) == 1 && isFALSE(test_predictors))){
-    # default estimation if no priors and test_predictors is false
-    test_predictors <- NULL
-
-  }else if(is.null(priors) && is.null(test_predictors)){
-    # complete default - tests all predictors with default priors
-    test_predictors <- predictors
-
-  }else if(!is.null(priors)){
-    # find whether user specified some parameter priors, if not - tests all predictors with default priors
-    predictors_prior_info <- unlist(sapply(predictors, function(p){
-      if(is.null(priors[[p]])){
-        return("no-priors-are-specified")
-      }else if(is.prior(priors[[p]])){
-        return("one-prior-is-specified")
-      }else if(length(priors[[p]]) == 2 && all(names(priors[[p]]) %in% c("null", "alt"))){
-        if(all(sapply(priors[[p]], is.prior))){
-          return(p)
-        }else{
-          stop(paste0("The prior distribution for '",p,"' is specified incorrectly."))
-        }
-      }else{
-        stop(paste0("The prior distribution for '",p,"' is specified incorrectly."))
-      }
-    }))
-    if(isFALSE(test_predictors)){
-      test_predictors <- NULL
-    }else if(is.null(test_predictors)){
-      test_predictors <- predictors[!predictors %in% c("one-prior-is-specified", "no-priors-are-specified")]
-    }
-  }
-
-
   if(is.null(priors)){
 
+    # standardize possible inputs for no predictors testing
+    if(is.null(test_predictors) || isFALSE(test_predictors) || length(test_predictors) == 0){
+      # no testing
+      test_predictors <- character()
+    }else if(isTRUE(test_predictors)){
+      # tests all predictors with default priors
+      test_predictors <- predictors
+    }else{
+      BayesTools::check_char(test_predictors, "test_predictors", check_length = FALSE, allow_values = predictors)
+    }
+
+    # update the predictors specification
     priors <- list()
 
     to_test <- predictors[predictors %in% test_predictors]
@@ -143,68 +123,64 @@
 
     for(i in seq_along(to_test)){
       priors[[to_test[i]]] <- list(
-        null = if(predictors_type[to_test[i]] == "factor") prior_factors_null else prior_covariates_null,
-        alt  = if(predictors_type[to_test[i]] == "factor") prior_factors      else prior_covariates
+        "null" = if(predictors_type[to_test[i]] == "factor") prior_factors_null else prior_covariates_null,
+        "alt"  = if(predictors_type[to_test[i]] == "factor") prior_factors      else prior_covariates
       )
     }
     for(i in seq_along(no_test)){
       priors[[no_test[i]]] <- list(
-        alt  = if(predictors_type[no_test[i]] == "factor") prior_factors else prior_covariates
+        "alt"  = if(predictors_type[no_test[i]] == "factor") prior_factors else prior_covariates
       )
     }
 
   }else{
 
-    if(any(!names(priors) %in% predictors))
-      stop(paste0("The following priors do not corresponds to any predictor or additional parameter: '", paste(names(priors)[!names(priors) %in% predictors], collapse = "', '", sep = ""), "'"))
+    priors_by_user  <- priors
+    priors          <- list()
+    test_predictors <- character()
 
+    # reformat and updated the user specified priors
+    for(i in seq_along(predictors)){
 
-    to_test <- predictors[predictors %in% test_predictors]
-    no_test <- predictors[!predictors %in% test_predictors]
+      p <- predictors[i]
 
-    for(i in seq_along(to_test)){
-      if(is.null(priors[[to_test[i]]])){
-        priors[[to_test[i]]] <- list(
-          null = if(predictors_type[to_test[i]] == "factor") prior_factors_null else prior_covariates_null,
-          alt  = if(predictors_type[to_test[i]] == "factor") prior_factors      else prior_covariates
+      if(is.null(priors_by_user[[p]])){
+        # no user specified priors -- default estimation only
+        priors[[p]] <- list(
+          "alt"  = if(predictors_type[p] == "factor") prior_factors else prior_covariates
         )
-      }else if(is.prior(priors[[to_test[i]]])){
-        priors[[to_test[i]]] <- list(
-          null  = if(predictors_type[to_test[i]] == "factor") prior_factors_null else prior_covariates_null,
-          alt   = priors[[to_test[i]]]
+
+      }else if(is.prior(priors_by_user[[p]])){
+        # a single, unmanned prior distribution -- assume it's alternative and perform default test
+        test_predictors <- c(test_predictors, p)
+        priors[[p]]     <- list(
+          "null" = if(predictors_type[p] == "factor") prior_factors_null else prior_covariates_null,
+          "alt"  = priors_by_user[[p]]
         )
-      }else if(length(priors[[to_test[i]]]) == 2 && all(names(priors[[to_test[i]]]) %in% c("null", "alt"))){
-        priors[[to_test[i]]] <- list(
-          null  = priors[[to_test[i]]][["null"]],
-          alt   = priors[[to_test[i]]][["alt"]]
-        )
+
+      }else if(is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 1 && length(names(priors_by_user[[p]])) == 1 &&
+               names(priors_by_user[[p]]) %in% c("null", "alt") && is.prior(priors_by_user[[p]][[1]])){
+        # a single, named prior distribution -- do not add any additional prior
+        priors[[p]] <- priors_by_user[[p]]
+
+      }else if(is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 2 && length(names(priors_by_user[[p]])) == 2 &&
+               all(names(priors_by_user[[p]]) %in% c("null", "alt")) && all(sapply(priors_by_user[[p]], is.prior))){
+        # both prior distributions are specified by the user
+        test_predictors <- c(test_predictors, p)
+        priors[[p]]     <- priors_by_user[[p]]
+
       }else{
-        stop(paste0("The predictor '", to_test[i], "' is supposed to be used for testing and the prior distributions are not specified properly"))
+        stop(paste0("The prior distribution for '",p,"' is specified incorrectly."))
       }
     }
 
-    for(i in seq_along(no_test)){
-      if(is.null(priors[[no_test[i]]])){
-        priors[[no_test[i]]] <- list(
-          alt  = if(predictors_type[no_test[i]] == "factor") prior_factors  else prior_covariates
-        )
-      }else{
-        if(is.prior(priors[[no_test[i]]])){
-          priors[[no_test[i]]] <- list(
-            alt  = priors[[no_test[i]]]
-          )
-        }else{
-          # should be stopped before
-          stop(paste0("The predictor '", no_test[i], "' is supposed to be used for testing and the prior distributions are not specified properly"))
-        }
-      }
-    }
   }
 
-  priors_main$terms <- priors[predictors]
 
-  attr(priors_main, "terms")          <- predictors
-  attr(priors_main, "terms_test")     <- if(length(test_predictors) == 1 && test_predictors == "") NULL else test_predictors
+  # add attributes
+  priors_main$terms                <- priors
+  attr(priors_main, "terms")       <- predictors
+  attr(priors_main, "terms_test")  <- if(length(test_predictors) == 0) NULL else test_predictors
 
   return(priors_main)
 }
@@ -442,14 +418,10 @@
     model = seq_along(models_base)
   )
 
-  no_test <- attr(priors, "terms")[!attr(priors, "terms") %in% attr(priors, "terms_test")]
-  to_test <- attr(priors, "terms")[ attr(priors, "terms") %in% attr(priors, "terms_test")]
-
-  for(i in seq_along(no_test)){
-    grid[[no_test[i]]] <- "alt"
-  }
-  for(i in seq_along(to_test)){
-    grid[[to_test[i]]] <- c("null", "alt")
+  # add prior terms
+  terms <- attr(priors, "terms")
+  for(i in seq_along(attr(priors, "terms"))){
+    grid[[terms[i]]] <- names(priors[["terms"]][[terms[i]]])
   }
 
   grid <- do.call(expand.grid, grid)

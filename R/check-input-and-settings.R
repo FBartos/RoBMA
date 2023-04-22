@@ -147,7 +147,7 @@ check_setup <- function(
 #' @seealso [check_setup()] [RoBMA.reg()]
 #' @export
 check_setup.reg <- function(
-    formula, data, test_predictors = NULL, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -237,7 +237,7 @@ check_setup.reg <- function(
   )
 
   # extract model weights
-  prior_weights   <- sapply(object$models, function(m)m$prior_weights)
+  prior_weights   <- sapply(object$models, function(m) m$prior_weights)
   # standardize model weights
   prior_weights   <- prior_weights / sum(prior_weights)
   # conditional model weights
@@ -653,7 +653,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   for(i in seq_along(predictors)){
 
     if(attr(predictors, "variables_info")[[i]][["type"]] == "continuous"){
-      if(!(isTRUE(all.equal(attr(predictors, "variables_info")[[i]][["mean"]], 0)) && isTRUE(all.equal(attr(predictors, "variables_info")[[i]][["sd"]], 1)))){
+      if(!(isTRUE(all.equal(mean(predictors[[i]]), 0)) && isTRUE(all.equal(stats::sd(mean(predictors[[i]])), 1)))){
         warnings <- c(warnings, paste0("The continuous predictor '",names(predictors[i]),"' is not standardized. Be cafefull about the specified prior distribution and hypothesis test."))
       }
     }
