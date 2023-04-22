@@ -165,6 +165,8 @@ test_that("Model preview works", {
 
 test_that("RoBMA.reg model preview works", {
 
+  # also test for model generation as it calls RoBMA.reg function within
+
   df_reg <- data.frame(
     d       = c(rep(-1, 5), rep(0, 5), rep(1, 5)),
     se      = rep(0.1, 15),
@@ -263,6 +265,117 @@ test_that("RoBMA.reg model preview works", {
       "     8  Normal(0, 1) treatment contrast: Beta(1, 1)  Normal(0.1, 0.3)            Spike(0)                  0.083"
     )
   )
+
+  expect_equal(
+    capture_output_lines(check_setup.reg(~ mod_cat + mod_con, data = df_reg, models = TRUE,
+                                         priors_bias = NULL, priors_heterogeneity = NULL,
+                                         priors = list(
+                                           "mod_cat" = list(
+                                             "alt" = prior_factor("beta", list(1, 1), contrast = "treatment", prior_weights = 1/2)
+                                           ),
+                                           "mod_con" = list(
+                                             "null" = prior("normal", list(0,    0.01)),
+                                             "alt"  = prior("normal", list(0.10, 0.30))
+                                           )
+                                         )), print = TRUE, width = 150),
+      c("Robust Bayesian meta-regression (set-up)"                                                                        ,
+        "Components summary:"                                                                                             ,
+        "              Models Prior prob."                                                                                ,
+        "Effect           2/4       0.500"                                                                                ,
+        "Heterogeneity    0/4       0.000"                                                                                ,
+        "Bias             0/4       0.000"                                                                                ,
+        ""                                                                                                                ,
+        "Meta-regression components summary:"                                                                             ,
+        "        Models Prior prob."                                                                                      ,
+        "mod_con    2/4       0.500"                                                                                      ,
+        ""                                                                                                                ,
+        "Models overview:"                                                                                                ,
+        " Model Prior mod_cat          Prior mod_cat           Prior mod_cat   Prior Heterogeneity Prior Bias Prior prob.",
+        "     1      Spike(0) treatment contrast: Beta(1, 1)   Normal(0, 0.01)            Spike(0)                  0.250",
+        "     2  Normal(0, 1) treatment contrast: Beta(1, 1)   Normal(0, 0.01)            Spike(0)                  0.250",
+        "     3      Spike(0) treatment contrast: Beta(1, 1)  Normal(0.1, 0.3)            Spike(0)                  0.250",
+        "     4  Normal(0, 1) treatment contrast: Beta(1, 1)  Normal(0.1, 0.3)            Spike(0)                  0.250"
+      )
+    )
+
+  expect_equal(
+    capture_output_lines(check_setup.reg(~ mod_cat + mod_con, data = df_reg, models = TRUE,
+                                         priors_bias = NULL, priors_heterogeneity = NULL,
+                                         priors = list(
+                                           "mod_cat" = list(
+                                             "null" = prior_factor("beta", list(1, 1), contrast = "treatment", prior_weights = 1/2)
+                                           ),
+                                           "mod_con" = list(
+                                             "null" = prior("normal", list(0,    0.01)),
+                                             "alt"  = prior("normal", list(0.10, 0.30))
+                                           )
+                                         )), print = TRUE, width = 150),
+    c("Robust Bayesian meta-regression (set-up)"                                                                        ,
+      "Components summary:"                                                                                             ,
+      "              Models Prior prob."                                                                                ,
+      "Effect           2/4       0.500"                                                                                ,
+      "Heterogeneity    0/4       0.000"                                                                                ,
+      "Bias             0/4       0.000"                                                                                ,
+      ""                                                                                                                ,
+      "Meta-regression components summary:"                                                                             ,
+      "        Models Prior prob."                                                                                      ,
+      "mod_con    2/4       0.500"                                                                                      ,
+      ""                                                                                                                ,
+      "Models overview:"                                                                                                ,
+      " Model Prior mod_cat          Prior mod_cat           Prior mod_cat   Prior Heterogeneity Prior Bias Prior prob.",
+      "     1      Spike(0) treatment contrast: Beta(1, 1)   Normal(0, 0.01)            Spike(0)                  0.250",
+      "     2  Normal(0, 1) treatment contrast: Beta(1, 1)   Normal(0, 0.01)            Spike(0)                  0.250",
+      "     3      Spike(0) treatment contrast: Beta(1, 1)  Normal(0.1, 0.3)            Spike(0)                  0.250",
+      "     4  Normal(0, 1) treatment contrast: Beta(1, 1)  Normal(0.1, 0.3)            Spike(0)                  0.250"
+    )
+  )
+
+  expect_equal(
+    capture_output_lines(check_setup.reg(~ mod_cat + mod_con, data = df_reg, models = TRUE, test_predictors = FALSE,
+                                         priors_bias = NULL, priors_heterogeneity = NULL), print = TRUE, width = 150),
+    c("Robust Bayesian meta-regression (set-up)"                                                                                  ,
+      "Components summary:"                                                                                                       ,
+      "              Models Prior prob."                                                                                          ,
+      "Effect           1/2       0.500"                                                                                          ,
+      "Heterogeneity    0/2       0.000"                                                                                          ,
+      "Bias             0/2       0.000"                                                                                          ,
+      ""                                                                                                                          ,
+      "Meta-regression components summary:"                                                                                       ,
+      "[1] Models      Prior prob."                                                                                               ,
+      "<0 rows> (or 0-length row.names)"                                                                                          ,
+      ""                                                                                                                          ,
+      "Models overview:"                                                                                                          ,
+      " Model Prior mod_cat                Prior mod_cat                Prior mod_cat  Prior Heterogeneity Prior Bias Prior prob.",
+      "     1      Spike(0) mean difference contrast: mNormal(0, 0.25) Normal(0, 0.25)            Spike(0)                  0.500",
+      "     2  Normal(0, 1) mean difference contrast: mNormal(0, 0.25) Normal(0, 0.25)            Spike(0)                  0.500"
+    )
+  )
+
+
+  expect_equal(
+    capture_output_lines(check_setup.reg(~ mod_cat + mod_con, data = df_reg, models = TRUE, test_predictors = "mod_cat",
+                                         priors_bias = NULL, priors_heterogeneity = NULL), print = TRUE, width = 150),
+    c("Robust Bayesian meta-regression (set-up)"                                                                                  ,
+      "Components summary:"                                                                                                       ,
+      "              Models Prior prob."                                                                                          ,
+      "Effect           2/4       0.500"                                                                                          ,
+      "Heterogeneity    0/4       0.000"                                                                                          ,
+      "Bias             0/4       0.000"                                                                                          ,
+      ""                                                                                                                          ,
+      "Meta-regression components summary:"                                                                                       ,
+      "        Models Prior prob."                                                                                                ,
+      "mod_cat    2/4       0.500"                                                                                                ,
+      ""                                                                                                                          ,
+      "Models overview:"                                                                                                          ,
+      " Model Prior mod_cat                Prior mod_cat                Prior mod_cat  Prior Heterogeneity Prior Bias Prior prob.",
+      "     1      Spike(0)                                   Spike(0) Normal(0, 0.25)            Spike(0)                  0.250",
+      "     2  Normal(0, 1)                                   Spike(0) Normal(0, 0.25)            Spike(0)                  0.250",
+      "     3      Spike(0) mean difference contrast: mNormal(0, 0.25) Normal(0, 0.25)            Spike(0)                  0.250",
+      "     4  Normal(0, 1) mean difference contrast: mNormal(0, 0.25) Normal(0, 0.25)            Spike(0)                  0.250"
+    )
+  )
+
+
 })
 
 test_that("Set autofit control works", {

@@ -8,14 +8,30 @@
 #' @param formula a formula for the meta-regression model
 #' @param test_predictors vector of predictor names that will be test
 #' (i.e., assigned both the null and alternative prior distributions).
-#' Defaults to \code{NULL}, no parameters are tested and only used for
-#' adjustment.
+#' Defaults to \code{TRUE}, all predictors are tested using the default
+#' prior distributions (i.e., \code{prior_covariates},
+#' \code{prior_covariates_null}, \code{prior_factors}, and
+#' \code{prior_factors_null}). To only estimate
+#' and adjust for the effect of predictors use \code{FALSE}. If
+#' \code{priors} is specified, any settings in \code{test_predictors}
+#' is overridden.
 #' @param priors named list of prior distributions for each predictor
 #' (with names corresponding to the predictors). It allows users to
 #' specify both the null and alternative hypothesis prior distributions
 #' for each predictor by assigning the corresponding element of the named
 #' list with another named list (with \code{"null"} and
 #' \code{"alt"}).
+#' If only one prior is specified for a given parameter, it is
+#' assumed to correspond to the alternative hypotheses and the default null
+#' hypothesis is specified (i.e., \code{prior_covariates_null} or
+#' \code{prior_factors_null}).
+#' If a named list with only one named prior distribution is provided (either
+#' \code{"null"} or \code{"alt"}), only this prior distribution is used and no
+#' default distribution is filled in.
+#' Parameters without specified prior distributions are assumed to be only adjusted
+#' for using the default alternative hypothesis prior distributions (i.e.,
+#' \code{prior_covariates} or \code{prior_factors}).
+#' If \code{priors} is specified, \code{test_predictors} is ignored.
 #' @param prior_covariates a prior distributions for the regression parameter
 #' of continuous covariates on the effect size under the alternative hypothesis
 #' (unless set explicitly in \code{priors}). Defaults to a relatively wide normal
@@ -53,7 +69,7 @@
 #' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup.reg()]
 #' @export
 RoBMA.reg <- function(
-    formula, data, test_predictors = NULL, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,

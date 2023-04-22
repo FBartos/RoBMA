@@ -147,7 +147,7 @@ check_setup <- function(
 #' @seealso [check_setup()] [RoBMA.reg()]
 #' @export
 check_setup.reg <- function(
-    formula, data, test_predictors = NULL, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -237,7 +237,7 @@ check_setup.reg <- function(
   )
 
   # extract model weights
-  prior_weights   <- sapply(object$models, function(m)m$prior_weights)
+  prior_weights   <- sapply(object$models, function(m) m$prior_weights)
   # standardize model weights
   prior_weights   <- prior_weights / sum(prior_weights)
   # conditional model weights
