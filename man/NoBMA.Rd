@@ -19,6 +19,7 @@ NoBMA(
   study_names = NULL,
   study_ids = NULL,
   data = NULL,
+  weight = NULL,
   transformation = if (is.null(y)) "fishers_z" else "none",
   prior_scale = if (is.null(y)) "cohens_d" else "none",
   model_type = NULL,
@@ -28,8 +29,8 @@ NoBMA(
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
     0)),
-  priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null = NULL,
+  priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null = NULL,
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -79,6 +80,9 @@ studies being independent.}
 an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
 directly. I.e., you cannot pass the a data.frame and reference to the columns.}
 
+\item{weight}{specifies likelihood weights of the individual estimates.
+Notes that this is an untested experimental feature.}
+
 \item{transformation}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to
 \code{"fishers_z"}. We highly recommend using \code{"fishers_z"}
@@ -121,6 +125,15 @@ a point null hypotheses at zero,
 parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero (a fixed effect meta-analytic models),
 \code{prior(distribution = "point", parameters = list(location = 0))}.}
+
+\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
+\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{chains}{a number of chains of the MCMC algorithm.}
 

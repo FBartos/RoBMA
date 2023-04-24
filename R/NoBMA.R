@@ -20,7 +20,7 @@ NoBMA <- function(
     # data specification
   d = NULL, r = NULL, logOR = NULL, z = NULL, y = NULL,
   se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
-  data = NULL,
+  data = NULL, weight = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
 
@@ -30,8 +30,8 @@ NoBMA <- function(
   priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
-  priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null            = NULL,
+  priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null   = NULL,
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -58,8 +58,8 @@ NoBMA <- function(
     priors_effect_null         = priors_effect_null,
     priors_heterogeneity_null  = priors_heterogeneity_null,
     priors_bias_null           = prior_none(),  # THIS IS PRESET
-    priors_rho                 = priors_rho,
-    priors_rho_null            = priors_rho_null,
+    priors_hierarchical        = priors_hierarchical,
+    priors_hierarchical_null   = priors_hierarchical_null,
 
     # MCMC fitting settings
     chains = chains, sample = sample, burnin = burnin, adapt = adapt, thin = thin, parallel = parallel,
@@ -111,8 +111,8 @@ NoBMA.reg <- function(
     priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
     priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
     priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
-    priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-    priors_rho_null            = NULL,
+    priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+    priors_hierarchical_null   = NULL,
 
     prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
@@ -143,8 +143,8 @@ NoBMA.reg <- function(
     priors_effect_null         = priors_effect_null,
     priors_heterogeneity_null  = priors_heterogeneity_null,
     priors_bias_null           = prior_none(),  # THIS IS PRESET
-    priors_rho                 = priors_rho,
-    priors_rho_null            = priors_rho_null,
+    priors_hierarchical        = priors_hierarchical,
+    priors_hierarchical_null   = priors_hierarchical_null,
 
     prior_covariates       = prior_covariates,
     prior_covariates_null  = prior_covariates_null,

@@ -21,8 +21,8 @@ NoBMA.reg(
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
     0)),
-  priors_rho = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null = NULL,
+  priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null = NULL,
   prior_covariates = prior("normal", parameters = list(mean = 0, sd = 0.25)),
   prior_covariates_null = prior("spike", parameters = list(location = 0)),
   prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25),
@@ -52,8 +52,13 @@ directly. I.e., you cannot pass the a data.frame and reference to the columns.}
 
 \item{test_predictors}{vector of predictor names that will be test
 (i.e., assigned both the null and alternative prior distributions).
-Defaults to \code{NULL}, no parameters are tested and only used for
-adjustment.}
+Defaults to \code{TRUE}, all predictors are tested using the default
+prior distributions (i.e., \code{prior_covariates},
+\code{prior_covariates_null}, \code{prior_factors}, and
+\code{prior_factors_null}). To only estimate
+and adjust for the effect of predictors use \code{FALSE}. If
+\code{priors} is specified, any settings in \code{test_predictors}
+is overridden.}
 
 \item{study_names}{an optional argument with the names of the studies}
 
@@ -85,7 +90,18 @@ estimating the model. Defaults to \code{TRUE}.}
 specify both the null and alternative hypothesis prior distributions
 for each predictor by assigning the corresponding element of the named
 list with another named list (with \code{"null"} and
-\code{"alt"}).}
+\code{"alt"}).
+If only one prior is specified for a given parameter, it is
+assumed to correspond to the alternative hypotheses and the default null
+hypothesis is specified (i.e., \code{prior_covariates_null} or
+\code{prior_factors_null}).
+If a named list with only one named prior distribution is provided (either
+\code{"null"} or \code{"alt"}), only this prior distribution is used and no
+default distribution is filled in.
+Parameters without specified prior distributions are assumed to be only adjusted
+for using the default alternative hypothesis prior distributions (i.e.,
+\code{prior_covariates} or \code{prior_factors}).
+If \code{priors} is specified, \code{test_predictors} is ignored.}
 
 \item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
@@ -113,6 +129,15 @@ a point null hypotheses at zero,
 parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero (a fixed effect meta-analytic models),
 \code{prior(distribution = "point", parameters = list(location = 0))}.}
+
+\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
+\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{prior_covariates}{a prior distributions for the regression parameter
 of continuous covariates on the effect size under the alternative hypothesis
