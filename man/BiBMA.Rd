@@ -11,16 +11,16 @@ BiBMA(
   n2,
   study_names = NULL,
   study_ids = NULL,
-  model_type = NULL,
-  priors_effect = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1,
-    scale = 0.15)),
+  priors_effect = prior(distribution = "student", parameters = list(location = 0, scale =
+    0.58, df = 4)),
+  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1.77,
+    scale = 0.55)),
   priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
     0)),
-  priors_baseline = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast
-    = "independent"),
-  priors_baseline_null = NULL,
+  priors_baseline = NULL,
+  priors_baseline_null = prior_factor("beta", parameters = list(alpha = 1, beta = 1),
+    contrast = "independent"),
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -51,22 +51,17 @@ BiBMA(
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
 
-\item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
-The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
-settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
-\code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
-\code{priors_bias_null}, and \code{priors_effect}. See details for more information
-about the different model types.}
-
 \item{priors_effect}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-a standard normal distribution
-\code{prior(distribution = "normal", parameters = list(mean = 0, sd = 1))}.}
+\code{prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4))},
+based on logOR meta-analytic estimates from the Cochrane Database of Systematic Reviews
+\insertCite{bartos2023empirical}{RoBMA}.}
 
 \item{priors_heterogeneity}{list of prior distributions for the heterogeneity \code{tau}
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-\code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))} that
-is based on heterogeneities estimates from psychology \insertCite{erp2017estimates}{RoBMA}.}
+\code{prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55))} that
+is based on heterogeneities of logOR estimates from the Cochrane Database of Systematic Reviews
+\insertCite{bartos2023empirical}{RoBMA}.}
 
 \item{priors_effect_null}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the null hypothesis. Defaults to
@@ -78,12 +73,12 @@ parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero (a fixed effect meta-analytic models),
 \code{prior(distribution = "point", parameters = list(location = 0))}.}
 
-\item{priors_baseline}{prior distributions for independent intercepts (\code{pi})
-for each study. Defaults to a uniform prior distribution
-\code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.}
+\item{priors_baseline}{prior distributions for the alternative hypothesis about
+intercepts (\code{pi}) of each study. Defaults to \code{NULL}.}
 
 \item{priors_baseline_null}{prior distributions for the null hypothesis about
-independent intercepts (\code{pi}) for each study. Defaults to \code{NULL}.}
+intercepts (\code{pi}) for each study. Defaults to an independent uniform prior distribution
+for each intercept \code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.}
 
 \item{chains}{a number of chains of the MCMC algorithm.}
 

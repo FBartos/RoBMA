@@ -11,6 +11,7 @@
 #' @return \code{check_setup} invisibly returns list of summary tables.
 #'
 #' @seealso [check_setup.reg()] [RoBMA()]
+#' @aliases check_setup.RoBMA
 #' @export
 check_setup <- function(
   model_type   = NULL,
@@ -32,6 +33,25 @@ check_setup <- function(
   priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
   priors_hierarchical_null   = NULL,
   models = FALSE, silent = FALSE){
+
+
+  object <- RoBMA(
+    # data specification
+    d = 0, se = 1,
+
+    # prior specification
+    model_type   = model_type,
+    priors_effect         = priors_effect,
+    priors_heterogeneity  = priors_heterogeneity,
+    priors_bias           = priors_bias,
+    priors_effect_null         = priors_effect_null,
+    priors_heterogeneity_null  = priors_heterogeneity_null,
+    priors_bias_null           = priors_bias_null,
+    priors_hierarchical        = priors_hierarchical,
+    priors_hierarchical_null   = priors_hierarchical_null,
+
+    # MCMC fitting settings
+    do_not_fit = TRUE)
 
   object <- list()
   object$priors   <- .check_and_list_priors(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical, priors_hierarchical_null, "d")
@@ -131,6 +151,8 @@ check_setup <- function(
   return(invisible(object))
 }
 
+#' @rdname check_setup
+check_setup.RoBMA <- check_setup
 
 #' @title Prints summary of \code{"RoBMA.reg"} ensemble implied by the specified priors
 #' and formula
@@ -145,6 +167,7 @@ check_setup <- function(
 #' @return \code{check_setup.reg} invisibly returns list of summary tables.
 #'
 #' @seealso [check_setup()] [RoBMA.reg()]
+#' @aliases check_setup.RoBMA.reg
 #' @export
 check_setup.reg <- function(
     formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
@@ -208,15 +231,7 @@ check_setup.reg <- function(
     prior_factors          = prior_factors,
     prior_factors_null     = prior_factors_null,
 
-    do_not_fit = TRUE,
-
-    ### fitting settings defaults
-    # MCMC fitting settings
-    chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
-    autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
-
-    # additional settings
-    save = "all", seed = NULL, silent = TRUE)
+    do_not_fit = TRUE)
 
 
   ### Components summary
@@ -242,9 +257,9 @@ check_setup.reg <- function(
   prior_weights   <- prior_weights / sum(prior_weights)
   # conditional model weights
   models_prior <- c(
-    mu    <- sum(prior_weights[effect]),
-    tau   <- sum(prior_weights[heterogeneity]),
-    omega <- sum(prior_weights[bias])
+    mu    = sum(prior_weights[effect]),
+    tau   = sum(prior_weights[heterogeneity]),
+    omega = sum(prior_weights[bias])
   )
 
   # create overview table
@@ -377,6 +392,141 @@ check_setup.reg <- function(
 
   return(invisible(object))
 }
+
+#' @rdname check_setup.reg
+check_setup.RoBMA.reg <- check_setup.reg
+
+
+#' @title Prints summary of \code{"BiBMA.reg"} ensemble implied by the specified priors
+#' and formula
+#'
+#' @description \code{check_setup} prints summary of \code{"RoBMA.reg"} ensemble
+#' implied by the specified prior distributions. It is useful for checking
+#' the ensemble configuration prior to fitting all of the models.
+#'
+#' @inheritParams BiBMA
+#' @inheritParams check_setup
+#'
+#' @return \code{check_setup.reg} invisibly returns list of summary tables.
+#'
+#' @seealso [check_setup()] [BiBMA()]
+#' @export
+check_setup.BiBMA <- function(
+    # prior specification
+    priors_effect         = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4)),
+    priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55)),
+
+    priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
+    priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
+
+    priors_baseline        = NULL,
+    priors_baseline_null   = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
+
+    models = FALSE, silent = FALSE, ...){
+
+  object <- BiBMA(
+    # add empty data (they do not determine model structure)
+    x1 = 0, x2 = 0, n1 = 1, n2 = 1,
+
+    # prior specification -- passed from the user
+    priors_effect         = priors_effect,
+    priors_heterogeneity  = priors_heterogeneity,
+
+    priors_effect_null         = priors_effect_null,
+    priors_heterogeneity_null  = priors_heterogeneity_null,
+
+    priors_baseline        = priors_baseline,
+    priors_baseline_null   = priors_baseline_null,
+
+    # return model structure only
+    do_not_fit = TRUE
+  )
+
+  ### model types overview
+  effect         <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "effect"))
+  heterogeneity  <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
+  baseline       <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "baseline"))
+
+
+  # number of model types
+  n_models    <- c(
+    mu  = sum(effect),
+    tau = sum(heterogeneity)
+  )
+  if(any(baseline)){
+    n_models <- c(n_models, baseline = sum(baseline))
+  }
+
+  # extract model weights
+  prior_weights   <- sapply(object$models, function(m)m$prior_weights)
+  # standardize model weights
+  prior_weights   <- prior_weights / sum(prior_weights)
+  # conditional model weights
+  models_prior <- c(
+    mu    = sum(prior_weights[effect]),
+    tau   = sum(prior_weights[heterogeneity])
+  )
+  if(any(baseline)){
+    models_prior <- c(models_prior, baseline = sum(prior_weights[baseline]))
+  }
+
+  # create overview table
+  components <- data.frame(
+    "models"     = n_models,
+    "prior_prob" = models_prior
+  )
+  rownames(components) <- c("Effect", "Heterogeneity", if(any(baseline)) "Baseline")
+
+  class(components)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(components))
+  attr(components, "type")      <- c("n_models", "prior_prob")
+  attr(components, "rownames")  <- TRUE
+  attr(components, "n_models")  <- length(object$models)
+  attr(components, "title")     <- "Components summary:"
+  attr(components, "footnotes") <- NULL
+  attr(components, "warnings")  <- NULL
+
+  object$components <- components
+
+  ### model details
+  if(models){
+    priors_effect        <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$mu, silent = TRUE))
+    priors_heterogeneity <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    priors_baseline      <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$pi, silent = TRUE))
+
+    prior_weights <- sapply(1:length(object$models), function(i)object$models[[i]]$prior_weights)
+    prior_prob    <- prior_weights / sum(prior_weights)
+
+    summary <- cbind.data.frame(
+      "Model"         = 1:length(object$models),
+      "Effect"        = priors_effect,
+      "Heterogeneity" = priors_heterogeneity,
+      "Baseline"      = priors_baseline,
+      "prior_prob"    = prior_prob
+    )
+    class(summary)             <- c("BayesTools_table", "BayesTools_ensemble_inference", class(summary))
+    attr(summary, "type")      <- c("integer", rep("prior", 3), "prior_prob")
+    attr(summary, "rownames")  <- FALSE
+    attr(summary, "title")     <- "Models overview:"
+    attr(summary, "footnotes") <- NULL
+    attr(summary, "warnings")  <- NULL
+
+    object$summary <- summary
+  }
+
+
+  if(!silent){
+    cat("Bayesian model-averaged meta-analysis (binomial model) (set-up)\n")
+    print(components, quote = FALSE, right = TRUE)
+
+    if(models){
+      cat("\n")
+      print(summary, quote = FALSE, right = TRUE)
+    }
+  }
+
+  return(invisible(object))
+}
+
 
 #' @title Control MCMC fitting process
 #'
@@ -653,7 +803,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   for(i in seq_along(predictors)){
 
     if(attr(predictors, "variables_info")[[i]][["type"]] == "continuous"){
-      if(!(isTRUE(all.equal(mean(predictors[[i]]), 0)) && isTRUE(all.equal(sd(mean(predictors[[i]])), 1)))){
+      if(!(isTRUE(all.equal(mean(predictors[[i]]), 0)) && isTRUE(all.equal(stats::sd(mean(predictors[[i]])), 1)))){
         warnings <- c(warnings, paste0("The continuous predictor '",names(predictors[i]),"' is not standardized. Be cafefull about the specified prior distribution and hypothesis test."))
       }
     }

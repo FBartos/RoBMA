@@ -41,7 +41,7 @@ NoBMA <- function(
   save = "all", seed = NULL, silent = TRUE, ...){
 
 
-  fit <- RoBMA(
+  object <- RoBMA(
     # data specification
     d = d, r = r, logOR = logOR, z = z, y = y,
     se = se, v = v, n = n, lCI = lCI, uCI = uCI, t = t, study_names = study_names, study_ids = study_ids,
@@ -68,8 +68,9 @@ NoBMA <- function(
     # additional settings
     save = save, seed = seed, silent = silent, ...)
 
+  class(object) <- c("NoBMA", class(object))
 
-  return(fit)
+  return(object)
 }
 
 #' @title Estimate a Bayesian Model-Averaged Meta-Regression
@@ -126,7 +127,7 @@ NoBMA.reg <- function(
     # additional settings
     save = "all", seed = NULL, silent = TRUE, ...){
 
-   fit <- RoBMA.reg(
+  object <- RoBMA.reg(
     formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, study_ids = study_ids,
     transformation     = transformation,
     prior_scale        = prior_scale,
@@ -158,5 +159,7 @@ NoBMA.reg <- function(
     # additional settings
     save = save, seed = seed, silent = silent, ...)
 
-   return(fit)
+   class(object) <- c("NoBMA.reg", class(object))
+
+   return(object)
 }

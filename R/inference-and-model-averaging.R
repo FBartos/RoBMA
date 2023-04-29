@@ -47,23 +47,32 @@
   heterogeneity  <- sapply(models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(models, function(model)!.is_component_null(model[["priors"]], "bias"))
   hierarchical   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "hierarchical"))
+  baseline       <- sapply(models, function(model)!.is_component_null(model[["priors"]], "baseline"))
 
   # obtain the parameter types
   weightfunctions <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
   PET             <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
   PEESE           <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
 
-  # define inference options
-  components      <- c("Effect", "Heterogeneity", "Bias")
+  # define inference options: always effect and heterogeneity
+  components      <- c("Effect", "Heterogeneity")
   parameters      <- c("mu", "tau")
-  components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity, "Bias" = !bias)
+  components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity)
   parameters_null <- list("mu"     = !effect, "tau"           = !heterogeneity)
 
+  if(any(bias)){
+    components      <- c(components,      "Bias")
+    components_null <- c(components_null, "Bias" = list(!bias))
+  }
   if(any(hierarchical)){
     components      <- c(components,      "Hierarchical")
     parameters      <- c(parameters,      "rho")
     components_null <- c(components_null, "Hierarchical" = list(!hierarchical))
     parameters_null <- c(parameters_null, "rho" = list(!hierarchical))
+  }
+  if(any(baseline)){
+    components      <- c(components,      "Baseline")
+    components_null <- c(components_null, "Baseline" = list(!baseline))
   }
   if(any(weightfunctions)){
     components      <- c(components,      "bias.selection-models")

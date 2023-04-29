@@ -9,11 +9,21 @@
 #' @param x2 a vector with the number of successes in the second group
 #' @param n1 a vector with the number of observations in the first group
 #' @param n2 a vector with the number of observations in the second group
-#' @param priors_baseline prior distributions for independent intercepts (\code{pi})
-#' for each study. Defaults to a uniform prior distribution
-#' \code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.
+#' @param priors_baseline prior distributions for the alternative hypothesis about
+#' intercepts (\code{pi}) of each study. Defaults to \code{NULL}.
 #' @param priors_baseline_null prior distributions for the null hypothesis about
-#' independent intercepts (\code{pi}) for each study. Defaults to \code{NULL}.
+#' intercepts (\code{pi}) for each study. Defaults to an independent uniform prior distribution
+#' for each intercept \code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.
+#' @param priors_effect list of prior distributions for the effect size (\code{mu})
+#' parameter that will be treated as belonging to the alternative hypothesis. Defaults to
+#' \code{prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4))},
+#' based on logOR meta-analytic estimates from the Cochrane Database of Systematic Reviews
+#' \insertCite{bartos2023empirical}{RoBMA}.
+#' @param priors_heterogeneity list of prior distributions for the heterogeneity \code{tau}
+#' parameter that will be treated as belonging to the alternative hypothesis. Defaults to
+#' \code{prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55))} that
+#' is based on heterogeneities of logOR estimates from the Cochrane Database of Systematic Reviews
+#' \insertCite{bartos2023empirical}{RoBMA}.
 #' @inheritParams RoBMA
 #' @inheritParams combine_data
 #'
@@ -29,15 +39,14 @@ BiBMA <- function(
   x1, x2, n1, n2, study_names = NULL, study_ids = NULL,
 
   # prior specification
-  model_type   = NULL,
-  priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
-  priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
+  priors_effect         = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4)),
+  priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55)),
 
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
 
-  priors_baseline        = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
-  priors_baseline_null   = NULL,
+  priors_baseline        = NULL,
+  priors_baseline_null   = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,

@@ -2,7 +2,7 @@ context("(3) Model setup")
 skip_on_cran()
 
 # test model preview
-test_that("Model preview works", {
+test_that("RoBMA model preview works", {
 
   expect_equal(
     capture_output_lines(check_setup(models = FALSE), print = TRUE, width = 150),
@@ -166,7 +166,6 @@ test_that("Model preview works", {
 test_that("RoBMA.reg model preview works", {
 
   # also test for model generation as it calls RoBMA.reg function within
-
   df_reg <- data.frame(
     d       = c(rep(-1, 5), rep(0, 5), rep(1, 5)),
     se      = rep(0.1, 15),
@@ -372,6 +371,62 @@ test_that("RoBMA.reg model preview works", {
       "     2  Normal(0, 1)                                   Spike(0) Normal(0, 0.25)            Spike(0)                  0.250",
       "     3      Spike(0) mean difference contrast: mNormal(0, 0.25) Normal(0, 0.25)            Spike(0)                  0.250",
       "     4  Normal(0, 1) mean difference contrast: mNormal(0, 0.25) Normal(0, 0.25)            Spike(0)                  0.250"
+    )
+  )
+
+
+})
+
+test_that("BiBMA model preview works", {
+
+  expect_equal(
+    capture_output_lines(check_setup.BiBMA(), print = TRUE, width = 150),
+    c("Bayesian model-averaged meta-analysis (binomial model) (set-up)",
+      "Components summary:"                                            ,
+      "              Models Prior prob."                               ,
+      "Effect           2/4       0.500"                               ,
+      "Heterogeneity    2/4       0.500"
+    )
+  )
+
+  expect_equal(
+    capture_output_lines(check_setup.BiBMA(models = TRUE), print = TRUE, width = 150),
+    c("Bayesian model-averaged meta-analysis (binomial model) (set-up)"                               ,
+      "Components summary:"                                                                           ,
+      "              Models Prior prob."                                                              ,
+      "Effect           2/4       0.500"                                                              ,
+      "Heterogeneity    2/4       0.500"                                                              ,
+      ""                                                                                              ,
+      "Models overview:"                                                                              ,
+      " Model      Prior Effect      Prior Heterogeneity          Prior Baseline          Prior prob.",
+      "     1              Spike(0)             Spike(0) independent contrast: Beta(1, 1)       0.250",
+      "     2              Spike(0) InvGamma(1.77, 0.55) independent contrast: Beta(1, 1)       0.250",
+      "     3 Student-t(0, 0.58, 4)             Spike(0) independent contrast: Beta(1, 1)       0.250",
+      "     4 Student-t(0, 0.58, 4) InvGamma(1.77, 0.55) independent contrast: Beta(1, 1)       0.250"
+    ))
+
+  expect_equal(
+    capture_output_lines(check_setup.BiBMA(
+      priors_effect_null = NULL,
+      priors_heterogeneity = list(prior("spike", list(3)), prior("spike", list(5))),
+      priors_baseline = prior_factor("beta", list(2, 2), contrast = "independent", prior_weights = 2),
+      models = TRUE
+      ), print = TRUE, width = 150),
+    c("Bayesian model-averaged meta-analysis (binomial model) (set-up)"                              ,
+      "Components summary:"                                                                          ,
+      "              Models Prior prob."                                                             ,
+      "Effect           6/6       1.000"                                                             ,
+      "Heterogeneity    4/6       0.667"                                                             ,
+      "Baseline         3/6       0.667"                                                             ,
+      ""                                                                                             ,
+      "Models overview:"                                                                             ,
+      " Model      Prior Effect     Prior Heterogeneity          Prior Baseline          Prior prob.",
+      "     1 Student-t(0, 0.58, 4)            Spike(0) independent contrast: Beta(1, 1)       0.111",
+      "     2 Student-t(0, 0.58, 4)            Spike(0) independent contrast: Beta(2, 2)       0.222",
+      "     3 Student-t(0, 0.58, 4)            Spike(3) independent contrast: Beta(1, 1)       0.111",
+      "     4 Student-t(0, 0.58, 4)            Spike(3) independent contrast: Beta(2, 2)       0.222",
+      "     5 Student-t(0, 0.58, 4)            Spike(5) independent contrast: Beta(1, 1)       0.111",
+      "     6 Student-t(0, 0.58, 4)            Spike(5) independent contrast: Beta(2, 2)       0.222"
     )
   )
 

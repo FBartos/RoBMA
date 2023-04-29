@@ -3,7 +3,7 @@ skip_on_cran()
 skip_on_covr()
 
 # test objects
-saved_files <- paste0("fit_", 1:15, ".RDS")
+saved_files <- paste0("fit_", 1:16, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
@@ -250,9 +250,17 @@ test_that("RoBMA (simplified) regression with custom priors work", {
   expect_equal(clean_all(saved_fits[[15]]), clean_all(fit_15))
 })
 
+test_that("BiBMA works", {
+
+  fit_16 <- try_parallel(BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20,5), n2 = rep(20, 5)))
+  fit_16 <- remove_time(fit_16)
+  expect_equal(clean_all(saved_fits[[16]]), clean_all(fit_16))
+})
+
+
 #### creating / updating the test settings ####
 if(FALSE){
-  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13, fit_14, fit_15)
+  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13, fit_14, fit_15, fit_16)
 
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])
@@ -264,7 +272,7 @@ if(FALSE){
 
   # package version update
   # test objects
-  saved_files <- paste0("fit_", 1:15, ".RDS")
+  saved_files <- paste0("fit_", 1:16, ".RDS")
   saved_fits  <- list()
   for(i in seq_along(saved_files)){
     temp_fit <- readRDS(file = file.path("tests/results/fits", saved_files[i]))

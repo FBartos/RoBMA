@@ -225,7 +225,7 @@ RoBMA.reg <- function(
   }
 
 
-  class(object) <- c("RoBMA", "RoBMA.reg")
+  class(object) <- c("RoBMA.reg", "RoBMA")
   return(object)
 }
 

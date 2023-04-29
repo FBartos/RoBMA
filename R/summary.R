@@ -115,7 +115,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     # obtain components overview
     components <- BayesTools::ensemble_inference_table(
       inference  = object$RoBMA[["inference"]],
-      parameters = names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical")],
+      parameters = names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline")],
       logBF      = logBF,
       BF01       = BF01,
       title      = "Components summary:"
@@ -155,7 +155,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     # create the output object
     output <- list(
       call       = object[["call"]],
-      title      = "Robust Bayesian meta-analysis",
+      title      = .object_title(object),
       components = components,
       estimates  = estimates
     )
@@ -231,7 +231,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
   }else if(substr(type,1,1) == "m"){
 
-    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical")]
+    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline")]
 
     parameters <- list()
     if(any(components == "Effect")){
@@ -252,6 +252,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     }
     if(any(components == "Bias")){
       parameters[["Bias"]] <- c("PET", "PEESE", "omega")
+    }
+    if(is.BiBMA(object)){
+      parameters[["Baseline"]] <- "pi"
     }
 
     summary <- BayesTools::ensemble_summary_table(
@@ -266,7 +269,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
     output <- list(
       call       = object[["call"]],
-      title      = "Robust Bayesian meta-analysis",
+      title      = .object_title(object),
       summary    = summary
     )
 
@@ -277,7 +280,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
   }else if(substr(type,1,1) == "d"){
 
-    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical")]
+    components <- names(object$RoBMA[["inference"]])[names(object$RoBMA[["inference"]]) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline")]
 
     parameters <- list()
     if(any(components == "Effect")){
@@ -299,6 +302,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     if(any(components == "Bias")){
       parameters[["Bias"]] <- c("PET", "PEESE", "omega")
     }
+    if(is.BiBMA(object)){
+      parameters[["Baseline"]] <- "pi"
+    }
 
     diagnostics <- BayesTools::ensemble_diagnostics_table(
       models         = object[["models"]],
@@ -312,7 +318,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
     output <- list(
       call        = object[["call"]],
-      title       = "Robust Bayesian meta-analysis",
+      title       = .object_title(object),
       diagnostics = diagnostics
     )
 
@@ -325,16 +331,17 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
     output <- list(
       call       = object[["call"]],
-      title      = "Robust Bayesian meta-analysis",
+      title      = .object_title(object),
       models     = list()
     )
 
     for(i in seq_along(object[["models"]])){
 
       summary  <- BayesTools::model_summary_table(
-        model          = object[["models"]][[i]],
-        short_name     = short_name,
-        remove_spike_0 = remove_spike_0
+        model             = object[["models"]][[i]],
+        remove_parameters = "gamma",
+        short_name        = short_name,
+        remove_spike_0    = remove_spike_0
       )
       if(output_scale == "y"){
         estimates <- object[["models"]][[i]][["fit_summary"]]
@@ -453,19 +460,47 @@ print.summary.RoBMA <- function(x, ...){
 #' @return returns a boolean.
 #'
 #' @name is.RoBMA
+#' @aliases is.RoBMA.reg is.NoBMA is.NoBMA.reg is.BiBMA
 #' @export is.RoBMA
 #' @export is.RoBMA.reg
+#' @export is.NoBMA
+#' @export is.NoBMA.reg
+#' @export is.BiBMA
 
 #' @rdname is.RoBMA
 is.RoBMA            <- function(x){
   inherits(x, "RoBMA")
 }
-
 #' @rdname is.RoBMA
 is.RoBMA.reg        <- function(x){
   inherits(x, "RoBMA.reg")
 }
+#' @rdname is.RoBMA
+is.NoBMA            <- function(x){
+  inherits(x, "NoBMA")
+}
+#' @rdname is.RoBMA
+is.NoBMA.reg        <- function(x){
+  inherits(x, "NoBMA.reg")
+}
+#' @rdname is.RoBMA
+is.BiBMA            <- function(x){
+  inherits(x, "BiBMA")
+}
 
+.object_title <- function(object){
+  if(is.NoBMA(object)){
+    return("Bayesian model-averaged meta-analysis (normal-normal model)")
+  }else if(is.NoBMA.reg(object)){
+    return("Bayesian model-averaged meta-regression (normal-normal model)")
+  }else if(is.BiBMA(object)){
+    return("Bayesian model-averaged meta-analysis (binomial-normal model)")
+  }else if(is.RoBMA.reg(object)){
+    return("Robust Bayesian meta-regression")
+  }else if(is.RoBMA(object)){
+    return("Robust Bayesian meta-analysis")
+  }
+}
 
 
 #' @title Interprets results of a RoBMA model.
@@ -517,7 +552,7 @@ interpret           <- function(object, output_scale = NULL){
         inference_BF_name   = "BF_pb"
       )[any(names(object$RoBMA[["inference"]]) == "Bias")]
     ),
-    method        = "Robust Bayesian meta-analysis"
+    method        = .object_title(object)
   )
 
   return(text)
