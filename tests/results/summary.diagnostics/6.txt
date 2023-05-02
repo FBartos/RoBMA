@@ -24,7 +24,7 @@
 "    17     Spike(0)   InvGamma(1, 0.15)                             PET ~ Cauchy(0, 1)[0, Inf]              0.00623               0.012     6972      1.000"
 "    18     Spike(0)   InvGamma(1, 0.15)                           PEESE ~ Cauchy(0, 5)[0, Inf]              0.01282               0.012     7523      1.001"
 "    19 Normal(0, 1)            Spike(0)                                                                     0.00221               0.010    10143      1.000"
-"    20 Normal(0, 1)            Spike(0)           omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00378               0.014     4852      1.001"
+"    20 Normal(0, 1)            Spike(0)           omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00378               0.014     4852      1.000"
 "    21 Normal(0, 1)            Spike(0)       omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00352               0.016     3990      1.003"
 "    22 Normal(0, 1)            Spike(0)           omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00401               0.015     4169      1.001"
 "    23 Normal(0, 1)            Spike(0)     omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00366               0.016     3808      1.000"

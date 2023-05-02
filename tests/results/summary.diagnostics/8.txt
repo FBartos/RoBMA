@@ -4,5 +4,5 @@
 ""
 "Robust Bayesian meta-analysis"
 "Diagnostics overview:"
-" Model Prior Effect Prior Heterogeneity Prior Bias max[error(MCMC)] max[error(MCMC)/SD] min(ESS) max(R-hat)"
-"     1     Spike(0)            Spike(0)                          NA                  NA       NA         NA"
+" Model Prior Effect Prior Heterogeneity max[error(MCMC)] max[error(MCMC)/SD] min(ESS) max(R-hat)"
+"     1     Spike(0)            Spike(0)               NA                  NA       NA         NA"

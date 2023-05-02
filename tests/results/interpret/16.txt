@@ -1,0 +1,5 @@
+"Bayesian model-averaged meta-analysis (binomial-normal model) found weak evidenc
+e in favor of the effect, BF_10 = 1.86, with mean model-averaged estimate log(OR
+) = -0.356, 95% CI [-1.219,  0.076]. Bayesian model-averaged meta-analysis (bino
+mial-normal model) found weak evidence against the heterogeneity, BF^rf = 0.682,
+ with mean model-averaged estimate tau = 0.143, 95% CI [0.000, 0.774]."

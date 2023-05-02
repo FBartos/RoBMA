@@ -528,30 +528,37 @@ interpret           <- function(object, output_scale = NULL){
     object <- .transform_posterior(object, object$add_info[["output_scale"]], output_scale)
   }
 
+  specification <- list()
+  if(any(names(object$RoBMA[["inference"]]) == "Effect")){
+    specification[["Effect"]] <- list(
+      inference           = "Effect",
+      samples             = "mu",
+      inference_name      = "effect",
+      inference_BF_name   = "BF_10",
+      samples_name        = .transformation_names(object$add_info[["output_scale"]])
+    )
+  }
+  if(any(names(object$RoBMA[["inference"]]) == "Heterogeneity")){
+    specification[["Heterogeneity"]] <- list(
+      inference           = "Heterogeneity",
+      samples             = "tau",
+      inference_name      = "heterogeneity",
+      inference_BF_name   = "BF^rf",
+      samples_name        = "tau"
+    )
+  }
+  if(any(names(object$RoBMA[["inference"]]) == "Bias")){
+    specification[["Bias"]] <- list(
+      inference           = "Bias",
+      inference_name      = "publication bias",
+      inference_BF_name   = "BF_pb"
+    )
+  }
+
   text <- BayesTools::interpret(
     inference     = object$RoBMA[["inference"]],
     samples       = object$RoBMA[["posteriors"]],
-    specification = list(
-      list(
-        inference           = "Effect",
-        samples             = "mu",
-        inference_name      = "effect",
-        inference_BF_name   = "BF_10",
-        samples_name        = .transformation_names(object$add_info[["output_scale"]])
-      )[any(names(object$RoBMA[["inference"]]) == "Effect")],
-      list(
-        inference           = "Heterogeneity",
-        samples             = "tau",
-        inference_name      = "heterogeneity",
-        inference_BF_name   = "BF^rf",
-        samples_name        = "tau"
-      )[any(names(object$RoBMA[["inference"]]) == "Heterogeneity")],
-      list(
-        inference           = "Bias",
-        inference_name      = "publication bias",
-        inference_BF_name   = "BF_pb"
-      )[any(names(object$RoBMA[["inference"]]) == "Bias")]
-    ),
+    specification = specification,
     method        = .object_title(object)
   )
 

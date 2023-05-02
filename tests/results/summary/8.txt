@@ -7,7 +7,6 @@
 "              Models Prior prob. Post. prob. Inclusion BF"
 "Effect           0/1       0.000       0.000        0.000"
 "Heterogeneity    0/1       0.000       0.000        0.000"
-"Bias             0/1       0.000       0.000        0.000"
 ""
 "Model-averaged estimates:"
 "     Mean Median 0.025 0.975"

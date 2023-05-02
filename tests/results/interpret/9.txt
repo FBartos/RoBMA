@@ -2,5 +2,4 @@
 0.000, with mean model-averaged estimate Cohen's d = 0.276, 95% CI [-0.452,  0.8
 62]. Robust Bayesian meta-analysis found strong evidence against the heterogenei
 ty, BF^rf = 0.000, with mean model-averaged estimate tau = 0.224, 95% CI [0.038,
- 0.822]. Robust Bayesian meta-analysis found strong evidence against the publica
-tion bias, BF_pb = 0.000."
+ 0.822]."
