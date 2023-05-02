@@ -392,8 +392,9 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   }
 }
 
-.combine_data.bi <- function(x1, x2, n1, n2, study_names = NULL, study_ids = NULL, weight = NULL){
+.combine_data.bi <- function(x1, x2, n1, n2, study_names = NULL, study_ids = NULL, weight = NULL, transformation = "logOR"){
 
+  BayesTools::check_char(transformation, "transformation")
   BayesTools::check_int(x1[!is.na(x1)], "x1", check_length = FALSE,      lower = 0)
   BayesTools::check_int(x2[!is.na(x2)], "x2", check_length = length(x1), lower = 0)
   BayesTools::check_int(n1[!is.na(n1)], "n1", check_length = length(x1), lower = 0)
@@ -930,48 +931,63 @@ se_z2se_logOR <- function(se_z, z){
 }
 
 
-.transformation_var    <- function(name){
-  if(!name %in% c("fishers_z", "cohens_d", "r", "logOR", "none"))
+.transformation_var    <- function(name, estimation = TRUE){
+
+  if(estimation && !name %in% c("fishers_z", "cohens_d", "r", "logOR", "none"))
     stop("Unknown effect size / transformation. The available options are 'fishers_z', 'cohens_d', 'r', 'logOR', and 'none'.")
-  switch(
+  else if(!name %in% c("fishers_z", "cohens_d", "r", "logOR", "none", "OR"))
+    stop("Unknown effect size / transformation. The available options are 'fishers_z', 'cohens_d', 'r', 'logOR', 'OR', and 'none'.")
+
+  return(switch(
     name,
     "fishers_z" = "z",
     "cohens_d"  = "d",
     "r"         = "r",
     "logOR"     = "logOR",
+    "OR"        = "OR",
     "none"      = "y"
-  )
+  ))
 }
-.transformation_invar  <- function(name){
-  if(!name %in% c("z", "d", "r", "logOR", "y"))
+.transformation_invar  <- function(name, estimation = TRUE){
+
+  if(estimation && !name %in% c("z", "d", "r", "logOR", "y"))
     stop("Unknown effect size / transformation shortcut. The available options are 'z', 'd', 'r', 'logOR', and 'y'.")
-  switch(
+  else if(!name %in% c("z", "d", "r", "logOR", "OR", "y"))
+    stop("Unknown effect size / transformation shortcut. The available options are 'z', 'd', 'r', 'logOR', 'OR', and 'y'.")
+
+  return(switch(
     name,
     "z"     = "fishers_z",
     "d"     = "cohens_d",
     "r"     = "r",
     "logOR" = "logOR",
+    "OR"    = "OR",
     "y"     = "none"
-  )
+  ))
 }
-.transformation_names  <- function(var){
-  if(!var %in% c("z", "d", "r", "logOR", "y"))
+.transformation_names  <- function(var, estimation = TRUE){
+
+  if(estimation && !var %in% c("z", "d", "r", "logOR", "y"))
     stop("Unknown variable type. The available options are 'z', 'd', 'r', 'logOR', and 'y'.")
-  switch(
+  else if(!var %in% c("z", "d", "r", "logOR", "OR", "y"))
+    stop("Unknown variable type. The available options are 'z', 'd', 'r', 'logOR', 'OR', and 'y'.")
+
+  return(switch(
     var,
     "z"       = "Fisher's z",
     "d"       = "Cohen's d",
     "r"       = "correlation",
     "logOR"   = "log(OR)",
+    "OR"      = "OR",
     "y"       = "none"
-  )
+  ))
 }
 
 .get_transformation    <- function(from, to){
   if(any(c(from, to) == "y"))
     stop("Prior / effect size transformations are not available for unstandardized effect sizes.")
   if(from == to){
-    return(function(x)x)
+    return(function(x) x)
   }else{
     return(eval(parse(text = paste0(from, "2", to))))
   }
@@ -990,77 +1006,141 @@ se_z2se_logOR <- function(se_z, z){
 scale_d2r     <- function(d) .scale_d2r$fun(d)
 scale_d2z     <- function(d) .scale_d2z$fun(d)
 scale_d2logOR <- function(d) .scale_d2logOR$fun(d)
+scale_d2OR    <- function(d) .scale_d2OR$fun(d)
 
 scale_r2d     <- function(r) .scale_r2d$fun(r)
 scale_r2z     <- function(r) .scale_r2z$fun(r)
 scale_r2logOR <- function(r) .scale_r2logOR$fun(r)
+scale_r2OR    <- function(r) .scale_r2OR$fun(r)
 
 scale_z2r     <- function(z) .scale_z2r$fun(z)
 scale_z2d     <- function(z) .scale_z2d$fun(z)
 scale_z2logOR <- function(z) .scale_z2logOR$fun(z)
+scale_z2OR    <- function(z) .scale_z2OR$fun(z)
 
 scale_logOR2r     <- function(logOR) .scale_logOR2r$fun(logOR)
 scale_logOR2z     <- function(logOR) .scale_logOR2z$fun(logOR)
 scale_logOR2d     <- function(logOR) .scale_logOR2d$fun(logOR)
+scale_logOR2OR    <- function(logOR) .scale_logOR2OR$fun(logOR)
+
+scale_OR2r     <- function(OR) .scale_OR2r$fun(OR)
+scale_OR2z     <- function(OR) .scale_OR2z$fun(OR)
+scale_OR2d     <- function(OR) .scale_OR2d$fun(OR)
+scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
 
 
-.get_scale   <- function(from, to){
-  if(any(c(from, to) %in% c("y")))
-    stop("Prior rescaling is not available for unstandardized effect sizes.")
+.get_scale  <- function(from, to, fun = TRUE){
+
+  # choose between the raw transformation function or the transformation list (for BayesTools)
+  if(fun){
+    prefix <- ""
+  }else{
+    prefix <- "."
+  }
+
+  # don't transform scale to either OR or r
+  if(to == "OR"){
+    to <- "logOR"
+  }
+  if(to == "r"){
+    to <- "z"
+  }
+
   if(from == to){
-    return(function(x)x)
+    if(fun){
+      return(function(x) x)
+    }else{
+      return(NULL)
+    }
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
   }else{
-    return(eval(parse(text = paste0("scale_", from, "2", to))))
+    return(eval(parse(text = paste0(prefix, "scale_", from, "2", to))))
   }
 }
-.scale       <- function(x, from, to){
-  do.call(
-    .get_scale(from, to),
-    args = list(x))
-}
-.get_scale_b <- function(from, to){
-  return(switch(
-    paste0(from, "2", to),
-    "d2logOR"  = pi/sqrt(3),
-    "logOR2d"  = 1/(pi/sqrt(3)),
-    "d2z"      = 1/2,
-    "z2d"      = 2,
-    "d2r"      = 1/2,
-    "r2d"      = 2,
-    "z2logOR"  = 2 * (pi/sqrt(3)),
-    "logOR2z"  = (1/(pi/sqrt(3))) * (1/2),
-    "z2r"      = (1/2) * 2,
-    "r2z"      = 2 * (1/2),
-    "logOR2r"  = (1/(pi/sqrt(3))) * (1/2),
-    "r2logOR"  = 2 * (pi/sqrt(3))
-  ))
-}
+.scale      <- function(x, from, to){
 
+  # don't transform scale to either OR or r
+  if(to == "OR"){
+    to <- "logOR"
+  }
+  if(to == "r"){
+    to <- "z"
+  }
+
+  if(from == to){
+    return(x)
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    do.call(
+      .get_scale(from, to),
+      args = list(x))
+  }
+}
 .scale_note <- function(prior_scale, output_scale){
-  return(sprintf(
-    "The estimates are summarized on the %1$s scale (priors were specified on the %2$s scale).",
-    .transformation_names(output_scale),
-    .transformation_names(prior_scale)))
-}
-
-
-
-.transform_mu    <- function(mu, from, to){
-  do.call(
-    .get_transformation(from, to),
-    args = list(mu))
-}
-.transform_tau   <- function(tau, mu, from, to){
-  if(all(c(from, to) %in% c("d", "logOR"))){
-    return(do.call(
-      .get_transformation_se(from, to),
-      args = list(tau)))
+  if(output_scale == "OR"){
+    return(sprintf(
+      "The effect size estimates are summarized on the %1$s scale and heterogeneity is summarized on the logOR scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
+  }else if(output_scale == "r"){
+    return(sprintf(
+      "The effect size estimates are summarized on the %1$s scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
   }else{
-    return(do.call(
-      .get_transformation_se(from, to),
-      args = list(tau, if(!is.null(mu)) mu else 0)))
+    return(sprintf(
+      "The estimates are summarized on the %1$s scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
   }
 }
+
+.get_transform_mu <- function(from, to, fun = TRUE){
+
+  # choose between the raw transformation function or the transformation list (for BayesTools)
+  if(fun){
+    prefix <- ""
+  }else{
+    prefix <- "."
+  }
+
+  if(from == to){
+    if(fun){
+      return(function(x) x)
+    }else{
+      return(NULL)
+    }
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    return(eval(parse(text = paste0(prefix, from, "2", to))))
+  }
+}
+.transform_mu     <- function(mu, from, to){
+  if(from == to){
+    return(function(x) x)
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    return(do.call(
+      .get_transform_mu(from, to),
+      args = list(mu)))
+  }
+}
+# tau and PEESE coefficients are only re-scaled as in metaBMA
+# .transform_tau   <- function(tau, mu, from, to){
+#   if(all(c(from, to) %in% c("d", "logOR"))){
+#     return(do.call(
+#       .get_transformation_se(from, to),
+#       args = list(tau)))
+#   }else{
+#     return(do.call(
+#       .get_transformation_se(from, to),
+#       args = list(tau, if(!is.null(mu)) mu else 0)))
+#   }
+# }
 # .transform_PEESE <- function(PEESE, mu, from, to){
 #   do.call(
 #     .get_transformation_PEESE(from, to),

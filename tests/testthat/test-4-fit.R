@@ -252,7 +252,7 @@ test_that("RoBMA (simplified) regression with custom priors work", {
 
 test_that("BiBMA works", {
 
-  fit_16 <- try_parallel(BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20,5), n2 = rep(20, 5)))
+  fit_16 <- try_parallel(BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20,5), n2 = rep(20, 5), seed = 1))
   fit_16 <- remove_time(fit_16)
   expect_equal(clean_all(saved_fits[[16]]), clean_all(fit_16))
 })

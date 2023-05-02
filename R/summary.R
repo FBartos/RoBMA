@@ -91,10 +91,10 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   # check the scales
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]
-  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale, estimation = FALSE) != "y"){
     stop("Models estimated using the generall effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
   }else{
-    output_scale <- .transformation_var(output_scale)
+    output_scale <- .transformation_var(output_scale, estimation = FALSE)
   }
 
   # print diagnostics if all models fail to converge

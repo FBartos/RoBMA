@@ -1007,47 +1007,23 @@
 
   summary_list <- list()
 
-  for(measure in c("d", "r", "z", "logOR")){
+  for(measure in c("d", "r", "z", "logOR", "OR")){
 
     # prepare transformations if necessary
     if(measure != priors_scale){
       transformations <- list()
       if("mu" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["mu"]]))){
-        transformations[["mu"]] <- list(
-          "fun" = .transform_mu,
-          "arg" = list(
-            "from" = priors_scale,
-            "to"   = measure
-          )
-        )
+        transformations[["mu"]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
       }
       for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
-        transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- list(
-          "fun" = .transform_mu,
-          "arg" = list(
-            "from" = priors_scale,
-            "to"   = measure
-          )
-        )
+        transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
       }
       if("tau" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["tau"]]))){
-        transformations[["tau"]] <- list(
-          "fun" = .scale,
-          "arg" = list(
-            "from" = priors_scale,
-            "to"   = measure
-          )
-        )
+        transformations[["tau"]] <- .get_scale(priors_scale, measure, fun = FALSE)
       }
       if("PEESE" %in% names(priors)){
         # the transformation is inverse for PEESE
-        transformations[["PEESE"]] <- list(
-          "fun" = .scale,
-          "arg" = list(
-            "from" = measure,
-            "to"   = priors_scale
-          )
-        )
+        transformations[["PEESE"]] <- .get_scale(measure, priors_scale, fun = FALSE)
       }
       if(length(transformations) == 0){
         transformations <- NULL

@@ -101,6 +101,131 @@ test_that("Summary functions work", {
       "(Estimated publication weights omega correspond to one-sided p-values.)" )
   )
 
+  expect_equal(
+    capture_output_lines(summary(saved_fits[[1]], output_scale = "r"), print = TRUE, width = 150),
+    c("Call:"                                                                                                                                                                    ,
+      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                                       ,
+      ""                                                                                                                                                                         ,
+      "Robust Bayesian meta-analysis"                                                                                                                                            ,
+      "Components summary:"                                                                                                                                                      ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                                                                                                ,
+      "Effect         18/36       0.500       0.493        0.974"                                                                                                                ,
+      "Heterogeneity  18/36       0.500       0.462        0.858"                                                                                                                ,
+      "Bias           32/36       0.500       0.540        1.173"                                                                                                                ,
+      ""                                                                                                                                                                         ,
+      "Model-averaged estimates:"                                                                                                                                                ,
+      "                   Mean Median  0.025 0.975"                                                                                                                              ,
+      "mu                0.094  0.000 -0.032 0.379"                                                                                                                              ,
+      "tau               0.055  0.000  0.000 0.312"                                                                                                                              ,
+      "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                                                                                              ,
+      "omega[0.025,0.05] 0.924  1.000  0.309 1.000"                                                                                                                              ,
+      "omega[0.05,0.5]   0.824  1.000  0.126 1.000"                                                                                                                              ,
+      "omega[0.5,0.95]   0.759  1.000  0.027 1.000"                                                                                                                              ,
+      "omega[0.95,0.975] 0.770  1.000  0.027 1.000"                                                                                                                              ,
+      "omega[0.975,1]    0.801  1.000  0.027 1.000"                                                                                                                              ,
+      "PET               0.110  0.000  0.000 1.310"                                                                                                                              ,
+      "PEESE             0.175  0.000  0.000 3.142"                                                                                                                              ,
+      "The effect size estimates are summarized on the correlation scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).",
+      "(Estimated publication weights omega correspond to one-sided p-values.)"
+      )
+  )
+
+  expect_equal(
+    capture_output_lines(summary(saved_fits[[1]], output_scale = "OR"), print = TRUE, width = 150),
+    c("Call:"                                                                                                                                                      ,
+      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                         ,
+      ""                                                                                                                                                           ,
+      "Robust Bayesian meta-analysis"                                                                                                                              ,
+      "Components summary:"                                                                                                                                        ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                                                                                  ,
+      "Effect         18/36       0.500       0.493        0.974"                                                                                                  ,
+      "Heterogeneity  18/36       0.500       0.462        0.858"                                                                                                  ,
+      "Bias           32/36       0.500       0.540        1.173"                                                                                                  ,
+      ""                                                                                                                                                           ,
+      "Model-averaged estimates:"                                                                                                                                  ,
+      "                   Mean Median 0.025 0.975"                                                                                                                 ,
+      "mu                1.650  1.000 0.892 4.423"                                                                                                                 ,
+      "tau               0.198  0.000 0.000 1.133"                                                                                                                 ,
+      "omega[0,0.025]    1.000  1.000 1.000 1.000"                                                                                                                 ,
+      "omega[0.025,0.05] 0.924  1.000 0.309 1.000"                                                                                                                 ,
+      "omega[0.05,0.5]   0.824  1.000 0.126 1.000"                                                                                                                 ,
+      "omega[0.5,0.95]   0.759  1.000 0.027 1.000"                                                                                                                 ,
+      "omega[0.95,0.975] 0.770  1.000 0.027 1.000"                                                                                                                 ,
+      "omega[0.975,1]    0.801  1.000 0.027 1.000"                                                                                                                 ,
+      "PET               0.110  0.000 0.000 1.310"                                                                                                                 ,
+      "PEESE             0.888  0.551 0.551 2.653"                                                                                                                 ,
+      "The effect size estimates are summarized on the OR scale and heterogeneity is summarized on the logOR scale (priors were specified on the Cohen's d scale).",
+      "(Estimated publication weights omega correspond to one-sided p-values.)"
+    )
+  )
+
+  expect_equal(
+    capture_output_lines(summary(saved_fits[[1]], output_scale = "logOR"), print = TRUE, width = 150),
+    c("Call:"                                                                                            ,
+      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                               ,
+      ""                                                                                                 ,
+      "Robust Bayesian meta-analysis"                                                                    ,
+      "Components summary:"                                                                              ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                        ,
+      "Effect         18/36       0.500       0.493        0.974"                                        ,
+      "Heterogeneity  18/36       0.500       0.462        0.858"                                        ,
+      "Bias           32/36       0.500       0.540        1.173"                                        ,
+      ""                                                                                                 ,
+      "Model-averaged estimates:"                                                                        ,
+      "                   Mean Median  0.025 0.975"                                                      ,
+      "mu                0.355  0.000 -0.114 1.487"                                                      ,
+      "tau               0.198  0.000  0.000 1.133"                                                      ,
+      "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                      ,
+      "omega[0.025,0.05] 0.924  1.000  0.309 1.000"                                                      ,
+      "omega[0.05,0.5]   0.824  1.000  0.126 1.000"                                                      ,
+      "omega[0.5,0.95]   0.759  1.000  0.027 1.000"                                                      ,
+      "omega[0.95,0.975] 0.770  1.000  0.027 1.000"                                                      ,
+      "omega[0.975,1]    0.801  1.000  0.027 1.000"                                                      ,
+      "PET               0.110  0.000  0.000 1.310"                                                      ,
+      "PEESE             0.048  0.000  0.000 0.866"                                                      ,
+      "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale).",
+      "(Estimated publication weights omega correspond to one-sided p-values.)"
+    )
+  )
+
+  expect_equal( # try with BiBMA
+    capture_output_lines(summary(saved_fits[[16]], output_scale = "OR"), print = TRUE, width = 150),
+    c("Call:"                                                                                                                                                    ,
+      "BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20, 5), n2 = rep(20, 5), seed = 1)"                                                                                    ,
+      ""                                                                                                                                                         ,
+      "Bayesian model-averaged meta-analysis (binomial-normal model)"                                                                                            ,
+      "Components summary:"                                                                                                                                      ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                                                                                ,
+      "Effect           2/4       0.500       0.651        1.863"                                                                                                ,
+      "Heterogeneity    2/4       0.500       0.407        0.685"                                                                                                ,
+      ""                                                                                                                                                         ,
+      "Model-averaged estimates:"                                                                                                                                ,
+      "     Mean Median 0.025 0.975"                                                                                                                             ,
+      "mu  0.748  0.754 0.295 1.062"                                                                                                                             ,
+      "tau 0.145  0.000 0.000 0.775"                                                                                                                             ,
+      "The effect size estimates are summarized on the OR scale and heterogeneity is summarized on the logOR scale (priors were specified on the log(OR) scale)."
+    )
+  )
+
+  expect_equal( # try with BiBMA
+    capture_output_lines(summary(saved_fits[[16]], output_scale = "cohens_d"), print = TRUE, width = 150),
+    c("Call:"                                                                                            ,
+      "BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20, 5), n2 = rep(20, 5), seed = 1)"                            ,
+      ""                                                                                                 ,
+      "Bayesian model-averaged meta-analysis (binomial-normal model)"                                    ,
+      "Components summary:"                                                                              ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                        ,
+      "Effect           2/4       0.500       0.651        1.863"                                        ,
+      "Heterogeneity    2/4       0.500       0.407        0.685"                                        ,
+      ""                                                                                                 ,
+      "Model-averaged estimates:"                                                                        ,
+      "      Mean Median  0.025 0.975"                                                                   ,
+      "mu  -0.199 -0.156 -0.672 0.033"                                                                   ,
+      "tau  0.080  0.000  0.000 0.427"                                                                   ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the log(OR) scale)."
+    )
+  )
+
   # no conditional, yet requested
   expect_equal(
     capture_output_lines(summary(saved_fits[[8]], conditional = TRUE), print = TRUE, width = 150),

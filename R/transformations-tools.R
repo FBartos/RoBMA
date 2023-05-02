@@ -147,6 +147,7 @@
 #### internal scaling functions ####
 ### main (could've been simplified but this keeps them parallel with the transformations)
 # jac = d inv(x) / dx
+# the r/OR scaling is only used for PET/PEESE coefficients and exists for consistency (it's not used for heterogeneity)
 
 .scale_d2r <- list(
   fun = function(x) x / 2,
@@ -184,6 +185,17 @@
   jac = function(x) 1
 )
 
+.scale_logOR2OR <- list(
+  fun = function(x) exp(x),
+  inv = function(x) .scale_OR2logOR,
+  jac = function(x) 1/x
+)
+
+.scale_OR2logOR <- list(
+  fun = function(x) log(x),
+  inv = function(x) .scale_logOR2OR,
+  jac = function(x) exp(x)
+)
 
 ### compound
 # fun = t2(t1(x))
@@ -225,4 +237,38 @@
   jac = function(x) .scale_r2d$jac(.scale_logOR2d$fun(x)) * .scale_d2logOR$jac(x)
 )
 
+.scale_z2OR <- list(
+  fun = function(x) .scale_logOR2OR$fun(.scale_z2logOR$fun(x)),
+  inv = function(x) .scale_OR2z$fun(x),
+  jac = function(x) .scale_z2logOR$jac(.scale_OR2logOR$fun(x)) * .scale_logOR2OR$jac(x)
+)
 
+.scale_OR2z <- list(
+  fun = function(x) .scale_logOR2z$fun(.scale_logOR2OR$fun(x)),
+  inv = function(x) .scale_z2OR$fun(x),
+  jac = function(x) .scale_logOR2OR$jac(.scale_z2logOR$fun(x)) * .scale_logOR2z$jac(x)
+)
+
+.scale_d2OR <- list(
+  fun = function(x) .scale_logOR2OR$fun(.scale_d2logOR$fun(x)),
+  inv = function(x) .scale_OR2d$fun(x),
+  jac = function(x) .scale_d2logOR$jac(.scale_OR2logOR$fun(x)) * .scale_logOR2OR$jac(x)
+)
+
+.scale_OR2d <- list(
+  fun = function(x) .scale_logOR2d$fun(.scale_logOR2OR$fun(x)),
+  inv = function(x) .scale_d2OR$fun(x),
+  jac = function(x) .scale_logOR2OR$jac(.scale_d2logOR$fun(x)) * .scale_logOR2d$jac(x)
+)
+
+.scale_r2OR <- list(
+  fun = function(x) .scale_logOR2OR$fun(.scale_r2logOR$fun(x)),
+  inv = function(x) .scale_OR2r$fun(x),
+  jac = function(x) .scale_r2logOR$jac(.scale_OR2logOR$fun(x)) * .scale_logOR2OR$jac(x)
+)
+
+.scale_OR2r <- list(
+  fun = function(x) .scale_logOR2r$fun(.scale_logOR2OR$fun(x)),
+  inv = function(x) .scale_r2OR$fun(x),
+  jac = function(x) .scale_logOR2OR$jac(.scale_r2logOR$fun(x)) * .scale_logOR2r$jac(x)
+)

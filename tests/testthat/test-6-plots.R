@@ -3,19 +3,21 @@ skip_on_cran()
 
 # the plotting functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", 1:15, ".RDS")
+saved_files <- paste0("fit_", 1:16, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
 }
 
 # alternative components present in the models:
-effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15)
-heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14)
+effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16)
+heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 16)
 weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13, 15)
 PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13, 15)
-no_weightfunctions <- c(3, 8, 12, 14)
-no_PETPEESE        <- c(2, 8, 10, 12, 14)
+no_weightfunctions <- c(3, 8, 12, 14, 16)
+no_PETPEESE        <- c(2, 8, 10, 12, 14, 16)
+no_PET             <- c(2, 8, 10, 12, 14, 16)
+no_PEESE           <- c(2, 7, 8, 9, 10, 11, 12, 14, 15, 16)
 metaregression     <- c(14, 15)
 
 test_that("Parameter plots work", {
@@ -111,6 +113,70 @@ test_that("Parameter plots work", {
 
   # additional settings
   expect_doppelganger(paste0("plot_omega5_",i), function()plot(saved_fits[[i]], "omega", prior = TRUE, dots_prior = list(col = "blue", lty = 2, col.fill = "orange"), col = "red", lty = 2, col.fill = "red", rescale_x = TRUE))
+
+
+  ### PET and PEESE
+  for(i in 1:length(saved_fits)){
+    set.seed(1)
+    if(i %in% no_PET){
+      expect_error(plot(saved_fits[[i]], "PET", plot_type = "ggplot"),
+                   "The ensemble does not contain any posterior samples model-averaged across the PET Please, verify that you specified at least one model for the PET")
+      next
+    }
+
+    expect_doppelganger(paste0("ggplot_PET1_",i), plot(saved_fits[[i]], "PET", plot_type = "ggplot"))
+    expect_doppelganger(paste0("ggplot_PET2_",i), plot(saved_fits[[i]], "PET", prior = TRUE, plot_type = "ggplot"))
+
+    if(i %in% weightfunctions){
+      expect_doppelganger(paste0("ggplot_PET3_",i), plot(saved_fits[[i]], "PET", conditional = TRUE, plot_type = "ggplot"))
+      expect_doppelganger(paste0("ggplot_PET4_",i), plot(saved_fits[[i]], "PET", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+    }else{
+      expect_error(plot(saved_fits[[i]], "PET", conditional = TRUE, plot_type = "ggplot"),
+                   "The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PET models. Please, verify that you specified at least one model assuming the presence of the PET models.")
+    }
+  }
+
+  # default base plot
+  i <- 1
+  set.seed(1)
+  expect_doppelganger(paste0("plot_PET1_",i), function()plot(saved_fits[[i]], "PET"))
+  expect_doppelganger(paste0("plot_PET2_",i), function()plot(saved_fits[[i]], "PET", prior = TRUE))
+  expect_doppelganger(paste0("plot_PET3_",i), function()plot(saved_fits[[i]], "PET", conditional = TRUE))
+  expect_doppelganger(paste0("plot_PET4_",i), function()plot(saved_fits[[i]], "PET", conditional = TRUE, prior = TRUE))
+
+  # additional settings
+  expect_doppelganger(paste0("plot_PET5_",i), function()plot(saved_fits[[i]], "PET", prior = TRUE, dots_prior = list(col = "blue", lty = 2, col.fill = "orange"), col = "red", lty = 2, col.fill = "red", rescale_x = TRUE))
+
+  for(i in 1:length(saved_fits)){
+    set.seed(1)
+    if(i %in% no_PEESE){
+      expect_error(plot(saved_fits[[i]], "PEESE", plot_type = "ggplot"),
+                   "The ensemble does not contain any posterior samples model-averaged across the PEESE. Please, verify that you specified at least one model for the PEESE.")
+      next
+    }
+
+    expect_doppelganger(paste0("ggplot_PEESE1_",i), plot(saved_fits[[i]], "PEESE", plot_type = "ggplot"))
+    expect_doppelganger(paste0("ggplot_PEESE2_",i), plot(saved_fits[[i]], "PEESE", prior = TRUE, plot_type = "ggplot"))
+
+    if(i %in% weightfunctions){
+      expect_doppelganger(paste0("ggplot_PEESE3_",i), plot(saved_fits[[i]], "PEESE", conditional = TRUE, plot_type = "ggplot"))
+      expect_doppelganger(paste0("ggplot_PEESE4_",i), plot(saved_fits[[i]], "PEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+    }else{
+      expect_error(plot(saved_fits[[i]], "PEESE", conditional = TRUE, plot_type = "ggplot"),
+                   "The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PEESE models. Please, verify that you specified at least one model assuming the presence of the PEESE models.")
+    }
+  }
+
+  # default base plot
+  i <- 1
+  set.seed(1)
+  expect_doppelganger(paste0("plot_PEESE1_",i), function()plot(saved_fits[[i]], "PEESE"))
+  expect_doppelganger(paste0("plot_PEESE2_",i), function()plot(saved_fits[[i]], "PEESE", prior = TRUE))
+  expect_doppelganger(paste0("plot_PEESE3_",i), function()plot(saved_fits[[i]], "PEESE", conditional = TRUE))
+  expect_doppelganger(paste0("plot_PEESE4_",i), function()plot(saved_fits[[i]], "PEESE", conditional = TRUE, prior = TRUE))
+
+  # additional settings
+  expect_doppelganger(paste0("plot_PEESE5_",i), function()plot(saved_fits[[i]], "PEESE", prior = TRUE, dots_prior = list(col = "blue", lty = 2, col.fill = "orange"), col = "red", lty = 2, col.fill = "red", rescale_x = TRUE))
 
 
   ### PET-PEESE (slow)

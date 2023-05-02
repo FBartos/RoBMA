@@ -2,6 +2,7 @@
 ### Features
 - binomial-normal models for binary data via the `BiBMA` function
 - `NoBMA` and `NoBMA.reg()` functions as wrappers around `RoBMA` `RoBMA.reg()` functions for simpler specification of publication bias unadjusted Bayesian model-averaged meta-analysis
+- adding odds ratios output transformation` 
 
 ## version 2.4
 ### Features
