@@ -197,6 +197,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }
   }
 
+
   if(parameter %in% c("mu", "tau", "rho", "omega", "PET", "PEESE")){
     if(conditional && is.null(samples[[parameter]])){
       switch(
@@ -231,6 +232,17 @@ plot.RoBMA  <- function(x, parameter = "mu",
       stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the '%1$s' predictor. Please, verify that you specified at least one model assuming the presence of '%1$s' predictor.", parameter))
     }else if(is.null(samples[[parameter_samples]])){
       stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the '%1$s' predictor. Please, verify that you specified at least one model containing the '%1$s' predictor.", parameter))
+    }
+  }
+
+
+  # remove PET/PEESE prior class (otherwise PET-PEESE density is produced in BayesTools)
+  if(parameter %in% c("PET", "PEESE")){
+    for(i in seq_along(attr(samples[["PET"]], "prior_list"))){
+      class(attr(samples[["PET"]], "prior_list")[[i]])   <- class(attr(samples[["PET"]], "prior_list")[[i]])[!class(attr(samples[["PET"]], "prior_list")[[i]]) %in% "prior.PET"]
+    }
+    for(i in seq_along(attr(samples[["PEESE"]], "prior_list"))){
+      class(attr(samples[["PEESE"]], "prior_list")[[i]]) <- class(attr(samples[["PEESE"]], "prior_list")[[i]])[!class(attr(samples[["PEESE"]], "prior_list")[[i]]) %in% "prior.PEESE"]
     }
   }
 
@@ -393,14 +405,14 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
   # get the CIs (+add transformation if necessary)
   if(is.BiBMA(x)){
-    data <- .combine_data.bi(data = data, transformation = .transformation_invar(output_scale), return_all = TRUE)
+    data <- .combine_data.bi(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
   }else{
-    data <- combine_data(data = data, transformation = .transformation_invar(output_scale), return_all = TRUE)
-
-    # simplify the data structure
-    data$y <- data[,output_scale]
-    data   <- data[,c("y", "lCI", "uCI", "study_names")]
+    data <- combine_data(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
   }
+
+  # simplify the data structure
+  data$y <- data[,output_scale]
+  data   <- data[,c("y", "lCI", "uCI", "study_names")]
 
 
   # add ordering

@@ -182,7 +182,7 @@
 #' @export
 RoBMA <- function(
   # data specification
-  d = NULL, r = NULL, logOR = NULL, z = NULL, y = NULL,
+  d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
   se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
   data = NULL, weight = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
@@ -225,7 +225,8 @@ RoBMA <- function(
   if("data.RoBMA" %in% class(data)){
     object$data <- data
   }else{
-    object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight, data = data, transformation = transformation)
+    object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
+                                study_names = study_names, study_ids = study_ids, weight = weight, data = data, transformation = transformation)
   }
 
   # switch between multivariate and weighted models

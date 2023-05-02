@@ -35,6 +35,7 @@
 #' Notes that this is an untested experimental feature.
 #' @param return_all whether data frame containing all filled values should be
 #' returned. Defaults to \code{FALSE}
+#' @param ... additional arguments.
 #'
 #' @details The aim of the function is to combine different, already calculated,
 #' effect size measures. In order to obtain effect size measures from raw values,
@@ -64,7 +65,8 @@
 #'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
-combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
+combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
+                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
 
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
@@ -72,7 +74,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
   BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(logOR[!is.na(logOR)],  "logOR",   allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)],   "logOR",  allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(OR[!is.na(OR)],         "OR",     allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
   BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
@@ -83,8 +86,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
   BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
 
-
-  transformation <- .transformation_var(transformation)
+  dots <- list(...)
+  transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
 
 
   # forward information about the original measure when re-transformating the data
@@ -95,7 +98,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     original_measure <- NULL
   }
 
-  input_variables <- c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
+  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -104,7 +107,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
   }
 
   if(is.null(original_measure)){
@@ -120,7 +123,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   }
 
   ### into numeric
-  for(var in c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight")){
+  for(var in c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight")){
     data[,var] <- as.numeric(as.character(data[,var]))
   }
 
@@ -134,7 +137,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   )
 
   ### check for sufficient input
-  if(all(is.na(data[, c("d", "r", "z", "logOR", "y")])))
+  if(all(is.na(data[, c("d", "r", "z", "logOR", "OR", "y")])))
     stop("The data do not contain any effect size measure.")
   if(all(is.na(data[, c("se", "v", "n", "lCI", "uCI", "t")])))
     stop("The data do not contain any variability measure.")
@@ -143,7 +146,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   if(nrow(stats::na.omit(data[,c("lCI", "uCI")]) > 0)){
     if(any(stats::na.omit(data[,"lCI"]) > stats::na.omit(data[,"uCI"])))
       stop("'lCI' must be lower than 'uCI'.")
-    for(var in c("d", "r", "z", "logOR", "y")){
+    for(var in c("d", "r", "z", "logOR", "OR", "y")){
       if(any(!is.na(data[,var]))){
         if((any(data[!is.na(data[,var]) & !is.na(data[,"lCI"]),var] < data[!is.na(data[,var]) & !is.na(data[,"lCI"]),"lCI"]) | any(data[!is.na(data[,var]) & !is.na(data[,"uCI"]),var] > data[!is.na(data[,var]) & !is.na(data[,"uCI"]),"uCI"])))
           stop("All effect sizes must be within the CI intervals.")
@@ -151,13 +154,13 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     }
   }
 
-  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "y")])) > 1))
+  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) > 1))
     stop("Only one effect size measure per study can be supplied.")
 
   if(any(rowSums(!is.na(data[,c("se", "v", "n", "t", "lCI")])) > 1))
     stop("Only one variability measure per study can be supplied.")
 
-  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "y")])) != 1))
+  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) != 1))
     stop("At least one effect size measure per study must be supplied.")
 
   if(any(!rowSums(!is.na(data[,c("lCI", "uCI")])) %in% c(0,2)))
@@ -172,6 +175,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   original_measure[!is.na(data[,"r"])]     <- "r"
   original_measure[!is.na(data[,"z"])]     <- "z"
   original_measure[!is.na(data[,"logOR"])] <- "logOR"
+  original_measure[!is.na(data[,"OR"])]    <- "OR"
   original_measure[!is.na(data[,"y"])]     <- "none"
 
   if(anyNA(original_measure))
@@ -230,6 +234,12 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       return(output)
     }
   }
+
+
+  ### transform OR to logOR
+  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
+  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
+  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
 
   ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
   data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "se"] <- se_z2se_d(
@@ -368,6 +378,26 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     # add CI for export
     data[,"lCI"] <- data[,"logOR"] + stats::qnorm(0.025) * data[,"se"]
     data[,"uCI"] <- data[,"logOR"] + stats::qnorm(0.975) * data[,"se"]
+  }else if(transformation == "OR"){
+    data[is.na(data[,"OR"]) & !is.na(data[,"d"]),     "OR"] <- exp(d2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"d"]), "d"]))
+    data[is.na(data[,"OR"]) & !is.na(data[,"r"]),     "OR"] <- exp(r2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"r"]), "r"]))
+    data[is.na(data[,"OR"]) & !is.na(data[,"z"]),     "OR"] <- exp(z2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"z"]), "z"]))
+    data[is.na(data[,"OR"]) & !is.na(data[,"logOR"]), "OR"] <- exp(data[is.na(data[,"OR"])& !is.na(data[,"logOR"]), "logOR"])
+
+    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"]    <- se_d2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"]    <- se_r2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"]    <- se_z2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "se"] <-
+      data[!is.na(data[,"se"]) & !is.na(data[,"OR"]),    "se"]
+
+    # add CI for export
+    data[,"lCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.025) * data[,"se"])
+    data[,"uCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.975) * data[,"se"])
   }
 
   if(return_all){
@@ -392,58 +422,87 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   }
 }
 
-.combine_data.bi <- function(x1, x2, n1, n2, study_names = NULL, study_ids = NULL, weight = NULL, transformation = "logOR"){
+.combine_data.bi <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
 
+  # settings & input  check
   BayesTools::check_char(transformation, "transformation")
-  BayesTools::check_int(x1[!is.na(x1)], "x1", check_length = FALSE,      lower = 0)
-  BayesTools::check_int(x2[!is.na(x2)], "x2", check_length = length(x1), lower = 0)
-  BayesTools::check_int(n1[!is.na(n1)], "n1", check_length = length(x1), lower = 0)
-  BayesTools::check_int(n2[!is.na(n2)], "n2", check_length = length(x1), lower = 0)
-  BayesTools::check_char(study_names, "study_names", allow_NULL = TRUE, check_length = length(x1))
-  BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = length(x1))
-  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = length(x1), lower = 0, allow_bound = FALSE)
+  BayesTools::check_bool(return_all, "return_all")
+  BayesTools::check_int(x1[!is.na(x1)], "x1", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_int(x2[!is.na(x2)], "x2", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_int(n1[!is.na(n1)], "n1", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_int(n2[!is.na(n2)], "n2", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_char(study_names, "study_names", allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
 
-  if(any(x1 > n1) | any(x2 > n2))
+  dots <- list(...)
+  transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
+
+  input_variables <- c("x1", "x2", "n1", "n2", "study_names", "study_ids", "weight")
+
+  if(!is.null(data)){
+    if(!is.data.frame(data))
+      stop("Data must be passed as a data.frame.")
+    if(any(!colnames(data) %in% input_variables))
+      stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
+    data <- data[,colnames(data) %in% input_variables]
+  }else{
+    data <- data.frame(do.call(cbind, list(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = weight)))
+  }
+
+  ### add the remaining columns
+  for(var in input_variables){
+    if(!any(colnames(data) == var)){
+      data <- cbind(data, NA)
+      colnames(data)[ncol(data)] <- var
+    }
+  }
+
+  ### into numeric
+  for(var in c("x1", "x2", "n1", "n2", "weight")){
+    data[,var] <- as.numeric(as.character(data[,var]))
+  }
+
+  if(any(!rowSums(!is.na(data[,c("x1", "x2", "n1", "n2")])) == 4))
+    stop("All frequencies must be suplied.")
+
+  if(any(data[,"x1"] > data[,"n1"]) | any(data[,"x2"] > data[,"n2"]))
     stop("Number of events cannot be larger than the number of observations")
 
   # add study names if missing
-  if(is.null(study_names)){
-    study_names <- paste0("Study ", 1:length(x1))
-  }
-
-  # add study ids if missing
-  if(is.null(study_ids)){
-    study_ids <- rep(NA, length(x1))
-  }
-
-  # add weights if missing
-  if(all(is.na(weight))){
-    weight    <- rep(NA, length(x1))
+  if(all(is.na(data[,"study_names"]))){
+    data[,"study_names"] <- paste0("Study ", 1:nrow(data))
   }
 
   # remove indicators from independent studies
-  study_ids[!study_ids %in% study_ids[duplicated(study_ids)]] <- NA
+  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
   # assign factor levels
-  study_ids<- as.integer(as.factor(study_ids))
+  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
 
-  output <- data.frame(
-    x1          = x1,
-    x2          = x2,
-    n1          = n1,
-    n2          = n2,
-    study_names = study_names,
-    study_ids   = study_ids,
-    weight      = weight
-  )
+  # add weights if missing
+  if(all(is.na(data[,"weight"]))){
+    data[,"weight"] <- NA
+  }
 
 
-  attr(output, "effect_measure")   <- "freq"
-  attr(output, "outcome")          <- "freq"
-  attr(output, "all_independent")  <- all(is.na(output[,"study_ids"]))
-  attr(output, "weighted")         <- !all(is.na(output[,"weight"]))
-  class(output) <- c(class(output), "data.BiBMA")
+  if(return_all){
+    # zero cell correction
+    data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] <- data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] + 1
+    data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] <- data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] + 0.5
+    logOR    <- log( (data$x1/(data$n1 - data$x1)) / (data$x2/(data$n2 - data$x2)) )
+    logORse  <- sqrt( 1/data$x1 + 1/data$x2 + 1/(data$n1 - data$x1) + 1/(data$n2 - data$x2) )
 
-  return(output)
+    return(combine_data(logOR = logOR, se = logORse, study_names = study_names, study_ids = study_ids, weight = weight,
+                        transformation = .transformation_invar(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]]), estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]], return_all = return_all))
+  }
+
+  attr(data, "effect_measure")   <- "freq"
+  attr(data, "outcome")          <- "freq"
+  attr(data, "all_independent")  <- all(is.na(data[,"study_ids"]))
+  attr(data, "weighted")         <- !all(is.na(data[,"weight"]))
+  class(data) <- c(class(data), "data.BiBMA")
+
+  return(data)
 }
 
 
@@ -1120,7 +1179,7 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
 }
 .transform_mu     <- function(mu, from, to){
   if(from == to){
-    return(function(x) x)
+    return(mu)
   }else if(any(c(from, to) %in% c("y"))){
     stop("Prior rescaling is not available for unstandardized effect sizes.")
   }else{
