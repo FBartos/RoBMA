@@ -150,6 +150,49 @@ test_that("Parameter plots work", {
   ### 3-level structure
   expect_doppelganger(paste0("plot_rho_",13),  function()plot(saved_fits[[13]], "rho"))
   expect_doppelganger(paste0("plot_rho2_",13), function()plot(saved_fits[[13]], "rho"))
+
+  ### meta-regression parameter plots
+  i <- 14
+  set.seed(1)
+
+  # factors
+  expect_doppelganger(paste0("ggplot_reg-fac-1_",i), plot(saved_fits[[i]], "mod_cat", plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-fac-2_",i), plot(saved_fits[[i]], "mod_cat", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-fac-3_",i), plot(saved_fits[[i]], "mod_cat", conditional = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-fac-4_",i), plot(saved_fits[[i]], "mod_cat", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("plot_reg-fac-1_",i), function()plot(saved_fits[[i]], "mod_cat"))
+  expect_doppelganger(paste0("plot_reg-fac-2_",i), function()plot(saved_fits[[i]], "mod_cat", prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-fac-3_",i), function()plot(saved_fits[[i]], "mod_cat", conditional = TRUE))
+  expect_doppelganger(paste0("plot_reg-fac-4_",i), function()plot(saved_fits[[i]], "mod_cat", conditional = TRUE, prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-fac-5_",i), function()plot(saved_fits[[i]], "mod_cat", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_reg-fac-6_",i), function()plot(saved_fits[[i]], "mod_cat", output_scale = "r", prior = TRUE))
+
+  # continuous
+  expect_doppelganger(paste0("ggplot_reg-con-1_",i), plot(saved_fits[[i]], "mod_con", plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-2_",i), plot(saved_fits[[i]], "mod_con", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-3_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-4_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("plot_reg-con-1_",i), function()plot(saved_fits[[i]], "mod_con"))
+  expect_doppelganger(paste0("plot_reg-con-2_",i), function()plot(saved_fits[[i]], "mod_con", prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-3_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-4_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-5_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_reg-con-6_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "r", prior = TRUE))
+
+  # continuous, alternative only
+  i <- 15
+  expect_doppelganger(paste0("ggplot_reg-con-alt-1_",i), plot(saved_fits[[i]], "mod_con", plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-alt-2_",i), plot(saved_fits[[i]], "mod_con", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-alt-3_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-alt-4_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("plot_reg-con-alt-1_",i), function()plot(saved_fits[[i]], "mod_con"))
+  expect_doppelganger(paste0("plot_reg-con-alt-2_",i), function()plot(saved_fits[[i]], "mod_con", prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-alt-3_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-alt-4_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-alt-5_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_reg-con-alt-6_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "r", prior = TRUE))
+
+  plot(saved_fits[[14]], "mod_cat", conditional = TRUE)
 })
 
 
