@@ -100,7 +100,7 @@ RoBMA.reg <- function(
     prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
     prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
-    prior_factors_null     = prior("spike",  parameters = list(location = 0)),
+    prior_factors_null     = prior_factor("spike",   parameters = list(location = 0), contrast = "meandif"),
 
     # MCMC fitting settings
     chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,

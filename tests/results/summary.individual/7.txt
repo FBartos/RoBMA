@@ -15,7 +15,7 @@
 "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"
 "mu           0.361 0.292 -0.249  0.370 0.895     0.00357          0.012 6664 1.000"
 "tau          0.216 0.209  0.038  0.153 0.767     0.00263          0.013 6290 1.000"
-"omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA 1.001"
+"omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"
 "omega[0.1,1] 0.624 0.245  0.139  0.649 0.984     0.00359          0.015 4649 1.001"
 "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
 ""

@@ -837,7 +837,6 @@
     attr(priors[[.BayesTools_parameter_name(v)]], "levels")      <- length(levels(data[[v]]))
     attr(priors[[.BayesTools_parameter_name(v)]], "level_names") <- levels(data[[v]])
     attr(priors[[.BayesTools_parameter_name(v)]], "parameter")   <- "mu"
-    class(priors[[.BayesTools_parameter_name(v)]])               <- c(class(priors[[.BayesTools_parameter_name(v)]]), "prior.factor")
   }
 
   return(priors)
