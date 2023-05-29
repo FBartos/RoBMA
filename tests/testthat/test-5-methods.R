@@ -224,8 +224,8 @@ test_that("Individual summary functions work", {
       ""                                                                                                       ,
       "Parameter estimates:"                                                                                   ,
       "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                     ,
-      "mu           0.176 0.134 -0.097  0.177 0.428     0.00153          0.000 8076 1.000"                     ,
-      "tau          0.106 0.102  0.019  0.075 0.369     0.00124          0.000 6744 1.000"                     ,
+      "mu           0.174 0.134 -0.097  0.177 0.428     0.00153          0.011 8076 1.000"                     ,
+      "tau          0.106 0.102  0.019  0.075 0.369     0.00124          0.012 6744 1.000"                     ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"                     ,
       "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA   NA    NA"                     ,
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
@@ -242,8 +242,8 @@ test_that("Individual summary functions work", {
         ""                                                                                                    ,
         "Parameter estimates:"                                                                                ,
         "     Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                           ,
-        "mu  0.090 0.184 -0.335  0.108 0.403     0.00357          0.000 2783 1.003"                           ,
-        "tau 0.115 0.121  0.018  0.078 0.429     0.00146          0.000 6854 1.000"                           ,
+        "mu  0.090 0.184 -0.335  0.108 0.403     0.00357          0.019 2783 1.003"                           ,
+        "tau 0.115 0.121  0.018  0.078 0.429     0.00146          0.012 6854 1.000"                           ,
         "PET 0.730 0.646  0.023  0.556 2.439     0.01383          0.021 2184 1.002"                           ,
         "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).",
         ""                                                                                                    ,
@@ -256,9 +256,9 @@ test_that("Individual summary functions work", {
         ""                                                                                                    ,
         "Parameter estimates:"                                                                                ,
         "       Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                         ,
-        "mu    0.102 0.179 -0.304  0.117 0.411     0.00311          0.000 3482 1.001"                         ,
-        "tau   0.130 0.151  0.020  0.085 0.490     0.00228          0.000 4430 1.001"                         ,
-        "PEESE 3.107 2.647  0.100  2.467 9.645     0.05316          0.000 2480 1.000"                         ,
+        "mu    0.101 0.179 -0.304  0.117 0.411     0.00311          0.017 3482 1.001"                         ,
+        "tau   0.130 0.151  0.020  0.085 0.490     0.00228          0.015 4430 1.001"                         ,
+        "PEESE 3.107 2.647  0.100  2.467 9.645     0.05316          0.020 2480 1.000"                         ,
         "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -279,8 +279,8 @@ test_that("Individual summary functions work", {
       ""                                                                                                       ,
       "Parameter estimates:"                                                                                   ,
       "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD  ESS R-hat"                     ,
-      "mu           0.176 0.134 -0.097  0.177 0.428     0.00153          0.000 8076 1.000"                     ,
-      "tau          0.106 0.102  0.019  0.075 0.369     0.00124          0.000 6744 1.000"                     ,
+      "mu           0.174 0.134 -0.097  0.177 0.428     0.00153          0.011 8076 1.000"                     ,
+      "tau          0.106 0.102  0.019  0.075 0.369     0.00124          0.012 6744 1.000"                     ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA   NA    NA"                     ,
       "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA   NA    NA"                     ,
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."

@@ -448,6 +448,21 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
 
   }
 
+  for(type in c("conditional", "averaged")){
+
+    for(i in seq_along(object$RoBMA$inference_marginal[[type]])){
+
+      for(j in seq_along(object$RoBMA$inference_marginal[[type]][[i]])){
+        object$RoBMA$inference_marginal[[type]][[i]][[j]] <- .transform_mu(
+          object$RoBMA$inference_marginal[[type]][[i]][[j]],
+          current_scale,
+          output_scale
+        )
+      }
+
+    }
+  }
+
 
   object$add_info[["output_scale"]] <- output_scale
 
