@@ -1,6 +1,7 @@
-## version 2.4
+## version 3.0
 ### Features
 - meta-regression with `RoBMA.reg()` function
+- posterior marginal summary and plots for the `RoBMA.reg` models with `summary_marginal()` and `plot_marginal()` functions
 - new vignette on hierarchical Bayesian model-averaged meta-analysis
 - new vignette on robust Bayesian model-averaged meta-regression
 - adding vignette from AMPPS tutorial
