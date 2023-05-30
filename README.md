@@ -25,14 +25,14 @@ heterogeneity, and publication bias components (including selection,
 PET, and PEESE style models). The package provides convenient functions
 for summary, visualizations, and fit diagnostics.
 
-See our new pre-print Bartoš, Maier, et al. (2022b)
-(<https://doi.org/10.31234/osf.io/kvsp7>) for the description of the
-newest version, RoBMA-PSMA, or our previous paper introducing the method
-Maier et al. (2022) (<https://doi.org/10.31234/osf.io/u4cns>). The
-previous version of the methods is also implemented within the the
-user-friendly graphical user interface of JASP (JASP Team, 2020) and
-accompanied by a tutorial paper with more examples (Bartoš, Maier, et
-al., 2022a) (<https://doi.org/10.31234/osf.io/75bqn>).
+See our new manuscript Bartoš, Maier, et al. (2022b)
+(<https://doi.org/10.1002/jrsm.1594>) for the description of the newest
+version, RoBMA-PSMA, or our previous paper introducing the method Maier
+et al. (2022) (<https://doi.org/10.1037/met0000405>). The previous
+version of the methods is also implemented within the the user-friendly
+graphical user interface of JASP (JASP Team, 2020) and accompanied by a
+tutorial paper with more examples (Bartoš, Maier, et al., 2022a)
+(<https://doi.org/10.1177/25152459221109259>).
 
 We also prepared multiple vignettes that illustrate functionality of the
 package:
@@ -55,8 +55,7 @@ package:
 
 The package was updated to version 2.0 to provides Bayesian
 model-averaging across selection models and PET-PEESE (as described in
-Bartoš, Maier, et al. (2022b) at
-<https://doi.org/10.31234/osf.io/kvsp7>).
+Bartoš, Maier, et al. (2022b) at <https://doi.org/10.1002/jrsm.1594>).
 
 ### Backwards Compatibility
 
@@ -127,7 +126,7 @@ install.packages("RoBMA")
 and the development version of the package can be installed from GitHub:
 
 ``` r
-devtools::install_github("fbartos/RoBMA")
+devtools::install_github("FBartos/RoBMA")
 ```
 
 ## Example
