@@ -37,19 +37,19 @@ al., 2022a) (<https://doi.org/10.31234/osf.io/75bqn>).
 We also prepared multiple vignettes that illustrate functionality of the
 package:
 
--   [Tutorial: Adjusting for Publication Bias in JASP and R - Selection
-    Models, PET-PEESE, and Robust Bayesian
-    Meta-Analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
--   [Reproducing Bayesian model-averaged meta-analysis
-    (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
--   [Hierarchical Bayesian model-averaged
-    meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
--   [Informed Bayesian model-averaged meta-analysis in
-    medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
--   [Fitting custom meta-analytic
-    ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
--   [Robust Bayesian model-averaged
-    meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
+- [Tutorial: Adjusting for publication bias in JASP and R - Selection
+  models, PET-PEESE, and Robust Bayesian
+  meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
+- [Reproducing Bayesian model-averaged meta-analysis
+  (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
+- [Hierarchical Bayesian model-averaged
+  meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
+- [Informed Bayesian model-averaged meta-analysis in
+  medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
+- [Fitting custom meta-analytic
+  ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+- [Robust Bayesian model-averaged
+  meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
 
 ## Updates
 
@@ -73,41 +73,47 @@ projects.)
 
 ### News
 
-The 2.0 version brings several updates to the package:
+The 3.0 version brings several **experimental** features to the package:
 
--   naming of the arguments specifying prior distributions for the
-    different parameters/components of the models changed (`priors_mu`
-    -\> `priors_effect`, `priors_tau` -\> `priors_heterogeneity`, and
-    `priors_omega` -\> `priors_bias`),
--   prior distributions for specifying weight functions now use a
-    dedicated function
-    (`prior(distribution = "two.sided", parameters = ...)` -\>
-    `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
--   new dedicated function for specifying no publication bias adjustment
-    component / no heterogeneity component (`prior_none()`),
--   new dedicated functions for specifying models with the PET and PEESE
-    publication bias adjustments
-    (`prior_PET(distribution = "Cauchy", parameters = ...)` and
-    `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
--   new default prior distribution specification for the publication
-    bias adjustment part of the models (corresponding to the RoBMA-PSMA
-    model from Bartoš, Maier, et al. (2022b)),
--   new `model_type` argument allowing to specify different “pre-canned”
-    models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` =
-    corresponding to Maier et al. (2022)),
--   `combine_data` function allows combination of different effect sizes
-    / variability measures into a common effect size measure (also used
-    from within the `RoBMA` function)
--   better and improved automatic fitting procedure now enabled by
-    default (can be turned of with `autofit = FALSE`)
--   prior distributions can be specified on the different scale than the
-    supplied effect sizes (the package fits the model on Fisher’s z
-    scale and back transforms the results back to the scale that was
-    used for prior distributions specification, Cohen’s d by default,
-    but both of them can be overwritten with the `prior_scale` and
-    `transformation` arguments),
--   new prior distributions, e.g., beta or fixed weight functions,
--   and plenty of small changes to the arguments, output, and etc…
+- meta-regression models via the `RoBMA.reg()` function
+- marginal summaries and plots of the regression models via the
+  `marginal_summary()` and `marginal_plot()` function
+
+The 2.0 version brought several updates to the package:
+
+- naming of the arguments specifying prior distributions for the
+  different parameters/components of the models changed (`priors_mu` -\>
+  `priors_effect`, `priors_tau` -\> `priors_heterogeneity`, and
+  `priors_omega` -\> `priors_bias`),
+- prior distributions for specifying weight functions now use a
+  dedicated function
+  (`prior(distribution = "two.sided", parameters = ...)` -\>
+  `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
+- new dedicated function for specifying no publication bias adjustment
+  component / no heterogeneity component (`prior_none()`),
+- new dedicated functions for specifying models with the PET and PEESE
+  publication bias adjustments
+  (`prior_PET(distribution = "Cauchy", parameters = ...)` and
+  `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
+- new default prior distribution specification for the publication bias
+  adjustment part of the models (corresponding to the RoBMA-PSMA model
+  from Bartoš, Maier, et al. (2022b)),
+- new `model_type` argument allowing to specify different “pre-canned”
+  models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` =
+  corresponding to Maier et al. (2022)),
+- `combine_data` function allows combination of different effect sizes /
+  variability measures into a common effect size measure (also used from
+  within the `RoBMA` function)
+- better and improved automatic fitting procedure now enabled by default
+  (can be turned of with `autofit = FALSE`)
+- prior distributions can be specified on the different scale than the
+  supplied effect sizes (the package fits the model on Fisher’s z scale
+  and back transforms the results back to the scale that was used for
+  prior distributions specification, Cohen’s d by default, but both of
+  them can be overwritten with the `prior_scale` and `transformation`
+  arguments),
+- new prior distributions, e.g., beta or fixed weight functions,
+- and plenty of small changes to the arguments, output, and etc…
 
 ## Installation
 
@@ -140,7 +146,6 @@ First, we load the package and the data set included in the package.
 library(RoBMA)
 #> Loading required namespace: runjags
 #> Loading required namespace: mvtnorm
-#> module RoBMA loaded
 
 data("Bem2011", package = "RoBMA")
 Bem2011
@@ -161,27 +166,22 @@ models (the new default settings of RoBMA fitting function). These
 models represent all possible combinations of prior distributions for
 the following components:
 
--   effect size (the mean parameter
-    ![\mu](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cmu "\mu"))
-    -   a spike at zero, representing the null hypothesis of the absence
-        of effect
-    -   a standard normal distribution, representing the alternative
-        hypothesis of the presence of effect
--   heterogeneity (the heterogeneity parameter
-    ![\tau](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctau "\tau"))
-    -   a spike at zero, representing the null hypothesis of the absence
-        of heterogeneity (i.e., fixed effect meta-analysis)
-    -   an inverse gamma distribution with shape = 1 and scale = 0.15,
-        based on Erp et al. (2017), representing the alternative
-        hypothesis of the presence of heterogeneity (i.e., random effect
-        meta-analysis)
--   publication bias
-    -   no prior distribution, representing the absence of publication
-        bias
-    -   eight prior distributions specifying two two-sided weight
-        functions, four one-sided weight functions, and PET and PEESE
-        publication bias adjustment, representing the presence of
-        publication bias
+- effect size (the mean parameter $\mu$)
+  - a spike at zero, representing the null hypothesis of the absence of
+    effect
+  - a standard normal distribution, representing the alternative
+    hypothesis of the presence of effect
+- heterogeneity (the heterogeneity parameter $\tau$)
+  - a spike at zero, representing the null hypothesis of the absence of
+    heterogeneity (i.e., fixed effect meta-analysis)
+  - an inverse gamma distribution with shape = 1 and scale = 0.15, based
+    on Erp et al. (2017), representing the alternative hypothesis of the
+    presence of heterogeneity (i.e., random effect meta-analysis)
+- publication bias
+  - no prior distribution, representing the absence of publication bias
+  - eight prior distributions specifying two two-sided weight functions,
+    four one-sided weight functions, and PET and PEESE publication bias
+    adjustment, representing the presence of publication bias
 
 The prior odds of the components are by default set to make all three
 model categories equally likely a priory (0.5 prior probability of the
@@ -203,27 +203,22 @@ inclusion Bayes factor of the ensemble components representing the
 alternative hypothesis of the presence of the effect, heterogeneity, and
 publication bias, We can see the data show very weak evidence, barely
 worth mentioning, against the presence of the effect
-(![\text{BF}\_{10} = 0.479](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctext%7BBF%7D_%7B10%7D%20%3D%200.479 "\text{BF}_{10} = 0.479")
--\>
-![\text{BF}\_{01} = 2.09](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctext%7BBF%7D_%7B01%7D%20%3D%202.09 "\text{BF}_{01} = 2.09")),
-moderate evidence for the absence of heterogeneity
-(![\text{BF}\_{\text{rf}} = 0.143](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctext%7BBF%7D_%7B%5Ctext%7Brf%7D%7D%20%3D%200.143 "\text{BF}_{\text{rf}} = 0.143")
--\>
-![BF\_{\text{fr}} = 7.00](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;BF_%7B%5Ctext%7Bfr%7D%7D%20%3D%207.00 "BF_{\text{fr}} = 7.00")),
-and strong evidence for the presence of publication bias
-(![\text{BF}\_{\text{pb}} = 16.32](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctext%7BBF%7D_%7B%5Ctext%7Bpb%7D%7D%20%3D%2016.32 "\text{BF}_{\text{pb}} = 16.32")).
+($\text{BF}_{10} = 0.479$ -\> $\text{BF}_{01} = 2.09$), moderate
+evidence for the absence of heterogeneity
+($\text{BF}_{\text{rf}} = 0.143$ -\> $BF_{\text{fr}} = 7.00$), and
+strong evidence for the presence of publication bias
+($\text{BF}_{\text{pb}} = 16.32$).
 
 The second table shows model-averaged estimates weighted by the
 individual models’ posterior probabilities. The mean estimate
-![\mu =0.037](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cmu%20%3D0.037 "\mu =0.037"),
-95% CI \[-0.041, 0.213\], is very close to zero, corresponding to the a
-priory expected absence of pre-cognition. The heterogeneity estimate
-![\tau](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctau "\tau")
-has most of its probability mass around zero due to the higher support
-of models assuming absence of the heterogeneity. The parameters omega,
-representing the publication weights at each *p*-value interval are
-decreasing with increasing *p*-values, showing the publication bias, as
-well as the non zero PET and PEESE estimates.
+$\mu =0.037$, 95% CI \[-0.041, 0.213\], is very close to zero,
+corresponding to the a priory expected absence of pre-cognition. The
+heterogeneity estimate $\tau$ has most of its probability mass around
+zero due to the higher support of models assuming absence of the
+heterogeneity. The parameters omega, representing the publication
+weights at each *p*-value interval are decreasing with increasing
+*p*-values, showing the publication bias, as well as the non zero PET
+and PEESE estimates.
 
 ``` r
 summary(fit)
@@ -256,13 +251,10 @@ summary(fit)
 
 We can visualize the estimated mean and heterogeneity parameters using
 the `plot.RoBMA()` function. The arrows in both figures represent the
-point probability mass at
-![\mu = 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cmu%20%3D%200 "\mu = 0")
-and
-![\tau = 0](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Ctau%20%3D%200 "\tau = 0"),
-corresponding to the null hypotheses of the absence of effect and
-heterogeneity, both increasing in the posterior model probability from
-0.5 to 0.676 and 0.875 respectively.
+point probability mass at $\mu = 0$ and $\tau = 0$, corresponding to the
+null hypotheses of the absence of effect and heterogeneity, both
+increasing in the posterior model probability from 0.5 to 0.676 and
+0.875 respectively.
 
 ``` r
 plot(fit, parameter = "mu", xlim = c(-0.5, 0.5))
@@ -326,11 +318,9 @@ We can also visualize the MCMC diagnostics using the diagnostics
 function. The function can display the chains `type = "chain"` /
 posterior sample densities `type = "densities"`, and averaged
 auto-correlations `type = "autocorrelation"`. Here, we request the
-chains trace plot of the
-![\mu](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;%5Cmu "\mu")
-parameter of the most complex model by setting `show_models = 36` (the
-model numbers can be obtained from the summary function with
-`type = "models"` argument).
+chains trace plot of the $\mu$ parameter of the most complex model by
+setting `show_models = 36` (the model numbers can be obtained from the
+summary function with `type = "models"` argument).
 
 ``` r
 diagnostics(fit, parameter = "mu", type = "chains", show_models = 36)
