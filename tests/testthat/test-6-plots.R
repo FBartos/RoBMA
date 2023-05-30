@@ -265,3 +265,15 @@ test_that("Forest plots work", {
 })
 
 
+test_that("Marginal posterior plots work", {
+
+
+  expect_error(marginal_plot(saved_fits[[1]]), "'marginal_plot' function is available only for RoBMA regression models")
+  expect_error(marginal_plot(saved_fits[[14]], "mu"), "The 'mu' values are not recognized by the 'parameter' argument.")
+
+  expect_doppelganger("mm_ggplot_mod_cat_1", marginal_plot(saved_fits[[14]], "mod_cat", plot_type = "ggplot"))
+  expect_doppelganger("mm_ggplot_mod_cat_2", marginal_plot(saved_fits[[14]], "mod_cat", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger("mm_ggplot_mod_cat_3", marginal_plot(saved_fits[[14]], "mod_cat", prior = TRUE, plot_type = "ggplot", output_scale = "r"))
+  expect_doppelganger("mm_ggplot_mod_con_1", marginal_plot(saved_fits[[14]], "mod_con", prior = TRUE, plot_type = "ggplot", xlim = c(-1, 1)))
+  expect_doppelganger("mm_ggplot_mod_con_2", function()marginal_plot(saved_fits[[15]], "mod_con", conditional = TRUE))
+})

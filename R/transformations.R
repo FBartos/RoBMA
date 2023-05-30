@@ -458,6 +458,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
           current_scale,
           output_scale
         )
+        attr(object$RoBMA$inference_marginal[[type]][[i]][[j]], "prior_samples") <- .transform_mu(
+          attr(object$RoBMA$inference_marginal[[type]][[i]][[j]], "prior_samples"),
+          current_scale,
+          output_scale
+        )
       }
 
     }

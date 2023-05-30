@@ -16,8 +16,13 @@
 marginal_summary <- function(object, conditional = FALSE,
                              output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE){
 
+  if(sum(.get_model_convergence(object)) == 0)
+    stop("There is no converged model in the ensemble.")
   if(!is.RoBMA.reg(object))
     stop("'marginal_summary' function is available only for RoBMA regression models")
+  if(!is.null(.check_predictors_scaling(object)))
+    stop("'marginal_summary' function requires standardized predictors")
+
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
@@ -35,9 +40,6 @@ marginal_summary <- function(object, conditional = FALSE,
   }else{
     output_scale <- .transformation_var(output_scale)
   }
-
-  if(!any(.get_model_convergence(object)))
-    stop("All models failed to converge. Marginal estimates summary cannot be printed.")
 
 
   # transform the estimates if needed
@@ -146,9 +148,10 @@ marginal_plot  <- function(x, parameter, conditional = FALSE, plot_type = "base"
   # check whether plotting is possible
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
-
   if(!is.RoBMA.reg(x))
-    stop("'marginal_summary' function is available only for RoBMA regression models")
+    stop("'marginal_plot' function is available only for RoBMA regression models")
+  if(!is.null(.check_predictors_scaling(x)))
+    stop("'marginal_plot' function requires standardized predictors")
 
   # check settings
   BayesTools::check_char(parameter, "parameter", allow_values = x$add_info[["predictors"]])
