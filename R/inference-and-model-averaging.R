@@ -46,7 +46,7 @@
   effect         <- sapply(models, function(model)!.is_component_null(model[["priors"]], "effect"))
   heterogeneity  <- sapply(models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(models, function(model)!.is_component_null(model[["priors"]], "bias"))
-  multivariate   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "multivariate"))
+  hierarchical   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "hierarchical"))
 
   # obtain the parameter types
   weightfunctions <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
@@ -59,9 +59,11 @@
   components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity, "Bias" = !bias)
   parameters_null <- list("mu"     = !effect, "tau"           = !heterogeneity)
 
-  if(any(multivariate)){
+  if(any(hierarchical)){
+    components      <- c(components,      "Hierarchical")
     parameters      <- c(parameters,      "rho")
-    parameters_null <- c(parameters_null, "rho" = list(!multivariate))
+    components_null <- c(components_null, "Hierarchical" = list(!hierarchical))
+    parameters_null <- c(parameters_null, "rho" = list(!hierarchical))
   }
   if(any(weightfunctions)){
     components      <- c(components,      "bias.selection-models")
@@ -84,6 +86,117 @@
     parameters      <- c(parameters,      "PEESE")
     components_null <- c(components_null, "bias.PEESE" = list(!(PEESE & bias)))
     parameters_null <- c(parameters_null, "PEESE" = list(!PEESE))
+  }
+
+  # deal with meta-regression
+  if(!is.null(object[["formula"]])){
+    # use the intercept for the effect
+    parameters[parameters == "mu"]                         <- "mu_intercept"
+    names(parameters_null)[names(parameters_null) == "mu"] <- "mu_intercept"
+
+    # add the terms
+    model_predictors      <- lapply(models, function(model) model[["terms"]])
+    model_predictors_test <- lapply(models, function(model) model[["terms_test"]])
+
+    predictors      <- object$add_info[["predictors"]]
+    predictors_test <- object$add_info[["predictors_test"]]
+
+    # define inference options
+    components_predictors      <- NULL
+    parameters_predictors      <- "mu_intercept"
+    components_predictors_null <- list()
+    parameters_predictors_null <- list("mu_intercept" = !effect)
+
+    components_predictors_distributions      <- NULL
+    components_predictors_distributions_null <- list()
+
+
+    # predictors
+    for(i in seq_along(predictors_test)){
+      components_predictors <- c(components_predictors, .BayesTools_parameter_name(predictors_test[i]))
+      components_predictors_null[[.BayesTools_parameter_name(predictors_test[i])]] <-
+        sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors_test[i] %in% x))
+    }
+
+    for(i in seq_along(predictors)){
+      parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(predictors[i]))
+      parameters_predictors_null[[.BayesTools_parameter_name(predictors[i])]] <-
+        sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors[i] %in% x))
+    }
+
+
+    # get models inference
+    if(is.null(components_predictors)){
+      inference_predictors <- NULL
+    }else{
+      inference_predictors <- BayesTools::ensemble_inference(
+        model_list   = models,
+        parameters   = components_predictors,
+        is_null_list = components_predictors_null,
+        conditional  = FALSE
+      )
+    }
+    # deal with the possibility of only null models models
+    if(all(sapply(parameters_predictors_null, all))){
+      inference_predictors_conditional <- NULL
+    }else{
+      inference_predictors_conditional <- BayesTools::ensemble_inference(
+        model_list   = models,
+        parameters   = parameters_predictors[!sapply(parameters_predictors_null, all)],
+        is_null_list = parameters_predictors_null[!sapply(parameters_predictors_null, all)],
+        conditional  = TRUE
+      )
+    }
+
+    # get model-averaged posteriors
+    if(is.null(parameters_predictors)){
+      posteriors_predictors <- NULL
+    }else{
+      posteriors_predictors <- BayesTools::mix_posteriors(
+        model_list   = models,
+        parameters   = parameters_predictors,
+        is_null_list = parameters_predictors_null,
+        seed         = object$add_info[["seed"]],
+        conditional  = FALSE
+      )
+      posteriors_predictors <- BayesTools::transform_factor_samples(posteriors_predictors)
+    }
+
+    # deal with the possibility of only null models models
+    if(all(sapply(parameters_predictors_null, all))){
+      posteriors_predictors_conditional <- NULL
+    }else{
+      posteriors_predictors_conditional <- BayesTools::mix_posteriors(
+        model_list   = models,
+        parameters   = parameters_predictors[!sapply(parameters_predictors_null, all)],
+        is_null_list = parameters_predictors_null[!sapply(parameters_predictors_null, all)],
+        seed         = object$add_info[["seed"]],
+        conditional  = TRUE
+      )
+      posteriors_predictors_conditional <- BayesTools::transform_factor_samples(posteriors_predictors_conditional)
+    }
+
+    # create marginal estimates and summary
+    if(all(sapply(parameters_predictors_null, all))){
+      inference_marginal <- NULL
+    }else{
+      inference_marginal <- BayesTools::marginal_inference(
+        model_list          = models,
+        marginal_parameters = parameters_predictors[!sapply(parameters_predictors_null, all)],
+        parameters          = parameters_predictors,
+        is_null_list        = parameters_predictors_null,
+        formula             = object[["formula"]],
+        seed                = object$add_info[["seed"]],
+        silent              = TRUE
+      )
+    }
+  }else{
+    # create empty objects in case of no predictors
+    inference_predictors              <- NULL
+    inference_predictors_conditional  <- NULL
+    posteriors_predictors             <- NULL
+    posteriors_predictors_conditional <- NULL
+    inference_marginal                <- NULL
   }
 
   ### get models inference
@@ -127,20 +240,48 @@
     )
   }
 
+  # rename mu_intercept back to mu
+  if(any(names(posteriors) == "mu_intercept")){
+    attr(posteriors[["mu_intercept"]], "parameter")        <- "mu"
+    names(posteriors)[names(posteriors) == "mu_intercept"] <- "mu"
+  }
+  if(any(names(posteriors_conditional) == "mu_intercept")){
+    attr(posteriors_conditional[["mu_intercept"]], "parameter")                    <- "mu"
+    names(posteriors_conditional)[names(posteriors_conditional) == "mu_intercept"] <- "mu"
+  }
 
   # return the results
   output <- list(
-    inference              = inference,
-    inference_conditional  = inference_conditional,
-    posteriors             = posteriors,
-    posteriors_conditional = posteriors_conditional
+    inference                         = inference,
+    inference_conditional             = inference_conditional,
+    inference_predictors              = inference_predictors,
+    inference_predictors_conditional  = inference_predictors_conditional,
+    inference_marginal                = inference_marginal,
+    posteriors                        = posteriors,
+    posteriors_conditional            = posteriors_conditional,
+    posteriors_predictors             = posteriors_predictors,
+    posteriors_predictors_conditional = posteriors_predictors_conditional
   )
   return(output)
 }
 
 .compute_coeficients   <- function(RoBMA){
+  if(!is.null(RoBMA[["posteriors_predictors"]])){
+    coefs <- do.call(c, unname(lapply(RoBMA[["posteriors_predictors"]], function(posterior){
+      if(inherits(posterior, "mixed_posteriors.factor")){
+        out        <- apply(posterior, 2, mean)
+        names(out) <- .output_parameter_names(names(out))
+      }else{
+        out        <- mean(posterior)
+        names(out) <- .output_parameter_names(attr(posterior,"parameter"))
+      }
+      return(out)
+    })))
+  }else{
+    coefs        <- c("mu" = mean(RoBMA$posteriors[["mu"]]))
+  }
   return(c(
-    "mu"     = mean(RoBMA$posteriors[["mu"]]),
+    coefs,
     "tau"    = mean(RoBMA$posteriors[["tau"]]),
     "rho"    = if(!is.null(RoBMA$posteriors[["rho"]]))   mean(RoBMA$posteriors[["rho"]]),
     if(!is.null(RoBMA$posteriors[["omega"]])) apply(RoBMA$posteriors[["omega"]], 2, mean),

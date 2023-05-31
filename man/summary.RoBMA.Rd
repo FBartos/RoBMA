@@ -27,7 +27,7 @@ of the individual models (\code{"individual"}). Can be abbreviated to first lett
 
 \item{conditional}{show the conditional estimates (assuming that the
 alternative is true). Defaults to \code{FALSE}. Only available for
-\code{type == "conditional"}.}
+\code{type == "ensemble"}.}
 
 \item{output_scale}{transform the  meta-analytic estimates to a different
 scale. Defaults to \code{NULL} which returns the same scale as the model was estimated on.}

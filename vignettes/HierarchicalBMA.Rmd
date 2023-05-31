@@ -1,0 +1,241 @@
+---
+title: "Hierarchical Bayesian Model-Averaged Meta-Analysis"
+author: "František Bartoš"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+vignette: >
+  %\VignetteIndexEntry{Hierarchical Bayesian Model-Averaged Meta-Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+is_check <- ("CheckExEnv" %in% search()) ||
+              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
+              !file.exists("../models/HierarchicalBMA/fit.RDS")
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = !is_check,
+  dev      = "png")
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+```{r include = FALSE}
+library(RoBMA)
+# we pre-load the RoBMA models, the fitting time is around 2-5 minutes
+fit.0             <- readRDS(file = "../models/HierarchicalBMA/fit.0.RDS")
+fit               <- readRDS(file = "../models/HierarchicalBMA/fit.RDS")
+fit_BMA           <- readRDS(file = "../models/HierarchicalBMA/fit_BMA.RDS")
+hierarchical_test <- readRDS(file = "../models/HierarchicalBMA/hierarchical_test.RDS")
+```
+
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+
+data("dat.konstantopoulos2011", package = "metadat")
+dat <- dat.konstantopoulos2011
+
+fit.0 <- RoBMA(d = dat$yi, v = dat$vi,
+             priors_effect_null        = NULL,
+             priors_heterogeneity_null = NULL,
+             priors_bias               = NULL,
+             parallel = TRUE, seed = 1)
+
+fit <- RoBMA(d = dat$yi, v = dat$vi, study_ids = dat$district,
+             priors_effect_null        = NULL,
+             priors_heterogeneity_null = NULL,
+             priors_bias               = NULL,
+             parallel = TRUE, seed = 1)
+
+fit_BMA <- RoBMA(d = dat$yi, v = dat$vi, study_ids = dat$district,
+                 priors_bias = NULL,
+                 parallel = TRUE, seed = 1)
+
+hierarchical_test <- RoBMA(d = dat$yi, v = dat$vi, study_ids = dat$district,
+                           priors_heterogeneity_null = NULL,
+                           priors_hierarchical_null = prior(distribution = "spike", parameters = list("location" = 0)),
+                           priors_bias = NULL,
+                           parallel = TRUE, seed = 1)
+ 
+saveRDS(fit.0,             file = "../models/HierarchicalBMA/fit.0.RDS",             compress = "xz")
+saveRDS(fit,               file = "../models/HierarchicalBMA/fit.RDS",               compress = "xz")
+saveRDS(fit_BMA,           file = "../models/HierarchicalBMA/fit_BMA.RDS",           compress = "xz")
+saveRDS(hierarchical_test, file = "../models/HierarchicalBMA/hierarchical_test.RDS", compress = "xz")
+```
+
+Hierarchical (or multilevel/3-level) meta-analysis adjusts for the dependency of effect sizes due to clustering in the data. For example, effect size estimates from multiple experiments reported in the same manuscript might be expected to be more similar than effect sizes from a different paper  [@konstantopoulos2011fixed]. This vignette illustrates how to deal with such dependencies among effect size estimates (in cases with simple nested structure) using the Bayesian model-averaged meta-analysis (BMA) [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. (See other vignettes for more details on BMA: [Reproducing BMA](ReproducingBMA.html) or [Informed BMA in medicine](MedicineBMA.html).)
+
+First, we introduce the example data set. Second, we illustrate the frequentist hierarchical meta-analysis with the `metafor` R package and discuss the results. Third, we outline the hierarchical meta-analysis parameterization. Fourth, we estimate the Bayesian model-averaged hierarchical meta-analysis. Finally, we end up discussing further extension and publication bias adjustment.
+
+### Example Data Set
+
+We use the `dat.konstantopoulos2011` data set from the `metadat` R package [@metadat] that is used for the same functionality in the metafor [@metafor] R package. We roughly follow the example in the data set's help file, `?dat.konstantopoulos2011`. The data set consists of 56 studies estimating the effects of modified school calendars on students achievement. The 56 studies were run in individual schools, which can be grouped into 11 districts. We might expect more similar effect size estimates from schools in the same district -- in other words, the effect size estimates from the same district might not be completely independent. Consequently, we might want to adjust for this dependency (clustering) between the effect size estimates to draw a more appropriate inference.
+
+First, we load the data set, assign it to the `dat` object, and inspect the first few rows.
+```{r}
+data("dat.konstantopoulos2011", package = "metadat")
+dat <- dat.konstantopoulos2011
+
+head(dat)
+``` 
+
+In the following analyses, we use the following variables:
+
+ - `yi`, standardized mean differences,
+ - `vi`, sampling variances of the standardized mean differences,
+ - `district`, district id which distinguishes among the districts,
+ - and `school`, that distinguishes among different schools within the same district.
+ 
+### Frequentist Hierarchical Meta-Analysis with `metafor`
+
+We follow the data set's help file and fit a simple random effects meta-analysis using the `rma()` function from `metafor` package. This model ignores the dependency between effect size estimates. We use this simple model as our starting point and as a comparison with the later models.
+``` {r}
+fit_metafor.0 <- metafor::rma(yi = yi, vi = vi, data = dat)
+fit_metafor.0
+```
+The model summary returns a small but statistically significant effect size estimate $\mu = 0.128$ ($\text{se} = 0.044$) and a considerable heterogeneity estimate $\tau = 0.297$.
+
+We extend the model to account for the hierarchical structure of the data, i.e., schools within districts, by using the `rma.mv()` function from the `metafor` package and extending it with the `random = ~ school | district` argument.
+``` {r}
+fit_metafor <- metafor::rma.mv(yi, vi, random = ~ school | district, data = dat)
+fit_metafor
+```
+We find that accounting for the hierarchical structure of the data results in (1) a slightly larger effect size estimate ($\mu = 0.187$) and (2) larger standard error of the effect size estimate ($\text{se} = 0.085$). The larger standard error is a natural consequence of accounting for the dependency between the effect sizes. Since the effect sizes are dependent, they do not contribute independent information. Specifying the hierarchical model then accounts for the dependency by estimating similarity between the estimates from the same cluster (school) and discounting the information borrowed from each estimate. The estimate of the similarity among estimates from the same cluster is summarized in the `\rho = 0.666` estimate.
+
+### Specifications of Hierarchical Meta-Analysis
+
+We specify a simple hierarchical meta-analytic model (see @konstantopoulos2011fixed for an example). Using distributional notation, we can describe the data generating process as a multi-stage sampling procedure. In a nutshell, we assume the existence of an overall mean effect $\mu$. Next, we assume that the effect sizes in each district $k = 1, \dots, K$, $\gamma_k$, systematically differ from the mean effect, with the variance of the district-level effects summarized with heterogeneity $\tau_{b}$ (as between). Furthermore, we assume that the true effects $\theta_{k,j}$ of each study $j = 1, \dots J_k$ systematically differ from the district-level effect, with the variance of the study effects from the district-level effect summarized with heterogeneity $\tau_{w}$ (as within). Finally, the observed effect sizes $y_{k,j}$ that differ from the true effects $y_{k,j}$ due to random errors $\text{se}_{k,j}$.
+
+Mathematically, we can describe such a model as:
+$$
+\begin{aligned}
+  \gamma_k     &\sim \text{N}(\mu,          \tau_b^2),\\
+  \theta_{k,j} &\sim \text{N}(\gamma_k,     \tau_w^2),\\
+   y_{k,j}     &\sim \text{N}(\theta_{k,j}, \text{se}_{k,j}).\\
+\end{aligned}
+$$
+Where N() denotes a normal distribution with mean and variance.
+
+Conveniently, and with a bit of algebra, we do not need to estimate the district-level and true study effects. Instead, we marginalize them out, and we sample the observed effect sizes from each district $y_{k,.}$ directly from a multivariate normal distributions, MN(), with a common mean $\mu$ and covariance matrix S:
+$$
+\begin{aligned}
+   y_{k,.}  &\sim \text{MN}(\mu, \text{S}),\\
+   \text{S} &= \begin{bmatrix} 
+      \tau_b^2 + \tau_w^2 + \text{se}_1^2 & \tau_w^2 & \dots & \tau_w^2  \\
+      \tau_w^2 & \tau_b^2 + \tau_w^2 + \text{se}_2^2 & \dots & \tau_w^2  \\
+      \dots  & \dots & \dots & \dots \\
+      \tau_w^2 & \tau_w^2 & \dots & \tau_b^2 + \tau_w^2 + \text{se}_{J_k}^2 & \\
+  \end{bmatrix}.
+\end{aligned}
+$$
+The random effects marginalization is helpful as it allows us to sample much fewer parameters from the posterior distribution (which significantly simplifies marginal likelihood estimation via bridge sampling). Furthermore, the marginalization allows us to properly specify selection model publication bias adjustment models -- the marginalization propagates the selection process up through all the sampling steps at once (we cannot proceed with the sequential sampling as the selection procedure on the observed effect sizes modifies the sampling distributions of all the preceding levels).
+
+We can further re-parameterize the model by performing the following substitution,
+$$
+\begin{aligned}
+   \tau^2 &= \tau_b^2 + \tau_w^2,\\
+   \rho   &= \frac{\tau_w^2}{\tau_b^2 + \tau_w^2},
+\end{aligned}
+$$
+and specifying the covariance matrix using the inter-study correlation $\rho$, total heterogeneity $\tau$, and the standard errors $\text{se}_{.}$:
+$$
+\begin{aligned}
+   \text{S} &= \begin{bmatrix} 
+      \tau^2 + \text{se}_1^2 & \rho\tau^2 & \dots & \rho\tau^2  \\
+      \rho\tau^2 & \tau^2 + \text{se}_2^2 & \dots & \rho\tau^2  \\
+      \dots  & \dots & \dots & \dots \\
+      \rho\tau^2 & \rho\tau^2 & \dots & \tau^2 + \text{se}_{J_k}^2 & \\
+  \end{bmatrix}.
+\end{aligned}
+$$
+This specification corresponds to the compound symmetry covariance matrix of random effects, the default settings in the  `metafor::rma.mv()` function. More importantly, it allows us to easily specify prior distributions on the correlation coefficient $\rho$ and the total heterogeneity $\tau$.
+
+### Hierarchical Bayesian Model-Averaged Meta-Analysis with `RoBMA`
+
+Before we estimate the complete Hierarchical Bayesian Model-Averaged Meta-Analysis (hBMA) with the `RoBMA` package, we quickly repeat the simpler models we estimated with the `metafor` package in the previous section.
+
+#### Bayesian Random Effects Meta-Analysis
+First, we estimate a simple Bayesian random effects meta-analysis (corresponding to `fit_metafor.0`). We use `the RoBMA()` function and specify the effect sizes and sampling variances via the `d = dat$yi` and `v = dat$vi` arguments. We set the `priors_effect_null`, `priors_heterogeneity_null`, and `priors_bias` arguments to null to omit models assuming the absence of the effect, heterogeneity, and the publication bias adjustment components.
+``` r
+fit.0 <- RoBMA(d = dat$yi, v = dat$vi,
+               priors_effect_null        = NULL,
+               priors_heterogeneity_null = NULL,
+               priors_bias               = NULL,
+               parallel = TRUE, seed = 1)
+```
+We generate a complete summary for the only estimated model by adding the `type = "individual"` argument to the `summary()` function.
+``` {r}
+summary(fit.0, type = "individual")
+```
+We verify that the effect size, $\mu = 0.126$ ($\text{95% CI } [0.041, 0.211]$), and heterogeneity, $\tau = 0.292$ ($\text{95% CI } [0.233, 0.364]$), estimates closely correspond to the frequentist results (as we would expect from parameter estimates under weakly informative priors).
+
+#### Hierarchical Bayesian Random Effects Meta-Analysis
+Second, we account for the clustered effect size estimates within districts by extending the previous function call with the `study_ids = dat$district` argument. This allows us to estimate the hierarchical Bayesian random effects meta-analysis (corresponding to `fit_metafor`). We use the default prior distribution for the correlation parameter `\rho \sim \text{Beta}(1, 1)`, set via the `priors_hierarchical` argument, which restricts the correlation to be positive and uniformly distributed on interval $(0, 1)$.
+``` r
+fit <- RoBMA(d = dat$yi, v = dat$vi, study_ids = dat$district,
+             priors_effect_null        = NULL,
+             priors_heterogeneity_null = NULL,
+             priors_bias               = NULL,
+             parallel = TRUE, seed = 1)
+```
+Again, we generate the complete summary for the only estimated model,
+``` {r}
+summary(fit, type = "individual")
+```
+and verify that our estimates, again, correspond to the frequentist counterparts, with the estimated effect size, $\mu = 0.181$ ($\text{95% CI } [0.017, 0.346]$), heterogeneity, $\tau = 0.308$ ($\text{95% CI } [0.223, 0.442]$), and correlation, $\rho = 0.627$ ($\text{95% CI } [0.320, 0.864]$).
+
+We can further visualize the prior and posterior distribution of the $\rho$ parameter using the `plot()` function.
+```{r fig_rho, dpi = 300, fig.width = 4, fig.height = 3, out.width = "50%", fig.align = "center"}
+par(mar = c(2, 4, 0, 0))
+plot(fit, parameter = "rho", prior = TRUE)
+```
+
+#### Hierarchical Bayesian Model-Averaged Meta-Analysis
+Third, we extend the previous model into a model ensemble that also includes models assuming the absence of the effect and/or heterogeneity (we do not incorporate models assuming presence of publication bias due to computational complexity explained in the summary). Including those additional models allows us to evaluate evidence in favor of the effect and heterogeneity. Furthermore, specifying all those addition models allows us to incorporate the uncertainty about the specified models and weight the posterior distribution according to how well the models predicted the data. We estimate the remaining models by removing the `priors_effect_null` and `priors_heterogeneity_null` arguments from the previous function calls, which include the previously omitted models of no effect and/or no heterogeneity.
+``` r
+fit_BMA <- RoBMA(d = dat$yi, v = dat$vi, study_ids = dat$district,
+                 priors_bias = NULL,
+                 parallel = TRUE, seed = 1)
+```
+Now we generate a summary for the complete model-averaged ensemble by not specifying any additional arguments in the `summary()` function.
+``` {r}
+summary(fit_BMA)
+```
+We find the ensemble contains four models, the combination of models assuming the presence/absence of the effect/heterogeneity, each with equal prior model probabilities. Importantly, the models assuming heterogeneity are also specified with the hierarchical structure and account for the clustering. A comparison of the specified models reveals weak evidence against the effect, $\text{BF}_{10} = 0.917$, and extreme evidence for the presence of heterogeneity, $\text{BF}_{\text{rf}} = 9.3\times10^{92}$. Moreover, we find the `Hierarchical` component summary with the same values as in the `heterogeneity` component summary. The reason for this is that the default settings specify models with the hierarchical structure in all models assuming the presence of heterogeneity.
+
+We also obtain the model-averaged posterior estimates that combine the posterior estimates from all models according to the posterior model probabilities, the effect size, $\mu = 0.087$ ($\text{95% CI } [0.000, 0.314]$), heterogeneity, $\tau = 0.326$ ($\text{95% CI } [0.231, 0.472]$), and correlation, $\rho = 0.659$ ($\text{95% CI } [0.354, 0.879]$).
+
+#### Testing the Presence of Clustering
+In the previous analyses, we assumed that the effect sizes are indeed clustered within the districts, and we only adjusted for the clustering. However, the effect sizes within the same cluster do not necessarily need to be more similar than effect sizes across different clusters. Now, we specify a model ensemble that allows us to test this assumption by specifying two sets of random effect meta-analytic models. The first set of models assumes that there is indeed clustering and that the correlation of random effects is uniformly distributed on the $(0, 1)$ interval (as in the previous analyses). The second set of models assumes that there is no clustering, i.e., the correlation of random effects $\rho = 0$, which simplifies the structured covariance matrix to a diagonal matrix. Again, we model average across models assuming the presence and absence of the effect to account for the model uncertainty.
+
+To specify this 'special' model ensemble with the `RoBMA()` function, we need to modify the previous model call in the following ways. We removed the fixed effect models by specifying the `priors_heterogeneity_null - NULL` argument.$^1$ Furthermore, we specify the prior distribution for models assuming the absence of the hierarchical structure by adding the `priors_hierarchical_null = prior(distribution = "spike", parameters = list("location" = 0))` argument.
+```r
+hierarchical_test <- RoBMA(d = dat$yi, v = dat$vi, study_ids = dat$district,
+                           priors_heterogeneity_null = NULL,
+                           priors_hierarchical_null = prior(distribution = "spike", parameters = list("location" = 0)),
+                           priors_bias = NULL,
+                           parallel = TRUE, seed = 1)
+
+```
+``` {r}
+summary(hierarchical_test)
+```
+We summarize the resulting model ensemble and find out that the `Hierarchical` component is no longer equivalent to the `Heterogeneity` component -- the new model specification allowed us to compare random effect models assuming the presence of the hierarchical structure to random effect models assuming the absence of the hierarchical structure. The resulting inclusion Bayes factor of the hierarchical structure shows extreme evidence in favor of clustering of the effect sizes, $\text{BF}_{\rho\bar{\rho}} = 4624$, i.e., there is extreme evidence that the intervention results in more similar effects within the districts.
+
+### Summary
+
+We illustrated how to estimated estimate a hierarchical Bayesian model-averaged meta-analysis using the `RoBMA` package. The hBMA model allows us to test for the presence vs absence of the effect and heterogeneity while simultaneously adjusting for clustered effect size estimates. While the the current implementation allows us to draw a fully Bayesian inference, incorporate prior information, and acknowledge model uncertainty, it has a few limitations in contrast to the `metafor` package. E.g., the `RoBMA` package only allows a simple nested random effects (i.e., estimates within studies, schools within districts etc). The simple nesting allows us to break the full covariance matrix into per cluster block matrices which speeds the already demanding computation. Furthermore, the computation complexity significantly increases when considering selection models as we need to compute an exponentially increasing number of multivariate normal probabilities with the increasing cluster size (existence of clusters with more than 4 studies makes the current implementation impractically). The current limitations are however not the end of the road as we explore other approaches (e.g., only specifying PET-PEESE style publication bias adjustment, and other dependency adjustments) in another [vignette](MetaRegression.html).
+
+### Footnotes
+
+$^1$ We could also model-average across the hierarchical structure assuming fixed effect models, i.e., $\tau \sim f(.)$ and $\rho = 1$. However specifying such a model ensemble is a beyond scope of this vignette, see [Custom ensembles](CustomEnsembles.html) vignette for some hints.
+
+### References

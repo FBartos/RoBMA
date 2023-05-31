@@ -3,19 +3,20 @@ skip_on_cran()
 
 # the plotting functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", 1:13, ".RDS")
+saved_files <- paste0("fit_", 1:15, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
 }
 
 # alternative components present in the models:
-effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13)
-heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13)
-weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13)
-PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13)
-no_weightfunctions <- c(3, 8, 12)
-no_PETPEESE        <- c(2, 8, 10, 12)
+effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15)
+heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14)
+weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13, 15)
+PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13, 15)
+no_weightfunctions <- c(3, 8, 12, 14)
+no_PETPEESE        <- c(2, 8, 10, 12, 14)
+metaregression     <- c(14, 15)
 
 test_that("Parameter plots work", {
 
@@ -149,6 +150,49 @@ test_that("Parameter plots work", {
   ### 3-level structure
   expect_doppelganger(paste0("plot_rho_",13),  function()plot(saved_fits[[13]], "rho"))
   expect_doppelganger(paste0("plot_rho2_",13), function()plot(saved_fits[[13]], "rho"))
+
+  ### meta-regression parameter plots
+  i <- 14
+  set.seed(1)
+
+  # factors
+  expect_doppelganger(paste0("ggplot_reg-fac-1_",i), plot(saved_fits[[i]], "mod_cat", plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-fac-2_",i), plot(saved_fits[[i]], "mod_cat", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-fac-3_",i), plot(saved_fits[[i]], "mod_cat", conditional = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-fac-4_",i), plot(saved_fits[[i]], "mod_cat", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("plot_reg-fac-1_",i), function()plot(saved_fits[[i]], "mod_cat"))
+  expect_doppelganger(paste0("plot_reg-fac-2_",i), function()plot(saved_fits[[i]], "mod_cat", prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-fac-3_",i), function()plot(saved_fits[[i]], "mod_cat", conditional = TRUE))
+  expect_doppelganger(paste0("plot_reg-fac-4_",i), function()plot(saved_fits[[i]], "mod_cat", conditional = TRUE, prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-fac-5_",i), function()plot(saved_fits[[i]], "mod_cat", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_reg-fac-6_",i), function()plot(saved_fits[[i]], "mod_cat", output_scale = "r", prior = TRUE))
+
+  # continuous
+  expect_doppelganger(paste0("ggplot_reg-con-1_",i), plot(saved_fits[[i]], "mod_con", plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-2_",i), plot(saved_fits[[i]], "mod_con", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-3_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-4_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("plot_reg-con-1_",i), function()plot(saved_fits[[i]], "mod_con"))
+  expect_doppelganger(paste0("plot_reg-con-2_",i), function()plot(saved_fits[[i]], "mod_con", prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-3_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-4_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-5_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_reg-con-6_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "r", prior = TRUE))
+
+  # continuous, alternative only
+  i <- 15
+  expect_doppelganger(paste0("ggplot_reg-con-alt-1_",i), plot(saved_fits[[i]], "mod_con", plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-alt-2_",i), plot(saved_fits[[i]], "mod_con", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-alt-3_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("ggplot_reg-con-alt-4_",i), plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger(paste0("plot_reg-con-alt-1_",i), function()plot(saved_fits[[i]], "mod_con"))
+  expect_doppelganger(paste0("plot_reg-con-alt-2_",i), function()plot(saved_fits[[i]], "mod_con", prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-alt-3_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-alt-4_",i), function()plot(saved_fits[[i]], "mod_con", conditional = TRUE, prior = TRUE))
+  expect_doppelganger(paste0("plot_reg-con-alt-5_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "logOR"))
+  expect_doppelganger(paste0("plot_reg-con-alt-6_",i), function()plot(saved_fits[[i]], "mod_con", output_scale = "r", prior = TRUE))
+
+  plot(saved_fits[[14]], "mod_cat", conditional = TRUE)
 })
 
 
@@ -221,3 +265,15 @@ test_that("Forest plots work", {
 })
 
 
+test_that("Marginal posterior plots work", {
+
+
+  expect_error(marginal_plot(saved_fits[[1]]), "'marginal_plot' function is available only for RoBMA regression models")
+  expect_error(marginal_plot(saved_fits[[14]], "mu"), "The 'mu' values are not recognized by the 'parameter' argument.")
+
+  expect_doppelganger("mm_ggplot_mod_cat_1", marginal_plot(saved_fits[[14]], "mod_cat", plot_type = "ggplot"))
+  expect_doppelganger("mm_ggplot_mod_cat_2", marginal_plot(saved_fits[[14]], "mod_cat", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger("mm_ggplot_mod_cat_3", marginal_plot(saved_fits[[14]], "mod_cat", prior = TRUE, plot_type = "ggplot", output_scale = "r"))
+  expect_doppelganger("mm_ggplot_mod_con_1", marginal_plot(saved_fits[[14]], "mod_con", prior = TRUE, plot_type = "ggplot", xlim = c(-1, 1)))
+  expect_doppelganger("mm_ggplot_mod_con_2", function()marginal_plot(saved_fits[[15]], "mod_con", conditional = TRUE))
+})

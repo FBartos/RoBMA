@@ -60,9 +60,16 @@
 #' of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 #'
 #' @seealso [RoBMA()], [summary.RoBMA()]
-#' @export
+#' @name diagnostics
+#' @aliases diagnostics_autocorrelation diagnostics_trace diagnostics_density
+#' @export diagnostics
+#' @export diagnostics_density
+#' @export diagnostics_autocorrelation
+#' @export diagnostics_trace
+
+#' @rdname diagnostics
 diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = NULL,
-                  lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
+                        lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 
   # check settings
   if(!is.RoBMA(fit))
@@ -75,11 +82,11 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
 
   # deal with bad type names
   if(substr(type, 1, 1) == "c"){
-    type <- "chains"
+    type <- "trace"
   }else if(substr(type, 1, 1) == "t"){
-    type <- "chains" # for trace
+    type <- "trace" # for trace
   }else if(substr(type, 1, 1) == "d"){
-    type <- "densities"
+    type <- "density"
   }else if(substr(type, 1, 1) == "a"){
     type <- "autocorrelation"
   }else{
@@ -88,11 +95,23 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
 
   # deal with bad parameter names for PET-PEESE, weightfunction
   if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
-    parameter <- "omega"
-  }else if(parameter %in% c("mu", "tau", "PET", "PEESE")){
-    parameters <- parameter
+    parameter         <- "omega"
+    parameter_samples <- "omega"
+  }else if(parameter %in% c("tau", "rho", "PET", "PEESE")){
+    parameter         <- parameter
+    parameter_samples <- parameter
+  }else if(parameter == "mu"){
+    parameter         <- parameter
+    parameter_samples <- if(is.RoBMA.reg(fit)) "mu_intercept" else "mu"
+  }else if(is.RoBMA.reg(fit) && parameter %in% fit$add_info[["predictors"]]){
+    parameter         <- parameter
+    parameter_samples <- .BayesTools_parameter_name(parameter)
   }else{
-    stop("The passed parameter is not supported for plotting. See '?plot.RoBMA' for more details.")
+    if(is.RoBMA.reg(fit)){
+      stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE') or any of the specified predictors: ", paste0("'", fit$add_info[["predictors"]], "'", collapse = ", "), ". See '?plot.RoBMA' for more details."))
+    }else{
+      stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE'). See '?plot.RoBMA' for more details."))
+    }
   }
 
   # omit the first figure for publication bias weights (it is constants for all interesting weightfunctions)
@@ -115,338 +134,83 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
   if(plot_type == "base" & (length(models_ind) > 1 | parameter == "omega"))
     message("Multiple plots will be produced. See '?layout' for help with setting multiple plots.")
 
+  dots  <- .set_dots_diagnostics(..., type = type, chains = fit[["fit_control"]][["chains"]])
+  plots <- list()
 
-  for(m in models_ind){
+  for(i in models_ind){
 
-    temp_out  <- NULL
-    # add ability to transform the estimates with 'par_transform'
-    temp_data <- .diagnostics_plot_data(fit, m, parameter, NULL)
+    model_parameters <- c(names(attr(fit$models[[i]][["fit"]], "prior_list")))
 
-    # deal with no parameter in model
-    if(is.null(temp_data)){
-      if(length(models_ind) == 1){
-        message("Selected model does not containt the parameter of interest.")
-        return(invisible(NULL))
-      }else{
-        out[m] <- temp_out
-        next
-      }
-    }
+    if(!parameter_samples %in% model_parameters){
 
-    # make the plots
-    par_ind <- 1:length(temp_data)
-    if(!is.null(show_figures)){
-      par_ind <- par_ind[show_figures]
-    }
+      plots[[i]] <- NULL
 
-    for(i in par_ind){
-      if(type == "chains"){
-        temp_out <- c(temp_out, list(.diagnostics_plot_trace(temp_data[[i]], plot_type, if(title) m else NULL, ...)))
-      }else if(type == "densities"){
-        temp_out <- c(temp_out, list(.diagnostics_plot_density(temp_data[[i]], plot_type, if(title) m else NULL, parameter, ...)))
-      }else if(type == "autocorrelation"){
-        temp_out <- c(temp_out, list(.diagnostics_plot_ac(temp_data[[i]], plot_type, if(title) m else NULL, lags, ...)))
-      }
-    }
+    }else if(inherits(fit$models[[i]][["fit"]], "null_model")){
 
-    if(length(temp_out) == 1){
-      temp_out <- temp_out[[1]]
-    }
+      plots[[i]] <- NULL
 
-    if(length(models_ind) == 1){
-      out    <- temp_out
     }else{
-      out[m] <- list(temp_out)
+
+      # get the parameter name
+      args                   <- dots
+      args$fit               <- fit$models[[i]][["fit"]]
+      args$parameter         <- parameter_samples
+      args$parameter_names   <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, fit, fit$add_info[["prior_scale"]])[[1]]
+      args$type              <- type
+      args$plot_type         <- plot_type
+      args$lags              <- lags
+      args$transformations   <- NULL
+      args$transform_factors <- TRUE
+      args$short_name        <- FALSE
+      args$parameter_names   <- FALSE
+      args$formula_prefix    <- FALSE
+
+      if(!is.null(title) && title){
+        args$main <- paste0("Model ", i)
+      }
+
+      plots[[i]] <- do.call(BayesTools::JAGS_diagnostics, args)
     }
   }
+
+
 
   # return the plots
   if(plot_type == "base"){
-    return(invisible(NULL))
+    return(invisible(plots))
   }else if(plot_type == "ggplot"){
-    return(out)
+    if(length(plots) == 1){
+      plots <- plots[[1]]
+    }
+    return(plots)
   }
 }
 
 
-.diagnostics_plot_trace   <- function(plot_data, plot_type, title, ...){
+#' @rdname diagnostics
+diagnostics_autocorrelation <- function(fit, parameter = NULL, plot_type = "base", show_models = NULL,
+                                        lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
+  diagnostics(fit = fit, parameter = parameter, type = "autocorrelation", plot_type = plot_type, show_models = show_models, lags = lags, title = title, ...)
+}
 
-  if(plot_type == "base"){
+#' @rdname diagnostics
+diagnostics_trace           <- function(fit, parameter = NULL, plot_type = "base", show_models = NULL,
+                                        title = is.null(show_models) | length(show_models) > 1, ...){
+  diagnostics(fit = fit, parameter = parameter, type = "trace", plot_type = plot_type, show_models = show_models, title = title, ...)
+}
 
-    # save plotting settings
-    oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(mar = oldpar[["mar"]]))
+#' @rdname diagnostics
+diagnostics_density         <- function(fit, parameter = NULL, plot_type = "base", show_models = NULL,
+                                        title = is.null(show_models) | length(show_models) > 1, ...){
+  diagnostics(fit = fit, parameter = parameter, type = "density", plot_type = plot_type, show_models = show_models, title = title, ...)
+}
 
-    # set up margins
-    if(length(list(...)) == 0){
-      graphics::par(mar = c(4, 4, if(!is.null(title)) 3 else 1, 1))
-    }else{
-      graphics::par(list(...))
-    }
+.set_dots_diagnostics  <- function(..., type, chains){
 
-    graphics::plot(NA, type = "n", xlim = range(plot_data$samp$iteration), ylim = range(plot_data$samp$value),
-                   xlab = "", ylab = "", bty = "n", las = 1)
-    for(i in as.numeric(unique(plot_data$samp$chain))){
-      graphics::lines(plot_data$samp$iteration[plot_data$samp$chain == i], plot_data$samp$value[plot_data$samp$chain == i],
-                      col = .diagnostics_color(plot_data$nchains)[i])
-    }
-    if(!is.null(title)){
-      graphics::mtext(paste0("Model ",title), side = 3, line = 1, cex = 1.25)
-    }
-    graphics::mtext(plot_data$parameter, side = 2, line = 2.5, cex = 1.25)
-
-    graph <- NULL
-
-  }else if(plot_type == "ggplot"){
-
-    graph <- ggplot2::ggplot(
-      data    = data.frame(
-        x     = plot_data$samp$iteration,
-        y     = plot_data$samp$value,
-        color = plot_data$samp$chain),
-      mapping = ggplot2::aes(
-        x     = .data[["x"]],
-        y     = .data[["y"]],
-        color = .data[["color"]])) +
-      ggplot2::geom_path() +
-      ggplot2::scale_color_manual(name = "chain", values = .diagnostics_color(plot_data$nchains))
-    temp_x_range <- range(plot_data$samp$iteration)
-    temp_y_range <- range(plot_data$samp$value)
-    graph <- graph + ggplot2::scale_x_continuous(
-        name   = "Iterations",
-        limits = temp_x_range,
-        breaks = pretty(temp_x_range, n = 3),
-        labels = pretty(temp_x_range, n = 3)
-      ) +
-      ggplot2::scale_y_continuous(
-        name   = plot_data$parameter,
-        limits = temp_y_range,
-        breaks = pretty(temp_y_range),
-        labels = pretty(temp_y_range)
-      )
-    if(!is.null(title)){
-      graph <- graph + ggplot2::ggtitle(paste0("Model ",title))
-    }
+  dots <- list(...)
+  if(is.null(dots[["col"]])){
+    dots[["col"]]      <- if(type == "autocorrelation") "black" else rev(scales::viridis_pal()(chains))
   }
 
-  return(graph)
-}
-.diagnostics_plot_density <- function(plot_data, plot_type, title, par, ...){
-
-  if(plot_type == "base"){
-
-    # save plotting settings
-    oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(mar = oldpar[["mar"]]))
-
-    # set up margins
-    if(length(list(...)) == 0){
-      graphics::par(mar = c(4, 4, if(!is.null(title)) 3 else 1, 1))
-    }else{
-      graphics::par(list(...))
-    }
-    with_trunc <- list()
-    if(!is.infinite(plot_data$lower)){
-      with_trunc$from <- plot_data$lower
-    }
-    if(!is.infinite(plot_data$upper)){
-      with_trunc$to   <- plot_data$upper
-    }
-
-
-    temp_den <- vector(mode = "list", length = length(unique(plot_data$samp$chain)))
-    for(i in as.numeric(unique(plot_data$samp$chain))){
-      # deal with first weights if requested
-      if(all(plot_data$samp$value[plot_data$samp$chain == i] == 1) & par == "omega"){
-        temp_den[[i]] <- NULL
-      }else{
-        temp_den[[i]] <- do.call(stats::density, c(list(x = plot_data$samp$value[plot_data$samp$chain == i]), with_trunc))
-      }
-    }
-
-    graphics::plot(
-      NA, type = "n",
-      xlim = if(all(sapply(temp_den, is.null))) c(0, 1) else range(sapply(1:length(temp_den), function(i)temp_den[[i]]$x)),
-      ylim = if(all(sapply(temp_den, is.null))) c(0, 1) else c(0, max(sapply(1:length(temp_den), function(i)temp_den[[i]]$y))),
-      xlab = "", ylab = "", bty = "n", las = 1)
-    for(i in 1:length(temp_den)){
-      if(is.null(temp_den[[i]]) & par == "omega"){
-        graphics::arrows(x0 = 1, y0 = 0, y1 = 1, lwd = 2, lty = 1, col = .diagnostics_color(plot_data$nchains)[i])
-      }else{
-        graphics::lines(temp_den[[i]], col = .diagnostics_color(plot_data$nchains)[i])
-        graphics::polygon(
-          x = c(if(!is.infinite(plot_data$lower)) plot_data$lower, temp_den[[i]]$x, if(!is.infinite(plot_data$upper)) plot_data$upper),
-          y = c(if(!is.infinite(plot_data$lower)) 0,               temp_den[[i]]$y, if(!is.infinite(plot_data$upper)) 0),
-          border = .diagnostics_color(plot_data$nchains)[i],
-          col    = scales::alpha(.diagnostics_color(plot_data$nchains)[i], alpha = .5))
-      }
-    }
-    if(!is.null(title)){
-      graphics::mtext(paste0("Model ",title), side = 3, line = 1, cex = 1.25)
-    }
-    graphics::mtext(if(all(sapply(temp_den, is.null))) "Probability" else "Density", side = 2, line = 2.5, cex = 1.25)
-    graphics::mtext(plot_data$parameter,                                             side = 1, line = 2.5, cex = 1.25)
-
-    graph <- NULL
-
-  }else if(plot_type == "ggplot"){
-
-    graph <-  ggplot2::ggplot(
-      data    = data.frame(
-        x    = plot_data$samp$value,
-        fill = plot_data$samp$chain),
-      mapping = ggplot2::aes(
-        x    = .data[["x"]],
-        fill = .data[["fill"]])) +
-      ggplot2::geom_density(color = "black", alpha = .5) +
-      ggplot2::scale_fill_manual(name = "chain", values = .diagnostics_color(plot_data$nchains))
-    temp_y_max   <- max(ggplot2::ggplot_build(graph)$data[[1]]$density)
-    temp_x_range <- if(par == "omega") c(0, 1) else range(plot_data$samp$value)
-    graph <- graph +  ggplot2::scale_y_continuous(
-        name   = "Density",
-        limits = range(pretty(c(0, temp_y_max))),
-        breaks = pretty(c(0, temp_y_max)),
-        labels = pretty(c(0, temp_y_max))
-      ) +
-      ggplot2::scale_x_continuous(
-        name   = plot_data$parameter,
-        limits = range(pretty(temp_x_range)),
-        breaks = pretty(temp_x_range),
-        labels = pretty(temp_x_range)
-      )
-    if(!is.null(title)){
-      graph <- graph + ggplot2::ggtitle(paste0("Model ",title))
-    }
-
-  }
-
-  return(graph)
-}
-.diagnostics_plot_ac      <- function(plot_data, plot_type, title, lags = 30, ...){
-
-  ac_dat   <- .diagnostics_ac_data(dat = plot_data$samp, lags = lags)
-
-  if(plot_type == "base"){
-
-    # save plotting settings
-    oldpar <- graphics::par(no.readonly = TRUE)
-    on.exit(graphics::par(mar = oldpar[["mar"]]))
-
-    # set up margins
-    if(length(list(...)) == 0){
-      graphics::par(mar = c(4,4,3,1))
-    }else{
-      graphics::par(list(...))
-    }
-
-    temp_dat <- as.numeric(by(ac_dat$ac, ac_dat$lag, mean))
-    temp_dat[is.nan(temp_dat)] <- 1
-    graphics::barplot(temp_dat, names.arg = unique(ac_dat$lag), col = "#B2001D", las = 1)
-    graphics::mtext("Lag",                  side = 1, line = 2.5, cex = 1.25)
-    graphics::mtext("Avg. autocorrelation", side = 2, line = 2.5, cex = 1.25)
-    if(!is.null(title)){
-      graphics::mtext(bquote(paste("Model"," ", .(title),":"," ", .(eval(plot_data$parameter)))), side = 3, line = 1, cex = 1.25)
-    }else{
-      graphics::mtext(plot_data$parameter, side = 3, line = 1, cex = 1.25)
-    }
-
-    graph <- NULL
-
-  }else if(plot_type == "ggplot"){
-    graph     <- ggplot2::ggplot(
-      data    = data.frame(
-        x     = ac_dat$lag,
-        y     = ac_dat$ac),
-      mapping = ggplot2::aes(
-        x     = .data[["x"]],
-        y     = .data[["y"]])) +
-      ggplot2::geom_bar(linewidth = .5, color = "black", fill = "#B2001D", position = "dodge", stat = "summary", fun = "mean") +
-      ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.25)) +
-      ggplot2::labs(x = "Lag", y = "Avg. autocorrelation")
-    if(!is.null(title)){
-      graph <- graph + ggplot2::ggtitle(bquote(paste("Model"," ", .(title),":"," ", .(eval(plot_data$parameter)))))
-    }else{
-      graph <- graph + ggplot2::ggtitle(plot_data$parameter)
-    }
-  }
-
-  return(graph)
-}
-.diagnostics_ac_data      <- function(dat, lags){
-  ch <- dat[, grep("chain", colnames(dat))]
-  nc <- length(unique(ch))
-
-  ac_list <- tapply(dat$value, INDEX = ch, FUN = function(x)stats::acf(x, lag.max = lags, plot = FALSE)$acf[, , 1L], simplify = FALSE)
-
-  nl <- lags + 1
-  ch <- factor(rep(1:nc, each = nl), labels = paste0("chain:", 1:nc))
-  ll <- rep(seq(0, lags), nc)
-
-  return(data.frame(chains = ch, ac = do.call(c, ac_list), lag = ll))
-}
-.diagnostics_color        <- function(n){
-  return(rep_len(c("#E66101", "#998EC3", "#542788", "#F1A340", "#D8DAEB", "#FEE0B6"), n))
-}
-.diagnostics_plot_data    <- function(fit, model, par, par_transform){
-
-  if(length(fit$models[[model]]$fit) == 0){
-
-    return(NULL)
-
-  }else{
-
-    # do not plot spike priors
-    if(is.prior.point(fit$models[[model]]$priors[[par]]))
-      return(NULL)
-
-    samples <- coda::as.array.mcmc.list(fit$models[[model]]$fit$mcmc, drop = FALSE)
-
-    if(!any(grepl(par, dimnames(samples)$var)))
-      return(NULL)
-
-    # create parameter names and get parameter indexes
-    if(par %in% c("mu", "tau", "PET", "PEESE")){
-      ind       <- c(1:length(dimnames(samples)$var))[par == dimnames(samples)$var]
-      par_names <- .plot.RoBMA_par_names(par, fit, fit$add_info$prior_scale)
-    }else{
-      ind <- c(1:length(dimnames(samples)$var))[grepl(par, dimnames(samples)$var)]
-      ind <- rev(ind)
-      summary_info <- summary(fit, "individual")
-      summary_info <- summary_info[["models"]][[model]][["estimates"]]
-      omega_names  <- rownames(summary_info)[grepl(par, rownames(summary_info))]
-      par_names    <- vector("list", length = length(omega_names))
-      for(i in 1:length(par_names)){
-        par_names[[i]] <- bquote(~omega[~.(substr(omega_names[i],6,nchar(omega_names[i])))])
-      }
-    }
-
-    plot_data <- list()
-    for(i in 1:length(ind)){
-      plot_data[[dimnames(samples)$var[ind[i]]]] <- list(
-        samp = data.frame(
-          value     = as.vector(samples[,ind[i],]),
-          parameter = dimnames(samples)$var[ind[i]],
-          chain     = as.factor(c(unlist(sapply(1:dim(samples)[3], function(x)rep(x,dim(samples)[1]))))),
-          iteration = rep(1:dim(samples)[1], dim(samples)[3])
-        ),
-        nchains   = dim(samples)[3],
-        nparams   = 1,
-        warmup    = 0,
-        parameter = par_names[[i]],
-        lower     = if(par == "omega") 0 else fit$models[[model]]$priors[[par]]$truncation[["lower"]],
-        upper     = if(par == "omega") 1 else fit$models[[model]]$priors[[par]]$truncation[["upper"]]
-      )
-    }
-
-    # TODO: implement later
-    # transform the values if requested
-    # if(par_transform){
-    #   if(par %in% c("mu", "theta") & fit$add_info$effect_size %in% c("r", "OR")){
-    #     plot_data[[1]]$samp$value <- .transform(plot_data[[1]]$samp$value, fit$add_info$effect_size, fit$add_info$transformation)
-    #   }
-    # }
-
-  }
-
-  return(plot_data)
+  return(dots)
 }

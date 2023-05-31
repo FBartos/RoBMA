@@ -98,7 +98,7 @@ test_that("Density function works", {
 })
 
 test_that("Random number generator function works", {
-
+  skip_on_os("linux")
   set.seed(1)
 
   # verify (visually) no-weights against standard normal

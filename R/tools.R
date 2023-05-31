@@ -17,7 +17,16 @@ check_RoBMA <- function(fit){
 
 .is_model_constant         <- function(priors){
   # checks whether there is at least one non-nill prior
-  return(all(sapply(priors, function(prior) is.prior.point(prior) | is.prior.none(prior))) & is.null(priors[["omega"]]))
+  if(is.null(priors[["terms"]])){
+    # in simple models
+    return(all(sapply(priors, function(prior) is.prior.point(prior) | is.prior.none(prior))) & is.null(priors[["omega"]]))
+  }else{
+    # in regression models
+    non_terms <- all(sapply(priors[names(priors) != "terms"], function(prior) is.prior.point(prior) | is.prior.none(prior))) & is.null(priors[["omega"]])
+    terms     <- all(sapply(priors[["terms"]], function(prior) is.prior.point(prior)))
+    return(non_terms && terms)
+  }
+  return()
 }
 .remove_model_posteriors   <- function(object){
   for(i in seq_along(object[["models"]])){
@@ -121,11 +130,15 @@ check_RoBMA <- function(fit){
 }
 .is_component_null           <- function(priors, component){
   if(component == "effect"){
-    return(priors[["mu"]][["is_null"]])
+    if(is.null(priors[["terms"]])){
+      return(priors[["mu"]][["is_null"]])
+    }else{
+      return(priors[["terms"]][["intercept"]][["is_null"]])
+    }
   }else if(component == "heterogeneity"){
     return(priors[["tau"]][["is_null"]])
-  }else if(component == "multivariate"){
-    if(priors[["tau"]][["is_null"]] || is.null(priors[["rho"]])){
+  }else if(component == "hierarchical"){
+    if((is.prior.point(priors[["tau"]]) && priors[["tau"]]$parameters[["location"]] == 0) || is.null(priors[["rho"]])){
       return(TRUE)
     }else{
       return(priors[["rho"]][["is_null"]])
@@ -143,17 +156,113 @@ check_RoBMA <- function(fit){
   }
 }
 .multivariate_warning        <- function(){
-  warning("You are about to estimate multivariate models. Note that this is an extremely computationaly expensive experimental feature.", immediate. = TRUE)
+  warning("You are about to estimate multivariate models. Note that this is an extremely computationaly expensive experimental feature.", immediate. = TRUE, call. = FALSE)
 }
-.weighted_warning        <- function(){
-  warning("You are about to estimate weighted models. Note that this is an experimental feature.", immediate. = TRUE)
+.weighted_warning            <- function(){
+  warning("You are about to estimate weighted models. Note that this is an experimental feature.", immediate. = TRUE, call. = FALSE)
 }
 .update_object               <- function(object){
 
-  # 2.1 -> 2.2
-  if(is.null(attr(object$data, "all_independent"))){
-    attr(object$data, "all_independent") <- TRUE
+  # no package version number saved prior to 2.4
+  if(!all("version" %in% names(object[["add_info"]]))){
+
+    # 2.1 -> 2.2
+    if(is.null(object[["formula"]]) && is.null(attr(object$data, "all_independent"))){
+      attr(object$data, "all_independent") <- TRUE
+    }
+
+    object[["add_info"]][["version"]] <- list(c(2,2,0))
+  }
+
+  # 2.2 -> 2.3
+  if(.object_version_older(object, "2.2.0")){
+
+    if(is.null(object[["formula"]]) && !is.null(attr(object$data, "all_independent")) && is.null(attr(object$data, "weighted"))){
+      attr(object$data, "weighted") <- FALSE
+    }
+
+    object[["add_info"]][["version"]] <- list(c(2,3,0))
+  }
+
+  # 2.3 -> 2.4
+  if(.object_version_older(object, "2.3.0")){
+
+    if(!all(c("predictors", "predictors_test", "standardize_predictors") %in% names(object[["add_info"]]))){
+      object[["add_info"]][["predictors"]]             <- NULL
+      object[["add_info"]][["predictors_test"]]        <- NULL
+      object[["add_info"]][["standardize_predictors"]] <- NULL
+      object[["add_info"]] <- object[["add_info"]][c(
+        "model_type",
+        "predictors",
+        "predictors_test",
+        "prior_scale",
+        "output_scale",
+        "effect_measure",
+        "effect_direction",
+        "standardize_predictors",
+        "seed",
+        "save",
+        "warnings",
+        "errors"
+      )]
+    }
+    if(!all("version" %in% names(object[["add_info"]]))){
+      object[["add_info"]][["version"]] <- utils::packageVersion("RoBMA")
+    }
+    if(!all(c("inference_predictors", "inference_predictors_conditional", "posteriors_predictors", "posteriors_predictors_conditional") %in% names(object[["RoBMA"]]))){
+      object[["RoBMA"]] <- list(
+        "inference"                         = object[["RoBMA"]][["inference"]],
+        "inference_conditional"             = object[["RoBMA"]][["inference_conditional"]],
+        "inference_predictors"              = NULL,
+        "inference_predictors_conditional"  = NULL,
+        "posteriors"                        = object[["RoBMA"]][["posteriors"]],
+        "posteriors_conditional"            = object[["RoBMA"]][["posteriors_conditional"]],
+        "posteriors_predictors"             = NULL,
+        "posteriors_predictors_conditional" = NULL
+      )
+    }
+    names(object[["priors"]])[names(object[["priors"]]) == "rho"] <- "hierarchical"
+    object[["add_info"]][["version"]] <- list(c(2,4,0))
   }
 
   return(object)
 }
+.object_version_older <- function(object, version){
+
+  object  <- unlist(object[["add_info"]][["version"]])
+  current <- as.numeric(unlist(strsplit(version, ".", fixed = TRUE)))
+
+  if(length(object) < 3 | length(current) < 3){
+    return(object[1] <= current[1] && object[2] <= current[2])
+  }else{
+    return(object[1] <= current[1] && object[2] <= current[2] && object[3] <= current[3])
+  }
+}
+
+.is_multivariate <- function(object){
+  if(.is_regression(object)){
+    return(!attr(object[["data"]][["outcome"]], "all_independent"))
+  }else{
+    return(!attr(object[["data"]], "all_independent"))
+  }
+}
+.is_weighted     <- function(object){
+  if(.is_regression(object)){
+    return(attr(object[["data"]][["outcome"]], "weighted"))
+  }else{
+    return(attr(object[["data"]], "weighted"))
+  }
+}
+.is_regression   <- function(object){
+  return(!is.null(object[["formula"]]))
+}
+
+.BayesTools_parameter_name   <- function(parameter){
+  return(BayesTools::JAGS_parameter_names(parameter, formula_parameter = "mu"))
+}
+.output_parameter_names      <- function(parameter){
+  return(BayesTools::format_parameter_names(parameter, formula_parameters = "mu", formula_prefix = FALSE))
+}
+.reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE",
+                                             "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
+                                             "d", "t", "r", "z", "y", "logOR", "lCI", "uCI", "v", "se", "n", "weight")

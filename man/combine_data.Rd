@@ -18,6 +18,7 @@ combine_data(
   uCI = NULL,
   study_names = NULL,
   study_ids = NULL,
+  weight = NULL,
   data = NULL,
   transformation = "fishers_z",
   return_all = FALSE
@@ -52,6 +53,9 @@ transformations are unavailable with this type of input)}
 \item{study_ids}{an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
+
+\item{weight}{specifies likelihood weights of the individual estimates.
+Notes that this is an untested experimental feature.}
 
 \item{data}{a data frame with column names corresponding to the
 variable names used to supply data individually}

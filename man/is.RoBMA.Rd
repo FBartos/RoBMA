@@ -2,15 +2,18 @@
 % Please edit documentation in R/summary.R
 \name{is.RoBMA}
 \alias{is.RoBMA}
+\alias{is.RoBMA.reg}
 \title{Reports whether x is a RoBMA object}
 \usage{
 is.RoBMA(x)
+
+is.RoBMA.reg(x)
 }
 \arguments{
 \item{x}{an object to test}
 }
 \value{
-\code{is.RoBMA} returns a boolean.
+returns a boolean.
 }
 \description{
 Reports whether x is a RoBMA object

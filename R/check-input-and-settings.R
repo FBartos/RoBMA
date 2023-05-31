@@ -10,7 +10,7 @@
 #'
 #' @return \code{check_setup} invisibly returns list of summary tables.
 #'
-#' @seealso [RoBMA()]
+#' @seealso [check_setup.reg()] [RoBMA()]
 #' @export
 check_setup <- function(
   model_type   = NULL,
@@ -29,14 +29,13 @@ check_setup <- function(
   priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
   priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
   priors_bias_null           = prior_none(),
-  priors_rho                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_rho_null            = NULL,
+  priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null   = NULL,
   models = FALSE, silent = FALSE){
 
   object <- list()
-  object$priors   <- .check_and_list_priors(tolower(model_type), priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_rho, priors_rho_null, object$add_info[["prior_scale"]])
+  object$priors   <- .check_and_list_priors(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical, priors_hierarchical_null, "d")
   object$models   <- .make_models(object[["priors"]], multivariate = FALSE, weighted = FALSE)
-
 
   ### model types overview
   effect         <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "effect"))
@@ -108,7 +107,7 @@ check_setup <- function(
       "Bias"          = priors_bias,
       "prior_prob"    = prior_prob
     )
-    class(summary)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(summary))
+    class(summary)             <- c("BayesTools_table", "BayesTools_ensemble_inference", class(summary))
     attr(summary, "type")      <- c("integer", rep("prior", 3), "prior_prob")
     attr(summary, "rownames")  <- FALSE
     attr(summary, "title")     <- "Models overview:"
@@ -133,6 +132,251 @@ check_setup <- function(
 }
 
 
+#' @title Prints summary of \code{"RoBMA.reg"} ensemble implied by the specified priors
+#' and formula
+#'
+#' @description \code{check_setup} prints summary of \code{"RoBMA.reg"} ensemble
+#' implied by the specified prior distributions. It is useful for checking
+#' the ensemble configuration prior to fitting all of the models.
+#'
+#' @inheritParams check_setup
+#' @inheritParams RoBMA.reg
+#'
+#' @return \code{check_setup.reg} invisibly returns list of summary tables.
+#'
+#' @seealso [check_setup()] [RoBMA.reg()]
+#' @export
+check_setup.reg <- function(
+    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
+    transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
+    prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
+    standardize_predictors = TRUE,
+    effect_direction       = "positive",
+
+    # prior specification
+    priors       = NULL,
+    model_type   = NULL,
+
+    priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
+    priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
+    priors_bias           = list(
+      prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
+      prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
+      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
+      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
+      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
+      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
+      prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),  prior_weights = 1/4),
+      prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),  prior_weights = 1/4)
+    ),
+    priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
+    priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
+    priors_bias_null           = prior_none(),
+    priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
+    priors_hierarchical_null   = NULL,
+
+    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+    prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
+    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
+    prior_factors_null     = prior("spike",  parameters = list(location = 0)),
+    models = FALSE, silent = FALSE, ...){
+
+
+  # use 'do_not_fit' with RoBMA.reg
+  object <- RoBMA.reg(
+    ### passed arguments
+    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, study_ids = study_ids,
+    transformation     = transformation,
+    prior_scale        = prior_scale,
+    standardize_predictors = standardize_predictors,
+    effect_direction       = effect_direction,
+
+    priors       = priors,
+    model_type   = model_type,
+
+    priors_effect         = priors_effect,
+    priors_heterogeneity  = priors_heterogeneity,
+    priors_bias           = priors_bias,
+    priors_effect_null         = priors_effect_null,
+    priors_heterogeneity_null  = priors_heterogeneity_null,
+    priors_bias_null           = priors_bias_null,
+    priors_hierarchical        = priors_hierarchical,
+    priors_hierarchical_null   = priors_hierarchical_null,
+
+    prior_covariates       = prior_covariates,
+    prior_covariates_null  = prior_covariates_null,
+    prior_factors          = prior_factors,
+    prior_factors_null     = prior_factors_null,
+
+    do_not_fit = TRUE,
+
+    ### fitting settings defaults
+    # MCMC fitting settings
+    chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
+    autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
+
+    # additional settings
+    save = "all", seed = NULL, silent = TRUE)
+
+
+  ### Components summary
+  effect         <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "effect"))
+  heterogeneity  <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
+  bias           <- sapply(object$models, function(model)!.is_component_null(model[["priors"]], "bias"))
+
+  # obtain the parameter types
+  weightfunctions <- sapply(object$models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
+  PET             <- sapply(object$models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
+  PEESE           <- sapply(object$models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
+
+  # number of model types
+  n_models    <- c(
+    mu    = sum(effect),
+    tau   = sum(heterogeneity),
+    omega = sum(bias)
+  )
+
+  # extract model weights
+  prior_weights   <- sapply(object$models, function(m) m$prior_weights)
+  # standardize model weights
+  prior_weights   <- prior_weights / sum(prior_weights)
+  # conditional model weights
+  models_prior <- c(
+    mu    <- sum(prior_weights[effect]),
+    tau   <- sum(prior_weights[heterogeneity]),
+    omega <- sum(prior_weights[bias])
+  )
+
+  # create overview table
+  components.tab <- data.frame(
+    "models"     = n_models,
+    "prior_prob" = models_prior
+  )
+  rownames(components.tab) <- c("Effect", "Heterogeneity", "Bias")
+
+  class(components.tab)             <- c("BayesTools_table", "BayesTools_ensemble_inference", class(components.tab))
+  attr(components.tab, "type")      <- c("n_models", "prior_prob")
+  attr(components.tab, "rownames")  <- TRUE
+  attr(components.tab, "n_models")  <- length(object$models)
+  attr(components.tab, "title")     <- "Components summary:"
+  attr(components.tab, "footnotes") <- NULL
+  attr(components.tab, "warnings")  <- NULL
+
+
+  ### Meta-regression components summary
+  model_predictors      <- lapply(object$models, function(model) model[["terms"]])
+  model_predictors_test <- lapply(object$models, function(model) model[["terms_test"]])
+
+  predictors      <- object$add_info[["predictors"]]
+  predictors_test <- object$add_info[["predictors_test"]]
+
+  # define inference options
+  components_predictors      <- NULL
+  parameters_predictors      <- "mu_intercept"
+  components_predictors_null <- list()
+  parameters_predictors_null <- list("mu_intercept" = !effect)
+
+  components_predictors_distributions      <- NULL
+  components_predictors_distributions_null <- list()
+
+  # predictors
+  for(i in seq_along(predictors_test)){
+    components_predictors <- c(components_predictors, .BayesTools_parameter_name(predictors_test[i]))
+    components_predictors_null[[.BayesTools_parameter_name(predictors_test[i])]] <-
+      sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors_test[i] %in% x))
+  }
+
+  for(i in seq_along(predictors)){
+    parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(predictors[i]))
+    parameters_predictors_null[[.BayesTools_parameter_name(predictors[i])]] <-
+      sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors[i] %in% x))
+  }
+
+  # create overview table
+  if(length(components_predictors_null) > 0){
+
+    components_predictors.tab <- data.frame(
+      "models"     = sapply(components_predictors_null, sum),
+      "prior_prob" = sapply(seq_along(components_predictors_null), function(i) sum(prior_weights[components_predictors_null[[i]]]))
+    )
+    rownames(components_predictors.tab) <- .output_parameter_names(components_predictors)
+
+    class(components_predictors.tab)             <- c("BayesTools_table", "BayesTools_ensemble_inference", class(components_predictors.tab))
+    attr(components_predictors.tab, "type")      <- c("n_models", "prior_prob")
+    attr(components_predictors.tab, "rownames")  <- TRUE
+    attr(components_predictors.tab, "n_models")  <- length(object$models)
+    attr(components_predictors.tab, "title")     <- "Meta-regression components summary:"
+    attr(components_predictors.tab, "footnotes") <- NULL
+    attr(components_predictors.tab, "warnings")  <- NULL
+
+  }else{
+
+    components_predictors.tab <- BayesTools::ensemble_inference_empty_table(title = "Meta-regression components summary:")
+    components_predictors.tab <- BayesTools::remove_column(components_predictors.tab, 4)
+    components_predictors.tab <- BayesTools::remove_column(components_predictors.tab, 3)
+
+  }
+
+
+  ### store summaries in the object
+  object$components            <- components.tab
+  object$components_predictors <- components_predictors.tab
+
+
+  ### model details
+  if(models){
+    priors_heterogeneity <- sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$tau, silent = TRUE))
+    priors_bias          <- sapply(1:length(object$models), function(i){
+      if(weightfunctions[i]){
+        print(object$models[[i]]$priors$omega, silent = TRUE)
+      }else if(PET[i]){
+        print(object$models[[i]]$priors$PET, silent = TRUE)
+      }else if(PEESE[i]){
+        print(object$models[[i]]$priors$PEESE, silent = TRUE)
+      }else{
+        ""
+      }
+    })
+    prior_weights  <- sapply(1:length(object$models), function(i)object$models[[i]]$prior_weights)
+    prior_prob     <- prior_weights / sum(prior_weights)
+
+    summary <- data.frame("Model" = 1:length(object$models))
+    for(p in seq_along(parameters_predictors)){
+      summary <- cbind(summary, sapply(1:length(object$models), function(i)print(object$models[[i]]$priors$terms[[.output_parameter_names(parameters_predictors[p])]], silent = TRUE)))
+      colnames(summary)[p+1] <- .output_parameter_names(parameters_predictors[i])
+    }
+    summary <- cbind(
+      summary,
+      "Heterogeneity" = priors_heterogeneity,
+      "Bias"          = priors_bias,
+      "prior_prob"    = prior_prob
+    )
+    class(summary)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(summary))
+    attr(summary, "type")      <- c("integer", rep("prior", 2 + length(parameters_predictors)), "prior_prob")
+    attr(summary, "rownames")  <- FALSE
+    attr(summary, "title")     <- "Models overview:"
+    attr(summary, "footnotes") <- NULL
+    attr(summary, "warnings")  <- NULL
+
+    object$summary <- summary
+  }
+
+
+  if(!silent){
+    cat("Robust Bayesian meta-regression (set-up)\n")
+    print(components.tab, quote = FALSE, right = TRUE)
+
+    cat("\n")
+    print(components_predictors.tab, quote = FALSE, right = TRUE)
+
+    if(models){
+      cat("\n")
+      print(summary, quote = FALSE, right = TRUE)
+    }
+  }
+
+  return(invisible(object))
+}
 
 #' @title Control MCMC fitting process
 #'
@@ -207,6 +451,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   return(convergence_checks)
 }
+
 
 
 .update_fit_control     <- function(old_fit_control, chains, adapt, burnin, sample, thin, autofit, parallel, cores, silent, seed){
@@ -333,31 +578,40 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   convergence_checks[["balance_probability"]] <- balance_probability
   return(convergence_checks)
 }
-.check_and_list_add_info  <- function(model_type, prior_scale, output_scale, effect_measure, effect_direction, seed, save, warnings, errors){
+.check_and_list_add_info  <- function(model_type, predictors = NULL, predictors_test = NULL, prior_scale, output_scale, effect_measure, effect_direction, standardize_predictors = NULL, seed, save, warnings, errors){
 
   BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative"))
   BayesTools::check_real(seed, "seed", allow_NULL = TRUE)
   BayesTools::check_char(save, "save", allow_values = c("min", "all"))
   model_type <- .check_and_set_model_type(model_type, prior_scale)
+  BayesTools::check_char(predictors, "predictors", allow_NULL = TRUE, check_length = 0)
+  BayesTools::check_char(predictors_test, "predictors_test", allow_NULL = TRUE, check_length = 0)
+  BayesTools::check_bool(standardize_predictors, "standardize_predictors", allow_NULL = TRUE)
 
   if((prior_scale == "y" & effect_measure != "y") | (prior_scale != "y" & effect_measure == "y"))
     stop("Prior / effect size transformations are not available for unstandardized effect sizes.", call. = FALSE)
 
-  return(list(
-    model_type       = model_type,
-    prior_scale      = prior_scale,
-    output_scale     = output_scale,
-    effect_measure   = effect_measure,
-    effect_direction = effect_direction,
-    seed             = seed,
-    save             = save,
-    warnings         = warnings,
-    errors           = errors
-  ))
+  add_info <- list(
+    model_type             = model_type,
+    predictors             = predictors,
+    predictors_test        = predictors_test,
+    prior_scale            = prior_scale,
+    output_scale           = output_scale,
+    effect_measure         = effect_measure,
+    effect_direction       = effect_direction,
+    standardize_predictors = standardize_predictors,
+    seed                   = seed,
+    save                   = save,
+    warnings               = warnings,
+    errors                 = errors,
+    version                = utils::packageVersion("RoBMA")
+  )
+
+  return(add_info)
 }
 .check_and_set_model_type <- function(model_type, prior_scale){
 
-  if(!is.null(model_type)){
+  if(length(model_type) != 0){
     model_type <- tolower(model_type)
     BayesTools::check_char(model_type, "model_type", allow_values = c("psma", "2w", "pp"))
     if(prior_scale != "d")
@@ -370,12 +624,18 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   warnings <- NULL
 
+  if(!is.null(object$data[["outcome"]])){
+    data <- object$data[["outcome"]]
+  }else{
+    data <- object[["data"]]
+  }
+
   # check whether majority of effect sizes are in expected direction. throw warning if not.
-  if(any(sapply(object$priors$omega, function(p)p$distribution) == "one.sided") |
-     any(grepl("PET", sapply(object$priors$omega, function(p)p$distribution)))  |
-     any(grepl("PEESE", sapply(object$priors$omega, function(p)p$distribution)))){
-    if(stats::median(object$data$y) > 0 & object$control$effect_direction == "negative" |
-       stats::median(object$data$y) < 0 & object$control$effect_direction == "positive"){
+  if(any(sapply(object$priors[["bias"]], function(p) p[["distribution"]]) == "one.sided") |
+     any(grepl("PET",   sapply(object$priors[["bias"]], function(p) p[["distribution"]])))  |
+     any(grepl("PEESE", sapply(object$priors[["bias"]], function(p) p[["distribution"]])))){
+    if(stats::median(data[["y"]]) > 0 & object$add_info[["effect_direction"]] == "negative" |
+       stats::median(data[["y"]]) < 0 & object$add_info[["effect_direction"]] == "positive"){
       warnings <- "The majority of effect sizes is in the oposite direction than expected. The direction of effect sizes is important for the one-sided weight functions. Please, check the 'effect_direction' argument in 'RoBMA' fitting function."
     }
   }
@@ -384,14 +644,31 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   return(warnings)
 }
+.check_predictors_scaling <- function(object){
 
+  warnings   <- NULL
+  predictors <- object[["data"]][["predictors"]]
+
+  # check that all continuous predictors are centered and scale
+  for(i in seq_along(predictors)){
+
+    if(attr(predictors, "variables_info")[[i]][["type"]] == "continuous"){
+      if(!(isTRUE(all.equal(mean(predictors[[i]]), 0)) && isTRUE(all.equal(stats::sd(predictors[[i]]), 1)))){
+        warnings <- c(warnings, paste0("The continuous predictor '",names(predictors[i]),"' is not standardized. Be cafefull about the specified prior distribution and hypothesis test."))
+      }
+    }
+
+  }
+
+  return(warnings)
+}
 
 # some functions for the JASP implementation
 .RoBMA_collect_dots      <- function(...){
 
   dots <- list(...)
 
-  known_dots <- c("is_JASP", "weighted")
+  known_dots <- c("is_JASP", "weighted", "do_not_fit", "weighted_type")
   if(any(!names(dots) %in% known_dots))
     stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
 
@@ -405,6 +682,21 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     dots[["weighted"]] <- FALSE
   }else{
     BayesTools::check_bool(dots[["weighted"]], "weighted")
+
+    # select weight type
+    if(is.null(dots[["weighted_type"]])){
+      attr(dots[["weighted"]], "type") <- "inverse"
+    }else{
+      BayesTools::check_char(dots[["weighted_type"]], "weighted", allow_values = c("inverse", "inverse_sqrt", "custom"))
+      attr(dots[["weighted"]], "type") <- dots[["weighted_type"]]
+      dots[["weighted_type"]] <- NULL
+    }
+  }
+
+  if(is.null(dots[["do_not_fit"]])){
+    dots[["do_not_fit"]] <- FALSE
+  }else{
+    BayesTools::check_bool(dots[["do_not_fit"]], "do_not_fit")
   }
 
   return(dots)

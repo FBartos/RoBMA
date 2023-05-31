@@ -31,6 +31,8 @@
 #' \code{"cohens_d"}, correlation coefficient \code{"r"} and \code{"logOR"}.
 #' Supplying \code{"none"} will treat the effect sizes as unstandardized and
 #' refrain from any transformations.
+#' @param weight specifies likelihood weights of the individual estimates.
+#' Notes that this is an untested experimental feature.
 #' @param return_all whether data frame containing all filled values should be
 #' returned. Defaults to \code{FALSE}
 #'
@@ -62,22 +64,23 @@
 #'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
-combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, study_ids = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
+combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE){
 
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
   BayesTools::check_bool(return_all, "return_all")
-  BayesTools::check_real(d[!is.na(d)],         "d",        allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(r[!is.na(r)],         "r",        allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
-  BayesTools::check_real(z[!is.na(z)],         "z",        allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(logOR[!is.na(logOR)], "logOR",    allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(t[!is.na(t)],         "t",        allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(y[!is.na(y)],         "y",        allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(se[!is.na(se)],       "se",       allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(v[!is.na(v)],         "v",        allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_int( n[!is.na(n)],         "n",        allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(lCI[!is.na(lCI)],     "lCI",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(uCI[!is.na(uCI)],     "uCI",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
+  BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)],  "logOR",   allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(v[!is.na(v)],           "v",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_int( n[!is.na(n)],           "n",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(lCI[!is.na(lCI)],       "lCI",    allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(uCI[!is.na(uCI)],       "uCI",    allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
   BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
 
 
@@ -92,7 +95,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     original_measure <- NULL
   }
 
-  input_variables <- c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids")
+  input_variables <- c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -101,7 +104,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids)))
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
   }
 
   if(is.null(original_measure)){
@@ -117,7 +120,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   }
 
   ### into numeric
-  for(var in c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t")){
+  for(var in c("d", "r", "z", "logOR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight")){
     data[,var] <- as.numeric(as.character(data[,var]))
   }
 
@@ -126,7 +129,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     y  = rep(NA, nrow(data)),
     se = rep(NA, nrow(data)),
     study_names = rep(NA, nrow(data)),
-    study_ids   = rep(NA, nrow(data))
+    study_ids   = rep(NA, nrow(data)),
+    weight      = rep(NA, nrow(data))
   )
 
   ### check for sufficient input
@@ -188,6 +192,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
   # assign factor levels
   data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
 
+  # add weights if missing
+  if(all(is.na(data[,"weight"]))){
+    data[,"weight"] <- NA
+  }
+
   ### deal with general 'unstandardized' input
   if(!anyNA(data[,"y"])){
 
@@ -211,10 +220,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       output$se <- data[,"se"]
       output$study_names <- data[,"study_names"]
       output$study_ids   <- data[,"study_ids"]
+      output$weight      <- data[,"weight"]
       attr(output, "effect_measure")   <- transformation
       attr(output, "original_measure") <- original_measure
       attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
-      attr(output, "weighted")         <- FALSE
+      attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
       class(output) <- c(class(output), "data.RoBMA")
 
       return(output)
@@ -367,10 +377,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
     output$se          <- data[,"se"]
     output$study_names <- data[,"study_names"]
     output$study_ids   <- data[,"study_ids"]
+    output$weight      <- data[,"weight"]
     attr(output, "effect_measure")   <- transformation
     attr(output, "original_measure") <- original_measure
     attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
-    attr(output, "weighted")         <- FALSE
+    attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
     class(output) <- c(class(output), "data.RoBMA")
 
     if(anyNA(data[,"se"]) | anyNA(data[,"se"])){
@@ -412,6 +423,51 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, t = NULL, 
       )
     }
   }
+
+  for(type in c("posteriors_predictors", "posteriors_predictors_conditional")){
+
+    for(i in seq_along(object$RoBMA[[type]])){
+
+      if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.factor")){
+        for(j in 1:ncol(object$RoBMA[[type]][[i]])){
+          object$RoBMA[[type]][[i]][,j] <- .transform_mu(
+            object$RoBMA[[type]][[i]][,j],
+            current_scale,
+            output_scale
+          )
+        }
+      }else if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.simple")){
+        object$RoBMA[[type]][[i]] <- .transform_mu(
+          object$RoBMA[[type]][[i]],
+          current_scale,
+          output_scale
+        )
+      }
+
+    }
+
+  }
+
+  for(type in c("conditional", "averaged")){
+
+    for(i in seq_along(object$RoBMA$inference_marginal[[type]])){
+
+      for(j in seq_along(object$RoBMA$inference_marginal[[type]][[i]])){
+        object$RoBMA$inference_marginal[[type]][[i]][[j]] <- .transform_mu(
+          object$RoBMA$inference_marginal[[type]][[i]][[j]],
+          current_scale,
+          output_scale
+        )
+        attr(object$RoBMA$inference_marginal[[type]][[i]][[j]], "prior_samples") <- .transform_mu(
+          attr(object$RoBMA$inference_marginal[[type]][[i]][[j]], "prior_samples"),
+          current_scale,
+          output_scale
+        )
+      }
+
+    }
+  }
+
 
   object$add_info[["output_scale"]] <- output_scale
 
