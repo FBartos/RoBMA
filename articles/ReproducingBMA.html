@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -53,10 +53,16 @@
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul>
 </li>
@@ -81,13 +87,15 @@
 
       
 
-      </header><script src="ReproducingBMA_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
+      </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
-      <h1 data-toc-skip>Reproducing Bayesian Model-Averaged Meta-Analysis</h1>
-                        <h4 data-toc-skip class="author">František Bartoš</h4>
+      <h1 data-toc-skip>Reproducing Bayesian Model-Averaged
+Meta-Analysis</h1>
+                        <h4 data-toc-skip class="author">František
+Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2023-03-13</h4>
+            <h4 data-toc-skip class="date">2023-05-31</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/ReproducingBMA.Rmd" class="external-link"><code>vignettes/ReproducingBMA.Rmd</code></a></small>
       <div class="hidden name"><code>ReproducingBMA.Rmd</code></div>
@@ -96,12 +104,30 @@
 
     
     
-<p>By default, the package estimates an ensemble of 36 meta-analytic models and provides functions for convenient manipulation with the fitted object. However, it has been built in a way that it can be used as a framework for estimating any combination of meta-analytic models (or a single model). Here, we illustrate how to build a custom ensemble of meta-analytic models - specifically the same ensemble that is used in ‘classical’ Bayesian Model-Averaged Meta-Analysis <span class="citation">(Bartoš et al., 2021; Gronau et al., 2017, 2021)</span>. See <a href="CustomEnsembles.html">this vignette</a> if you are interested in building more customized ensembles or <span class="citation">Bartoš et al. (n.d.)</span> for a tutorial on fitting (custom) models in JASP.</p>
+<p>By default, the RoBMA package estimates an ensemble of 36
+meta-analytic models and provides functions for convenient manipulation
+with the fitted object. However, the package has been designed so it can
+be used as a framework for estimating any combination of meta-analytic
+models (or a single model). Here, we illustrate how to build a custom
+ensemble of meta-analytic models - specifically the same ensemble that
+is used in ‘classical’ Bayesian Model-Averaged Meta-Analysis <span class="citation">(Bartoš et al., 2021; Gronau et al., 2017,
+2021)</span>. See <a href="CustomEnsembles.html">this vignette</a> if
+you are interested in building more customized ensembles or <span class="citation">Bartoš et al. (2022)</span> for a tutorial on fitting
+(custom) models in JASP.</p>
 <div class="section level3">
 <h3 id="reproducing-bayesian-model-averaged-meta-analysis-bma">Reproducing Bayesian Model-Averaged Meta-Analysis (BMA)<a class="anchor" aria-label="anchor" href="#reproducing-bayesian-model-averaged-meta-analysis-bma"></a>
 </h3>
-<p>We illustrate how to fit a classical BMA (not adjusting for publication bias) using <code>RoBMA</code>. For this purpose, we reproduce a meta-analysis of registered reports on Power posing by <span class="citation">Gronau et al. (2017)</span>. We focus only on the analysis using all reported results using a Cauchy prior distribution with scale <span class="math inline">\(1/\sqrt{2}\)</span> for the effect size estimation (half-Cauchy for testing) and inverse-gamma distribution with scale = 1 and shape 0.15 for the heterogeneity parameter. You can find the figure from the original publication <a href="https://www.flickr.com/photos/149473606@N08/34086113581/in/dateposted-public/" class="external-link">here</a> and the paper’s supplementary materials at <a href="https://osf.io/fxg32/" class="external-link uri">https://osf.io/fxg32/</a>.</p>
-<p>First, we load the power posing data provided within the metaBMA package and reproduce the analysis performed by <span class="citation">Gronau et al. (2017)</span>.</p>
+<p>We illustrate how to fit a classical BMA (not adjusting for
+publication bias) using <code>RoBMA</code>. For this purpose, we
+reproduce a meta-analysis of registered reports on Power posing by <span class="citation">Gronau et al. (2017)</span>. We focus only on the
+analysis using all reported results using a Cauchy prior distribution
+with scale <span class="math inline">\(1/\sqrt{2}\)</span> for the
+effect size estimation (half-Cauchy for testing) and inverse-gamma
+distribution with scale = 1 and shape 0.15 for the heterogeneity
+parameter. You can find the figure from the original publication <a href="https://www.flickr.com/photos/149473606@N08/34086113581/in/dateposted-public/" class="external-link">here</a>
+and the paper’s supplementary materials at <a href="https://osf.io/fxg32/" class="external-link uri">https://osf.io/fxg32/</a>.</p>
+<p>First, we load the power posing data provided within the metaBMA
+package and reproduce the analysis performed by <span class="citation">Gronau et al. (2017)</span>.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"power_pose"</span>, package <span class="op">=</span> <span class="st">"metaBMA"</span><span class="op">)</span></span>
 <span><span class="va">power_pose</span><span class="op">[</span>,<span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"study"</span>, <span class="st">"effectSize"</span>, <span class="st">"SE"</span><span class="op">)</span><span class="op">]</span></span>
@@ -137,13 +163,40 @@
 <span><span class="co">#&gt; averaged 0.22 0.06 0.09 0.22  0.34        0.09        0.34     NA   NA</span></span>
 <span><span class="co">#&gt; fixed    0.22 0.06 0.10 0.22  0.34        0.10        0.34 3026.5    1</span></span>
 <span><span class="co">#&gt; random   0.22 0.08 0.07 0.22  0.37        0.07        0.37 6600.4    1</span></span></code></pre></div>
-<p>From the output, we can see that the inclusion Bayes factor for the effect size was <span class="math inline">\(BF_{10} = 33.14\)</span> and the effect size estimate 0.22, 95% HDI [0.09, 0.34] which matches the reported results. Please note that the <code>metaBMA</code> package model-averages only across the <span class="math inline">\(H_{1}\)</span> models, whereas the <code>RoBMA</code> package model-averages across all models.</p>
+<p>From the output, we can see that the inclusion Bayes factor for the
+effect size was <span class="math inline">\(BF_{10} = 33.14\)</span> and
+the effect size estimate 0.22, 95% HDI [0.09, 0.34] which matches the
+reported results. Please note that the <code>metaBMA</code> package
+model-averages only across the <span class="math inline">\(H_{1}\)</span> models, whereas the
+<code>RoBMA</code> package model-averages across all models.</p>
 </div>
 <div class="section level3">
 <h3 id="using-robma">Using RoBMA<a class="anchor" aria-label="anchor" href="#using-robma"></a>
 </h3>
-<p>Now we reproduce the analysis with <code>RoBMA</code>. We set the corresponding prior distributions for effect sizes (<span class="math inline">\(\mu\)</span>) and heterogeneity (<span class="math inline">\(\tau\)</span>), and remove the alternative prior distributions for the publication bias by setting <code>priors_bias = NULL</code>. To specify the half-Cauchy prior distribution with the <code><a href="../reference/prior.html">RoBMA::prior()</a></code> function we use a regular Cauchy distribution and truncate it at zero (note that both <code>metaBMA</code> and <code>RoBMA</code> export their own <code><a href="../reference/prior.html">prior()</a></code> functions that will clash when loading both packages simultaneously). The inverse-gamma prior distribution for the heterogeneity parameter is the default option (we specify it for completeness) and we omit the specifications for the null prior distributions for the effect size, heterogeneity (both of which are set to a spike at 0 by default), and publication bias (which is set to no publication bias by default).</p>
-<p>Since <code>metaBMA</code> model-averages the effect size estimates only across the models assuming presence of the effect, we remove the models assuming absence of the effect from the estimation ensemble with <code>priors_effect_null = NULL</code>. Finally, we set <code>transformation = "cohens_d"</code> to estimate the models on Cohen’s <em>d</em> scale (RoBMA uses Fisher’s <em>z</em> scale by default and transforms the estimated coefficients back to the scale that us used for specifying the prior distributions), we speed the computation by setting <code>parallel = TRUE</code>, and set a seed for reproducibility.</p>
+<p>Now we reproduce the analysis with <code>RoBMA</code>. We set the
+corresponding prior distributions for effect sizes (<span class="math inline">\(\mu\)</span>) and heterogeneity (<span class="math inline">\(\tau\)</span>), and remove the alternative prior
+distributions for the publication bias by setting
+<code>priors_bias = NULL</code>. To specify the half-Cauchy prior
+distribution with the <code><a href="../reference/prior.html">RoBMA::prior()</a></code> function we use a
+regular Cauchy distribution and truncate it at zero (note that both
+<code>metaBMA</code> and <code>RoBMA</code> export their own
+<code><a href="../reference/prior.html">prior()</a></code> functions that will clash when loading both
+packages simultaneously). The inverse-gamma prior distribution for the
+heterogeneity parameter is the default option (we specify it for
+completeness) and we omit the specifications for the null prior
+distributions for the effect size, heterogeneity (both of which are set
+to a spike at 0 by default), and publication bias (which is set to no
+publication bias by default).</p>
+<p>Since <code>metaBMA</code> model-averages the effect size estimates
+only across the models assuming presence of the effect, we remove the
+models assuming absence of the effect from the estimation ensemble with
+<code>priors_effect_null = NULL</code>. Finally, we set
+<code>transformation = "cohens_d"</code> to estimate the models on
+Cohen’s <em>d</em> scale (RoBMA uses Fisher’s <em>z</em> scale by
+default and transforms the estimated coefficients back to the scale that
+us used for specifying the prior distributions), we speed the
+computation by setting <code>parallel = TRUE</code>, and set a seed for
+reproducibility.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span></span>
 <span></span>
@@ -212,45 +265,96 @@
 <span><span class="co">#&gt; mu  0.220  0.220 0.096 0.346</span></span>
 <span><span class="co">#&gt; tau 0.019  0.000 0.000 0.152</span></span>
 <span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span></code></pre></div>
-<p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 2 parts. The first one under the “Robust Bayesian Meta-Analysis” heading provides a basic summary of the fitted models by component types (presence of the Effect/Heterogeneity/Publication bias). We can see that there are no models correcting for publication bias (we disabled them by setting <code>priors_bias = NULL</code>). Furthermore, the table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components. The results for the half-Cauchy model specified for testing show that the inclusion BF is basically identical to the one computed by the <code>metaBMA</code> package, <span class="math inline">\(\text{BF}_{10} = 33.11\)</span>.</p>
-<p>The second part under the ‘Model-averaged estimates’ heading displays the parameter estimates. The results for the unrestricted Cauchy model specified for estimation show the effect size estimate <span class="math inline">\(\mu = 0.22\)</span>, 95% CI [0.10, 0.35] that also mirrors the one obtained from <code>metaBMA</code> package.</p>
+<p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 2
+parts. The first one under the “Robust Bayesian Meta-Analysis” heading
+provides a basic summary of the fitted models by component types
+(presence of the Effect/Heterogeneity/Publication bias). We can see that
+there are no models correcting for publication bias (we disabled them by
+setting <code>priors_bias = NULL</code>). Furthermore, the table
+summarizes the prior and posterior probabilities and the inclusion Bayes
+factors of the individual components. The results for the half-Cauchy
+model specified for testing show that the inclusion BF is basically
+identical to the one computed by the <code>metaBMA</code> package, <span class="math inline">\(\text{BF}_{10} = 33.11\)</span>.</p>
+<p>The second part under the ‘Model-averaged estimates’ heading displays
+the parameter estimates. The results for the unrestricted Cauchy model
+specified for estimation show the effect size estimate <span class="math inline">\(\mu = 0.22\)</span>, 95% CI [0.10, 0.35] that also
+mirrors the one obtained from <code>metaBMA</code> package.</p>
 </div>
 <div class="section level3">
 <h3 id="visualizating-the-results">Visualizating the Results<a class="anchor" aria-label="anchor" href="#visualizating-the-results"></a>
 </h3>
-<p>RoBMA provides extensive options for visualizing the results. Here, we visualize the prior (grey) and posterior (black) distribution for the mean parameter.</p>
+<p>RoBMA provides extensive options for visualizing the results. Here,
+we visualize the prior (grey) and posterior (black) distribution for the
+mean parameter.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA_est</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><img src="ReproducingBMA_files/figure-html/fig_mu_est-1.png" width="50%" style="display: block; margin: auto;"></p>
-<p>If we visualize the effect size from the model specified for testing, we notice a few more things. The function plots the model-averaged estimates across all models by default (here model-averaged across models assuming the absence of the effect). The arrows stand for the probability of a spike, here, at the value 0. The secondary y-axis (right) shows the probability of the value 0 decreased from .50, to 0.03 (also obtainable from the “Robust Bayesian Meta-Analysis” field in the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function). Furthermore, the continuous prior distributions for the effect size under the alternative hypothesis is truncated to only the positive numbers, as specified when fitting the models.</p>
+<p>If we visualize the effect size from the model specified for testing,
+we notice a few more things. The function plots the model-averaged
+estimates across all models by default (here model-averaged across
+models assuming the absence of the effect). The arrows stand for the
+probability of a spike, here, at the value 0. The secondary y-axis
+(right) shows the probability of the value 0 decreased from .50, to 0.03
+(also obtainable from the “Robust Bayesian Meta-Analysis” field in the
+<code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function). Furthermore, the continuous
+prior distributions for the effect size under the alternative hypothesis
+is truncated to only the positive numbers, as specified when fitting the
+models.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA_test</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">.5</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><img src="ReproducingBMA_files/figure-html/fig_mu_test-1.png" width="50%" style="display: block; margin: auto;"></p>
-<p>We can also visualize the estimates from the individual models used in the ensemble. We do that with the <code><a href="../reference/plot_models.html">plot_models()</a></code> which visualizes the effect size estimates and 95% CI of each of the specified models from the estimation ensemble (Model 1 corresponds to the fixed effect model and Model 2 to the random effect model). The size of the square representing the mean estimate reflects the posterior model probability of the model, which is also displayed in the right-hand side panel. The bottom part of the figure shows the model averaged-estimate that is a combination of the individual model posterior distributions weighted by the posterior model probabilities.</p>
+<p>We can also visualize the estimates from the individual models used
+in the ensemble. We do that with the <code><a href="../reference/plot_models.html">plot_models()</a></code> which
+visualizes the effect size estimates and 95% CI of each of the specified
+models from the estimation ensemble (Model 1 corresponds to the fixed
+effect model and Model 2 to the random effect model). The size of the
+square representing the mean estimate reflects the posterior model
+probability of the model, which is also displayed in the right-hand side
+panel. The bottom part of the figure shows the model averaged-estimate
+that is a combination of the individual model posterior distributions
+weighted by the posterior model probabilities.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_models.html">plot_models</a></span><span class="op">(</span><span class="va">fit_RoBMA_est</span><span class="op">)</span></span></code></pre></div>
 <p><img src="ReproducingBMA_files/figure-html/fig_models-1.png" width="75%" style="display: block; margin: auto;"></p>
-<p>The last type of visualization that we show here is the forest plot. It displays the original studies’ effects and the meta-analytic estimate within one figure. It can be requested by using the <code><a href="../reference/forest.html">forest()</a></code> function.</p>
+<p>The last type of visualization that we show here is the forest plot.
+It displays the original studies’ effects and the meta-analytic estimate
+within one figure. It can be requested by using the
+<code><a href="../reference/forest.html">forest()</a></code> function.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="va">fit_RoBMA_est</span><span class="op">)</span></span></code></pre></div>
 <p><img src="ReproducingBMA_files/figure-html/fig_forest-1.png" width="75%" style="display: block; margin: auto;"></p>
-<p>For more options provided by the plotting function, see its documentation using <code>?plot.RoBMA()</code>, <code>?plot_models()</code>, and <code>?forest()</code>.</p>
+<p>For more options provided by the plotting function, see its
+documentation using <code>?plot.RoBMA()</code>,
+<code>?plot_models()</code>, and <code>?forest()</code>.</p>
 </div>
 <div class="section level3 unnumbered">
-<h3 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+<h3 class="unnumbered" id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h3>
-<div id="refs" class="references">
-<div id="ref-bartos2021bayesian">
-<p>Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp; Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in medicine. <em>Statistics in Medicine</em>. <a href="https://doi.org/10.1002/sim.9170" class="external-link">https://doi.org/10.1002/sim.9170</a></p>
+<div id="refs" class="references csl-bib-body hanging-indent" line-spacing="2">
+<div id="ref-bartos2021bayesian" class="csl-entry">
+Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp;
+Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in
+medicine. <em>Statistics in Medicine</em>. <a href="https://doi.org/10.1002/sim.9170" class="external-link">https://doi.org/10.1002/sim.9170</a>
 </div>
-<div id="ref-bartos2020adjusting">
-<p>Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (n.d.). Adjusting for publication bias in JASP &amp; R – selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>. <a href="https://doi.org/10.31234/osf.io/75bqn" class="external-link">https://doi.org/10.31234/osf.io/75bqn</a></p>
+<div id="ref-bartos2020adjusting" class="csl-entry">
+Bartoš, F., Maier, Maximilian, Quintana, D. S., &amp; Wagenmakers, E.-J.
+(2022). Adjusting for publication bias in <span>JASP</span> and
+<span>R</span> — <span>S</span>election models, <span>PET-PEESE</span>,
+and robust <span>B</span>ayesian meta-analysis. <em>Advances in Methods
+and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link">https://doi.org/10.1177/25152459221109259</a>
 </div>
-<div id="ref-gronau2020primer">
-<p>Gronau, Q. F., Heck, D. W., Berkhout, S. W., Haaf, J. M., &amp; Wagenmakers, E.-J. (2021). A primer on Bayesian model-averaged meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>4</em>(3), 25152459211031256. <a href="https://doi.org/10.1177/25152459211031256" class="external-link">https://doi.org/10.1177/25152459211031256</a></p>
+<div id="ref-gronau2020primer" class="csl-entry">
+Gronau, Q. F., Heck, D. W., Berkhout, S. W., Haaf, J. M., &amp;
+Wagenmakers, E.-J. (2021). A primer on <span>B</span>ayesian
+model-averaged meta-analysis. <em>Advances in Methods and Practices in
+Psychological Science</em>, <em>4</em>(3), 25152459211031256. <a href="https://doi.org/10.1177/25152459211031256" class="external-link">https://doi.org/10.1177/25152459211031256</a>
 </div>
-<div id="ref-gronau2017bayesian">
-<p>Gronau, Q. F., Van Erp, S., Heck, D. W., Cesario, J., Jonas, K. J., &amp; Wagenmakers, E.-J. (2017). A Bayesian model-averaged meta-analysis of the power pose effect with informed and default priors: The case of felt power. <em>Comprehensive Results in Social Psychology</em>, <em>2</em>(1), 123–138. <a href="https://doi.org/10.1080/23743603.2017.1326760" class="external-link">https://doi.org/10.1080/23743603.2017.1326760</a></p>
+<div id="ref-gronau2017bayesian" class="csl-entry">
+Gronau, Q. F., Van Erp, S., Heck, D. W., Cesario, J., Jonas, K. J.,
+&amp; Wagenmakers, E.-J. (2017). A <span>B</span>ayesian model-averaged
+meta-analysis of the power pose effect with informed and default priors:
+<span>T</span>he case of felt power. <em>Comprehensive Results in Social
+Psychology</em>, <em>2</em>(1), 123–138. <a href="https://doi.org/10.1080/23743603.2017.1326760" class="external-link">https://doi.org/10.1080/23743603.2017.1326760</a>
 </div>
 </div>
 </div>

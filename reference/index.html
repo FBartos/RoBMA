@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -35,10 +35,16 @@
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul></li>
 <li>
@@ -80,29 +86,6 @@ Bem (2011)
  as described in
 Bem et al. (2011)</p></td>
       </tr><tr><td>
-          <p><code><a href="Poulsen2006.html">Poulsen2006</a></code> </p>
-        </td>
-        <td><p>5 studies with a tactile outcome assessment from
-Poulsen et al. (2006)
- of the effect of potassium-containing toothpaste
-on dentine hypersensitivity</p></td>
-      </tr><tr><td>
-          <p><code><a href="RoBMA-package.html">RoBMA-package</a></code> <code><a href="RoBMA-package.html">_PACKAGE</a></code> <code><a href="RoBMA-package.html">RoBMA_package</a></code> <code><a href="RoBMA-package.html">RoBMA.package</a></code> </p>
-        </td>
-        <td><p>RoBMA: Robust Bayesian meta-analysis</p></td>
-      </tr><tr><td>
-          <p><code><a href="RoBMA.html">RoBMA()</a></code> </p>
-        </td>
-        <td><p>Estimate a Robust Bayesian Meta-Analysis</p></td>
-      </tr><tr><td>
-          <p><code><a href="RoBMA_control.html">set_autofit_control()</a></code> <code><a href="RoBMA_control.html">set_convergence_checks()</a></code> </p>
-        </td>
-        <td><p>Control MCMC fitting process</p></td>
-      </tr><tr><td>
-          <p><code><a href="RoBMA_options.html">RoBMA.options()</a></code> <code><a href="RoBMA_options.html">RoBMA.get_option()</a></code> </p>
-        </td>
-        <td><p>Options for the RoBMA package</p></td>
-      </tr><tr><td>
           <p><code><a href="check_RoBMA.html">check_RoBMA()</a></code> </p>
         </td>
         <td><p>Check fitted RoBMA object for errors and warnings</p></td>
@@ -111,11 +94,24 @@ on dentine hypersensitivity</p></td>
         </td>
         <td><p>Prints summary of <code>"RoBMA"</code> ensemble implied by the specified priors</p></td>
       </tr><tr><td>
+          <p><code><a href="check_setup.reg.html">check_setup.reg()</a></code> </p>
+        </td>
+        <td><p>Prints summary of <code>"RoBMA.reg"</code> ensemble implied by the specified priors
+and formula</p></td>
+      </tr><tr><td>
           <p><code><a href="combine_data.html">combine_data()</a></code> </p>
         </td>
         <td><p>Combines different effect sizes into a common metric</p></td>
       </tr><tr><td>
-          <p><code><a href="diagnostics.html">diagnostics()</a></code> </p>
+          <p><code><a href="contr.meandif.html">contr.meandif()</a></code> </p>
+        </td>
+        <td><p>Mean difference contrast matrix</p></td>
+      </tr><tr><td>
+          <p><code><a href="contr.orthonormal.html">contr.orthonormal()</a></code> </p>
+        </td>
+        <td><p>Orthornomal contrast matrix</p></td>
+      </tr><tr><td>
+          <p><code><a href="diagnostics.html">diagnostics()</a></code> <code><a href="diagnostics.html">diagnostics_autocorrelation()</a></code> <code><a href="diagnostics.html">diagnostics_trace()</a></code> <code><a href="diagnostics.html">diagnostics_density()</a></code> </p>
         </td>
         <td><p>Checks a fitted RoBMA object</p></td>
       </tr><tr><td>
@@ -131,9 +127,28 @@ on dentine hypersensitivity</p></td>
         </td>
         <td><p>Interprets results of a RoBMA model.</p></td>
       </tr><tr><td>
-          <p><code><a href="is.RoBMA.html">is.RoBMA()</a></code> </p>
+          <p><code><a href="is.RoBMA.html">is.RoBMA()</a></code> <code><a href="is.RoBMA.html">is.RoBMA.reg()</a></code> </p>
         </td>
         <td><p>Reports whether x is a RoBMA object</p></td>
+      </tr><tr><td>
+          <p><code><a href="Kroupova2021.html">Kroupova2021</a></code> </p>
+        </td>
+        <td><p>881 estimates from 69 studies of a relationship between employment and
+educational outcomes collected by Kroupova et al. (2021)</p></td>
+      </tr><tr><td>
+          <p><code><a href="Lui2015.html">Lui2015</a></code> </p>
+        </td>
+        <td><p>18 studies of a relationship between acculturation mismatch and
+intergenerational cultural conflict collected by
+Lui (2015)</p></td>
+      </tr><tr><td>
+          <p><code><a href="marginal_plot.html">marginal_plot()</a></code> </p>
+        </td>
+        <td><p>Plots marginal estimates of a fitted RoBMA regression object</p></td>
+      </tr><tr><td>
+          <p><code><a href="marginal_summary.html">marginal_summary()</a></code> </p>
+        </td>
+        <td><p>Summarize marginal estimates of a fitted RoBMA regression object</p></td>
       </tr><tr><td>
           <p><code><a href="plot.RoBMA.html">plot(<i>&lt;RoBMA&gt;</i>)</a></code> </p>
         </td>
@@ -142,6 +157,17 @@ on dentine hypersensitivity</p></td>
           <p><code><a href="plot_models.html">plot_models()</a></code> </p>
         </td>
         <td><p>Models plot for a RoBMA object</p></td>
+      </tr><tr><td>
+          <p><code><a href="Poulsen2006.html">Poulsen2006</a></code> </p>
+        </td>
+        <td><p>5 studies with a tactile outcome assessment from
+Poulsen et al. (2006)
+ of the effect of potassium-containing toothpaste
+on dentine hypersensitivity</p></td>
+      </tr><tr><td>
+          <p><code><a href="print.marginal_summary.RoBMA.html">print(<i>&lt;marginal_summary.RoBMA&gt;</i>)</a></code> </p>
+        </td>
+        <td><p>Prints marginal_summary object for RoBMA method</p></td>
       </tr><tr><td>
           <p><code><a href="print.RoBMA.html">print(<i>&lt;RoBMA&gt;</i>)</a></code> </p>
         </td>
@@ -155,13 +181,9 @@ on dentine hypersensitivity</p></td>
         </td>
         <td><p>Creates a prior distribution</p></td>
       </tr><tr><td>
-          <p><code><a href="prior_PEESE.html">prior_PEESE()</a></code> </p>
+          <p><code><a href="prior_factor.html">prior_factor()</a></code> </p>
         </td>
-        <td><p>Creates a prior distribution for PET or PEESE models</p></td>
-      </tr><tr><td>
-          <p><code><a href="prior_PET.html">prior_PET()</a></code> </p>
-        </td>
-        <td><p>Creates a prior distribution for PET or PEESE models</p></td>
+        <td><p>Creates a prior distribution for factors</p></td>
       </tr><tr><td>
           <p><code><a href="prior_informed.html">prior_informed()</a></code> </p>
         </td>
@@ -171,9 +193,37 @@ on dentine hypersensitivity</p></td>
         </td>
         <td><p>Creates a prior distribution</p></td>
       </tr><tr><td>
+          <p><code><a href="prior_PEESE.html">prior_PEESE()</a></code> </p>
+        </td>
+        <td><p>Creates a prior distribution for PET or PEESE models</p></td>
+      </tr><tr><td>
+          <p><code><a href="prior_PET.html">prior_PET()</a></code> </p>
+        </td>
+        <td><p>Creates a prior distribution for PET or PEESE models</p></td>
+      </tr><tr><td>
           <p><code><a href="prior_weightfunction.html">prior_weightfunction()</a></code> </p>
         </td>
         <td><p>Creates a prior distribution for a weight function</p></td>
+      </tr><tr><td>
+          <p><code><a href="RoBMA-package.html">RoBMA-package</a></code> <code><a href="RoBMA-package.html">_PACKAGE</a></code> <code><a href="RoBMA-package.html">RoBMA_package</a></code> <code><a href="RoBMA-package.html">RoBMA.package</a></code> </p>
+        </td>
+        <td><p>RoBMA: Robust Bayesian meta-analysis</p></td>
+      </tr><tr><td>
+          <p><code><a href="RoBMA.html">RoBMA()</a></code> </p>
+        </td>
+        <td><p>Estimate a Robust Bayesian Meta-Analysis</p></td>
+      </tr><tr><td>
+          <p><code><a href="RoBMA.reg.html">RoBMA.reg()</a></code> </p>
+        </td>
+        <td><p>Estimate a Robust Bayesian Meta-Analysis Meta-Regression</p></td>
+      </tr><tr><td>
+          <p><code><a href="RoBMA_control.html">set_autofit_control()</a></code> <code><a href="RoBMA_control.html">set_convergence_checks()</a></code> </p>
+        </td>
+        <td><p>Control MCMC fitting process</p></td>
+      </tr><tr><td>
+          <p><code><a href="RoBMA_options.html">RoBMA.options()</a></code> <code><a href="RoBMA_options.html">RoBMA.get_option()</a></code> </p>
+        </td>
+        <td><p>Options for the RoBMA package</p></td>
       </tr><tr><td>
           <p><code><a href="sample_sizes.html">se_d()</a></code> <code><a href="sample_sizes.html">n_d()</a></code> <code><a href="sample_sizes.html">se_r()</a></code> <code><a href="sample_sizes.html">n_r()</a></code> <code><a href="sample_sizes.html">se_z()</a></code> <code><a href="sample_sizes.html">n_z()</a></code> </p>
         </td>

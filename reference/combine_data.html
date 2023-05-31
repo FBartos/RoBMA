@@ -20,7 +20,7 @@ arguments or vectors with individual values can be passed."><!-- mathjax --><scr
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -38,10 +38,16 @@ arguments or vectors with individual values can be passed."><!-- mathjax --><scr
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul></li>
 <li>
@@ -89,6 +95,7 @@ arguments or vectors with individual values can be passed.</p>
 <span>  uCI <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  study_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  study_ids <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  weight <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  transformation <span class="op">=</span> <span class="st">"fishers_z"</span>,</span>
 <span>  return_all <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -152,6 +159,11 @@ studies (for using a multilevel model). Defaults to <code>NULL</code> for
 studies being independent.</p></dd>
 
 
+<dt>weight</dt>
+<dd><p>specifies likelihood weights of the individual estimates.
+Notes that this is an untested experimental feature.</p></dd>
+
+
 <dt>data</dt>
 <dd><p>a data frame with column names corresponding to the
 variable names used to supply data individually</p></dd>
@@ -184,7 +196,7 @@ returned. Defaults to <code>FALSE</code></p></dd>
     <p>The aim of the function is to combine different, already calculated,
 effect size measures. In order to obtain effect size measures from raw values,
 e.g, mean differences, standard deviations, and sample sizes, use
-escalc function.</p>
+<a href="https://wviechtb.github.io/metafor/reference/escalc.html" class="external-link">escalc</a> function.</p>
 <p>The function checks the input values and in transforming the input into a common
 effect size measure in the following fashion:</p><ol><li><p>obtains missing standard errors by squaring variances</p></li>
 <li><p>obtains missing standard errors from confidence intervals (after transformation to

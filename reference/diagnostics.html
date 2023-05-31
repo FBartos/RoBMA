@@ -22,7 +22,7 @@ summary(object, type = "individual").'><!-- mathjax --><script src="https://cdnj
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -40,10 +40,16 @@ summary(object, type = "individual").'><!-- mathjax --><script src="https://cdnj
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul></li>
 <li>
@@ -86,6 +92,34 @@ or even more detailed information by
 <span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
 <span>  show_models <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lags <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">|</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">diagnostics_autocorrelation</span><span class="op">(</span></span>
+<span>  <span class="va">fit</span>,</span>
+<span>  parameter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
+<span>  show_models <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  lags <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">|</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">diagnostics_trace</span><span class="op">(</span></span>
+<span>  <span class="va">fit</span>,</span>
+<span>  parameter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
+<span>  show_models <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">|</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">diagnostics_density</span><span class="op">(</span></span>
+<span>  <span class="va">fit</span>,</span>
+<span>  parameter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  plot_type <span class="op">=</span> <span class="st">"base"</span>,</span>
+<span>  show_models <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  title <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">|</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">show_models</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">1</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>

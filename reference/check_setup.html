@@ -19,7 +19,7 @@ the ensemble configuration prior to fitting all of the models.'><!-- mathjax -->
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -37,10 +37,16 @@ the ensemble configuration prior to fitting all of the models.'><!-- mathjax -->
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul></li>
 <li>
@@ -96,8 +102,8 @@ the ensemble configuration prior to fitting all of the models.</p>
 <span>  priors_heterogeneity_null <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"point"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span></span>
 <span>    <span class="fl">0</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  priors_bias_null <span class="op">=</span> <span class="fu"><a href="prior_none.html">prior_none</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  priors_rho <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"beta"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">1</span>, beta <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  priors_rho_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  priors_hierarchical <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"beta"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">1</span>, beta <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  priors_hierarchical_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  models <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  silent <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -149,7 +155,7 @@ prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0
      prior_weights = 1/4),
 prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
      prior_weights = 1/4)
-)</code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2021)
+)</code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2022)
 .</p></dd>
 
 
@@ -173,17 +179,17 @@ that will be treated as belonging to the null hypothesis. Defaults no publicatio
 bias adjustment, <code><a href="prior_none.html">prior_none()</a></code>.</p></dd>
 
 
-<dt>priors_rho</dt>
-<dd><p>list of prior distributions for the variance allocation (<code>rho</code>)
-parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a three-level meta-analysis when <code>study_ids</code> are supplied. Note that this is
-an experimental feature and see News for more details. Defaults to a beta distribution
+<dt>priors_hierarchical</dt>
+<dd><p>list of prior distributions for the correlation of random effects
+(<code>rho</code>) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when <code>study_ids</code> are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 <code>prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))</code>.</p></dd>
 
 
-<dt>priors_rho_null</dt>
-<dd><p>list of prior distributions for the variance allocation (<code>rho</code>)
-parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
+<dt>priors_hierarchical_null</dt>
+<dd><p>list of prior distributions for the correlation of random effects
+(<code>rho</code>) parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
 
 
 <dt>models</dt>
@@ -202,7 +208,7 @@ parameter that will be treated as belonging to the null hypothesis. Defaults to 
     </div>
     <div id="see-also">
     <h2>See also</h2>
-    <div class="dont-index"><p><code><a href="RoBMA.html">RoBMA()</a></code></p></div>
+    <div class="dont-index"><p><code><a href="check_setup.reg.html">check_setup.reg()</a></code> <code><a href="RoBMA.html">RoBMA()</a></code></p></div>
     </div>
 
   </div>

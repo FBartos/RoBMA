@@ -30,7 +30,7 @@ refit_failed == FALSE.
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -48,10 +48,16 @@ refit_failed == FALSE.
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul></li>
 <li>
@@ -73,7 +79,7 @@ refit_failed == FALSE.
   <div class="col-md-9 contents">
     <div class="page-header">
     <h1>Updates a fitted RoBMA object</h1>
-    <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/R/main.R" class="external-link"><code>R/main.R</code></a></small>
+    <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/R/RoBMA.R" class="external-link"><code>R/RoBMA.R</code></a></small>
     <div class="hidden name"><code>update.RoBMA.Rd</code></div>
     </div>
 
@@ -99,12 +105,12 @@ results by specifying new <code>control</code> argument and setting
 <span>  prior_effect <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  prior_heterogeneity <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  prior_bias <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  prior_rho <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_hierarchical <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  prior_weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  prior_effect_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  prior_heterogeneity_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  prior_bias_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  prior_rho_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  prior_hierarchical_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  study_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  chains <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  adapt <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -151,11 +157,11 @@ component that will be treated as belonging to the alternative hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
 
 
-<dt>prior_rho</dt>
-<dd><p>prior distributions for the variance allocation (<code>rho</code>)
-parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a three-level meta-analysis when <code>study_ids</code> are supplied. Note that this is
-an experimental feature and see News for more details. Defaults to a beta distribution
+<dt>prior_hierarchical</dt>
+<dd><p>prior distribution for the correlation of random effects
+(<code>rho</code>) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when <code>study_ids</code> are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 <code>prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))</code>.</p></dd>
 
 
@@ -183,9 +189,9 @@ component that will be treated as belonging to the null hypothesis.
 Defaults to <code>NULL</code>.</p></dd>
 
 
-<dt>prior_rho_null</dt>
-<dd><p>prior distributions for the variance allocation (<code>rho</code>)
-parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
+<dt>prior_hierarchical_null</dt>
+<dd><p>prior distribution for the correlation of random effects
+(<code>rho</code>) parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
 
 
 <dt>study_names</dt>

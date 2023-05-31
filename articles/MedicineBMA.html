@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">2.3.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.0</span>
       </span>
     </div>
 
@@ -53,10 +53,16 @@
       <a href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a>
     </li>
     <li>
+      <a href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
       <a href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a>
     </li>
     <li>
       <a href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a>
+    </li>
+    <li>
+      <a href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a>
     </li>
   </ul>
 </li>
@@ -81,13 +87,15 @@
 
       
 
-      </header><script src="MedicineBMA_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
+      </header><div class="row">
   <div class="col-md-9 contents">
     <div class="page-header toc-ignore">
-      <h1 data-toc-skip>Informed Bayesian Model-Averaged Meta-Analysis in Medicine</h1>
-                        <h4 data-toc-skip class="author">František Bartoš</h4>
+      <h1 data-toc-skip>Informed Bayesian Model-Averaged Meta-Analysis
+in Medicine</h1>
+                        <h4 data-toc-skip class="author">František
+Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2023-03-13</h4>
+            <h4 data-toc-skip class="date">2023-05-31</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/MedicineBMA.Rmd" class="external-link"><code>vignettes/MedicineBMA.Rmd</code></a></small>
       <div class="hidden name"><code>MedicineBMA.Rmd</code></div>
@@ -96,12 +104,28 @@
 
     
     
-<p>Bayesian model-averaged meta-analysis allows researchers to seamlessly incorporate available prior information into the analysis <span class="citation">(Bartoš, Gronau, et al., 2021; Gronau et al., 2017, 2021)</span>. This vignette illustrates how to do this with an example from <span class="citation">Bartoš, Gronau, et al. (2021)</span>, who developed informed prior distributions for meta-analyses of continuous outcomes based on the Cochrane database of systematic reviews. Then, we extend the example by incorporating publication bias adjustment with robust Bayesian meta-analysis <span class="citation">(Bartoš, Maier, et al., 2021; Maier et al., n.d.)</span>.</p>
+<p>Bayesian model-averaged meta-analysis allows researchers to
+seamlessly incorporate available prior information into the analysis
+<span class="citation">(Bartoš et al., 2021; Gronau et al., 2017,
+2021)</span>. This vignette illustrates how to do this with an example
+from <span class="citation">Bartoš et al. (2021)</span>, who developed
+informed prior distributions for meta-analyses of continuous outcomes
+based on the Cochrane database of systematic reviews. Then, we extend
+the example by incorporating publication bias adjustment with robust
+Bayesian meta-analysis <span class="citation">(Bartoš, Maier, et al.,
+2022b; Maier et al., 2022)</span>.</p>
 <div class="section level3">
-<h3 id="reproducing-informed-bayesian-model-averaged-meta-analysis-bma">Reproducing Informed Bayesian Model-Averaged Meta-Analysis (BMA)<a class="anchor" aria-label="anchor" href="#reproducing-informed-bayesian-model-averaged-meta-analysis-bma"></a>
+<h3 id="reproducing-informed-bayesian-model-averaged-meta-analysis-bma">Reproducing Informed Bayesian Model-Averaged Meta-Analysis
+(BMA)<a class="anchor" aria-label="anchor" href="#reproducing-informed-bayesian-model-averaged-meta-analysis-bma"></a>
 </h3>
-<p>We illustrate how to fit the informed BMA (not adjusting for publication bias) using the <code>RoBMA</code> R package. For this purpose, we reproduce the dentine hypersensitivity example from <span class="citation">Bartoš, Gronau, et al. (2021)</span>, who reanalyzed five studies with a tactile outcome assessment that were subjected to a meta-analysis by <span class="citation">Poulsen et al. (2006)</span>.</p>
-<p>We load the dentine hypersensitivity data included in the package.</p>
+<p>We illustrate how to fit the informed BMA (not adjusting for
+publication bias) using the <code>RoBMA</code> R package. For this
+purpose, we reproduce the dentine hypersensitivity example from <span class="citation">Bartoš et al. (2021)</span>, who reanalyzed five
+studies with a tactile outcome assessment that were subjected to a
+meta-analysis by <span class="citation">Poulsen et al.
+(2006)</span>.</p>
+<p>We load the dentine hypersensitivity data included in the
+package.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span></span>
 <span></span>
@@ -113,23 +137,45 @@
 <span><span class="co">#&gt; 3 1.3305829 0.2721648   STD-Sowinski-2000</span></span>
 <span><span class="co">#&gt; 4 1.7688872 0.2656483 STD-Schiff-2000-(2)</span></span>
 <span><span class="co">#&gt; 5 1.3286828 0.3582617     STD-Schiff-1998</span></span></code></pre></div>
-<p>To reproduce the analysis from the example, we need to set informed empirical prior distributions for the effect sizes (<span class="math inline">\(\mu\)</span>) and heterogeneity (<span class="math inline">\(\tau\)</span>) parameters that <span class="citation">Bartoš, Gronau, et al. (2021)</span> obtained from the Cochrane database of systematic reviews. We can either set them manually,</p>
+<p>To reproduce the analysis from the example, we need to set informed
+empirical prior distributions for the effect sizes (<span class="math inline">\(\mu\)</span>) and heterogeneity (<span class="math inline">\(\tau\)</span>) parameters that <span class="citation">Bartoš et al. (2021)</span> obtained from the Cochrane
+database of systematic reviews. We can either set them manually,</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_BMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
 <span>                 priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"t"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span>, scale <span class="op">=</span> <span class="fl">0.51</span>, df <span class="op">=</span> <span class="fl">5</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>                 priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"invgamma"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">1.79</span>, scale <span class="op">=</span> <span class="fl">0.28</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>                 priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p>with <code>priors_effect</code> and <code>priors_heterogeneity</code> corresponding to the <span class="math inline">\(\delta \sim T(0,0.51,5)\)</span> and <span class="math inline">\(\tau \sim InvGamma(1.79,0.28)\)</span> informed prior distributions for the “oral health” subfield and removing the publication bias adjustment models by setting <code>priors_bias = NULL</code><span class="math inline">\(^1\)</span>.</p>
-<p>Alternatively, we can utilize the <code>informed_prior</code> function that prepares informed prior distributions for the individual medical subfields automatically.</p>
+<p>with <code>priors_effect</code> and <code>priors_heterogeneity</code>
+corresponding to the <span class="math inline">\(\delta \sim
+T(0,0.51,5)\)</span> and <span class="math inline">\(\tau \sim
+InvGamma(1.79,0.28)\)</span> informed prior distributions for the “oral
+health” subfield and removing the publication bias adjustment models by
+setting <code>priors_bias = NULL</code><span class="math inline">\(^1\)</span>.</p>
+<p>Alternatively, we can utilize the <code>informed_prior</code>
+function that prepares informed prior distributions for the individual
+medical subfields automatically.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_BMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
 <span>                 priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
 <span>                 priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"heterogeneity"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
 <span>                 priors_bias          <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p>The <code>name</code> argument specifies the medical subfield name (use <code>print(BayesTools::prior_informed_medicine_names)</code> to check names of all available subfields). The <code>parameter</code> argument specifies whether we want prior distribution for the effect size or heterogeneity. Finally, the <code>type</code> argument specifies what type of measure we use for the meta-analysis (only standardized mean differences <code>smd</code> are available at the time of writing the vignette; see <code><a href="../reference/prior_informed.html">?prior_informed</a></code> for more details regarding the informed prior distributions).</p>
-<p>We obtain the output with the <code>summary</code> function. Adding the <code>conditional = TRUE</code> argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true<span class="math inline">\(^2\)</span>.</p>
+<p>The <code>name</code> argument specifies the medical subfield name
+(use <code>print(BayesTools::prior_informed_medicine_names)</code> to
+check names of all available subfields). The <code>parameter</code>
+argument specifies whether we want prior distribution for the effect
+size or heterogeneity. Finally, the <code>type</code> argument specifies
+what type of measure we use for the meta-analysis (only standardized
+mean differences <code>smd</code> are available at the time of writing
+the vignette; see <code><a href="../reference/prior_informed.html">?prior_informed</a></code> for more details
+regarding the informed prior distributions).</p>
+<p>We obtain the output with the <code>summary</code> function. Adding
+the <code>conditional = TRUE</code> argument allows us to inspect the
+conditional estimates, i.e., the effect size estimate assuming that the
+models specifying the presence of the effect are true and the
+heterogeneity estimates assuming that the models specifying the presence
+of heterogeneity are true<span class="math inline">\(^2\)</span>.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
@@ -157,37 +203,103 @@
 <span><span class="co">#&gt; mu  1.082  1.090 0.701 1.422</span></span>
 <span><span class="co">#&gt; tau 0.297  0.255 0.075 0.779</span></span>
 <span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span></code></pre></div>
-<p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 3 parts. The first one under the ‘Robust Bayesian Meta-Analysis’ heading provides a basic summary of the fitted models by component types (presence of the Effect/Heterogeneity/Publication bias). We can see that there are no models correcting for publication bias (we disabled them by setting <code>priors_bias = NULL</code>). Furthermore, the table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components. The results show that the inclusion Bayes factor for the effect corresponds to the one reported in <span class="citation">Bartoš, Gronau, et al. (2021)</span> package, <span class="math inline">\(\text{BF}_{10} = 218.53\)</span> and <span class="math inline">\(\text{BF}_{\text{rf}} = 3.52\)</span> (up to an MCMC error).</p>
-<p>The second part under the ‘Model-averaged estimates’ heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). We ignore this section and move to the last part.</p>
-<p>The third part under the ‘Conditional estimates’ heading displays the conditional effect size estimate corresponding to the one reported in <span class="citation">Bartoš, Gronau, et al. (2021)</span>, <span class="math inline">\(\delta = 1.082\)</span>, 95% CI [0.686,1.412], and a heterogeneity estimate (not reported previously).</p>
+<p>The output from the <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function has 3
+parts. The first one under the ‘Robust Bayesian Meta-Analysis’ heading
+provides a basic summary of the fitted models by component types
+(presence of the Effect/Heterogeneity/Publication bias). We can see that
+there are no models correcting for publication bias (we disabled them by
+setting <code>priors_bias = NULL</code>). Furthermore, the table
+summarizes the prior and posterior probabilities and the inclusion Bayes
+factors of the individual components. The results show that the
+inclusion Bayes factor for the effect corresponds to the one reported in
+<span class="citation">Bartoš et al. (2021)</span> package, <span class="math inline">\(\text{BF}_{10} = 218.53\)</span> and <span class="math inline">\(\text{BF}_{\text{rf}} = 3.52\)</span> (up to an
+MCMC error).</p>
+<p>The second part under the ‘Model-averaged estimates’ heading displays
+the parameter estimates model-averaged across all specified models
+(i.e., including models specifying the effect size to be zero). We
+ignore this section and move to the last part.</p>
+<p>The third part under the ‘Conditional estimates’ heading displays the
+conditional effect size estimate corresponding to the one reported in
+<span class="citation">Bartoš et al. (2021)</span>, <span class="math inline">\(\delta = 1.082\)</span>, 95% CI [0.686,1.412], and
+a heterogeneity estimate (not reported previously).</p>
 </div>
 <div class="section level3">
 <h3 id="visualizating-the-results">Visualizating the Results<a class="anchor" aria-label="anchor" href="#visualizating-the-results"></a>
 </h3>
-<p>The <code>RoBMA</code> package provides extensive options for visualizing the results. Here, we visualize the prior (grey) and posterior (black) distribution for the mean parameter.</p>
+<p>The <code>RoBMA</code> package provides extensive options for
+visualizing the results. Here, we visualize the prior (grey) and
+posterior (black) distribution for the mean parameter.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_mu_BMA-1.png" width="75%" style="display: block; margin: auto;"></p>
-<p>By default, the function plots the model-averaged estimates across all models; the arrows represent the probability of a spike, and the lines represent the posterior density under models assuming non-zero effect. The secondary y-axis (right) shows the probability of the spike (at value 0) decreasing from .50, to 0.005 (also obtainable from the ‘Robust Bayesian Meta-Analysis’ field in <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code> function).</p>
-<p>To visualize the conditional effect size estimate, we can add the <code>conditional = TRUE</code> argument,</p>
+<p>By default, the function plots the model-averaged estimates across
+all models; the arrows represent the probability of a spike, and the
+lines represent the posterior density under models assuming non-zero
+effect. The secondary y-axis (right) shows the probability of the spike
+(at value 0) decreasing from .50, to 0.005 (also obtainable from the
+‘Robust Bayesian Meta-Analysis’ field in <code><a href="../reference/summary.RoBMA.html">summary.RoBMA()</a></code>
+function).</p>
+<p>To visualize the conditional effect size estimate, we can add the
+<code>conditional = TRUE</code> argument,</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_mu_BMA_cond-1.png" width="75%" style="display: block; margin: auto;"> which displays only the model-averaged posterior distribution of the effect size parameter for models assuming the presence of the effect.</p>
-<p>We can also visualize the estimates from the individual models used in the ensemble. We do that with the <code><a href="../reference/plot_models.html">plot_models()</a></code> function, which visualizes the effect size estimates and 95% CI of each specified model included in the ensemble. Model 1 corresponds to the fixed effect model assuming the absence of the effect, <span class="math inline">\(H_0^{\text{f}}\)</span>, Model 2 corresponds to the random effect model assuming the absence of the effect, <span class="math inline">\(H_0^{\text{r}}\)</span>, Model 3 corresponds to the fixed effect model assuming the presence of the effect, <span class="math inline">\(H_3^{\text{f}}\)</span>, and Model 4 corresponds to the random effect model assuming the presence of the effect, <span class="math inline">\(H_1^{\text{r}}\)</span>,). The size of the square representing the mean estimate reflects the posterior model probability of the model, which is also displayed in the right-hand side panel. The bottom part of the figure shows the model averaged-estimate that is a combination of the individual model posterior distributions weighted by the posterior model probabilities.</p>
+<p><img src="MedicineBMA_files/figure-html/fig_mu_BMA_cond-1.png" width="75%" style="display: block; margin: auto;">
+which displays only the model-averaged posterior distribution of the
+effect size parameter for models assuming the presence of the
+effect.</p>
+<p>We can also visualize the estimates from the individual models used
+in the ensemble. We do that with the <code><a href="../reference/plot_models.html">plot_models()</a></code>
+function, which visualizes the effect size estimates and 95% CI of each
+specified model included in the ensemble. Model 1 corresponds to the
+fixed effect model assuming the absence of the effect, <span class="math inline">\(H_0^{\text{f}}\)</span>, Model 2 corresponds to
+the random effect model assuming the absence of the effect, <span class="math inline">\(H_0^{\text{r}}\)</span>, Model 3 corresponds to
+the fixed effect model assuming the presence of the effect, <span class="math inline">\(H_3^{\text{f}}\)</span>, and Model 4 corresponds
+to the random effect model assuming the presence of the effect, <span class="math inline">\(H_1^{\text{r}}\)</span>,). The size of the square
+representing the mean estimate reflects the posterior model probability
+of the model, which is also displayed in the right-hand side panel. The
+bottom part of the figure shows the model averaged-estimate that is a
+combination of the individual model posterior distributions weighted by
+the posterior model probabilities.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_models.html">plot_models</a></span><span class="op">(</span><span class="va">fit_BMA</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_models-1.png" width="75%" style="display: block; margin: auto;"> We see that the posterior model probability of the first two models decreased to essentially zero (when rounding to two decimals), completely omitting their estimates from the figure. Furthermore, the much larger box of Model 4 (the random effect model assuming the presence of the effect) shows that Model 4 received the largest share of the posterior probability, <span class="math inline">\(P(H_1^{\text{r}}) = 0.77\)</span>)</p>
-<p>The last type of visualization that we show here is the forest plot. It displays the original studies’ effects and the meta-analytic estimate within one figure. It can be requested by using the <code><a href="../reference/forest.html">forest()</a></code> function. Here, we again set the <code>conditional = TRUE</code> argument to display the conditional model-averaged effect size estimate at the bottom.</p>
+<p><img src="MedicineBMA_files/figure-html/fig_models-1.png" width="75%" style="display: block; margin: auto;">
+We see that the posterior model probability of the first two models
+decreased to essentially zero (when rounding to two decimals),
+completely omitting their estimates from the figure. Furthermore, the
+much larger box of Model 4 (the random effect model assuming the
+presence of the effect) shows that Model 4 received the largest share of
+the posterior probability, <span class="math inline">\(P(H_1^{\text{r}})
+= 0.77\)</span>)</p>
+<p>The last type of visualization that we show here is the forest plot.
+It displays the original studies’ effects and the meta-analytic estimate
+within one figure. It can be requested by using the
+<code><a href="../reference/forest.html">forest()</a></code> function. Here, we again set the
+<code>conditional = TRUE</code> argument to display the conditional
+model-averaged effect size estimate at the bottom.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_forest-1.png" width="75%" style="display: block; margin: auto;"></p>
-<p>For more options provided by the plotting function, see its documentation using <code>?plot.RoBMA()</code>, <code>?plot_models()</code>, and <code>?forest()</code>.</p>
+<p>For more options provided by the plotting function, see its
+documentation using <code>?plot.RoBMA()</code>,
+<code>?plot_models()</code>, and <code>?forest()</code>.</p>
 </div>
 <div class="section level3">
-<h3 id="adjusting-for-publication-bias-with-robust-bayesian-meta-analysis">Adjusting for Publication Bias with Robust Bayesian Meta-Analysis<a class="anchor" aria-label="anchor" href="#adjusting-for-publication-bias-with-robust-bayesian-meta-analysis"></a>
+<h3 id="adjusting-for-publication-bias-with-robust-bayesian-meta-analysis">Adjusting for Publication Bias with Robust Bayesian
+Meta-Analysis<a class="anchor" aria-label="anchor" href="#adjusting-for-publication-bias-with-robust-bayesian-meta-analysis"></a>
 </h3>
-<p>Finally, we illustrate how to adjust our informed BMA for publication bias with robust Bayesian meta-analysis <span class="citation">(Bartoš, Maier, et al., 2021, p. @maier2020robust)</span>. In short, we specify additional models assuming the presence of the publication bias and correcting for it by either specifying a selection model operating on <span class="math inline">\(p\)</span>-values <span class="citation">(Vevea &amp; Hedges, 1995)</span> or by specifying a publication bias adjustment method correcting for the relationship between effect sizes and standard errors – PET-PEESE <span class="citation">(Stanley, 2017; Stanley &amp; Doucouliagos, 2014)</span>. See <span class="citation">Bartoš et al. (n.d.)</span> for a tutorial.</p>
-<p>To obtain a proper before and after publication bias adjustment comparison, we fit the informed BMA model but using the default effect size transformation (Fisher’s <span class="math inline">\(z\)</span>).</p>
+<p>Finally, we illustrate how to adjust our informed BMA for publication
+bias with robust Bayesian meta-analysis <span class="citation">Maier et
+al. (2022)</span>. In short, we specify additional models assuming the
+presence of the publication bias and correcting for it by either
+specifying a selection model operating on <span class="math inline">\(p\)</span>-values <span class="citation">(Vevea
+&amp; Hedges, 1995)</span> or by specifying a publication bias
+adjustment method correcting for the relationship between effect sizes
+and standard errors – PET-PEESE <span class="citation">(Stanley, 2017;
+Stanley &amp; Doucouliagos, 2014)</span>. See <span class="citation">Bartoš, Maier, et al. (2022a)</span> for a
+tutorial.</p>
+<p>To obtain a proper before and after publication bias adjustment
+comparison, we fit the informed BMA model but using the default effect
+size transformation (Fisher’s <span class="math inline">\(z\)</span>).</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_BMAb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
 <span>                  priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
@@ -221,8 +333,18 @@
 <span><span class="co">#&gt; mu  1.048  1.053 0.720 1.344</span></span>
 <span><span class="co">#&gt; tau 0.256  0.220 0.064 0.681</span></span>
 <span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span></code></pre></div>
-<p>We obtain noticeably stronger evidence for the presence of the effect. This is a result of placing more weights on the fixed-effect models, especially the fixed-effect model assuming the presence of the effect <span class="math inline">\(H_1^f\)</span>. The increase in the posterior model probability of <span class="math inline">\(H_1^f\)</span> is, in our case, the fact that it predicted the data slightly better after removing the correlation between effect sizes and standard errors (a result of using Cohen’s <span class="math inline">\(d\)</span> for model fitting). Nevertheless, the conditional effect size estimate stayed almost the same.</p>
-<p>Now, we fit the publication bias-adjusted model by simply removing the <code>priors_bias = NULL</code>, which allows us to obtain the default 36 models ensemble called RoBMA-PSMA <span class="citation">(Bartoš, Maier, et al., 2021)</span>.</p>
+<p>We obtain noticeably stronger evidence for the presence of the
+effect. This is a result of placing more weights on the fixed-effect
+models, especially the fixed-effect model assuming the presence of the
+effect <span class="math inline">\(H_1^f\)</span>. The increase in the
+posterior model probability of <span class="math inline">\(H_1^f\)</span> is, in our case, the fact that it
+predicted the data slightly better after removing the correlation
+between effect sizes and standard errors (a result of using Cohen’s
+<span class="math inline">\(d\)</span> for model fitting). Nevertheless,
+the conditional effect size estimate stayed almost the same.</p>
+<p>Now, we fit the publication bias-adjusted model by simply removing
+the <code>priors_bias = NULL</code>, which allows us to obtain the
+default 36 models ensemble called RoBMA-PSMA <span class="citation">(Bartoš, Maier, et al., 2022b)</span>.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_RoBMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Poulsen2006</span><span class="op">$</span><span class="va">study</span>,</span>
 <span>                   priors_effect        <span class="op">=</span> <span class="fu"><a href="../reference/prior_informed.html">prior_informed</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"oral health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span>,</span>
@@ -273,8 +395,22 @@
 <span><span class="co">#&gt; PEESE             7.048  6.034  0.375 18.162</span></span>
 <span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
 <span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span></code></pre></div>
-<p>We notice that additional values in the ‘Components summary’ table in the ‘Bias’ row. The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. When comparing the RoBMA to the second BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect <span class="math inline">\(\text{BF}_{10} = 6.02\)</span> vs. <span class="math inline">\(\text{BF}_{10} = 347.93\)</span>, which still, however, presents moderate evidence for the presence of the effect. We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias <span class="math inline">\(\text{BF}_{pb} = 2.30\)</span>, which can be interpreted as weak evidence in favor of the publication bias.</p>
-<p>We can also compare the publication bias unadjusted and publication bias-adjusted conditional effect size estimates. Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) slightly decreases the estimated effect to <span class="math inline">\(\delta = 0.838\)</span>, 95% CI [-0.035, 1.297] with a much wider confidence interval, as visualized in the prior and posterior conditional effect size estimate plot.</p>
+<p>We notice that additional values in the ‘Components summary’ table in
+the ‘Bias’ row. The model is now extended with 32 publication bias
+adjustment models that account for 50% of the prior model probability.
+When comparing the RoBMA to the second BMA fit, we notice a large
+decrease in the inclusion Bayes factor for the presence of the effect
+<span class="math inline">\(\text{BF}_{10} = 6.02\)</span> vs. <span class="math inline">\(\text{BF}_{10} = 347.93\)</span>, which still,
+however, presents moderate evidence for the presence of the effect. We
+can further quantify the evidence in favor of the publication bias with
+the inclusion Bayes factor for publication bias <span class="math inline">\(\text{BF}_{pb} = 2.30\)</span>, which can be
+interpreted as weak evidence in favor of the publication bias.</p>
+<p>We can also compare the publication bias unadjusted and publication
+bias-adjusted conditional effect size estimates. Including models
+assuming publication bias into our model-averaged estimate (assuming the
+presence of the effect) slightly decreases the estimated effect to <span class="math inline">\(\delta = 0.838\)</span>, 95% CI [-0.035, 1.297]
+with a much wider confidence interval, as visualized in the prior and
+posterior conditional effect size estimate plot.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="MedicineBMA_files/figure-html/fig_mu_RoBMA_cond-1.png" width="75%" style="display: block; margin: auto;"></p>
@@ -282,42 +418,78 @@
 <div class="section level3">
 <h3 id="footnotes">Footnotes<a class="anchor" aria-label="anchor" href="#footnotes"></a>
 </h3>
-<p><span class="math inline">\(^1\)</span> The additional setting <code>transformation = "cohens_d"</code> allows us to get more comparable results with the <code>metaBMA</code> R package since RoBMA otherwise internally transforms the effect sizes to Fisher’s <span class="math inline">\(z\)</span> for the fitting purposes and the <code>seed = 1</code> and <code>parallel = TRUE</code> options grant us exact reproducibility of the results and parallelization of the fitting process.</p>
-<p><span class="math inline">\(^2\)</span> The Model-averaged estimates that <code>RoBMA</code> returns by default model-averaged across all specified models – a different behavior from the <code>metaBMA</code> package that by default returns what we call “conditional” estimates in <code>RoBMA</code>.</p>
+<p><span class="math inline">\(^1\)</span> The additional setting
+<code>transformation = "cohens_d"</code> allows us to get more
+comparable results with the <code>metaBMA</code> R package since RoBMA
+otherwise internally transforms the effect sizes to Fisher’s <span class="math inline">\(z\)</span> for the fitting purposes and the
+<code>seed = 1</code> and <code>parallel = TRUE</code> options grant us
+exact reproducibility of the results and parallelization of the fitting
+process.</p>
+<p><span class="math inline">\(^2\)</span> The Model-averaged estimates
+that <code>RoBMA</code> returns by default model-averaged across all
+specified models – a different behavior from the <code>metaBMA</code>
+package that by default returns what we call “conditional” estimates in
+<code>RoBMA</code>.</p>
 </div>
 <div class="section level3 unnumbered">
-<h3 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+<h3 class="unnumbered" id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h3>
-<div id="refs" class="references">
-<div id="ref-bartos2021bayesian">
-<p>Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp; Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in medicine. <em>Statistics in Medicine</em>. <a href="https://doi.org/10.1002/sim.9170" class="external-link">https://doi.org/10.1002/sim.9170</a></p>
+<div id="refs" class="references csl-bib-body hanging-indent" line-spacing="2">
+<div id="ref-bartos2021bayesian" class="csl-entry">
+Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp;
+Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in
+medicine. <em>Statistics in Medicine</em>. <a href="https://doi.org/10.1002/sim.9170" class="external-link">https://doi.org/10.1002/sim.9170</a>
 </div>
-<div id="ref-bartos2020adjusting">
-<p>Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (n.d.). Adjusting for publication bias in JASP &amp; R – selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>. <a href="https://doi.org/10.31234/osf.io/75bqn" class="external-link">https://doi.org/10.31234/osf.io/75bqn</a></p>
+<div id="ref-bartos2020adjusting" class="csl-entry">
+Bartoš, F., Maier, Maximilian, Quintana, D. S., &amp; Wagenmakers, E.-J.
+(2022a). Adjusting for publication bias in <span>JASP</span> and
+<span>R</span> — <span>S</span>election models, <span>PET-PEESE</span>,
+and robust <span>B</span>ayesian meta-analysis. <em>Advances in Methods
+and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link">https://doi.org/10.1177/25152459221109259</a>
 </div>
-<div id="ref-bartos2021no">
-<p>Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp; Stanley, T. D. (2021). <em>Robust Bayesian meta-analysis: Model-averaging across complementary publication bias adjustment methods</em>. PsyArXiv. <a href="https://doi.org/10.31234/osf.io/kvsp7" class="external-link">https://doi.org/10.31234/osf.io/kvsp7</a></p>
+<div id="ref-bartos2021no" class="csl-entry">
+Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp;
+Stanley, T. D. (2022b). Robust <span>B</span>ayesian meta-analysis:
+<span>M</span>odel-averaging across complementary publication bias
+adjustment methods. <em>Research Synthesis Methods</em>. <a href="https://doi.org/10.1002/jrsm.1594" class="external-link">https://doi.org/10.1002/jrsm.1594</a>
 </div>
-<div id="ref-gronau2020primer">
-<p>Gronau, Q. F., Heck, D. W., Berkhout, S. W., Haaf, J. M., &amp; Wagenmakers, E.-J. (2021). A primer on Bayesian model-averaged meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>4</em>(3), 25152459211031256. <a href="https://doi.org/10.1177/25152459211031256" class="external-link">https://doi.org/10.1177/25152459211031256</a></p>
+<div id="ref-gronau2020primer" class="csl-entry">
+Gronau, Q. F., Heck, D. W., Berkhout, S. W., Haaf, J. M., &amp;
+Wagenmakers, E.-J. (2021). A primer on <span>B</span>ayesian
+model-averaged meta-analysis. <em>Advances in Methods and Practices in
+Psychological Science</em>, <em>4</em>(3), 25152459211031256. <a href="https://doi.org/10.1177/25152459211031256" class="external-link">https://doi.org/10.1177/25152459211031256</a>
 </div>
-<div id="ref-gronau2017bayesian">
-<p>Gronau, Q. F., Van Erp, S., Heck, D. W., Cesario, J., Jonas, K. J., &amp; Wagenmakers, E.-J. (2017). A Bayesian model-averaged meta-analysis of the power pose effect with informed and default priors: The case of felt power. <em>Comprehensive Results in Social Psychology</em>, <em>2</em>(1), 123–138. <a href="https://doi.org/10.1080/23743603.2017.1326760" class="external-link">https://doi.org/10.1080/23743603.2017.1326760</a></p>
+<div id="ref-gronau2017bayesian" class="csl-entry">
+Gronau, Q. F., Van Erp, S., Heck, D. W., Cesario, J., Jonas, K. J.,
+&amp; Wagenmakers, E.-J. (2017). A <span>B</span>ayesian model-averaged
+meta-analysis of the power pose effect with informed and default priors:
+<span>T</span>he case of felt power. <em>Comprehensive Results in Social
+Psychology</em>, <em>2</em>(1), 123–138. <a href="https://doi.org/10.1080/23743603.2017.1326760" class="external-link">https://doi.org/10.1080/23743603.2017.1326760</a>
 </div>
-<div id="ref-maier2020robust">
-<p>Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (n.d.). Robust Bayesian meta-analysis: Addressing publication bias with model-averaging. <em>Psychological Methods</em>. <a href="https://doi.org/10.31234/osf.io/u4cns" class="external-link">https://doi.org/10.31234/osf.io/u4cns</a></p>
+<div id="ref-maier2020robust" class="csl-entry">
+Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2022). Robust
+<span>B</span>ayesian meta-analysis: Addressing publication bias with
+model-averaging. <em>Psychological Methods</em>. <a href="https://doi.org/10.1037/met0000405" class="external-link">https://doi.org/10.1037/met0000405</a>
 </div>
-<div id="ref-poulsen2006potassium">
-<p>Poulsen, S., Errboe, M., Mevil, Y. L., &amp; Glenny, A.-M. (2006). Potassium containing toothpastes for dentine hypersensitivity. <em>Cochrane Database of Systematic Reviews</em>, <em>3</em>. <a href="https://doi.org/10.1002/14651858.cd001476.pub2" class="external-link">https://doi.org/10.1002/14651858.cd001476.pub2</a></p>
+<div id="ref-poulsen2006potassium" class="csl-entry">
+Poulsen, S., Errboe, M., Mevil, Y. L., &amp; Glenny, A.-M. (2006).
+Potassium containing toothpastes for dentine hypersensitivity.
+<em>Cochrane Database of Systematic Reviews</em>, <em>3</em>. <a href="https://doi.org/10.1002/14651858.cd001476.pub2" class="external-link">https://doi.org/10.1002/14651858.cd001476.pub2</a>
 </div>
-<div id="ref-stanley2017limitations">
-<p>Stanley, T. D. (2017). Limitations of PET-PEESE and other meta-analysis methods. <em>Social Psychological and Personality Science</em>, <em>8</em>(5), 581–591. <a href="https://doi.org/10.1177/1948550617693062" class="external-link">https://doi.org/10.1177/1948550617693062</a></p>
+<div id="ref-stanley2017limitations" class="csl-entry">
+Stanley, T. D. (2017). Limitations of <span>PET-PEESE</span> and other
+meta-analysis methods. <em>Social Psychological and Personality
+Science</em>, <em>8</em>(5), 581–591. <a href="https://doi.org/10.1177/1948550617693062" class="external-link">https://doi.org/10.1177/1948550617693062</a>
 </div>
-<div id="ref-stanley2014meta">
-<p>Stanley, T. D., &amp; Doucouliagos, H. (2014). Meta-regression approximations to reduce publication selection bias. <em>Research Synthesis Methods</em>, <em>5</em>(1), 60–78. <a href="https://doi.org/10.1002/jrsm.1095" class="external-link">https://doi.org/10.1002/jrsm.1095</a></p>
+<div id="ref-stanley2014meta" class="csl-entry">
+Stanley, T. D., &amp; Doucouliagos, H. (2014). Meta-regression
+approximations to reduce publication selection bias. <em>Research
+Synthesis Methods</em>, <em>5</em>(1), 60–78. <a href="https://doi.org/10.1002/jrsm.1095" class="external-link">https://doi.org/10.1002/jrsm.1095</a>
 </div>
-<div id="ref-vevea1995general">
-<p>Vevea, J. L., &amp; Hedges, L. V. (1995). A general linear model for estimating effect size in the presence of publication bias. <em>Psychometrika</em>, <em>60</em>(3), 419–435. <a href="https://doi.org/10.1007/BF02294384" class="external-link">https://doi.org/10.1007/BF02294384</a></p>
+<div id="ref-vevea1995general" class="csl-entry">
+Vevea, J. L., &amp; Hedges, L. V. (1995). A general linear model for
+estimating effect size in the presence of publication bias.
+<em>Psychometrika</em>, <em>60</em>(3), 419–435. <a href="https://doi.org/10.1007/BF02294384" class="external-link">https://doi.org/10.1007/BF02294384</a>
 </div>
 </div>
 </div>
