@@ -8,6 +8,7 @@ NoBMA(
   d = NULL,
   r = NULL,
   logOR = NULL,
+  OR = NULL,
   z = NULL,
   y = NULL,
   se = NULL,

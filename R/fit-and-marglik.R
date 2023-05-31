@@ -1049,7 +1049,7 @@
       warnings          = warnings,
       footnotes         = .scale_note(priors_scale, measure),
       remove_parameters = remove_parameters
-    )
+    ))
   }
 
   return(summary_list)
