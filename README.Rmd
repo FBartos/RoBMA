@@ -36,11 +36,11 @@ fit <- readRDS(file = "models/README/Bem2011.RDS")
 
 This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range of non-informative or informative priors for the effect size, heterogeneity, and publication bias components (including selection, PET, and PEESE style models). The package provides convenient functions for summary, visualizations, and fit diagnostics.
 
-See our new pre-print @bartos2021no (https://doi.org/10.31234/osf.io/kvsp7) for the description of the newest version, RoBMA-PSMA, or our previous paper introducing the method @maier2020robust (https://doi.org/10.31234/osf.io/u4cns). The previous version of the methods is also implemented within the the user-friendly graphical user interface of JASP [@jasp14] and accompanied by a tutorial paper with more examples [@bartos2020adjusting] (https://doi.org/10.31234/osf.io/75bqn).
+See our new manuscript @bartos2021no (https://doi.org/10.1002/jrsm.1594) for the description of the newest version, RoBMA-PSMA, or our previous paper introducing the method @maier2020robust (https://doi.org/10.1037/met0000405). The previous version of the methods is also implemented within the the user-friendly graphical user interface of JASP [@jasp14] and accompanied by a tutorial paper with more examples [@bartos2020adjusting] (https://doi.org/10.1177/25152459221109259).
 
 We also prepared multiple vignettes that illustrate functionality of the package:
 
- - [Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
+ - [Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
  - [Reproducing Bayesian model-averaged meta-analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
  - [Hierarchical Bayesian model-averaged meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
  - [Informed Bayesian model-averaged meta-analysis in medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
@@ -50,7 +50,7 @@ We also prepared multiple vignettes that illustrate functionality of the package
 
 ## Updates
 
-The package was updated to version 2.0 to provides Bayesian model-averaging across selection models and PET-PEESE (as described in @bartos2021no at <https://doi.org/10.31234/osf.io/kvsp7>).
+The package was updated to version 2.0 to provides Bayesian model-averaging across selection models and PET-PEESE (as described in @bartos2021no at <https://doi.org/10.1002/jrsm.1594>).
 
 ### Backwards Compatibility
 
@@ -64,7 +64,12 @@ to install the previous version if needed.
 
 ### News
 
-The 2.0 version brings several updates to the package:
+The 3.0 version brings several **experimental** features to the package:
+
+- meta-regression models via the `RoBMA.reg()` function
+- marginal summaries and plots of the regression models via the `marginal_summary()` and `marginal_plot()` function
+
+The 2.0 version brought several updates to the package:
 
  - naming of the arguments specifying prior distributions for the different parameters/components of the models changed (`priors_mu` -> `priors_effect`, `priors_tau` -> `priors_heterogeneity`, and `priors_omega` -> `priors_bias`),
  - prior distributions for specifying weight functions now use a dedicated function (`prior(distribution = "two.sided", parameters = ...)` -> `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
@@ -88,7 +93,7 @@ install.packages("RoBMA")
 and the development version of the package can be installed from GitHub:
 
 ``` r
-devtools::install_github("fbartos/RoBMA")
+devtools::install_github("FBartos/RoBMA")
 ```
 
 ## Example

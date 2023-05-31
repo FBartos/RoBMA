@@ -473,6 +473,69 @@ test_that("Interpret functions work", {
 
 })
 
+test_that("Marginal summary functions work", {
+
+  expect_error(marginal_summary(saved_fits[[1]]), "'marginal_summary' function is available only for RoBMA regression models")
+
+  expect_equal(
+    capture_output_lines(marginal_summary(saved_fits[[14]]), print = TRUE, width = 150),
+    c("Call:"                                                                                                                                                                               ,
+      "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "                                                                                                         ,
+      "    parallel = TRUE, seed = 1)"                                                                                                                                                      ,
+      ""                                                                                                                                                                                    ,
+      "Robust Bayesian meta-analysis"                                                                                                                                                       ,
+      "Model-averaged marginal estimates:"                                                                                                                                                  ,
+      "                Mean Median  0.025  0.975 Inclusion BF"                                                                                                                              ,
+      "intercept      0.000  0.000  0.000  0.000        0.026"                                                                                                                              ,
+      "mod_cat[A]    -0.883 -0.909 -1.007 -0.685          Inf"                                                                                                                              ,
+      "mod_cat[B]     0.001  0.001 -0.071  0.071        0.085"                                                                                                                              ,
+      "mod_cat[C]     0.882  0.908  0.681  1.008          Inf"                                                                                                                              ,
+      "mod_con[-1SD] -0.056  0.000 -0.230  0.009        0.632"                                                                                                                              ,
+      "mod_con[0SD]   0.000  0.000  0.000  0.000        0.174"                                                                                                                              ,
+      "mod_con[1SD]   0.056  0.000 -0.011  0.229        0.638"                                                                                                                              ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."                                                                                 ,
+      "\033[0;31mmu_mod_cat[A]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.\033[0m"                     ,
+      "\033[0;31mmu_mod_cat[C]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.\033[0m"                     ,
+      "\033[0;31mmu_mod_con[0SD]: There is a considerable cluster of posterior samples at the exact null hypothesis values. The Savage-Dickey density ratio is likely to be invalid.\033[0m",
+      "\033[0;31mmu_mod_con[0SD]: There is a considerable cluster of prior samples at the exact null hypothesis values. The Savage-Dickey density ratio is likely to be invalid.\033[0m"
+    )
+  )
+
+  expect_equal(
+    capture_output_lines(marginal_summary(saved_fits[[15]], conditional = TRUE, output_scale = "r"), print = TRUE, width = 150),
+    c("Call:"                                                                                                                                                             ,
+      "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "                                                               ,
+      "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                                                                                  ,
+      "    priors_heterogeneity = NULL, priors_bias = list(prior_weightfunction(distribution = \"two.sided\", "                                                           ,
+      "        parameters = list(alpha = c(1, 1), steps = c(0.05)), "                                                                                                     ,
+      "        prior_weights = 1/2), prior_PET(distribution = \"Cauchy\", "                                                                                               ,
+      "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "                                                                               ,
+      "    priors_effect_null = NULL, parallel = TRUE, seed = 1)"                                                                                                         ,
+      ""                                                                                                                                                                  ,
+      "Robust Bayesian meta-analysis"                                                                                                                                     ,
+      "Model-averaged marginal estimates:"                                                                                                                                ,
+      "                Mean Median  0.025  0.975 Inclusion BF"                                                                                                            ,
+      "intercept     -0.013 -0.003 -0.135  0.023        0.029"                                                                                                            ,
+      "mod_con[-1SD] -0.428 -0.422 -0.514 -0.394          Inf"                                                                                                            ,
+      "mod_con[0SD]  -0.013 -0.003 -0.135  0.023        0.029"                                                                                                            ,
+      "mod_con[1SD]   0.409  0.417  0.310  0.443       71.703"                                                                                                            ,
+      "The estimates are summarized on the correlation scale (priors were specified on the Cohen's d scale)."                                                             ,
+      "\033[0;31mmu_mod_con[-1SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.\033[0m",
+      ""                                                                                                                                                                  ,
+      "Conditional marginal estimates:"                                                                                                                                   ,
+      "                Mean Median  0.025  0.975 Inclusion BF"                                                                                                            ,
+      "intercept     -0.013 -0.003 -0.135  0.023        0.029"                                                                                                            ,
+      "mod_con[-1SD] -0.428 -0.422 -0.514 -0.394          Inf"                                                                                                            ,
+      "mod_con[0SD]  -0.013 -0.003 -0.135  0.023        0.029"                                                                                                            ,
+      "mod_con[1SD]   0.409  0.417  0.310  0.443       71.703"                                                                                                            ,
+      "The estimates are summarized on the correlation scale (priors were specified on the Cohen's d scale)."                                                             ,
+      "\033[0;31mmu_mod_con[-1SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.\033[0m"
+    )
+  )
+
+
+})
+
 #### creating / updating the test settings ####
 if(FALSE){
 

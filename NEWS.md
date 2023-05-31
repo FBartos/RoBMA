@@ -1,12 +1,13 @@
-## version 3.0
+## version 3.1
 ### Features
 - binomial-normal models for binary data via the `BiBMA` function
 - `NoBMA` and `NoBMA.reg()` functions as wrappers around `RoBMA` `RoBMA.reg()` functions for simpler specification of publication bias unadjusted Bayesian model-averaged meta-analysis
 - adding odds ratios output transformation` 
 
-## version 2.4
+## version 3.0
 ### Features
 - meta-regression with `RoBMA.reg()` function
+- posterior marginal summary and plots for the `RoBMA.reg` models with `summary_marginal()` and `plot_marginal()` functions
 - new vignette on hierarchical Bayesian model-averaged meta-analysis
 - new vignette on robust Bayesian model-averaged meta-regression
 - adding vignette from AMPPS tutorial

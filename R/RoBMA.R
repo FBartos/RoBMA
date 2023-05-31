@@ -442,6 +442,9 @@ update.RoBMA <- function(object, refit_failed = TRUE,
      (!is.null(prior_heterogeneity)  | !is.null(prior_heterogeneity_null)) &
      (!is.null(prior_bias)           | !is.null(prior_bias_null))){
 
+    if(is.RoBMA.reg(object))
+      stop("Adding a new model to the ensemble is not possible with RoBMA.reg models.")
+
     what_to_do <- "fit_new_model"
     new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_hierarchical_null, prior_hierarchical, object$add_info[["prior_scale"]])
 

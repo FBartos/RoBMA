@@ -185,12 +185,22 @@ check_RoBMA <- function(fit){
       attr(object$data, "all_independent") <- TRUE
     }
 
-    # 2.2 -> 2.3
+    object[["add_info"]][["version"]] <- list(c(2,2,0))
+  }
+
+  # 2.2 -> 2.3
+  if(.object_version_older(object, "2.2.0")){
+
     if(is.null(object[["formula"]]) && !is.null(attr(object$data, "all_independent")) && is.null(attr(object$data, "weighted"))){
       attr(object$data, "weighted") <- FALSE
     }
 
-    # 2.3 -> 2.4
+    object[["add_info"]][["version"]] <- list(c(2,3,0))
+  }
+
+  # 2.3 -> 2.4
+  if(.object_version_older(object, "2.3.0")){
+
     if(!all(c("predictors", "predictors_test", "standardize_predictors") %in% names(object[["add_info"]]))){
       object[["add_info"]][["predictors"]]             <- NULL
       object[["add_info"]][["predictors_test"]]        <- NULL
@@ -226,9 +236,21 @@ check_RoBMA <- function(fit){
       )
     }
     names(object[["priors"]])[names(object[["priors"]]) == "rho"] <- "hierarchical"
+    object[["add_info"]][["version"]] <- list(c(2,4,0))
   }
 
   return(object)
+}
+.object_version_older <- function(object, version){
+
+  object  <- unlist(object[["add_info"]][["version"]])
+  current <- as.numeric(unlist(strsplit(version, ".", fixed = TRUE)))
+
+  if(length(object) < 3 | length(current) < 3){
+    return(object[1] <= current[1] && object[2] <= current[2])
+  }else{
+    return(object[1] <= current[1] && object[2] <= current[2] && object[3] <= current[3])
+  }
 }
 
 .is_multivariate <- function(object){

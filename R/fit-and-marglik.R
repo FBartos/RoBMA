@@ -225,7 +225,7 @@
 
   # add model summaries
   if(has_posterior){
-    fit_summary   <- BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE)
+    fit_summary   <- suppressMessages(BayesTools::runjags_estimates_table(fit = fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE))
     if(add_info[["prior_scale"]] != "y"){
       fit_summaries <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings)
     }else{
@@ -1018,6 +1018,15 @@
       for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
         transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
       }
+      for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
+        transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- list(
+          "fun" = .transform_mu,
+          "arg" = list(
+            "from" = priors_scale,
+            "to"   = measure
+          )
+        )
+      }
       if("tau" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["tau"]]))){
         transformations[["tau"]] <- .get_scale(priors_scale, measure, fun = FALSE)
       }
@@ -1032,7 +1041,7 @@
       transformations <- NULL
     }
 
-    summary_list[[measure]] <- BayesTools::runjags_estimates_table(
+    summary_list[[measure]] <- suppressMessages(BayesTools::runjags_estimates_table(
       fit               = fit,
       transformations   = transformations,
       transform_factors = TRUE,
@@ -1080,7 +1089,6 @@
     attr(priors[[.BayesTools_parameter_name(v)]], "levels")      <- length(levels(data[[v]]))
     attr(priors[[.BayesTools_parameter_name(v)]], "level_names") <- levels(data[[v]])
     attr(priors[[.BayesTools_parameter_name(v)]], "parameter")   <- "mu"
-    class(priors[[.BayesTools_parameter_name(v)]])               <- c(class(priors[[.BayesTools_parameter_name(v)]]), "prior.factor")
   }
 
   return(priors)

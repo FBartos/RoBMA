@@ -38,11 +38,14 @@
 <text x='44.64' y='312.29' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>4</text>
 <text x='44.64' y='223.31' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>6</text>
 <text x='44.64' y='134.32' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>8</text>
-<text x='326.21' y='554.71' style='font-size: 12.00px; font-family: sans;' textLength='49.38px' lengthAdjust='spacingAndGlyphs'>mod_con</text>
-<text x='375.59' y='554.71' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
-<text x='378.59' y='554.71' style='font-size: 15.00px; font-family: sans;' textLength='5.00px' lengthAdjust='spacingAndGlyphs'>(</text>
-<text x='383.58' y='554.71' style='font-size: 12.00px; font-family: sans;' textLength='34.02px' lengthAdjust='spacingAndGlyphs'>logOR</text>
-<text x='417.60' y='554.71' style='font-size: 15.00px; font-family: sans;' textLength='4.99px' lengthAdjust='spacingAndGlyphs'>)</text>
+<text x='320.60' y='554.71' style='font-size: 12.00px; font-family: sans;' textLength='49.38px' lengthAdjust='spacingAndGlyphs'>mod_con</text>
+<text x='369.98' y='554.71' style='font-size: 12.00px; font-family: sans;' textLength='3.00px' lengthAdjust='spacingAndGlyphs'> </text>
+<text x='372.98' y='554.71' style='font-size: 15.00px; font-family: sans;' textLength='5.00px' lengthAdjust='spacingAndGlyphs'>(</text>
+<text x='377.97' y='554.71' style='font-size: 12.00px; font-family: sans;' textLength='16.01px' lengthAdjust='spacingAndGlyphs'>log</text>
+<text x='393.99' y='554.71' style='font-size: 15.00px; font-family: sans;' textLength='5.00px' lengthAdjust='spacingAndGlyphs'>(</text>
+<text x='398.98' y='554.71' style='font-size: 12.00px; font-style: italic; font-family: sans;' textLength='18.01px' lengthAdjust='spacingAndGlyphs'>OR</text>
+<text x='418.23' y='554.71' style='font-size: 15.00px; font-family: sans;' textLength='4.99px' lengthAdjust='spacingAndGlyphs'>)</text>
+<text x='423.21' y='554.71' style='font-size: 15.00px; font-family: sans;' textLength='4.99px' lengthAdjust='spacingAndGlyphs'>)</text>
 <text transform='translate(12.96,280.80) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='40.02px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <defs>

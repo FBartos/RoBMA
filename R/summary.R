@@ -28,7 +28,7 @@ print.RoBMA <- function(x, ...){
 #' of the individual models (\code{"individual"}). Can be abbreviated to first letters.
 #' @param conditional show the conditional estimates (assuming that the
 #' alternative is true). Defaults to \code{FALSE}. Only available for
-#' \code{type == "conditional"}.
+#' \code{type == "ensemble"}.
 #' @param output_scale transform the  meta-analytic estimates to a different
 #' scale. Defaults to \code{NULL} which returns the same scale as the model was estimated on.
 #' @param probs quantiles of the posterior samples to be displayed.
@@ -488,6 +488,7 @@ is.BiBMA            <- function(x){
   inherits(x, "BiBMA")
 }
 
+
 .object_title <- function(object){
   if(is.NoBMA(object)){
     return("Bayesian model-averaged meta-analysis (normal-normal model)")
@@ -501,6 +502,7 @@ is.BiBMA            <- function(x){
     return("Robust Bayesian meta-analysis")
   }
 }
+
 
 
 #' @title Interprets results of a RoBMA model.

@@ -61,4 +61,60 @@ test_that("Basic functionality works", {
       "\033[0;31mModel (6): ESS 28 is lower than the set target (500).\033[0m"                       ,
       "\033[0;31mThere were another 29 warnings. To see all warnings call 'check_RoBMA(fit)'.\033[0m")
   )
+
+
+  df_reg <- data.frame(
+    d       = d,
+    se      = se_d(d, n),
+    mod_con = scale(1:3),
+    mod_cat = c("A", "A", "B")
+  )
+
+  fit_reg <- suppressWarnings(RoBMA.reg(~ mod_cat + mod_con, data = df_reg, priors_bias = NULL, chains = 1, burnin = 50, sample = 100, autofit = FALSE, seed = 1))
+
+  expect_equal(
+    capture_output_lines(summary(fit_reg), print = TRUE, width = 150),
+    c("Call:"                                                                                              ,
+      "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "                        ,
+      "    chains = 1, sample = 100, burnin = 50, autofit = FALSE, seed = 1)"                              ,
+      ""                                                                                                   ,
+      "Robust Bayesian meta-analysis"                                                                      ,
+      "Components summary:"                                                                                ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                          ,
+      "Effect          8/16       0.500       0.267        0.364"                                          ,
+      "Heterogeneity   8/16       0.500       0.401        0.671"                                          ,
+      "Bias            0/16       0.000       0.000        0.000"                                          ,
+      ""                                                                                                   ,
+      "Meta-regression components summary:"                                                                ,
+      "        Models Prior prob. Post. prob. Inclusion BF"                                                ,
+      "mod_cat   8/16       0.500       0.470        0.886"                                                ,
+      "mod_con   8/16       0.500       0.446        0.805"                                                ,
+      ""                                                                                                   ,
+      "Model-averaged estimates:"                                                                          ,
+      "     Mean Median  0.025 0.975"                                                                      ,
+      "mu  0.048  0.000 -0.300 0.667"                                                                      ,
+      "tau 0.094  0.000  0.000 0.581"                                                                      ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
+      "\033[0;31mModel (2): ESS 44 is lower than the set target (500).\033[0m"                             ,
+      "\033[0;31mModel (3): ESS 45 is lower than the set target (500).\033[0m"                             ,
+      "\033[0;31mModel (4): ESS 58 is lower than the set target (500).\033[0m"                             ,
+      "\033[0;31mModel (5): ESS 4 is lower than the set target (500).\033[0m"                              ,
+      "\033[0;31mModel (6): ESS 6 is lower than the set target (500).\033[0m"                              ,
+      "\033[0;31mThere were another 9 warnings. To see all warnings call 'check_RoBMA(fit)'.\033[0m"       ,
+      ""                                                                                                   ,
+      "Model-averaged meta-regression estimates:"                                                          ,
+      "                  Mean Median  0.025 0.975"                                                         ,
+      "intercept        0.048  0.000 -0.300 0.667"                                                         ,
+      "mod_cat [dif: A] 0.000  0.000 -0.357 0.459"                                                         ,
+      "mod_cat [dif: B] 0.000  0.000 -0.459 0.357"                                                         ,
+      "mod_con          0.005  0.000 -0.341 0.343"                                                         ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
+      "\033[0;31mModel (2): ESS 44 is lower than the set target (500).\033[0m"                             ,
+      "\033[0;31mModel (3): ESS 45 is lower than the set target (500).\033[0m"                             ,
+      "\033[0;31mModel (4): ESS 58 is lower than the set target (500).\033[0m"                             ,
+      "\033[0;31mModel (5): ESS 4 is lower than the set target (500).\033[0m"                              ,
+      "\033[0;31mModel (6): ESS 6 is lower than the set target (500).\033[0m"                              ,
+      "\033[0;31mThere were another 9 warnings. To see all warnings call 'check_RoBMA(fit)'.\033[0m"
+  ))
+
 })

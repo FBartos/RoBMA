@@ -10,10 +10,10 @@ for(i in seq_along(saved_files)){
 }
 
 # alternative components present in the models:
-effect          <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16)
-heterogeneity   <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 16)
-weightfunctions <- c(1, 2, 4, 5, 6, 7, 10, 11, 13, 15)
-PETPEESE        <- c(1, 3, 4, 5, 6, 7, 11, 13, 15)
+effect             <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16)
+heterogeneity      <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 16)
+weightfunctions    <- c(1, 2, 4, 5, 6, 7, 10, 11, 13, 15)
+PETPEESE           <- c(1, 3, 4, 5, 6, 7, 11, 13, 15)
 no_weightfunctions <- c(3, 8, 12, 14, 16)
 no_PETPEESE        <- c(2, 8, 10, 12, 14, 16)
 no_PET             <- c(2, 8, 10, 12, 14, 16)
@@ -340,3 +340,15 @@ test_that("Forest plots work", {
 })
 
 
+test_that("Marginal posterior plots work", {
+
+
+  expect_error(marginal_plot(saved_fits[[1]]), "'marginal_plot' function is available only for RoBMA regression models")
+  expect_error(marginal_plot(saved_fits[[14]], "mu"), "The 'mu' values are not recognized by the 'parameter' argument.")
+
+  expect_doppelganger("mm_ggplot_mod_cat_1", marginal_plot(saved_fits[[14]], "mod_cat", plot_type = "ggplot"))
+  expect_doppelganger("mm_ggplot_mod_cat_2", marginal_plot(saved_fits[[14]], "mod_cat", prior = TRUE, plot_type = "ggplot"))
+  expect_doppelganger("mm_ggplot_mod_cat_3", marginal_plot(saved_fits[[14]], "mod_cat", prior = TRUE, plot_type = "ggplot", output_scale = "r"))
+  expect_doppelganger("mm_ggplot_mod_con_1", marginal_plot(saved_fits[[14]], "mod_con", prior = TRUE, plot_type = "ggplot", xlim = c(-1, 1)))
+  expect_doppelganger("mm_ggplot_mod_con_2", function()marginal_plot(saved_fits[[15]], "mod_con", conditional = TRUE))
+})

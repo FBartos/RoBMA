@@ -184,12 +184,28 @@
       )
       posteriors_predictors_conditional <- BayesTools::transform_factor_samples(posteriors_predictors_conditional)
     }
+
+    # create marginal estimates and summary
+    if(all(sapply(parameters_predictors_null, all))){
+      inference_marginal <- NULL
+    }else{
+      inference_marginal <- BayesTools::marginal_inference(
+        model_list          = models,
+        marginal_parameters = parameters_predictors[!sapply(parameters_predictors_null, all)],
+        parameters          = parameters_predictors,
+        is_null_list        = parameters_predictors_null,
+        formula             = object[["formula"]],
+        seed                = object$add_info[["seed"]],
+        silent              = TRUE
+      )
+    }
   }else{
     # create empty objects in case of no predictors
     inference_predictors              <- NULL
     inference_predictors_conditional  <- NULL
     posteriors_predictors             <- NULL
     posteriors_predictors_conditional <- NULL
+    inference_marginal                <- NULL
   }
 
   ### get models inference
@@ -249,6 +265,7 @@
     inference_conditional             = inference_conditional,
     inference_predictors              = inference_predictors,
     inference_predictors_conditional  = inference_predictors_conditional,
+    inference_marginal                = inference_marginal,
     posteriors                        = posteriors,
     posteriors_conditional            = posteriors_conditional,
     posteriors_predictors             = posteriors_predictors,

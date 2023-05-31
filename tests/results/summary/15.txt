@@ -7,7 +7,7 @@
 "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "
 "    priors_effect_null = NULL, parallel = TRUE, seed = 1)"
 ""
-"Robust Bayesian meta-regression"
+"Robust Bayesian meta-analysis"
 "Components summary:"
 "              Models Prior prob. Post. prob. Inclusion BF"
 "Effect           6/6       1.000       1.000          Inf"
