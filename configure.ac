@@ -19,6 +19,9 @@ CXX=`"${R_HOME}/bin/R" CMD config CXX`
 CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
 CPPFLAGS=`"${R_HOME}/bin/R" CMD config CPPFLAGS`
+LAPACK_LIBS=`"${R_HOME}/bin/R" CMD config LAPACK_LIBS`
+BLAS_LIBS=`"${R_HOME}/bin/R" CMD config BLAS_LIBS`
+FLIBS=`"${R_HOME}/bin/R" CMD config FLIBS`
 
 # Try using pkg-config to set compiler flags
 

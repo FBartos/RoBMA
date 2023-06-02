@@ -8,7 +8,6 @@
 #include <vector>
 #include <array>
 #include <JRmath.h>
-#include <iostream>
 #include "../matrix/matrix.h"
 
 using namespace std;

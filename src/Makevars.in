@@ -17,9 +17,12 @@
 ###  Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
 ###  JAGS_MAJOR_ASSUMED is not needed (always 0) on unix
 ###############
+LAPACK_LIBS=`"${R_HOME}/bin/R" CMD config LAPACK_LIBS`
+BLAS_LIBS=`"${R_HOME}/bin/R" CMD config BLAS_LIBS`
+FLIBS=`"${R_HOME}/bin/R" CMD config FLIBS`
 
 PKG_CPPFLAGS=@JAGS_CFLAGS@ -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -D JAGS_MAJOR_ASSUMED=0
-PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath -llapack
+PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS)
 
 ###############
 
