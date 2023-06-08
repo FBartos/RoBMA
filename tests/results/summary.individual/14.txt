@@ -2,7 +2,7 @@
 "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "
 "    parallel = TRUE, seed = 1)"
 ""
-"Robust Bayesian meta-analysis                                                                                      "
+"Robust Bayesian meta-regression                                                                                      "
 " Model                1                                  Parameter prior distributions"
 " Prior prob.      0.062                      tau ~ Spike(0)                           "
 " log(marglik)   -485.86             mu_intercept ~ Spike(0)                           "

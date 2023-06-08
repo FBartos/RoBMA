@@ -2,7 +2,7 @@
 "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "
 "    parallel = TRUE, seed = 1)"
 ""
-"Robust Bayesian meta-analysis"
+"Robust Bayesian meta-regression"
 "Components summary:"
 "              Models Prior prob. Post. prob. Inclusion BF"
 "Effect          8/16       0.500       0.024        0.025"

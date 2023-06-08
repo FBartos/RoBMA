@@ -83,7 +83,6 @@ test_that("Basic functionality works", {
       "              Models Prior prob. Post. prob. Inclusion BF"                                          ,
       "Effect          8/16       0.500       0.267        0.364"                                          ,
       "Heterogeneity   8/16       0.500       0.401        0.671"                                          ,
-      "Bias            0/16       0.000       0.000        0.000"                                          ,
       ""                                                                                                   ,
       "Meta-regression components summary:"                                                                ,
       "        Models Prior prob. Post. prob. Inclusion BF"                                                ,

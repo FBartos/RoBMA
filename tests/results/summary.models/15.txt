@@ -7,7 +7,7 @@
 "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "
 "    priors_effect_null = NULL, parallel = TRUE, seed = 1)"
 ""
-"Robust Bayesian meta-analysis"
+"Robust Bayesian meta-regression"
 "Models overview:"
 " Model Prior intercept   Prior mod_con   Prior Heterogeneity                   Prior Bias                 Prior prob. log(marglik) Post. prob."
 "     1    Normal(0, 1)   Normal(0, 0.05)            Spike(0)                                                    0.250      -115.99       0.000"

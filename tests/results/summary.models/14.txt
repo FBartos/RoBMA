@@ -2,7 +2,7 @@
 "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "
 "    parallel = TRUE, seed = 1)"
 ""
-"Robust Bayesian meta-analysis"
+"Robust Bayesian meta-regression"
 "Models overview:"
 " Model Prior intercept                Prior mod_cat                Prior mod_con  Prior Heterogeneity Prior Bias Prior prob. log(marglik) Post. prob."
 "     1        Spike(0)        mean difference contrast: mSpike(0)        Spike(0)            Spike(0)                  0.062      -485.86       0.000"
