@@ -4,6 +4,11 @@
 - `NoBMA` and `NoBMA.reg()` functions as wrappers around `RoBMA` `RoBMA.reg()` functions for simpler specification of publication bias unadjusted Bayesian model-averaged meta-analysis
 - adding odds ratios output transformation` 
 
+## version 3.0.1
+### Fixes (thanks to Don & Rens)
+- compilation issues with Clang (https://github.com/FBartos/RoBMA/issues/28)
+- lapack path specifications (https://github.com/FBartos/RoBMA/issues/24)
+
 ## version 3.0
 ### Features
 - meta-regression with `RoBMA.reg()` function

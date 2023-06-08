@@ -48,8 +48,6 @@ package:
   medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
 - [Fitting custom meta-analytic
   ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
-- [Robust Bayesian model-averaged
-  meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
 
 ## Updates
 
