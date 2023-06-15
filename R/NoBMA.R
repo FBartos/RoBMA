@@ -99,7 +99,7 @@ NoBMA <- function(
 #' @seealso [RoBMA()], [RoBMA.reg()], [summary.RoBMA()], [update.RoBMA()], [check_setup()]
 #' @export
 NoBMA.reg <- function(
-    formula, data, test_predictors = NULL, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -118,7 +118,7 @@ NoBMA.reg <- function(
     prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
     prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
     prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
-    prior_factors_null     = prior("spike",  parameters = list(location = 0)),
+    prior_factors_null     = prior_factor("spike",   parameters = list(location = 0), contrast = "meandif"),
 
     # MCMC fitting settings
     chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,

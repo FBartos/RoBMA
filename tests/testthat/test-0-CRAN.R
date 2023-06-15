@@ -78,7 +78,7 @@ test_that("Basic functionality works", {
       "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "                        ,
       "    chains = 1, sample = 100, burnin = 50, autofit = FALSE, seed = 1)"                              ,
       ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
+      "Robust Bayesian meta-regression"                                                                    ,
       "Components summary:"                                                                                ,
       "              Models Prior prob. Post. prob. Inclusion BF"                                          ,
       "Effect          8/16       0.500       0.267        0.364"                                          ,
