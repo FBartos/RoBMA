@@ -1,36 +1,48 @@
 .balance_probability   <- function(object){
 
-  converged  <- object$add_info[["converged"]]
-  # assess the component type
-  effect         <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "effect"))
-  heterogeneity  <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
-  bias           <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "bias"))
-  # extract the prior odds set by user
-  prior_weights  <- sapply(object[["models"]], function(model)model[["prior_weights_set"]])
+  converged <- .get_model_convergence(object)
+  if(all(!converged))
+    stop("All models included in the ensemble failed to converge.")
 
+  # assess the main component type
+  component_types <- cbind.data.frame(
+    effect         = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "effect")),
+    heterogeneity  = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "heterogeneity")),
+    bias           = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "bias")),
+    baseline       = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "baseline")),
+    hierarchical   = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "hierarchical"))
+  )
+  # add regressions if neccessary
+  if(!is.null(object$add_info[["predictors_test"]])){
+    for(predictor_test in object$add_info[["predictors_test"]]){
+      component_types[[predictor_test]] <- sapply(object[["models"]], function(model) predictor_test %in% model[["terms_test"]])
+    }
+  }
+  # extract the prior odds set by user
+  prior_weights  <- sapply(object[["models"]], function(model) model[["prior_weights_set"]])
 
   # check whether there is a comparable model for each non-converged models
   for(i in seq_along(object[["models"]])[!converged]){
 
-    temp_ind  <- seq_along(object[["models"]])[-i]
-    temp_same <- temp_ind[effect[-i] == effect[i] & heterogeneity[-i] == heterogeneity[i] & bias[-i] == bias[i] & converged[-i]]
+    temp_same_structure <- sapply(seq_along(object$models)[converged], function(j) all(component_types[j,] == component_types[i,]))
+    temp_same_structure <- seq_along(object$models)[converged][temp_same_structure]
 
     # if yes, transfer the prior odds
-    if(length(temp_same) >= 1){
+    if(length(temp_same_structure) >= 1){
 
-      prior_weights[temp_same] <- prior_weights[temp_same] + prior_weights[i] / length(temp_same)
+      prior_weights[temp_same_structure] <- prior_weights[temp_same_structure] + prior_weights[i] / length(temp_same_structure)
       prior_weights[i] <- 0
-      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge. However, there were other models with the same combination of presence/absence of effect/heterogeneity/publication bias and their prior probability was increased to account for the failed models.")
+      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge. However, there were other models with the same combination of model components and their prior probability was increased to account for the failed models.")
 
     }else{
 
       prior_weights[i] <- 0
-      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge and their prior probability couldn't be balanced over models with the same combination of presence/absence of effect/heterogeneity/publication bias since they don't exist.")
+      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge and their prior probability couldn't be balanced over models with the same combination of model components since they don't exist.")
 
     }
   }
 
-  for(i in seq_along(object[["models"]])[!converged]){
+  for(i in seq_along(object[["models"]])){
     object[["models"]][[i]][["prior_weights"]] <- prior_weights[i]
   }
 

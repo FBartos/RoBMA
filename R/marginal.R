@@ -57,7 +57,7 @@ marginal_summary <- function(object, conditional = FALSE,
     formula_prefix = FALSE,
     probs          = probs,
     title          = "Model-averaged marginal estimates:",
-    footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+    footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale, marginal = TRUE),
     warnings       = .collect_errors_and_warnings(object)
   )
 
@@ -80,7 +80,7 @@ marginal_summary <- function(object, conditional = FALSE,
       formula_prefix = FALSE,
       probs          = probs,
       title          = "Conditional marginal estimates:",
-      footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+      footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale, marginal = TRUE),
       warnings       = .collect_errors_and_warnings(object)
     )
 

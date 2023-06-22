@@ -1157,13 +1157,13 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
       args = list(x))
   }
 }
-.scale_note <- function(prior_scale, output_scale){
-  if(output_scale == "OR"){
+.scale_note <- function(prior_scale, output_scale, marginal = FALSE){
+  if(!marginal && output_scale == "OR"){
     return(sprintf(
       "The effect size estimates are summarized on the %1$s scale and heterogeneity is summarized on the logOR scale (priors were specified on the %2$s scale).",
       .transformation_names(output_scale, estimation = FALSE),
       .transformation_names(prior_scale, estimation = FALSE)))
-  }else if(output_scale == "r"){
+  }else if(!marginal && output_scale == "r"){
     return(sprintf(
       "The effect size estimates are summarized on the %1$s scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the %2$s scale).",
       .transformation_names(output_scale, estimation = FALSE),
