@@ -7,6 +7,7 @@
 #'
 #' @param d a vector of effect sizes measured as Cohen's d
 #' @param r a vector of effect sizes measured as correlations
+#' @param OR a vector of effect sizes measured as odds ratios
 #' @param logOR a vector of effect sizes measured as log odds ratios
 #' @param z a vector of effect sizes measured as Fisher's z
 #' @param t a vector of t/z-statistics

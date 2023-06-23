@@ -7,7 +7,7 @@
 NoBMA.reg(
   formula,
   data,
-  test_predictors = NULL,
+  test_predictors = TRUE,
   study_names = NULL,
   study_ids = NULL,
   transformation = if (any(colnames(data) != "y")) "fishers_z" else "none",
@@ -27,7 +27,8 @@ NoBMA.reg(
   prior_covariates_null = prior("spike", parameters = list(location = 0)),
   prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25),
     contrast = "meandif"),
-  prior_factors_null = prior("spike", parameters = list(location = 0)),
+  prior_factors_null = prior_factor("spike", parameters = list(location = 0), contrast =
+    "meandif"),
   chains = 3,
   sample = 5000,
   burnin = 2000,

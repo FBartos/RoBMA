@@ -55,6 +55,7 @@ Suggests:
     metaBMA,
     metafor,
     weightr,
+    lme4,
     fixest,
     metadat,
     testthat,

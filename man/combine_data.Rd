@@ -35,6 +35,8 @@ combine_data(
 
 \item{logOR}{a vector of effect sizes measured as log odds ratios}
 
+\item{OR}{a vector of effect sizes measured as odds ratios}
+
 \item{t}{a vector of t/z-statistics}
 
 \item{y}{a vector of unspecified effect sizes (note that effect size

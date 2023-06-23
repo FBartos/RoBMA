@@ -54,6 +54,8 @@ NoBMA(
 
 \item{logOR}{a vector of effect sizes measured as log odds ratios}
 
+\item{OR}{a vector of effect sizes measured as odds ratios}
+
 \item{z}{a vector of effect sizes measured as Fisher's z}
 
 \item{y}{a vector of unspecified effect sizes (note that effect size
