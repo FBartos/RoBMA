@@ -383,6 +383,8 @@ RoBMA <- function(
 #' same length as already fitted models to update their prior weights.
 #' @param refit_failed whether failed models should be refitted. Relevant only
 #' if new priors or \code{prior_weights} are not supplied. Defaults to \code{TRUE}.
+#' @param extend_all extend sampling in all fitted models based on \code{"sample_extend"}
+#' argument in [set_autofit_control()] function. Defaults to \code{FALSE}.
 #' @inheritParams RoBMA
 #' @param ... additional arguments.
 #'
@@ -406,8 +408,8 @@ RoBMA <- function(
 #'                                     parameters = list(cuts = c(.05, .10, .20),
 #'                                                       alpha = c(1, 1, 1, 1))))
 #'
-#' # refit the models with an increased number of sample iterations
-#' fit3 <- update(fit, sample = 10000)
+#' # update the models with an increased number of sample iterations
+#' fit3 <- update(fit, autofit_control = set_autofit_control(sample_extend = 1000), extend_all = TRUE)
 #' }
 #'
 #'
@@ -415,7 +417,7 @@ RoBMA <- function(
 #'
 #' @seealso [RoBMA()], [summary.RoBMA()], [prior()], [check_setup()]
 #' @export
-update.RoBMA <- function(object, refit_failed = TRUE,
+update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
                          prior_effect = NULL,      prior_heterogeneity = NULL,      prior_bias = NULL,      prior_hierarchical = NULL, prior_weights = NULL,
                          prior_effect_null = NULL, prior_heterogeneity_null = NULL, prior_bias_null = NULL, prior_hierarchical_null = NULL,
                          study_names = NULL,
@@ -423,8 +425,11 @@ update.RoBMA <- function(object, refit_failed = TRUE,
                          autofit_control = NULL, convergence_checks = NULL,
                          save = "all", seed = NULL, silent = TRUE, ...){
 
-  # TODO: add ability to change the output scale
-  output_scale <- NULL
+  BayesTools::check_bool(refit_failed, "refit_failed")
+  BayesTools::check_bool(extend_all, "extend_all")
+
+  dots         <- .RoBMA_collect_dots(...)
+  output_scale <- NULL   # TODO: add ability to change the output scale
 
   if(object$add_info$save == "min")
     stop("Models cannot be updated because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' in while fitting the model (see ?RoBMA for more details).")
@@ -440,7 +445,8 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   ### choose proper action based on the supplied input
   if((!is.null(prior_effect)         | !is.null(prior_effect_null))  &
      (!is.null(prior_heterogeneity)  | !is.null(prior_heterogeneity_null)) &
-     (!is.null(prior_bias)           | !is.null(prior_bias_null))){
+     (!is.null(prior_bias)           | !is.null(prior_bias_null)) &
+     (!is.null(prior_hierarchical)   | !is.null(prior_hierarchical_null))){
 
     if(is.RoBMA.reg(object))
       stop("Adding a new model to the ensemble is not possible with RoBMA.reg models.")
@@ -471,6 +477,10 @@ update.RoBMA <- function(object, refit_failed = TRUE,
     stop("this functionality is not currently implemented")
     what_to_do <- "transform_estimates"
 
+  }else if(extend_all){
+
+    what_to_do <- "extend_all"
+
   }else if(refit_failed & any(!.get_model_convergence(object))){
 
     what_to_do <- "refit_failed_models"
@@ -493,10 +503,35 @@ update.RoBMA <- function(object, refit_failed = TRUE,
 
     object[["models"]][[length(object$models)]] <- .fit_RoBMA_model(object, length(object$models))
 
-  }else if(what_to_do == "refit_failed_models"){
+  }else if(what_to_do %in% c("refit_failed_models", "extend_all")){
 
-    for(i in c(1:length(object$models))[!.get_model_convergence(object)]){
-      object[["models"]][[i]] <- .fit_RoBMA_model(object, i, extend = TRUE)
+    models_to_update <- switch(
+      what_to_do,
+      "refit_failed_models" = seq_along(object$models)[!.get_model_convergence(object)],
+      "extend_all"          = seq_along(object$models)
+    )
+
+    if(!object$fit_control[["parallel"]]){
+
+      if(dots[["is_JASP"]]){
+        .JASP_progress_bar_start(length(models_to_update))
+      }
+
+      for(i in models_to_update){
+        object$models[[i]] <- .fit_RoBMA_model(object, i, extend = TRUE)
+        if(dots[["is_JASP"]]){
+          .JASP_progress_bar_tick()
+        }
+      }
+
+    }else{
+
+      cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
+      parallel::clusterEvalQ(cl, {library("RoBMA")})
+      parallel::clusterExport(cl, "object", envir = environment())
+      object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_RoBMA_model, object = object, extend = TRUE)
+      parallel::stopCluster(cl)
+
     }
 
   }else if(what_to_do == "transform_estimates"){

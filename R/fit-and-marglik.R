@@ -104,12 +104,12 @@
       )
     }else{
       fit <- BayesTools::JAGS_extend(
-        model_syntax       = model[["fit"]],
+        fit                = model[["fit"]],
         autofit_control    = autofit_control,
         parallel           = fit_control[["parallel"]],
         cores              = fit_control[["cores"]],
         silent             = fit_control[["silent"]],
-        seed               = fit_control[["seed"]],
+        seed               = fit_control[["seed"]]
       )
     }
 
@@ -257,19 +257,18 @@
     }
   }
 
-  model <- c(
-    model,
-    fit           = list(fit),
-    fit_summary   = list(fit_summary),
-    fit_summaries = list(fit_summaries),
-    marglik       = list(marglik),
-    errors        = list(errors),
-    warnings      = list(warnings),
-    converged     = converged,
-    has_posterior = has_posterior,
-    output_scale  = add_info[["prior_scale"]],
-    prior_scale   = add_info[["prior_scale"]]
-  )
+
+  # add results
+  model$fit           <- fit
+  model$fit_summary   <- fit_summary
+  model$fit_summaries <- fit_summaries
+  model$marglik       <- marglik
+  model$errors        <- errors
+  model$warnings      <- warnings
+  model$converged     <- converged
+  model$has_posterior <- has_posterior
+  model$output_scale  <- add_info[["prior_scale"]]
+  model$prior_scale   <- add_info[["prior_scale"]]
 
   return(model)
 }
