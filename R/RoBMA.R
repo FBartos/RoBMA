@@ -496,7 +496,7 @@ update.RoBMA <- function(object, refit_failed = TRUE,
   }else if(what_to_do == "refit_failed_models"){
 
     for(i in c(1:length(object$models))[!.get_model_convergence(object)]){
-      object[["models"]][[i]] <- .fit_RoBMA_model(object, i)
+      object[["models"]][[i]] <- .fit_RoBMA_model(object, i, extend = TRUE)
     }
 
   }else if(what_to_do == "transform_estimates"){

@@ -1,5 +1,5 @@
 # the main functions
-.fit_RoBMA_model       <- function(object, i){
+.fit_RoBMA_model       <- function(object, i, extend = FALSE){
 
   model              <- object[["models"]][[i]]
   priors             <- model[["priors"]]
@@ -81,26 +81,38 @@
     }
 
     # fit the model
-    fit <- BayesTools::JAGS_fit(
-      model_syntax       = model_syntax,
-      data               = fit_data,
-      prior_list         = fit_priors,
-      formula_list       = formula_list,
-      formula_data_list  = formula_data_list,
-      formula_prior_list = formula_prior_list,
-      chains             = fit_control[["chains"]],
-      adapt              = fit_control[["adapt"]],
-      burnin             = fit_control[["burnin"]],
-      sample             = fit_control[["sample"]],
-      thin               = fit_control[["thin"]],
-      autofit            = fit_control[["autofit"]],
-      autofit_control    = autofit_control,
-      parallel           = fit_control[["parallel"]],
-      cores              = fit_control[["cores"]],
-      silent             = fit_control[["silent"]],
-      seed               = fit_control[["seed"]],
-      required_packages  = "RoBMA"
-    )
+    if(!extend){
+      fit <- BayesTools::JAGS_fit(
+        model_syntax       = model_syntax,
+        data               = fit_data,
+        prior_list         = fit_priors,
+        formula_list       = formula_list,
+        formula_data_list  = formula_data_list,
+        formula_prior_list = formula_prior_list,
+        chains             = fit_control[["chains"]],
+        adapt              = fit_control[["adapt"]],
+        burnin             = fit_control[["burnin"]],
+        sample             = fit_control[["sample"]],
+        thin               = fit_control[["thin"]],
+        autofit            = fit_control[["autofit"]],
+        autofit_control    = autofit_control,
+        parallel           = fit_control[["parallel"]],
+        cores              = fit_control[["cores"]],
+        silent             = fit_control[["silent"]],
+        seed               = fit_control[["seed"]],
+        required_packages  = "RoBMA"
+      )
+    }else{
+      fit <- BayesTools::JAGS_extend(
+        model_syntax       = model[["fit"]],
+        autofit_control    = autofit_control,
+        parallel           = fit_control[["parallel"]],
+        cores              = fit_control[["cores"]],
+        silent             = fit_control[["silent"]],
+        seed               = fit_control[["seed"]],
+      )
+    }
+
 
     # assess the model fit and deal with errors
     if(inherits(fit, "error")){
@@ -261,7 +273,7 @@
 
   return(model)
 }
-.fit_BiBMA_model       <- function(object, i){
+.fit_BiBMA_model       <- function(object, i, extend = FALSE){
 
   model              <- object[["models"]][[i]]
   priors             <- model[["priors"]]
@@ -308,26 +320,37 @@
   )
 
   # fit the model
-  fit <- BayesTools::JAGS_fit(
-    model_syntax       = model_syntax,
-    data               = fit_data,
-    prior_list         = fit_priors,
-    formula_list       = formula_list,
-    formula_data_list  = formula_data_list,
-    formula_prior_list = formula_prior_list,
-    chains             = fit_control[["chains"]],
-    adapt              = fit_control[["adapt"]],
-    burnin             = fit_control[["burnin"]],
-    sample             = fit_control[["sample"]],
-    thin               = fit_control[["thin"]],
-    autofit            = fit_control[["autofit"]],
-    autofit_control    = autofit_control,
-    parallel           = fit_control[["parallel"]],
-    cores              = fit_control[["cores"]],
-    silent             = fit_control[["silent"]],
-    seed               = fit_control[["seed"]],
-    required_packages  = "RoBMA"
-  )
+  if(!extend){
+    fit <- BayesTools::JAGS_fit(
+      model_syntax       = model_syntax,
+      data               = fit_data,
+      prior_list         = fit_priors,
+      formula_list       = formula_list,
+      formula_data_list  = formula_data_list,
+      formula_prior_list = formula_prior_list,
+      chains             = fit_control[["chains"]],
+      adapt              = fit_control[["adapt"]],
+      burnin             = fit_control[["burnin"]],
+      sample             = fit_control[["sample"]],
+      thin               = fit_control[["thin"]],
+      autofit            = fit_control[["autofit"]],
+      autofit_control    = autofit_control,
+      parallel           = fit_control[["parallel"]],
+      cores              = fit_control[["cores"]],
+      silent             = fit_control[["silent"]],
+      seed               = fit_control[["seed"]],
+      required_packages  = "RoBMA"
+    )
+  }else{
+    fit <- BayesTools::JAGS_extend(
+      model_syntax       = model[["fit"]],
+      autofit_control    = autofit_control,
+      parallel           = fit_control[["parallel"]],
+      cores              = fit_control[["cores"]],
+      silent             = fit_control[["silent"]],
+      seed               = fit_control[["seed"]],
+    )
+  }
 
   # assess the model fit and deal with errors
   if(inherits(fit, "error")){
