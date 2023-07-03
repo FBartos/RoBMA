@@ -442,6 +442,7 @@ test_that("Set autofit control works", {
   expect_error(set_autofit_control(max_SD_error=  1.1), "Checking 'autofit_control':\n\tThe 'max_SD_error' must be equal or lower than 1.")
   expect_error(set_autofit_control(max_time = list(time = -1, unit = "secs")), "Checking 'autofit_control':\n\tThe 'max_time:time' must be equal or higher than 0.")
   expect_error(set_autofit_control(max_time = list(time = 10, unit = "maps")), "Checking 'autofit_control':\n\tThe 'maps' values are not recognized by the 'max_time:unit' argument.")
+  expect_error(set_autofit_control(restarts =  -1), "Checking 'autofit_control':\n\tThe 'restarts' must be equal or higher than 1.")
 
   expect_equal(set_autofit_control(), list(
     max_Rhat      = 1.05,
@@ -506,6 +507,15 @@ test_that("Set autofit control works", {
     sample_extend = 200
   ))
 
+  expect_equal(set_autofit_control(restarts = 200),  list(
+    max_Rhat      = 1.05,
+    min_ESS       = 500,
+    max_error     = NULL,
+    max_SD_error  = NULL,
+    max_time      = list(time = 60, unit = "mins"),
+    sample_extend = 1000,
+    restarts      = 200
+  ))
 })
 
 test_that("Set convergence checks works", {

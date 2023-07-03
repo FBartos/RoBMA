@@ -816,7 +816,7 @@ check_setup.reg <- function(
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10){
 
   autofit_settings <- list(
     max_Rhat      = max_Rhat,
@@ -824,7 +824,8 @@ set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     max_error     = max_error,
     max_SD_error  = max_SD_error,
     max_time      = max_time,
-    sample_extend = sample_extend
+    sample_extend = sample_extend,
+    restarts      = restarts
   )
   autofit_settings <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_settings, call = "Checking 'autofit_control':\n\t")
 
@@ -915,8 +916,13 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     sample_extend <- old_autofit_control[["sample_extend"]]
   }
+  if(!is.null(autofit_control[["restarts"]])){
+    restarts <- autofit_control[["restarts"]]
+  }else{
+    restarts <- old_autofit_control[["restarts"]]
+  }
 
-  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend)
+  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts)
   new_autofit_control <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = new_autofit_control)
 
   return(new_autofit_control)

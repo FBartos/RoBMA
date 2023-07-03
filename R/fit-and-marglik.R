@@ -81,7 +81,8 @@
     }
 
     # fit the model
-    if(!extend){
+    if(!extend || length(model[["fit"]]) == 0){
+
       fit <- BayesTools::JAGS_fit(
         model_syntax       = model_syntax,
         data               = fit_data,
@@ -102,7 +103,9 @@
         seed               = fit_control[["seed"]],
         required_packages  = "RoBMA"
       )
+
     }else{
+
       fit <- BayesTools::JAGS_extend(
         fit                = model[["fit"]],
         autofit_control    = autofit_control,
@@ -111,6 +114,7 @@
         silent             = fit_control[["silent"]],
         seed               = fit_control[["seed"]]
       )
+
     }
 
 
