@@ -202,7 +202,7 @@ RoBMA.reg <- function(
 
     # balance probability of non-converged models
     if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_probability(object)
+      object <- .balance_component_probability(object)
     }
 
     ### compute the model-space results

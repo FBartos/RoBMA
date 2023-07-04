@@ -305,7 +305,7 @@ RoBMA <- function(
 
     # balance probability of non-converged models
     if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_probability(object)
+      object <- .balance_component_probability(object)
     }
 
     ### compute the model-space results
@@ -498,6 +498,11 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   object[["convergence_checks"]] <- .update_convergence_checks(object[["convergence_checks"]], convergence_checks)
 
 
+  ### clean errors and warnings
+  object$add_info[["errors"]]   <- NULL
+  object$add_info[["warnings"]] <- .check_effect_direction(object)
+
+
   ### do the stuff
   if(what_to_do == "fit_new_model"){
 
@@ -548,12 +553,15 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   }
 
 
+  # restore original prior model probabilities (possibly changed by previous balancing)
+  object <- .restore_component_probability(object)
+
   # create ensemble only if at least one model converged
   if(any(.get_model_convergence(object))){
 
     # balance probability of non-converged models
     if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_probability(object)
+      object <- .balance_component_probability(object)
     }
 
     ### compute the model-space results

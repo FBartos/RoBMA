@@ -1,4 +1,4 @@
-.balance_probability   <- function(object){
+.balance_component_probability   <- function(object){
 
   converged <- .get_model_convergence(object)
   if(all(!converged))
@@ -47,6 +47,18 @@
   }
 
   return(object)
+}
+.restore_component_probability   <- function(object){
+
+  # extract the prior odds set by user
+  prior_weights  <- sapply(object[["models"]], function(model) model[["prior_weights_set"]])
+
+  for(i in seq_along(object[["models"]])){
+    object[["models"]][[i]][["prior_weights"]] <- prior_weights[i]
+  }
+
+  return(object)
+
 }
 .ensemble_inference    <- function(object){
 
