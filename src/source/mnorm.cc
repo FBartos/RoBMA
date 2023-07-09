@@ -10,7 +10,6 @@
 #include <JRmath.h>
 #include "../matrix/matrix.h"
 
-using namespace std;
 
 // wrapper around the mvtnorm package
 double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K)
@@ -65,11 +64,11 @@ double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, doubl
 double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, const int K)
 {
 
-  vector<double> T(K * K);
+  std::vector<double> T(K * K);
   jags::RoBMA::inverse_spd (&T[0], sigma, K);
 
   double loglik = 0;
-  vector<double> delta(K);
+  std::vector<double> delta(K);
   for (int i = 0; i < K; ++i) {
     delta[i] = x[i] - mu[i];
     loglik -= (delta[i] * T[i + i * K] * delta[i])/2;
