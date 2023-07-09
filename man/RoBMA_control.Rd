@@ -13,7 +13,8 @@ set_autofit_control(
   max_error = NULL,
   max_SD_error = NULL,
   max_time = list(time = 60, unit = "mins"),
-  sample_extend = 1000
+  sample_extend = 1000,
+  restarts = 10
 )
 
 set_convergence_checks(

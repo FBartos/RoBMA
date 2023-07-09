@@ -445,14 +445,19 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   ### choose proper action based on the supplied input
   if((!is.null(prior_effect)         | !is.null(prior_effect_null))  &
      (!is.null(prior_heterogeneity)  | !is.null(prior_heterogeneity_null)) &
-     (!is.null(prior_bias)           | !is.null(prior_bias_null)) &
-     (!is.null(prior_hierarchical)   | !is.null(prior_hierarchical_null))){
+     (!is.null(prior_bias)           | !is.null(prior_bias_null))){
 
     if(is.RoBMA.reg(object))
       stop("Adding a new model to the ensemble is not possible with RoBMA.reg models.")
 
     what_to_do <- "fit_new_model"
-    new_priors <- .check_and_list_priors(NULL, prior_effect_null, prior_effect, prior_heterogeneity_null, prior_heterogeneity, prior_bias_null, prior_bias, prior_hierarchical_null, prior_hierarchical, object$add_info[["prior_scale"]])
+    new_priors <- .check_and_list_priors(
+      model_type = NULL,
+      priors_effect_null        = prior_effect_null,        priors_effect        = prior_effect,
+      priors_heterogeneity_null = prior_heterogeneity_null, priors_heterogeneity = prior_heterogeneity,
+      priors_bias_null          = prior_bias_null,          priors_bias          = prior_bias,
+      priors_hierarchical_null  = prior_hierarchical_null,  priors_hierarchical  = prior_hierarchical,
+      prior_scale = object$add_info[["prior_scale"]])
 
     object$models[length(object$models) + 1]  <- list(.make_models(new_priors, .is_multivariate(object), .is_weighted(object))[[1]])
 

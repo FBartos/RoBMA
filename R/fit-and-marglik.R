@@ -323,7 +323,8 @@
   )
 
   # fit the model
-  if(!extend){
+  if(!extend || length(model[["fit"]]) == 0){
+
     fit <- BayesTools::JAGS_fit(
       model_syntax       = model_syntax,
       data               = fit_data,
@@ -344,15 +345,18 @@
       seed               = fit_control[["seed"]],
       required_packages  = "RoBMA"
     )
+
   }else{
+
     fit <- BayesTools::JAGS_extend(
-      model_syntax       = model[["fit"]],
-      autofit_control    = autofit_control,
-      parallel           = fit_control[["parallel"]],
-      cores              = fit_control[["cores"]],
-      silent             = fit_control[["silent"]],
-      seed               = fit_control[["seed"]],
+      fit             = model[["fit"]],
+      autofit_control = autofit_control,
+      parallel        = fit_control[["parallel"]],
+      cores           = fit_control[["cores"]],
+      silent          = fit_control[["silent"]],
+      seed            = fit_control[["seed"]]
     )
+
   }
 
   # assess the model fit and deal with errors
@@ -451,19 +455,17 @@
   }
 
 
-  model <- c(
-    model,
-    fit           = list(fit),
-    fit_summary   = list(fit_summary),
-    fit_summaries = list(fit_summaries),
-    marglik       = list(marglik),
-    errors        = list(errors),
-    warnings      = list(warnings),
-    converged     = converged,
-    has_posterior = has_posterior,
-    output_scale  = add_info[["prior_scale"]],
-    prior_scale   = add_info[["prior_scale"]]
-  )
+  # add results
+  model$fit           <- fit
+  model$fit_summary   <- fit_summary
+  model$fit_summaries <- fit_summaries
+  model$marglik       <- marglik
+  model$errors        <- errors
+  model$warnings      <- warnings
+  model$converged     <- converged
+  model$has_posterior <- has_posterior
+  model$output_scale  <- add_info[["prior_scale"]]
+  model$prior_scale   <- add_info[["prior_scale"]]
 
   return(model)
 }
