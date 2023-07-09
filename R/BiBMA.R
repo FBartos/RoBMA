@@ -207,7 +207,7 @@ BiBMA <- function(
 #'
 #' @return \code{BiBMA} returns an object of class 'BiBMA'.
 #'
-#' @seealso [BiBMA()], [summary.BiBMA()], [prior()], [check_setup()]
+#' @seealso [BiBMA()], [summary.RoBMA()], [prior()], [check_setup()]
 #' @export
 update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
                          prior_effect = NULL,      prior_heterogeneity = NULL,      prior_baseline = NULL,      prior_weights = NULL,
@@ -316,7 +316,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
     }else{
 
-      cl <- parallel::makePSOCKcluster(floor(BiBMA.get_option("max_cores") / object$fit_control[["chains"]]))
+      cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
       parallel::clusterEvalQ(cl, {library("BiBMA")})
       parallel::clusterExport(cl, "object", envir = environment())
       object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_BiBMA_model, object = object, extend = TRUE)
@@ -324,19 +324,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
     }
 
-  }else if(what_to_do == "transform_estimates"){
-
-    # TODO: implement
-    stop("Not implemented.")
-    for(i in c(1:length(object$models))){
-      object$models[[i]] <- .transform_posterior(object$models[[i]], object$add_info$output_scale, .transformation_var(output_scale))
-    }
-    object <- .transform_posterior(object, object$add_info$output_scale, .transformation_var(output_scale))
-    object$add_info$output_scale <- .transformation_var(output_scale)
-
-    return(object)
   }
-
 
   # restore original prior model probabilities (possibly changed by previous balancing)
   object <- .restore_component_probability(object)

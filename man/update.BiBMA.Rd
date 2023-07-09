@@ -137,5 +137,5 @@ results by specifying new \code{control} argument and setting
 See \code{\link[=BiBMA]{BiBMA()}} for more details.
 }
 \seealso{
-\code{\link[=BiBMA]{BiBMA()}}, \code{\link[=summary.BiBMA]{summary.BiBMA()}}, \code{\link[=prior]{prior()}}, \code{\link[=check_setup]{check_setup()}}
+\code{\link[=BiBMA]{BiBMA()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=prior]{prior()}}, \code{\link[=check_setup]{check_setup()}}
 }

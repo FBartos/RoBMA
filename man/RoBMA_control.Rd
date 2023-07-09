@@ -51,6 +51,9 @@ Defaults to \code{list(time = 60, unit = "mins")}.}
 the criteria are not satisfied.
 Defaults to \code{1000}.}
 
+\item{restarts}{number of times new initial values should be generated in case a
+model fails to initialize. Defaults to \code{10}.}
+
 \item{remove_failed}{whether models not satisfying the convergence checks should
 be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.}
 

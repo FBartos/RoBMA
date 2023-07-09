@@ -802,6 +802,8 @@ check_setup.reg <- function(
 #' @param balance_probability whether prior model probability should be balanced
 #' across the combinations of models with the same H0/H1 for effect / heterogeneity / bias
 #' in the case of non-convergence. Defaults to \code{TRUE}.
+#' @param restarts number of times new initial values should be generated in case a
+#' model fails to initialize. Defaults to \code{10}.
 #'
 #'
 #' @return \code{set_autofit_control} returns a list of autofit control settings
