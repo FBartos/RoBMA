@@ -56,7 +56,7 @@
 <polygon points='354.24,127.52 358.15,127.52 358.15,123.61 354.24,123.61 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
 <polygon points='310.33,206.58 314.24,206.58 314.24,202.68 310.33,202.68 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
 <polygon points='263.55,285.65 267.46,285.65 267.46,281.74 263.55,281.74 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
-<polygon points='206.54,441.82 314.62,422.06 444.55,441.82 314.62,461.59 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #000000;' />
+<polygon points='210.31,441.82 314.67,422.06 437.44,441.82 314.67,461.59 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #000000;' />
 <polyline points='398.79,520.89 398.79,46.50 ' style='stroke-width: 1.07; stroke-dasharray: 1.42,4.27; stroke-linecap: butt;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
@@ -64,7 +64,7 @@
 <text x='5.48' y='128.59' style='font-size: 8.80px; font-family: sans;' textLength='29.85px' lengthAdjust='spacingAndGlyphs'>Study 1</text>
 <text x='5.48' y='207.66' style='font-size: 8.80px; font-family: sans;' textLength='29.85px' lengthAdjust='spacingAndGlyphs'>Study 2</text>
 <text x='5.48' y='286.72' style='font-size: 8.80px; font-family: sans;' textLength='29.85px' lengthAdjust='spacingAndGlyphs'>Study 3</text>
-<text x='714.52' y='444.85' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='71.91px' lengthAdjust='spacingAndGlyphs'>-0.40 [-0.91,  0.22]</text>
+<text x='714.52' y='444.85' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='71.91px' lengthAdjust='spacingAndGlyphs'>-0.40 [-0.89,  0.18]</text>
 <text x='714.52' y='128.59' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='71.91px' lengthAdjust='spacingAndGlyphs'>-0.20 [-1.43,  0.96]</text>
 <text x='714.52' y='207.66' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='71.91px' lengthAdjust='spacingAndGlyphs'>-0.41 [-1.46,  0.55]</text>
 <text x='714.52' y='286.72' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='72.40px' lengthAdjust='spacingAndGlyphs'>-0.63 [-1.26, -0.05]</text>

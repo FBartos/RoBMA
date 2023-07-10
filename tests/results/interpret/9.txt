@@ -1,5 +1,5 @@
 "Robust Bayesian meta-analysis found strong evidence against the effect, BF_10 = 
-0.000, with mean model-averaged estimate Cohen's d = 0.276, 95% CI [-0.452,  0.8
-62]. Robust Bayesian meta-analysis found strong evidence against the heterogenei
-ty, BF^rf = 0.000, with mean model-averaged estimate tau = 0.224, 95% CI [0.038,
- 0.822]."
+0.000, with mean model-averaged estimate Cohen's d = 0.270, 95% CI [-0.388,  0.8
+57]. Robust Bayesian meta-analysis found strong evidence against the heterogenei
+ty, BF^rf = 0.000, with mean model-averaged estimate tau = 0.208, 95% CI [0.033,
+ 0.793]."

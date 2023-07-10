@@ -317,7 +317,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
     }else{
 
       cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
-      parallel::clusterEvalQ(cl, {library("BiBMA")})
+      parallel::clusterEvalQ(cl, {library("RoBMA")})
       parallel::clusterExport(cl, "object", envir = environment())
       object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_BiBMA_model, object = object, extend = TRUE)
       parallel::stopCluster(cl)

@@ -450,7 +450,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_Rhat = 1.01),  list(
@@ -459,7 +460,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(min_ESS = 200),  list(
@@ -468,7 +470,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_error = 0.01),  list(
@@ -477,7 +480,8 @@ test_that("Set autofit control works", {
     max_error     = 0.01,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_SD_error = 0.01),  list(
@@ -486,7 +490,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = 0.01,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_time = list(time = 30, unit = "secs")),  list(
@@ -495,7 +500,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 30, unit = "secs"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(sample_extend = 200),  list(
@@ -504,7 +510,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 200
+    sample_extend = 200,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(restarts = 200),  list(

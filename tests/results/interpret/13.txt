@@ -1,6 +1,6 @@
 "Robust Bayesian meta-analysis found weak evidence against the effect, BF_10 = 0.
-967, with mean model-averaged estimate Cohen's d = 0.191, 95% CI [-0.065,  0.782
+971, with mean model-averaged estimate Cohen's d = 0.197, 95% CI [-0.090,  0.794
 ]. Robust Bayesian meta-analysis found weak evidence against the heterogeneity, 
-BF^rf = 0.882, with mean model-averaged estimate tau = 0.117, 95% CI [0.000, 0.6
-38]. Robust Bayesian meta-analysis found weak evidence in favor of the publicati
-on bias, BF_pb = 1.16."
+BF^rf = 0.869, with mean model-averaged estimate tau = 0.112, 95% CI [0.000, 0.6
+25]. Robust Bayesian meta-analysis found weak evidence in favor of the publicati
+on bias, BF_pb = 1.17."
