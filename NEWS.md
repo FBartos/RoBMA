@@ -1,3 +1,6 @@
+## version 3.1.1
+CRAN version bump because of server error.
+
 ## version 3.1
 ### Features
 - binomial-normal models for binary data via the `BiBMA` function
