@@ -137,8 +137,10 @@
     # define inference options
     components_predictors      <- NULL
     parameters_predictors      <- "mu_intercept"
+    parameters_marginal        <- "mu_intercept"
     components_predictors_null <- list()
     parameters_predictors_null <- list("mu_intercept" = !effect)
+    parameters_marginal_null   <- list("mu_intercept" = !effect)
 
     components_predictors_distributions      <- NULL
     components_predictors_distributions_null <- list()
@@ -153,8 +155,11 @@
 
     for(i in seq_along(predictors)){
       parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(predictors[i]))
+      parameters_marginal   <- c(parameters_marginal,   .BayesTools_parameter_name(predictors[i]))
       parameters_predictors_null[[.BayesTools_parameter_name(predictors[i])]] <-
         sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors[i] %in% x))
+      parameters_marginal_null[[.BayesTools_parameter_name(predictors[i])]] <-
+        sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !((predictors[i] %in% x) || effect[i]))
     }
 
 
@@ -210,14 +215,14 @@
     }
 
     # create marginal estimates and summary
-    if(all(sapply(parameters_predictors_null, all))){
+    if(all(sapply(parameters_marginal_null, all))){
       inference_marginal <- NULL
     }else{
       inference_marginal <- BayesTools::marginal_inference(
         model_list          = models,
-        marginal_parameters = parameters_predictors[!sapply(parameters_predictors_null, all)],
-        parameters          = parameters_predictors,
-        is_null_list        = parameters_predictors_null,
+        marginal_parameters = parameters_marginal[!sapply(parameters_marginal_null, all)],
+        parameters          = parameters_marginal,
+        is_null_list        = parameters_marginal_null,
         formula             = object[["formula"]],
         seed                = object$add_info[["seed"]],
         silent              = TRUE
