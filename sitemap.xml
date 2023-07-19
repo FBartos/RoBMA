@@ -37,7 +37,13 @@
     <loc>/reference/Bem2011.html</loc>
   </url>
   <url>
+    <loc>/reference/BiBMA.html</loc>
+  </url>
+  <url>
     <loc>/reference/check_RoBMA.html</loc>
+  </url>
+  <url>
+    <loc>/reference/check_setup.BiBMA.html</loc>
   </url>
   <url>
     <loc>/reference/check_setup.html</loc>
@@ -47,6 +53,9 @@
   </url>
   <url>
     <loc>/reference/combine_data.html</loc>
+  </url>
+  <url>
+    <loc>/reference/contr.independent.html</loc>
   </url>
   <url>
     <loc>/reference/contr.meandif.html</loc>
@@ -83,6 +92,12 @@
   </url>
   <url>
     <loc>/reference/marginal_summary.html</loc>
+  </url>
+  <url>
+    <loc>/reference/NoBMA.html</loc>
+  </url>
+  <url>
+    <loc>/reference/NoBMA.reg.html</loc>
   </url>
   <url>
     <loc>/reference/plot.RoBMA.html</loc>
@@ -146,6 +161,9 @@
   </url>
   <url>
     <loc>/reference/summary.RoBMA.html</loc>
+  </url>
+  <url>
+    <loc>/reference/update.BiBMA.html</loc>
   </url>
   <url>
     <loc>/reference/update.RoBMA.html</loc>

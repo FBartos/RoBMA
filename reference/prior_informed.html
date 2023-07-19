@@ -18,7 +18,7 @@ research. The prior can be visualized by the plot function."><!-- mathjax --><sc
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">RoBMA</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.0.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">3.1.0</span>
       </span>
     </div>
 
@@ -97,8 +97,10 @@ social psychology based on prior elicitation with dr. Oosterwijk
 
 
 </dl><p>For medicine, the possible options are based on Bartoš et al. (2021)
+and  Bartoš et al. (2023)
 who developed empirical prior distributions for the effect size and heterogeneity parameters of the
-continuous standardized outcomes based on the Cochrane database of systematic reviews.
+continuous outcomes (standardized mean differences), dichotomous outcomes (logOR, logRR, and risk differences),
+and time to event outcomes (logHR) based on the Cochrane database of systematic reviews.
 Use <code>"Cochrane"</code> for a prior distribution based on the whole database or call
 <code>print(prior_informed_medicine_names)</code> to inspect the names of
 all 46 subfields and set the appropriate <code>parameter</code> and <code>type</code>.</p></dd>
@@ -113,7 +115,23 @@ prior distributions.</p></dd>
 <dt>type</dt>
 <dd><p>prior type describing what prior distribution is supposed to be produced in cases
 where the <code>name</code> and <code>parameter</code> correspond to multiple prior distributions. Relevant only for
-the empirical medical prior distributions.</p></dd>
+the empirical medical prior distributions with the following options</p><dl><dt><code>"smd"</code></dt>
+<dd><p>for standardized mean differences</p></dd>
+
+<dt><code>"logOR"</code></dt>
+<dd><p>for log odds ratios</p></dd>
+
+<dt><code>"logRR"</code></dt>
+<dd><p>for log risk ratios</p></dd>
+
+<dt><code>"RD"</code></dt>
+<dd><p>for risk differences</p></dd>
+
+<dt><code>"logHR"</code></dt>
+<dd><p>for hazard ratios</p></dd>
+
+
+</dl></dd>
 
 </dl></div>
     <div id="value">
@@ -167,7 +185,7 @@ Bartoš et al. (2021)
 <span class="r-in"><span><span class="co"># empirical prior distribution for the standardized mean differences from the oral health</span></span></span>
 <span class="r-in"><span><span class="co"># medical subfield based on meta-analytic effect size estimates from the</span></span></span>
 <span class="r-in"><span><span class="co"># Cochrane database of systematic reviews</span></span></span>
-<span class="r-in"><span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu">prior_informed</span><span class="op">(</span><span class="st">"Oral Health"</span>, parameter <span class="op">=</span> <span class="st">"effect"</span>, type <span class="op">=</span> <span class="st">"smd"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu">prior_informed</span><span class="op">(</span><span class="st">"Oral Health"</span>, parameter <span class="op">=</span><span class="st">"effect"</span>, type <span class="op">=</span><span class="st">"smd"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p2</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Student-t(0, 0.51, 5)</span>
 </code></pre></div>
