@@ -13,7 +13,8 @@ set_autofit_control(
   max_error = NULL,
   max_SD_error = NULL,
   max_time = list(time = 60, unit = "mins"),
-  sample_extend = 1000
+  sample_extend = 1000,
+  restarts = 10
 )
 
 set_convergence_checks(
@@ -49,6 +50,9 @@ Defaults to \code{list(time = 60, unit = "mins")}.}
 \item{sample_extend}{number of samples to extend the fitting process if
 the criteria are not satisfied.
 Defaults to \code{1000}.}
+
+\item{restarts}{number of times new initial values should be generated in case a
+model fails to initialize. Defaults to \code{10}.}
 
 \item{remove_failed}{whether models not satisfying the convergence checks should
 be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.}

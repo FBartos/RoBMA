@@ -2,9 +2,100 @@
 % Please edit documentation in R/check-input-and-settings.R
 \name{check_setup.reg}
 \alias{check_setup.reg}
+\alias{check_setup.RoBMA.reg}
 \title{Prints summary of \code{"RoBMA.reg"} ensemble implied by the specified priors
 and formula}
 \usage{
+check_setup.reg(
+  formula,
+  data,
+  test_predictors = TRUE,
+  study_names = NULL,
+  study_ids = NULL,
+  transformation = if (any(colnames(data) != "y")) "fishers_z" else "none",
+  prior_scale = if (any(colnames(data) != "y")) "cohens_d" else "none",
+  standardize_predictors = TRUE,
+  effect_direction = "positive",
+  priors = NULL,
+  model_type = NULL,
+  priors_effect = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
+  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1,
+    scale = 0.15)),
+  priors_bias = list(prior_weightfunction(distribution = "two.sided", parameters =
+    list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/12),
+    prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1,
+    1), steps = c(0.05, 0.1)), prior_weights = 1/12), prior_weightfunction(distribution =
+    "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights =
+    1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha =
+    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12), 
+    
+    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1,
+    1), steps = c(0.05, 0.5)), prior_weights = 1/12), prior_weightfunction(distribution =
+    "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)),
+    prior_weights = 1/12), prior_PET(distribution = "Cauchy", parameters = list(0, 1),
+    truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy",
+    parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/4)),
+  priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
+  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
+    0)),
+  priors_bias_null = prior_none(),
+  priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null = NULL,
+  prior_covariates = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  prior_covariates_null = prior("spike", parameters = list(location = 0)),
+  prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25),
+    contrast = "meandif"),
+  prior_factors_null = prior("spike", parameters = list(location = 0)),
+  models = FALSE,
+  silent = FALSE,
+  ...
+)
+
+check_setup.RoBMA.reg(
+  formula,
+  data,
+  test_predictors = TRUE,
+  study_names = NULL,
+  study_ids = NULL,
+  transformation = if (any(colnames(data) != "y")) "fishers_z" else "none",
+  prior_scale = if (any(colnames(data) != "y")) "cohens_d" else "none",
+  standardize_predictors = TRUE,
+  effect_direction = "positive",
+  priors = NULL,
+  model_type = NULL,
+  priors_effect = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
+  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1,
+    scale = 0.15)),
+  priors_bias = list(prior_weightfunction(distribution = "two.sided", parameters =
+    list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/12),
+    prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1,
+    1), steps = c(0.05, 0.1)), prior_weights = 1/12), prior_weightfunction(distribution =
+    "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights =
+    1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha =
+    c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12), 
+    
+    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1,
+    1), steps = c(0.05, 0.5)), prior_weights = 1/12), prior_weightfunction(distribution =
+    "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)),
+    prior_weights = 1/12), prior_PET(distribution = "Cauchy", parameters = list(0, 1),
+    truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy",
+    parameters = list(0, 5), truncation = list(0, Inf), prior_weights = 1/4)),
+  priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
+  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
+    0)),
+  priors_bias_null = prior_none(),
+  priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
+  priors_hierarchical_null = NULL,
+  prior_covariates = prior("normal", parameters = list(mean = 0, sd = 0.25)),
+  prior_covariates_null = prior("spike", parameters = list(location = 0)),
+  prior_factors = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25),
+    contrast = "meandif"),
+  prior_factors_null = prior("spike", parameters = list(location = 0)),
+  models = FALSE,
+  silent = FALSE,
+  ...
+)
+
 check_setup.reg(
   formula,
   data,
@@ -204,12 +295,20 @@ of categorical covariates on the effect size under the null hypothesis
 }
 \value{
 \code{check_setup.reg} invisibly returns list of summary tables.
+
+\code{check_setup.reg} invisibly returns list of summary tables.
 }
 \description{
 \code{check_setup} prints summary of \code{"RoBMA.reg"} ensemble
 implied by the specified prior distributions. It is useful for checking
 the ensemble configuration prior to fitting all of the models.
+
+\code{check_setup} prints summary of \code{"RoBMA.reg"} ensemble
+implied by the specified prior distributions. It is useful for checking
+the ensemble configuration prior to fitting all of the models.
 }
 \seealso{
+\code{\link[=check_setup]{check_setup()}} \code{\link[=RoBMA.reg]{RoBMA.reg()}}
+
 \code{\link[=check_setup]{check_setup()}} \code{\link[=RoBMA.reg]{RoBMA.reg()}}
 }

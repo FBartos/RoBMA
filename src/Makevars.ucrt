@@ -63,7 +63,7 @@ endif
 # Set the CPPFLAGS accordingly
 # Prepending 0 to JAGS_MAJOR_VERSION prevents it being set as blank (the C++ code requires a number)
 JAGS_MAJOR_ASSUMED := 4
-PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION)
+PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include" -D JAGS_MAJOR_ASSUMED=$(JAGS_MAJOR_ASSUMED) -D JAGS_MAJOR_FORCED=0$(JAGS_MAJOR_VERSION) -DR_NO_REMAP
 
 PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 
@@ -75,6 +75,7 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
  		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
+		  distributions/DWB.o \
 		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
 		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
@@ -93,6 +94,7 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
 # OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
 #		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 #		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
+#		  distributions/DWB.o \
 #		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
 #		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 #		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \

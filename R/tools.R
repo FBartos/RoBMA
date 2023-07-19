@@ -131,12 +131,26 @@ check_RoBMA <- function(fit){
 .is_component_null           <- function(priors, component){
   if(component == "effect"){
     if(is.null(priors[["terms"]])){
-      return(priors[["mu"]][["is_null"]])
+      if(is.null(priors[["mu"]])){
+        return(TRUE)
+      }else{
+        return(priors[["mu"]][["is_null"]])
+      }
     }else{
       return(priors[["terms"]][["intercept"]][["is_null"]])
     }
   }else if(component == "heterogeneity"){
-    return(priors[["tau"]][["is_null"]])
+    if(is.null(priors[["tau"]])){
+      return(TRUE)
+    }else{
+      return(priors[["tau"]][["is_null"]])
+    }
+  }else if(component == "baseline"){
+    if(is.null(priors[["pi"]])){
+      return(TRUE)
+    }else{
+      return(priors[["pi"]][["is_null"]])
+    }
   }else if(component == "hierarchical"){
     if((is.prior.point(priors[["tau"]]) && priors[["tau"]]$parameters[["location"]] == 0) || is.null(priors[["rho"]])){
       return(TRUE)
@@ -263,6 +277,6 @@ check_RoBMA <- function(fit){
 .output_parameter_names      <- function(parameter){
   return(BayesTools::format_parameter_names(parameter, formula_parameters = "mu", formula_prefix = FALSE))
 }
-.reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE",
+.reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE", "pi", "gamma",
                                              "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
-                                             "d", "t", "r", "z", "y", "logOR", "lCI", "uCI", "v", "se", "n", "weight")
+                                             "d", "t", "r", "z", "y", "logOR", "OR", "lCI", "uCI", "v", "se", "n", "weight", "x1", "x2", "n1", "n2")

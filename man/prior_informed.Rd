@@ -19,8 +19,10 @@ social psychology based on prior elicitation with dr. Oosterwijk
 (Gronau et al. 2017).}
 }
 For medicine, the possible options are based on Bartoš et al. (2021)
+and  Bartoš et al. (2023)
 who developed empirical prior distributions for the effect size and heterogeneity parameters of the
-continuous standardized outcomes based on the Cochrane database of systematic reviews.
+continuous outcomes (standardized mean differences), dichotomous outcomes (logOR, logRR, and risk differences),
+and time to event outcomes (logHR) based on the Cochrane database of systematic reviews.
 Use \code{"Cochrane"} for a prior distribution based on the whole database or call
 \code{print(prior_informed_medicine_names)} to inspect the names of
 all 46 subfields and set the appropriate \code{parameter} and \code{type}.}
@@ -31,7 +33,14 @@ prior distributions.}
 
 \item{type}{prior type describing what prior distribution is supposed to be produced in cases
 where the \code{name} and \code{parameter} correspond to multiple prior distributions. Relevant only for
-the empirical medical prior distributions.}
+the empirical medical prior distributions with the following options
+\describe{
+\item{\code{"smd"}}{for standardized mean differences}
+\item{\code{"logOR"}}{for log odds ratios}
+\item{\code{"logRR"}}{for log risk ratios}
+\item{\code{"RD"}}{for risk differences}
+\item{\code{"logHR"}}{for hazard ratios}
+}}
 }
 \value{
 \code{prior_informed} returns an object of class 'prior'.
@@ -58,7 +67,7 @@ plot(p1)
 # empirical prior distribution for the standardized mean differences from the oral health
 # medical subfield based on meta-analytic effect size estimates from the
 # Cochrane database of systematic reviews
-p2 <- prior_informed("Oral Health", parameter = "effect", type = "smd")
+p2 <- prior_informed("Oral Health", parameter ="effect", type ="smd")
 print(p2)
 }
 \references{

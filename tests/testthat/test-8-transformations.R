@@ -234,6 +234,25 @@ test_that("data combination works", {
   colnames(parsed_logOR)[1] <- "logOR"
   expect_equal(as.matrix(parsed_logOR[, c("logOR", "se")]), as.matrix(orig_data_logOR[, c("logOR", "se")]))
 
+  # mixing OR and logOR
+  c_logOR     <- c(0.5, 0.1, 0.3)
+  c_logOR.lCI <- c_logOR - 0.1
+  c_logOR.uCI <- c_logOR + 0.1
+
+  comb_logOR <- combine_data(logOR = c_logOR, lCI = c_logOR.lCI, uCI = c_logOR.uCI, transformation = "fishers_z")
+  comb_OR    <- combine_data(OR = exp(c_logOR), lCI = exp(c_logOR.lCI), uCI = exp(c_logOR.uCI), transformation = "fishers_z")
+  expect_equivalent(comb_logOR, comb_OR)
+
+  # using combine_data.bi
+  com.RoBMA   <- .combine_data.bi(x1 = c(0, 1), x2 = c(1, 2), n1  = c(5, 6), n2  = c(6, 5), return_all = TRUE, transformation = "logOR")
+  com.metafor <- metafor::escalc( ai = c(0, 1), ci = c(1, 2), n1i = c(5, 6), n2i = c(6, 5), measure = "OR")
+
+  com.RoBMA <- data.frame(
+    yi = com.RoBMA$logOR,
+    vi = com.RoBMA$se^2
+  )
+  expect_equivalent(com.RoBMA, com.metafor)
+
 })
 
 # test that input checks work

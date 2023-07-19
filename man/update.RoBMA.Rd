@@ -7,6 +7,7 @@
 \method{update}{RoBMA}(
   object,
   refit_failed = TRUE,
+  extend_all = FALSE,
   prior_effect = NULL,
   prior_heterogeneity = NULL,
   prior_bias = NULL,
@@ -37,6 +38,9 @@
 
 \item{refit_failed}{whether failed models should be refitted. Relevant only
 if new priors or \code{prior_weights} are not supplied. Defaults to \code{TRUE}.}
+
+\item{extend_all}{extend sampling in all fitted models based on \code{"sample_extend"}
+argument in \code{\link[=set_autofit_control]{set_autofit_control()}} function. Defaults to \code{FALSE}.}
 
 \item{prior_effect}{prior distribution for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis.
@@ -164,8 +168,8 @@ fit2 <- update(fit,
                                     parameters = list(cuts = c(.05, .10, .20),
                                                       alpha = c(1, 1, 1, 1))))
 
-# refit the models with an increased number of sample iterations
-fit3 <- update(fit, sample = 10000)
+# update the models with an increased number of sample iterations
+fit3 <- update(fit, autofit_control = set_autofit_control(sample_extend = 1000), extend_all = TRUE)
 }
 
 

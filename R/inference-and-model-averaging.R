@@ -1,40 +1,64 @@
-.balance_probability   <- function(object){
+.balance_component_probability   <- function(object){
 
-  converged  <- object$add_info[["converged"]]
-  # assess the component type
-  effect         <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "effect"))
-  heterogeneity  <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
-  bias           <- sapply(object[["models"]], function(model)!.is_component_null(model[["priors"]], "bias"))
+  converged <- .get_model_convergence(object)
+  if(all(!converged))
+    stop("All models included in the ensemble failed to converge.")
+
+  # assess the main component type
+  component_types <- cbind.data.frame(
+    effect         = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "effect")),
+    heterogeneity  = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "heterogeneity")),
+    bias           = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "bias")),
+    baseline       = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "baseline")),
+    hierarchical   = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "hierarchical"))
+  )
+  # add regressions if neccessary
+  if(!is.null(object$add_info[["predictors_test"]])){
+    for(predictor_test in object$add_info[["predictors_test"]]){
+      component_types[[predictor_test]] <- sapply(object[["models"]], function(model) predictor_test %in% model[["terms_test"]])
+    }
+  }
   # extract the prior odds set by user
-  prior_weights  <- sapply(object[["models"]], function(model)model[["prior_weights_set"]])
-
+  prior_weights  <- sapply(object[["models"]], function(model) model[["prior_weights_set"]])
 
   # check whether there is a comparable model for each non-converged models
   for(i in seq_along(object[["models"]])[!converged]){
 
-    temp_ind  <- seq_along(object[["models"]])[-i]
-    temp_same <- temp_ind[effect[-i] == effect[i] & heterogeneity[-i] == heterogeneity[i] & bias[-i] == bias[i] & converged[-i]]
+    temp_same_structure <- sapply(seq_along(object$models)[converged], function(j) all(component_types[j,] == component_types[i,]))
+    temp_same_structure <- seq_along(object$models)[converged][temp_same_structure]
 
     # if yes, transfer the prior odds
-    if(length(temp_same) >= 1){
+    if(length(temp_same_structure) >= 1){
 
-      prior_weights[temp_same] <- prior_weights[temp_same] + prior_weights[i] / length(temp_same)
+      prior_weights[temp_same_structure] <- prior_weights[temp_same_structure] + prior_weights[i] / length(temp_same_structure)
       prior_weights[i] <- 0
-      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge. However, there were other models with the same combination of presence/absence of effect/heterogeneity/publication bias and their prior probability was increased to account for the failed models.")
+      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge. However, there were other models with the same combination of model components and their prior probability was increased to account for the failed models.")
 
     }else{
 
       prior_weights[i] <- 0
-      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge and their prior probability couldn't be balanced over models with the same combination of presence/absence of effect/heterogeneity/publication bias since they don't exist.")
+      object$add_info[["warnings"]] <- c(object$add_info[["warnings"]], "Some of the models failed to converge and their prior probability couldn't be balanced over models with the same combination of model components since they don't exist.")
 
     }
   }
 
-  for(i in seq_along(object[["models"]])[!converged]){
+  for(i in seq_along(object[["models"]])){
     object[["models"]][[i]][["prior_weights"]] <- prior_weights[i]
   }
 
   return(object)
+}
+.restore_component_probability   <- function(object){
+
+  # extract the prior odds set by user
+  prior_weights  <- sapply(object[["models"]], function(model) model[["prior_weights_set"]])
+
+  for(i in seq_along(object[["models"]])){
+    object[["models"]][[i]][["prior_weights"]] <- prior_weights[i]
+  }
+
+  return(object)
+
 }
 .ensemble_inference    <- function(object){
 
@@ -47,23 +71,32 @@
   heterogeneity  <- sapply(models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(models, function(model)!.is_component_null(model[["priors"]], "bias"))
   hierarchical   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "hierarchical"))
+  baseline       <- sapply(models, function(model)!.is_component_null(model[["priors"]], "baseline"))
 
   # obtain the parameter types
   weightfunctions <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
   PET             <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
   PEESE           <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
 
-  # define inference options
-  components      <- c("Effect", "Heterogeneity", "Bias")
+  # define inference options: always effect and heterogeneity
+  components      <- c("Effect", "Heterogeneity")
   parameters      <- c("mu", "tau")
-  components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity, "Bias" = !bias)
+  components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity)
   parameters_null <- list("mu"     = !effect, "tau"           = !heterogeneity)
 
+  if(any(bias)){
+    components      <- c(components,      "Bias")
+    components_null <- c(components_null, "Bias" = list(!bias))
+  }
   if(any(hierarchical)){
     components      <- c(components,      "Hierarchical")
     parameters      <- c(parameters,      "rho")
     components_null <- c(components_null, "Hierarchical" = list(!hierarchical))
     parameters_null <- c(parameters_null, "rho" = list(!hierarchical))
+  }
+  if(any(baseline)){
+    components      <- c(components,      "Baseline")
+    components_null <- c(components_null, "Baseline" = list(!baseline))
   }
   if(any(weightfunctions)){
     components      <- c(components,      "bias.selection-models")
@@ -104,8 +137,10 @@
     # define inference options
     components_predictors      <- NULL
     parameters_predictors      <- "mu_intercept"
+    parameters_marginal        <- "mu_intercept"
     components_predictors_null <- list()
     parameters_predictors_null <- list("mu_intercept" = !effect)
+    parameters_marginal_null   <- list("mu_intercept" = !effect)
 
     components_predictors_distributions      <- NULL
     components_predictors_distributions_null <- list()
@@ -120,8 +155,11 @@
 
     for(i in seq_along(predictors)){
       parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(predictors[i]))
+      parameters_marginal   <- c(parameters_marginal,   .BayesTools_parameter_name(predictors[i]))
       parameters_predictors_null[[.BayesTools_parameter_name(predictors[i])]] <-
-        sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors[i] %in% x))
+        sapply(model_predictors_test, function(x) !(predictors[i] %in% x))
+      parameters_marginal_null[[.BayesTools_parameter_name(predictors[i])]] <-
+        sapply(seq_along(models), function(j) !((predictors[i] %in% model_predictors_test[j]) || effect[j]))
     }
 
 
@@ -177,14 +215,14 @@
     }
 
     # create marginal estimates and summary
-    if(all(sapply(parameters_predictors_null, all))){
+    if(all(sapply(parameters_marginal_null, all))){
       inference_marginal <- NULL
     }else{
       inference_marginal <- BayesTools::marginal_inference(
         model_list          = models,
-        marginal_parameters = parameters_predictors[!sapply(parameters_predictors_null, all)],
-        parameters          = parameters_predictors,
-        is_null_list        = parameters_predictors_null,
+        marginal_parameters = parameters_marginal[!sapply(parameters_marginal_null, all)],
+        parameters          = parameters_marginal,
+        is_null_list        = parameters_marginal_null,
         formula             = object[["formula"]],
         seed                = object$add_info[["seed"]],
         silent              = TRUE

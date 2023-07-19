@@ -184,6 +184,138 @@
 
   return(priors_main)
 }
+.check_and_list_priors.bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_baseline_null, priors_baseline){
+
+  priors <- list()
+  priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
+  priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
+  priors$baseline       <- .check_and_list_component_priors(priors_baseline_null,        priors_baseline,       "baseline")
+
+  return(priors)
+}
+.check_and_list_priors.reg  <- function(priors, data, model_type, test_predictors, prior_scale,
+                                        priors_effect_null, priors_effect,
+                                        priors_heterogeneity_null, priors_heterogeneity,
+                                        priors_bias_null, priors_bias,
+                                        priors_hierarchical_null, priors_hierarchical,
+                                        prior_covariates_null, prior_covariates,
+                                        prior_factors_null, prior_factors){
+
+  priors_main <- .check_and_list_priors(
+    model_type                = model_type,
+    priors_effect_null        = priors_effect_null,
+    priors_effect             = priors_effect,
+    priors_heterogeneity_null = priors_heterogeneity_null,
+    priors_heterogeneity      = priors_heterogeneity,
+    priors_bias_null          = priors_bias_null,
+    priors_bias               = priors_bias,
+    priors_hierarchical_null  = priors_hierarchical_null,
+    priors_hierarchical       = priors_hierarchical,
+    prior_scale               = prior_scale
+  )
+
+  predictors      <- attr(data[["predictors"]],"terms")
+  predictors_type <- attr(data[["predictors"]],"terms_type")
+
+  # check the input
+  if(!is.prior.simple(prior_covariates_null) || is.prior.factor(prior_covariates_null))
+    stop("The default prior for covariates (null) is not a valid prior distribution.", call. = FALSE)
+  if(!is.prior.simple(prior_covariates) || is.prior.factor(prior_covariates))
+    stop("The default prior for covariates is not a valid prior distribution.", call. = FALSE)
+  if(!is.prior.factor(prior_factors_null) & !is.prior.point(prior_factors_null))
+    stop("The default prior for factors (null) is not a valid prior distribution.", call. = FALSE)
+  if(!is.prior.factor(prior_factors) & !is.prior.point(prior_factors))
+    stop("The default prior for factors is not a valid prior distribution.", call. = FALSE)
+
+  # check for reserved words
+  if(any(names(priors) %in% .reserved_words()))
+    stop(paste0("The following prior names are internally reserved keywords and cannot be used: ",
+                paste0(" '", names(priors)[names(priors) %in% .reserved_words()], "' ", collapse = ", ")), call. = FALSE)
+
+
+  # completely the prior distribution specification
+  if(is.null(priors)){
+
+    # standardize possible inputs for no predictors testing
+    if(is.null(test_predictors) || isFALSE(test_predictors) || length(test_predictors) == 0){
+      # no testing
+      test_predictors <- character()
+    }else if(isTRUE(test_predictors)){
+      # tests all predictors with default priors
+      test_predictors <- predictors
+    }else{
+      BayesTools::check_char(test_predictors, "test_predictors", check_length = FALSE, allow_values = predictors)
+    }
+
+    # update the predictors specification
+    priors <- list()
+
+    to_test <- predictors[predictors %in% test_predictors]
+    no_test <- predictors[!predictors %in% test_predictors]
+
+    for(i in seq_along(to_test)){
+      priors[[to_test[i]]] <- list(
+        "null" = if(predictors_type[to_test[i]] == "factor") prior_factors_null else prior_covariates_null,
+        "alt"  = if(predictors_type[to_test[i]] == "factor") prior_factors      else prior_covariates
+      )
+    }
+    for(i in seq_along(no_test)){
+      priors[[no_test[i]]] <- list(
+        "alt"  = if(predictors_type[no_test[i]] == "factor") prior_factors else prior_covariates
+      )
+    }
+
+  }else{
+
+    priors_by_user  <- priors
+    priors          <- list()
+    test_predictors <- character()
+
+    # reformat and updated the user specified priors
+    for(i in seq_along(predictors)){
+
+      p <- predictors[i]
+
+      if(is.null(priors_by_user[[p]])){
+        # no user specified priors -- default estimation only
+        priors[[p]] <- list(
+          "alt"  = if(predictors_type[p] == "factor") prior_factors else prior_covariates
+        )
+
+      }else if(is.prior(priors_by_user[[p]])){
+        # a single, unmanned prior distribution -- assume it's alternative and perform default test
+        test_predictors <- c(test_predictors, p)
+        priors[[p]]     <- list(
+          "null" = if(predictors_type[p] == "factor") prior_factors_null else prior_covariates_null,
+          "alt"  = priors_by_user[[p]]
+        )
+
+      }else if(is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 1 && length(names(priors_by_user[[p]])) == 1 &&
+               names(priors_by_user[[p]]) %in% c("null", "alt") && is.prior(priors_by_user[[p]][[1]])){
+        # a single, named prior distribution -- do not add any additional prior
+        priors[[p]] <- priors_by_user[[p]]
+
+      }else if(is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 2 && length(names(priors_by_user[[p]])) == 2 &&
+               all(names(priors_by_user[[p]]) %in% c("null", "alt")) && all(sapply(priors_by_user[[p]], is.prior))){
+        # both prior distributions are specified by the user
+        test_predictors <- c(test_predictors, p)
+        priors[[p]]     <- priors_by_user[[p]]
+
+      }else{
+        stop(paste0("The prior distribution for '",p,"' is specified incorrectly."))
+      }
+    }
+
+  }
+
+
+  # add attributes
+  priors_main$terms                <- priors
+  attr(priors_main, "terms")       <- predictors
+  attr(priors_main, "terms_test")  <- if(length(test_predictors) == 0) NULL else test_predictors
+
+  return(priors_main)
+}
 .check_and_list_component_priors  <- function(priors_null, priors_alt, component){
 
   # check that at least one prior is specified (either null or alternative)
@@ -256,7 +388,7 @@
         if(priors[[p]][["distribution"]] == "point" && abs(priors[[p]]$parameters[["location"]]) > 1){
           stop("The location of a point prior distribution for the hierarchical correlation must be within [-1, 1] interval.")
         }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[p]]$parameters[["a"]] < -1 | priors[[p]]$parameters[["b"]] > 1)){
-          stop("The uniform prior distribution for the hierarchical correlation cannot be defined outsied of the [-1, 1] interval.")
+          stop("The uniform prior distribution for the hierarchical correlation cannot be defined outside of the [-1, 1] interval.")
         }
 
         if(priors[[p]]$truncation[["lower"]] < -1){
@@ -274,7 +406,6 @@
 
     }
 
-
   }else if(component == "bias"){
 
     for(p in seq_along(priors)){
@@ -282,6 +413,47 @@
       # check for allowed priors
       if(!(is.prior.PET(priors[[p]]) | is.prior.PEESE(priors[[p]]) | is.prior.weightfunction(priors[[p]]) | is.prior.none(priors[[p]])))
         stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the bias component."))
+    }
+
+  }else if(component == "rho"){
+
+    for(p in seq_along(priors)){
+
+      # check for allowed priors
+      if(priors[[p]][["distribution"]] != "beta")
+        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the rho component."))
+    }
+  }else if(component == "baseline"){
+
+    for(p in seq_along(priors)){
+
+      # do not allow empty priors
+      if(is.prior.none(priors[[p]])){
+        stop("The baseline probability cannot be undefined.")
+      }
+
+      if(!is.prior.independent(priors[[p]])){
+        stop(paste0("'", print(priors[[p]], silent = TRUE),"' prior distribution is not supported for the baseline probability component."))
+      }
+
+      if(priors[[p]][["distribution"]] == "point" && (priors[[p]]$parameters[["location"]] > 1 || priors[[p]]$parameters[["location"]] < 0)){
+        stop("The location of a point prior distribution for the baseline probability must be within [0, 1] interval.")
+      }else if(priors[[p]][["distribution"]] == "uniform" && (priors[[p]]$parameters[["a"]] < 0 | priors[[p]]$parameters[["b"]] > 1)){
+        stop("The uniform prior distribution for the baseline probability cannot be defined outside of the [0, 1] interval.")
+      }
+
+      if(priors[[p]]$truncation[["lower"]] < 0){
+        priors[[p]]$truncation[["lower"]] <- 0
+        warning("The range of a prior distribution for the baseline probability cannot be lower than 0. The lower truncation point was set to 0.", immediate. = TRUE)
+      }
+      if(priors[[p]]$truncation[["upper"]] > 1){
+        priors[[p]]$truncation[["lower"]] <- 1
+        warning("The range of a prior distribution for the baseline probability cannot be higher than 1. The upper truncation point was set to 1.", immediate. = TRUE)
+      }
+      if(priors[[p]]$truncation[["lower"]] > priors[[p]]$truncation[["upper"]]){
+        stop("Invalid lower and upper truncation points for the baseline probability.", immediate. = TRUE)
+      }
+
     }
   }
 
@@ -299,14 +471,28 @@
           for(hierarchical in priors[["hierarchical"]]){
             models <- c(
               models,
-              list(.make_model(effect, heterogeneity, bias, hierarchical, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * hierarchical[["prior_weights"]], multivariate, weighted))
-            )
+              list(.make_model(
+                prior_effect        = effect,
+                prior_heterogeneity = heterogeneity,
+                prior_bias          = bias,
+                prior_hierarchical  = hierarchical,
+                prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * hierarchical[["prior_weights"]],
+                multivariate        = multivariate,
+                weighted            = weighted
+            )))
           }
         }else{
           models <- c(
             models,
-            list(.make_model(effect, heterogeneity, bias, NULL, effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]], multivariate, weighted))
-          )
+            list(.make_model(
+              prior_effect        = effect,
+              prior_heterogeneity = heterogeneity,
+              prior_bias          = bias,
+              prior_hierarchical  = NULL,
+              prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]],
+              multivariate        = multivariate,
+              weighted            = weighted
+          )))
         }
       }
     }
@@ -406,6 +592,62 @@
   attr(model, "multivariate")  <- attr(model_base, "multivariate")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+
+  return(model)
+}
+
+.make_models.bi  <- function(priors, K, weighted){
+
+  # create models according to the set priors
+  models <- NULL
+  for(effect in priors[["effect"]]){
+    for(heterogeneity in priors[["heterogeneity"]]){
+      for(baseline in priors[["baseline"]]){
+        models <- c(
+          models,
+          list(.make_model.bi(
+            prior_effect        = effect,
+            prior_heterogeneity = heterogeneity,
+            prior_baseline      = baseline,
+            prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * baseline[["prior_weights"]],
+            K                   = K,
+            weighted            = weighted
+        )))
+      }
+    }
+  }
+
+  return(models)
+}
+.make_model.bi   <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, K, weighted){
+
+  is_random <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
+
+  priors <- list()
+
+  priors$mu    <- prior_effect
+  priors$tau   <- prior_heterogeneity
+  priors$pi    <- prior_baseline
+
+  # specify the number of levels
+  attr(priors$pi, "levels") <- K
+
+  # add non-central random effects
+  if(is_random){
+    priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(priors$gamma, "levels") <- K
+  }
+
+  model <- list(
+    priors            = priors,
+    prior_weights     = prior_weights,
+    prior_weights_set = prior_weights
+  )
+  class(model) <- "BiBMA.model"
+
+  attr(model, "multivariate") <- FALSE
+  attr(model, "random")       <- is_random
+  attr(model, "weighted")     <- weighted
 
   return(model)
 }

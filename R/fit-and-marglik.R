@@ -1,5 +1,5 @@
 # the main functions
-.fit_RoBMA_model       <- function(object, i){
+.fit_RoBMA_model       <- function(object, i, extend = FALSE){
 
   model              <- object[["models"]][[i]]
   priors             <- model[["priors"]]
@@ -81,26 +81,42 @@
     }
 
     # fit the model
-    fit <- BayesTools::JAGS_fit(
-      model_syntax       = model_syntax,
-      data               = fit_data,
-      prior_list         = fit_priors,
-      formula_list       = formula_list,
-      formula_data_list  = formula_data_list,
-      formula_prior_list = formula_prior_list,
-      chains             = fit_control[["chains"]],
-      adapt              = fit_control[["adapt"]],
-      burnin             = fit_control[["burnin"]],
-      sample             = fit_control[["sample"]],
-      thin               = fit_control[["thin"]],
-      autofit            = fit_control[["autofit"]],
-      autofit_control    = autofit_control,
-      parallel           = fit_control[["parallel"]],
-      cores              = fit_control[["cores"]],
-      silent             = fit_control[["silent"]],
-      seed               = fit_control[["seed"]],
-      required_packages  = "RoBMA"
-    )
+    if(!extend || length(model[["fit"]]) == 0){
+
+      fit <- BayesTools::JAGS_fit(
+        model_syntax       = model_syntax,
+        data               = fit_data,
+        prior_list         = fit_priors,
+        formula_list       = formula_list,
+        formula_data_list  = formula_data_list,
+        formula_prior_list = formula_prior_list,
+        chains             = fit_control[["chains"]],
+        adapt              = fit_control[["adapt"]],
+        burnin             = fit_control[["burnin"]],
+        sample             = fit_control[["sample"]],
+        thin               = fit_control[["thin"]],
+        autofit            = fit_control[["autofit"]],
+        autofit_control    = autofit_control,
+        parallel           = fit_control[["parallel"]],
+        cores              = fit_control[["cores"]],
+        silent             = fit_control[["silent"]],
+        seed               = fit_control[["seed"]],
+        required_packages  = "RoBMA"
+      )
+
+    }else{
+
+      fit <- BayesTools::JAGS_extend(
+        fit                = model[["fit"]],
+        autofit_control    = autofit_control,
+        parallel           = fit_control[["parallel"]],
+        cores              = fit_control[["cores"]],
+        silent             = fit_control[["silent"]],
+        seed               = fit_control[["seed"]]
+      )
+
+    }
+
 
     # assess the model fit and deal with errors
     if(inherits(fit, "error")){
@@ -108,10 +124,13 @@
       if(grepl("Unknown function", fit$message))
         stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
 
-      fit            <- list()
+      fit                     <- list()
+      attr(fit, "prior_list") <- fit_priors
+
       converged      <- FALSE
       has_posterior  <- FALSE
       errors         <- c(errors, fit$message)
+
       # deal with failed models
       marglik        <- list()
       marglik$logml  <- NA
@@ -245,19 +264,214 @@
     }
   }
 
-  model <- c(
-    model,
-    fit           = list(fit),
-    fit_summary   = list(fit_summary),
-    fit_summaries = list(fit_summaries),
-    marglik       = list(marglik),
-    errors        = list(errors),
-    warnings      = list(warnings),
-    converged     = converged,
-    has_posterior = has_posterior,
-    output_scale  = add_info[["prior_scale"]],
-    prior_scale   = add_info[["prior_scale"]]
+
+  # add results
+  model$fit           <- fit
+  model$fit_summary   <- fit_summary
+  model$fit_summaries <- fit_summaries
+  model$marglik       <- marglik
+  model$errors        <- errors
+  model$warnings      <- warnings
+  model$converged     <- converged
+  model$has_posterior <- has_posterior
+  model$output_scale  <- add_info[["prior_scale"]]
+  model$prior_scale   <- add_info[["prior_scale"]]
+
+  return(model)
+}
+.fit_BiBMA_model       <- function(object, i, extend = FALSE){
+
+  model              <- object[["models"]][[i]]
+  priors             <- model[["priors"]]
+  fit_control        <- object[["fit_control"]]
+  autofit_control    <- object[["autofit_control"]]
+  convergence_checks <- object[["convergence_checks"]]
+  add_info           <- object[["add_info"]]
+
+  errors   <- NULL
+  warnings <- NULL
+
+  if(!fit_control[["silent"]]){
+    cat(paste0("\nFitting model [", i, "]\n"))
+  }
+
+  ### the model is never constant as there needs to be a prior for pi
+  # deal with regression vs basic models
+  if(inherits(model, "BiBMA.reg.model")){
+    data_outcome       <- object[["data"]][["outcome"]]
+    fit_priors         <- priors[names(priors) != "terms"]
+    formula_list       <- .generate_model_formula_list(object[["formula"]])
+    formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
+    formula_prior_list <- .generate_model_formula_prior_list(priors)
+  }else if(inherits(model, "BiBMA.model")){
+    data_outcome       <- object[["data"]]
+    fit_priors         <- priors
+    formula_list       <- NULL
+    formula_data_list  <- NULL
+    formula_prior_list <- NULL
+  }
+
+  model_syntax <- .generate_model_syntax.bi(
+    priors           = fit_priors,
+    random           = attr(model, "random"),
+    weighted         = attr(model, "weighted"),
+    regression       = inherits(model, "BiBMA.reg.model")
   )
+
+  # remove unnecessary objects from data to mitigate warnings
+  fit_data     <- .fit_data.bi(
+    data             = data_outcome,
+    weighted         = attr(model, "weighted"),
+    weighted_type    = attr(model, "weighted_type")
+  )
+
+  # fit the model
+  if(!extend || length(model[["fit"]]) == 0){
+
+    fit <- BayesTools::JAGS_fit(
+      model_syntax       = model_syntax,
+      data               = fit_data,
+      prior_list         = fit_priors,
+      formula_list       = formula_list,
+      formula_data_list  = formula_data_list,
+      formula_prior_list = formula_prior_list,
+      chains             = fit_control[["chains"]],
+      adapt              = fit_control[["adapt"]],
+      burnin             = fit_control[["burnin"]],
+      sample             = fit_control[["sample"]],
+      thin               = fit_control[["thin"]],
+      autofit            = fit_control[["autofit"]],
+      autofit_control    = autofit_control,
+      parallel           = fit_control[["parallel"]],
+      cores              = fit_control[["cores"]],
+      silent             = fit_control[["silent"]],
+      seed               = fit_control[["seed"]],
+      required_packages  = "RoBMA"
+    )
+
+  }else{
+
+    fit <- BayesTools::JAGS_extend(
+      fit             = model[["fit"]],
+      autofit_control = autofit_control,
+      parallel        = fit_control[["parallel"]],
+      cores           = fit_control[["cores"]],
+      silent          = fit_control[["silent"]],
+      seed            = fit_control[["seed"]]
+    )
+
+  }
+
+  # assess the model fit and deal with errors
+  if(inherits(fit, "error")){
+
+    if(grepl("Unknown function", fit$message))
+      stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
+
+    fit                     <- list()
+    attr(fit, "prior_list") <- fit_priors
+
+    converged      <- FALSE
+    has_posterior  <- FALSE
+    errors         <- c(errors, fit$message)
+
+    # deal with failed models
+    marglik        <- list()
+    marglik$logml  <- NA
+    class(marglik) <- "bridge"
+
+  }else{
+
+    has_posterior <- TRUE
+    check_fit     <- BayesTools::JAGS_check_convergence(
+      fit          = fit,
+      prior_list   = attr(fit, "prior_list"),
+      max_Rhat     = convergence_checks[["max_Rhat"]],
+      min_ESS      = convergence_checks[["min_ESS"]],
+      max_error    = convergence_checks[["max_error"]],
+      max_SD_error = convergence_checks[["max_SD_error"]]
+    )
+    warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
+    if(convergence_checks[["remove_failed"]] && !check_fit){
+      converged <- FALSE
+    }else{
+      converged <- TRUE
+    }
+
+  }
+
+  # compute marginal likelihood
+  if(length(fit) != 0){
+
+    marglik <- BayesTools::JAGS_bridgesampling(
+      fit                = fit,
+      data               = fit_data,
+      prior_list         = fit_priors,
+      formula_list       = formula_list,
+      formula_data_list  = formula_data_list,
+      formula_prior_list = formula_prior_list,
+      log_posterior      = .marglik_function.bi,
+      maxiter            = 50000,
+      silent             = fit_control[["silent"]],
+      priors             = priors,
+      random             = attr(model, "random")
+    )
+
+    # deal with failed marginal likelihoods
+    if(inherits(marglik, "error")){
+
+      errors         <- c(errors, marglik$message)
+      converged      <- FALSE
+      marglik        <- list()
+      marglik$logml  <- NA
+      class(marglik) <- "bridge"
+
+    }else{
+
+      # forward warnings if present
+      warnings <- c(warnings, attr(marglik, "warnings"))
+
+    }
+  }
+
+  # add model summaries
+  if(has_posterior){
+    fit_summary   <- BayesTools::runjags_estimates_table(
+      fit                = fit,
+      warnings           = warnings,
+      transform_factors  = TRUE,
+      formula_prefix     = FALSE,
+      remove_parameters  = c("pi", if(attr(model, "random")) "gamma")
+    )
+    fit_summaries <- .runjags_summary_list(
+      fit               = fit,
+      priors            = attr(fit, "prior_list"),
+      priors_scale      = add_info[["prior_scale"]],
+      warnings          = warnings,
+      remove_parameters = c("pi", if(attr(model, "random")) "gamma")
+    )
+  }else{
+    fit_summary    <- BayesTools::runjags_estimates_empty_table()
+    fit_summaries  <- list(
+      "d"     = BayesTools::runjags_estimates_empty_table(),
+      "r"     = BayesTools::runjags_estimates_empty_table(),
+      "logOR" = BayesTools::runjags_estimates_empty_table(),
+      "z"     = BayesTools::runjags_estimates_empty_table()
+    )
+  }
+
+
+  # add results
+  model$fit           <- fit
+  model$fit_summary   <- fit_summary
+  model$fit_summaries <- fit_summaries
+  model$marglik       <- marglik
+  model$errors        <- errors
+  model$warnings      <- warnings
+  model$converged     <- converged
+  model$has_posterior <- has_posterior
+  model$output_scale  <- add_info[["prior_scale"]]
+  model$prior_scale   <- add_info[["prior_scale"]]
 
   return(model)
 }
@@ -335,6 +549,23 @@
   }
 
   fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"study_ids"]),"study_ids"])][-1] - 1, fit_data[["K_v"]])
+
+  return(fit_data)
+}
+.fit_data.bi              <- function(data, weighted, weighted_type){
+
+  # unlist the data frame
+  fit_data <- list()
+  fit_data$x1 <- data[["x1"]]
+  fit_data$x2 <- data[["x2"]]
+  fit_data$n1 <- data[["n1"]]
+  fit_data$n2 <- data[["n2"]]
+  fit_data$K  <- nrow(data)
+
+  # add weights proportional to the number of estimates from a study
+  if(weighted){
+    fit_data$weight <- .get_id_weights(data, weighted_type)
+  }
 
   return(fit_data)
 }
@@ -522,6 +753,47 @@
 
   return(model_syntax)
 }
+.generate_model_syntax.bi <- function(priors, random, weighted, regression){
+
+  model_syntax <- "model{\n"
+
+  ### priors and model are always specified on log(OR) scale
+  # no need to apply transformations here
+
+  ### model
+  model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
+
+  # deal with the random/fixed models (they are not marginalized as in the normal case) & meta-regression
+  # using non-central parameterization
+  if(random && regression){
+    eff <- "(mu[i] + gamma[i] * tau)"
+  }else if(random && !regression){
+    eff <- "(mu + gamma[i] * tau)"
+  }else if(!random && regression){
+    eff <- "mu[i]"
+  }else if(!random && !regression){
+    eff <- "mu"
+  }
+
+  # transform the parameters to the probability scale
+  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) + 0.5 * ", eff, "\n")
+  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) - 0.5 * ", eff, "\n")
+
+  # the observed data
+  if(weighted){
+    stop("This is not enough to take fraction of the likelihood properly -- also the non-marginalized random effects need to be repeated among the same observations.")
+    model_syntax <- paste0(model_syntax, "  x1[i] ~ dwbinom(p1[i], n1[i], weight[i])\n")
+    model_syntax <- paste0(model_syntax, "  x2[i] ~ dwbinom(p2[i], n2[i], weight[i])\n")
+  }else{
+    model_syntax <- paste0(model_syntax, "  x1[i] ~ dbinom(p1[i], n1[i])\n")
+    model_syntax <- paste0(model_syntax, "  x2[i] ~ dbinom(p2[i], n2[i])\n")
+  }
+
+  model_syntax <- paste0(model_syntax, "}\n")
+  model_syntax <- paste0(model_syntax, "}")
+
+  return(model_syntax)
+}
 .marglik_function         <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
 
   # extract parameters
@@ -698,6 +970,34 @@
 
   return(log_lik)
 }
+.marglik_function.bi      <- function(parameters, data, priors, random){
+
+  # extract parameters
+  mu    <- parameters[["mu"]]
+  pi    <- parameters[["pi"]]
+  if(random){
+    delta <- mu + parameters[["gamma"]] * parameters[["tau"]]
+  }else{
+    delta <- mu
+  }
+
+  ### compute the marginal log_likelihood
+  log_lik <- 0
+
+  # transform to probabilities
+  p1 = .inv_logit( .logit(pi) + 0.5 * delta)
+  p2 = .inv_logit( .logit(pi) - 0.5 * delta)
+
+  if(!is.null(data[["weight"]])){
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = p1, size = data[["n1"]], log = TRUE) * data[["weight"]])
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = p2, size = data[["n2"]], log = TRUE) * data[["weight"]])
+  }else{
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x1"]], prob = p1, size = data[["n1"]], log = TRUE))
+    log_lik <- log_lik + sum(stats::dbinom(x = data[["x2"]], prob = p2, size = data[["n2"]], log = TRUE))
+  }
+
+  return(log_lik)
+}
 
 # additional tools
 .fitting_priority       <- function(models){
@@ -708,11 +1008,11 @@
 
     difficulty <- 0
 
-    if(inherits(model, "RoBMA.model")){
+    if(inherits(model, "RoBMA.model") | inherits(model, "BiBMA.model")){
       if(is.prior.simple(model$priors[["mu"]])){
         difficulty <- difficulty + 1
       }
-    }else if(inherits(model, "RoBMA.reg.model")){
+    }else if(inherits(model, "RoBMA.reg.model") | inherits(model, "BiBMA.reg.model")){
       difficulty <-  difficulty + sum(sapply(model$priors[["terms"]], function(prior){
         if(is.prior.point(prior)){
           return(0)
@@ -737,23 +1037,20 @@
 
   return(order(fitting_difficulty, decreasing = TRUE))
 }
-.runjags_summary_list   <- function(fit, priors, priors_scale, warnings){
+.runjags_summary_list   <- function(fit, priors, priors_scale, warnings, remove_parameters = NULL){
 
   summary_list <- list()
 
-  for(measure in c("d", "r", "z", "logOR")){
+  for(measure in c("d", "r", "z", "logOR", "OR")){
 
     # prepare transformations if necessary
     if(measure != priors_scale){
       transformations <- list()
       if("mu" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["mu"]]))){
-        transformations[["mu"]] <- list(
-          "fun" = .transform_mu,
-          "arg" = list(
-            "from" = priors_scale,
-            "to"   = measure
-          )
-        )
+        transformations[["mu"]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
+      }
+      for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
+        transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
       }
       for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
         transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- list(
@@ -765,23 +1062,11 @@
         )
       }
       if("tau" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["tau"]]))){
-        transformations[["tau"]] <- list(
-          "fun" = .scale,
-          "arg" = list(
-            "from" = priors_scale,
-            "to"   = measure
-          )
-        )
+        transformations[["tau"]] <- .get_scale(priors_scale, measure, fun = FALSE)
       }
       if("PEESE" %in% names(priors)){
         # the transformation is inverse for PEESE
-        transformations[["PEESE"]] <- list(
-          "fun" = .scale,
-          "arg" = list(
-            "from" = measure,
-            "to"   = priors_scale
-          )
-        )
+        transformations[["PEESE"]] <- .get_scale(measure, priors_scale, fun = FALSE)
       }
       if(length(transformations) == 0){
         transformations <- NULL
@@ -796,7 +1081,8 @@
       transform_factors = TRUE,
       formula_prefix    = FALSE,
       warnings          = warnings,
-      footnotes         = .scale_note(priors_scale, measure)
+      footnotes         = .scale_note(priors_scale, measure),
+      remove_parameters = remove_parameters
     ))
   }
 
@@ -869,6 +1155,9 @@
   return(priors)
 }
 
+# marginal likelihood computation function
+.logit     <- function(x) log(x/(1-x))
+.inv_logit <- function(x) 1/(1+exp(-x))
 
 # JAGS tools for model building and marginal likelihood
 .JAGS_transformation    <- function(from, to, from_par, to_par_name){

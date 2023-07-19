@@ -1,3 +1,13 @@
+## version 3.1
+### Features
+- binomial-normal models for binary data via the `BiBMA` function
+- `NoBMA` and `NoBMA.reg()` functions as wrappers around `RoBMA` `RoBMA.reg()` functions for simpler specification of publication bias unadjusted Bayesian model-averaged meta-analysis
+- adding odds ratios output transformation` 
+- extending (instead of a complete refitting) of models via the `update.RoBMA()` function (only non-converged models by default or all by setting `extend_all = TRUE`)
+
+### Fixes
+- handling of non-converged models
+
 ## version 3.0.1
 ### Fixes (thanks to Don & Rens)
 - compilation issues with Clang (https://github.com/FBartos/RoBMA/issues/28)
@@ -61,7 +71,6 @@
 - adding a vignette reproducing the example of dentine sensitivity with the informed Bayesian model-averaged meta-analysis from Bartoš et al., 2021 ([open-access](https://onlinelibrary.wiley.com/doi/10.1002/sim.9170)),
 - further reductions of fitted object size when setting `save = "min"`
 
-
 ## version 2.1
 ### Fixes
 - more informative error message when the JAGS module fails to load
@@ -73,7 +82,6 @@
 - adding `interpret()` function (issue #11)
 - adding effect size transformation via `output_scale` argument to `plot()` and `plot_models()` functions
 - better handling of effect size transformations and scaling - BayesTools style back-end functions with Jacobian transformations
-
 
 ## version 2.0
 Please notice that this is a major release that breaks backwards compatibility.
@@ -91,8 +99,6 @@ Please notice that this is a major release that breaks backwards compatibility.
  - new prior distributions, e.g., beta or fixed weight functions,
  - estimates from individual models are now plotted with the `plot_models()` function and the forest plot can be obtained with the `forest()` function,
  - the posterior distribution plots for the individual weights are no able supported, however, the weightfunction and the PET-PEESE publication bias adjustments can be visualized with the `plot.RoBMA()` function and `parameter = "weightfunction"` and `parameter = "PET-PEESE"`.
- 
-
 
 ## version 1.2.1
 ### Fixes
@@ -107,7 +113,6 @@ Please notice that this is a major release that breaks backwards compatibility.
 ### Fixes
 - autofit being turn on if any control argument was specified
 
-
 ## version 1.1.2
 ### Fixes
 - vdiffr not being used conditionally in unit tests
@@ -120,7 +125,6 @@ Please notice that this is a major release that breaks backwards compatibility.
 ## version 1.1.0
 ### Features
 - parallel within and between model fitting using the parallel package with 'parallel = TRUE' argument
-
 
 ## version 1.0.5
 ### Fixes:

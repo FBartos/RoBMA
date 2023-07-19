@@ -9,6 +9,7 @@ combine_data(
   r = NULL,
   z = NULL,
   logOR = NULL,
+  OR = NULL,
   t = NULL,
   y = NULL,
   se = NULL,
@@ -21,7 +22,8 @@ combine_data(
   weight = NULL,
   data = NULL,
   transformation = "fishers_z",
-  return_all = FALSE
+  return_all = FALSE,
+  ...
 )
 }
 \arguments{
@@ -32,6 +34,8 @@ combine_data(
 \item{z}{a vector of effect sizes measured as Fisher's z}
 
 \item{logOR}{a vector of effect sizes measured as log odds ratios}
+
+\item{OR}{a vector of effect sizes measured as odds ratios}
 
 \item{t}{a vector of t/z-statistics}
 
@@ -71,6 +75,8 @@ refrain from any transformations.}
 
 \item{return_all}{whether data frame containing all filled values should be
 returned. Defaults to \code{FALSE}}
+
+\item{...}{additional arguments.}
 }
 \value{
 \code{combine_data} returns a data.frame.

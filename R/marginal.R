@@ -16,10 +16,10 @@
 marginal_summary <- function(object, conditional = FALSE,
                              output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE){
 
-  if(sum(.get_model_convergence(object)) == 0)
-    stop("There is no converged model in the ensemble.")
   if(!is.RoBMA.reg(object))
     stop("'marginal_summary' function is available only for RoBMA regression models")
+  if(sum(.get_model_convergence(object)) == 0)
+    stop("There is no converged model in the ensemble.")
   if(!is.null(.check_predictors_scaling(object)))
     stop("'marginal_summary' function requires standardized predictors")
 
@@ -57,7 +57,7 @@ marginal_summary <- function(object, conditional = FALSE,
     formula_prefix = FALSE,
     probs          = probs,
     title          = "Model-averaged marginal estimates:",
-    footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+    footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale, marginal = TRUE),
     warnings       = .collect_errors_and_warnings(object)
   )
 
@@ -80,7 +80,7 @@ marginal_summary <- function(object, conditional = FALSE,
       formula_prefix = FALSE,
       probs          = probs,
       title          = "Conditional marginal estimates:",
-      footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+      footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale, marginal = TRUE),
       warnings       = .collect_errors_and_warnings(object)
     )
 
@@ -146,10 +146,10 @@ print.marginal_summary.RoBMA <- function(x, ...){
 marginal_plot  <- function(x, parameter, conditional = FALSE, plot_type = "base", prior = FALSE, output_scale = NULL, dots_prior = NULL, ...){
 
   # check whether plotting is possible
-  if(sum(.get_model_convergence(x)) == 0)
-    stop("There is no converged model in the ensemble.")
   if(!is.RoBMA.reg(x))
     stop("'marginal_plot' function is available only for RoBMA regression models")
+  if(sum(.get_model_convergence(x)) == 0)
+    stop("There is no converged model in the ensemble.")
   if(!is.null(.check_predictors_scaling(x)))
     stop("'marginal_plot' function requires standardized predictors")
 

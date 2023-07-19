@@ -49,8 +49,8 @@
 <polyline points='683.68,542.49 683.68,21.71 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
 <polygon points='66.85,45.38 97.69,45.38 97.69,471.79 683.68,471.79 683.68,45.38 97.69,45.38 97.69,45.38 66.85,45.38 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #B3B3B3; fill-opacity: 0.30;' />
 <polyline points='66.85,45.38 97.69,45.38 97.69,104.51 683.68,104.51 ' style='stroke-width: 2.13; stroke: #999999; stroke-linecap: butt;' />
-<polygon points='66.85,45.38 97.69,45.38 97.69,479.57 683.68,479.57 683.68,45.38 97.69,45.38 97.69,45.38 66.85,45.38 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #4D4D4D; fill-opacity: 0.30;' />
-<polyline points='66.85,45.38 97.69,45.38 97.69,137.64 683.68,137.64 ' style='stroke-width: 2.13; stroke-linecap: butt;' />
+<polygon points='66.85,45.38 97.69,45.38 97.69,477.36 683.68,477.36 683.68,45.38 97.69,45.38 97.69,45.38 66.85,45.38 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #4D4D4D; fill-opacity: 0.30;' />
+<polyline points='66.85,45.38 97.69,45.38 97.69,133.11 683.68,133.11 ' style='stroke-width: 2.13; stroke-linecap: butt;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <text x='31.08' y='522.26' text-anchor='end' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.0</text>

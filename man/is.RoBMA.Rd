@@ -3,11 +3,20 @@
 \name{is.RoBMA}
 \alias{is.RoBMA}
 \alias{is.RoBMA.reg}
+\alias{is.NoBMA}
+\alias{is.NoBMA.reg}
+\alias{is.BiBMA}
 \title{Reports whether x is a RoBMA object}
 \usage{
 is.RoBMA(x)
 
 is.RoBMA.reg(x)
+
+is.NoBMA(x)
+
+is.NoBMA.reg(x)
+
+is.BiBMA(x)
 }
 \arguments{
 \item{x}{an object to test}

@@ -8,6 +8,7 @@ RoBMA(
   d = NULL,
   r = NULL,
   logOR = NULL,
+  OR = NULL,
   z = NULL,
   y = NULL,
   se = NULL,
@@ -68,6 +69,8 @@ RoBMA(
 \item{r}{a vector of effect sizes measured as correlations}
 
 \item{logOR}{a vector of effect sizes measured as log odds ratios}
+
+\item{OR}{a vector of effect sizes measured as odds ratios}
 
 \item{z}{a vector of effect sizes measured as Fisher's z}
 

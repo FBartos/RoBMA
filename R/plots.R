@@ -102,7 +102,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
   }else if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) == "petpeese"){
     parameter         <- "PETPEESE"
     parameter_samples <- "PETPEESE"
-  }else if(parameter %in% c("mu", "tau", "rho")){
+  }else if(parameter %in% c("mu", "tau", "rho", "PET", "PEESE")){
     parameter         <- parameter
     parameter_samples <- parameter
   }else if(is.RoBMA.reg(x) && parameter %in% x$add_info[["predictors"]]){
@@ -123,23 +123,23 @@ plot.RoBMA  <- function(x, parameter = "mu",
   if(is.null(output_scale)){
     output_scale <- x$add_info[["output_scale"]]
   }else{
-    output_scale <- .transformation_var(output_scale)
+    output_scale <- .transformation_var(output_scale, estimation = FALSE)
   }
   # set the transformations
   if(parameter != "omega" && results_scale != output_scale){
-    if(parameter == "PETPEESE"){
+    if(parameter == "PEESE"){
       # the transformation is inverse for PEESE
-      transformation <- eval(parse(text = paste0(".scale_", output_scale, "2", results_scale)))
+      transformation <- .get_transform_mu(output_scale, results_scale, fun = FALSE)
     }else if(parameter == "PET"){
       # PET is scale invariant
       transformation <- NULL
     }else if(parameter == "rho"){
       # rho is scale invariant
       transformation <- NULL
-    }else if(parameter == "mu" | parameter %in% x$add_info[["predictors"]]){
-      transformation <- eval(parse(text = paste0(".", results_scale, "2", output_scale)))
+    }else if(parameter %in% c("mu", "PETPEESE") || parameter %in% x$add_info[["predictors"]]){
+      transformation <- .get_transform_mu(results_scale, output_scale, fun = FALSE)
     }else if(parameter == "tau"){
-      transformation <- eval(parse(text = paste0(".scale_", results_scale, "2", output_scale)))
+      transformation <- .get_scale(results_scale, output_scale, fun = FALSE)
     }
   }else{
     transformation <- NULL
@@ -197,12 +197,15 @@ plot.RoBMA  <- function(x, parameter = "mu",
     }
   }
 
-  if(parameter %in% c("mu", "tau", "rho", "omega")){
+
+  if(parameter %in% c("mu", "tau", "rho", "omega", "PET", "PEESE")){
     if(conditional && is.null(samples[[parameter]])){
       switch(
         parameter,
         "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect."),
         "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity."),
+        "PET"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PET models. Please, verify that you specified at least one model assuming the presence of the PET models."),
+        "PEESE" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PEESE models. Please, verify that you specified at least one model assuming the presence of the PEESE models."),
         "rho"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the three-level structure. Please, verify that you specified at least one model assuming the presence of the three-level structure."),
         "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of selection models publication bias adjustment. Please, verify that you specified at least one model assuming the presence of selection models publication bias adjustment.")
       )
@@ -211,6 +214,8 @@ plot.RoBMA  <- function(x, parameter = "mu",
         parameter,
         "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the effect. Please, verify that you specified at least one model for the effect."),
         "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the heterogeneity. Please, verify that you specified at least one model for the heterogeneity."),
+        "PET"   = stop("The ensemble does not contain any posterior samples model-averaged across the PET. Please, verify that you specified at least one model for the PET."),
+        "PEESE" = stop("The ensemble does not contain any posterior samples model-averaged across the PEESE. Please, verify that you specified at least one model for the PEESE."),
         "rho"   = stop("The ensemble does not contain any posterior samples model-averaged across the three-level structure. Please, verify that you specified at least one model for the three-level structure."),
         "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the selection models publication bias adjustment. Please, verify that you specified at least one selection models publication bias adjustment.")
       )
@@ -227,6 +232,17 @@ plot.RoBMA  <- function(x, parameter = "mu",
       stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the '%1$s' predictor. Please, verify that you specified at least one model assuming the presence of '%1$s' predictor.", parameter))
     }else if(is.null(samples[[parameter_samples]])){
       stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the '%1$s' predictor. Please, verify that you specified at least one model containing the '%1$s' predictor.", parameter))
+    }
+  }
+
+
+  # remove PET/PEESE prior class (otherwise PET-PEESE density is produced in BayesTools)
+  if(parameter %in% c("PET", "PEESE")){
+    for(i in seq_along(attr(samples[["PET"]], "prior_list"))){
+      class(attr(samples[["PET"]], "prior_list")[[i]])   <- class(attr(samples[["PET"]], "prior_list")[[i]])[!class(attr(samples[["PET"]], "prior_list")[[i]]) %in% "prior.PET"]
+    }
+    for(i in seq_along(attr(samples[["PEESE"]], "prior_list"))){
+      class(attr(samples[["PEESE"]], "prior_list")[[i]]) <- class(attr(samples[["PEESE"]], "prior_list")[[i]])[!class(attr(samples[["PEESE"]], "prior_list")[[i]]) %in% "prior.PEESE"]
     }
   }
 
@@ -270,7 +286,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
   args$transformation_arguments <- NULL
   args$transformation_settings  <- FALSE
   args$rescale_x                <- rescale_x
-  args$par_name                 <- if(parameter %in% c("mu", "tau", x$add_info[["predictors"]])) .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
+  args$par_name                 <- if(parameter %in% c("mu", "tau", "PET", "PEESE", x$add_info[["predictors"]])) .plot.RoBMA_par_names(parameter, x, output_scale)[[1]]
   args$dots_prior               <- dots_prior
 
   # suppress messages about transformations
@@ -374,7 +390,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   if(is.null(output_scale)){
     output_scale <- x$add_info[["output_scale"]]
   }else{
-    output_scale <- .transformation_var(output_scale)
+    output_scale <- .transformation_var(output_scale, estimation = FALSE)
   }
 
   # set the transformations
@@ -388,11 +404,16 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   uCI_mu <- unname(stats::quantile(samples_mu, .975))
 
   # get the CIs (+add transformation if necessary)
-  data <- combine_data(data = data, transformation = .transformation_invar(output_scale), return_all = TRUE)
+  if(is.BiBMA(x)){
+    data <- .combine_data.bi(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
+  }else{
+    data <- combine_data(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
+  }
 
   # simplify the data structure
   data$y <- data[,output_scale]
   data   <- data[,c("y", "lCI", "uCI", "study_names")]
+
 
   # add ordering
   if(!is.null(order)){
@@ -580,20 +601,20 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
   if(is.null(output_scale)){
     output_scale <- x$add_info[["output_scale"]]
   }else{
-    output_scale <- .transformation_var(output_scale)
+    output_scale <- .transformation_var(output_scale, estimation = FALSE)
   }
   # set the transformations
   if(results_scale != output_scale){
     if(parameter == "PETPEESE"){
       # the transformation is inverse for PEESE
-      transformation <- eval(parse(text = paste0(".scale_", output_scale, "2", results_scale)))
+      transformation <- .get_scale(output_scale, results_scale, fun = FALSE)
     }else if(parameter == "PET"){
       # PET is scale invariant
       transformation <- NULL
     }else if(parameter == "mu"){
-      transformation <- eval(parse(text = paste0(".", results_scale, "2", output_scale)))
+      transformation <- .get_transform_mu(results_scale, output_scale, fun = FALSE)
     }else if(parameter == "tau"){
-      transformation <- eval(parse(text = paste0(".scale_", results_scale, "2", output_scale)))
+      transformation <- .get_scale(results_scale, output_scale, fun = FALSE)
     }
   }else{
     transformation <- NULL
@@ -724,8 +745,8 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
       "r"     = expression(rho),
       "d"     = expression("Cohen's"~italic(d)),
       "z"     = expression("Fisher's"~italic(z)),
-      "logOR" = expression("log"(italic("OR"))),
-      "OR"    = expression(italic("OR")),
+      "logOR" = expression("logOR"),
+      "OR"    = expression("OR"),
       "y"     = expression(mu)
     ))
 
@@ -736,8 +757,8 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
       "r"     = expression(tau~(rho)),
       "d"     = expression(tau~("Cohen's"~italic(d))),
       "z"     = expression(tau~("Fisher's"~italic(z))),
-      "logOR" = expression(tau~("log"(italic("OR")))),
-      "OR"    = expression(tau~(italic("OR"))),
+      "logOR" = expression(tau~("logOR")),
+      "OR"    = expression(tau~("logOR")),
       "y"     = expression(tau)
     ))
 
@@ -776,8 +797,8 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
       "r"     = expression("PET"~(rho)),
       "d"     = expression("PET"~("Cohen's"~italic(d))),
       "z"     = expression("PET"~("Fisher's"~italic(z))),
-      "logOR" = expression("PET"~("log"(italic("OR")))),
-      "OR"    = expression("PET"~(italic("OR"))),
+      "logOR" = expression("PET"~("logOR")),
+      "OR"    = expression("PET"~("OR")),
       "y"     = expression("PET")
     ))
 
@@ -790,8 +811,8 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
       "r"     = expression("PEESE"~(rho)),
       "d"     = expression("PEESE"~("Cohen's"~italic(d))),
       "z"     = expression("PEESE"~("Fisher's"~italic(z))),
-      "logOR" = expression("PEESE"~("log"(italic("OR")))),
-      "OR"    = expression("PEESE"~(italic("OR"))),
+      "logOR" = expression("PEESE"~("logOR")),
+      "OR"    = expression("PEESE"~("OR")),
       "y"     = expression("PEESE")
     ))
 
@@ -802,8 +823,8 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
       "r"     = bquote(.(par)~(rho)),
       "d"     = bquote(.(par)~("Cohen's"~italic(d))),
       "z"     = bquote(.(par)~("Fisher's"~italic(z))),
-      "logOR" = bquote(.(par)~("log"(italic("OR")))),
-      "OR"    = bquote(.(par)~(italic("OR"))),
+      "logOR" = bquote(.(par)~("logOR")),
+      "OR"    = bquote(.(par)~("OR")),
       "y"     = bquote(.(par))
     ))
   }

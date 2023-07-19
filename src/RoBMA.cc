@@ -12,6 +12,7 @@
 #include "distributions/DMNv.h"
 #include "distributions/DWMN1v.h"
 #include "distributions/DWMN2v.h"
+#include "distributions/DWB.h"
 
 #include "transformations/d.h"
 #include "transformations/r.h"
@@ -48,6 +49,7 @@ namespace jags {
       insert(new DMNv);
       insert(new DWMN1v);
       insert(new DWMN2v);
+      insert(new DWB);
 
       //effect sizes transformations
       insert(new d2z);

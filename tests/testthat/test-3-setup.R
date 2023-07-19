@@ -2,7 +2,7 @@ context("(3) Model setup")
 skip_on_cran()
 
 # test model preview
-test_that("Model preview works", {
+test_that("RoBMA model preview works", {
 
   expect_equal(
     capture_output_lines(check_setup(models = FALSE), print = TRUE, width = 150),
@@ -166,7 +166,6 @@ test_that("Model preview works", {
 test_that("RoBMA.reg model preview works", {
 
   # also test for model generation as it calls RoBMA.reg function within
-
   df_reg <- data.frame(
     d       = c(rep(-1, 5), rep(0, 5), rep(1, 5)),
     se      = rep(0.1, 15),
@@ -378,6 +377,62 @@ test_that("RoBMA.reg model preview works", {
 
 })
 
+test_that("BiBMA model preview works", {
+
+  expect_equal(
+    capture_output_lines(check_setup.BiBMA(), print = TRUE, width = 150),
+    c("Bayesian model-averaged meta-analysis (binomial model) (set-up)",
+      "Components summary:"                                            ,
+      "              Models Prior prob."                               ,
+      "Effect           2/4       0.500"                               ,
+      "Heterogeneity    2/4       0.500"
+    )
+  )
+
+  expect_equal(
+    capture_output_lines(check_setup.BiBMA(models = TRUE), print = TRUE, width = 150),
+    c("Bayesian model-averaged meta-analysis (binomial model) (set-up)"                               ,
+      "Components summary:"                                                                           ,
+      "              Models Prior prob."                                                              ,
+      "Effect           2/4       0.500"                                                              ,
+      "Heterogeneity    2/4       0.500"                                                              ,
+      ""                                                                                              ,
+      "Models overview:"                                                                              ,
+      " Model      Prior Effect      Prior Heterogeneity          Prior Baseline          Prior prob.",
+      "     1              Spike(0)             Spike(0) independent contrast: Beta(1, 1)       0.250",
+      "     2              Spike(0) InvGamma(1.77, 0.55) independent contrast: Beta(1, 1)       0.250",
+      "     3 Student-t(0, 0.58, 4)             Spike(0) independent contrast: Beta(1, 1)       0.250",
+      "     4 Student-t(0, 0.58, 4) InvGamma(1.77, 0.55) independent contrast: Beta(1, 1)       0.250"
+    ))
+
+  expect_equal(
+    capture_output_lines(check_setup.BiBMA(
+      priors_effect_null = NULL,
+      priors_heterogeneity = list(prior("spike", list(3)), prior("spike", list(5))),
+      priors_baseline = prior_factor("beta", list(2, 2), contrast = "independent", prior_weights = 2),
+      models = TRUE
+      ), print = TRUE, width = 150),
+    c("Bayesian model-averaged meta-analysis (binomial model) (set-up)"                              ,
+      "Components summary:"                                                                          ,
+      "              Models Prior prob."                                                             ,
+      "Effect           6/6       1.000"                                                             ,
+      "Heterogeneity    4/6       0.667"                                                             ,
+      "Baseline         3/6       0.667"                                                             ,
+      ""                                                                                             ,
+      "Models overview:"                                                                             ,
+      " Model      Prior Effect     Prior Heterogeneity          Prior Baseline          Prior prob.",
+      "     1 Student-t(0, 0.58, 4)            Spike(0) independent contrast: Beta(1, 1)       0.111",
+      "     2 Student-t(0, 0.58, 4)            Spike(0) independent contrast: Beta(2, 2)       0.222",
+      "     3 Student-t(0, 0.58, 4)            Spike(3) independent contrast: Beta(1, 1)       0.111",
+      "     4 Student-t(0, 0.58, 4)            Spike(3) independent contrast: Beta(2, 2)       0.222",
+      "     5 Student-t(0, 0.58, 4)            Spike(5) independent contrast: Beta(1, 1)       0.111",
+      "     6 Student-t(0, 0.58, 4)            Spike(5) independent contrast: Beta(2, 2)       0.222"
+    )
+  )
+
+
+})
+
 test_that("Set autofit control works", {
 
   expect_error(set_autofit_control(max_Rhat = .99), "Checking 'autofit_control':\n\tThe 'max_Rhat' must be equal or higher than 1.")
@@ -387,6 +442,7 @@ test_that("Set autofit control works", {
   expect_error(set_autofit_control(max_SD_error=  1.1), "Checking 'autofit_control':\n\tThe 'max_SD_error' must be equal or lower than 1.")
   expect_error(set_autofit_control(max_time = list(time = -1, unit = "secs")), "Checking 'autofit_control':\n\tThe 'max_time:time' must be equal or higher than 0.")
   expect_error(set_autofit_control(max_time = list(time = 10, unit = "maps")), "Checking 'autofit_control':\n\tThe 'maps' values are not recognized by the 'max_time:unit' argument.")
+  expect_error(set_autofit_control(restarts =  -1), "Checking 'autofit_control':\n\tThe 'restarts' must be equal or higher than 1.")
 
   expect_equal(set_autofit_control(), list(
     max_Rhat      = 1.05,
@@ -394,7 +450,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_Rhat = 1.01),  list(
@@ -403,7 +460,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(min_ESS = 200),  list(
@@ -412,7 +470,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_error = 0.01),  list(
@@ -421,7 +480,8 @@ test_that("Set autofit control works", {
     max_error     = 0.01,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_SD_error = 0.01),  list(
@@ -430,7 +490,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = 0.01,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(max_time = list(time = 30, unit = "secs")),  list(
@@ -439,7 +500,8 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 30, unit = "secs"),
-    sample_extend = 1000
+    sample_extend = 1000,
+    restarts      = 10
   ))
 
   expect_equal(set_autofit_control(sample_extend = 200),  list(
@@ -448,9 +510,19 @@ test_that("Set autofit control works", {
     max_error     = NULL,
     max_SD_error  = NULL,
     max_time      = list(time = 60, unit = "mins"),
-    sample_extend = 200
+    sample_extend = 200,
+    restarts      = 10
   ))
 
+  expect_equal(set_autofit_control(restarts = 200),  list(
+    max_Rhat      = 1.05,
+    min_ESS       = 500,
+    max_error     = NULL,
+    max_SD_error  = NULL,
+    max_time      = list(time = 60, unit = "mins"),
+    sample_extend = 1000,
+    restarts      = 200
+  ))
 })
 
 test_that("Set convergence checks works", {
