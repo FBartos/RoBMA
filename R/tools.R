@@ -19,12 +19,12 @@
 
 #' @rdname check_RoBMA
 check_RoBMA <- function(fit){
-  .is_RoBMA_object(fit)
+  .check_is_any_RoBMA_object(fit)
   .print_errors_and_warnings(fit, max_print = Inf)
 }
 #' @rdname check_RoBMA
 check_RoBMA_convergence <- function(fit){
-  .is_RoBMA_object(fit)
+  .check_is_any_RoBMA_object(fit)
   return(.get_model_convergence(fit))
 }
 
@@ -265,7 +265,7 @@ check_RoBMA_convergence <- function(fit){
     return(object[1] <= current[1] && object[2] <= current[2] && object[3] <= current[3])
   }
 }
-.is_RoBMA_object             <- function(x){
+.check_is_any_RoBMA_object   <- function(x){
   if(is.RoBMA(x) || is.RoBMA.reg(x) || is.NoBMA(x) || is.NoBMA.reg(x) || is.BiBMA(x)){
     stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
   }
