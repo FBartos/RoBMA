@@ -557,17 +557,20 @@ interpret           <- function(object, output_scale = NULL){
 #' relative measures of heterogeneity (I^2, H^2) for a
 #' fitted RoBMA object.
 #'
+#' @param prediction_probs quantiles of the prediction interval.
 #' @inheritParams summary.RoBMA
 #'
 #' @return \code{summary.RoBMA} returns a list of tables of class 'BayesTools_table'.
 #'
 #' @export
 summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE,
-                                  output_scale = NULL, probs = c(.025, .975),
+                                  output_scale = NULL, probs = c(.025, .975), prediction_probs = c(.025, .975),
                                   short_name = FALSE, remove_spike_0 = FALSE){
 
   .check_is_any_RoBMA_object(object)
   BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
+  BayesTools::check_real(prediction_probs, "prediction_probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_char(type, "type")
   BayesTools::check_bool(short_name, "short_name")
   BayesTools::check_bool(remove_spike_0, "remove_spike_0")
@@ -673,14 +676,18 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
         tau <- suppressWarnings(coda::as.mcmc(object[["models"]][[i]][["fit"]]))[,"tau"]
       }
 
+      PI <- .compute_model_prediction_interval(object[["models"]][[i]], prediction_probs)
+      PI <- lapply(PI, function(x) .transform_mu(x, from = model_scale, to = output_scale))
+
       estimates <- BayesTools::ensemble_estimates_table(
-        samples    = list(
-          tau   = .get_scale(object[["models"]][[i]][["prior_scale"]], output_scale)(tau),
-          tau2  = .get_scale(object[["models"]][[i]][["prior_scale"]], output_scale)(tau)^2,
-          I2    = .compute_I2(tau, v_tilde),
-          H2    = .compute_H2(tau, v_tilde)
+        samples    = c(
+          PI,
+          tau   = list(.get_scale(object[["models"]][[i]][["prior_scale"]], output_scale)(tau)),
+          tau2  = list(.get_scale(object[["models"]][[i]][["prior_scale"]], output_scale)(tau)^2),
+          I2    = list(.compute_I2(.get_scale(object[["models"]][[i]][["prior_scale"]], model_scale)(tau), v_tilde)),
+          H2    = list(.compute_H2(.get_scale(object[["models"]][[i]][["prior_scale"]], model_scale)(tau), v_tilde))
         ),
-        parameters = c("tau", "tau2", "I2", "H2"),
+        parameters = c(names(PI), "tau", "tau2", "I2", "H2"),
         probs      = probs,
         title      = "Heterogeneity estimates:",
         footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale)),
@@ -718,6 +725,31 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   (tau^2 + v_tilde) / v_tilde
 }
 
+.compute_model_prediction_interval    <- function(model, prediction_probs){
+
+  if(BayesTools::is.prior.point(model$priors[["mu"]])){
+    mu <- model$priors[["mu"]]$parameters[["location"]]
+  }else{
+    mu <- suppressWarnings(coda::as.mcmc(object[["models"]][[i]][["fit"]]))[,"mu"]
+  }
+
+  if(BayesTools::is.prior.point(model$priors[["tau"]])){
+    tau <- model$priors[["tau"]]$parameters[["location"]]
+  }else{
+    tau <- suppressWarnings(coda::as.mcmc(object[["models"]][[i]][["fit"]]))[,"tau"]
+  }
+
+  prediction_interval <- lapply(prediction_probs, function(q) as.numeric(qnorm(q, mu, tau)))
+  names(prediction_interval) <- paste0("PI[", prediction_probs, "]")
+
+  return(prediction_interval)
+}
+.compute_ensemble_prediction_interval <- function(object, prediction_probs){
+
+
+
+  return(prediction_interval)
+}
 .heterogeneity_scale_note <- function(model_scale, prior_scale, output_scale){
   return(sprintf(
     "The prediction interval is summarized on the %1$s scale.\nThe absolute heterogeneity (tau, tau^2) is summarized on the %2$s scale (priors were specified on the %3$s scale).\nThe relative heterogeneity indicies (I^2 and H^2) were computed on the %4$s scale.",
