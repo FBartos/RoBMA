@@ -2,16 +2,21 @@
 % Please edit documentation in R/tools.R
 \name{check_RoBMA}
 \alias{check_RoBMA}
+\alias{check_RoBMA_convergence}
 \title{Check fitted RoBMA object for errors and warnings}
 \usage{
 check_RoBMA(fit)
+
+check_RoBMA_convergence(fit)
 }
 \arguments{
 \item{fit}{a fitted RoBMA object.}
 }
 \value{
 \code{check_RoBMA} returns a vector of error and
-warning messages.
+warning messages. \code{check_RoBMA_convergence} returns
+a logical vector indicating whether the models have
+converged.
 }
 \description{
 Checks fitted RoBMA object

@@ -1,3 +1,10 @@
+## version 3.2
+### Features
+- `check_RoBMA_convergence()` function to check the convergence of the RoBMA models
+
+### Fixes
+- checking and fixing the number of available cores upon loading the package (hopefully fixes some parallelization issues)
+
 ## version 3.1
 ### Features
 - binomial-normal models for binary data via the `BiBMA` function

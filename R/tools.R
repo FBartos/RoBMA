@@ -8,11 +8,24 @@
 #'
 #'
 #' @return \code{check_RoBMA} returns a vector of error and
-#' warning messages.
+#' warning messages. \code{check_RoBMA_convergence} returns
+#' a logical vector indicating whether the models have
+#' converged.
 #'
-#' @export
+#' @name check_RoBMA
+#' @aliases check_RoBMA check_RoBMA_convergence
+#' @export check_RoBMA
+#' @export check_RoBMA_convergence
+
+#' @rdname check_RoBMA
 check_RoBMA <- function(fit){
+  .is_RoBMA_object(fit)
   .print_errors_and_warnings(fit, max_print = Inf)
+}
+#' @rdname check_RoBMA
+check_RoBMA_convergence <- function(fit){
+  .is_RoBMA_object(fit)
+  return(.get_model_convergence(fit))
 }
 
 .is_model_constant         <- function(priors){
@@ -241,7 +254,7 @@ check_RoBMA <- function(fit){
 
   return(object)
 }
-.object_version_older <- function(object, version){
+.object_version_older        <- function(object, version){
 
   object  <- unlist(object[["add_info"]][["version"]])
   current <- as.numeric(unlist(strsplit(version, ".", fixed = TRUE)))
@@ -250,6 +263,11 @@ check_RoBMA <- function(fit){
     return(object[1] <= current[1] && object[2] <= current[2])
   }else{
     return(object[1] <= current[1] && object[2] <= current[2] && object[3] <= current[3])
+  }
+}
+.is_RoBMA_object             <- function(x){
+  if(is.RoBMA(x) || is.RoBMA.reg(x) || is.NoBMA(x) || is.NoBMA.reg(x) || is.BiBMA(x)){
+    stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
   }
 }
 
