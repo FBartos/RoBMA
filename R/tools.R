@@ -266,7 +266,7 @@ check_RoBMA_convergence <- function(fit){
   }
 }
 .check_is_any_RoBMA_object   <- function(x){
-  if(is.RoBMA(x) || is.RoBMA.reg(x) || is.NoBMA(x) || is.NoBMA.reg(x) || is.BiBMA(x)){
+  if(!(is.RoBMA(x) || is.RoBMA.reg(x) || is.NoBMA(x) || is.NoBMA.reg(x) || is.BiBMA(x))){
     stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
   }
 }
