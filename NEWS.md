@@ -1,5 +1,6 @@
 ## version 3.2
 ### Features
+- `summary_heterogeneity()` function to summarize the heterogeneity of the RoBMA models (prediction interval, tau, tau^2, I^2, and H^2)
 - `check_RoBMA_convergence()` function to check the convergence of the RoBMA models
 
 ### Fixes
