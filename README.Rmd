@@ -39,7 +39,7 @@ This package estimates an ensemble of meta-analytic models (assuming either the 
 See our manuscripts that for technical details and examples:
 
  - @bartos2023robust (https://doi.org/10.31234/osf.io/98xb5) extends RoBMA-PSMA into meta-regression 
- - @bartos2023empirical (https://doi.org/10.48550/arXiv.2306.11468) outlines binomial-normal Bayesian model-averaged meta-analysis for binary outcomes (+ develops empirical prior distributions for log OR, log RR, RD, and log HR in medical settings, also see @bartos2021bayesian for empirical prior distributions for Cohen's d) 
+ - @bartos2023empirical (https://doi.org/10.48550/arXiv.2306.11468) outlines binomial-normal Bayesian model-averaged meta-analysis for binary outcomes (+ develops informed prior distributions for log OR, log RR, RD, and log HR in medical settings, also see @bartos2021bayesian for informed prior distributions for Cohen's d, based on the Cochrane Database of Systematic Reviews) 
  - @bartos2021no (https://doi.org/10.1002/jrsm.1594) describes the newest version of publication bias adjustment, RoBMA-PSMA, which combines selection models and PET-PEESE,
  - @maier2020robust (https://doi.org/10.1037/met0000405) introduces the RoBMA framework and the original version of the method,
  - @bartos2020adjusting (https://doi.org/10.1177/25152459221109259) provides an accessible tutorial on the method including the implementation in the the user-friendly graphical user interface of JASP [@jasp14]
@@ -51,6 +51,7 @@ We also prepared multiple vignettes that illustrate functionality of the package
  - [Reproducing Bayesian model-averaged meta-analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
  - [Hierarchical Bayesian model-averaged meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
  - [Informed Bayesian model-averaged meta-analysis in medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
+ - [Informed Bayesian model-averaged meta-analysis with binary outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
  - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
 
 

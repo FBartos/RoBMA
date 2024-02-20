@@ -1,6 +1,6 @@
 #' @title Estimate a Bayesian Model-Averaged Meta-Analysis of Binomial Data
 #'
-#' @description \code{BiBMA} estimate a Binomial Bayesian
+#' @description \code{BiBMA} estimate a binomial-normal Bayesian
 #' model-averaged meta-analysis. The interface allows a complete customization of
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
@@ -27,7 +27,39 @@
 #' @inheritParams RoBMA
 #' @inheritParams combine_data
 #'
-#' @details See [RoBMA()] for more details.
+#' @details The \code{BiBMA()} function estimates the binomial-normal Bayesian model-averaged
+#' meta-analysis described in \insertCite{bartos2023empirical;textual}{RoBMA}. See
+#' \href{../doc/MedicineBiBMA.html}{\code{vignette("MedicineBiBMA", package = "RoBMA")}}
+#' vignette for a reproduction of the \insertCite{oduwole2018honey;textual}{RoBMA} example.
+#' Also [RoBMA()] for additional details.
+#'
+#' Generic [summary.RoBMA()], [print.RoBMA()], and [plot.RoBMA()] functions are
+#' provided to facilitate manipulation with the ensemble. A visual check of the
+#' individual model diagnostics can be obtained using the [diagnostics()] function.
+#' The fitted model can be further updated or modified by [update.RoBMA()] function.
+#'
+#' @examples \dontrun{
+#' # using the example data from Oduwole (2018) and reproducing the example from
+#' # Bartos et al. (2023) with domain specific informed prior distributions
+#'
+#' fit <- BiBMA(
+#'   x1          = c(5, 2),
+#'   x2          = c(0, 0),
+#'   n1          = c(35, 40),
+#'   n2          = c(39, 40),
+#'   priors_effect        = prior_informed("Acute Respiratory Infections", type = "logOR", parameter = "effect"),
+#'   priors_heterogeneity = prior_informed("Acute Respiratory Infections", type = "logOR", parameter = "heterogeneity")
+#'  )
+#'
+#'  summary(fit)
+#'
+#'  # produce summary on OR scale
+#'  summary(fit, output_scale = "OR")
+#'
+#' }
+#'
+#' @references
+#' \insertAllCited{}
 #'
 #'
 #' @return \code{NoBMA} returns an object of class 'RoBMA'.
