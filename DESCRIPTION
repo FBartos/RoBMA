@@ -40,7 +40,7 @@ NeedsCompilation: yes
 Depends:
     R (>= 4.0.0)
 Imports:
-    BayesTools (>= 0.2.16),
+    BayesTools (>= 0.2.17),
     runjags,
     rjags,
     stats,

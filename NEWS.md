@@ -2,6 +2,7 @@
 ### Features
 - `summary_heterogeneity()` function to summarize the heterogeneity of the RoBMA models (prediction interval, tau, tau^2, I^2, and H^2)
 - `check_RoBMA_convergence()` function to check the convergence of the RoBMA models
+- adds informed prior distributions for binary and time-to-event outcomes via BayesTools 0.2.17
 
 ### Fixes
 - checking and fixing the number of available cores upon loading the package (hopefully fixes some parallelization issues)
