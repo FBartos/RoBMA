@@ -90,3 +90,22 @@
 #' @references
 #' \insertAllCited{}
 "Lui2015"
+
+#' @title 36 estimates of the effect of household chaos on child executive functions
+#' with the mean age and assessment type covariates from a meta-analysis by
+#' \insertCite{andrews2021examining;textual}{RoBMA}
+#'
+#' @description The data set contains correlation coefficients \code{r},
+#' standard errors \code{se}, executive functioning assessment type \code{measure},
+#' and the mean age of the children in each study \code{age}. The original data set
+#' assessed the effect of household chaos on child executive functions
+#' \insertCite{andrews2021examining}{RoBMA} which was used as an
+#' example in \insertCite{bartos2020adjusting;textual}{RoBMA}.
+#'
+#' @format A data.frame with 4 columns and 36 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Andrews2021"
