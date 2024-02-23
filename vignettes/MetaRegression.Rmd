@@ -37,6 +37,12 @@ fit <- readRDS(file = "../models/MetaRegression/fit.RDS")
 # R package version updating
 library(RoBMA)
 
+fit_BMA    <- NoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
+fit_RoBMA  <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1, chains = 1)
+
+saveRDS(fit_BMA,   file = "../models/MetaRegression/fit_BMA.RDS",   compress = "xz")
+saveRDS(fit_RoBMA, file = "../models/MetaRegression/fit_RoBMA.RDS", compress = "xz")
+
 # load data 
 df <- read.csv("example-reg/HC-EF Main Analysis Data.csv")
 
@@ -82,8 +88,8 @@ rma.emm$pval <- pnorm(abs(rma.emm$emmean/rma.emm$SE), lower.tail = FALSE) * 2
 rma.emm
 
 # RoBMA
-BMA    <- NoBMA.reg(~ measure + age, data = df_reg, parallel = TRUE, seed = 1, sample = 20000)
-RoBMA  <- RoBMA.reg(~ measure + age, data = df_reg, parallel = TRUE, seed = 1, sample = 2000, chains = 1)
+BMA    <- NoBMA.reg(~ measure + age, data = df_reg, parallel = TRUE, seed = 1)
+RoBMA  <- RoBMA.reg(~ measure + age, data = df_reg, parallel = TRUE, seed = 1, chains = 1)
 
 saveRDS(BMA,   file = "example-reg/BMA.RDS", compress = "xz")
 saveRDS(RoBMA, file = "example-reg/RoBMA.RDS", compress = "xz")
