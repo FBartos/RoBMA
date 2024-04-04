@@ -68,13 +68,13 @@
 <polyline points='33.27,305.12 36.01,305.12 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='33.27,196.95 36.01,196.95 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='33.27,88.78 36.01,88.78 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,521.47 686.73,521.47 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,442.14 686.73,442.14 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,362.82 686.73,362.82 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,283.49 686.73,283.49 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,204.16 686.73,204.16 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,124.83 686.73,124.83 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,45.51 686.73,45.51 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,521.47 683.99,521.47 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,442.14 683.99,442.14 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,362.82 683.99,362.82 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,283.49 683.99,283.49 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,204.16 683.99,204.16 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,124.83 683.99,124.83 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,45.51 683.99,45.51 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <text x='688.92' y='524.91' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>0</text>
 <text x='688.92' y='445.58' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.1</text>
 <text x='688.92' y='366.26' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.2</text>
@@ -98,6 +98,6 @@
 <text x='654.54' y='557.08' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>3</text>
 <text x='357.27' y='566.40' style='font-size: 10.00px; font-family: sans;' textLength='5.47px' lengthAdjust='spacingAndGlyphs'>μ</text>
 <text transform='translate(12.36,283.49) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
-<text transform='translate(705.56,283.49) rotate(90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='46.69px' lengthAdjust='spacingAndGlyphs'>Probability</text>
+<text transform='translate(707.64,283.49) rotate(90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='46.69px' lengthAdjust='spacingAndGlyphs'>Probability</text>
 </g>
 </svg>

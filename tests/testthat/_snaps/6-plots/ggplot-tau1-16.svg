@@ -73,13 +73,13 @@
 <polyline points='33.27,231.06 36.01,231.06 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='33.27,159.61 36.01,159.61 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <polyline points='33.27,88.16 36.01,88.16 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,516.86 686.73,516.86 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,438.26 686.73,438.26 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,359.67 686.73,359.67 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,281.07 686.73,281.07 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,202.48 686.73,202.48 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,123.88 686.73,123.88 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='683.99,45.29 686.73,45.29 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,516.86 683.99,516.86 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,438.26 683.99,438.26 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,359.67 683.99,359.67 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,281.07 683.99,281.07 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,202.48 683.99,202.48 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,123.88 683.99,123.88 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='686.73,45.29 683.99,45.29 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
 <text x='688.92' y='520.30' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>0</text>
 <text x='688.92' y='441.70' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.1</text>
 <text x='688.92' y='363.11' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.2</text>
@@ -107,6 +107,6 @@
 <text x='349.37' y='566.31' style='font-size: 10.00px; font-family: sans;' textLength='28.35px' lengthAdjust='spacingAndGlyphs'>logOR</text>
 <text x='377.72' y='566.31' style='font-size: 12.50px; font-family: sans;' textLength='4.16px' lengthAdjust='spacingAndGlyphs'>)</text>
 <text transform='translate(12.36,281.07) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
-<text transform='translate(705.56,281.07) rotate(90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='46.69px' lengthAdjust='spacingAndGlyphs'>Probability</text>
+<text transform='translate(707.64,281.07) rotate(90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='46.69px' lengthAdjust='spacingAndGlyphs'>Probability</text>
 </g>
 </svg>
