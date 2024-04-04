@@ -1,7 +1,7 @@
 #' @title Estimate a Bayesian Model-Averaged Meta-Analysis
 #'
 #' @description \code{NoBMA} is a wrapper around [RoBMA()] that can
-#' be used to estimate a (Normal - publication bias unadjusted) Bayesian
+#' be used to estimate a publication bias unadjusted Bayesian
 #' model-averaged meta-analysis. The interface allows a complete customization of
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
@@ -11,6 +11,8 @@
 #'
 #' @details See [RoBMA()] for more details.
 #'
+#' Note that these default prior distributions are relatively wide and more informed
+#' prior distributions for testing for the presence of moderation should be considered.
 #'
 #' @return \code{NoBMA} returns an object of class 'RoBMA'.
 #'
@@ -76,23 +78,19 @@ NoBMA <- function(
 #' @title Estimate a Bayesian Model-Averaged Meta-Regression
 #'
 #' @description \code{NoBMA.reg} is a wrapper around [RoBMA.reg()] that can
-#' be used to estimate a (Normal - publication bias unadjusted) Bayesian
+#' be used to estimate a publication bias unadjusted Bayesian
 #' model-averaged meta-regression. The interface allows a complete customization of
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
 #'
-#' @inheritParams RoBMA
 #' @inheritParams RoBMA.reg
+#' @inheritParams RoBMA
 #' @inheritParams combine_data
-#'
-#' @details See [RoBMA()] for more details.
-#'
-#' Note that these default prior distributions are relatively wide and more informed
-#' prior distributions for testing for the presence of moderation should be considered.
-#'
 #'
 #' @details See [RoBMA.reg()] for more details.
 #'
+#' Note that these default prior distributions are relatively wide and more informed
+#' prior distributions for testing for the presence of moderation should be considered.
 #'
 #' @return \code{NoBMA.reg} returns an object of class 'RoBMA'.
 #'
