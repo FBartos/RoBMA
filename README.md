@@ -33,9 +33,10 @@ See our manuscripts that for technical details and examples:
 - Bartoš, Otte, et al. (2023)
   (<https://doi.org/10.48550/arXiv.2306.11468>) outlines binomial-normal
   Bayesian model-averaged meta-analysis for binary outcomes (+ develops
-  empirical prior distributions for log OR, log RR, RD, and log HR in
-  medical settings, also see Bartoš et al. (2021) for empirical prior
-  distributions for Cohen’s d)
+  informed prior distributions for log OR, log RR, RD, and log HR in
+  medical settings, also see Bartoš et al. (2021) for informed prior
+  distributions for Cohen’s d, based on the Cochrane Database of
+  Systematic Reviews)
 - Bartoš, Maier, Wagenmakers, et al. (2023)
   (<https://doi.org/10.1002/jrsm.1594>) describes the newest version of
   publication bias adjustment, RoBMA-PSMA, which combines selection
@@ -55,10 +56,14 @@ package:
   meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
 - [Reproducing Bayesian model-averaged meta-analysis
   (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
+- [Robust Bayesian model-averaged
+  meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
 - [Hierarchical Bayesian model-averaged
   meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
 - [Informed Bayesian model-averaged meta-analysis in
   medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
+- [Informed Bayesian model-averaged meta-analysis with binary
+  outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
 - [Fitting custom meta-analytic
   ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
 

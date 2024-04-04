@@ -49,6 +49,7 @@ We also prepared multiple vignettes that illustrate functionality of the package
 
  - [Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
  - [Reproducing Bayesian model-averaged meta-analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
+ - [Robust Bayesian model-averaged meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
  - [Hierarchical Bayesian model-averaged meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
  - [Informed Bayesian model-averaged meta-analysis in medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
  - [Informed Bayesian model-averaged meta-analysis with binary outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
