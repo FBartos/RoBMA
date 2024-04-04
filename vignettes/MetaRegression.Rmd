@@ -1,5 +1,5 @@
 ---
-title: "Bayesian Model-Averaged Meta-Regression"
+title: "Robust Bayesian Model-Averaged Meta-Regression"
 author: "František Bartoš"
 date: "`r Sys.Date()`"
 output:
@@ -8,7 +8,7 @@ output:
 bibliography: ../inst/REFERENCES.bib
 csl: ../inst/apa.csl
 vignette: >
-  %\VignetteIndexEntry{Bayesian Model-Averaged Meta-Regression}
+  %\VignetteIndexEntry{Robust Bayesian Model-Averaged Meta-Regression}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
@@ -17,7 +17,7 @@ vignette: >
 ```{r setup, include = FALSE}
 is_check <- ("CheckExEnv" %in% search()) ||
               any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
-              !file.exists("../models/MetaRegression/fit.RDS")
+              !file.exists("../models/MetaRegression/fit_BMA.RDS")
 knitr::opts_chunk$set(
   collapse  = TRUE,
   comment   = "#>",
@@ -30,11 +30,11 @@ if(.Platform$OS.type == "windows"){
 ```{r include = FALSE}
 library(RoBMA)
 # we pre-load the RoBMA models, the fitting time is around 2-5 minutes
-fit <- readRDS(file = "../models/MetaRegression/fit.RDS")
+fit_BMA   <- readRDS(file = "../models/MetaRegression/fit_BMA.RDS")
+fit_RoBMA <- readRDS(file = "../models/MetaRegression/fit_RoBMA.RDS")
 ```
 
 ```{r include = FALSE, eval = FALSE}
-# R package version updating
 library(RoBMA)
 
 fit_BMA    <- NoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
@@ -42,163 +42,123 @@ fit_RoBMA  <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, se
 
 saveRDS(fit_BMA,   file = "../models/MetaRegression/fit_BMA.RDS",   compress = "xz")
 saveRDS(fit_RoBMA, file = "../models/MetaRegression/fit_RoBMA.RDS", compress = "xz")
-
-# load data 
-df <- read.csv("example-reg/HC-EF Main Analysis Data.csv")
-
-# load libraries
-library(metafor)
-library(emmeans)
-library(RoBMA)
-
-### reproducing original results
-
-## Main analysis
-# reported results:
-# r = .16, 95% CI [.12, .20]
-# Q(35) = 363.11, p < .001
-rma(yi = df$Correlation, vi = df$Variance, method = "REML")
-# the test for heterogeneity is a bit off but the estimate and CIs are very close
-
-## Moderation by Executive function
-# reported results:
-# informant-completed questionnaires: r = .23, 95% CI [.16, .29]
-# direct assessment:                   r  .11, 95% CI [.05, .16] 
-rma(yi = df$Correlation, vi = df$Variance, mods = ~ as.factor(df$Approach.to.Measurement.of.Executive.Function) - 1, method = "REML")
-rma(yi = df$Correlation, vi = df$Variance, mods = ~ as.factor(df$Approach.to.Measurement.of.Executive.Function), method = "REML")
-
-## Moderation by mean Child age
-# reported results:
-# b = .01, 95% CI [.004, .02])
-rma(yi = df$Correlation, vi = df$Variance, mods = ~ df$Child.Age..years., method = "REML")
-
-
-
-df_reg <- na.omit(data.frame(
-  r       = df$Correlation,
-  se      = sqrt(df$Variance),
-  measure = factor(ifelse(df$Approach.to.Measurement.of.Executive.Function == 0, "informat", "direct")),
-  age     = as.numeric(scale(df$Child.Age..years.))
-))
-
-# metafor
-fit.rma <- rma(yi = r, sei = se, mods = ~ measure + age, data = df_reg, method = "REML")
-rma.emm <- data.frame(emmeans(emmprep(fit.rma), specs = "measure"))
-rma.emm$pval <- pnorm(abs(rma.emm$emmean/rma.emm$SE), lower.tail = FALSE) * 2
-rma.emm
-
-# RoBMA
-BMA    <- NoBMA.reg(~ measure + age, data = df_reg, parallel = TRUE, seed = 1)
-RoBMA  <- RoBMA.reg(~ measure + age, data = df_reg, parallel = TRUE, seed = 1, chains = 1)
-
-saveRDS(BMA,   file = "example-reg/BMA.RDS", compress = "xz")
-saveRDS(RoBMA, file = "example-reg/RoBMA.RDS", compress = "xz")
-
-
-summary(BMA, output_scale = "r")
-marginal_summary(BMA)  
-
-summary(RoBMA, output_scale = "r")
-marginal_summary(RoBMA)  
-
-marginal_plot(RoBMA, "measure", prior = TRUE, xlim = c(-1, 1), conditional = TRUE)
-
-
-# create marginal posteriors figure
-marg.prior.BMA           <- attr(BMA$RoBMA$inference_marginal$conditional$mu_measure$informat, "prior_samples")
-marg.post.BMA.direct     <- BMA$RoBMA$inference_marginal$conditional$mu_measure$direct
-marg.post.BMA.informal   <- BMA$RoBMA$inference_marginal$conditional$mu_measure$informat
-marg.prior.RoBMA         <- attr(RoBMA$RoBMA$inference_marginal$conditional$mu_measure$informat, "prior_samples")
-marg.post.RoBMA.direct   <- RoBMA$RoBMA$inference_marginal$conditional$mu_measure$direct
-marg.post.RoBMA.informal <- RoBMA$RoBMA$inference_marginal$conditional$mu_measure$informat
-
-
-pdf(file = "example-reg/marginal-posteriors.pdf", width = 9, height = 4)
-{
-par(mfrow = c(1, 2), mar = c(4, 4, 0, 0))
-
-plot(NA, type = "n", xlim = c(-1, 1), ylim = c(0, 8), xlab = expression("Effect size (Cohen's "*delta*")"), ylab = "Density", bty = "n", las = 1)
-
-lines(density(marg.prior.BMA), lty = 2, lwd = 1.5, col = "grey")  
-
-lines(density(marg.post.BMA.direct),   lty = 1, lwd = 1.5, col = "darkblue")
-lines(density(marg.post.BMA.informal), lty = 1, lwd = 1.5, col = "darkgreen")
-
-lines(c(0, 0), c(0, 8), lty = 3)
-
-legend("topleft",  c("Prior", "Posterior"), lty = c(2, 1), lwd = 1.5, col = c("grey", "black"), bty = "n")
-
-
-plot(NA, type = "n", xlim = c(-1, 1), ylim = c(0, 8), xlab = expression("Effect size (Cohen's "*delta*")"), ylab = "Density", bty = "n", las = 1)
-
-lines(density(marg.prior.RoBMA), lty = 2, lwd = 1.5, col = "grey")  
-
-lines(density(marg.post.RoBMA.direct),   lty = 1, lwd = 1.5, col = "darkblue")
-lines(density(marg.post.RoBMA.informal), lty = 1, lwd = 1.5, col = "darkgreen")
-
-lines(c(0, 0), c(0, 8), lty = 3)
-
-legend("topleft", c("Direct assesment", "Informant questionnaires"), lty = 1, lwd = 1.5, col = c("darkblue", "darkgreen"), bty = "n")
-dev.off()
-
-
-saveRDS(fit,  file = "../models/MedicineBiBMA/fit.RDS")
 ```
 
-Bayesian model-averaged meta-analysis can be specified using the binomial likelihood and applied to data with dichotomous outcomes. This vignette illustrates how to do this with an example from @bartos2023empirical, who implemented a binomial-normal Bayesian model-averaged meta-analytic model and developed informed prior distributions for meta-analyses of binary and time-to-event outcomes based on the Cochrane database of systematic reviews (see @bartos2021bayesian for informed prior distributions for meta-analyses of continuous outcomes highlighted in [Informed Bayesian Model-Averaged Meta-Analysis in Medicine](MedicineBMA.html) vignette.
+Robust Bayesian model-averaged meta-regression (RoBMA-reg) extends the robust Bayesian model-averaged meta-analysis (RoBMA) by including covariates in the meta-analytic model. RoBMA-reg allows for the simultaneous estimation and testing for the moderating effects of study-level covariates on the meta-analytic effect while accounting for uncertainty in the presence vs. absence of the effect, heterogeneity, and publication bias. This vignette illustrates how to fit a robust Bayesian model-averaged meta-regression using the `RoBMA` R package. We reproduce the example from @bartos2023robust, who re-analyzed a meta-analysis of the effect of household chaos on child executive functions with the mean age and assessment type covariates based on @andrews2021examining's meta-analysis. 
 
+First, we estimate a frequentist meta-regression using the `metafor` R package. Second, we explain the Bayesian meta-regression model specification, the default prior distributions for continuous and categorical moderators, and standardized effect sizes input specification. Third, the estimate Bayesian model-averaged meta-regression (without publication bias adjustment). Finally, we estimate the complete robust Bayesian model-averaged meta-regression.
 
-### Binomial-Normal Bayesian Model-Averaged Meta-Analysis
+### Data
 
-We illustrate how to fit the binomial-normal Bayesian model-averaged meta-analysis using the `RoBMA` R package. For this purpose, we reproduce the example of adverse effects of honey in treating acute cough in children hypersensitivity from @bartos2023empirical, who reanalyzed two studies with adverse events of nervousness, insomnia, or hyperactivity in the honey vs. no treatment condition that were subjected to a meta-analysis by @oduwole2018honey. 
+We start by loading the `Andrews2021` dataset included in the `RoBMA` R package, which contains 36 estimates of the effect of household chaos on child executive functions with the mean age and assessment type covariates. The dataset includes correlation coefficients (`r`), standard errors of the correlation coefficients (`se`), the type of executive function assessment (`measure`), and the mean age of the children (`age`) in each study.
 
-We load the RoBMA package and specify the number of adverse events and sample sizes in each arm as described on p. 73 [@oduwole2018honey].
 ```{r}
 library(RoBMA)
+data("Andrews2021", package = "RoBMA")
+head(Andrews2021)
+```
 
-events_experimental        <- c(5, 2)
-events_control             <- c(0, 0)
-observations_experimental  <- c(35, 40)
-observations_control       <- c(39, 40)
-study_names <- c("Paul 2007", "Shadkam 2010")
-``` 
-Notice that both studies reported no adverse events in the control group. Using a normal-normal meta-analytic model with log odds ratios would require a continuity correction which might result in bias. Binomial-normal models allow us to circumvent the issue by modeling the observed proportions directly (see @bartos2023empirical for more details).
+### Frequentist Meta-Regression
 
-First, we fit the binomial-normal Bayesian model-averaged meta-analysis using informed prior distributions based on the `Acute Respiratory Infections` subfield. We use the `BiBMA` function and specify the observed events (`x1` and `x2`) and sample size (`n1` and `n2`) of adverse events and sample sizes in each arm. We use the `prior_informed` function to specify the informed prior distributions for the individual medical subfields automatically.
+We start by fitting a frequentist meta-regression using the `metafor` R package [@metafor]. While @andrews2021examining estimated univariate meta-regressions for each moderator, we directly proceed by analyzing both moderators simultaneously. For consistency with original reporting, we estimate the meta-regression using the correlation coefficients and the standard errors provided by [@andrews2021examining]; however, note that Fisher's z transformation is recommended for estimating meta-analytic models (e.g., @stanley2024correcting).
+
+```{r}
+fit_rma <- metafor::rma(yi = r, sei = se, mods = ~ measure + age, data = Andrews2021)
+fit_rma
+```
+
+The results reveal a statistically significant moderation effect of the executive function assessment type on the effect of household chaos on child executive functions ($p = 0.0099$). To explore the moderation effect further, we estimate the estimated marginal means for the executive function assessment type using the `emmeans` R package [@emmeans].
+
+```{r}
+emmeans::emmeans(metafor::emmprep(fit_rma), specs = "measure")
+```
+
+Studies using the informant-completed questionnaires show a stronger effect of household chaos on child executive functions, r = 0.229, 95\% CI [0.161, 0.297], than the direct assessment, r = 0.109, 95\% CI [0.049, 0.169]; both types of studies show statistically significant effects.
+
+The mean age of the children does not significantly moderate the effect ($p = 0.627$) with the estimated regression coefficient of b = 0.003, 95\% CI [-0.009, 0.015]. As usual, frequentist inference limits us to not rejecting the null hypothesis as it cannot evaluate the evidence in favor of the null hypothesis. Here, we try overcoming this limitation with Bayesian model-averaged meta-regression.
+
+
+### Bayesian Meta-Regression Specification
+
+Before we proceed with the Bayesian model-averaged meta-regression, we quickly overview the regression model specification. In contrast to frequentist meta-regression, we need to specify prior distributions on the regression coefficients, which encode the tested hypotheses about the presence vs. absence of the moderation (specifying different prior distributions corresponds to different hypotheses and results in different conclusions). Importantly, the treatment of continuous and categorical covariates differs in the Bayesian model-averaged meta-regression.
+
+#### Continuous vs. Categorical Moderators and Default Prior Distributions
+
+The default prior distribution for continuous moderators is a normal prior distribution with mean of 0 and a standard deviation of 1/4. In other words, the default prior distribution assumes that the effect of the moderator is small and smaller moderation effects are more likely than larger effects. The default choice for continuous moderators can be overwritten by the `prior_covariates` argument (for all continuous covariates) or by the `priors` argument (for specific covariates, see `?RoBMA.reg` for more information). The package also automatically standardizes the continuous moderators (which achieves scale-invariance of the specified prior distributions and makes the prior distribution for the intercept correspond to the grand mean effect), which can be overwritten by setting the `standardize_predictors = FALSE` argument. 
+
+The default prior distribution for the categorical moderators is a normal distribution with a mean of 0 and a standard deviation of 1/4 for by-level deviation from the grand mean effect. The package uses standardized orthonormal contrasts (`contrast = "meandif"`) to achieve the by-level deviation from the grand mean effect specification. The default choice for categorical moderators can be overwritten by the `prior_factors` argument (for all categorical covariates) or by the `priors` argument (for specific covariates, see `?RoBMA.reg` for more information). The `"meandif"` contrasts achieve label invariance (i.e., the coding of the categorical covariates does not affect the results) and the prior distribution for the intercept corresponds to the grand mean effect. Alternatively, the package also allows specifying `"treatment"` contrasts, which result on a prior distribution on the difference between the default level and the remaining levels of the categorical covariate (with the intercept corresponding to the effect in the default factor level).
+
+#### Effect Size Input Specification
+
+Prior distributions for Bayesian meta-analyses are calibrated for the standardized effect size measures. As such, the fitting function needs to know what kind of effect size was supplied as the input. In `RoBMA()` function, this is achieved by the `d`, `r`, `logOR`, `OR`, `z`, `se`, `v`, `n`, `lCI`, and `uCI` arguments. The input is passed to the `combine_data()` function in the background that combines the effect sizes and merges them into a single data.frame. The `RoBMA.reg()` (and `NoBMA.reg()`) function requires the dataset to be passed as a data.frame (without missing values) with column names identifying the
+- moderators passed using the formula interface (i.e., `~ measure + age` in our example)
+- and the effect sizes and standard errors (i.e., `r` and `se`` in our example).
+
+As such, it is crucial for the column names to correctly identify the standardized effect sizes, standard errors, sample sizes, and moderators.
+
+### Bayesian Model-Averaged Meta-Regression
+
+We fit the Bayesian model-averaged meta-regression using the `NoBMA.reg()` function (the `NoBMA.reg()` function is a wrapper around the `RoBMA.reg()` function that automatically removes models adjusting for publication bias). We specify the model formula with the `~` operator similarly to the `rma()` function and pass the dataset as a data.frame with named columns as outlined in the section above (the names need to identify the moderators and effect size measures). We also the `parallel = TRUE` argument to speed up the computation by running the chains in parallel and `seed = 1` argument to ensure reproducibility.
 
 ```r
-fit <- BiBMA(
-  x1          = events_experimental,
-  x2          = events_control,
-  n1          = observations_experimental,
-  n2          = observations_control,
-  study_names = study_names,
-  priors_effect        = prior_informed("Acute Respiratory Infections", type = "logOR", parameter = "effect"),
-  priors_heterogeneity = prior_informed("Acute Respiratory Infections", type = "logOR", parameter = "heterogeneity"),
-  seed = 1
-)
+fit_BMA <- NoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
 ```
-with `priors_effect` and `priors_heterogeneity` corresponding to the $\mu \sim T(0,0.48,3)$ and $\tau \sim InvGamma(1.67, 0.45)$ prior distributions (see `?prior_informed` for more details regarding the informed prior distributions).
 
-We obtain the output with the `summary` function. Adding the `conditional = TRUE` argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true$^2$. We also set the `output_scale = "OR"` argument to display the effect size estimates on the odds ratio scale.
+Note that the `NoBMA.reg()` function specifies the combination of all models assuming presence vs. absence of the effect, heterogeneity, moderation by `measure`, and moderation by `age`, which corresponds to $2*2*2*2=16$ models. Including additional moderators will multiply the number of models by 2 and considerably increase the fitting time.
+
+Once the ensemble is estimated, we can use the `summary()` functions with the `output_scale = "r"` argument, which produces meta-analytic estimates that are transformed to the correlation scale.
 
 ```{r}
-summary(fit, conditional = TRUE, output_scale = "OR")
+summary(fit_BMA, output_scale = "r")
 ```
 
-The output from the `summary.RoBMA()` function has 3 parts. The first one under the 'Robust Bayesian Meta-Analysis' heading provides a basic summary of the fitted models by component types (presence of the Effect and Heterogeneity). The results show that the inclusion Bayes factor for the effect corresponds to the one reported in @bartos2023empirical package, $\text{BF}_{10} = 2.63$ and $\text{BF}_{\text{rf}} = 1.30$ (up to an MCMC error)---weak/undecided evidence for the presence of the effect and heterogeneity. 
+The summary function produces output with multiple sections The first section contains the `Components summary` with the hypothesis test results for the overall effect size and heterogeneity. We find overwhelming evidence for both with inclusion Bayes factors (`Inclusion BF`) above 10,000.
 
-The second part under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). These estimates are shrunk towards the null hypotheses of null effect or no heterogeneity in accordance with out posterior uncertainty about the presence of the effect or heterogeneity. We find the model-averaged mean effect OR = 3.39, 95% CI [0.84, 15.14], and a heterogeneity estimate $\tau_\text{logOR} = 0.42$, 95% CI [0.00, 2.59].
+The second section contains the `Meta-regression components summary` with the hypothesis test results for the moderators. We find moderate evidence for the moderation by the executive function assessment type, $\text{BF}_{\text{measure}} = 4.74$. Furthermore, we find moderate evidence for the null hypothesis of no moderation by mean age of the children, $\text{BF}_{\text{age}} = 0.245$ (i.e., BF for the null is $1/0.245 = 4.08$). These findings extend the frequentist meta-regression by disentangling the absence of evidence from the evidence of absence.
 
-The third part under the 'Conditional estimates' heading displays the conditional effect size and heterogeneity estimates (i.e., estimates assuming presence of the effect or heterogeneity) corresponding to the one reported in @bartos2023empirical, OR = 4.24, 95% CI [0.78, 17.61], and a heterogeneity estimate $\tau_\text{logOR} = 0.75$, 95% CI [0.10, 3.23].
+The third section contains the `Model-averaged estimates` with the model-averaged estimates for mean effect $\rho = 0.16$, 95% CI [0.12, 0.21] and between-study heterogeneity $\tau_{\text{Fisher's z}} = 0.12$, 95% CI [0.86, 0.17].
 
-We can also visualize the posterior distributions of the effect size and heterogeneity parameters using the `plot()` function. Here, we set the `conditional = TRUE` argument to display the conditional effect size estimate and `prior = TRUE` to include the prior distribution in the plot.
+The fourth section contains the `Model-averaged meta-regression estimates` with the model-averaged regression coefficient estimates. The main difference from the usual frequentist meta-regression output is that the categorical predictors are summarized as a difference for each category from the intercept from the grand mean. Here, the `intercept` regression coefficient estimate corresponds to the grand mean effect and the `measure [dif: direct]` regression coefficient estimate of -0.047, 95\% CI [-0.099, 0.000], can be effect size direct assessment results in a lower effect size compared to the grand mean. The `age` regression coefficient estimate is standardized, therefore, the increase of 0.003, 95\% CI [-0.011, 0.043] corresponds to the increase in the  mean effect when increasing mean age of children by one standard deviation.
 
-```{r fig_mu_BMA, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
-plot(fit, parameter = "mu", prior = TRUE, conditional = TRUE)
+Similarly to the frequentist meta-regression, we can use the `marginal_summary()` function to obtain the marginal estimates for each of the factor levels.
+```{r}
+marginal_summary(fit_BMA, output_scale = "r")
+```
+The estimated marginal means are not too dissimilar from the frequentist results. Studies using the informant-completed questionnaires again show a stronger effect of household chaos on child executive functions, $\rho = 0.208$, 95\% CI [0.130, 0.280], than the direct assessment, $\rho = 0.117$, 95\% CI [0.052, 0.185]. 
+
+The last column summarizes results from a test against a null hypothesis of marginal means equals 0. Here, we find very strong evidence for the effect size of studies using the informant-completed questionnaires differing from zero, $\text{BF}_{10} = 50.1$ and extreme evidence for the effect size of studies using the direct assessment differing from zero, $\text{BF}_{10} = \infty$. The test is performed using the change from prior to posterior distribution at 0 (i.e., the Savage-Dickey density ratio) assuming the presence of the overall effect or the presence of difference according to the tested factor. The tests use prior and posterior samples, therefore, it might have trouble calculating the Bayes factor when the posterior distribution is far away from the tested value 0. In such cases, warning messages are printed and $\text{BF}_{10} = \infty$ returned (like here)---while the actual Bayes factor is less than infinity, it is still too large to be computed precisely given the posterior samples.
+
+The full model-averaged posterior marginal means distribution can be visualized by the `marginal_plot()` function.
+```{r fig_BMA, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+marginal_plot(fit_BMA, parameter = "measure", output_scale = "r", lwd = 2)
 ```
 
-Additional visualizations and summarizes are demonstrated in the [Reproducing BMA](ReproducingBMA.html) and [Informed Bayesian Model-Averaged Meta-Analysis in Medicine](MedicineBMA.html) vignettes.
+### Robust Bayesian Model-Averaged Meta-Regression
 
+Finally, we adjust the Bayesian model-averaged meta-regression model by fitting the robust Bayesian model-averaged meta-regression. In contrast to the previous publication bias unadjusted model ensemble, RoBMA-reg adjusts extends the model ensemble by the publication bias component specified via 6 weight functions and PET-PEESE [@bartos2021no]. We use the `RoBMA.reg()` function with the same arguments as in the previous section. The estimation time further increases as the ensemble now contains 144 models.
+
+```r
+fit_RoBMA <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
+```
+```{r}
+summary(fit_RoBMA, output_scale = "r")
+```
+All previously described functions for manipulating the fitted model work identically with the publication bias adjusted model. As such, we just briefly mention the main differences found after adjusting for publication bias.
+
+RoBMA-reg reveals strong evidence of publication bias $\text{BF}_{\text{pb}} = 28.0$. Furthermore, accounting for publication bias turns the previously found evidence for the overall effect into a weak evidence against the  $\text{BF}_{10} = 0.50$ and notably reduces the mean effect estimate $\rho = 0.031$, 95\%CI [0.000, 0.164].
+
+```{r}
+marginal_summary(fit_RoBMA, output_scale = "r")
+```
+
+The estimated marginal means now suggest that studies using the informant-completed questionnaires show a much smaller effect of household chaos on child executive functions, $\rho = 0.093$, 95\% CI [0.000, 0.223] with only moderate evidence against no effect, $\text{BF}_{10} = 7.64$, while studies using direct assessment even provide weak evidence against the effect of household chaos on child executive functions, $\text{BF}_{10} = 0.58$, with most likely effect sizes around zero, $\rho = -0.031$, 95\% CI [-0.105, 0.121].
+
+A visual summary of the estimated marginal means highlights the considerably wider model-averaged posterior distributions of the marginal means---a consequence of accounting and adjusting for publication bias.
+
+```{r fig_RoBMA, dpi = 300, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+marginal_plot(fit_RoBMA, parameter = "measure", output_scale = "r", lwd = 2)
+```
+
+The Bayesian model-averaged meta-regression models are compatible with the remaining custom specification, visualization, and summary functions included in the `RoBMA` R package, highlighted in other vignettes. E.g., custom model specification is demonstrated in the vignette [Fitting Custom Meta-Analytic Ensembles](CustomEnsembles.html) and visualizations and summarizes are demonstrated in the [Reproducing BMA](ReproducingBMA.html) and [Informed Bayesian Model-Averaged Meta-Analysis in Medicine](MedicineBMA.html) vignettes.
 
 ### References

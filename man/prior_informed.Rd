@@ -18,8 +18,8 @@ of meta-analytic effect size estimates based on standardized mean differences
 social psychology based on prior elicitation with dr. Oosterwijk
 (Gronau et al. 2017).}
 }
-For medicine, the possible options are based on BartoE! et al. (2021)
-and  BartoE! et al. (2023)
+For medicine, the possible options are based on Bartoš et al. (2021)
+and  Bartoš et al. (2023)
 who developed empirical prior distributions for the effect size and heterogeneity parameters of the
 continuous outcomes (standardized mean differences), dichotomous outcomes (logOR, logRR, and risk differences),
 and time to event outcomes (logHR) based on the Cochrane database of systematic reviews.
