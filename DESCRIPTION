@@ -49,6 +49,7 @@ Imports:
     scales,
     Rdpack,
     rlang,
+    coda,
     ggplot2
 Suggests:
     parallel,
@@ -57,6 +58,7 @@ Suggests:
     weightr,
     lme4,
     fixest,
+    emmeans,
     metadat,
     testthat,
     vdiffr,

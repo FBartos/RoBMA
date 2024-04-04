@@ -498,7 +498,7 @@ is.BiBMA            <- function(x){
 #' @export
 interpret           <- function(object, output_scale = NULL){
 
-  .check_is_any_RoBMA_object(fit)
+  .check_is_any_RoBMA_object(object)
 
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]

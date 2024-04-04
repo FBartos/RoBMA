@@ -47,8 +47,12 @@
 #'   x2          = c(0, 0),
 #'   n1          = c(35, 40),
 #'   n2          = c(39, 40),
-#'   priors_effect        = prior_informed("Acute Respiratory Infections", type = "logOR", parameter = "effect"),
-#'   priors_heterogeneity = prior_informed("Acute Respiratory Infections", type = "logOR", parameter = "heterogeneity")
+#'   priors_effect        = prior_informed(
+#'       "Acute Respiratory Infections",
+#'       type = "logOR", parameter = "effect"),
+#'   priors_heterogeneity = prior_informed(
+#'       "Acute Respiratory Infections",
+#'       type = "logOR", parameter = "heterogeneity")
 #'  )
 #'
 #'  summary(fit)
