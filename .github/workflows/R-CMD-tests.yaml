@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ${{ matrix.config.os }}
     strategy:
+      fail-fast: false
       matrix:
         config:
           - {os: windows-latest, r: 'release'}
@@ -48,17 +49,24 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
-      - name: Install JAGS and Dependencies (macOS)
+      - name: Download JAGS Installer (macOS)
         if: runner.os == 'macOS'
         run: |
-          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          arch -x86_64 brew install pkg-config jags
+          curl -L -o jags.dmg https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Mac%20OS%20X/JAGS-4.3.1.dmg/download
+
+
+      - name: Install JAGS (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          hdiutil attach jags.dmg -mountpoint /Volumes/jags
+          sudo installer -pkg /Volumes/jags/JAGS-4.3.1.pkg -target /
+          hdiutil detach /Volumes/jags
 
       - name: Set Environment Variables (macOS)
         if: runner.os == 'macOS'
         run: |
-          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
-          echo "JAGS_ROOT=/usr/local/bin" >> $GITHUB_ENV
+          echo "JAGS_ROOT=/usr/local" >> $GITHUB_ENV
+
 
       # Install R package 'renv' and restore dependencies
       - name: Install renv and Restore Dependencies
