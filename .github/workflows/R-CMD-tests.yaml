@@ -48,11 +48,17 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
-      # Install JAGS on macOS
-      - name: Install JAGS (macOS)
+      - name: Install JAGS and Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install jags
+          arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          arch -x86_64 brew install pkg-config jags
+
+      - name: Set Environment Variables (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
+          echo "JAGS_ROOT=/usr/local/bin" >> $GITHUB_ENV
 
       # Install R package 'renv' and restore dependencies
       - name: Install renv and Restore Dependencies
