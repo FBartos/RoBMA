@@ -71,6 +71,5 @@ jobs:
 
       # Run tests
       - name: Run Tests
-        run: |
-          devtools::test()
+        run: source("tests/testthat.R")
         shell: Rscript {0}
