@@ -44,9 +44,9 @@ saveRDS(fit_BMA,   file = "../models/MetaRegression/fit_BMA.RDS",   compress = "
 saveRDS(fit_RoBMA, file = "../models/MetaRegression/fit_RoBMA.RDS", compress = "xz")
 ```
 
-Robust Bayesian model-averaged meta-regression (RoBMA-reg) extends the robust Bayesian model-averaged meta-analysis (RoBMA) by including covariates in the meta-analytic model. RoBMA-reg allows for the simultaneous estimation and testing for the moderating effects of study-level covariates on the meta-analytic effect while accounting for uncertainty in the presence vs. absence of the effect, heterogeneity, and publication bias. This vignette illustrates how to fit a robust Bayesian model-averaged meta-regression using the `RoBMA` R package. We reproduce the example from @bartos2023robust, who re-analyzed a meta-analysis of the effect of household chaos on child executive functions with the mean age and assessment type covariates based on @andrews2021examining's meta-analysis. 
+Robust Bayesian model-averaged meta-regression (RoBMA-reg) extends the robust Bayesian model-averaged meta-analysis (RoBMA) by including covariates in the meta-analytic model. RoBMA-reg allows for estimating and testing the moderating effects of study-level covariates on the meta-analytic effect in a unified framework (e.g., accounting for uncertainty in the presence vs. absence of the effect, heterogeneity, and publication bias). This vignette illustrates how to fit a robust Bayesian model-averaged meta-regression using the `RoBMA` R package. We reproduce the example from @bartos2023robust, who re-analyzed a meta-analysis of the effect of household chaos on child executive functions with the mean age and assessment type covariates based on @andrews2021examining's meta-analysis. 
 
-First, we estimate a frequentist meta-regression using the `metafor` R package. Second, we explain the Bayesian meta-regression model specification, the default prior distributions for continuous and categorical moderators, and standardized effect sizes input specification. Third, the estimate Bayesian model-averaged meta-regression (without publication bias adjustment). Finally, we estimate the complete robust Bayesian model-averaged meta-regression.
+First, we fit a frequentist meta-regression using the `metafor` R package. Second, we explain the Bayesian meta-regression model specification, the default prior distributions for continuous and categorical moderators, and standardized effect sizes input specification. Third, we estimate Bayesian model-averaged meta-regression (without publication bias adjustment). Finally, we estimate the complete robust Bayesian model-averaged meta-regression.
 
 ### Data
 
@@ -75,7 +75,7 @@ emmeans::emmeans(metafor::emmprep(fit_rma), specs = "measure")
 
 Studies using the informant-completed questionnaires show a stronger effect of household chaos on child executive functions, r = 0.229, 95\% CI [0.161, 0.297], than the direct assessment, r = 0.109, 95\% CI [0.049, 0.169]; both types of studies show statistically significant effects.
 
-The mean age of the children does not significantly moderate the effect ($p = 0.627$) with the estimated regression coefficient of b = 0.003, 95\% CI [-0.009, 0.015]. As usual, frequentist inference limits us to not rejecting the null hypothesis as it cannot evaluate the evidence in favor of the null hypothesis. Here, we try overcoming this limitation with Bayesian model-averaged meta-regression.
+The mean age of the children does not significantly moderate the effect ($p = 0.627$) with the estimated regression coefficient of b = 0.003, 95\% CI [-0.009, 0.015]. As usual, frequentist inference limits us to failing to reject the null hypothesis. Here, we try overcoming this limitation with Bayesian model-averaged meta-regression.
 
 
 ### Bayesian Meta-Regression Specification
