@@ -40,7 +40,11 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   }
 
   # v_tilde for I^2 and H^2 statistic
-  w       <- 1/object[["data"]][["se"]]^2
+  if(.is_regression(object)){
+    w <- 1/object[["data"]][["outcome"]][["se"]]^2
+  }else{
+    w <- 1/object[["data"]][["se"]]^2
+  }
   v_tilde <- ((length(w) - 1) * sum(w)) / (sum(w)^2 - sum(w^2))
 
 
@@ -61,7 +65,7 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
       parameters = c("PI","tau", "tau2", "I2", "H2"),
       probs      = probs,
       title      = "Model-averaged heterogeneity estimates:",
-      footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale)),
+      footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
       warnings   = .collect_errors_and_warnings(object)
     )
 
@@ -86,7 +90,7 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
         parameters = c("PI", "tau", "tau2", "I2", "H2"),
         probs      = probs,
         title      = "Conditional heterogeneity estimates:",
-        footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale)),
+        footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
         warnings   = .collect_errors_and_warnings(object)
       )
     }
@@ -143,7 +147,7 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
         parameters = c("PI", "tau", "tau2", "I2", "H2"),
         probs      = probs,
         title      = "Heterogeneity estimates:",
-        footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale)),
+        footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
         warnings   = .collect_errors_and_warnings(object)
       )
 
@@ -183,10 +187,18 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   if(model[["prior_scale"]] != model[["output_scale"]])
     stop("The prior_scale does not match the output_scale. (Individual models' MCMC samples must have been transformed earlier.)")
 
-  if(BayesTools::is.prior.point(model$priors[["mu"]])){
-    mu <- model$priors[["mu"]]$parameters[["location"]]
+  if(inherits(model, "RoBMA.reg.model")){
+    if(BayesTools::is.prior.point(model$priors$terms[["intercept"]])){
+      mu <- model$priors$terms[["intercept"]]$parameters[["location"]]
+    }else{
+      mu <- suppressWarnings(coda::as.mcmc(model[["fit"]]))[,"mu_intercept"]
+    }
   }else{
-    mu <- suppressWarnings(coda::as.mcmc(model[["fit"]]))[,"mu"]
+    if(BayesTools::is.prior.point(model$priors[["mu"]])){
+      mu <- model$priors[["mu"]]$parameters[["location"]]
+    }else{
+      mu <- suppressWarnings(coda::as.mcmc(model[["fit"]]))[,"mu"]
+    }
   }
 
   if(BayesTools::is.prior.point(model$priors[["tau"]])){
@@ -250,9 +262,10 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
 
   return(predictions)
 }
-.heterogeneity_scale_note <- function(model_scale, prior_scale, output_scale){
+.heterogeneity_scale_note <- function(model_scale, prior_scale, output_scale, regression){
   return(sprintf(
-    "The prediction interval (PI) is summarized on the %1$s scale.\nThe absolute heterogeneity (tau, tau^2) is summarized on the %2$s scale.\nThe relative heterogeneity indicies (I^2 and H^2) were computed on the %3$s scale.",
+    "The prediction interval %1$s(PI) is summarized on the %2$s scale.\nThe absolute heterogeneity (tau, tau^2) is summarized on the %3$s scale.\nThe relative heterogeneity indicies (I^2 and H^2) were computed on the %4$s scale.",
+    if(regression) "for the average effect " else "",
     .transformation_names(output_scale, estimation = FALSE),
     switch(
       output_scale,
