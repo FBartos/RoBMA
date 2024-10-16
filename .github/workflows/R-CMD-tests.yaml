@@ -69,7 +69,15 @@ jobs:
           key: ${{ runner.os }}-r-${{ matrix.config.r }}-${{ hashFiles('**/renv.lock') }}
           restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-
 
+      # Install the package
+      - name: Install devtools and the RoBMA Package
+        run: |
+          install.packages('devtools')
+          devtools::install()
+        shell: Rscript {0}
+
       # Run tests
       - name: Run Tests
-        run: source("tests/testthat.R")
+        run: |
+          devtools::test()
         shell: Rscript {0}
