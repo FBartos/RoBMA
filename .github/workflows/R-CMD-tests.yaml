@@ -25,24 +25,23 @@ jobs:
           r-version: ${{ matrix.config.r }}
 
       # Install JAGS and system dependencies on Linux
-    - name: Install System Dependencies (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libssl-dev \
-          libcurl4-openssl-dev \
-          libxml2-dev \
-          libfontconfig1-dev \
-          libharfbuzz-dev \
-          libfribidi-dev \
-          libfreetype6-dev \
-          libpng-dev \
-          libtiff5-dev \
-          libjpeg-dev \
-          libcairo2-dev \
-          jags
-
+      - name: Install System Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libharfbuzz-dev \
+            libfribidi-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libtiff5-dev \
+            libjpeg-dev \
+            libcairo2-dev \
+            jags
 
       # Install JAGS on Windows
       - name: Install JAGS (Windows)
