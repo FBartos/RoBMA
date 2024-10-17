@@ -25,11 +25,24 @@ jobs:
           r-version: ${{ matrix.config.r }}
 
       # Install JAGS and system dependencies on Linux
-      - name: Install System Dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev libcurl4-openssl-dev jags
+    - name: Install System Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libssl-dev \
+          libcurl4-openssl-dev \
+          libxml2-dev \
+          libfontconfig1-dev \
+          libharfbuzz-dev \
+          libfribidi-dev \
+          libfreetype6-dev \
+          libpng-dev \
+          libtiff5-dev \
+          libjpeg-dev \
+          libcairo2-dev \
+          jags
+
 
       # Install JAGS on Windows
       - name: Install JAGS (Windows)
@@ -49,18 +62,12 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
-      - name: Download JAGS Installer (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          curl -L -o jags.dmg https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Mac%20OS%20X/JAGS-4.3.1.dmg/download
-
-
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
-          hdiutil attach jags.dmg -mountpoint /Volumes/jags
-          sudo installer -pkg /Volumes/jags/JAGS-4.3.1.pkg -target /
-          hdiutil detach /Volumes/jags
+          brew update
+          brew install jags
+
 
       - name: Set Environment Variables (macOS)
         if: runner.os == 'macOS'
