@@ -19,6 +19,8 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
                                   short_name = FALSE, remove_spike_0 = FALSE){
 
   .check_is_any_RoBMA_object(object)
+  if(is.BiBMA(object))
+    stop("The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_char(type, "type")
