@@ -61,18 +61,28 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
+      # Install JAGS on macOS
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
           brew update
           brew install jags
 
-
+      # Find and Set JAGS Paths
       - name: Set Environment Variables (macOS)
         if: runner.os == 'macOS'
         run: |
-          echo "JAGS_ROOT=/usr/local" >> $GITHUB_ENV
+          JAGS_BIN=$(brew --prefix jags)/bin
+          echo "JAGS_ROOT=$(brew --prefix jags)" >> $GITHUB_ENV
+          echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix jags)/lib/pkgconfig" >> $GITHUB_ENV
 
+      # Create Symlink for jags-terminal (if necessary)
+      - name: Create Symlink for jags-terminal (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sudo mkdir -p $(brew --prefix)/libexec
+          sudo ln -s $(brew --prefix jags)/bin/jags $(brew --prefix)/libexec/jags-terminal
 
       # Install R package 'renv' and restore dependencies
       - name: Install renv and Restore Dependencies
