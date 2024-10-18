@@ -81,7 +81,8 @@ studies being independent.}
 
 \item{data}{a data object created by the \code{combine_data} function. This is
 an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
-directly. I.e., you cannot pass the a data.frame and reference to the columns.}
+directly. I.e., RoBMA function does not allow passing a data.frame and
+referencing to the columns.}
 
 \item{weight}{specifies likelihood weights of the individual estimates.
 Notes that this is an untested experimental feature.}
@@ -95,12 +96,12 @@ and does not bias PET and PEESE style models. The other options are
 Supplying \code{"none"} will treat the effect sizes as unstandardized and
 refrain from any transformations.}
 
-\item{prior_scale}{a scale used to define priors. Defaults to \code{"cohens_d"}.
+\item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
 Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
 and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
 the samples from prior distributions are internally transformed to match the
 \code{transformation} of the data. The \code{prior_scale} corresponds to
-the scale of default output, but can be changed within the summary function.}
+the effect size scale of default output, but can be changed within the summary function.}
 
 \item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
@@ -189,13 +190,16 @@ also suppresses all messages.}
 }
 \description{
 \code{NoBMA} is a wrapper around \code{\link[=RoBMA]{RoBMA()}} that can
-be used to estimate a (Normal - publication bias unadjusted) Bayesian
+be used to estimate a publication bias unadjusted Bayesian
 model-averaged meta-analysis. The interface allows a complete customization of
 the ensemble with different prior (or list of prior) distributions
 for each component.
 }
 \details{
 See \code{\link[=RoBMA]{RoBMA()}} for more details.
+
+Note that these default prior distributions are relatively wide and more informed
+prior distributions for testing for the presence of moderation should be considered.
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}, \code{\link[=check_setup]{check_setup()}}

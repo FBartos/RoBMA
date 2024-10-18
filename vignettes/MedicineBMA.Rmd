@@ -97,7 +97,7 @@ fit_BMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen20
                  priors_bias          = NULL,
                  transformation = "cohens_d", seed = 1, parallel = TRUE)
 ```
-The `name` argument specifies the medical subfield name (use `print(BayesTools::prior_informed_medicine_names)` to check names of all available subfields). The `parameter` argument specifies whether we want prior distribution for the effect size or heterogeneity. Finally, the `type` argument specifies what type of measure we use for the meta-analysis (only standardized mean differences `smd` are available at the time of writing the vignette; see `?prior_informed` for more details regarding the informed prior distributions).
+The `name` argument specifies the medical subfield name (use `print(BayesTools::prior_informed_medicine_names)` to check names of all available subfields). The `parameter` argument specifies whether we want prior distribution for the effect size or heterogeneity. Finally, the `type` argument specifies what type of measure we use for the meta-analysis (see `?prior_informed` for more details regarding the informed prior distributions).
 
 We obtain the output with the `summary` function. Adding the `conditional = TRUE` argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true$^2$.
 

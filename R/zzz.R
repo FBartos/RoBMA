@@ -30,7 +30,11 @@
     }
   }
 
+  # Check if correct version of BayesTools is installed
   .check_BayesTools()
+
+  # Check and fix number of threads (sometimes bugs out during installation)
+  .check_max_cores()
 
 }
 

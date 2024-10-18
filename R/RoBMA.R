@@ -1,28 +1,30 @@
 #' @title Estimate a Robust Bayesian Meta-Analysis
 #'
-#' @description \code{RoBMA} is used to estimate a Robust Bayesian
-#' Meta-Analysis. The interface allows a complete customization of
+#' @description \code{RoBMA} is used to estimate a robust Bayesian
+#' meta-analysis. The interface allows a complete customization of
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
 #'
 #' @param data a data object created by the \code{combine_data} function. This is
 #' an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
-#' directly. I.e., you cannot pass the a data.frame and reference to the columns.
+#' directly. I.e., RoBMA function does not allow passing a data.frame and
+#' referencing to the columns.
 #' @param model_type string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 #' The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
 #' settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
 #' \code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
 #' \code{priors_bias_null}, and \code{priors_effect}. See details for more information
 #' about the different model types.
-#' @param effect_direction the expected direction of the effect. The one-sided
-#' selection sets the weights omega to 1 to significant results in the expected
-#' direction. Defaults to \code{"positive"} (another option is \code{"negative"}).
-#' @param prior_scale a scale used to define priors. Defaults to \code{"cohens_d"}.
+#' @param effect_direction the expected direction of the effect. Correctly specifying
+#' the expected direction of the effect is crucial for one-sided selection models,
+#' as they specify cut-offs using one-sided p-values. Defaults to \code{"positive"}
+#' (another option is \code{"negative"}).
+#' @param prior_scale an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
 #' Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
 #' and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
 #' the samples from prior distributions are internally transformed to match the
 #' \code{transformation} of the data. The \code{prior_scale} corresponds to
-#' the scale of default output, but can be changed within the summary function.
+#' the effect size scale of default output, but can be changed within the summary function.
 #' @param priors_effect list of prior distributions for the effect size (\code{mu})
 #' parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 #' a standard normal distribution

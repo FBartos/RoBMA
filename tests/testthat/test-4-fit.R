@@ -1,6 +1,5 @@
 context("(4) Fitting and updating functions")
 skip_on_cran()
-skip_on_covr()
 
 # test objects
 saved_files <- paste0("fit_", 1:16, ".RDS")
@@ -319,4 +318,8 @@ if(FALSE){
     temp_fit <- RoBMA:::.update_object(temp_fit)
     saveRDS(temp_fit, file = file.path("tests/results/fits/", paste0("fit_",i,".RDS")), compress  = "xz")
   }
+
+  # single model update
+  fit_14 <- remove_time(fit_14)
+  saveRDS(fit_14, file = file.path("tests/results/fits/", paste0("fit_",14,".RDS")), compress  = "xz")
 }

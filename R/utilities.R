@@ -92,7 +92,7 @@ assign("check_scaling",   TRUE,                                       envir = Ro
     "3.0.0" = c("0.2.14", "999.999.999"),
     "3.0.1" = c("0.2.14", "999.999.999"),
     "3.1.0" = c("0.2.16", "999.999.999"),
-    "3.1.1" = c("0.2.16", "999.999.999"),
+    "3.2.0" = c("0.2.17", "999.999.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
@@ -114,3 +114,9 @@ assign("check_scaling",   TRUE,                                       envir = Ro
   }
 }
 
+# check and fix number of threads (sometimes bugs out during installation)
+.check_max_cores <- function(){
+  if(RoBMA.private$max_cores > parallel::detectCores(logical = TRUE) - 1){
+    RoBMA.options(max_cores = parallel::detectCores(logical = TRUE) - 1)
+  }
+}
