@@ -1,3 +1,5 @@
+name: pkgdown
+
 on:
   push:
     branches:
@@ -6,93 +8,61 @@ on:
     tags:
       -'*'
 
-name: pkgdown
-
 jobs:
-  pkgdown:
+  build:
     runs-on: ${{ matrix.config.os }}
-
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
-
     strategy:
       fail-fast: false
       matrix:
         config:
           - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-20.04,   r: 'release'}
-        #  - {os: macOS-11.6.2,   r: 'release'} # the release C++ version does not compile properly
-
-    env:
-      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-      RSPM: ${{ matrix.config.rspm }}
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - uses: r-lib/actions/setup-r@v2
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.config.r }}
 
-      - uses: r-lib/actions/setup-pandoc@v2
-
-      - name: Query dependencies
+      # Install JAGS on Windows
+      - name: Install JAGS (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
         run: |
-          install.packages('remotes')
-          saveRDS(remotes::dev_package_deps(dependencies = TRUE), ".github/depends.Rds", version = 2)
-          writeLines(sprintf("R-%i.%i", getRversion()$major, getRversion()$minor), ".github/R-version")
+          curl -o jags-installer.exe -L https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/JAGS-4.3.1.exe/download
+          jags-installer.exe /S
+          del jags-installer.exe
+
+      # Set JAGS environment variables on Windows
+      - name: Set JAGS environment variables (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          echo JAGS_ROOT=C:\Program Files\JAGS\JAGS-4.3.1>> %GITHUB_ENV%
+          echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
+          echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
+
+      # Install R package 'renv' and restore dependencies
+      - name: Install renv and Restore Dependencies
+        run: |
+          install.packages('renv')
+          renv::restore()
         shell: Rscript {0}
 
-      - name: Restore R package cache
-        uses: actions/cache@v2
+      # Cache R packages installed by renv
+      - name: Cache R packages
+        uses: actions/cache@v4
         with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-${{ hashFiles('.github/depends.Rds') }}
-          restore-keys: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-
+          path: renv/library
+          key: ${{ runner.os }}-r-${{ matrix.config.r }}-${{ hashFiles('**/renv.lock') }}
+          restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-
 
-      - name: Install system dependencies
-        if: runner.os == 'Linux'
+      # Install the package
+      - name: Install devtools and the RoBMA Package
         run: |
-          while read -r cmd
-          do
-            eval sudo $cmd
-          done < <(Rscript -e 'writeLines(remotes::system_requirements("ubuntu", "20.04"))')
-
-      - name: Install JAGS (windows-latest)
-        if: runner.os == 'Windows'
-        run: |
-          curl.exe -o wjags.exe --url https://deac-fra.dl.sourceforge.net/project/mcmc-jags/JAGS/4.x/Windows/JAGS-4.3.1.exe
-          wjags.exe /S
-          del wjags.exe
-        shell: cmd
-
-      - name: Install JAGS (macOS-latest)
-        if: runner.os == 'macOS'
-        run : |
-          rm '/usr/local/bin/gfortran'
-          brew install automake jags
-
-      - name: Install dependencies (non-Windows)
-        if: runner.os != 'Windows'
-        env:
-          _R_CHECK_CRAN_INCOMING_REMOTE_: false
-        run: |
-          remotes::install_deps(dependencies = TRUE)
-          install.packages("devtools")
-          install.packages("pkgdown")
-          devtools::install()
-        shell: Rscript {0}"
-
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        env:
-          _R_CHECK_CRAN_INCOMING_REMOTE_: false
-          JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.3.1"
-          JAGS_MAJOR_VERSION: 4
-        run: |
-          remotes::install_deps(dependencies = TRUE)
-          install.packages("devtools")
-          install.packages("pkgdown")
+          install.packages('devtools')
+          install.packages('pkgdown')
           devtools::install()
         shell: Rscript {0}
 

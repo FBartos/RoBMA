@@ -1,13 +1,19 @@
 #' @title Estimate a Robust Bayesian Meta-Analysis Meta-Regression
 #'
-#' @description \code{RoBMA} is used to estimate a Robust Bayesian
-#' Meta-Analysis. The interface allows a complete customization of
+#' @description \code{RoBMA} is used to estimate a robust Bayesian
+#' meta-regression. The interface allows a complete customization of
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
 #'
 #' @param formula a formula for the meta-regression model
-#' @param test_predictors vector of predictor names that will be test
-#' (i.e., assigned both the null and alternative prior distributions).
+#' @param data a data.frame containing the data for the meta-regression. Note that the
+#' column names have to correspond to the effect sizes (\code{d}, \code{logOR}, \code{OR},
+#' \code{r}, \code{z}), a measure of sampling variability (\code{se}, \code{v}, \code{n},
+#' \code{lCI}, \code{uCI}, \code{t}), and the predictors.
+#' See [combine_data()] for a complete list of reserved names and additional information
+#' about specifying input data.
+#' @param test_predictors vector of predictor names to test for the presence
+#' of moderation (i.e., assigned both the null and alternative prior distributions).
 #' Defaults to \code{TRUE}, all predictors are tested using the default
 #' prior distributions (i.e., \code{prior_covariates},
 #' \code{prior_covariates_null}, \code{prior_factors}, and
@@ -54,11 +60,42 @@
 #' @inheritParams RoBMA
 #' @inheritParams combine_data
 #'
-#' @details See [RoBMA()] for more details.
+#' @details The \href{../doc/MetaRegression.html}{\code{vignette("/MetaRegression", package = "RoBMA")}}
+#' vignette describes how to use [RoBMA.reg()] function to fit Bayesian meta-regression ensembles. See
+#' \insertCite{bartos2023robust;textual}{RoBMA} for more details about the methodology and
+#' [RoBMA()] for more details about the function options.
 #'
-#' Note that these default prior distributions are relatively wide and more informed
-#' prior distributions for testing for the presence of moderation should be considered.
+#' The RoBMA.reg function first generates models from a combination of the
+#' provided priors for each of the model parameters. Then, the individual models
+#' are fitted using \link[runjags]{autorun.jags} function. A marginal likelihood
+#' is computed using \link[bridgesampling]{bridge_sampler} function. The individual
+#' models are then combined into an ensemble using the posterior model probabilities
+#' using \link[BayesTools]{BayesTools} package.
 #'
+#' Generic [summary.RoBMA()], [print.RoBMA()], and [plot.RoBMA()] functions are
+#' provided to facilitate manipulation with the ensemble. A visual check of the
+#' individual model diagnostics can be obtained using the [diagnostics()] function.
+#' The fitted model can be further updated or modified by [update.RoBMA()] function.
+#' Estimated marginal means can be computed by [marginal_summary()] function and
+#' visualized by the [marginal_plot()] function.
+#'
+#' @examples \dontrun{
+#' # using the example data from Andrews et al. (2021) and reproducing the example from
+#' # Bartos et al. (2024) with measure and age covariate.
+#'
+#'  # note the the Andrews2021 data.frame columns identify the effect size "r" and
+#'  # the standard error "se" of the effect size that are used to estimate the model
+#'  fit_RoBMA <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
+#'
+#'  # summarize the results
+#'  summary(fit_RoBMA, output_scale = "r")
+#'
+#'  # compute effect size estimates for each group
+#'  marginal_summary(fit_RoBMA, output_scale = "r")
+#'
+#'  # visualize the effect size estimates for each group
+#'  marginal_plot(fit_RoBMA, parameter = "measure", output_scale = "r", lwd = 2)
+#' }
 #'
 #' @references
 #' \insertAllCited{}

@@ -1,3 +1,5 @@
+^renv$
+^renv\.lock$
 ^RoBMA\.Rproj$
 ^\.Rproj\.user$
 ^do-not-share$

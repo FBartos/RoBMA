@@ -63,12 +63,15 @@ RoBMA.reg(
 \arguments{
 \item{formula}{a formula for the meta-regression model}
 
-\item{data}{a data object created by the \code{combine_data} function. This is
-an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
-directly. I.e., you cannot pass the a data.frame and reference to the columns.}
+\item{data}{a data.frame containing the data for the meta-regression. Note that the
+column names have to correspond to the effect sizes (\code{d}, \code{logOR}, \code{OR},
+\code{r}, \code{z}), a measure of sampling variability (\code{se}, \code{v}, \code{n},
+\code{lCI}, \code{uCI}, \code{t}), and the predictors.
+See \code{\link[=combine_data]{combine_data()}} for a complete list of reserved names and additional information
+about specifying input data.}
 
-\item{test_predictors}{vector of predictor names that will be test
-(i.e., assigned both the null and alternative prior distributions).
+\item{test_predictors}{vector of predictor names to test for the presence
+of moderation (i.e., assigned both the null and alternative prior distributions).
 Defaults to \code{TRUE}, all predictors are tested using the default
 prior distributions (i.e., \code{prior_covariates},
 \code{prior_covariates_null}, \code{prior_factors}, and
@@ -92,19 +95,20 @@ and does not bias PET and PEESE style models. The other options are
 Supplying \code{"none"} will treat the effect sizes as unstandardized and
 refrain from any transformations.}
 
-\item{prior_scale}{a scale used to define priors. Defaults to \code{"cohens_d"}.
+\item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
 Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
 and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
 the samples from prior distributions are internally transformed to match the
 \code{transformation} of the data. The \code{prior_scale} corresponds to
-the scale of default output, but can be changed within the summary function.}
+the effect size scale of default output, but can be changed within the summary function.}
 
 \item{standardize_predictors}{whether continuous predictors should be standardized prior to
 estimating the model. Defaults to \code{TRUE}.}
 
-\item{effect_direction}{the expected direction of the effect. The one-sided
-selection sets the weights omega to 1 to significant results in the expected
-direction. Defaults to \code{"positive"} (another option is \code{"negative"}).}
+\item{effect_direction}{the expected direction of the effect. Correctly specifying
+the expected direction of the effect is crucial for one-sided selection models,
+as they specify cut-offs using one-sided p-values. Defaults to \code{"positive"}
+(another option is \code{"negative"}).}
 
 \item{priors}{named list of prior distributions for each predictor
 (with names corresponding to the predictors). It allows users to
@@ -256,16 +260,50 @@ also suppresses all messages.}
 \code{RoBMA.reg} returns an object of class 'RoBMA.reg'.
 }
 \description{
-\code{RoBMA} is used to estimate a Robust Bayesian
-Meta-Analysis. The interface allows a complete customization of
+\code{RoBMA} is used to estimate a robust Bayesian
+meta-regression. The interface allows a complete customization of
 the ensemble with different prior (or list of prior) distributions
 for each component.
 }
 \details{
-See \code{\link[=RoBMA]{RoBMA()}} for more details.
+The \href{../doc/MetaRegression.html}{\code{vignette("/MetaRegression", package = "RoBMA")}}
+vignette describes how to use \code{\link[=RoBMA.reg]{RoBMA.reg()}} function to fit Bayesian meta-regression ensembles. See
+\insertCite{bartos2023robust;textual}{RoBMA} for more details about the methodology and
+\code{\link[=RoBMA]{RoBMA()}} for more details about the function options.
 
-Note that these default prior distributions are relatively wide and more informed
-prior distributions for testing for the presence of moderation should be considered.
+The RoBMA.reg function first generates models from a combination of the
+provided priors for each of the model parameters. Then, the individual models
+are fitted using \link[runjags]{autorun.jags} function. A marginal likelihood
+is computed using \link[bridgesampling]{bridge_sampler} function. The individual
+models are then combined into an ensemble using the posterior model probabilities
+using \link[BayesTools]{BayesTools} package.
+
+Generic \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=print.RoBMA]{print.RoBMA()}}, and \code{\link[=plot.RoBMA]{plot.RoBMA()}} functions are
+provided to facilitate manipulation with the ensemble. A visual check of the
+individual model diagnostics can be obtained using the \code{\link[=diagnostics]{diagnostics()}} function.
+The fitted model can be further updated or modified by \code{\link[=update.RoBMA]{update.RoBMA()}} function.
+Estimated marginal means can be computed by \code{\link[=marginal_summary]{marginal_summary()}} function and
+visualized by the \code{\link[=marginal_plot]{marginal_plot()}} function.
+}
+\examples{
+\dontrun{
+# using the example data from Andrews et al. (2021) and reproducing the example from
+# Bartos et al. (2024) with measure and age covariate.
+
+ # note the the Andrews2021 data.frame columns identify the effect size "r" and
+ # the standard error "se" of the effect size that are used to estimate the model
+ fit_RoBMA <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
+
+ # summarize the results
+ summary(fit_RoBMA, output_scale = "r")
+
+ # compute effect size estimates for each group
+ marginal_summary(fit_RoBMA, output_scale = "r")
+
+ # visualize the effect size estimates for each group
+ marginal_plot(fit_RoBMA, parameter = "measure", output_scale = "r", lwd = 2)
+}
+
 }
 \references{
 \insertAllCited{}
