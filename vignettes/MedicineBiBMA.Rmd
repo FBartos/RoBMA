@@ -66,7 +66,7 @@ Bayesian model-averaged meta-analysis can be specified using the binomial likeli
 
 ### Binomial-Normal Bayesian Model-Averaged Meta-Analysis
 
-We illustrate how to fit the binomial-normal Bayesian model-averaged meta-analysis using the `RoBMA` R package. For this purpose, we reproduce the example of adverse effects of honey in treating acute cough in children hypersensitivity from @bartos2023empirical, who reanalyzed two studies with adverse events of nervousness, insomnia, or hyperactivity in the honey vs. no treatment condition that were subjected to a meta-analysis by @oduwole2018honey. 
+We illustrate how to fit the binomial-normal Bayesian model-averaged meta-analysis using the `RoBMA` R package. For this purpose, we reproduce the example of adverse effects of honey in treating acute cough in children from @bartos2023empirical, who reanalyzed two studies with adverse events of nervousness, insomnia, or hyperactivity in the honey vs. no treatment condition that were subjected to a meta-analysis by @oduwole2018honey. 
 
 We load the RoBMA package and specify the number of adverse events and sample sizes in each arm as described on p. 73 [@oduwole2018honey].
 ```{r}
@@ -78,7 +78,7 @@ observations_experimental  <- c(35, 40)
 observations_control       <- c(39, 40)
 study_names <- c("Paul 2007", "Shadkam 2010")
 ``` 
-Notice that both studies reported no adverse events in the control group. Using a normal-normal meta-analytic model with log odds ratios would require a continuity correction which might result in bias. Binomial-normal models allow us to circumvent the issue by modeling the observed proportions directly (see @bartos2023empirical for more details).
+Notice that both studies reported no adverse events in the control group. Using a normal-normal meta-analytic model with log odds ratios would require a continuity correction, which might result in bias. Binomial-normal models allow us to circumvent the issue by modeling the observed proportions directly (see @bartos2023empirical for more details).
 
 First, we fit the binomial-normal Bayesian model-averaged meta-analysis using informed prior distributions based on the `Acute Respiratory Infections` subfield. We use the `BiBMA` function and specify the observed events (`x1` and `x2`) and sample size (`n1` and `n2`) of adverse events and sample sizes in each arm. We use the `prior_informed` function to specify the informed prior distributions for the individual medical subfields automatically.
 
@@ -96,17 +96,17 @@ fit <- BiBMA(
 ```
 with `priors_effect` and `priors_heterogeneity` corresponding to the $\mu \sim T(0,0.48,3)$ and $\tau \sim InvGamma(1.67, 0.45)$ prior distributions (see `?prior_informed` for more details regarding the informed prior distributions).
 
-We obtain the output with the `summary` function. Adding the `conditional = TRUE` argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true$^2$. We also set the `output_scale = "OR"` argument to display the effect size estimates on the odds ratio scale.
+We obtain the output with the `summary` function. Adding the `conditional = TRUE` argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true, and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true. We also set the `output_scale = "OR"` argument to display the effect size estimates on the odds ratio scale.
 
 ```{r}
 summary(fit, conditional = TRUE, output_scale = "OR")
 ```
 
-The output from the `summary.RoBMA()` function has 3 parts. The first one under the 'Robust Bayesian Meta-Analysis' heading provides a basic summary of the fitted models by component types (presence of the Effect and Heterogeneity). The results show that the inclusion Bayes factor for the effect corresponds to the one reported in @bartos2023empirical package, $\text{BF}_{10} = 2.63$ and $\text{BF}_{\text{rf}} = 1.30$ (up to an MCMC error)---weak/undecided evidence for the presence of the effect and heterogeneity. 
+The output from the `summary.RoBMA()` function has three parts. The first part, under the 'Robust Bayesian Meta-Analysis' heading provides a basic summary of the fitted models by component types (presence of the Effect and Heterogeneity). The results show that the inclusion Bayes factor for the effect corresponds to the one reported in @bartos2023empirical, $\text{BF}_{10} = 2.63$ and $\text{BF}_{\text{rf}} = 1.30$ (up to an MCMC error)---weak/undecided evidence for the presence of the effect and heterogeneity. 
 
-The second part under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). These estimates are shrunk towards the null hypotheses of null effect or no heterogeneity in accordance with out posterior uncertainty about the presence of the effect or heterogeneity. We find the model-averaged mean effect OR = 3.39, 95% CI [0.84, 15.14], and a heterogeneity estimate $\tau_\text{logOR} = 0.42$, 95% CI [0.00, 2.59].
+The second part, under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). These estimates are shrunk towards the null hypotheses of null effect or no heterogeneity in accordance with the posterior uncertainty about the presence of the effect or heterogeneity. We find the model-averaged mean effect OR = 3.39, 95% CI [0.84, 15.14], and a heterogeneity estimate $\tau_\text{logOR} = 0.42$, 95% CI [0.00, 2.59].
 
-The third part under the 'Conditional estimates' heading displays the conditional effect size and heterogeneity estimates (i.e., estimates assuming presence of the effect or heterogeneity) corresponding to the one reported in @bartos2023empirical, OR = 4.24, 95% CI [0.78, 17.61], and a heterogeneity estimate $\tau_\text{logOR} = 0.75$, 95% CI [0.10, 3.23].
+The third part, under the 'Conditional estimates' heading displays the conditional effect size and heterogeneity estimates (i.e., estimates assuming presence of the effect or heterogeneity) corresponding to the one reported in @bartos2023empirical, OR = 4.24, 95% CI [0.78, 17.61], and a heterogeneity estimate $\tau_\text{logOR} = 0.75$, 95% CI [0.10, 3.23].
 
 We can also visualize the posterior distributions of the effect size and heterogeneity parameters using the `plot()` function. Here, we set the `conditional = TRUE` argument to display the conditional effect size estimate and `prior = TRUE` to include the prior distribution in the plot.
 
@@ -114,7 +114,7 @@ We can also visualize the posterior distributions of the effect size and heterog
 plot(fit, parameter = "mu", prior = TRUE, conditional = TRUE)
 ```
 
-Additional visualizations and summarizes are demonstrated in the [Reproducing BMA](ReproducingBMA.html) and [Informed Bayesian Model-Averaged Meta-Analysis in Medicine](MedicineBMA.html) vignettes.
+Additional visualizations and summaries are demonstrated in the [Reproducing BMA](ReproducingBMA.html) and [Informed Bayesian Model-Averaged Meta-Analysis in Medicine](MedicineBMA.html) vignettes.
 
 
 ### References

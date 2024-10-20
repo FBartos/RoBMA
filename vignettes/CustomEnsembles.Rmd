@@ -70,13 +70,15 @@ fit <- update(fit,
 saveRDS(fit, file = "../models/CustomEnsembles/Bem_update2.RDS")
 ```
 
+This vignette provides a step-by-step guide to fitting custom meta-analytic ensembles using the RoBMA R package. By the end of this guide, you will be able to construct and evaluate custom meta-analytic models.
+
 By default, the `RoBMA()` function specifies models as a combination of all supplied prior distributions (across null and alternative specification), with their prior model weights being equal to the product of prior distributions' weights. This results in the 36 meta-analytic models using the default settings [@bartos2021no]$^1$. In [another vignette](ReproducingBMA.html), we illustrated that RoBMA can be also utilized for reproducing Bayesian Model-Averaged Meta-Analysis (BMA) [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. However, the package was built as a framework for estimating highly customized meta-analytic model ensembles. Here, we are going to illustrate how to do exactly that (see @bartos2020adjusting for a tutorial paper on customizing the model ensemble with JASP). 
 
-Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that the ensemble can perform as intended a priori to drawing inference from it. The following sections are only for illustrating the functionality of the package. We provide a completely discussion with the relevant sources in the Example section of @bartos2021no.
+Please keep in mind that all models should be justified by theory. Furthermore, the models should be tested to make sure that the ensemble can perform as intended a priori to drawing inference from it. The following sections are only for illustrating the functionality of the package. We provide a complete discussion with the relevant sources in the Example section of @bartos2021no.
 
 ### The Dataset
 
-To illustrate the custom model building procedure, we use data from the infamous @bem2011feeling "Feeling the future" pre-cognition study. We use coding of the results as summarized by Bem in one of his later replies [@bem2011must]. 
+To illustrate the custom model building procedure, we use data from the infamous @bem2011feeling "Feeling the future" precognition study. We use coding of the results as summarized by Bem in one of his later replies [@bem2011must]. 
 
 ```{r}
 library(RoBMA)
@@ -92,18 +94,18 @@ We consider the following scenarios as plausible explanations for the data, and 
   1) there is absolutely no precognition effect - a fixed effects model assuming the effect size to be zero ($H_{0}^f$),
   2) the experiments measured the same underlying precognition effect - a fixed effects model ($H_{1}^f$),
   3) each of the experiments measured a slightly different precognition effect - a random effects model ($H_{1}^r$),
-  4) there is absolutely no precognition effect and the results can be explained away with publication bias, modeled with one of the following publication bias adjustments:
+  4) there is absolutely no precognition effect and the results can be explained by publication bias, modeled with one of the following publication bias adjustments:
     - 4.1) one-sided selection operating on significant *p*-values ($H_{1,\text{pb1}}^f$),
     - 4.2) one-sided selection operating on significant and marginally significant *p*-values ($H_{1,\text{pb2}}^f$),
     - 4.3) PET correction for publication bias which adjusts for the relationship between effect sizes and standard errors ($H_{1,\text{pb3}}^f$),
     - 4.4) PEESE correction for publication bias which adjusts for the relationship between effect sizes and standard errors squared ($H_{1,\text{pb4}}^f$).
   
-If we were to fit the ensemble using the `RoBMA()` function and specifying all of the priors, we would have ended with 2 (effect or no effect) * 2 (heterogeneity or no heterogeneity) * 5 (no publication bias or 4 ways of adjusting for publication bias) = 20 models. That is 13 models more than requested. Furthermore, we could not specify different parameters for the prior distributions for each model, which the following process allows (but we do not utilize it).
+If we were to fit the ensemble using the `RoBMA()` function and specifying all of the priors, we would have ended with 2 (effect or no effect) * 2 (heterogeneity or no heterogeneity) * 5 (no publication bias or 4 ways of adjusting for publication bias) = 20 models. That is 13 models more than requested. Furthermore, we could not specify different parameters for the prior distributions for each model. The following process allows this, though we do not utilize it here.
 
 We start with fitting only the first model using the `RoBMA()` function and we will continuously update the fitted object to include all of the models.
 
 #### Model 1
-We initiate the model ensemble by specifying only the first model with the `RoBMA()` function. We explicitly specify prior distributions for all components and set the prior distributions to correspond to the null hypotheses and set seed to ensure reproducibility of the results.
+We initiate the model ensemble by specifying only the first model with the `RoBMA()` function. We explicitly specify prior distributions for all components and set the prior distributions to correspond to the null hypotheses and set the seed to ensure reproducibility of the results.
 
 ```{r}
 fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
@@ -121,13 +123,13 @@ summary(fit, type = "models")
 ```
 
 #### Model 2
-Before we add the second model to the ensemble, we need to decide on the prior distribution for the mean parameter. If pre-cognition were to exist, the effect would be small since all casinos would be bankrupted otherwise. The effect would also be positive, since any deviation from randomness could be characterized as an effect. Therefore, we decide to use a normal distribution with mean = 0.15, standard deviation 0.10, and truncated to the positive range. This sets the prior density around small effect sizes. To get a better grasp of the prior distribution, we visualize it using the `plot())` function (the figure can be also created using the ggplot2 package by adding `plot_type == "ggplot"` argument).
+Before we add the second model to the ensemble, we need to decide on the prior distribution for the mean parameter. If precognition were to exist, the effect would be small since all casinos would be bankrupted otherwise. The effect would also be positive, since any deviation from randomness could be characterized as an effect. Therefore, we decide to use a normal distribution with mean = 0.15, standard deviation 0.10, and truncated to the positive range. This sets the prior density around small effect sizes. To get a better grasp of the prior distribution, we visualize it using the `plot())` function (the figure can also be created using the ggplot2 package by adding `plot_type = "ggplot"` argument).
 
 ```{r fig_mu_prior, dpi = 300, fig.width = 4, fig.height = 3, out.width = "50%", fig.align = "center"}
 plot(prior("normal", parameters = list(mean = .15, sd = .10), truncation = list(lower = 0)))
 ```
 
-We add the second model to the ensemble using the `update.RoBMA()` function. The function can also be used to many other purposes - updating settings, prior model weights, and refitting failed models. Here, we supply the fitted ensemble object and add an argument specifying the prior distributions of each components for the additional model. Since we want to add Model 2 - we set the prior for the $\mu$ parameter to be treated as a prior belonging to the alternative hypothesis of the effect size component and the remaining priors treated as belonging to the alternative hypotheses. If we wanted, we could also specify `prior_weights` argument, to change the prior probability of the fitted model but we do not utilize this option here and keep the default value, which sets the prior weights for the new model to `1`. (Note that the arguments for specifying prior distributions in `update.RoBMA()` function are `prior_X` - in singular, in comparison to `RoBMA()` function that uses `priors_X` in plural.)
+We add the second model to the ensemble using the `update.RoBMA()` function. The function can also be used for many other purposes - updating settings, prior model weights, and refitting failed models. Here, we supply the fitted ensemble object and add an argument specifying the prior distributions of each component for the additional model. Since we want to add Model 2 - we set the prior for the $\mu$ parameter to be treated as a prior belonging to the alternative hypothesis of the effect size component and the remaining priors treated as belonging to the null hypotheses. If we wanted, we could also specify `prior_weights` argument, to change the prior probability of the fitted model but we do not utilize this option here and keep the default value, which sets the prior weights for the new model to `1`. (Note that the arguments for specifying prior distributions in `update.RoBMA()` function are `prior_X` - in singular, in comparison to `RoBMA()` function that uses `priors_X` in plural.)
 
 ```{r include = FALSE}
 # these fits are relatively fast, but we reduce the knitting time considerably
@@ -150,7 +152,7 @@ summary(fit, type = "models")
 
 Before we add the remaining models to the ensemble using the `update()` function, we need to decide on the remaining prior distributions. Specifically, on the prior distribution for the heterogeneity parameter $\tau$, and the publication bias adjustment parameters $\omega$ (for the selection models' weightfunctions) and PET and PEESE for the PET and PEESE adjustment.
 
-For Model 3, we use the usual inverse-gamma(1, .15) prior distribution based on empirical heterogeneity estimates [@erp2017estimates] for the heterogeneity parameter $\tau$. For Models 4.1-4.4 we use the default settings for the publication bias adjustments as outlined the Appendix B of [@bartos2021no].
+For Model 3, we use the usual inverse-gamma(1, .15) prior distribution based on empirical heterogeneity estimates [@erp2017estimates] for the heterogeneity parameter $\tau$. For Models 4.1-4.4 we use the default settings for the publication bias adjustments as outlined in the Appendix B of [@bartos2021no].
 
 Now, we just need to add the remaining models to the ensemble using the `update()` function as already illustrated.
 
@@ -197,24 +199,25 @@ summary(fit, type = "models")
 
 ### Using the Fitted Ensemble
 
-Finally, we use the `summary()` function to inspect the model results. The results from our custom ensemble indicate weak evidence for the absence of the pre-cognition effect, $\text{BF}_{10} = 0.584$ -> $\text{BF}_{01} = 1.71$, moderate evidence for the absence of heterogeneity, $\text{BF}_{\text{rf}} = 0.132$ -> $\text{BF}_{\text{fr}} = 7.58$, and moderate evidence for the presence of the publication bias, $\text{BF}_{\text{pb}} = 3.21$. 
+Finally, we use the `summary()` function to inspect the model results. The results from our custom ensemble indicate weak evidence for the absence of the precognition effect, $\text{BF}_{10} = 0.584$ -> $\text{BF}_{01} = 1.71$, moderate evidence for the absence of heterogeneity, $\text{BF}_{\text{rf}} = 0.132$ -> $\text{BF}_{\text{fr}} = 7.58$, and moderate evidence for the presence of the publication bias, $\text{BF}_{\text{pb}} = 3.21$. 
 
 ```{r}
 summary(fit)
 ```
 
-The finalized ensemble can be treated as any other `RoBMA` ensemble using the `summary()`, `plot()`, `plot_models()`, `forest()`, and `diagnostics()` functions. For example, we can use the `plot.RoBMA()` with the `parameter = "mu", prior = TRUE` arguments to plot the prior (grey) and posterior distribution (black) for the effect size. The function visualizes the model-averaged estimates across all models by default. The arrows stand for the probability of a spike, here, at the value 0. The secondary y-axis (right) shows the probability of the value 0, increasing from 0.71, to 0.81.
+The finalized ensemble can be treated as any other `RoBMA` ensemble using the `summary()`, `plot()`, `plot_models()`, `forest()`, and `diagnostics()` functions. For example, we can use the `plot.RoBMA()` with the `parameter = "mu", prior = TRUE` arguments to plot the prior (grey) and posterior distribution (black) for the effect size. The function visualizes the model-averaged estimates across all models by default. The arrows represent the probability mass at the value 0 (a spike at 0). The secondary y-axis (right) shows the probability mass at the zero effect size, which increased from the prior probability of 0.71 to the posterior the posterior probability of 0.81.
 
 ```{r fig_mu_posterior, dpi = 300, fig.width = 4, fig.height = 3.5, out.width = "50%", fig.align = "center"}
 plot(fit, parameter = "mu", prior = TRUE)
 ```
 
-We can also inspect the posterior distributions of the publication bias adjustments. To visualize the model-averaged weightfunction, we change set `parameter = weightfunction` argument, with the prior distribution in light gray and the posterior distribution in the dark gray,
+We can also inspect the posterior distributions of the publication bias adjustments. To visualize the model-averaged weightfunction, we set `parameter = weightfunction` argument. The resulting figure shows the light gray prior distribution and the dark gray the posterior distribution.
 
 ```{r fig_weightfunction_posterior, dpi = 300, fig.width = 5, fig.height = 4, out.width = "75%", fig.align = "center"}
 plot(fit, parameter = "weightfunction", prior = TRUE)
 ```
-and the posterior estimate of the regression relationship between the standard errors and effect sizes by setting `parameter = "PET-PEESE"`.
+
+We can also inspect the posterior estimate of the regression relationship between the standard errors and effect sizes by setting `parameter = "PET-PEESE"`.
 
 ```{r fig_PETPEESE_posterior, dpi = 300, fig.width = 5, fig.height = 4, out.width = "75%", fig.align = "center"}
 plot(fit, parameter = "PET-PEESE", prior = TRUE)
@@ -223,7 +226,7 @@ plot(fit, parameter = "PET-PEESE", prior = TRUE)
 
 ### Footnotes
 
-$^1$ - The default setting used to produce 12 models in RoBMA versions < 2, which corresponded to earlier an article by @maier2020robust in which we applied Bayesian model-averaging only across selection models.
+$^1$ - The default setting used to produce 12 models in RoBMA versions < 2, which corresponded to an earlier an article by @maier2020robust in which we applied Bayesian model-averaging only across selection models.
 
 ### References
 
