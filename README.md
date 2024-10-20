@@ -360,7 +360,7 @@ accommodate the 2.0 version of the package.
 ### References
 
 <div id="refs" class="references csl-bib-body hanging-indent"
-line-spacing="2">
+entry-spacing="0" line-spacing="2">
 
 <div id="ref-bartos2021bayesian" class="csl-entry">
 

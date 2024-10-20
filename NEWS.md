@@ -6,6 +6,9 @@
 
 ### Fixes
 - checking and fixing the number of available cores upon loading the package (hopefully fixes some parallelization issues)
+- `update()` function re-evaluates convergence checks of individual models (https://github.com/FBartos/RoBMA/issues/34) 
+- typos and minor issues in the vignettes
+
 
 ## version 3.1
 ### Features

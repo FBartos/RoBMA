@@ -453,6 +453,7 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
       stop("Adding a new model to the ensemble is not possible with RoBMA.reg models.")
 
     what_to_do <- "fit_new_model"
+    message("Fitting a new model with specified priors.")
     new_priors <- .check_and_list_priors(
       model_type = NULL,
       priors_effect_null        = prior_effect_null,        priors_effect        = prior_effect,
@@ -472,6 +473,7 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   }else if(!is.null(prior_weights)){
 
     what_to_do <- "update_prior_weights"
+    message("Updating prior odds for the fitted models.")
     if(length(prior_weights) != length(object$models))
       stop("The number of newly specified prior odds does not match the number of models. See '?update.RoBMA' for more details.")
     for(i in 1:length(object$models)){
@@ -487,10 +489,19 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   }else if(extend_all){
 
     what_to_do <- "extend_all"
+    message("Extending all models with additional samples.")
 
   }else if(refit_failed & any(!.get_model_convergence(object))){
 
     what_to_do <- "refit_failed_models"
+    message("Refitting models that failed to converge.")
+
+  }else if(!is.null(convergence_checks)){
+
+    # dispatches separately from the rest of the settings
+    # recomputing convergence can take a bit of time
+    what_to_do <- "update_convergence_checks"
+    message("Updating convergence checks.")
 
   }else{
 
@@ -544,6 +555,13 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
       object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_RoBMA_model, object = object, extend = TRUE)
       parallel::stopCluster(cl)
 
+    }
+
+  }else if(what_to_do == "update_convergence_checks"){
+
+    # propagate settings changes to the individual models
+    for(i in seq_along(object$models)){
+      object$models[[i]] <- .update_model_checks(object$models[[i]], object[["convergence_checks"]])
     }
 
   }else if(what_to_do == "transform_estimates"){

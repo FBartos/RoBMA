@@ -28,6 +28,55 @@ check_RoBMA_convergence <- function(fit){
   return(.get_model_convergence(fit))
 }
 
+
+.update_model_checks       <- function(model, convergence_checks){
+
+  fit     <- model[["fit"]]
+  marglik <- model[["marglik"]]
+
+  # skip models with an error or emty models
+  if(inherits(fit, "error") || inherits(fit, "null_model")){
+    return(model)
+  }
+
+  errors    <- NULL
+  warnings  <- NULL
+
+  # re-evaluate convergence checks with the new settigns
+  check_fit     <- BayesTools::JAGS_check_convergence(
+    fit          = fit,
+    prior_list   = attr(fit, "prior_list"),
+    max_Rhat     = convergence_checks[["max_Rhat"]],
+    min_ESS      = convergence_checks[["min_ESS"]],
+    max_error    = convergence_checks[["max_error"]],
+    max_SD_error = convergence_checks[["max_SD_error"]]
+  )
+  warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
+  if(convergence_checks[["remove_failed"]] && !check_fit){
+    converged <- FALSE
+  }else{
+    converged <- TRUE
+  }
+
+  # check the marginal likelihood and keep the errors
+  if(is.na(marglik$logml)){
+
+    errors         <- c(errors, attr(marglik, "errors"))
+    converged      <- FALSE
+
+  }else{
+
+    # forward warnings if present
+    warnings <- c(warnings, attr(marglik, "warnings"))
+
+  }
+
+  model$errors    <- errors
+  model$warnings  <- warnings
+  model$converged <- converged
+
+  return(model)
+}
 .is_model_constant         <- function(priors){
   # checks whether there is at least one non-nill prior
   if(is.null(priors[["terms"]])){
