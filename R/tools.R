@@ -8,13 +8,75 @@
 #'
 #'
 #' @return \code{check_RoBMA} returns a vector of error and
-#' warning messages.
+#' warning messages. \code{check_RoBMA_convergence} returns
+#' a logical vector indicating whether the models have
+#' converged.
 #'
-#' @export
+#' @name check_RoBMA
+#' @aliases check_RoBMA check_RoBMA_convergence
+#' @export check_RoBMA
+#' @export check_RoBMA_convergence
+
+#' @rdname check_RoBMA
 check_RoBMA <- function(fit){
+  .check_is_any_RoBMA_object(fit)
   .print_errors_and_warnings(fit, max_print = Inf)
 }
+#' @rdname check_RoBMA
+check_RoBMA_convergence <- function(fit){
+  .check_is_any_RoBMA_object(fit)
+  return(.get_model_convergence(fit))
+}
 
+
+.update_model_checks       <- function(model, convergence_checks){
+
+  fit     <- model[["fit"]]
+  marglik <- model[["marglik"]]
+
+  # skip models with an error or emty models
+  if(inherits(fit, "error") || inherits(fit, "null_model")){
+    return(model)
+  }
+
+  errors    <- NULL
+  warnings  <- NULL
+
+  # re-evaluate convergence checks with the new settigns
+  check_fit     <- BayesTools::JAGS_check_convergence(
+    fit          = fit,
+    prior_list   = attr(fit, "prior_list"),
+    max_Rhat     = convergence_checks[["max_Rhat"]],
+    min_ESS      = convergence_checks[["min_ESS"]],
+    max_error    = convergence_checks[["max_error"]],
+    max_SD_error = convergence_checks[["max_SD_error"]]
+  )
+  warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
+  if(convergence_checks[["remove_failed"]] && !check_fit){
+    converged <- FALSE
+  }else{
+    converged <- TRUE
+  }
+
+  # check the marginal likelihood and keep the errors
+  if(is.na(marglik$logml)){
+
+    errors         <- c(errors, attr(marglik, "errors"))
+    converged      <- FALSE
+
+  }else{
+
+    # forward warnings if present
+    warnings <- c(warnings, attr(marglik, "warnings"))
+
+  }
+
+  model$errors    <- errors
+  model$warnings  <- warnings
+  model$converged <- converged
+
+  return(model)
+}
 .is_model_constant         <- function(priors){
   # checks whether there is at least one non-nill prior
   if(is.null(priors[["terms"]])){
@@ -241,7 +303,7 @@ check_RoBMA <- function(fit){
 
   return(object)
 }
-.object_version_older <- function(object, version){
+.object_version_older        <- function(object, version){
 
   object  <- unlist(object[["add_info"]][["version"]])
   current <- as.numeric(unlist(strsplit(version, ".", fixed = TRUE)))
@@ -250,6 +312,11 @@ check_RoBMA <- function(fit){
     return(object[1] <= current[1] && object[2] <= current[2])
   }else{
     return(object[1] <= current[1] && object[2] <= current[2] && object[3] <= current[3])
+  }
+}
+.check_is_any_RoBMA_object   <- function(x){
+  if(!(is.RoBMA(x) || is.RoBMA.reg(x) || is.NoBMA(x) || is.NoBMA.reg(x) || is.BiBMA(x))){
+    stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
   }
 }
 

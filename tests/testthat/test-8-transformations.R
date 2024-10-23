@@ -307,9 +307,9 @@ test_that("density transformations works", {
       if(from == to){
         next
       }else if(from == "OR"){
-        expect_doppelganger(paste0("transformation_",from,"2",to), function()test_transformation(x_samples[x_samples > 0], from, to))
+        vdiffr::expect_doppelganger(paste0("transformation_",from,"2",to), function()test_transformation(x_samples[x_samples > 0], from, to))
       }else{
-        expect_doppelganger(paste0("transformation_",from,"2",to), function()test_transformation(x_samples, from, to))
+        vdiffr::expect_doppelganger(paste0("transformation_",from,"2",to), function()test_transformation(x_samples, from, to))
       }
     }
   }
@@ -346,7 +346,7 @@ test_that("density scaling works", {
       if(from == to){
         next
       }else{
-        expect_doppelganger(paste0("scaling_",from,"2",to), function()test_transformation(x_samples, from, to))
+        vdiffr::expect_doppelganger(paste0("scaling_",from,"2",to), function()test_transformation(x_samples, from, to))
       }
     }
   }
