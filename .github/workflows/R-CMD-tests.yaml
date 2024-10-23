@@ -84,20 +84,9 @@ jobs:
           sudo mkdir -p $(brew --prefix)/libexec
           sudo ln -s $(brew --prefix jags)/bin/jags $(brew --prefix)/libexec/jags-terminal
 
-      # Install R package 'renv' and restore dependencies
-      - name: Install renv and Restore Dependencies
-        run: |
-          install.packages('renv')
-          renv::restore()
-        shell: Rscript {0}
-
-      # Cache R packages installed by renv
-      - name: Cache R packages
-        uses: actions/cache@v4
-        with:
-          path: renv/library
-          key: ${{ runner.os }}-r-${{ matrix.config.r }}-${{ hashFiles('**/renv.lock') }}
-          restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-
+      # Set up renv
+      - name: Setup renv
+        uses: r-lib/actions/setup-renv@v2
 
       # Install the package
       - name: Install devtools and the RoBMA Package
