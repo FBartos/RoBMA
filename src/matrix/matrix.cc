@@ -3,7 +3,8 @@
 #include <algorithm>
 #include <vector>
 #include "matrix.h"
-
+#include <iostream>   // For std::cout
+#include <iomanip>    // For std::setw, std::setprecision
 #include <module/ModuleError.h>
 
 /* lapack prototypes */
@@ -103,8 +104,7 @@ bool check_symmetric_ispd(double const *a, int n)
   return w[0] > 0;
 }
 
-
-bool inverse_spd (double *X, double const *A, int n)
+bool inverse_spd(double *X, double const *A, int n)
 {
   /* invert n x n symmetric positive definite matrix A. Put result in X*/
 
@@ -139,8 +139,7 @@ bool inverse_spd (double *X, double const *A, int n)
   return true;
 }
 
-
-bool inverse (double *X, double const *A, int n)
+bool inverse(double *X, double const *A, int n)
 {
   /* invert n x n matrix A. Put result in X */
 
@@ -180,5 +179,121 @@ bool check_symmetry(double const *x, unsigned int n, double tol)
   }
   return true;
 }
+
+bool compute_eigenvectors(double *vectors, double const *A, int n)
+{
+  /* Computes eigenvectors of an n x n symmetric matrix A. The eigenvectors are stored in 'vectors'. */
+
+  int N = n * n;
+  std::vector<double> Acopy(N);
+  std::copy(A, A + N, Acopy.begin());
+
+  // Workspace query to get optimal workspace size
+  int lwork = -1;
+  double work_query;
+  int info = 0;
+  std::vector<double> w(n); // Eigenvalues (can be used if needed)
+
+  dsyev_("V", "U", &n, &Acopy[0], &n, &w[0], &work_query, &lwork, &info);
+  if (info != 0) {
+    throwRuntimeError("Unable to calculate workspace size for dsyev");
+  }
+  lwork = static_cast<int>(work_query);
+  std::vector<double> work(lwork);
+
+  // Compute eigenvalues and eigenvectors
+  dsyev_("V", "U", &n, &Acopy[0], &n, &w[0], &work[0], &lwork, &info);
+  if (info != 0) {
+    throwRuntimeError("Unable to compute eigenvectors in dsyev");
+  }
+
+  // The eigenvectors are stored in columns of Acopy
+  std::copy(Acopy.begin(), Acopy.end(), vectors);
+
+  return true;
+}
+
+bool cholesky_decomposition(double *U, double const *A, int n)
+{
+  // Copy A into U because dpotrf_ overwrites the input matrix
+  int N = n * n;
+  for (int i = 0; i < N; ++i) {
+    U[i] = A[i];
+  }
+
+  int info = 0;
+  dpotrf_("U", &n, U, &n, &info);
+  if (info != 0) {
+    return false; // Decomposition failed
+  }
+
+  // The upper triangle of U now contains the Cholesky factor
+  // The lower triangle is not needed
+  return true; // Decomposition succeeded
+}
+
+void print_matrix(const double *matrix, int n, const std::string &name)
+{
+  std::cout << "Matrix " << name << " (" << n << "x" << n << "):\n";
+  std::cout << std::fixed << std::setprecision(4);
+
+  for (int i = 0; i < n; ++i) { // Rows
+    for (int j = 0; j < n; ++j) { // Columns
+      std::cout << std::setw(12) << matrix[i + j * n] << " ";
+    }
+    std::cout << "\n";
+  }
+  std::cout << std::endl;
+
+  // Reset format flags if necessary
+  std::cout.unsetf(std::ios_base::fixed);
+  std::cout.precision(6); // Reset to default precision
+}
+
+void print_vector(const double *vector, int n, const std::string &name)
+{
+  std::cout << "Vector " << name << " (" << n << " elements):\n";
+  std::cout << std::fixed << std::setprecision(4);
+
+  for (int i = 0; i < n; ++i) {
+    std::cout << std::setw(12) << vector[i] << "\n";
+  }
+  std::cout << std::endl;
+
+  // Reset format flags if necessary
+  std::cout.unsetf(std::ios_base::fixed);
+  std::cout.precision(6); // Reset to default precision
+}
+
+bool check_upper_triangular(const double *mat, int K)
+{
+  for (int i = 1; i < K; ++i) {
+    for (int j = 0; j < i; ++j) {
+      if (std::fabs(mat[i + j * K]) > 1e-8) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void simulate_mnorm_chol(double *x, const double *mu, const double *chol, int K, RNG *rng) {
+  // Generate standard normal variates
+  double *z = new double[K];
+  for (int i = 0; i < K; ++i) {
+    z[i] = rng->normal();
+  }
+
+  // Compute x = mu + chol^T * z
+  for (int i = 0; i < K; ++i) {
+    x[i] = mu[i];
+    for (int j = 0; j <= i; ++j) {
+      x[i] += chol[j + i * K] * z[j];
+    }
+  }
+
+  delete[] z;
+}
+
 
 }}

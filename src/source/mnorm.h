@@ -6,6 +6,8 @@ double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, doubl
 // adapted from https://gallery.rcpp.org/articles/dmvnorm_arma/
 double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, const int K);
 
+double cpp_mnorm_chol_lpdf(const double *x, const double *mu, const double *chol, int K);
+
 // adapted from https://www.geeksforgeeks.org/
 void chol(double const *matrix, const int n, double *lower);
 void cofactor(double const *matrix, double *temp, int p, int q, int n, int const K);

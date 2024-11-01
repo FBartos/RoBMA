@@ -1,3 +1,6 @@
+### Features
+- adds dmnmix and dmnmix_cd JAGS distribution that allows simulating data from a mixture of multivariate normal distributions (useful for imputation)
+
 ## version 3.1
 ### Features
 - binomial-normal models for binary data via the `BiBMA` function

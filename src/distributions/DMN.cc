@@ -11,6 +11,7 @@
 #include <JRmath.h>
 #include "../source/mnorm.h"
 #include "../source/tools.h"
+#include "../matrix/matrix.h"
 
 namespace jags {
   namespace RoBMA {
@@ -69,7 +70,35 @@ namespace jags {
               double const *lower, double const *upper,
               RNG *rng) const
     {
-      // not implemented
+      // Reassign the addresses to pointers
+      const double *mu     = par[0];
+      const double *sigma  = par[1];
+      const int K = dims[0][0];
+      // print_matrix(sigma, K, "sigma");
+
+      // Allocate memory for U and compute Cholesky decomposition
+      double *U = new double[K * K];
+      cholesky_decomposition(U, sigma, K);
+      // print_matrix(U, K, "U (Cholesky factor)");
+
+      // Generate a vector of independent standard normal variates
+      double *z = new double[K];
+      for (int i = 0; i < K; ++i) {
+        z[i] = rnorm(0.0, 1.0, rng);
+      }
+
+      // Compute x = mu + U^T * z
+      for (int i = 0; i < K; ++i) {
+        x[i] = mu[i];
+        for (int j = 0; j <= i; ++j) {
+          x[i] += U[j + i * K] * z[j];
+        }
+      }
+
+      // Clean up
+      delete[] U;
+      delete[] z;
+
     }
 
     void DMN::support(double *lower, double *upper, unsigned int length,

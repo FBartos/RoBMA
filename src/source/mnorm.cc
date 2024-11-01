@@ -10,7 +10,6 @@
 #include <JRmath.h>
 #include "../matrix/matrix.h"
 
-
 // wrapper around the mvtnorm package
 double cpp_mnorm_cdf(double *lower, double *upper, int *infin, double *mu, double *sigma_stdev, double *sigma_corr, int K)
 {
@@ -80,4 +79,40 @@ double cpp_mnorm_lpdf(double const *x, double const *mu, double const *sigma, co
   loglik -= jags::RoBMA::logdet(sigma, K)/2 + K * M_LN_SQRT_2PI;
 
   return loglik;
+}
+
+double cpp_mnorm_chol_lpdf(const double *x, const double *mu, const double *chol, int K) {
+  // Compute z = x - mu
+  double *z = new double[K];
+  for (int i = 0; i < K; ++i) {
+    z[i] = x[i] - mu[i];
+  }
+
+  // Solve chol^T * y = z for y (forward substitution)
+  double *y = new double[K];
+  for (int i = 0; i < K; ++i) {
+    double sum = 0.0;
+    for (int j = 0; j < i; ++j) {
+      sum += chol[j + i * K] * y[j];
+    }
+    y[i] = (z[i] - sum) / chol[i + i * K];
+  }
+
+  // Compute quad_form = y^T * y
+  double quad_form = 0.0;
+  for (int i = 0; i < K; ++i) {
+    quad_form += y[i] * y[i];
+  }
+
+  // Compute log determinant from the Cholesky factor
+  double log_det = 0.0;
+  for (int i = 0; i < K; ++i) {
+    log_det += std::log(chol[i + i * K]);
+  }
+
+  double log_density = -0.5 * K * std::log(2 * M_PI) - log_det - 0.5 * quad_form;
+
+  delete[] z;
+  delete[] y;
+  return log_density;
 }
