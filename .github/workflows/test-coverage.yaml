@@ -48,7 +48,7 @@ jobs:
       # Install the package
       - name: Install devtools and the RoBMA Package
         run: |
-          install.packages(c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'testthat', 'vdiffr', 'covr'))
+          install.packages(c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'testthat', 'vdiffr', 'covr', 'pandoc'))
           devtools::install()
         shell: Rscript {0}
 

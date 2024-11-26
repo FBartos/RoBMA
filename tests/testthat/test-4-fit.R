@@ -1,5 +1,6 @@
 context("(4) Fitting and updating functions")
 skip_on_cran()
+skip_on_covr()
 
 # test objects
 saved_files <- paste0("fit_", 1:16, ".RDS")

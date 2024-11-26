@@ -93,7 +93,7 @@ jobs:
         run: |
           install.packages('devtools')
           install.packages('rcmdcheck')
-          install.packages(c('metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr'))
+          install.packages(c('metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc'))
           devtools::install()
         shell: Rscript {0}
 
