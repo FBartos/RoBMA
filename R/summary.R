@@ -223,7 +223,6 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
     }
 
-
     class(output) <- "summary.RoBMA"
     attr(output, "type") <- "ensemble"
 
@@ -392,30 +391,11 @@ print.summary.RoBMA <- function(x, ...){
 
   if(attr(x, "type") == "ensemble"){
 
-    cat("\n")
-    print(x[["components"]])
-
-    if(!is.null(x[["components_predictors"]])){
-      cat("\n")
-      print(x[["components_predictors"]])
-    }
-
-    cat("\n")
-    print(x[["estimates"]])
-
-    if(!is.null(x[["estimates_predictors"]])){
-      cat("\n")
-      print(x[["estimates_predictors"]])
-    }
-
-    if(!is.null(x[["estimates_conditional"]])){
-      cat("\n")
-      print(x[["estimates_conditional"]])
-    }
-
-    if(!is.null(x[["estimates_predictors_conditional"]])){
-      cat("\n")
-      print(x[["estimates_predictors_conditional"]])
+    for(type in c("components", "components_predictors", "estimates", "estimates_predictors", "estimates_conditional", "estimates_predictors_conditional")){
+      if(!is.null(x[[type]])){
+        cat("\n")
+        print(x[[type]])
+      }
     }
 
     return(invisible())
@@ -518,6 +498,8 @@ is.BiBMA            <- function(x){
 #' @export
 interpret           <- function(object, output_scale = NULL){
 
+  .check_is_any_RoBMA_object(object)
+
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]
   }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
@@ -566,3 +548,4 @@ interpret           <- function(object, output_scale = NULL){
 
   return(text)
 }
+

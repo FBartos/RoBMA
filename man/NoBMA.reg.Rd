@@ -47,12 +47,15 @@ NoBMA.reg(
 \arguments{
 \item{formula}{a formula for the meta-regression model}
 
-\item{data}{a data object created by the \code{combine_data} function. This is
-an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
-directly. I.e., you cannot pass the a data.frame and reference to the columns.}
+\item{data}{a data.frame containing the data for the meta-regression. Note that the
+column names have to correspond to the effect sizes (\code{d}, \code{logOR}, \code{OR},
+\code{r}, \code{z}), a measure of sampling variability (\code{se}, \code{v}, \code{n},
+\code{lCI}, \code{uCI}, \code{t}), and the predictors.
+See \code{\link[=combine_data]{combine_data()}} for a complete list of reserved names and additional information
+about specifying input data.}
 
-\item{test_predictors}{vector of predictor names that will be test
-(i.e., assigned both the null and alternative prior distributions).
+\item{test_predictors}{vector of predictor names to test for the presence
+of moderation (i.e., assigned both the null and alternative prior distributions).
 Defaults to \code{TRUE}, all predictors are tested using the default
 prior distributions (i.e., \code{prior_covariates},
 \code{prior_covariates_null}, \code{prior_factors}, and
@@ -76,12 +79,12 @@ and does not bias PET and PEESE style models. The other options are
 Supplying \code{"none"} will treat the effect sizes as unstandardized and
 refrain from any transformations.}
 
-\item{prior_scale}{a scale used to define priors. Defaults to \code{"cohens_d"}.
+\item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
 Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
 and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
 the samples from prior distributions are internally transformed to match the
 \code{transformation} of the data. The \code{prior_scale} corresponds to
-the scale of default output, but can be changed within the summary function.}
+the effect size scale of default output, but can be changed within the summary function.}
 
 \item{standardize_predictors}{whether continuous predictors should be standardized prior to
 estimating the model. Defaults to \code{TRUE}.}
@@ -212,18 +215,16 @@ also suppresses all messages.}
 }
 \description{
 \code{NoBMA.reg} is a wrapper around \code{\link[=RoBMA.reg]{RoBMA.reg()}} that can
-be used to estimate a (Normal - publication bias unadjusted) Bayesian
+be used to estimate a publication bias unadjusted Bayesian
 model-averaged meta-regression. The interface allows a complete customization of
 the ensemble with different prior (or list of prior) distributions
 for each component.
 }
 \details{
-See \code{\link[=RoBMA]{RoBMA()}} for more details.
+See \code{\link[=RoBMA.reg]{RoBMA.reg()}} for more details.
 
 Note that these default prior distributions are relatively wide and more informed
 prior distributions for testing for the presence of moderation should be considered.
-
-See \code{\link[=RoBMA.reg]{RoBMA.reg()}} for more details.
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=RoBMA.reg]{RoBMA.reg()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}, \code{\link[=check_setup]{check_setup()}}

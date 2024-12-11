@@ -178,11 +178,13 @@
       # deal with failed marginal likelihoods
       if(inherits(marglik, "error")){
 
-        errors         <- c(errors, marglik$message)
+        error_message  <- marglik$message
+        errors         <- c(errors, error_message)
         converged      <- FALSE
         marglik        <- list()
         marglik$logml  <- NA
         class(marglik) <- "bridge"
+        attr(marglik, "errors") <- error_message
 
       }else{
 

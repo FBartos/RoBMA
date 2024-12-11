@@ -1,6 +1,6 @@
 #' @title Estimate a Bayesian Model-Averaged Meta-Analysis of Binomial Data
 #'
-#' @description \code{BiBMA} estimate a Binomial Bayesian
+#' @description \code{BiBMA} estimate a binomial-normal Bayesian
 #' model-averaged meta-analysis. The interface allows a complete customization of
 #' the ensemble with different prior (or list of prior) distributions
 #' for each component.
@@ -27,7 +27,43 @@
 #' @inheritParams RoBMA
 #' @inheritParams combine_data
 #'
-#' @details See [RoBMA()] for more details.
+#' @details The \code{BiBMA()} function estimates the binomial-normal Bayesian model-averaged
+#' meta-analysis described in \insertCite{bartos2023empirical;textual}{RoBMA}. See
+#' \href{../doc/MedicineBiBMA.html}{\code{vignette("MedicineBiBMA", package = "RoBMA")}}
+#' vignette for a reproduction of the \insertCite{oduwole2018honey;textual}{RoBMA} example.
+#' Also [RoBMA()] for additional details.
+#'
+#' Generic [summary.RoBMA()], [print.RoBMA()], and [plot.RoBMA()] functions are
+#' provided to facilitate manipulation with the ensemble. A visual check of the
+#' individual model diagnostics can be obtained using the [diagnostics()] function.
+#' The fitted model can be further updated or modified by [update.RoBMA()] function.
+#'
+#' @examples \dontrun{
+#' # using the example data from Oduwole (2018) and reproducing the example from
+#' # Bartos et al. (2023) with domain specific informed prior distributions
+#'
+#' fit <- BiBMA(
+#'   x1          = c(5, 2),
+#'   x2          = c(0, 0),
+#'   n1          = c(35, 40),
+#'   n2          = c(39, 40),
+#'   priors_effect        = prior_informed(
+#'       "Acute Respiratory Infections",
+#'       type = "logOR", parameter = "effect"),
+#'   priors_heterogeneity = prior_informed(
+#'       "Acute Respiratory Infections",
+#'       type = "logOR", parameter = "heterogeneity")
+#'  )
+#'
+#'  summary(fit)
+#'
+#'  # produce summary on OR scale
+#'  summary(fit, output_scale = "OR")
+#'
+#' }
+#'
+#' @references
+#' \insertAllCited{}
 #'
 #'
 #' @return \code{NoBMA} returns an object of class 'RoBMA'.
@@ -239,6 +275,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
      (!is.null(prior_baseline)       | !is.null(prior_baseline_null))){
 
     what_to_do <- "fit_new_model"
+    message("Fitting a new model with specified priors.")
     new_priors <- .check_and_list_priors.bi(
       priors_effect_null        = prior_effect_null,        priors_effect        = prior_effect,
       priors_heterogeneity_null = prior_heterogeneity_null, priors_heterogeneity = prior_heterogeneity,
@@ -255,6 +292,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   }else if(!is.null(prior_weights)){
 
     what_to_do <- "update_prior_weights"
+    message("Updating prior odds for the fitted models.")
     if(length(prior_weights) != length(object$models))
       stop("The number of newly specified prior odds does not match the number of models. See '?update.BiBMA' for more details.")
     for(i in 1:length(object$models)){
@@ -265,14 +303,24 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   }else if(extend_all){
 
     what_to_do <- "extend_all"
+    message("Extending all models with additional samples.")
 
   }else if(refit_failed & any(!.get_model_convergence(object))){
 
     what_to_do <- "refit_failed_models"
+    message("Refitting models that failed to converge.")
+
+  }else if(!is.null(convergence_checks)){
+
+    # dispatches separately from the rest of the settings
+    # recomputing convergence can take a bit of time
+    what_to_do <- "update_convergence_checks"
+    message("Updating convergence checks.")
 
   }else{
 
     what_to_do <- "update_settings"
+    message("Updating fitting settings.")
 
   }
 
@@ -322,6 +370,13 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
       object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_BiBMA_model, object = object, extend = TRUE)
       parallel::stopCluster(cl)
 
+    }
+
+  }else if(what_to_do == "update_convergence"){
+
+    # propagate settings changes to the individual models
+    for(i in seq_along(object$models)){
+      object$models[[i]] <- .update_model_checks(object$models[[i]], object[["convergence_checks"]])
     }
 
   }

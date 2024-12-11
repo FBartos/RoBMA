@@ -3,7 +3,6 @@
 \docType{package}
 \name{RoBMA-package}
 \alias{RoBMA-package}
-\alias{_PACKAGE}
 \alias{RoBMA_package}
 \alias{RoBMA.package}
 \title{RoBMA: Robust Bayesian meta-analysis}

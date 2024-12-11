@@ -569,7 +569,60 @@ test_that("Marginal summary functions work", {
       "\033[0;31mmu_mod_con[1SD]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.\033[0m"
     )
   )
+})
 
+# test heterogeneity summary function
+test_that("Heterogeneity summary functions work", {
+
+  # testing consistency across all model specifications
+  for(i in 1:length(saved_fits)){
+    if(is.BiBMA(saved_fits[[i]]))
+      expect_error(summary_heterogeneity(saved_fits[[i]]), "The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
+    else
+      expect_equal(
+        capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150),
+        read.table(file = file.path("../results/summary_heterogeneity", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+  }
+
+  # testing consistency across all model specifications
+  for(i in 1:length(saved_fits)){
+    if(is.BiBMA(saved_fits[[i]]))
+      expect_error(summary_heterogeneity(saved_fits[[i]]), "The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
+    else
+      expect_equal(
+        capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150),
+        read.table(file = file.path("../results/summary_heterogeneity.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+  }
+
+  # test BiBMA
+  expect_equal(
+    capture_output_lines(summary_heterogeneity(saved_fits[[1]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    c("Call:"                                                                                   ,
+      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                      ,
+      ""                                                                                        ,
+      "Robust Bayesian meta-analysis"                                                           ,
+      "Model-averaged heterogeneity estimates:"                                                 ,
+      "      Mean Median  0.025   0.5"                                                          ,
+      "PI   0.359  0.163 -0.758 0.163"                                                          ,
+      "tau  0.198  0.000  0.000 0.000"                                                          ,
+      "tau2 0.045  0.000  0.000 0.000"                                                          ,
+      "I2   9.723  0.000  0.000 0.000"                                                          ,
+      "H2   1.256  1.000  1.000 1.000"                                                          ,
+      "The prediction interval (PI) is summarized on the log(OR) scale."                        ,
+      "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."             ,
+      "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale.",
+      ""                                                                                        ,
+      "Conditional heterogeneity estimates:"                                                    ,
+      "       Mean Median  0.025    0.5"                                                        ,
+      "PI    0.720  0.754 -0.577  0.754"                                                        ,
+      "tau   0.440  0.308  0.072  0.308"                                                        ,
+      "tau2  0.107  0.026  0.001  0.026"                                                        ,
+      "I2   21.509 12.931  0.798 12.931"                                                        ,
+      "H2    1.611  1.149  1.008  1.149"                                                        ,
+      "The prediction interval (PI) is summarized on the log(OR) scale."                        ,
+      "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."             ,
+      "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale."
+    ))
 
 })
 
@@ -612,4 +665,19 @@ if(FALSE){
     write.table(gsub("(.{80})", "\\1\\\n", interpret(saved_fits[[i]])), file = file.path("tests/results/interpret", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
+  # generate summary_heterogeneity files
+  for(i in seq_along(saved_fits)){
+    if(is.BiBMA(saved_fits[[i]]))
+      next
+    else
+      write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  }
+
+  # generate summary_heterogeneity.individual files
+  for(i in seq_along(saved_fits)){
+    if(is.BiBMA(saved_fits[[i]]))
+      next
+    else
+      write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  }
 }

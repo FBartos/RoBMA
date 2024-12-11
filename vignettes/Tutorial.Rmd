@@ -75,7 +75,7 @@ JAGS can be downloaded from the [JAGS website](https://sourceforge.net/projects/
 ```{r
 install.packages(c("RoBMA", "weightr", "metafor"))
 ```
-If you happen to use the new M1 Mac machines with Apple silicon, see [this blogpost](https://www.dsquintana.blog/jags-apple-silicon-m1-mac/) outlining how to install JAGS on M1. In short, you will have to install Intel version of R (Intel/x86-64) from [CRAN](https://cran.r-project.org/bin/macosx/), not the Arm64 (Apple silicon) version. 
+If you happen to use the new M1 Mac machines with Apple silicon, see [this blogpost](https://www.dsquintana.blog/jags-apple-silicon-m1-mac/) outlining how to install JAGS on M1. In short, you will have to install Intel version of R (Intel/x86-64) from [CRAN](https://cran.r-project.org/bin/macosx/), not the Arm64 (Apple silicon) version. Note that there might have been some changes in the installation process since the blogpost was written and there might be a JAGS version compatible with Apple silicon available now.
 
 Once all of the packages are installed, we can load them into the workspace with the `library()` function.
 
@@ -90,7 +90,7 @@ library("RoBMA")
 @lui2015intergenerational studied how the acculturation mismatch (AM) that is the result of the contrast between the collectivist cultures of Asian and Latin immigrant groups and the individualist culture in the United States correlates with intergenerational cultural conflict (ICC). @lui2015intergenerational meta-analyzed 18 independent studies correlating AM with ICC. A standard reanalysis indicates a significant effect of AM on increased ICC, r = 0.250, p < .001.
 
 #### Data manipulation
-First, we load the Lui2015.csv file into R with the `read.csv()` function and inspect the first six data entries with the `head()` function (the data set is also included in the package and can accessed via the `data("Lui2015", package = "RoBMA")` call).
+First, we load the Lui2015.csv file into R with the `read.csv()` function and inspect the first six data entries with the `head()` function (the data set is also included in the package and can be accessed via the `data("Lui2015", package = "RoBMA")` call).
 
 ```r
 df <- read.csv(file = "Lui2015.csv")
@@ -112,7 +112,7 @@ The printed output shows that the data set contains mostly positive effect sizes
 #### Effect size transformations
 Before we start analyzing the data, we transform the effect sizes from correlation coefficients $\rho$ to Fisher's *z*. Correlation coefficients are not well suited for meta-analysis because (1) they are bounded to a range (-1, 1) with non-linear increases near the boundaries and (2) the standard error of the correlation coefficients is related to the effect size. Fisher's *z* transformation mitigates both issues. It unwinds the (-1, 1) range to ($-\infty$, $\infty$), makes the sampling distribution approximately normal, and breaks the dependency between standard errors and effect sizes. 
 
-To apply the transformation, we use the `combine_data()` function from the `RoBMA` package. We pass the correlation coefficients into the `r` argument, the sample sizes to the `n` argument and set the `transformation` argument to `"fishers_z"` (the `study_names` argument is optional). The function `combine_data()` then saves the transformed effect size estimates into a data frame called `dfz`, where the `y` column corresponds to Fisher's *z* transformation of the correlation coefficient and `se` column corresponds to the standard error of Fisher's *z*.
+To apply the transformation, we use the `combine_data()` function from the `RoBMA` package. We pass the correlation coefficients into the `r` argument, the sample sizes to the `n` argument, and set the `transformation` argument to `"fishers_z"` (the `study_names` argument is optional). The function `combine_data()` then saves the transformed effect size estimates into a data frame called `dfz`, where the `y` column corresponds to Fisher's *z* transformation of the correlation coefficient and `se` column corresponds to the standard error of Fisher's *z*.
 
 ```{r}
 dfz <- combine_data(r = df$r, n = df$n, study_names = df$study, transformation = "fishers_z")
@@ -127,7 +127,7 @@ head(dfd)
 ```
 
 
-#### Re analysis with random effect meta-analysis
+#### Re-analysis with random effect meta-analysis
 We now estimate a random effect meta-analysis with the `rma()` function imported from the `metafor` package [@metafor] and verify that we arrive at the same results as reported in the @lui2015intergenerational paper. The `yi` argument is used to pass the column name containing effect sizes, the `sei` argument is used to pass the column name containing standard errors, and the `data` argument is used to pass the data frame containing both variables.
 
 ```{r}
@@ -135,7 +135,7 @@ fit_rma <- rma(yi = y, sei = se, data = dfz)
 fit_rma
 ```
 
-Indeed, we find that the effect size estimate from the random effect meta-analysis corresponds to the one reported in the @lui2015intergenerational. It is important to remember that we used Fisher's *z* to estimate the models; therefore, the estimated results are on the Fisher's *z* scale. To transform the effect size estimate to the correlation coefficients, we can use the `z2r()` functionfrom the `RoBMA` package,
+Indeed, we find that the effect size estimate from the random effect meta-analysis corresponds to the one reported in @lui2015intergenerational. It is important to remember that we used Fisher's *z* to estimate the models; therefore, the estimated results are on the Fisher's *z* scale. To transform the effect size estimate to the correlation coefficients, we can use the `z2r()` function from the `RoBMA` package,
 
 ```{r}
 z2r(fit_rma$b)
@@ -145,14 +145,14 @@ Transforming the effect size estimate results in the correlation coefficient $\r
 
 
 ### PET-PEESE
-The first publication bias adjustment that we perform is PET-PEESE. PET-PEESE adjusts for the relationship between effect sizes and standard errors. To our knowledge, PET-PEESE is not currently implemented in any R-package. However, since PET and PEESE are weighted regressions of effect sizes on standard errors (PET) or standard errors squared (PEESE), we can estimate both PET and PEESE models with the `lm()` function. Inside of the `lm()` function call, we specify that `y` is the response variable (left hand side of the `~` sign) and `se` is the predictor (the right-hand side). Furthermore, we specify the `weight` argument that allows us to weight the meta-regression by inverse variance and set the `data = dfz` argument, which specifies that all of the variables come from the transformed, `dfz`, data set. 
+The first publication bias adjustment that we perform is PET-PEESE. PET-PEESE adjusts for the relationship between effect sizes and standard errors. To our knowledge, PET-PEESE is not currently implemented in any R-package. However, since PET and PEESE are weighted regressions of effect sizes on standard errors (PET) or standard errors squared (PEESE), we can estimate both PET and PEESE models with the `lm()` function. Inside the `lm()` function call, we specify that `y` is the response variable (left hand side of the `~` sign) and `se` is the predictor (the right-hand side). Furthermore, we specify the `weights` argument that allows us to weight the meta-regression by inverse variance and set the `data = dfz` argument, which specifies that all of the variables come from the transformed, `dfz`, data set. 
 
 ```{r}
 fit_PET <- lm(y ~ se, weights = 1/se^2, data = dfz)
 summary(fit_PET)
 ```
 
-The `summary()` function allows us to explore details of the fitted model. The `(Intercept)` coefficient refers to the meta-analytic effect size (corrected for the correlation with standard errors). Again, it is important to keep in mind that the effect size estimate is on the Fisher's *z* scale. We obtain the estimate on correlation scale with the `z2r()` function (we pass the estimated effect size using the `summary(fit_PET)$coefficients["(Intercept)", "Estimate"]` command, which extracts the estimate from the fitted model, it is equivalent with simply pasting the value directly `z2r(-0.0008722083)`).
+The `summary()` function allows us to explore details of the fitted model. The `(Intercept)` coefficient refers to the meta-analytic effect size (corrected for the correlation with standard errors). Again, it is important to keep in mind that the effect size estimate is on the Fisher's *z* scale. We obtain the estimate on correlation scale with the `z2r()` function (we pass the estimated effect size using the `summary(fit_PET)$coefficients["(Intercept)", "Estimate"]` command, which extracts the estimate from the fitted model, it is equivalent to simply pasting the value directly `z2r(-0.0008722083)`).
 
 ```{r}
 z2r(summary(fit_PET)$coefficients["(Intercept)", "Estimate"])
@@ -168,23 +168,23 @@ summary(fit_PEESE)
 
 
 ### Selection models
-The second publication bias adjustment that we will perform is selection models. Selection models adjust for the different publication probabilities in different *p*-value intervals. Selection models are implemented in `weightr` package (`weightfunct()` function; @weightr) and newly also in the `metafor` package (`selmodel()` function; @metafor). First, we use the `weightr` implementation and fit the "4PSM" selection model that specifies three distinct *p*-value intervals: (1) covering the range of significant *p*-values for effect sizes in the expected direction (0.00-0.025), (2) covering the range of "marginally" significant *p*-values for effect sizes in the expected direction (0.025-0.05), and covering the range of non-significant *p*-values (0.05-1). We use Cohen's *d* transformation of the correlation coefficients since it is better at maintaining the distribution of test statistics. To fit the model, we need to pass the effect sizes (`dfd$y`) into the `effect` argument and variances (`dfd$se^2`) into the `v` argument (note that we need to pass the vector of values directly since the `weightfunct()` function does not allow us to pass the data frame directly as did the previous functions). We further set `steps = c(0.025, 0.05)` to specify the appropriate cut-points (note that the steps correspond to one-sided *p*-values), and we set `table = TRUE` to obtain the frequency of *p* values in each of the specified intervals. 
+The second publication bias adjustment that we will perform is selection models. Selection models adjust for the different publication probabilities in different *p*-value intervals. Selection models are implemented in `weightr` package (`weightfunct()` function; @weightr) and newly also in the `metafor` package (`selmodel()` function; @metafor). First, we use the `weightr` implementation and fit the "4PSM" selection model that specifies three distinct *p*-value intervals: (1) covering the range of significant *p*-values for effect sizes in the expected direction (0.00-0.025), (2) covering the range of "marginally" significant *p*-values for effect sizes in the expected direction (0.025-0.05), and (3) covering the range of non-significant *p*-values (0.05-1). We use Cohen's *d* transformation of the correlation coefficients since it is better at maintaining the distribution of test statistics. To fit the model, we need to pass the effect sizes (`dfd$y`) into the `effect` argument and variances (`dfd$se^2`) into the `v` argument (note that we need to pass the vector of values directly since the `weightfunct()` function does not allow us to pass the data frame directly as did the previous functions). We further set `steps = c(0.025, 0.05)` to specify the appropriate cut-points (note that the steps correspond to one-sided *p*-values), and we set `table = TRUE` to obtain the frequency of *p* values in each of the specified intervals. 
 
 ```{r}
 fit_4PSM <- weightfunct(effect = dfd$y, v = dfd$se^2, steps = c(0.025, 0.05), table = TRUE)
 fit_4PSM
 ```
 
-Note the warning message informing us about the fact that our data do not contain sufficient number of *p*-values in one of the *p*-value intervals. The model output obtained by printing the fitted model object `fit_4PSM` shows that there is only one *p*-value in the (0.025, 0.05) interval. We can deal with this issue by joining the "marginally" significant and non-significant *p*-value interval, resulting in the "3PSM" model.
+Note the warning message informing us about the fact that our data do not contain a sufficient number of *p*-values in one of the *p*-value intervals. The model output obtained by printing the fitted model object `fit_4PSM` shows that there is only one *p*-value in the (0.025, 0.05) interval. We can deal with this issue by joining the "marginally" significant and non-significant *p*-value interval, resulting in the "3PSM" model.
 
 ```{r}
 fit_3PSM <- weightfunct(effect = dfd$y, v = dfd$se^2, steps = c(0.025), table = TRUE)
 fit_3PSM
 ```
 
-The new model does not suffer from the estimation problem due to the limited number of *p*-values in the intervals, so we can now interpreting the results with more confidence. First, we check the test for heterogeneity that clearly rejects the null hypothesis `Q(df = 17) = 75.4999, $p$ = 5.188348e-09` (if we did not find evidence for heterogeneity, we could have proceeded by fitting the fixed effects version of the model by specifying the `fe = TRUE` argument). We follow by checking the test for publication bias which is a likelihood ratio test comparing the unadjusted and adjusted estimate  `X^2(df = 1) = 3.107176, $p$ = 0.077948`. The result of the test is slightly ambiguous -- we would reject the null hypothesis of no publication bias with $\alpha = 0.10$ but not with $\alpha = 0.05$.
+The new model does not suffer from the estimation problem due to the limited number of *p*-values in the intervals, so we can now interpret the results with more confidence. First, we check the test for heterogeneity that clearly rejects the null hypothesis `Q(df = 17) = 75.4999, $p$ = 5.188348e-09` (if we did not find evidence for heterogeneity, we could have proceeded by fitting the fixed effects version of the model by specifying the `fe = TRUE` argument). We follow by checking the test for publication bias which is a likelihood ratio test comparing the unadjusted and adjusted estimate  `X^2(df = 1) = 3.107176, $p$ = 0.077948`. The result of the test is slightly ambiguous -- we would reject the null hypothesis of no publication bias with $\alpha = 0.10$ but not with $\alpha = 0.05$.
 
-If we decide to interpret the estimate effect size, we have to again transform it back to the correlation scale. However, this time we need to use the `d2r()` function since we supplied the effect sizes as Cohen's *d* (note that the effect size estimate corresponds to the second value in the `fit_3PSM$adj_est` object for the random effect model, alternatively, we could simply use `d2r(0.3219641)`).
+If we decide to interpret the estimated effect size, we have to again transform it back to the correlation scale. However, this time we need to use the `d2r()` function since we supplied the effect sizes as Cohen's *d* (note that the effect size estimate corresponds to the second value in the `fit_3PSM$adj_est` object for the random effect model, alternatively, we could simply use `d2r(0.3219641)`).
 
 ```{r}
 d2r(fit_3PSM$adj_est[2])
@@ -195,7 +195,7 @@ Alternatively, we could have conducted the analysis analogously but with the `me
 ```{r}
 fit_rma_d <- rma(yi = y, sei = se, data = dfd)
 ```
-Subsequently, we would have used the `selmodel` function, passing the estimated random effect meta-analysis object and specifying the `type = "stepfun"`argument to obtain a step weight function and setting the appropriate steps with the `steps = c(0.025)` argument. 
+Subsequently, we would have used the `selmodel` function, passing the estimated random effect meta-analysis object and specifying the `type = "stepfun"` argument to obtain a step weight function and setting the appropriate steps with the `steps = c(0.025)` argument. 
 
 ```{r}
 fit_sel_d <- selmodel(fit_rma_d, type = "stepfun", steps = c(0.025))
@@ -206,11 +206,11 @@ The output verifies the results obtained in the previous analysis.
 
 
 ### Robust Bayesian meta-analysis
-The third and final publication bias adjustment that we will perform is robust Bayesian meta-analysis (RoBMA). RoBMA uses Bayesian model-averaging to combine inference from both PET-PEESE and selection models. We use the `RoBMA` R package (and the `RoBMA()` function; @RoBMA) to fit the default 36 model ensemble (called RoBMA-PSMA) based on an orthogonal combination of models assuming the presence and absence of the effect size, heterogeneity, and publication bias. The models assuming the presence of publication bias are further split into six weight function models and models utilizing the PET and PEESE publication bias adjustment. To fit the model, we can directly pass the original correlation coefficients into the `r` argument and sample sizes into `n` argument -- the `RoBMA()` function will internally transform them to the Fisher's *z* scale and, by default, return the estimates on a Cohen's *d* scale which is used to specify the prior distributions (both of these settings can be changed with the `prior_scale` and `transformation` arguments, and the output can be conveniently transformed later). We further set the `model` argument to `"PSMA"` to fit the 36 model ensemble and use the `seed` argument to make the analysis reproducible (it uses MCMC sampling in contrast to the previous methods). We turn on parallel estimation by setting `parallel = TRUE` argument (the parallel processing might in some cases fail, try rerunning the model one more time or turning the parallel processing off in that case).
+The third and final publication bias adjustment that we will perform is robust Bayesian meta-analysis (RoBMA). RoBMA uses Bayesian model-averaging to combine inference from both PET-PEESE and selection models. We use the `RoBMA` R package (and the `RoBMA()` function; @RoBMA) to fit the default 36 model ensemble (called RoBMA-PSMA) based on an orthogonal combination of models assuming the presence and absence of the effect size, heterogeneity, and publication bias. The models assuming the presence of publication bias are further split into six weight function models and models utilizing the PET and PEESE publication bias adjustment. To fit the model, we can directly pass the original correlation coefficients into the `r` argument and sample sizes into the `n` argument -- the `RoBMA()` function will internally transform them to the Fisher's *z* scale and, by default, return the estimates on a Cohen's *d* scale which is used to specify the prior distributions (both of these settings can be changed with the `prior_scale` and `transformation` arguments, and the output can be conveniently transformed later). We further set the `model` argument to `"PSMA"` to fit the 36 model ensemble and use the `seed` argument to make the analysis reproducible (it uses MCMC sampling in contrast to the previous methods). We turn on parallel estimation by setting the `parallel = TRUE` argument (the parallel processing might in some cases fail, try rerunning the model one more time or turning the parallel processing off in that case).
 ```r
 fit_RoBMA <- RoBMA(r = df$r, n = df$n, seed = 1, model = "PSMA", parallel = TRUE)
 ```
-This step can take some time depending on your CPU. For example, this will take around ~ 1 minute on a fast CPU (e.g., AMD Ryzen 3900x 12c/24t) and up to ten minutes or longer on slower CPUs (e.g., 2.7 GHz Intel Core i5). 
+This step can take some time depending on your CPU. For example, this will take approximately 1 minute on a fast CPU (e.g., AMD Ryzen 3900x 12c/24t) and up to ten minutes or longer on slower CPUs (e.g., 2.7 GHz Intel Core i5). 
 
 We use the `summary()` function to explore details of the fitted model.
 
@@ -218,33 +218,33 @@ We use the `summary()` function to explore details of the fitted model.
 summary(fit_RoBMA)
 ```
 
-The printed output consists of two parts. The first table called `Components summary` contains information about the fitted models. It tells us that we estimated the ensemble with 18/36 models assuming the presence of an effect, 18/36 models assuming the presence of heterogeneity, and 32/36 models assuming the presence of the publication bias. The second column summarizes the prior model probabilities of models assuming either presence of the individual components -- here, we see that the presence and absence of the components is balanced a priori. The third column contains information about the posterior probability of models assuming the presence of the components -- we can observe that the posterior model probabilities of models assuming the presence of an effect slightly increased to 0.552. The last column contains information about the evidence in favor of the presence of any of those components. Evidence for the presence of an effect is undecided; the models assuming the presence of an effect are only 1.232 times more likely given the data than the models assuming the absence of an effect. However, we find overwhelming evidence in the favor of heterogeneity, with the models assuming the presence of heterogeneity being 19,168 times more likely given the data than models assuming the absence of heterogeneity, and moderate evidence in favor of publication bias. 
+The printed output consists of two parts. The first table called `Components summary` contains information about the fitted models. It tells us that we estimated the ensemble with 18/36 models assuming the presence of an effect, 18/36 models assuming the presence of heterogeneity, and 32/36 models assuming the presence of the publication bias. The second column summarizes the prior model probabilities of models assuming either presence of the individual components -- here, we see that the presence and absence of the components are balanced a priori. The third column contains information about the posterior probability of models assuming the presence of the components -- we can observe that the posterior model probabilities of models assuming the presence of an effect slightly increased to 0.552. The last column contains information about the evidence in favor of the presence of any of those components. Evidence for the presence of an effect is undecided; the models assuming the presence of an effect are only 1.232 times more likely given the data than the models assuming the absence of an effect. However, we find overwhelming evidence in favor of heterogeneity, with the models assuming the presence of heterogeneity being 19,168 times more likely given the data than models assuming the absence of heterogeneity, and moderate evidence in favor of publication bias. 
 
-As the name indicates, the second table called `Model-averaged estimates` contains information about the model-averaged estimates. The first row labeled `mu` corresponds to the model-averaged effect size estimate (on Cohen's *d* scale) and the second row label `tau` corresponds to the model-averaged heterogeneity estimates. Below are the estimated model-averaged weights for the different *p*-value intervals and the PET and PEESE regression coefficients. We convert the estimates to the correlation coefficients by adding the `output_scale = "r"` argument to the summary function.
+As the name indicates, the second table called `Model-averaged estimates` contains information about the model-averaged estimates. The first row labeled `mu` corresponds to the model-averaged effect size estimate (on Cohen's *d* scale) and the second row labeled `tau` corresponds to the model-averaged heterogeneity estimates. Below are the estimated model-averaged weights for the different *p*-value intervals and the PET and PEESE regression coefficients. We convert the estimates to the correlation coefficients by adding the `output_scale = "r"` argument to the summary function.
 
 ```{r}
 summary(fit_RoBMA, output_scale = "r")
 ```
 
-Now, we obtained the model-averaged effect size estimate on the correlation scale. If we were interested in the estimates model-averaging only across the models assuming the presence of an effect (for the effect size estimate), heterogeneity (for the heterogeneity estimate), and publication bias (for the publication bias weights and PET and PEESE regression coefficients), we could have added `conditional = TRUE` argument to the summary function. A quick textual summary of the model can also be generated with the `interpret()` function.
+Now, we have obtained the model-averaged effect size estimate on the correlation scale. If we were interested in the estimates model-averaging only across the models assuming the presence of an effect (for the effect size estimate), heterogeneity (for the heterogeneity estimate), and publication bias (for the publication bias weights and PET and PEESE regression coefficients), we could have added the `conditional = TRUE` argument to the summary function. A quick textual summary of the model can also be generated with the `interpret()` function.
 
 ```{r}
 interpret(fit_RoBMA, output_scale = "r")
 ```
 
-We can also obtain summary information about the individual models by specifying the `type = "models"` option. The resulting table shows the prior and posterior model probabilities and inclusion Bayes factors for the individual models (we also set `short_name = TRUE` argument reducing the width of the output by abbreviating names of the prior distributions).
+We can also obtain summary information about the individual models by specifying the `type = "models"` option. The resulting table shows the prior and posterior model probabilities and inclusion Bayes factors for the individual models (we also set the `short_name = TRUE` argument reducing the width of the output by abbreviating names of the prior distributions).
 
 ```{r}
 summary(fit_RoBMA, type = "models", short_name = TRUE)
 ```
 
-To obtain a summary of the individual model diagnostics we set `type = "diagnostics"`. The resulting table provides information about the maximum MCMC error, relative MCMC error, minimum ESS, and maximum R-hat when aggregating over the parameters of each model. As we can see, we obtain acceptable ESS and R-hat diagnostic values.
+To obtain a summary of the individual model diagnostics, we set the `type = "diagnostics"` argument. The resulting table provides information about the maximum MCMC error, relative MCMC error, minimum ESS, and maximum R-hat when aggregating over the parameters of each model. As we can see, we obtain acceptable ESS and R-hat diagnostic values.
 
 ```{r}
 summary(fit_RoBMA, type = "diagnostics")
 ```
 
-Finally, we can also plot the model-averaged posterior distribution with the `plot()` function. We set `prior = TRUE` parameter to include the prior distribution as a grey line (and arrow for the point density at zero) and `output_scale = "r"` to transform the posterior distribution to the correlation scale (the default figure output would be on Cohen's *d* scale). (The `par(mar = c(4, 4, 1, 4))` call increases the left margin of the figure, so the secondary y-axis text is not cut off.)
+Finally, we can also plot the model-averaged posterior distribution with the `plot()` function. We set the `prior = TRUE` argument to include the prior distribution as a grey line (and arrow for the point density at zero) and `output_scale = "r"` to transform the posterior distribution to the correlation scale (the default figure output would be on Cohen's *d* scale). (The `par(mar = c(4, 4, 1, 4))` call increases the left margin of the figure, so the secondary y-axis text is not cut off.)
 
 ```{r, dpi = 300, fig.width = 6, fig.height = 4, out.width = "50%", fig.align = "center"}
 par(mar = c(4, 4, 1, 4))
@@ -252,7 +252,7 @@ plot(fit_RoBMA, prior = TRUE, output_scale = "r", )
 ```
 
 #### Specifying Different Priors
-The `RoBMA` package allows us to fit ensembles of highly customized meta-analytic models. Here we reproduce the ensemble for perinull directional hypothesis test from the Appendix (see the R package vignettes for more examples and details). Instead of using the fully pre-specified model with the `model = "PSMA"` argument, we explicitly specify the prior distribution for models assuming presence of the effect with the `priors_effect = prior("normal", parameters = list(mean = 0.60, sd = 0.20), truncation = list(0, Inf))` argument, which assigns Normal(0.60, 0.20) distribution bounded to the positive numbers to the $\mu$ parameter (note that the prior distribution is specified on the Cohen's *d* scale, corresponding to 95% prior probability mass contained approximately in the $\rho$ = (0.10, 0.45) interval). Similarly, we also exchange the default prior distribution for the models assuming absence of the effect with a perinull hypothesis with the `priors_effect_null = prior("normal", parameters = list(mean = 0, sd = 0.10)))` argument that sets 95% prior probability mass to values in the $\rho$ = (-0.10, 0.10) interval.
+The `RoBMA` package allows us to fit ensembles of highly customized meta-analytic models. Here we reproduce the ensemble for the perinull directional hypothesis test from the Appendix (see the R package vignettes for more examples and details). Instead of using the fully pre-specified model with the `model = "PSMA"` argument, we explicitly specify the prior distribution for models assuming presence of the effect with the `priors_effect = prior("normal", parameters = list(mean = 0.60, sd = 0.20), truncation = list(0, Inf))` argument, which assigns Normal(0.60, 0.20) distribution bounded to the positive numbers to the $\mu$ parameter (note that the prior distribution is specified on the Cohen's *d* scale, corresponding to 95% prior probability mass contained approximately in the $\rho$ = (0.10, 0.45) interval). Similarly, we also replace the default prior distribution for the models assuming absence of the effect with a perinull hypothesis with the `priors_effect_null = prior("normal", parameters = list(mean = 0, sd = 0.10))` argument that sets 95% prior probability mass to values in the $\rho$ = (-0.10, 0.10) interval.
 
 ```r
 fit_RoBMA2 <- RoBMA(r = df$r, n = df$n, seed = 2, parallel = TRUE,

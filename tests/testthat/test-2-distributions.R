@@ -39,12 +39,12 @@ test_that("Density function works", {
   expect_equal(integrate(function(x)dwnorm(x, 0.5, 1, steps = c(.05, .10), omega = c(1, .5, .1), type = "two.sided"), lower = -Inf, upper = Inf)$value, 1, tolerance = 1e-4)
 
   # visual inspection
-  expect_doppelganger("dwnorm-1", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "one.sided"), from = -3, to = 3))
-  expect_doppelganger("dwnorm-2", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(.5, 1), type = "one.sided"), from = -3, to = 3))
-  expect_doppelganger("dwnorm-3", function()curve(dwnorm(x, 1, 2, steps = c(.10, .50), omega = c(1, .2, .5), type = "one.sided"), from = -3, to = 3))
-  expect_doppelganger("dwnorm-4", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "two.sided"), from = -3, to = 3))
-  expect_doppelganger("dwnorm-5", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(.5, 1), type = "two.sided"), from = -3, to = 3))
-  expect_doppelganger("dwnorm-6", function()curve(dwnorm(x, 0.5, 1, steps = c(.05, .10), omega = c(1, .5, .1), type = "two.sided"), from = -3, to = 3))
+  vdiffr::expect_doppelganger("dwnorm-1", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "one.sided"), from = -3, to = 3))
+  vdiffr::expect_doppelganger("dwnorm-2", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(.5, 1), type = "one.sided"), from = -3, to = 3))
+  vdiffr::expect_doppelganger("dwnorm-3", function()curve(dwnorm(x, 1, 2, steps = c(.10, .50), omega = c(1, .2, .5), type = "one.sided"), from = -3, to = 3))
+  vdiffr::expect_doppelganger("dwnorm-4", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "two.sided"), from = -3, to = 3))
+  vdiffr::expect_doppelganger("dwnorm-5", function()curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(.5, 1), type = "two.sided"), from = -3, to = 3))
+  vdiffr::expect_doppelganger("dwnorm-6", function()curve(dwnorm(x, 0.5, 1, steps = c(.05, .10), omega = c(1, .5, .1), type = "two.sided"), from = -3, to = 3))
 
   # verify vectorization
   set.seed(1)
@@ -103,37 +103,37 @@ test_that("Random number generator function works", {
 
   # verify (visually) no-weights against standard normal
   expect_equal(rwnorm(0, 0, 1, steps = c(.5), omega = c(1, 1), type = "one.sided"), rnorm(0, 0, 1))
-  expect_doppelganger("rwnorm-1", function(){
+  vdiffr::expect_doppelganger("rwnorm-1", function(){
     plot(density(rwnorm(10000, 0, 1, steps = c(.5), omega = c(1, 1), type = "one.sided")))
     curve(dnorm(x, 0, 1), from = -10, to = 10, col = "blue", add = TRUE)
   })
-  expect_doppelganger("rwnorm-2", function(){
+  vdiffr::expect_doppelganger("rwnorm-2", function(){
     plot(density(rwnorm(10000, 1, 2, steps = c(.5), omega = c(1, 1), type = "two.sided")))
     curve(dnorm(x, 1, 2), from = -10, to = 10, col = "blue", add = TRUE)
   })
 
   # visually verify against pdf
-  expect_doppelganger("rwnorm-3", function(){
+  vdiffr::expect_doppelganger("rwnorm-3", function(){
     hist(rwnorm(10000, 0, 1, steps = c(.5), omega = c(1, .5), type = "one.sided"), freq = FALSE, breaks = 50)
     curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "one.sided"), from = -10, to = 10, col = "blue", add = TRUE)
   })
-  expect_doppelganger("rwnorm-4", function(){
+  vdiffr::expect_doppelganger("rwnorm-4", function(){
     hist(rwnorm(10000, 0, 1, steps = c(.5), omega = c(.5, 1), type = "one.sided"), freq = FALSE, breaks = 50)
     curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(.5, 1), type = "one.sided"), from = -10, to = 10, col = "blue", add = TRUE)
     })
-  expect_doppelganger("rwnorm-5", function(){
+  vdiffr::expect_doppelganger("rwnorm-5", function(){
     hist(rwnorm(10000, 1, 2, steps = c(.10, .50), omega = c(1, .2, .5), type = "one.sided"), freq = FALSE, breaks = 50)
     curve(dwnorm(x, 1, 2, steps = c(.10, .50), omega = c(1, .2, .5), type = "one.sided"), from = -10, to = 10, col = "blue", add = TRUE)
     })
-  expect_doppelganger("rwnorm-6", function(){
+  vdiffr::expect_doppelganger("rwnorm-6", function(){
     hist(rwnorm(10000, 0, 1, steps = c(.5), omega = c(1, .5), type = "one.sided"), freq = FALSE, breaks = 50)
     curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "two.sided"), from = -10, to = 10, col = "blue", add = TRUE)
     })
-  expect_doppelganger("rwnorm-7", function(){
+  vdiffr::expect_doppelganger("rwnorm-7", function(){
     hist(rwnorm(10000, 0, 1, steps = c(.5), omega = c(.5, 1), type = "two.sided"), freq = FALSE, breaks = 50)
     curve(dwnorm(x, 0, 1, steps = c(.5), omega = c(.5, 1), type = "two.sided"), from = -10, to = 10, col = "blue", add = TRUE)
     })
-  expect_doppelganger("rwnorm-8", function(){
+  vdiffr::expect_doppelganger("rwnorm-8", function(){
     hist(rwnorm(10000, 0.5, 1, steps = c(.05, .10), omega = c(1, .5, .1), type = "two.sided"), freq = FALSE, breaks = 50)
     curve(dwnorm(x, 0.5, 1, steps = c(.05, .10), omega = c(1, .5, .1), type = "two.sided"), from = -10, to = 10, col = "blue", add = TRUE)
     })

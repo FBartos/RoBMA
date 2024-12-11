@@ -130,13 +130,51 @@ also suppresses all messages.}
 \code{NoBMA} returns an object of class 'RoBMA'.
 }
 \description{
-\code{BiBMA} estimate a Binomial Bayesian
+\code{BiBMA} estimate a binomial-normal Bayesian
 model-averaged meta-analysis. The interface allows a complete customization of
 the ensemble with different prior (or list of prior) distributions
 for each component.
 }
 \details{
-See \code{\link[=RoBMA]{RoBMA()}} for more details.
+The \code{BiBMA()} function estimates the binomial-normal Bayesian model-averaged
+meta-analysis described in \insertCite{bartos2023empirical;textual}{RoBMA}. See
+\href{../doc/MedicineBiBMA.html}{\code{vignette("MedicineBiBMA", package = "RoBMA")}}
+vignette for a reproduction of the \insertCite{oduwole2018honey;textual}{RoBMA} example.
+Also \code{\link[=RoBMA]{RoBMA()}} for additional details.
+
+Generic \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=print.RoBMA]{print.RoBMA()}}, and \code{\link[=plot.RoBMA]{plot.RoBMA()}} functions are
+provided to facilitate manipulation with the ensemble. A visual check of the
+individual model diagnostics can be obtained using the \code{\link[=diagnostics]{diagnostics()}} function.
+The fitted model can be further updated or modified by \code{\link[=update.RoBMA]{update.RoBMA()}} function.
+}
+\examples{
+\dontrun{
+# using the example data from Oduwole (2018) and reproducing the example from
+# Bartos et al. (2023) with domain specific informed prior distributions
+
+fit <- BiBMA(
+  x1          = c(5, 2),
+  x2          = c(0, 0),
+  n1          = c(35, 40),
+  n2          = c(39, 40),
+  priors_effect        = prior_informed(
+      "Acute Respiratory Infections",
+      type = "logOR", parameter = "effect"),
+  priors_heterogeneity = prior_informed(
+      "Acute Respiratory Infections",
+      type = "logOR", parameter = "heterogeneity")
+ )
+
+ summary(fit)
+
+ # produce summary on OR scale
+ summary(fit, output_scale = "OR")
+
+}
+
+}
+\references{
+\insertAllCited{}
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}, \code{\link[=check_setup]{check_setup()}}

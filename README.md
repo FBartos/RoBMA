@@ -20,19 +20,33 @@ bias) and uses Bayesian model averaging to combine them. The ensemble
 uses Bayes factors to test for the presence of absence of the individual
 components (e.g., effect vs. no effect) and model-averages parameter
 estimates based on posterior model probabilities. The user can define a
-wide range of non-informative or informative priors for the effect size,
-heterogeneity, and publication bias components (including selection,
-PET, and PEESE style models). The package provides convenient functions
-for summary, visualizations, and fit diagnostics.
+wide range prior distributions for the effect size, heterogeneity, and
+publication bias components (including selection, PET, and PEESE style
+models). The package provides convenient functions for summary,
+visualizations, and fit diagnostics.
 
-See our new manuscript Bartoš, Maier, et al. (2022b)
-(<https://doi.org/10.1002/jrsm.1594>) for the description of the newest
-version, RoBMA-PSMA, or our previous paper introducing the method Maier
-et al. (2022) (<https://doi.org/10.1037/met0000405>). The previous
-version of the methods is also implemented within the the user-friendly
-graphical user interface of JASP (JASP Team, 2020) and accompanied by a
-tutorial paper with more examples (Bartoš, Maier, et al., 2022a)
-(<https://doi.org/10.1177/25152459221109259>).
+See our manuscripts that for technical details and examples:
+
+- Bartoš, Maier, Stanley, et al. (2023)
+  (<https://doi.org/10.31234/osf.io/98xb5>) extends RoBMA-PSMA into
+  meta-regression
+- Bartoš, Otte, et al. (2023)
+  (<https://doi.org/10.48550/arXiv.2306.11468>) outlines binomial-normal
+  Bayesian model-averaged meta-analysis for binary outcomes (+ develops
+  informed prior distributions for log OR, log RR, RD, and log HR in
+  medical settings, also see Bartoš et al. (2021) for informed prior
+  distributions for Cohen’s d, based on the Cochrane Database of
+  Systematic Reviews)
+- Bartoš, Maier, Wagenmakers, et al. (2023)
+  (<https://doi.org/10.1002/jrsm.1594>) describes the newest version of
+  publication bias adjustment, RoBMA-PSMA, which combines selection
+  models and PET-PEESE,
+- Maier et al. (2023) (<https://doi.org/10.1037/met0000405>) introduces
+  the RoBMA framework and the original version of the method,
+- Bartoš et al. (2022) (<https://doi.org/10.1177/25152459221109259>)
+  provides an accessible tutorial on the method including the
+  implementation in the the user-friendly graphical user interface of
+  JASP (JASP Team, 2020)
 
 We also prepared multiple vignettes that illustrate functionality of the
 package:
@@ -42,39 +56,49 @@ package:
   meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
 - [Reproducing Bayesian model-averaged meta-analysis
   (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
+- [Robust Bayesian model-averaged
+  meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
 - [Hierarchical Bayesian model-averaged
   meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
 - [Informed Bayesian model-averaged meta-analysis in
   medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
+- [Informed Bayesian model-averaged meta-analysis with binary
+  outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
 - [Fitting custom meta-analytic
   ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
 
 ## Updates
 
-The package was updated to version 2.0 to provides Bayesian
-model-averaging across selection models and PET-PEESE (as described in
-Bartoš, Maier, et al. (2022b) at <https://doi.org/10.1002/jrsm.1594>).
-
 ### Backwards Compatibility
 
-Please note that the RoBMA 2.0 is not backwards compatible with the
-previous versions of RoBMA. Use
+Please note that the major releases of RoBMA break backwards
+compatibility. The latest version of RoBMA 1 can be installed using
 
 ``` r
 remotes::install_version("RoBMA", version = "1.2.1")
 ```
 
-to install the previous version if needed. (Or use the source packages
-archived with at OSF repositories associated with the corresponding
-projects.)
+and the latest version of RoBMA 2 can be installed using
+
+``` r
+remotes::install_version("RoBMA", version = "2.3.2")
+```
+
+(Or use the source packages archived with at OSF repositories associated
+with the corresponding projects.)
 
 ### News
 
-The 3.0 version brings several **experimental** features to the package:
+The 3.0 version brings several features to the package:
 
 - meta-regression models via the `RoBMA.reg()` function
+- binomial-normal meta-analytic models via the `BiBMA()` function
+- publication bias unadjusted models via the `NoBMA()` and `NoBMA.reg()`
+  functions (wrappers around `RoBMA()` and `RoBMA.reg()`)
 - marginal summaries and plots of the regression models via the
   `marginal_summary()` and `marginal_plot()` function
+- prediction intervals, I^2, and H^2 statistics using
+  `summary_heterogeneity()` function
 
 The 2.0 version brought several updates to the package:
 
@@ -94,10 +118,10 @@ The 2.0 version brought several updates to the package:
   `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
 - new default prior distribution specification for the publication bias
   adjustment part of the models (corresponding to the RoBMA-PSMA model
-  from Bartoš, Maier, et al. (2022b)),
+  from Bartoš, Maier, Wagenmakers, et al. (2023)),
 - new `model_type` argument allowing to specify different “pre-canned”
   models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` =
-  corresponding to Maier et al. (2022)),
+  corresponding to Maier et al. (2023)),
 - `combine_data` function allows combination of different effect sizes /
   variability measures into a common effect size measure (also used from
   within the `RoBMA` function)
@@ -114,7 +138,7 @@ The 2.0 version brought several updates to the package:
 
 ## Installation
 
-The package requires [JAGS 4.3.1](https://mcmc-jags.sourceforge.io/) to
+The package requires [JAGS 4.3.2](https://mcmc-jags.sourceforge.io/) to
 be installed. The release version can be installed from CRAN:
 
 ``` r
@@ -130,12 +154,12 @@ devtools::install_github("FBartos/RoBMA")
 ## Example
 
 To illustrate the functionality of the package, we fit the RoBMA-PSMA
-model from the example in Bartoš, Maier, et al. (2022b) to adjust for
-publication bias in the infamous Bem (2011) “Feeling the future”
-pre-cognition study. The RoBMA-PSMA model combines six selection models
-and PET-PEESE to adjust for publication bias. As in the pre-print, we
-analyze the data as described by Bem et al. (2011) in his reply to
-methodological critiques.
+model from the example in Bartoš, Maier, Wagenmakers, et al. (2023) to
+adjust for publication bias in the infamous Bem (2011) “Feeling the
+future” pre-cognition study. The RoBMA-PSMA model combines six selection
+models and PET-PEESE to adjust for publication bias. As in the
+pre-print, we analyze the data as described by Bem et al. (2011) in his
+reply to methodological critiques.
 
 First, we load the package and the data set included in the package.
 
@@ -336,24 +360,50 @@ accommodate the 2.0 version of the package.
 ### References
 
 <div id="refs" class="references csl-bib-body hanging-indent"
-line-spacing="2">
+entry-spacing="0" line-spacing="2">
+
+<div id="ref-bartos2021bayesian" class="csl-entry">
+
+Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &
+Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in
+medicine. *Statistics in Medicine*, *40*(30), 6743–6761.
+<https://doi.org/10.1002/sim.9170>
+
+</div>
 
 <div id="ref-bartos2020adjusting" class="csl-entry">
 
 Bartoš, F., Maier, Maximilian, Quintana, D. S., & Wagenmakers, E.-J.
-(2022a). Adjusting for publication bias in JASP and R — Selection
-models, PET-PEESE, and robust Bayesian meta-analysis. *Advances in
-Methods and Practices in Psychological Science*, *5*(3), 1–19.
+(2022). Adjusting for publication bias in JASP and R — Selection models,
+PET-PEESE, and robust Bayesian meta-analysis. *Advances in Methods and
+Practices in Psychological Science*, *5*(3), 1–19.
 <https://doi.org/10.1177/25152459221109259>
+
+</div>
+
+<div id="ref-bartos2023robust" class="csl-entry">
+
+Bartoš, F., Maier, M., Stanley, T., & Wagenmakers, E.-J. (2023). *Robust
+Bayesian meta-regression—Model-averaged moderation analysis in the
+presence of publication bias*. <https://doi.org/10.31234/osf.io/98xb5>
 
 </div>
 
 <div id="ref-bartos2021no" class="csl-entry">
 
 Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., & Stanley,
-T. D. (2022b). Robust Bayesian meta-analysis: Model-averaging across
+T. D. (2023). Robust Bayesian meta-analysis: Model-averaging across
 complementary publication bias adjustment methods. *Research Synthesis
-Methods*. <https://doi.org/10.1002/jrsm.1594>
+Methods*, *14*(1), 99–116. <https://doi.org/10.1002/jrsm.1594>
+
+</div>
+
+<div id="ref-bartos2023empirical" class="csl-entry">
+
+Bartoš, F., Otte, W. M., Gronau, Q. F., Timmers, B., Ly, A., &
+Wagenmakers, E.-J. (2023). *Empirical prior distributions for Bayesian
+meta-analyses of binary and time-to-event outcomes*.
+<https://doi.org/10.48550/arXiv.2306.11468>
 
 </div>
 
@@ -361,7 +411,7 @@ Methods*. <https://doi.org/10.1002/jrsm.1594>
 
 Bem, D. J. (2011). Feeling the future: Experimental evidence for
 anomalous retroactive influences on cognition and affect. *Journal of
-Personality and Social Psychology*, *100*(3), 407.
+Personality and Social Psychology*, *100*(3), 407–425.
 <https://doi.org/10.1037/a0021524>
 
 </div>
@@ -370,7 +420,7 @@ Personality and Social Psychology*, *100*(3), 407.
 
 Bem, D. J., Utts, J., & Johnson, W. O. (2011). Must psychologists change
 the way they analyze their data? *Journal of Personality and Social
-Psychology*, *101*(4), 716. <https://doi.org/10.1037/a0024777>
+Psychology*, *101*(4), 716–719. <https://doi.org/10.1037/a0024777>
 
 </div>
 
@@ -379,7 +429,7 @@ Psychology*, *101*(4), 716. <https://doi.org/10.1037/a0024777>
 Erp, S. van, Verhagen, J., Grasman, R. P., & Wagenmakers, E.-J. (2017).
 Estimates of between-study heterogeneity for 705 meta-analyses reported
 in Psychological Bulletin from 1990–2013. *Journal of Open Psychology
-Data*, *5*(1). <https://doi.org/10.5334/jopd.33>
+Data*, *5*(1), 1–5. <https://doi.org/10.5334/jopd.33>
 
 </div>
 
@@ -391,9 +441,10 @@ JASP Team. (2020). *JASP (Version 0.14)*. <https://jasp-stats.org/>
 
 <div id="ref-maier2020robust" class="csl-entry">
 
-Maier, M., Bartoš, F., & Wagenmakers, E.-J. (2022). Robust Bayesian
+Maier, M., Bartoš, F., & Wagenmakers, E.-J. (2023). Robust Bayesian
 meta-analysis: Addressing publication bias with model-averaging.
-*Psychological Methods*. <https://doi.org/10.1037/met0000405>
+*Psychological Methods*, *28*(1), 107–122.
+<https://doi.org/10.1037/met0000405>
 
 </div>
 

@@ -1,85 +1,58 @@
-on:
-  push:
-    branches:
-      - main
-      - master
-      - pre-release
-  pull_request:
-    branches:
-      - main
-      - master
-      - pre-release
-
 name: test-coverage
 
+on:
+  push:
+    branches: [main, master, pre-release]
+  pull_request:
+    branches: [main, master, pre-release]
+
 jobs:
-  test-coverage:
+  build:
     runs-on: ${{ matrix.config.os }}
-
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
-
     strategy:
       fail-fast: false
       matrix:
         config:
           - {os: windows-latest, r: 'release'}
 
-    env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - uses: r-lib/actions/setup-r@v2
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.config.r }}
 
-      - uses: r-lib/actions/setup-pandoc@v2
-
-      - name: Query dependencies
-        run: |
-          install.packages('remotes')
-          saveRDS(remotes::dev_package_deps(dependencies = TRUE), ".github/depends.Rds", version = 2)
-          writeLines(sprintf("R-%i.%i", getRversion()$major, getRversion()$minor), ".github/R-version")
-        shell: Rscript {0}
-
-      - name: Restore R package cache
-        uses: actions/cache@v2
-        with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-${{ hashFiles('.github/depends.Rds') }}
-          restore-keys: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-
-
-      - name: Install system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          while read -r cmd
-          do
-            eval sudo $cmd
-          done < <(Rscript -e 'writeLines(remotes::system_requirements("ubuntu", "20.04"))')
-
-      - name: Install JAGS (windows-latest)
+      # Install JAGS on Windows
+      - name: Install JAGS (Windows)
         if: runner.os == 'Windows'
-        run: |
-          curl.exe -o wjags.exe --url https://deac-fra.dl.sourceforge.net/project/mcmc-jags/JAGS/4.x/Windows/JAGS-4.3.1.exe
-          wjags.exe /S
-          del wjags.exe
         shell: cmd
-
-      - name: Install JAGS (macOS-latest)
-        if: runner.os == 'macOS'
-        run : |
-          rm '/usr/local/bin/gfortran'
-          brew install automake jags
-
-      - name: Install dependencies
         run: |
-          install.packages(c("remotes"))
-          remotes::install_deps(dependencies = TRUE)
-          remotes::install_cran("covr")
-          remotes::install_github("FBartos/BayesTools@independent-factor-prior")
+          curl -o jags-installer.exe -L https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/JAGS-4.3.1.exe/download
+          jags-installer.exe /S
+          del jags-installer.exe
+
+      # Set JAGS environment variables on Windows
+      - name: Set JAGS environment variables (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          echo JAGS_ROOT=C:\Program Files\JAGS\JAGS-4.3.1>> %GITHUB_ENV%
+          echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
+          echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
+
+      # Set up renv
+      - name: Setup renv
+        uses: r-lib/actions/setup-renv@v2
+
+      # Install the package
+      - name: Install devtools and the RoBMA Package
+        run: |
+          install.packages(c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'testthat', 'vdiffr', 'covr', 'pandoc'))
+          devtools::install()
         shell: Rscript {0}
 
+      # Run the coverage check
       - name: Test coverage
         run: covr::codecov()
         shell: Rscript {0}
