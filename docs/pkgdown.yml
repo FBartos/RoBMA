@@ -1,0 +1,15 @@
+pandoc: '3.2'
+pkgdown: 2.1.1
+pkgdown_sha: ~
+articles:
+  CustomEnsembles: CustomEnsembles.html
+  HierarchicalBMA: HierarchicalBMA.html
+  MedicineBiBMA: MedicineBiBMA.html
+  MedicineBMA: MedicineBMA.html
+  MetaRegression: MetaRegression.html
+  ReproducingBMA: ReproducingBMA.html
+  Tutorial: Tutorial.html
+last_built: 2024-12-11T16:13Z
+urls:
+  reference: https://https://fbartos.github.io/RoBMA/reference
+  article: https://https://fbartos.github.io/RoBMA/articles
