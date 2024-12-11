@@ -1,177 +1,65 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>/404.html</loc>
-  </url>
-  <url>
-    <loc>/articles/CustomEnsembles.html</loc>
-  </url>
-  <url>
-    <loc>/articles/HierarchicalBMA.html</loc>
-  </url>
-  <url>
-    <loc>/articles/index.html</loc>
-  </url>
-  <url>
-    <loc>/articles/MedicineBMA.html</loc>
-  </url>
-  <url>
-    <loc>/articles/ReproducingBMA.html</loc>
-  </url>
-  <url>
-    <loc>/articles/Tutorial.html</loc>
-  </url>
-  <url>
-    <loc>/authors.html</loc>
-  </url>
-  <url>
-    <loc>/index.html</loc>
-  </url>
-  <url>
-    <loc>/news/index.html</loc>
-  </url>
-  <url>
-    <loc>/reference/Anderson2010.html</loc>
-  </url>
-  <url>
-    <loc>/reference/Bem2011.html</loc>
-  </url>
-  <url>
-    <loc>/reference/BiBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/check_RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/check_setup.BiBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/check_setup.html</loc>
-  </url>
-  <url>
-    <loc>/reference/check_setup.reg.html</loc>
-  </url>
-  <url>
-    <loc>/reference/combine_data.html</loc>
-  </url>
-  <url>
-    <loc>/reference/contr.independent.html</loc>
-  </url>
-  <url>
-    <loc>/reference/contr.meandif.html</loc>
-  </url>
-  <url>
-    <loc>/reference/contr.orthonormal.html</loc>
-  </url>
-  <url>
-    <loc>/reference/diagnostics.html</loc>
-  </url>
-  <url>
-    <loc>/reference/effect_sizes.html</loc>
-  </url>
-  <url>
-    <loc>/reference/forest.html</loc>
-  </url>
-  <url>
-    <loc>/reference/index.html</loc>
-  </url>
-  <url>
-    <loc>/reference/interpret.html</loc>
-  </url>
-  <url>
-    <loc>/reference/is.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/Kroupova2021.html</loc>
-  </url>
-  <url>
-    <loc>/reference/Lui2015.html</loc>
-  </url>
-  <url>
-    <loc>/reference/marginal_plot.html</loc>
-  </url>
-  <url>
-    <loc>/reference/marginal_summary.html</loc>
-  </url>
-  <url>
-    <loc>/reference/NoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/NoBMA.reg.html</loc>
-  </url>
-  <url>
-    <loc>/reference/plot.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/plot_models.html</loc>
-  </url>
-  <url>
-    <loc>/reference/Poulsen2006.html</loc>
-  </url>
-  <url>
-    <loc>/reference/print.marginal_summary.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/print.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/print.summary.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior_factor.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior_informed.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior_none.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior_PEESE.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior_PET.html</loc>
-  </url>
-  <url>
-    <loc>/reference/prior_weightfunction.html</loc>
-  </url>
-  <url>
-    <loc>/reference/RoBMA-package.html</loc>
-  </url>
-  <url>
-    <loc>/reference/RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/RoBMA.reg.html</loc>
-  </url>
-  <url>
-    <loc>/reference/RoBMA_control.html</loc>
-  </url>
-  <url>
-    <loc>/reference/RoBMA_options.html</loc>
-  </url>
-  <url>
-    <loc>/reference/sample_sizes.html</loc>
-  </url>
-  <url>
-    <loc>/reference/standard_errors.html</loc>
-  </url>
-  <url>
-    <loc>/reference/summary.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/update.BiBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/update.RoBMA.html</loc>
-  </url>
-  <url>
-    <loc>/reference/weighted_multivariate_normal.html</loc>
-  </url>
-  <url>
-    <loc>/reference/weighted_normal.html</loc>
-  </url>
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>https://https://fbartos.github.io/RoBMA/404.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/index.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/MedicineBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/MetaRegression.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/Tutorial.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/authors.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/index.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/news/index.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Anderson2010.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Andrews2021.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Bem2011.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/BiBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/check_RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/check_setup.BiBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/check_setup.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/check_setup.reg.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/combine_data.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/contr.independent.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/contr.meandif.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/contr.orthonormal.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/diagnostics.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/effect_sizes.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/forest.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/index.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/interpret.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/is.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Kroupova2021.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Lui2015.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/marginal_plot.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/marginal_summary.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/NoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/NoBMA.reg.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/plot.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/plot_models.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Poulsen2006.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/print.marginal_summary.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/print.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/print.summary.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_factor.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_informed.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_none.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_PEESE.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_PET.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_weightfunction.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA-package.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA.reg.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA_control.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA_options.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/sample_sizes.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/standard_errors.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/summary.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/update.BiBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/update.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/weighted_multivariate_normal.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/weighted_normal.html</loc></url>
 </urlset>
+
