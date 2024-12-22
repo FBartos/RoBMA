@@ -24,14 +24,13 @@ NoBMA(
   transformation = if (is.null(y)) "fishers_z" else "none",
   prior_scale = if (is.null(y)) "cohens_d" else "none",
   model_type = NULL,
-  priors_effect = prior(distribution = "normal", parameters = list(mean = 0, sd = 1)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1,
-    scale = 0.15)),
-  priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
-    0)),
-  priors_hierarchical = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_hierarchical_null = NULL,
+  rescale_priors = 1,
+  priors_effect = set_default_priors("effect", rescale = rescale_priors),
+  priors_heterogeneity = set_default_priors("heterogeneity", rescale = rescale_priors),
+  priors_effect_null = set_default_priors("effect", null = TRUE),
+  priors_heterogeneity_null = set_default_priors("heterogeneity", null = TRUE),
+  priors_hierarchical = set_default_priors("hierarchical"),
+  priors_hierarchical_null = set_default_priors("hierarchical", null = TRUE),
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -109,6 +108,9 @@ settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
 \code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
 \code{priors_bias_null}, and \code{priors_effect}. See details for more information
 about the different model types.}
+
+\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
+factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
 
 \item{priors_effect}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to

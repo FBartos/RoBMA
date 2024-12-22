@@ -27,13 +27,13 @@ NoBMA <- function(
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
 
   # prior specification
-  model_type   = NULL,
-  priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
-  priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
-  priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
-  priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_hierarchical_null   = NULL,
+  model_type   = NULL, rescale_priors = 1,
+  priors_effect              = set_default_priors("effect",        rescale = rescale_priors),
+  priors_heterogeneity       = set_default_priors("heterogeneity", rescale = rescale_priors),
+  priors_effect_null         = set_default_priors("effect", null = TRUE),
+  priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
+  priors_hierarchical        = set_default_priors("hierarchical"),
+  priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -103,20 +103,18 @@ NoBMA.reg <- function(
     standardize_predictors = TRUE,
 
     # prior specification
-    priors       = NULL,
-    model_type   = NULL,
+    priors = NULL, model_type = NULL, rescale_priors = 1,
+    priors_effect              = set_default_priors("effect",        rescale = rescale_priors),
+    priors_heterogeneity       = set_default_priors("heterogeneity", rescale = rescale_priors),
+    priors_effect_null         = set_default_priors("effect", null = TRUE),
+    priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
+    priors_hierarchical        = set_default_priors("hierarchical"),
+    priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
 
-    priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
-    priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
-    priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
-    priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
-    priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
-    priors_hierarchical_null   = NULL,
-
-    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
-    prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
-    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
-    prior_factors_null     = prior_factor("spike",   parameters = list(location = 0), contrast = "meandif"),
+    prior_covariates       = set_default_priors("covariates", rescale = rescale_priors),
+    prior_covariates_null  = set_default_priors("covariates", null = TRUE),
+    prior_factors          = set_default_priors("factors", rescale = rescale_priors),
+    prior_factors_null     = set_default_priors("factors", null = TRUE),
 
     # MCMC fitting settings
     chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
