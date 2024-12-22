@@ -25,6 +25,8 @@
 #' the samples from prior distributions are internally transformed to match the
 #' \code{transformation} of the data. The \code{prior_scale} corresponds to
 #' the effect size scale of default output, but can be changed within the summary function.
+#' @param rescale_priors a re-scaling factor for the prior distributions. The re-scaling
+#' factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.
 #' @param priors_effect list of prior distributions for the effect size (\code{mu})
 #' parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 #' a standard normal distribution
@@ -112,7 +114,8 @@
 #' \insertCite{maier2020robust;textual}{RoBMA} (this specification can be easily
 #' obtained by setting \code{model_type = "2w"}. The RoBMA-PP specification from
 #' \insertCite{bartos2021no;textual}{RoBMA} can be obtained by setting
-#' \code{model_type = "PP"}.
+#' \code{model_type = "PP"}. The complete list of default prior distributions is described at
+#' [set_default_priors()].
 #'
 #' The \href{../doc/CustomEnsembles.html}{\code{vignette("CustomEnsembles", package = "RoBMA")}}
 #' and \href{../doc/ReproducingBMA.html}{\code{vignette("ReproducingBMA", package = "RoBMA")}}
@@ -192,24 +195,16 @@ RoBMA <- function(
   effect_direction = "positive",
 
   # prior specification
-  model_type   = NULL,
-  priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
-  priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
-  priors_bias           = list(
-    prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-    prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
-    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
-    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
-    prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-    prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),  prior_weights = 1/4),
-    prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),  prior_weights = 1/4)
-  ),
-  priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
-  priors_bias_null           = prior_none(),
-  priors_hierarchical                 = prior("beta", parameters = list(alpha = 1, beta = 1)),
-  priors_hierarchical_null            = NULL,
+  model_type = NULL, rescale_priors = 1,
+
+  priors_effect              = set_default_priors("effect",        rescale = rescale_priors),
+  priors_heterogeneity       = set_default_priors("heterogeneity", rescale = rescale_priors),
+  priors_bias                = set_default_priors("bias",          rescale = rescale_priors),
+  priors_effect_null         = set_default_priors("effect",        null = TRUE),
+  priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
+  priors_bias_null           = set_default_priors("bias",          null = TRUE),
+  priors_hierarchical        = set_default_priors("hierarchical"),
+  priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,

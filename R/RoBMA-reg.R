@@ -113,31 +113,21 @@ RoBMA.reg <- function(
     effect_direction       = "positive",
 
     # prior specification
-    priors       = NULL,
-    model_type   = NULL,
+    priors = NULL, model_type = NULL, rescale_priors = 1,
 
-    priors_effect         = prior(distribution = "normal",    parameters = list(mean  = 0, sd = 1)),
-    priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15)),
-    priors_bias           = list(
-      prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-      prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
-      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
-      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
-      prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-      prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),  prior_weights = 1/4),
-      prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),  prior_weights = 1/4)
-    ),
-    priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
-    priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
-    priors_bias_null           = prior_none(),
-    priors_hierarchical        = prior("beta", parameters = list(alpha = 1, beta = 1)),
-    priors_hierarchical_null   = NULL,
+    priors_effect              = set_default_priors("effect",        rescale = rescale_priors),
+    priors_heterogeneity       = set_default_priors("heterogeneity", rescale = rescale_priors),
+    priors_bias                = set_default_priors("bias",          rescale = rescale_priors),
+    priors_effect_null         = set_default_priors("effect",        null = TRUE),
+    priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
+    priors_bias_null           = set_default_priors("bias",          null = TRUE),
+    priors_hierarchical        = set_default_priors("hierarchical"),
+    priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
 
-    prior_covariates       = prior("normal", parameters = list(mean = 0, sd = 0.25)),
-    prior_covariates_null  = prior("spike",  parameters = list(location = 0)),
-    prior_factors          = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25), contrast = "meandif"),
-    prior_factors_null     = prior_factor("spike",   parameters = list(location = 0), contrast = "meandif"),
+    prior_covariates       = set_default_priors("covariates", rescale = rescale_priors),
+    prior_covariates_null  = set_default_priors("covariates", null = TRUE),
+    prior_factors          = set_default_priors("factors", rescale = rescale_priors),
+    prior_factors_null     = set_default_priors("factors", null = TRUE),
 
     # MCMC fitting settings
     chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
