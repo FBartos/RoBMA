@@ -22,7 +22,7 @@ std::vector<unsigned int> DWEIGHTSMIX::dim(std::vector<std::vector<unsigned int>
 // Checking parameter dimensions
 bool DWEIGHTSMIX::checkParameterDim(std::vector<std::vector<unsigned int>> const &dims) const {
 
-    bool alpha_and_index_OK = dims[1][0] == dims[0][0] && dims[1][1] == dims[0][1];
+    bool alpha_and_index_OK = dims[1][1] == dims[0][1];
     bool row_indicator_OK   = dims[3][0] == 1;
 
     return alpha_and_index_OK && row_indicator_OK;
@@ -61,6 +61,22 @@ void DWEIGHTSMIX::randomSample(double *x, unsigned int length,
     // extract the selected row and the maximum index
     unsigned int selectedRow      = static_cast<unsigned int>(rowIndicator - 1);
     unsigned int selectedIndexMax = static_cast<unsigned int>(indexMax[selectedRow]);
+
+    // ---- deal with non weightfunction cases ---- //
+    if (selectedIndexMax == 0) {
+        for (unsigned int i = 0; i < ncol; ++i) {
+            x[i] = 1.0;
+        }
+        return;
+    }
+
+    // --- deal with fixed weightfunctions --- //
+    if (selectedIndexMax == -1) {
+        for (unsigned int i = 0; i < ncol; ++i) {
+            x[i] = alphaMat[static_cast<unsigned int>(selectedRow * ncol + indexMat[selectedRow * ncol + i] - 1)];
+        }
+        return;
+    }
 
     // --- sample etas from the gamma distribution --- //
     std::vector<double> eta(selectedIndexMax);

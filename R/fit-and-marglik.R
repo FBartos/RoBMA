@@ -571,6 +571,68 @@
 
   return(fit_data)
 }
+.fit_data.ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
+
+  # unlist the data.frame
+  original_measure <- attr(data, "original_measure")
+  effect_measure   <- attr(data, "effect_measure")
+
+  fit_data <- list()
+  # change the effect size direction (important for one-sided selection and PET/PEESE)
+  if(effect_direction == "negative"){
+    fit_data$y <- - data[,"y"]
+  }else{
+    fit_data$y <- data[,"y"]
+  }
+  fit_data$se <- data[,"se"]
+  fit_data$K  <- length(data[["y"]])
+
+  # add critical y-values
+  if(!is.null(priors[["omega"]])){
+    fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure, effect_measure))
+  }
+
+  # add weights proportional to the number of estimates from a study
+  if(weighted){
+    fit_data$weight <- .get_id_weights(data, weighted_type)
+  }
+
+
+
+  # check the SS logarithm is implemented (TODO: move into model construction)
+  if(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2")))
+    stop("Spike & Slab MCMC is not implemented for non-monotonic weight functions. If you want to use the feature, please submit a feature request at the GitHub repository.")
+
+  # create the weightfunction mapping from cuts to weights (account for non-weightfunctions mapped as 0)
+  alpha_index_weighfunction <- do.call(rbind, BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)]))
+  alpha_index               <- matrix(0, ncol = ncol(alpha_index_weighfunction), length(priors[["bias"]]))
+  alpha_index[sapply(priors[["bias"]], is.prior.weightfunction),] <- alpha_index_weighfunction
+
+  # alpha index helps dispatching within the weights_mix function
+  # 0  = non-weightfunction, all weights are set to 0
+  # >1 = indicates how many alpha parameters are needed to construct the weightfunction based on the alpha_index
+  # -1 = indicates fixed weightfunction, alpha parameters are treated as fixed weights
+  alpha_index_max <- apply(alpha_index, 1, max)
+  alpha_index_max[sapply(priors[["bias"]], is.prior.weightfunction) & sapply(priors[["bias"]], function(x) grepl("fixed", x[["distribution"]]))] <- -1
+
+  # create matrix of the alpha parameters
+  alpha <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
+  for(i in seq_along(priors[["bias"]])){
+    if(is.prior.weightfunction(priors[["bias"]][[i]])){
+      if(grepl("fixed", priors[["bias"]][[i]]$distribution)){
+        alpha[i,1:length(priors[["bias"]][[i]]$parameters[["omega"]])] <- priors[["bias"]][[i]]$parameters[["omega"]]
+      }else{
+        alpha[i,1:length(priors[["bias"]][[i]]$parameters[["alpha"]])] <- priors[["bias"]][[i]]$parameters[["alpha"]]
+      }
+    }
+  }
+
+  fit_data$alpha            <- alpha
+  fit_data$alpha_index      <- alpha_index
+  fit_data$alpha_index_max  <- alpha_index_max
+
+  return(fit_data)
+}
 .order_data.mv            <- function(data, regression){
   # prepares data in a better order for the subsequent vectorization of multivariate distributions
 
@@ -830,16 +892,8 @@
   model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_heterogeneity))
   model_syntax <- paste0(model_syntax, "tau = ", paste0(paste0("tau_component_", seq_along(named_prior_list_heterogeneity), " * (component_heterogeneity == ", seq_along(named_prior_list_heterogeneity), ")"), collapse = " + "), "\n\n")
 
+  model_syntax <- paste0(model_syntax, "omega ~ weights_mix(alpha, alpha_index, alpha_index_max, component_bias)\n")
 
-  for(i in seq_along(priors[["bias"]])){
-    if(i == 1){
-      model_syntax <- paste0(model_syntax, "if(component_bias == 1){\n")
-      model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(list("bias" = priors[["bias"]][[i]])))
-    }else{
-      model_syntax <- paste0(model_syntax, "}else if(component_bias == ", i, "){\n")
-      model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(list("bias" = priors[["bias"]][[i]])))
-    }
-  }
 
 
   model_syntax <- paste0(model_syntax, "}\n\n")
