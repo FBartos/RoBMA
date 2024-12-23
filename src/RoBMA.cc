@@ -99,6 +99,8 @@ namespace jags {
       insert(new DWEIGHTSMIX);
 
       // likelihood functions
+      insert(new wnorm_1s_lpdf);
+      insert(new wnorm_2s_lpdf);
       insert(new mnorm_lpdf);
       insert(new wmnorm_1s_lpdf);
       insert(new wmnorm_2s_lpdf);

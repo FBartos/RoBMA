@@ -603,12 +603,12 @@
   if(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2")))
     stop("Spike & Slab MCMC is not implemented for non-monotonic weight functions. If you want to use the feature, please submit a feature request at the GitHub repository.")
 
-  # create the weightfunction mapping from cuts to weights (account for non-weightfunctions mapped as 0)
+  # create the weightfunction mapping for weights (account for non-weightfunctions mapped as 0)
   alpha_index_weighfunction <- do.call(rbind, BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)]))
   alpha_index               <- matrix(0, ncol = ncol(alpha_index_weighfunction), length(priors[["bias"]]))
   alpha_index[sapply(priors[["bias"]], is.prior.weightfunction),] <- alpha_index_weighfunction
 
-  # alpha index helps dispatching within the weights_mix function
+  # alpha index max helps dispatching within the weights_mix function
   # 0  = non-weightfunction, all weights are set to 0
   # >1 = indicates how many alpha parameters are needed to construct the weightfunction based on the alpha_index
   # -1 = indicates fixed weightfunction, alpha parameters are treated as fixed weights
@@ -630,6 +630,32 @@
   fit_data$alpha            <- alpha
   fit_data$alpha_index      <- alpha_index
   fit_data$alpha_index_max  <- alpha_index_max
+
+  # create the weightfunction mapping for effect size thresholds
+  crit_y_weighfunction <- lapply(priors[["bias"]], function(x){
+    if(is.prior.weightfunction(x)){
+      return(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], x, original_measure, effect_measure))
+    }else{
+      return(list())
+    }
+  })
+  crit_y               <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max) - 1)
+  for(i in seq_along(priors[["bias"]])[sapply(priors[["bias"]], is.prior.weightfunction)]){
+    crit_y[i,1:length(crit_y_weighfunction[[i]])] <- crit_y_weighfunction[[i]]
+  }
+
+  # create the weightfunction mapping to weights
+  alpha_mapping <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
+  for(i in seq_along(priors[["bias"]])){
+    if(is.prior.weightfunction(priors[["bias"]][[i]])){
+      alpha_index[i,][duplicated(alpha_index[i,])] <- NA
+      alpha_mapping[i,1:alpha_index_max[i]] <- order(alpha_index[i,], na.last = TRUE)[1:alpha_index_max[i]]
+    }
+  }
+
+  fit_data$crit_y        <- crit_y
+  fit_data$alpha_mapping <- alpha_mapping
+
 
   return(fit_data)
 }

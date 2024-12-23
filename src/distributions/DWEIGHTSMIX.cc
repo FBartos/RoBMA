@@ -55,16 +55,16 @@ void DWEIGHTSMIX::randomSample(double *x, unsigned int length,
     double rowIndicator = par[3][0];
 
     // extract dimensions
-    unsigned int ncol = dims[1][0];
-    unsigned int nrow = dims[1][1];
+    int ncol = dims[1][0];
+    //unsigned int nrow = dims[1][1];
 
     // extract the selected row and the maximum index
-    unsigned int selectedRow      = static_cast<unsigned int>(rowIndicator - 1);
-    unsigned int selectedIndexMax = static_cast<unsigned int>(indexMax[selectedRow]);
+    int selectedRow      = static_cast<int>(rowIndicator - 1);
+    int selectedIndexMax = static_cast<int>(indexMax[selectedRow]);
 
     // ---- deal with non weightfunction cases ---- //
     if (selectedIndexMax == 0) {
-        for (unsigned int i = 0; i < ncol; ++i) {
+        for (int i = 0; i < ncol; ++i) {
             x[i] = 1.0;
         }
         return;
@@ -72,35 +72,35 @@ void DWEIGHTSMIX::randomSample(double *x, unsigned int length,
 
     // --- deal with fixed weightfunctions --- //
     if (selectedIndexMax == -1) {
-        for (unsigned int i = 0; i < ncol; ++i) {
-            x[i] = alphaMat[static_cast<unsigned int>(selectedRow * ncol + indexMat[selectedRow * ncol + i] - 1)];
+        for (int i = 0; i < ncol; ++i) {
+            x[i] = alphaMat[static_cast<int>(selectedRow * ncol + indexMat[selectedRow * ncol + i] - 1)];
         }
         return;
     }
 
     // --- sample etas from the gamma distribution --- //
     std::vector<double> eta(selectedIndexMax);
-    for (unsigned int i = 0; i < selectedIndexMax; ++i) {
+    for (int i = 0; i < selectedIndexMax; ++i) {
         eta[i] = rgamma(alphaMat[selectedRow * ncol + i], 1.0, rng);
     }
 
     // --- normalized etas --- //
     std::vector<double> std_eta(selectedIndexMax);
     double eta_sum = std::accumulate(eta.begin(), eta.end(), 0.0); // Sum of eta
-    for (unsigned int i = 0; i < selectedIndexMax; ++i) {
+    for (int i = 0; i < selectedIndexMax; ++i) {
         std_eta[i] = eta[i] / eta_sum;
     }
 
     // --- transform to cummulative dirichlet distribution --- //
     std::vector<double> omega(selectedIndexMax);
     omega[0] = std_eta[0];
-    for (unsigned int i = 1; i < selectedIndexMax; ++i) {
+    for (int i = 1; i < selectedIndexMax; ++i) {
         omega[i] = omega[i - 1] + std_eta[i];
     }
 
     // --- map using the indexMat to the correct index --- //
-    for (unsigned int i = 0; i < ncol; ++i) {
-        x[i] = omega[static_cast<unsigned int>(indexMat[selectedRow * ncol + i] - 1)];
+    for (int i = 0; i < ncol; ++i) {
+        x[i] = omega[static_cast<int>(indexMat[selectedRow * ncol + i] - 1)];
     }
 }
 

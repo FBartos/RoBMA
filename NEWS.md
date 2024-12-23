@@ -1,3 +1,7 @@
+### Features
+- refactoring of the JAGS C++ code of weighted distributions and exporting of the lpdfs into JAGS (maintenance)
+- weights_mix JAGS prior distribution to sample a mixture of weight functions directly
+
 ## version 3.2.1
 ### Features
 - default prior distributions for all parameters are now set via the `set_default_priors()` function

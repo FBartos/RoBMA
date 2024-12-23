@@ -9,6 +9,74 @@ namespace jags {
   namespace RoBMA {
 
     //// normal input type ----
+
+    // one-sided normal
+    wnorm_1s_lpdf::wnorm_1s_lpdf() :ArrayFunction("wnorm_1s_lpdf", 5)
+    {}
+    void wnorm_1s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    {
+      // reassign the addresses to pointers
+      const double *x      = args[0];
+      const double *mu     = args[1];
+      const double *sigma  = args[2];
+      const double *crit_x = args[3];
+      const double *omega  = args[4];
+
+      // information about the dimensions
+      const int J = dims[4][0]; // of the weights
+
+      *value = cpp_wnorm_1s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], J);
+    }
+
+    bool wnorm_1s_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    {
+      return true;
+    }
+
+    bool wnorm_1s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+    {
+      return true;
+    }
+
+    std::vector<unsigned int> wnorm_1s_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    {
+      return std::vector<unsigned int>(1,1);
+    }
+
+    // two-sided normal
+    wnorm_2s_lpdf::wnorm_2s_lpdf() :ArrayFunction("wnorm_2s_lpdf", 5)
+    {}
+    void wnorm_2s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    {
+      // reassign the addresses to pointers
+      const double *x      = args[0];
+      const double *mu     = args[1];
+      const double *sigma  = args[2];
+      const double *crit_x = args[3];
+      const double *omega  = args[4];
+
+      // information about the dimensions
+      const int J = dims[4][0]; // of the weights
+
+      *value = cpp_wnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], J);
+    }
+
+    bool wnorm_2s_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    {
+      return true;
+    }
+
+    bool wnorm_2s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+    {
+      return true;
+    }
+
+    std::vector<unsigned int> wnorm_2s_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    {
+      return std::vector<unsigned int>(1,1);
+    }
+
+
     // one-sided multivariate normal
     wmnorm_1s_lpdf::wmnorm_1s_lpdf() :ArrayFunction("wmnorm_1s_lpdf", 5)
     {}
