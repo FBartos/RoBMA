@@ -796,6 +796,57 @@
 
   return(model_syntax)
 }
+.generate_model_syntax.ss <- function(priors) {
+
+  model_syntax <- "model{\n"
+
+  ### extract prior probabilities
+  prob_effect        <- sapply(priors[["effect"]], function(x) x[["prior_weights"]])
+  prob_heterogeneity <- sapply(priors[["heterogeneity"]], function(x) x[["prior_weights"]])
+  prob_bias          <- sapply(priors[["bias"]], function(x) x[["prior_weights"]])
+  prob_hierarchical  <- sapply(priors[["hierarchical"]], function(x) x[["prior_weights"]])
+
+  prob_effect        <- prob_effect / sum(prob_effect)
+  prob_heterogeneity <- prob_heterogeneity / sum(prob_heterogeneity)
+  prob_bias          <- prob_bias / sum(prob_bias)
+  prob_hierarchical  <- prob_hierarchical / sum(prob_hierarchical)
+
+  ### specify spike and slab priors for each parameter
+  # prior on the component
+  model_syntax <- paste0(model_syntax, paste0("component_effect        ~ dcat(c(", paste0(prob_effect, collapse = ", "), "))\n"))
+  model_syntax <- paste0(model_syntax, paste0("component_heterogeneity ~ dcat(c(", paste0(prob_heterogeneity, collapse = ", "), "))\n"))
+  model_syntax <- paste0(model_syntax, paste0("component_bias          ~ dcat(c(", paste0(prob_bias, collapse = ", "), "))\n"))
+  model_syntax <- paste0(model_syntax, paste0("component_hierarchical  ~ dcat(c(", paste0(prob_hierarchical, collapse = ", "), "))\n"))
+  model_syntax <- paste0(model_syntax, "\n")
+
+  # parameter dispatch
+  named_prior_list_effect        <- priors[["effect"]]
+  names(named_prior_list_effect) <- paste0("mu_component_", seq_along(named_prior_list_effect))
+  model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_effect))
+  model_syntax <- paste0(model_syntax, "mu = ", paste0(paste0("mu_component_", seq_along(named_prior_list_effect), " * (component_effect == ", seq_along(named_prior_list_effect), ")"), collapse = " + "), "\n\n")
+
+  named_prior_list_heterogeneity        <- priors[["heterogeneity"]]
+  names(named_prior_list_heterogeneity) <- paste0("tau_component_", seq_along(named_prior_list_heterogeneity))
+  model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_heterogeneity))
+  model_syntax <- paste0(model_syntax, "tau = ", paste0(paste0("tau_component_", seq_along(named_prior_list_heterogeneity), " * (component_heterogeneity == ", seq_along(named_prior_list_heterogeneity), ")"), collapse = " + "), "\n\n")
+
+
+  for(i in seq_along(priors[["bias"]])){
+    if(i == 1){
+      model_syntax <- paste0(model_syntax, "if(component_bias == 1){\n")
+      model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(list("bias" = priors[["bias"]][[i]])))
+    }else{
+      model_syntax <- paste0(model_syntax, "}else if(component_bias == ", i, "){\n")
+      model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(list("bias" = priors[["bias"]][[i]])))
+    }
+  }
+
+
+  model_syntax <- paste0(model_syntax, "}\n\n")
+
+
+
+}
 .marglik_function         <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
 
   # extract parameters
