@@ -53,8 +53,8 @@ double DWN1::logDensity(double const *x, unsigned int length, PDFType type,
 {
   // reassign the addresses to pointers
   const double *mu     = par[0];
-  const double sigma2  = *par[1];
-  const double sigma   = std::sqrt(1/sigma2);
+  const double var     = 1/ *par[1];
+  const double sigma   = std::sqrt(var);
   const double *crit_x = par[2];
   const double *omega  = par[3];
 
