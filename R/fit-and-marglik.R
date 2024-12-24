@@ -600,62 +600,55 @@
 
 
   # check the SS logarithm is implemented (TODO: move into model construction)
-  if(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2")))
+  if(any(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2"))))
     stop("Spike & Slab MCMC is not implemented for non-monotonic weight functions. If you want to use the feature, please submit a feature request at the GitHub repository.")
 
-  # create the weightfunction mapping for weights (account for non-weightfunctions mapped as 0)
-  alpha_index_weighfunction <- do.call(rbind, BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)]))
-  alpha_index               <- matrix(0, ncol = ncol(alpha_index_weighfunction), length(priors[["bias"]]))
-  alpha_index[sapply(priors[["bias"]], is.prior.weightfunction),] <- alpha_index_weighfunction
+  if(any(sapply(priors[["bias"]], is.prior.weightfunction))){
+    # create the weightfunction mapping for weights (account for non-weightfunctions mapped as 0)
+    alpha_index_weighfunction <- do.call(rbind, BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)]))
+    alpha_index               <- matrix(0, ncol = ncol(alpha_index_weighfunction), length(priors[["bias"]]))
+    alpha_index[sapply(priors[["bias"]], is.prior.weightfunction),] <- alpha_index_weighfunction
 
-  # alpha index max helps dispatching within the weights_mix function
-  # 0  = non-weightfunction, all weights are set to 0
-  # >1 = indicates how many alpha parameters are needed to construct the weightfunction based on the alpha_index
-  # -1 = indicates fixed weightfunction, alpha parameters are treated as fixed weights
-  alpha_index_max <- apply(alpha_index, 1, max)
-  alpha_index_max[sapply(priors[["bias"]], is.prior.weightfunction) & sapply(priors[["bias"]], function(x) grepl("fixed", x[["distribution"]]))] <- -1
+    # alpha index max helps dispatching within the weights_mix function
+    # 0  = non-weightfunction, all weights are set to 0
+    # >1 = indicates how many alpha parameters are needed to construct the weightfunction based on the alpha_index
+    # -1 = indicates fixed weightfunction, alpha parameters are treated as fixed weights
+    alpha_index_max <- apply(alpha_index, 1, max)
+    alpha_index_max[sapply(priors[["bias"]], is.prior.weightfunction) & sapply(priors[["bias"]], function(x) grepl("fixed", x[["distribution"]]))] <- -1
 
-  # create matrix of the alpha parameters
-  alpha <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
-  for(i in seq_along(priors[["bias"]])){
-    if(is.prior.weightfunction(priors[["bias"]][[i]])){
-      if(grepl("fixed", priors[["bias"]][[i]]$distribution)){
-        alpha[i,1:length(priors[["bias"]][[i]]$parameters[["omega"]])] <- priors[["bias"]][[i]]$parameters[["omega"]]
-      }else{
-        alpha[i,1:length(priors[["bias"]][[i]]$parameters[["alpha"]])] <- priors[["bias"]][[i]]$parameters[["alpha"]]
+    # create matrix of the alpha parameters
+    alpha <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
+    for(i in seq_along(priors[["bias"]])){
+      if(is.prior.weightfunction(priors[["bias"]][[i]])){
+        if(grepl("fixed", priors[["bias"]][[i]]$distribution)){
+          alpha[i,1:length(priors[["bias"]][[i]]$parameters[["omega"]])] <- priors[["bias"]][[i]]$parameters[["omega"]]
+        }else{
+          alpha[i,1:length(priors[["bias"]][[i]]$parameters[["alpha"]])] <- priors[["bias"]][[i]]$parameters[["alpha"]]
+        }
       }
     }
-  }
 
-  fit_data$alpha            <- alpha
-  fit_data$alpha_index      <- alpha_index
-  fit_data$alpha_index_max  <- alpha_index_max
+    fit_data$alpha            <- t(alpha)
+    fit_data$alpha_index      <- t(alpha_index)
+    fit_data$alpha_index_max  <- alpha_index_max
 
-  # create the weightfunction mapping for effect size thresholds
-  crit_y_weighfunction <- lapply(priors[["bias"]], function(x){
-    if(is.prior.weightfunction(x)){
-      return(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], x, original_measure, effect_measure))
-    }else{
-      return(list())
+    # create the weightfunction mapping for effect size thresholds
+    steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE)
+    steps  <- rev(steps)[c(-1, -length(steps))]
+    crit_y <- .get_cutoffs(fit_data[["y"]], fit_data[["se"]], list(distribution = "one.sided", parameters = list(steps = steps)), original_measure, effect_measure)
+
+    # create the weightfunction mapping to weights
+    alpha_mapping <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
+    for(i in seq_along(priors[["bias"]])){
+      if(is.prior.weightfunction(priors[["bias"]][[i]])){
+        alpha_index[i,][duplicated(alpha_index[i,])] <- NA
+        alpha_mapping[i,1:alpha_index_max[i]] <- order(alpha_index[i,], na.last = TRUE)[1:alpha_index_max[i]]
+      }
     }
-  })
-  crit_y               <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max) - 1)
-  for(i in seq_along(priors[["bias"]])[sapply(priors[["bias"]], is.prior.weightfunction)]){
-    crit_y[i,1:length(crit_y_weighfunction[[i]])] <- crit_y_weighfunction[[i]]
+
+    fit_data$crit_y        <- t(crit_y)
+    fit_data$alpha_mapping <- t(alpha_mapping)
   }
-
-  # create the weightfunction mapping to weights
-  alpha_mapping <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
-  for(i in seq_along(priors[["bias"]])){
-    if(is.prior.weightfunction(priors[["bias"]][[i]])){
-      alpha_index[i,][duplicated(alpha_index[i,])] <- NA
-      alpha_mapping[i,1:alpha_index_max[i]] <- order(alpha_index[i,], na.last = TRUE)[1:alpha_index_max[i]]
-    }
-  }
-
-  fit_data$crit_y        <- crit_y
-  fit_data$alpha_mapping <- alpha_mapping
-
 
   return(fit_data)
 }
@@ -884,7 +877,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.ss <- function(priors) {
+.generate_model_syntax.ss <- function(priors, effect_direction, priors_scale, effect_measure, weighted, regression){
 
   model_syntax <- "model{\n"
 
@@ -899,33 +892,92 @@
   prob_bias          <- prob_bias / sum(prob_bias)
   prob_hierarchical  <- prob_hierarchical / sum(prob_hierarchical)
 
+  is_PET            <- sapply(priors[["bias"]], is.prior.PET)
+  is_PEESE          <- sapply(priors[["bias"]], is.prior.PEESE)
+  is_weightfunction <- sapply(priors[["bias"]], is.prior.weightfunction)
+
   ### specify spike and slab priors for each parameter
   # prior on the component
   model_syntax <- paste0(model_syntax, paste0("component_effect        ~ dcat(c(", paste0(prob_effect, collapse = ", "), "))\n"))
   model_syntax <- paste0(model_syntax, paste0("component_heterogeneity ~ dcat(c(", paste0(prob_heterogeneity, collapse = ", "), "))\n"))
   model_syntax <- paste0(model_syntax, paste0("component_bias          ~ dcat(c(", paste0(prob_bias, collapse = ", "), "))\n"))
-  model_syntax <- paste0(model_syntax, paste0("component_hierarchical  ~ dcat(c(", paste0(prob_hierarchical, collapse = ", "), "))\n"))
+  # TODO: model_syntax <- paste0(model_syntax, paste0("component_hierarchical  ~ dcat(c(", paste0(prob_hierarchical, collapse = ", "), "))\n"))
   model_syntax <- paste0(model_syntax, "\n")
 
-  # parameter dispatch
+  # parameter dispatch for mu
   named_prior_list_effect        <- priors[["effect"]]
   names(named_prior_list_effect) <- paste0("mu_component_", seq_along(named_prior_list_effect))
   model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_effect))
   model_syntax <- paste0(model_syntax, "mu = ", paste0(paste0("mu_component_", seq_along(named_prior_list_effect), " * (component_effect == ", seq_along(named_prior_list_effect), ")"), collapse = " + "), "\n\n")
 
+  # parameter dispatch for tau
   named_prior_list_heterogeneity        <- priors[["heterogeneity"]]
   names(named_prior_list_heterogeneity) <- paste0("tau_component_", seq_along(named_prior_list_heterogeneity))
   model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_heterogeneity))
   model_syntax <- paste0(model_syntax, "tau = ", paste0(paste0("tau_component_", seq_along(named_prior_list_heterogeneity), " * (component_heterogeneity == ", seq_along(named_prior_list_heterogeneity), ")"), collapse = " + "), "\n\n")
 
-  model_syntax <- paste0(model_syntax, "omega ~ weights_mix(alpha, alpha_index, alpha_index_max, component_bias)\n")
+  # parameter dispatch for publication bias adjustment
+  if(any(is_PET)){
+    if(sum(is_PET) > 1) stop("Only one PET style publication bias adjustment is allowed.")
+    named_prior_PET <- priors[["bias"]][[which(is_PET)]]
+    class(named_prior_PET) <- class(named_prior_PET)[!class(named_prior_PET) %in% "prior.PET"]
+    named_prior_PET <- list("PET_1" = named_prior_PET)
+    model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_PET))
+    model_syntax <- paste0(model_syntax, "PET = PET_1 * (component_bias == ", which(is_PET), ")\n")
+  }
+  if(any(is_PEESE)){
+    if(sum(is_PEESE) > 1) stop("Only one PEESE style publication bias adjustment is allowed.")
+    named_prior_PEESE <- priors[["bias"]][[which(is_PEESE)]]
+    class(named_prior_PEESE) <- class(named_prior_PEESE)[!class(named_prior_PEESE) %in% "prior.PEESE"]
+    named_prior_PEESE <- list("PEESE_1" = named_prior_PEESE)
+    model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_PEESE))
+    model_syntax <- paste0(model_syntax, "PEESE = PEESE_1 * (component_bias == ", which(is_PEESE), ")\n")
+  }
+  if(any(is_weightfunction)){
+    model_syntax <- paste0(model_syntax, "omega ~ weights_mix(alpha[,component_bias], alpha_index[,component_bias], alpha_index_max[,component_bias])\n")
+  }
 
 
+  # TODO: add hierarchical
+  ### model
+  model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
 
-  model_syntax <- paste0(model_syntax, "}\n\n")
+  # marginalized random effects and the effect size
+  var <- "( pow(se[i],2) + pow(tau_transformed,2) )"
 
+  # deal with mu as a vector or scalar based on whether it is regression or not
+  if(regression){
+    eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed[i]", "mu_transformed[i]")
+  }else{
+    eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+  }
 
+  # add PET/PEESE
+  if(any(is_PET)){
+    eff <- paste0("(", eff, " + PET_transformed * se[i])")
+  }
+  if(any(is_PEESE)){
+    eff <- paste0("(", eff, " + PEESE_transformed * pow(se[i],2))")
+  }
 
+  if(any(is_weightfunction)){
+    if(weighted){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_mix(", eff, ",", "sqrt", tau, ", crit_y[,i], omega, alpha_mapping[,component_bias], alpha_index_max[,component_bias], weight[i])\n")
+    }else{
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm_mix(",  eff, ",", "sqrt", tau, ", crit_y[,i], omega, alpha_mapping[,component_bias], alpha_index_max[,component_bias])\n")
+    }
+  }else{
+    if(weighted){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(", eff, ",", "1/", var, ", weight[i])\n")
+    }else{
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",  eff, ",", "1/", var, ")\n")
+    }
+  }
+
+  model_syntax <- paste0(model_syntax, "}\n")
+  model_syntax <- paste0(model_syntax, "}")
+
+  return(model_syntax)
 }
 .marglik_function         <- function(parameters, data, priors, effect_direction, prior_scale, effect_measure){
 
