@@ -358,4 +358,5 @@ check_RoBMA_convergence <- function(fit){
 }
 .reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE", "pi", "gamma",
                                              "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
-                                             "d", "t", "r", "z", "y", "logOR", "OR", "lCI", "uCI", "v", "se", "n", "weight", "x1", "x2", "n1", "n2")
+                                             "d", "t", "r", "z", "y", "logOR", "OR", "lCI", "uCI", "v", "se", "n", "weight", "x1", "x2", "n1", "n2",
+                                             "component_effect", "component_heterogeneity", "component_bias", "component_hierarchical", "component_baseline")

@@ -15,7 +15,7 @@
 #include "distributions/DWB.h"
 
 #include "distributions/DWNMIX.h"
-#include "distributions/DWEIGHTSMIX.h"
+#include "distributions/DWWNMIX.h"
 
 #include "transformations/d.h"
 #include "transformations/r.h"
@@ -102,7 +102,7 @@ namespace jags {
 
       // mixture distributions
       insert(new DWNMIX);
-      insert(new DWEIGHTSMIX);
+      insert(new DWWNMIX);
 
       // likelihood functions
       insert(new wnorm_1s_lpdf);
