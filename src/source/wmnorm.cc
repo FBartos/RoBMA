@@ -6,7 +6,6 @@
 #include <JRmath.h>
 #include <cmath>
 
-
 double cpp_wnorm_1s_lpdf(double const *x, double const *mu, double const *sigma, double const *crit_x, double const *omega, const int J)
 {
 

@@ -6,8 +6,10 @@
 #include <cmath>
 #include <vector>
 #include <algorithm>
-#include <JRmath.h> // For rgamma, etc.
-#include <numeric> // For std::accumulate
+#include <JRmath.h>
+#include <numeric>
+
+#include "../source/tools.h"
 
 namespace jags {
 namespace RoBMA {
@@ -35,7 +37,49 @@ double DWEIGHTSMIX::logDensity(double const *x, unsigned int length, PDFType typ
                                std::vector<double const *> const &par,
                                std::vector<std::vector<unsigned int>> const &dims,
                                double const *lower, double const *upper) const {
-    return 0.0; // Placeholder: Not implemented
+
+
+    // extract parameters
+    const double *alphaMat = par[0];
+    const double *indexMat = par[1];
+    const int indexMax  = static_cast<int>(*par[2]);
+
+    // extract dimensions
+    int ncol = dims[1][0];
+
+    // ---- deal with non weightfunction cases ---- //
+    if (indexMax == 0) {
+        return 0.0;
+    }
+
+    // --- deal with fixed weightfunctions --- //
+    if (indexMax == -1) {
+        return 0.0;
+    }
+
+    // --- extract omegas from x using the indexMat --- //
+    std::vector<double> omega(indexMax);
+    for (int i = 0; i < ncol; ++i) {
+        omega[static_cast<int>(indexMat[i]) - 1] = x[i];
+    }
+
+    // --- extract normalized etas from the omegas --- //
+    std::vector<double> std_eta(indexMax);
+    std_eta[0] = omega[0];
+    for (int i = 1; i < indexMax; ++i) {
+        std_eta[i] = omega[i] - omega[i - 1];
+    }
+
+    // --- extract the corresponding alpha parameters --- //
+    std::vector<double> alpha(indexMax);
+    for (int i = 0; i < indexMax; ++i) {
+        alpha[i] = alphaMat[i];
+    }
+
+    // --- use density of dirichlet distribution to compute the log density --- //
+    double log_lik = ddirichlet(std_eta, alpha);
+
+    return log_lik;
 }
 
 // Random Sample
@@ -110,12 +154,59 @@ void DWEIGHTSMIX::typicalValue(double *x, unsigned int length,
                                std::vector<double const *> const &par,
                                std::vector<std::vector<unsigned int>> const &dims,
                                double const *lower, double const *upper) const {
-    // Not implemented
+    // extract parameters
+    const double *alphaMat = par[0];
+    const double *indexMat = par[1];
+    const int indexMax  = static_cast<int>(*par[2]);
+
+    // extract dimensions
+    int ncol = dims[1][0];
+
+    // ---- deal with non weightfunction cases ---- //
+    if (indexMax == 0) {
+        for (int i = 0; i < ncol; ++i) {
+            x[i] = 1.0;
+        }
+        return;
+    }
+
+    // --- deal with fixed weightfunctions --- //
+    if (indexMax == -1) {
+        for (int i = 0; i < ncol; ++i) {
+            x[i] = alphaMat[ static_cast<int>(indexMat[i]) - 1 ];
+        }
+        return;
+    }
+
+    // --- sample etas from the gamma distribution --- //
+    std::vector<double> eta(indexMax);
+    for (int i = 0; i < indexMax; ++i) {
+        eta[i] = alphaMat[i];
+    }
+
+    // --- normalized etas --- //
+    std::vector<double> std_eta(indexMax);
+    double eta_sum = std::accumulate(eta.begin(), eta.end(), 0.0); // Sum of eta
+    for (int i = 0; i < indexMax; ++i) {
+        std_eta[i] = eta[i] / eta_sum;
+    }
+
+    // --- transform to cummulative dirichlet distribution --- //
+    std::vector<double> omega(indexMax);
+    omega[0] = std_eta[0];
+    for (int i = 1; i < indexMax; ++i) {
+        omega[i] = omega[i - 1] + std_eta[i];
+    }
+
+    // --- map using the indexMat to the correct index --- //
+    for (int i = 0; i < ncol; ++i) {
+        x[i] = omega[ static_cast<int>(indexMat[i]) - 1 ];
+    }
 }
 
 // Support Fixed
 bool DWEIGHTSMIX::isSupportFixed(std::vector<bool> const &fixmask) const {
-    return true;
+    return false;
 }
 
 }} // namespace jags::RoBMA

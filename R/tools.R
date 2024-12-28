@@ -319,7 +319,18 @@ check_RoBMA_convergence <- function(fit){
     stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
   }
 }
+.get_one_sided_cuts          <- function(prior){
+  steps <- prior[["parameters"]][["steps"]]
+  if (grepl("two.sided", prior[["distribution"]])) {
+    return(c(1-rev(steps/2), steps/2))
+  } else {
+    return(steps)
+  }
+}
 
+
+
+# object type checks
 .is_multivariate <- function(object){
   if(.is_regression(object)){
     return(!attr(object[["data"]][["outcome"]], "all_independent"))
@@ -338,6 +349,7 @@ check_RoBMA_convergence <- function(fit){
   return(!is.null(object[["formula"]]))
 }
 
+# parameter naming functions
 .BayesTools_parameter_name   <- function(parameter){
   return(BayesTools::JAGS_parameter_names(parameter, formula_parameter = "mu"))
 }

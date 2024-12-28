@@ -14,12 +14,14 @@
 #include "distributions/DWMN2v.h"
 #include "distributions/DWB.h"
 
+#include "distributions/DWNMIX.h"
 #include "distributions/DWEIGHTSMIX.h"
 
 #include "transformations/d.h"
 #include "transformations/r.h"
 #include "transformations/z.h"
 #include "transformations/logOR.h"
+#include "transformations/omega.h"
 
 #include "functions/mnorm.h"
 #include "functions/wmnorm.h"
@@ -95,7 +97,11 @@ namespace jags {
       insert(new scale_z2r);
       insert(new scale_logOR2r);
 
-      // selection model weight mixtures
+      // omega transformations
+      insert(new eta2omega);
+
+      // mixture distributions
+      insert(new DWNMIX);
       insert(new DWEIGHTSMIX);
 
       // likelihood functions

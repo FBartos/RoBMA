@@ -44,7 +44,7 @@
       model_syntax <- .generate_model_syntax.mv(
         priors           = fit_priors,
         effect_direction = add_info[["effect_direction"]],
-        priors_scale     = add_info[["prior_scale"]],
+        prior_scale      = add_info[["prior_scale"]],
         effect_measure   = add_info[["effect_measure"]],
         data             = data_outcome,
         regression       = inherits(model, "RoBMA.reg.model")
@@ -63,7 +63,7 @@
       model_syntax <- .generate_model_syntax(
         priors           = fit_priors,
         effect_direction = add_info[["effect_direction"]],
-        priors_scale     = add_info[["prior_scale"]],
+        prior_scale      = add_info[["prior_scale"]],
         effect_measure   = add_info[["effect_measure"]],
         weighted         = attr(model, "weighted"),
         regression       = inherits(model, "RoBMA.reg.model")
@@ -448,7 +448,7 @@
     fit_summaries <- .runjags_summary_list(
       fit               = fit,
       priors            = attr(fit, "prior_list"),
-      priors_scale      = add_info[["prior_scale"]],
+      prior_scale       = add_info[["prior_scale"]],
       warnings          = warnings,
       remove_parameters = c("pi", if(attr(model, "random")) "gamma")
     )
@@ -597,57 +597,77 @@
     fit_data$weight <- .get_id_weights(data, weighted_type)
   }
 
-
-
   # check the SS logarithm is implemented (TODO: move into model construction)
   if(any(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2"))))
     stop("Spike & Slab MCMC is not implemented for non-monotonic weight functions. If you want to use the feature, please submit a feature request at the GitHub repository.")
 
   if(any(sapply(priors[["bias"]], is.prior.weightfunction))){
-    # create the weightfunction mapping for weights (account for non-weightfunctions mapped as 0)
-    alpha_index_weighfunction <- do.call(rbind, BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)]))
-    alpha_index               <- matrix(0, ncol = ncol(alpha_index_weighfunction), length(priors[["bias"]]))
-    alpha_index[sapply(priors[["bias"]], is.prior.weightfunction),] <- alpha_index_weighfunction
 
-    # alpha index max helps dispatching within the weights_mix function
+    # create the weightfunction mapping for weights
+    omega_index_weighfunction <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], one_sided = TRUE)
+    omega_index_weighfunction <- lapply(omega_index_weighfunction, rev)
+    omega_index_weighfunction <- do.call(rbind, omega_index_weighfunction)
+    omega_index <- matrix(0, ncol = ncol(omega_index_weighfunction), length(priors[["bias"]]))
+    omega_index[sapply(priors[["bias"]], is.prior.weightfunction),] <- omega_index_weighfunction
+
+    # create the eta to omega mapping
+    # eta_index_max helps dispatching within the weights_mix function
     # 0  = non-weightfunction, all weights are set to 0
-    # >1 = indicates how many alpha parameters are needed to construct the weightfunction based on the alpha_index
+    # >1 = indicates how many alpha parameters are needed to construct the weightfunction based on the eta_index
     # -1 = indicates fixed weightfunction, alpha parameters are treated as fixed weights
-    alpha_index_max <- apply(alpha_index, 1, max)
-    alpha_index_max[sapply(priors[["bias"]], is.prior.weightfunction) & sapply(priors[["bias"]], function(x) grepl("fixed", x[["distribution"]]))] <- -1
-
-    # create matrix of the alpha parameters
-    alpha <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
+    eta_index     <- matrix(0, ncol = max(omega_index), length(priors[["bias"]]))
+    eta_index_max <- rep(0, length(priors[["bias"]]))
     for(i in seq_along(priors[["bias"]])){
+      temp_index <- unique(omega_index[i,])
+      eta_index[i,1:length(temp_index)] <- sort(temp_index)
       if(is.prior.weightfunction(priors[["bias"]][[i]])){
         if(grepl("fixed", priors[["bias"]][[i]]$distribution)){
-          alpha[i,1:length(priors[["bias"]][[i]]$parameters[["omega"]])] <- priors[["bias"]][[i]]$parameters[["omega"]]
+          eta_index_max[i] <- -1
         }else{
-          alpha[i,1:length(priors[["bias"]][[i]]$parameters[["alpha"]])] <- priors[["bias"]][[i]]$parameters[["alpha"]]
+          eta_index_max[i] <- length(temp_index)
+        }
+      }else{
+        eta_index_max[i] <- 0
+      }
+    }
+
+    fit_data$omega_index    <- t(omega_index)
+    fit_data$eta_index      <- t(eta_index)
+    fit_data$eta_index_max  <- eta_index_max
+
+    # create priors for eta
+    eta_shape <- matrix(1, nrow = nrow(eta_index), ncol = ncol(eta_index))
+    for(i in seq_along(priors[["bias"]])){
+      if(is.prior.weightfunction(priors[["bias"]][[i]])){
+        if(!grepl("fixed", priors[["bias"]][[i]]$distribution)){
+          temp_shape <- priors[["bias"]][[i]]$parameters[["alpha"]]
+          eta_shape[i,1:length(temp_shape)] <- temp_shape
         }
       }
     }
-
-    fit_data$alpha            <- t(alpha)
-    fit_data$alpha_index      <- t(alpha_index)
-    fit_data$alpha_index_max  <- alpha_index_max
+    fit_data$eta_shape <- t(eta_shape)
 
     # create the weightfunction mapping for effect size thresholds
-    steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE)
+    steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
     steps  <- rev(steps)[c(-1, -length(steps))]
     crit_y <- .get_cutoffs(fit_data[["y"]], fit_data[["se"]], list(distribution = "one.sided", parameters = list(steps = steps)), original_measure, effect_measure)
 
-    # create the weightfunction mapping to weights
-    alpha_mapping <- matrix(0, nrow = nrow(alpha_index), ncol = max(alpha_index_max))
+    # create the weightfunction mapping to weights (transform all weight functions to one-sided)
+    crit_y_mapping <- matrix(0, nrow = length(priors[["bias"]]), ncol = ncol(crit_y))
+    crit_y_mapping_max <- rep(0, length(priors[["bias"]]))
     for(i in seq_along(priors[["bias"]])){
       if(is.prior.weightfunction(priors[["bias"]][[i]])){
-        alpha_index[i,][duplicated(alpha_index[i,])] <- NA
-        alpha_mapping[i,1:alpha_index_max[i]] <- order(alpha_index[i,], na.last = TRUE)[1:alpha_index_max[i]]
+        ### the following subsetting allows us "merge" steps with equal weights due to the construction
+        # specify indexes of the relevant steps
+        this_steps <- .get_one_sided_cuts(priors[["bias"]][[i]])
+        crit_y_mapping[i,1:length(this_steps)] <- which(steps %in% this_steps)
+        crit_y_mapping_max[i] <- length(this_steps)
       }
     }
 
-    fit_data$crit_y        <- t(crit_y)
-    fit_data$alpha_mapping <- t(alpha_mapping)
+    fit_data$crit_y             <- t(crit_y)
+    fit_data$crit_y_mapping     <- t(crit_y_mapping)
+    fit_data$crit_y_mapping_max <- crit_y_mapping_max
   }
 
   return(fit_data)
@@ -676,7 +696,7 @@
 
   return(data)
 }
-.generate_model_syntax    <- function(priors, effect_direction, priors_scale, effect_measure, weighted, regression){
+.generate_model_syntax    <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression){
 
   model_syntax <- "model{\n"
 
@@ -686,18 +706,18 @@
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
     model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
-    model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu[i]",  "mu_transformed[i]"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu[i]",  "mu_transformed[i]"))
     model_syntax <- paste0(model_syntax, "}\n")
   }else{
-    model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu",  "mu_transformed"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu",  "mu_transformed"))
   }
 
-  model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "tau", "tau_transformed"))
+  model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau", "tau_transformed"))
   if(!is.null(priors[["PET"]])){
     model_syntax <- paste0(model_syntax, paste0("PET_transformed = PET\n"))
   }else if(!is.null(priors[["PEESE"]])){
     # don't forget that the transformation is inverse for PEESE
-    model_syntax <- paste0(model_syntax, .JAGS_scale(effect_measure, priors_scale, "PEESE", "PEESE_transformed"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(effect_measure, prior_scale, "PEESE", "PEESE_transformed"))
   }
 
 
@@ -745,7 +765,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.mv <- function(priors, effect_direction, priors_scale, effect_measure, data, regression){
+.generate_model_syntax.mv <- function(priors, effect_direction, prior_scale, effect_measure, data, regression){
 
   model_syntax <- "model{\n"
 
@@ -755,18 +775,18 @@
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
     model_syntax <- paste0(model_syntax, "for(i in 1:(K+K_v)){\n")
-    model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu[i]",  "mu_transformed[i]"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu[i]",  "mu_transformed[i]"))
     model_syntax <- paste0(model_syntax, "}\n")
   }else{
-    model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "mu",  "mu_transformed"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu",  "mu_transformed"))
   }
-  model_syntax <- paste0(model_syntax, .JAGS_scale(priors_scale, effect_measure, "tau", "tau_transformed"))
+  model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau", "tau_transformed"))
 
   if(!is.null(priors[["PET"]])){
     model_syntax <- paste0(model_syntax, paste0("PET_transformed = PET\n"))
   }else if(!is.null(priors[["PEESE"]])){
     # don't forget that the transformation is inverse for PEESE
-    model_syntax <- paste0(model_syntax, .JAGS_scale(effect_measure, priors_scale, "PEESE", "PEESE_transformed"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(effect_measure, prior_scale, "PEESE", "PEESE_transformed"))
   }
 
 
@@ -877,7 +897,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.ss <- function(priors, effect_direction, priors_scale, effect_measure, weighted, regression){
+.generate_model_syntax.ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression){
 
   model_syntax <- "model{\n"
 
@@ -885,12 +905,12 @@
   prob_effect        <- sapply(priors[["effect"]], function(x) x[["prior_weights"]])
   prob_heterogeneity <- sapply(priors[["heterogeneity"]], function(x) x[["prior_weights"]])
   prob_bias          <- sapply(priors[["bias"]], function(x) x[["prior_weights"]])
-  prob_hierarchical  <- sapply(priors[["hierarchical"]], function(x) x[["prior_weights"]])
+  #prob_hierarchical  <- sapply(priors[["hierarchical"]], function(x) x[["prior_weights"]])
 
   prob_effect        <- prob_effect / sum(prob_effect)
   prob_heterogeneity <- prob_heterogeneity / sum(prob_heterogeneity)
   prob_bias          <- prob_bias / sum(prob_bias)
-  prob_hierarchical  <- prob_hierarchical / sum(prob_hierarchical)
+  #prob_hierarchical  <- prob_hierarchical / sum(prob_hierarchical)
 
   is_PET            <- sapply(priors[["bias"]], is.prior.PET)
   is_PEESE          <- sapply(priors[["bias"]], is.prior.PEESE)
@@ -908,13 +928,23 @@
   named_prior_list_effect        <- priors[["effect"]]
   names(named_prior_list_effect) <- paste0("mu_component_", seq_along(named_prior_list_effect))
   model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_effect))
-  model_syntax <- paste0(model_syntax, "mu = ", paste0(paste0("mu_component_", seq_along(named_prior_list_effect), " * (component_effect == ", seq_along(named_prior_list_effect), ")"), collapse = " + "), "\n\n")
+  if(regression){
+    model_syntax <- paste0(model_syntax, "mu_intercept = ", paste0(paste0("mu_component_", seq_along(named_prior_list_effect), " * (component_effect == ", seq_along(named_prior_list_effect), ")"), collapse = " + "), "\n")
+    # TODO: add regression definition
+    model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu[i]",  "mu_transformed[i]"))
+    model_syntax <- paste0(model_syntax, "}\n")
+  }else{
+    model_syntax <- paste0(model_syntax, "mu = ", paste0(paste0("mu_component_", seq_along(named_prior_list_effect), " * (component_effect == ", seq_along(named_prior_list_effect), ")"), collapse = " + "), "\n")
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu",  "mu_transformed"))
+  }
 
   # parameter dispatch for tau
   named_prior_list_heterogeneity        <- priors[["heterogeneity"]]
   names(named_prior_list_heterogeneity) <- paste0("tau_component_", seq_along(named_prior_list_heterogeneity))
   model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_list_heterogeneity))
-  model_syntax <- paste0(model_syntax, "tau = ", paste0(paste0("tau_component_", seq_along(named_prior_list_heterogeneity), " * (component_heterogeneity == ", seq_along(named_prior_list_heterogeneity), ")"), collapse = " + "), "\n\n")
+  model_syntax <- paste0(model_syntax, "tau = ", paste0(paste0("tau_component_", seq_along(named_prior_list_heterogeneity), " * (component_heterogeneity == ", seq_along(named_prior_list_heterogeneity), ")"), collapse = " + "), "\n")
+  model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau", "tau_transformed"))
 
   # parameter dispatch for publication bias adjustment
   if(any(is_PET)){
@@ -924,6 +954,7 @@
     named_prior_PET <- list("PET_1" = named_prior_PET)
     model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_PET))
     model_syntax <- paste0(model_syntax, "PET = PET_1 * (component_bias == ", which(is_PET), ")\n")
+    model_syntax <- paste0(model_syntax, paste0("PET_transformed = PET\n"))
   }
   if(any(is_PEESE)){
     if(sum(is_PEESE) > 1) stop("Only one PEESE style publication bias adjustment is allowed.")
@@ -932,9 +963,32 @@
     named_prior_PEESE <- list("PEESE_1" = named_prior_PEESE)
     model_syntax <- paste0(model_syntax, BayesTools:::.JAGS_add_priors.fun(named_prior_PEESE))
     model_syntax <- paste0(model_syntax, "PEESE = PEESE_1 * (component_bias == ", which(is_PEESE), ")\n")
+    model_syntax <- paste0(model_syntax, .JAGS_scale(effect_measure, prior_scale, "PEESE", "PEESE_transformed"))
   }
   if(any(is_weightfunction)){
-    model_syntax <- paste0(model_syntax, "omega ~ weights_mix(alpha[,component_bias], alpha_index[,component_bias], alpha_index_max[,component_bias])\n")
+    # we cannot simulate weights from the mixture distribution directly because
+    # JAGS does not allow complex support for the cumulative simplex parameter
+    # (we could make it on the non-cumulative simplex but it does not give more advantage)
+
+    # create a vector of the alpha parameters
+    alpha <- lapply(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], function(x){
+      if(grepl("fixed", x$distribution)){
+        return(x$parameters[["omega"]])
+      }else{
+        return(x$parameters[["alpha"]])
+      }
+    })
+
+    # dispatch the prior distribution on weight parameters
+    model_syntax <- paste0(
+        model_syntax,
+        "for(i in 1:", max(lengths(alpha)), "){\n",
+        "  eta[i] ~ dgamma(eta_shape[i, component_bias], 1)\n",
+        "}\n"
+        )
+
+    # transform etas into weights
+    model_syntax <- paste0(model_syntax, "omega = eta2omega(eta, omega_index[,component_bias], eta_index[,component_bias], eta_index_max[component_bias])\n")
   }
 
 
@@ -943,7 +997,7 @@
   model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
 
   # marginalized random effects and the effect size
-  var <- "( pow(se[i],2) + pow(tau_transformed,2) )"
+  tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
 
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
@@ -954,23 +1008,23 @@
 
   # add PET/PEESE
   if(any(is_PET)){
-    eff <- paste0("(", eff, " + PET_transformed * se[i])")
+    eff <- paste0(eff, " + PET_transformed * se[i]")
   }
   if(any(is_PEESE)){
-    eff <- paste0("(", eff, " + PEESE_transformed * pow(se[i],2))")
+    eff <- paste0(eff, " + PEESE_transformed * pow(se[i],2)")
   }
 
   if(any(is_weightfunction)){
     if(weighted){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_mix(", eff, ",", "sqrt", tau, ", crit_y[,i], omega, alpha_mapping[,component_bias], alpha_index_max[,component_bias], weight[i])\n")
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwwnorm_mix(", eff, ",", "sqrt", tau2, ", crit_y[,i], omega, crit_y_mapping[,component_bias], crit_y_mapping_max[component_bias], weight[i])\n")
     }else{
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm_mix(",  eff, ",", "sqrt", tau, ", crit_y[,i], omega, alpha_mapping[,component_bias], alpha_index_max[,component_bias])\n")
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm_mix(", eff, ",", "sqrt", tau2, ", crit_y[,i], omega, crit_y_mapping[,component_bias], crit_y_mapping_max[component_bias])\n")
     }
   }else{
     if(weighted){
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(", eff, ",", "1/", var, ", weight[i])\n")
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(", eff, ",", "1/", tau2, ", weight[i])\n")
     }else{
-      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",  eff, ",", "1/", var, ")\n")
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",  eff, ",", "1/", tau2, ")\n")
     }
   }
 
@@ -1222,36 +1276,36 @@
 
   return(order(fitting_difficulty, decreasing = TRUE))
 }
-.runjags_summary_list   <- function(fit, priors, priors_scale, warnings, remove_parameters = NULL){
+.runjags_summary_list   <- function(fit, priors, prior_scale, warnings, remove_parameters = NULL){
 
   summary_list <- list()
 
   for(measure in c("d", "r", "z", "logOR", "OR")){
 
     # prepare transformations if necessary
-    if(measure != priors_scale){
+    if(measure != prior_scale){
       transformations <- list()
       if("mu" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["mu"]]))){
-        transformations[["mu"]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
+        transformations[["mu"]] <- .get_transform_mu(prior_scale, measure, fun = FALSE)
       }
       for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
-        transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- .get_transform_mu(priors_scale, measure, fun = FALSE)
+        transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- .get_transform_mu(prior_scale, measure, fun = FALSE)
       }
       for(i in seq_along(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])){
         transformations[[names(priors[!names(priors) %in% c("mu", "tau", "omega", "PET", "PEESE")])[i]]] <- list(
           "fun" = .transform_mu,
           "arg" = list(
-            "from" = priors_scale,
+            "from" = prior_scale,
             "to"   = measure
           )
         )
       }
       if("tau" %in% names(priors) && ((is.prior.point(priors[["mu"]]) && priors[["mu"]][["parameters"]][["location"]] != 0) || !is.prior.point(priors[["tau"]]))){
-        transformations[["tau"]] <- .get_scale(priors_scale, measure, fun = FALSE)
+        transformations[["tau"]] <- .get_scale(prior_scale, measure, fun = FALSE)
       }
       if("PEESE" %in% names(priors)){
         # the transformation is inverse for PEESE
-        transformations[["PEESE"]] <- .get_scale(measure, priors_scale, fun = FALSE)
+        transformations[["PEESE"]] <- .get_scale(measure, prior_scale, fun = FALSE)
       }
       if(length(transformations) == 0){
         transformations <- NULL
@@ -1266,7 +1320,7 @@
       transform_factors = TRUE,
       formula_prefix    = FALSE,
       warnings          = warnings,
-      footnotes         = .scale_note(priors_scale, measure),
+      footnotes         = .scale_note(prior_scale, measure),
       remove_parameters = remove_parameters
     ))
   }

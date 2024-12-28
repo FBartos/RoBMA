@@ -1,8 +1,8 @@
 #include "tools.h"
 #include <JRmath.h>
 #include <cmath>
-#include <algorithm> // For std::max_element
-#include <numeric>   // For std::accumulate
+#include <algorithm>
+#include <numeric> 
 #include <vector>
 #include "mnorm.h"
 
@@ -372,4 +372,24 @@ double * extract_crit_x_v(const double *crit_x_v, int indx_start, int K, const i
   }
 
   return &this_crit_x[0];
+}
+
+double ddirichlet(const std::vector<double>& x, const std::vector<double>& alpha){
+
+  int k = x.size();
+
+  double prod_gamma = 0.0, sum_alpha = 0.0, p_tmp = 0.0, beta_const = 0.0;
+
+  for (int j = 0; j < k; j++) {
+    double alpha_val = alpha[j];
+    double x_val = x[j];
+    sum_alpha += alpha_val;
+    prod_gamma += std::lgamma(alpha_val);
+    p_tmp += std::log(x_val) * (alpha_val - 1.0);
+  }
+
+  beta_const = prod_gamma - std::lgamma(sum_alpha);
+  double p = p_tmp - beta_const;
+
+  return p;
 }
