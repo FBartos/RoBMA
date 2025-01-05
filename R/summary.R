@@ -76,6 +76,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
                                 output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
                                 short_name = FALSE, remove_spike_0 = FALSE, ...){
 
+  # apply version changes to RoBMA object
+  object <- .update_object(object)
+
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(type, "type")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
@@ -84,9 +87,6 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(short_name, "short_name")
   BayesTools::check_bool(remove_spike_0, "remove_spike_0")
-
-  # apply version changes to RoBMA object
-  object <- .update_object(object)
 
   # check the scales
   if(is.null(output_scale)){
@@ -102,6 +102,10 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     if(substr(type,1,1) != "d")
       warning("All models failed to converge. Model diagnostics were printed instead.")
     type        <- "diagnostics"
+  }
+
+  if(object[["add_info"]][["algorithm"]] == "ss"){
+    return(.summary.RoBMA.ss(object, type, conditional, output_scale, probs, logBF, BF01, ...))
   }
 
 
@@ -369,6 +373,88 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   }
 }
 
+.summary.RoBMA.ss    <- function(object, type, conditional, output_scale, probs, logBF, BF01, ...){
+
+  if(type != "ensemble"){
+    stop("The 'ss' algorithm only supports ensemble summaries (the ensemble corresponds to the individual model).")
+  }
+  if(all(probs != c(.025, .975))){
+    stop("The 'ss' algorithm only supports the default quantiles.")
+  }
+
+  ### extract inference and estimates
+  # obtain components overview
+  components <-  object[["model"]][["fit_inference"]]
+
+  # obtain estimates tables
+  if(output_scale == "y"){
+    estimates             <- object[["model"]][["fit_summary"]]
+    estimates_conditional <- object[["model"]][["fit_summary_conditional"]]
+  }else{
+    estimates             <- object[["model"]][["fit_summaries"]][[output_scale]]
+    estimates_conditional <- object[["model"]][["fit_summaries_conditional"]][[output_scale]]
+  }
+
+  # remove R-hat from the conditional estimates
+  estimates_conditional <- BayesTools::remove_column(estimates_conditional)
+
+  ### fix formatting of the output
+  # separate and rename components
+  components$Parameter[components$Parameter == "tau"]  <- "Heterogeneity"
+  components$Parameter[components$Parameter == "bias"] <- "Bias"
+  if(is.RoBMA.reg(object)){
+    components$Parameter[components$Parameter == "intercept"] <- "Effect"
+
+    components_predictors <- components[!components$Parameter %in% c("Effect", "Heterogeneity", "Bias"), ]
+    components            <- components[ components$Parameter %in% c("Effect", "Heterogeneity", "Bias"), ]
+
+    components_predictors <- .BayesTools_make_column_names(components_predictors)
+    components            <- .BayesTools_make_column_names(components)
+  }else{
+    components$Parameter[components$Parameter == "mu"]        <- "Effect"
+    components            <- .BayesTools_make_column_names(components)
+  }
+
+  # separate and rename estimates
+  if(is.RoBMA.reg(object)){
+    estimates_predictors <- estimates[!(rownames(estimates) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates), fixed = TRUE)), ]
+    estimates            <- estimates[ (rownames(estimates) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates), fixed = TRUE)), ]
+
+    rownames(estimates)[rownames(estimates) == "intercept"]  <- "mu"
+  }
+
+  # create the output object
+  output <- list(
+    call       = object[["call"]],
+    title      = .object_title(object),
+    components = update(components, title = "Components summary:", BF01  = BF01, logBF = logBF),
+    estimates  = update(estimates, title =  "Model-averaged estimates:")
+  )
+
+  if(is.RoBMA.reg(object)){
+    output$components_predictors <- update(components_predictors, title = "Meta-regression components summary:", BF01  = BF01, logBF = logBF)
+    output$estimates_predictors  <- update(estimates_predictors, title = "Model-averaged meta-regression estimates:")
+  }
+
+  if(conditional){
+    if(is.RoBMA.reg(object)){
+      estimates_predictors_conditional <- estimates_conditional[!(rownames(estimates_conditional) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates_conditional), fixed = TRUE)), ]
+      estimates_conditional            <- estimates_conditional[ (rownames(estimates_conditional) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates_conditional), fixed = TRUE)), ]
+
+      rownames(estimates_conditional)[rownames(estimates_conditional) == "intercept"]  <- "mu"
+
+      output$estimates_conditional            <- update(estimates_conditional, title = "Conditional estimates:")
+      output$estimates_predictors_conditional <- update(estimates_predictors_conditional, title = "Conditional meta-regression estimates:")
+    }else{
+      output$estimates_conditional <- update(estimates_conditional, title = "Conditional estimates:")
+    }
+  }
+
+  class(output) <- "summary.RoBMA"
+  attr(output, "type") <- "ensemble"
+
+  return(output)
+}
 
 #' @title Prints summary object for RoBMA method
 #'

@@ -152,21 +152,33 @@ check_RoBMA_convergence <- function(fit){
   return(c(short_warnings, short_errors, conv_warning))
 }
 .get_model_convergence       <- function(object){
-  return(sapply(object[["models"]], function(model) if(is.null(model[["converged"]])) FALSE else model[["converged"]]))
+  if(object$add_info[["algorithm"]] == "bridge"){
+    return(sapply(object[["models"]], function(model) if(is.null(model[["converged"]])) FALSE else model[["converged"]]))
+  }else if(object$add_info[["algorithm"]] == "ss"){
+    return(if(is.null(object[["model"]][["converged"]])) FALSE else object[["model"]][["converged"]])
+  }
 }
 .get_model_warnings          <- function(object){
-  return(unlist(sapply(seq_along(object[["models"]]), function(i){
-    if(!is.null(object[["models"]][[i]][["warnings"]])){
-      paste0("Model (", i, "): ", object[["models"]][[i]][["warnings"]])
-    }
-  })))
+  if(object$add_info[["algorithm"]] == "bridge"){
+    return(unlist(sapply(seq_along(object[["models"]]), function(i){
+      if(!is.null(object[["models"]][[i]][["warnings"]])){
+        paste0("Model (", i, "): ", object[["models"]][[i]][["warnings"]])
+      }
+    })))
+  }else if(object$add_info[["algorithm"]] == "ss"){
+    return(object[["model"]][["warnings"]])
+  }
 }
 .get_model_errors            <- function(object){
-  return(unlist(sapply(seq_along(object[["models"]]), function(i){
-    if(!is.null(object[["models"]][[i]][["errors"]])){
-      paste0("Model (", i, "): ", object[["models"]][[i]][["errors"]])
-    }
-  })))
+  if(object$add_info[["algorithm"]] == "bridge"){
+    return(unlist(sapply(seq_along(object[["models"]]), function(i){
+      if(!is.null(object[["models"]][[i]][["errors"]])){
+        paste0("Model (", i, "): ", object[["models"]][[i]][["errors"]])
+      }
+    })))
+  }else if(object$add_info[["algorithm"]] == "ss"){
+    return(object[["model"]][["errors"]])
+  }
 }
 .note_omega                  <- function(object){
 
@@ -231,6 +243,17 @@ check_RoBMA_convergence <- function(fit){
     }
   }
 }
+.is.prior_null               <- function(prior){
+  if(is.null(prior)){
+    return()
+  }else if(is.prior.mixture(prior)){
+    attr(prior, "components") == "null"
+  }else if(is.prior.spike_and_slab(prior)){
+    return(c(TRUE, FALSE))
+  }else{
+    return(prior[["is_null"]])
+  }
+}
 .multivariate_warning        <- function(){
   warning("You are about to estimate multivariate models. Note that this is an extremely computationaly expensive experimental feature.", immediate. = TRUE, call. = FALSE)
 }
@@ -238,6 +261,10 @@ check_RoBMA_convergence <- function(fit){
   warning("You are about to estimate weighted models. Note that this is an experimental feature.", immediate. = TRUE, call. = FALSE)
 }
 .update_object               <- function(object){
+
+  if(!is.RoBMA(object) || is.NoBMA(object) || is.BiBMA(object)){
+    stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
+  }
 
   # no package version number saved prior to 2.4
   if(!all("version" %in% names(object[["add_info"]]))){
@@ -301,6 +328,12 @@ check_RoBMA_convergence <- function(fit){
     object[["add_info"]][["version"]] <- list(c(2,4,0))
   }
 
+  # 3.2 -> 3.3
+  if(.object_version_older(object, "3.2.0")){
+    object[["add_info"]][["algorithm"]] <- "bridge"
+    object[["add_info"]][["version"]]   <- list(c(2,4,0))
+  }
+
   return(object)
 }
 .object_version_older        <- function(object, version){
@@ -350,13 +383,19 @@ check_RoBMA_convergence <- function(fit){
 }
 
 # parameter naming functions
-.BayesTools_parameter_name   <- function(parameter){
+.BayesTools_parameter_name    <- function(parameter){
   return(BayesTools::JAGS_parameter_names(parameter, formula_parameter = "mu"))
 }
-.output_parameter_names      <- function(parameter){
+.BayesTools_make_column_names <- function(table, column = 1){
+  rownames(table) <- table[,column]
+  attr(table, "rownames") <- TRUE
+  table <- BayesTools::remove_column(table, column)
+  return(table)
+}
+.output_parameter_names       <- function(parameter){
   return(BayesTools::format_parameter_names(parameter, formula_parameters = "mu", formula_prefix = FALSE))
 }
-.reserved_words              <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE", "pi", "gamma",
-                                             "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
-                                             "d", "t", "r", "z", "y", "logOR", "OR", "lCI", "uCI", "v", "se", "n", "weight", "x1", "x2", "n1", "n2",
-                                             "component_effect", "component_heterogeneity", "component_bias", "component_hierarchical", "component_baseline")
+.reserved_words               <- function() c("intercept", "Intercept", "terms", "mu", "tau", "theta", "omega", "rho", "eta", "PET", "PEESE", "pi", "gamma",
+                                              "weightfunction", "weigthfunction", "PET-PEESE", "PETPEESE",
+                                              "d", "t", "r", "z", "y", "logOR", "OR", "lCI", "uCI", "v", "se", "n", "weight", "x1", "x2", "n1", "n2",
+                                              "component_effect", "component_heterogeneity", "component_bias", "component_hierarchical", "component_baseline")

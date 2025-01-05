@@ -164,8 +164,6 @@ of categorical covariates on the effect size under the null hypothesis
 (unless set explicitly in \code{priors}). Defaults to a no effect
 \code{prior("spike",  parameters = list(location = 0))}.}
 
-\item{chains}{a number of chains of the MCMC algorithm.}
-
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}
 

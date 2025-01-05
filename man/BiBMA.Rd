@@ -80,8 +80,6 @@ intercepts (\code{pi}) of each study. Defaults to \code{NULL}.}
 intercepts (\code{pi}) for each study. Defaults to an independent uniform prior distribution
 for each intercept \code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.}
 
-\item{chains}{a number of chains of the MCMC algorithm.}
-
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}
 

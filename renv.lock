@@ -11,9 +11,8 @@
   "Packages": {
     "BayesTools": {
       "Package": "BayesTools",
-      "Version": "0.2.17",
-      "Source": "Repository",
-      "Repository": "CRAN",
+      "Version": "0.2.18",
+      "Source": "unknown",
       "Requirements": [
         "Rdpack",
         "bridgesampling",
@@ -26,7 +25,7 @@
         "rlang",
         "stats"
       ],
-      "Hash": "2268cddd0209b0d8564c5dbd26907850"
+      "Hash": "2fb8130830b3e54b545a96a1bcdae713"
     },
     "Brobdingnag": {
       "Package": "Brobdingnag",

@@ -29,6 +29,7 @@ RoBMA.reg(
   prior_covariates_null = set_default_priors("covariates", null = TRUE),
   prior_factors = set_default_priors("factors", rescale = rescale_priors),
   prior_factors_null = set_default_priors("factors", null = TRUE),
+  algorithm = "bridge",
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -197,7 +198,10 @@ of categorical covariates on the effect size under the null hypothesis
 (unless set explicitly in \code{priors}). Defaults to a no effect
 \code{prior("spike",  parameters = list(location = 0))}.}
 
-\item{chains}{a number of chains of the MCMC algorithm.}
+\item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
+which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
+sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
+Bayesian model averaging with a single model.}
 
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}

@@ -60,7 +60,7 @@
   return(object)
 
 }
-.ensemble_inference    <- function(object){
+.ensemble_inference     <- function(object){
 
   # use only converged models with prior weights > 0 for inference about parameters
   prior_weights <- sapply(object[["models"]], function(model) model[["prior_weights"]])
@@ -302,8 +302,237 @@
   )
   return(output)
 }
+.as_ensemble_inference  <- function(object){
 
-.compute_coeficients   <- function(RoBMA){
+  # use only converged models with prior weights > 0 for inference about parameters
+  model  <- object[["model"]]
+  priors <- object[["model"]][["priors"]]
+
+  # obtain the component type
+  effect         <- if(.is_model_regression(model)) !.is.prior_null(priors[["terms"]][["intercept"]]) else !.is.prior_null(priors[["mu"]])
+  heterogeneity  <- if(!is.null(priors[["tau"]]))          !.is.prior_null(priors[["tau"]])
+  bias           <- if(!is.null(priors[["bias"]]))         !.is.prior_null(priors[["bias"]])
+  hierarchical   <- if(!is.null(priors[["hierarchical"]])) !.is.prior_null(priors[["hierarchical"]])
+  baseline       <- if(!is.null(priors[["baseline"]]))     !.is.prior_null(priors[["baseline"]])
+
+  # obtain the parameter types
+  if(length(priors[["bias"]]) > 0){
+    weightfunctions <- sapply(priors[["bias"]], is.prior.weightfunction)
+    PET             <- sapply(priors[["bias"]], is.prior.PET)
+    PEESE           <- sapply(priors[["bias"]], is.prior.PEESE)
+  }
+
+  ### prepare ensemble inference objects
+  # further separation between predictors and main components etc is done directly in the summary function
+  inference <- BayesTools::runjags_inference_table(fit, formula_prefix = FALSE)
+
+  if(.is_model_regression(model)){
+
+    marginal_parameters <- NULL
+    conditional_list    <- list()
+
+    for(i in seq_along(priors[["terms"]])){
+      if(is.prior.spike_and_slab(priors[["terms"]][[i]]) || is.prior.mixture(priors[["terms"]][[i]])){
+        marginal_parameters <- c(marginal_parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
+        conditional_list[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- c(
+          if(names(priors[["terms"]])[i] != "intercept") .BayesTools_parameter_name("intercept"),
+          .BayesTools_parameter_name(names(priors[["terms"]])[i])
+        )
+      }
+    }
+
+    inference_marginal <- BayesTools::as_marginal_inference(
+      model               = fit,
+      marginal_parameters = marginal_parameters,
+      parameters          = .BayesTools_parameter_name(names(priors[["terms"]])),
+      conditional_list    = conditional_list,
+      conditional_rule    = "OR",
+      formula             = object[["formula"]],
+      silent              = TRUE
+    )
+  }else{
+    inference_marginal <- NULL
+  }
+
+
+  ### prepare model-averaged posteriors
+
+
+
+  # define inference options: always effect and heterogeneity
+  components      <- c("Effect", "Heterogeneity")
+  parameters      <- c("mu", "tau")
+  components_null <- list("Effect" = !effect, "Heterogeneity" = !heterogeneity)
+  parameters_null <- list("mu"     = !effect, "tau"           = !heterogeneity)
+
+  if(any(bias)){
+    components      <- c(components,      "Bias")
+    components_null <- c(components_null, "Bias" = list(!bias))
+  }
+  if(any(hierarchical)){
+    components      <- c(components,      "Hierarchical")
+    parameters      <- c(parameters,      "rho")
+    components_null <- c(components_null, "Hierarchical" = list(!hierarchical))
+    parameters_null <- c(parameters_null, "rho" = list(!hierarchical))
+  }
+  if(any(baseline)){
+    components      <- c(components,      "Baseline")
+    components_null <- c(components_null, "Baseline" = list(!baseline))
+  }
+  if(any(weightfunctions)){
+    components      <- c(components,      "bias.selection-models")
+    parameters      <- c(parameters,      "omega")
+    components_null <- c(components_null, "bias.selection-models" = list(!(weightfunctions & bias)))
+    parameters_null <- c(parameters_null, "omega" = list(!weightfunctions))
+  }
+  if(any(PET) & any(PEESE)){
+    components      <- c(components,      "bias.PET-PEESE")
+    parameters      <- c(parameters,      "PET", "PEESE")
+    components_null <- c(components_null, "bias.PET-PEESE" = list(!((PET | PEESE) & bias)))
+    parameters_null <- c(parameters_null, "PET" = list(!PET), "PEESE" = list(!PEESE))
+  }else if(any(PET)){
+    components      <- c(components,      "bias.PET")
+    parameters      <- c(parameters,      "PET")
+    components_null <- c(components_null, "bias.PET" = list(!(PET & bias)))
+    parameters_null <- c(parameters_null, "PET" = list(!PET))
+  }else if(any(PEESE)){
+    components      <- c(components,      "bias.PEESE")
+    parameters      <- c(parameters,      "PEESE")
+    components_null <- c(components_null, "bias.PEESE" = list(!(PEESE & bias)))
+    parameters_null <- c(parameters_null, "PEESE" = list(!PEESE))
+  }
+
+  # deal with meta-regression
+  if(.is_model_regression(model)){
+    # use the intercept for the effect
+    parameters[parameters == "mu"]                         <- "mu_intercept"
+    names(parameters_null)[names(parameters_null) == "mu"] <- "mu_intercept"
+
+    # add the terms
+    predictors      <- object$add_info[["predictors"]]
+    predictors_test <- object$add_info[["predictors_test"]]
+
+    # define inference options
+    components_predictors      <- NULL
+    parameters_predictors      <- "mu_intercept"
+    parameters_marginal        <- "mu_intercept"
+    components_predictors_null <- list()
+    parameters_predictors_null <- list("mu_intercept" = !effect)
+    parameters_marginal_null   <- list("mu_intercept" = !effect)
+
+    components_predictors_distributions      <- NULL
+    components_predictors_distributions_null <- list()
+
+
+    # predictors
+    for(i in seq_along(predictors_test)){
+      components_predictors <- c(components_predictors, .BayesTools_parameter_name(predictors_test[i]))
+      components_predictors_null[[.BayesTools_parameter_name(predictors_test[i])]] <-
+        sapply(model_predictors_test, function(x) if(length(x) == 0) TRUE else !(predictors_test[i] %in% x))
+    }
+
+    for(i in seq_along(predictors)){
+      parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(predictors[i]))
+      parameters_marginal   <- c(parameters_marginal,   .BayesTools_parameter_name(predictors[i]))
+      parameters_predictors_null[[.BayesTools_parameter_name(predictors[i])]] <-
+        sapply(model_predictors_test, function(x) !(predictors[i] %in% x))
+      parameters_marginal_null[[.BayesTools_parameter_name(predictors[i])]] <-
+        sapply(seq_along(models), function(j) !((predictors[i] %in% model_predictors_test[j]) || effect[j]))
+    }
+
+    # get model-averaged posteriors
+    if(is.null(parameters_predictors)){
+      posteriors_predictors <- NULL
+    }else{
+      posteriors_predictors <- BayesTools::as_mix_posteriors(
+        model_list   = models,
+        parameters   = parameters_predictors,
+        is_null_list = parameters_predictors_null,
+        seed         = object$add_info[["seed"]],
+        conditional  = FALSE
+      )
+      posteriors_predictors <- BayesTools::transform_factor_samples(posteriors_predictors)
+    }
+
+    # deal with the possibility of only null models models
+    if(all(sapply(parameters_predictors_null, all))){
+      posteriors_predictors_conditional <- NULL
+    }else{
+      posteriors_predictors_conditional <- BayesTools::as_mix_posteriors(
+        model_list   = models,
+        parameters   = parameters_predictors[!sapply(parameters_predictors_null, all)],
+        is_null_list = parameters_predictors_null[!sapply(parameters_predictors_null, all)],
+        seed         = object$add_info[["seed"]],
+        conditional  = TRUE
+      )
+      posteriors_predictors_conditional <- BayesTools::transform_factor_samples(posteriors_predictors_conditional)
+    }
+
+    # create marginal estimates and summary
+    if(all(sapply(parameters_marginal_null, all))){
+      inference_marginal <- NULL
+    }else{
+      inference_marginal <- BayesTools::marginal_inference(
+        model_list          = models,
+        marginal_parameters = parameters_marginal[!sapply(parameters_marginal_null, all)],
+        parameters          = parameters_marginal,
+        is_null_list        = parameters_marginal_null,
+        formula             = object[["formula"]],
+        seed                = object$add_info[["seed"]],
+        silent              = TRUE
+      )
+    }
+  }else{
+    # create empty objects in case of no predictors
+    inference_predictors              <- NULL
+    inference_predictors_conditional  <- NULL
+    posteriors_predictors             <- NULL
+    posteriors_predictors_conditional <- NULL
+    inference_marginal                <- NULL
+  }
+
+
+  ### get model-averaged posteriors
+  posteriors <- BayesTools::as_mixed_posteriors(
+    model        = model[["fit"]],
+    parameters   = parameters
+  )
+  # deal with the possibility of only null models models
+  if(all(sapply(components_null, all))){
+    posteriors_conditional <- NULL
+  }else{
+    posteriors_conditional <- BayesTools::as_mixed_posteriors(
+      model        = model[["fit"]],
+      parameters   = parameters[!sapply(parameters_null, all)],
+      conditional  = parameters[!sapply(parameters_null, all)]
+    )
+  }
+
+  # rename mu_intercept back to mu
+  if(any(names(posteriors) == "mu_intercept")){
+    attr(posteriors[["mu_intercept"]], "parameter")        <- "mu"
+    names(posteriors)[names(posteriors) == "mu_intercept"] <- "mu"
+  }
+  if(any(names(posteriors_conditional) == "mu_intercept")){
+    attr(posteriors_conditional[["mu_intercept"]], "parameter")                    <- "mu"
+    names(posteriors_conditional)[names(posteriors_conditional) == "mu_intercept"] <- "mu"
+  }
+
+  # return the results
+  output <- list(
+    inference                         = inference,
+    inference_conditional             = inference_conditional,
+    inference_predictors              = inference_predictors,
+    inference_predictors_conditional  = inference_predictors_conditional,
+    inference_marginal                = inference_marginal,
+    posteriors                        = posteriors,
+    posteriors_conditional            = posteriors_conditional,
+    posteriors_predictors             = posteriors_predictors,
+    posteriors_predictors_conditional = posteriors_predictors_conditional
+  )
+  return(output)
+}
+.compute_coeficients    <- function(RoBMA){
   if(!is.null(RoBMA[["posteriors_predictors"]])){
     coefs <- do.call(c, unname(lapply(RoBMA[["posteriors_predictors"]], function(posterior){
       if(inherits(posterior, "mixed_posteriors.factor")){
@@ -326,4 +555,13 @@
     "PET"    = if(!is.null(RoBMA$posteriors[["PET"]]))   mean(RoBMA$posteriors[["PET"]]),
     "PEESE"  = if(!is.null(RoBMA$posteriors[["PEESE"]])) mean(RoBMA$posteriors[["PEESE"]])
   ))
+}
+.compute_coeficients.ss <- function(model){
+  if(is.null(model$fit_summary)){
+    return(NULL)
+  }else{
+    coef        <- model$fit_summary[,"Mean"]
+    names(coef) <- rownames(model$fit_summary)
+    return(coef)
+  }
 }

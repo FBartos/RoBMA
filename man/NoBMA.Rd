@@ -141,8 +141,6 @@ Note that this is an experimental feature and see News for more details. Default
 \item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
 (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
-\item{chains}{a number of chains of the MCMC algorithm.}
-
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}
 

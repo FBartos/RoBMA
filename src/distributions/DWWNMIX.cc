@@ -17,7 +17,7 @@
 namespace jags {
 namespace RoBMA {
 
-DWWNMIX::DWWNMIX() : VectorDist("dwnorm_mix", 7) {}
+DWWNMIX::DWWNMIX() : VectorDist("dwwnorm_mix", 7) {}
 
 bool DWWNMIX::checkParameterLength(std::vector<unsigned int> const &len) const
 {

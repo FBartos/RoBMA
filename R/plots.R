@@ -79,6 +79,9 @@ plot.RoBMA  <- function(x, parameter = "mu",
                         conditional = FALSE, plot_type = "base", prior = FALSE, output_scale = NULL,
                         rescale_x = FALSE, show_data = TRUE, dots_prior = NULL, ...){
 
+  # apply version changes to RoBMA object
+  x <- .update_object(x)
+
   # check whether plotting is possible
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
@@ -91,9 +94,6 @@ plot.RoBMA  <- function(x, parameter = "mu",
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_bool(rescale_x, "rescale_x")
   BayesTools::check_bool(show_data, "show_data")
-
-  # apply version changes to RoBMA object
-  x <- .update_object(x)
 
   # deal with bad parameter names for PET-PEESE, weightfunction
   if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
