@@ -255,7 +255,7 @@ RoBMA.reg <- function(
     # model fitting using JAGS with spike and slab priors
     object$model         <- .fit_RoBMA_model.ss(object)
     object$RoBMA         <- .as_ensemble_inference(object)
-    object$coefficients  <- .compute_coeficients(RoBMA)
+    object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 
   }
 

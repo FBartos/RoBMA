@@ -306,26 +306,26 @@ RoBMA <- function(
       parallel::stopCluster(cl)
 
     }
+
+    # create ensemble only if at least one model converged
+    if(any(.get_model_convergence(object))){
+
+      # balance probability of non-converged models
+      if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
+        object <- .balance_component_probability(object)
+      }
+
+      ### compute the model-space results
+      object$models        <- BayesTools::models_inference(object[["models"]])
+      object$RoBMA         <- .ensemble_inference(object)
+      object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
+    }
+
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
     object$model         <- .fit_RoBMA_model.ss(object)
-    object$coefficients  <- .compute_coeficients.ss(object[["model"]])
-
-  }
-
-
-  # create ensemble only if at least one model converged
-  if(object$add_info[["algorithm"]] == "bridge" && any(.get_model_convergence(object))){
-
-  # balance probability of non-converged models
-    if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_component_probability(object)
-    }
-
-    ### compute the model-space results
-    object$models        <- BayesTools::models_inference(object[["models"]])
-    object$RoBMA         <- .ensemble_inference(object)
+    object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 
   }

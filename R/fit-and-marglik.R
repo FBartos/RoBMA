@@ -433,87 +433,87 @@
   }
 
   # add model summaries
-  if(has_posterior){
-
-    # obtain posterior summary
-    fit_summary             <- suppressMessages(BayesTools::runjags_estimates_table(fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE, remove_inclusion = TRUE))
-    fit_summary_conditional <- suppressMessages(BayesTools::runjags_estimates_table(fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE, remove_inclusion = TRUE, conditional = TRUE))
-
-    # transformed summaries
-    if(add_info[["prior_scale"]] != "y"){
-      fit_summaries             <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings)
-      fit_summaries_conditional <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings, conditional = TRUE)
-    }else{
-      fit_summaries             <- NULL
-      fit_summaries_conditional <- NULL
-    }
-
-    # model inference
-    fit_inference <- BayesTools::runjags_inference_table(fit, formula_prefix = FALSE)
-
-    if(.is_model_regression(model)){
-
-      marginal_parameters <- NULL
-      conditional_list    <- list()
-
-      for(i in seq_along(priors[["terms"]])){
-        if(is.prior.spike_and_slab(priors[["terms"]][[i]]) || is.prior.mixture(priors[["terms"]][[i]])){
-          marginal_parameters <- c(marginal_parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
-          conditional_list[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- c(
-            if(names(priors[["terms"]])[i] != "intercept") .BayesTools_parameter_name("intercept"),
-            .BayesTools_parameter_name(names(priors[["terms"]])[i])
-          )
-        }
-      }
-
-      fit_inference_marginal <- BayesTools::as_marginal_inference(
-        model               = fit,
-        marginal_parameters = marginal_parameters,
-        parameters          = .BayesTools_parameter_name(names(priors[["terms"]])),
-        conditional_list    = conditional_list,
-        conditional_rule    = "OR",
-        formula             = object[["formula"]],
-        silent              = TRUE
-      )
-    }else{
-      fit_inference_marginal <- NULL
-    }
-
-  }else{
-
-    fit_summary             <- BayesTools::runjags_estimates_empty_table()
-    fit_summary_conditional <- BayesTools::runjags_estimates_empty_table()
-
-    if(add_info[["prior_scale"]] != "y"){
-      fit_summaries              <- list(
-        "d"     = BayesTools::runjags_estimates_empty_table(),
-        "r"     = BayesTools::runjags_estimates_empty_table(),
-        "logOR" = BayesTools::runjags_estimates_empty_table(),
-        "z"     = BayesTools::runjags_estimates_empty_table()
-      )
-      fit_summaries_conditional  <- list(
-        "d"     = BayesTools::runjags_estimates_empty_table(),
-        "r"     = BayesTools::runjags_estimates_empty_table(),
-        "logOR" = BayesTools::runjags_estimates_empty_table(),
-        "z"     = BayesTools::runjags_estimates_empty_table()
-      )
-    }else{
-      fit_summaries             <- NULL
-      fit_summaries_conditional <- NULL
-    }
-
-    fit_inference            <- BayesTools::runjags_inference_empty_table()
-    fit_inference_predictors <- BayesTools::runjags_inference_empty_table()
-  }
+  # if(has_posterior){
+  #
+  #   # obtain posterior summary
+  #   fit_summary             <- suppressMessages(BayesTools::runjags_estimates_table(fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE, remove_inclusion = TRUE))
+  #   fit_summary_conditional <- suppressMessages(BayesTools::runjags_estimates_table(fit, warnings = warnings, transform_factors = TRUE, formula_prefix = FALSE, remove_inclusion = TRUE, conditional = TRUE))
+  #
+  #   # transformed summaries
+  #   if(add_info[["prior_scale"]] != "y"){
+  #     fit_summaries             <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings)
+  #     fit_summaries_conditional <- .runjags_summary_list(fit, attr(fit, "prior_list"), add_info[["prior_scale"]], warnings, conditional = TRUE)
+  #   }else{
+  #     fit_summaries             <- NULL
+  #     fit_summaries_conditional <- NULL
+  #   }
+  #
+  #   # model inference
+  #   fit_inference <- BayesTools::runjags_inference_table(fit, formula_prefix = FALSE)
+  #
+  #   if(.is_model_regression(model)){
+  #
+  #     marginal_parameters <- NULL
+  #     conditional_list    <- list()
+  #
+  #     for(i in seq_along(priors[["terms"]])){
+  #       if(is.prior.spike_and_slab(priors[["terms"]][[i]]) || is.prior.mixture(priors[["terms"]][[i]])){
+  #         marginal_parameters <- c(marginal_parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
+  #         conditional_list[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- c(
+  #           if(names(priors[["terms"]])[i] != "intercept") .BayesTools_parameter_name("intercept"),
+  #           .BayesTools_parameter_name(names(priors[["terms"]])[i])
+  #         )
+  #       }
+  #     }
+  #
+  #     fit_inference_marginal <- BayesTools::as_marginal_inference(
+  #       model               = fit,
+  #       marginal_parameters = marginal_parameters,
+  #       parameters          = .BayesTools_parameter_name(names(priors[["terms"]])),
+  #       conditional_list    = conditional_list,
+  #       conditional_rule    = "OR",
+  #       formula             = object[["formula"]],
+  #       silent              = TRUE
+  #     )
+  #   }else{
+  #     fit_inference_marginal <- NULL
+  #   }
+  #
+  # }else{
+  #
+  #   fit_summary             <- BayesTools::runjags_estimates_empty_table()
+  #   fit_summary_conditional <- BayesTools::runjags_estimates_empty_table()
+  #
+  #   if(add_info[["prior_scale"]] != "y"){
+  #     fit_summaries              <- list(
+  #       "d"     = BayesTools::runjags_estimates_empty_table(),
+  #       "r"     = BayesTools::runjags_estimates_empty_table(),
+  #       "logOR" = BayesTools::runjags_estimates_empty_table(),
+  #       "z"     = BayesTools::runjags_estimates_empty_table()
+  #     )
+  #     fit_summaries_conditional  <- list(
+  #       "d"     = BayesTools::runjags_estimates_empty_table(),
+  #       "r"     = BayesTools::runjags_estimates_empty_table(),
+  #       "logOR" = BayesTools::runjags_estimates_empty_table(),
+  #       "z"     = BayesTools::runjags_estimates_empty_table()
+  #     )
+  #   }else{
+  #     fit_summaries             <- NULL
+  #     fit_summaries_conditional <- NULL
+  #   }
+  #
+  #   fit_inference            <- BayesTools::runjags_inference_empty_table()
+  #   fit_inference_predictors <- BayesTools::runjags_inference_empty_table()
+  # }
 
   # add results
   model$fit                       <- fit
-  model$fit_summary               <- fit_summary
-  model$fit_summary_conditional   <- fit_summary_conditional
-  model$fit_summaries             <- fit_summaries
-  model$fit_summaries_conditional <- fit_summaries_conditional
-  model$fit_inference             <- fit_inference
-  model$fit_inference_marginal    <- fit_inference_marginal
+  # model$fit_summary               <- fit_summary
+  # model$fit_summary_conditional   <- fit_summary_conditional
+  # model$fit_summaries             <- fit_summaries
+  # model$fit_summaries_conditional <- fit_summaries_conditional
+  # model$fit_inference             <- fit_inference
+  # model$fit_inference_marginal    <- fit_inference_marginal
   model$errors        <- errors
   model$warnings      <- warnings
   model$converged     <- converged
