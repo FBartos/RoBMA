@@ -104,10 +104,10 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     type        <- "diagnostics"
   }
 
+  # dispatch the spike and slab summary function if needed
   if(object[["add_info"]][["algorithm"]] == "ss"){
     return(.summary.RoBMA.ss(object, type, conditional, output_scale, probs, logBF, BF01, ...))
   }
-
 
   if(substr(type,1,1) == "e"){
 
@@ -378,75 +378,114 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   if(type != "ensemble"){
     stop("The 'ss' algorithm only supports ensemble summaries (the ensemble corresponds to the individual model).")
   }
-  if(all(probs != c(.025, .975))){
-    stop("The 'ss' algorithm only supports the default quantiles.")
+  # if(all(probs != c(.025, .975))){
+  #   stop("The 'ss' algorithm only supports the default quantiles.")
+  # }
+
+  # transform the estimates if needed
+  if(object$add_info[["output_scale"]] != output_scale){
+    object <- .transform_posterior(object, object$add_info[["output_scale"]], output_scale)
   }
 
-  ### extract inference and estimates
   # obtain components overview
-  components <-  object[["model"]][["fit_inference"]]
+  components <- update(
+    object[["RoBMA"]][["inference"]],
+    title      = "Components summary:",
+    BF01       = BF01,
+    logBF      = logBF
+  )
 
   # obtain estimates tables
-  if(output_scale == "y"){
-    estimates             <- object[["model"]][["fit_summary"]]
-    estimates_conditional <- object[["model"]][["fit_summary_conditional"]]
+  estimates <- BayesTools::ensemble_estimates_table(
+    samples    = object$RoBMA[["posteriors"]],
+    parameters = names(object$RoBMA[["posteriors"]]),
+    probs      = probs,
+    title      = "Model-averaged estimates:",
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+    warnings   = .collect_errors_and_warnings(object)
+  )
+
+  # deal with possibly empty table in case of no alternative models
+  if(is.null(object$RoBMA[["posteriors_conditional"]])){
+    estimates_conditional                    <- data.frame(matrix(nrow = 0, ncol = length(probs) + 2))
+    colnames(estimates_conditional)          <- c("Mean", "Median", probs)
+    class(estimates_conditional)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(estimates_conditional))
+    attr(estimates_conditional, "type")      <- rep("estimate", ncol(estimates_conditional))
+    attr(estimates_conditional, "rownames")  <- TRUE
+    attr(estimates_conditional, "title")     <- "Conditional estimates:"
+    attr(estimates_conditional, "footnotes") <- c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object))
+    attr(estimates_conditional, "warnings")  <- .collect_errors_and_warnings(object)
   }else{
-    estimates             <- object[["model"]][["fit_summaries"]][[output_scale]]
-    estimates_conditional <- object[["model"]][["fit_summaries_conditional"]][[output_scale]]
-  }
-
-  # remove R-hat from the conditional estimates
-  estimates_conditional <- BayesTools::remove_column(estimates_conditional)
-
-  ### fix formatting of the output
-  # separate and rename components
-  components$Parameter[components$Parameter == "tau"]  <- "Heterogeneity"
-  components$Parameter[components$Parameter == "bias"] <- "Bias"
-  if(is.RoBMA.reg(object)){
-    components$Parameter[components$Parameter == "intercept"] <- "Effect"
-
-    components_predictors <- components[!components$Parameter %in% c("Effect", "Heterogeneity", "Bias"), ]
-    components            <- components[ components$Parameter %in% c("Effect", "Heterogeneity", "Bias"), ]
-
-    components_predictors <- .BayesTools_make_column_names(components_predictors)
-    components            <- .BayesTools_make_column_names(components)
-  }else{
-    components$Parameter[components$Parameter == "mu"]        <- "Effect"
-    components            <- .BayesTools_make_column_names(components)
-  }
-
-  # separate and rename estimates
-  if(is.RoBMA.reg(object)){
-    estimates_predictors <- estimates[!(rownames(estimates) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates), fixed = TRUE)), ]
-    estimates            <- estimates[ (rownames(estimates) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates), fixed = TRUE)), ]
-
-    rownames(estimates)[rownames(estimates) == "intercept"]  <- "mu"
+    estimates_conditional <- BayesTools::ensemble_estimates_table(
+      samples    = object$RoBMA[["posteriors_conditional"]],
+      parameters = names(object$RoBMA[["posteriors_conditional"]]),
+      probs      = probs,
+      title      = "Conditional estimates:",
+      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      warnings   = .collect_errors_and_warnings(object)
+    )
   }
 
   # create the output object
   output <- list(
     call       = object[["call"]],
     title      = .object_title(object),
-    components = update(components, title = "Components summary:", BF01  = BF01, logBF = logBF),
-    estimates  = update(estimates, title =  "Model-averaged estimates:")
+    components = components,
+    estimates  = estimates
   )
 
-  if(is.RoBMA.reg(object)){
-    output$components_predictors <- update(components_predictors, title = "Meta-regression components summary:", BF01  = BF01, logBF = logBF)
-    output$estimates_predictors  <- update(estimates_predictors, title = "Model-averaged meta-regression estimates:")
+  if(conditional){
+    output$estimates_conditional <- estimates_conditional
   }
 
-  if(conditional){
-    if(is.RoBMA.reg(object)){
-      estimates_predictors_conditional <- estimates_conditional[!(rownames(estimates_conditional) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates_conditional), fixed = TRUE)), ]
-      estimates_conditional            <- estimates_conditional[ (rownames(estimates_conditional) %in% c("intercept", "tau", "bias", "PET", "PEESE") | grepl("omega[", rownames(estimates_conditional), fixed = TRUE)), ]
+  # add meta-regression summaries
+  if(is.RoBMA.reg(object)){
 
-      rownames(estimates_conditional)[rownames(estimates_conditional) == "intercept"]  <- "mu"
+    if(!is.null(object$RoBMA[["inference_predictors"]])){
+      output$components_predictors <- update(
+        object[["RoBMA"]][["inference_predictors"]],
+        title      = "Meta-regression components summary:",
+        BF01       = BF01,
+        logBF      = logBF
+      )
+    }
 
-      output$estimates_conditional            <- update(estimates_conditional, title = "Conditional estimates:")
-      output$estimates_predictors_conditional <- update(estimates_predictors_conditional, title = "Conditional meta-regression estimates:")
-    }else{
-      output$estimates_conditional <- update(estimates_conditional, title = "Conditional estimates:")
+    if(!is.null(object$RoBMA[["posteriors_predictors"]])){
+      # obtain estimates tables
+      output$estimates_predictors <- BayesTools::ensemble_estimates_table(
+        samples        = object$RoBMA[["posteriors_predictors"]],
+        parameters     = names(object$RoBMA[["posteriors_predictors"]]),
+        probs          = probs,
+        title          = "Model-averaged meta-regression estimates:",
+        formula_prefix = FALSE,
+        footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+        warnings       = .collect_errors_and_warnings(object)
+      )
+    }
+
+    # deal with possibly empty table in case of no alternative models
+    if(conditional){
+      if(is.null(object$RoBMA[["posteriors_predictors_conditional"]])){
+        estimates_predictors_conditional                    <- data.frame(matrix(nrow = 0, ncol = length(probs) + 2))
+        colnames(estimates_predictors_conditional)          <- c("Mean", "Median", probs)
+        class(estimates_predictors_conditional)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(estimates_predictors_conditional))
+        attr(estimates_predictors_conditional, "type")      <- rep("estimate", ncol(estimates_predictors_conditional))
+        attr(estimates_predictors_conditional, "rownames")  <- TRUE
+        attr(estimates_predictors_conditional, "title")     <- "Conditional meta-regression estimates:"
+        attr(estimates_predictors_conditional, "footnotes") <- .scale_note(object$add_info[["prior_scale"]], output_scale)
+        attr(estimates_predictors_conditional, "warnings")  <- .collect_errors_and_warnings(object)
+      }else{
+        estimates_predictors_conditional <- BayesTools::ensemble_estimates_table(
+          samples    = object$RoBMA[["posteriors_predictors_conditional"]],
+          parameters = names(object$RoBMA[["posteriors_predictors_conditional"]]),
+          probs      = probs,
+          title      = "Conditional meta-regression estimates:",
+          formula_prefix = FALSE,
+          footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
+          warnings   = .collect_errors_and_warnings(object)
+        )
+      }
+      output$estimates_predictors_conditional <- estimates_predictors_conditional
     }
   }
 

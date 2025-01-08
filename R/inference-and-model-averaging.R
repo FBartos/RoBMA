@@ -452,7 +452,7 @@
         model        = model[["fit"]],
         parameters   = names(conditional)[i],
         conditional  = conditional[[i]]
-      )
+      )[[names(conditional)[i]]]
     }
   }else{
     posteriors_conditional <- NULL
@@ -478,7 +478,7 @@
     for(i in seq_along(priors[["terms"]])){
       parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
       if(is.prior.spike_and_slab(priors[["terms"]][[i]]) || is.prior.mixture(priors[["terms"]][[i]])){
-        conditional[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- .BayesTools_parameter_name(names(priors[["terms"]])[i])
+        conditional_predictors[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- .BayesTools_parameter_name(names(priors[["terms"]])[i])
       }
     }
 
@@ -486,6 +486,7 @@
       model        = model[["fit"]],
       parameters   = parameters_predictors
     )
+    posteriors_predictors <- BayesTools::transform_factor_samples(posteriors_predictors)
 
     # conditional posteriors
     if(length(conditional_predictors) > 0){
@@ -495,8 +496,9 @@
           model        = model[["fit"]],
           parameters   = names(conditional_predictors)[i],
           conditional  = conditional_predictors[[i]]
-        )
+        )[[names(conditional_predictors)[i]]]
       }
+      posteriors_predictors_conditional <- BayesTools::transform_factor_samples(posteriors_predictors_conditional)
     }else{
       posteriors_predictors_conditional <- NULL
     }
