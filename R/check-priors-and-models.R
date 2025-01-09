@@ -666,13 +666,30 @@
   priors_heterogeneity <- priors[["heterogeneity"]]
   priors_bias          <- priors[["bias"]]
 
-  model <- list(
-    priors     = list(
-      mu    = BayesTools::prior_mixture(priors_effect,        is_null = sapply(priors_effect,        function(x) x[["is_null"]])),
-      tau   = BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]])),
-      bias  = BayesTools::prior_mixture(priors_bias,          is_null = sapply(priors_bias,          function(x) x[["is_null"]]))
-    )
-  )
+  model <- list(priors = list())
+
+  # place effect priors
+  if(length(priors_effect) > 1){
+    model$priors$mu <- BayesTools::prior_mixture(priors_effect, is_null = sapply(priors_effect, function(x) x[["is_null"]]))
+  }else{
+    model$priors$mu <- priors_effect[[1]]
+  }
+
+  # place heterogeneity priors
+  if(length(priors_heterogeneity) > 1){
+    model$priors$tau <- BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]]))
+  }else{
+    model$priors$tau <- priors_heterogeneity[[1]]
+  }
+
+  # place bias priors
+  if(length(priors_bias) > 1){
+    model$priors$bias <- BayesTools::prior_mixture(priors_bias, is_null = sapply(priors_bias, function(x) x[["is_null"]]))
+  }else{
+    model$priors$bias <- priors_bias[[1]]
+  }
+
+
   class(model) <- "RoBMA.model_ss"
 
   attr(model, "multivariate")  <- multivariate && !is.null(priors$rho)

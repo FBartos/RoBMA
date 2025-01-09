@@ -1093,15 +1093,17 @@
 }
 .generate_model_syntax.ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression){
 
-  ### extract priors
-  prob_effect        <- sapply(priors[["effect"]], function(x) x[["prior_weights"]])
-  prob_heterogeneity <- sapply(priors[["heterogeneity"]], function(x) x[["prior_weights"]])
-  prob_bias          <- sapply(priors[["bias"]], function(x) x[["prior_weights"]])
-  #prob_hierarchical  <- sapply(priors[["hierarchical"]], function(x) x[["prior_weights"]])
+  ### extract prior information
+  if(is.prior.mixture(priors[["bias"]])){
+    is_PET            <- sapply(priors[["bias"]], is.prior.PET)
+    is_PEESE          <- sapply(priors[["bias"]], is.prior.PEESE)
+    is_weightfunction <- sapply(priors[["bias"]], is.prior.weightfunction)
+  }else{
+    is_PET            <- is.prior.PET(priors[["bias"]])
+    is_PEESE          <- is.prior.PEESE(priors[["bias"]])
+    is_weightfunction <- is.prior.weightfunction(priors[["bias"]])
+  }
 
-  is_PET            <- sapply(priors[["bias"]], is.prior.PET)
-  is_PEESE          <- sapply(priors[["bias"]], is.prior.PEESE)
-  is_weightfunction <- sapply(priors[["bias"]], is.prior.weightfunction)
 
   # create the model syntax
   model_syntax <- "model{\n"
