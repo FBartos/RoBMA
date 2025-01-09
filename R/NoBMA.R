@@ -36,7 +36,7 @@ NoBMA <- function(
   priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
 
   # MCMC fitting settings
-  chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
+  algorithm = "bridge", chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
   autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
 
   # additional settings
@@ -64,7 +64,7 @@ NoBMA <- function(
     priors_hierarchical_null   = priors_hierarchical_null,
 
     # MCMC fitting settings
-    chains = chains, sample = sample, burnin = burnin, adapt = adapt, thin = thin, parallel = parallel,
+    algorithm = algorithm, chains = chains, sample = sample, burnin = burnin, adapt = adapt, thin = thin, parallel = parallel,
     autofit = autofit, autofit_control = autofit_control, convergence_checks = convergence_checks,
 
     # additional settings
@@ -117,7 +117,7 @@ NoBMA.reg <- function(
     prior_factors_null     = set_default_priors("factors", null = TRUE),
 
     # MCMC fitting settings
-    chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
+    algorithm = "bridge", chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
     autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
 
     # additional settings
@@ -149,7 +149,7 @@ NoBMA.reg <- function(
     prior_factors_null     = prior_factors_null,
 
     # MCMC fitting settings
-    chains = chains, sample = sample, burnin = burnin, adapt = adapt, thin = thin, parallel = parallel,
+    algorithm = algorithm, chains = chains, sample = sample, burnin = burnin, adapt = adapt, thin = thin, parallel = parallel,
     autofit = autofit, autofit_control = autofit_control, convergence_checks = convergence_checks,
 
     # additional settings
