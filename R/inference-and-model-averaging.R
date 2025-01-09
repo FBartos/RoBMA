@@ -358,7 +358,8 @@
       conditional_list    = conditional_list,
       conditional_rule    = "OR",
       formula             = object[["formula"]],
-      silent              = TRUE
+      silent              = TRUE,
+      force_plots         = TRUE
     )
   }else{
 
@@ -451,7 +452,8 @@
       posteriors_conditional[[conditional[[i]]]] <- BayesTools::as_mixed_posteriors(
         model        = model[["fit"]],
         parameters   = names(conditional)[i],
-        conditional  = conditional[[i]]
+        conditional  = conditional[[i]],
+        force_plots  = TRUE
       )[[names(conditional)[i]]]
     }
   }else{
