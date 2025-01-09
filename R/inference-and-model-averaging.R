@@ -327,15 +327,15 @@
   inference <- BayesTools::runjags_inference_table(model[["fit"]], formula_prefix = FALSE)
 
   # rename the main component types
-  inference$Parameter[inference$Parameter == "tau"]  <- "Heterogeneity"
-  inference$Parameter[inference$Parameter == "bias"] <- "Bias"
-  inference$Parameter[inference$Parameter == "rho"]  <- "Hierarchical"
-  inference$Parameter[inference$Parameter == "pi"]   <- "Baseline"
+  rownames(inference)[rownames(inference) == "tau"]  <- "Heterogeneity"
+  rownames(inference)[rownames(inference) == "bias"] <- "Bias"
+  rownames(inference)[rownames(inference) == "rho"]  <- "Hierarchical"
+  rownames(inference)[rownames(inference) == "pi"]   <- "Baseline"
 
   if(.is_model_regression(model)){
 
     # intercept = average effect for meta-regression
-    inference$Parameter[inference$Parameter == "intercept"] <- "Effect"
+    rownames(inference)[rownames(inference) == "intercept"] <- "Effect"
 
     # add marginal inference
     marginal_parameters <- NULL
@@ -364,15 +364,15 @@
   }else{
 
     # rename effect
-    inference$Parameter[inference$Parameter == "mu"]        <- "Effect"
+    rownames(inference)[rownames(inference) == "mu"]        <- "Effect"
 
     # add empty marginal inference object
     inference_marginal <- NULL
   }
 
   # split the component and predictors inference
-  inference_predictors <- inference[!inference$Parameter %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline"), ]
-  inference            <- inference[ inference$Parameter %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline"), ]
+  inference_predictors <- inference[!rownames(inference) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline"), ]
+  inference            <- inference[ rownames(inference) %in% c("Effect", "Heterogeneity", "Bias", "Hierarchical", "Baseline"), ]
   if(nrow(inference_predictors) == 0){
     inference_predictors <- NULL
   }
