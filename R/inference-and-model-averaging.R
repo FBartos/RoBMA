@@ -381,20 +381,25 @@
   ### prepare model-averaged posteriors
   # define inference options: always effect and heterogeneity
   parameters   <- c("mu", "tau")
-  conditional  <- list("mu" = "mu", "tau" = "tau")
+  conditional  <- list()
 
-  if(any(bias)){
+  if(any(effect)){
+    conditional <- c(conditional, "mu" = "mu")
+  }
+  if(any(heterogeneity)){
+    conditional <- c(conditional, "tau" = "tau")
+  }
+  if(!is.null(priors[["bias"]]) && !is.prior.none(priors[["bias"]])){
     parameters  <- c(parameters, "bias")
-
-    if(any(weightfunctions)){
-      conditional <- c(conditional, "bias" = "omega")
-    }
-    if(any(PET)){
-      conditional <- c(conditional, "bias" = "PET")
-    }
-    if(any(PEESE)){
-      conditional <- c(conditional, "bias" = "PEESE")
-    }
+  }
+  if(any(bias) && any(weightfunctions)){
+    conditional <- c(conditional, "bias" = "omega")
+  }
+  if(any(bias) && any(PET)){
+    conditional <- c(conditional, "bias" = "PET")
+  }
+  if(any(bias) && any(PEESE)){
+    conditional <- c(conditional, "bias" = "PEESE")
   }
   if(any(hierarchical)){
     parameters  <- c(parameters,  "rho")

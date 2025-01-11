@@ -466,6 +466,9 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
     if(is.RoBMA.reg(object))
       stop("Adding a new model to the ensemble is not possible with RoBMA.reg models.")
 
+    if(object[["add_info"]][["algorithm"]] == "ss")
+      stop("Adding a new model to the ensemble is not possible with RoBMA models estimated via spike and slab.")
+
     what_to_do <- "fit_new_model"
     message("Fitting a new model with specified priors.")
     new_priors <- .check_and_list_priors(
@@ -486,10 +489,15 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
   }else if(!is.null(prior_weights)){
 
+    if(object[["add_info"]][["algorithm"]] == "ss")
+      stop("Updating prior odds is not possible with RoBMA models estimated via spike and slab.")
+
     what_to_do <- "update_prior_weights"
     message("Updating prior odds for the fitted models.")
+
     if(length(prior_weights) != length(object$models))
       stop("The number of newly specified prior odds does not match the number of models. See '?update.RoBMA' for more details.")
+
     for(i in 1:length(object$models)){
       object$models[[i]]$prior_weights     <- prior_weights[i]
       object$models[[i]]$prior_weights_set <- prior_weights[i]
@@ -542,34 +550,40 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
   }else if(what_to_do %in% c("refit_failed_models", "extend_all")){
 
-    models_to_update <- switch(
-      what_to_do,
-      "refit_failed_models" = seq_along(object$models)[!.get_model_convergence(object)],
-      "extend_all"          = seq_along(object$models)
-    )
+    if(object[["add_info"]][["algorithm"]] == "bridge"){
+      models_to_update <- switch(
+        what_to_do,
+        "refit_failed_models" = seq_along(object$models)[!.get_model_convergence(object)],
+        "extend_all"          = seq_along(object$models)
+      )
 
-    if(!object$fit_control[["parallel"]]){
+      if(!object$fit_control[["parallel"]]){
 
-      if(dots[["is_JASP"]]){
-        .JASP_progress_bar_start(length(models_to_update))
-      }
-
-      for(i in models_to_update){
-        object$models[[i]] <- .fit_RoBMA_model(object, i, extend = TRUE)
         if(dots[["is_JASP"]]){
-          .JASP_progress_bar_tick()
+          .JASP_progress_bar_start(length(models_to_update))
         }
+
+        for(i in models_to_update){
+          object$models[[i]] <- .fit_RoBMA_model(object, i, extend = TRUE)
+          if(dots[["is_JASP"]]){
+            .JASP_progress_bar_tick()
+          }
+        }
+
+      }else{
+
+        cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
+        parallel::clusterEvalQ(cl, {library("RoBMA")})
+        parallel::clusterExport(cl, "object", envir = environment())
+        object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_RoBMA_model, object = object, extend = TRUE)
+        parallel::stopCluster(cl)
+
       }
-
-    }else{
-
-      cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
-      parallel::clusterEvalQ(cl, {library("RoBMA")})
-      parallel::clusterExport(cl, "object", envir = environment())
-      object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_RoBMA_model, object = object, extend = TRUE)
-      parallel::stopCluster(cl)
-
+    }else if(object[["add_info"]][["algorithm"]] == "ss"){
+      object$model <- .fit_RoBMA_model.ss(object, extend = TRUE)
     }
+
+
 
   }else if(what_to_do == "update_convergence_checks"){
 
@@ -592,23 +606,32 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
   }
 
 
-  # restore original prior model probabilities (possibly changed by previous balancing)
-  object <- .restore_component_probability(object)
 
-  # create ensemble only if at least one model converged
-  if(any(.get_model_convergence(object))){
+  if(object[["add_info"]][["algorithm"]] == "bridge"){
+    # restore original prior model probabilities (possibly changed by previous balancing)
+    object <- .restore_component_probability(object)
 
-    # balance probability of non-converged models
-    if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_component_probability(object)
+    # create ensemble only if at least one model converged
+    if(any(.get_model_convergence(object))){
+
+      # balance probability of non-converged models
+      if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
+        object <- .balance_component_probability(object)
+      }
+
+      ### compute the model-space results
+      object$models        <- BayesTools::models_inference(object[["models"]])
+      object$RoBMA         <- .ensemble_inference(object)
+      object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
     }
 
-    ### compute the model-space results
-    object$models        <- BayesTools::models_inference(object[["models"]])
-    object$RoBMA         <- .ensemble_inference(object)
-    object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
-  }
+  }else if(object[["add_info"]][["algorithm"]] == "ss"){
 
+    # update the ensemble results
+    object$RoBMA         <- .as_ensemble_inference(object)
+    object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
+
+  }
 
   ### collect and print errors and warnings
   object$add_info[["errors"]]   <- c(object$add_info[["errors"]],   .get_model_errors(object))
@@ -617,7 +640,7 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
 
   ### remove model posteriors if asked to
-  if(save == "min"){
+  if(object[["add_info"]][["algorithm"]] == "bridge" && save == "min"){
     object <- .remove_model_posteriors(object)
     object <- .remove_model_margliks(object)
   }

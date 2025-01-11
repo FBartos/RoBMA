@@ -669,24 +669,16 @@
   model <- list(priors = list())
 
   # place effect priors
-  if(length(priors_effect) > 1){
-    model$priors$mu <- BayesTools::prior_mixture(priors_effect, is_null = sapply(priors_effect, function(x) x[["is_null"]]))
-  }else{
-    model$priors$mu <- priors_effect[[1]]
-  }
+  model$priors$mu <- BayesTools::prior_mixture(priors_effect, is_null = sapply(priors_effect, function(x) x[["is_null"]]))
 
   # place heterogeneity priors
-  if(length(priors_heterogeneity) > 1){
-    model$priors$tau <- BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]]))
-  }else{
-    model$priors$tau <- priors_heterogeneity[[1]]
-  }
+  model$priors$tau <- BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]]))
 
   # place bias priors
-  if(length(priors_bias) > 1){
-    model$priors$bias <- BayesTools::prior_mixture(priors_bias, is_null = sapply(priors_bias, function(x) x[["is_null"]]))
-  }else{
+  if(length(priors_bias) == 1 && is.prior.none(priors_bias[[1]])){
     model$priors$bias <- priors_bias[[1]]
+  }else{
+    model$priors$bias <- BayesTools::prior_mixture(priors_bias, is_null = sapply(priors_bias, function(x) x[["is_null"]]))
   }
 
 

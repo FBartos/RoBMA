@@ -376,7 +376,6 @@
       cores                 = fit_control[["cores"]],
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
-      store_runjags_summary = TRUE,
       required_packages     = "RoBMA"
     )
 
@@ -828,11 +827,6 @@
   }
   fit_data$se <- data[,"se"]
   fit_data$K  <- length(data[["y"]])
-
-  # add critical y-values
-  if(!is.null(priors[["omega"]])){
-    fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure, effect_measure))
-  }
 
   # add weights proportional to the number of estimates from a study
   if(weighted){
