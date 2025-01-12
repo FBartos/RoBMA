@@ -33,18 +33,18 @@ namespace jags {
             return;
         }
 
+        // --- deal with fixed weightfunctions --- //
+        if (eta_index_max == -1) {
+            for (int i = 0; i < K; ++i) {
+              value[i] = omega_index[i];
+            }
+            return;
+        }
+
         // ---- select the correct etas ---- //
         std::vector<double> eta(eta_index_max);
         for (int i = 0; i < eta_index_max; ++i) {
             eta[i] = eta_vector[ static_cast<int>(eta_index[i]) - 1 ];
-        }
-
-        // --- deal with fixed weightfunctions --- //
-        if (eta_index_max == -1) {
-            for (int i = 0; i < K; ++i) {
-              value[i] = eta[ static_cast<int>(omega_index[i]) - 1 ];
-            }
-            return;
         }
 
         // --- normalized etas --- //

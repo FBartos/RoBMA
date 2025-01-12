@@ -8,4 +8,4 @@
 "Robust Bayesian meta-analysis"
 "Diagnostics overview:"
 " Model Prior Effect Prior Heterogeneity            Prior Bias           max[error(MCMC)] max[error(MCMC)/SD] min(ESS) max(R-hat)"
-"     1 Normal(0, 1)   InvGamma(1, 0.15) omega[one-sided: .1] = (0.5, 1)          0.01265               0.045      484      1.025"
+"     1 Normal(0, 1)   InvGamma(1, 0.15) omega[one-sided: .1] = (0.5, 1)          0.01295               0.047        0      1.027"

@@ -189,7 +189,7 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   if(model[["prior_scale"]] != model[["output_scale"]])
     stop("The prior_scale does not match the output_scale. (Individual models' MCMC samples must have been transformed earlier.)")
 
-  if(.is_regression(model)){
+  if(.is_model_regression(model)){
     if(BayesTools::is.prior.point(model$priors$terms[["intercept"]])){
       mu <- model$priors$terms[["intercept"]]$parameters[["location"]]
     }else{

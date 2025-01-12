@@ -81,8 +81,8 @@
 <text x='120.00' y='380.25' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='42.70px' lengthAdjust='spacingAndGlyphs'>Model 3</text>
 <text x='120.00' y='367.94' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='49.37px' lengthAdjust='spacingAndGlyphs'>Model 21</text>
 <text x='120.00' y='355.64' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='49.37px' lengthAdjust='spacingAndGlyphs'>Model 11</text>
-<text x='120.00' y='343.33' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='42.70px' lengthAdjust='spacingAndGlyphs'>Model 2</text>
-<text x='120.00' y='331.02' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='49.37px' lengthAdjust='spacingAndGlyphs'>Model 23</text>
+<text x='120.00' y='343.33' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='49.37px' lengthAdjust='spacingAndGlyphs'>Model 23</text>
+<text x='120.00' y='331.02' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='42.70px' lengthAdjust='spacingAndGlyphs'>Model 2</text>
 <text x='120.00' y='318.71' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='42.70px' lengthAdjust='spacingAndGlyphs'>Model 4</text>
 <text x='120.00' y='306.41' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='49.37px' lengthAdjust='spacingAndGlyphs'>Model 22</text>
 <text x='120.00' y='294.10' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='49.37px' lengthAdjust='spacingAndGlyphs'>Model 13</text>
@@ -192,8 +192,8 @@
 <text x='561.60' y='380.25' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>0.00 [ 0.00, 0.00]</text>
 <text x='561.60' y='367.94' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.38 [-0.03, 0.82]</text>
 <text x='561.60' y='355.64' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>0.00 [ 0.00, 0.00]</text>
-<text x='561.60' y='343.33' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>0.00 [ 0.00, 0.00]</text>
-<text x='561.60' y='331.02' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.35 [-0.09, 0.80]</text>
+<text x='561.60' y='343.33' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.35 [-0.09, 0.80]</text>
+<text x='561.60' y='331.02' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>0.00 [ 0.00, 0.00]</text>
 <text x='561.60' y='318.71' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>0.00 [ 0.00, 0.00]</text>
 <text x='561.60' y='306.41' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.39 [-0.06, 0.84]</text>
 <text x='561.60' y='294.10' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>0.00 [ 0.00, 0.00]</text>
@@ -247,9 +247,9 @@
 <line x1='335.90' y1='363.82' x2='497.47' y2='363.82' style='stroke-width: 0.75;' />
 <polyline points='335.90,356.62 335.90,363.82 335.90,371.02 ' style='stroke-width: 0.75;' />
 <polyline points='497.47,371.02 497.47,363.82 497.47,356.62 ' style='stroke-width: 0.75;' />
-<line x1='323.38' y1='326.89' x2='494.57' y2='326.89' style='stroke-width: 0.75;' />
-<polyline points='323.38,319.69 323.38,326.89 323.38,334.09 ' style='stroke-width: 0.75;' />
-<polyline points='494.57,334.09 494.57,326.89 494.57,319.69 ' style='stroke-width: 0.75;' />
+<line x1='323.38' y1='339.20' x2='494.57' y2='339.20' style='stroke-width: 0.75;' />
+<polyline points='323.38,332.00 323.38,339.20 323.38,346.40 ' style='stroke-width: 0.75;' />
+<polyline points='494.57,346.40 494.57,339.20 494.57,332.00 ' style='stroke-width: 0.75;' />
 <line x1='329.92' y1='302.28' x2='501.94' y2='302.28' style='stroke-width: 0.75;' />
 <polyline points='329.92,295.08 329.92,302.28 329.92,309.48 ' style='stroke-width: 0.75;' />
 <polyline points='501.94,309.48 501.94,302.28 501.94,295.08 ' style='stroke-width: 0.75;' />
@@ -290,32 +290,32 @@
 <polygon points='340.69,376.23 340.91,376.23 340.91,376.02 340.69,376.02 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='412.77,363.92 412.98,363.92 412.98,363.71 412.77,363.71 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.69,351.62 340.91,351.62 340.91,351.40 340.69,351.40 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='340.68,339.32 340.92,339.32 340.92,339.08 340.68,339.08 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='407.76,327.01 408.00,327.01 408.00,326.77 407.76,326.77 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='407.76,339.32 408.00,339.32 408.00,339.08 407.76,339.08 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='340.68,327.01 340.92,327.01 340.92,326.77 340.68,326.77 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.68,314.70 340.92,314.70 340.92,314.47 340.68,314.47 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='415.69,302.40 415.93,302.40 415.93,302.16 415.69,302.16 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.68,290.09 340.92,290.09 340.92,289.85 340.68,289.85 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='417.98,277.80 418.26,277.80 418.26,277.52 417.98,277.52 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.65,265.50 340.95,265.50 340.95,265.20 340.65,265.20 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.64,253.21 340.96,253.21 340.96,252.88 340.64,252.88 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='388.01,240.90 388.33,240.90 388.33,240.58 388.01,240.58 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='388.01,240.90 388.33,240.90 388.33,240.57 388.01,240.57 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='381.49,228.60 381.82,228.60 381.82,228.26 381.49,228.26 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.62,216.30 340.98,216.30 340.98,215.94 340.62,215.94 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='375.23,204.01 375.63,204.01 375.63,203.62 375.23,203.62 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='409.17,191.71 409.57,191.71 409.57,191.31 409.17,191.31 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.60,179.40 341.00,179.40 341.00,179.00 340.60,179.00 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='402.70,167.10 403.11,167.10 403.11,166.69 402.70,166.69 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='402.70,167.10 403.11,167.10 403.11,166.68 402.70,166.68 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='385.76,154.85 386.29,154.85 386.29,154.32 385.76,154.32 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.52,142.55 341.08,142.55 341.08,142.00 340.52,142.00 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.50,130.27 341.10,130.27 341.10,129.67 340.50,129.67 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.45,118.01 341.15,118.01 341.15,117.31 340.45,117.31 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='340.45,105.71 341.15,105.71 341.15,105.00 340.45,105.00 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='340.37,93.47 341.23,93.47 341.23,92.62 340.37,92.62 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='340.25,81.29 341.35,81.29 341.35,80.18 340.25,80.18 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='340.37,93.48 341.23,93.48 341.23,92.62 340.37,92.62 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='340.25,81.29 341.35,81.29 341.35,80.19 340.25,80.19 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='339.98,69.25 341.62,69.25 341.62,67.61 339.98,67.61 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='339.78,57.15 341.82,57.15 341.82,55.10 339.78,55.10 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='425.85,45.10 428.41,45.10 428.41,42.53 425.85,42.53 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='430.40,33.35 434.09,33.35 434.09,29.66 430.40,29.66 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='328.75,486.89 378.24,483.82 497.45,486.89 378.24,489.97 ' style='stroke-width: 0.75; fill: #000000;' />
+<polygon points='425.85,45.10 428.41,45.10 428.41,42.54 425.85,42.54 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='430.41,33.35 434.09,33.35 434.09,29.67 430.41,29.67 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='328.75,486.89 378.21,483.82 497.45,486.89 378.21,489.97 ' style='stroke-width: 0.75; fill: #000000;' />
 </g>
 </svg>

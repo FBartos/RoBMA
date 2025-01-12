@@ -262,7 +262,7 @@ check_RoBMA_convergence <- function(fit){
 }
 .update_object               <- function(object){
 
-  if(!is.RoBMA(object) || is.NoBMA(object) || is.BiBMA(object)){
+  if(!(is.RoBMA(object) || is.NoBMA(object) || is.BiBMA(object))){
     stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
   }
 
