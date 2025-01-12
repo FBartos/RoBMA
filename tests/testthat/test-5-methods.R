@@ -363,10 +363,10 @@ test_that("Individual summary functions work", {
       ""                                                                                                             ,
       "Parameter estimates:"                                                                                         ,
       "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD ESS R-hat"                            ,
-      "mu           0.158 0.136 -0.136  0.160 0.402     0.00632          0.046 484 1.001"                            ,
-      "tau          0.111 0.111  0.021  0.078 0.407     0.00496          0.045 500 1.025"                            ,
+      "mu           0.158 0.136 -0.136  0.160 0.402     0.00633          0.046 485 1.001"                            ,
+      "tau          0.111 0.111  0.021  0.078 0.407     0.00498          0.045 500 1.027"                            ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA  NA    NA"                            ,
-      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA  NA    NA"                            ,
+      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500     0.00000             NA   0    NA"                            ,
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -382,9 +382,9 @@ test_that("Individual summary functions work", {
       ""                                                                                                    ,
       "Parameter estimates:"                                                                                ,
       "     Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD ESS R-hat"                            ,
-      "mu  0.098 0.171 -0.280  0.107 0.388     0.01005          0.059 300 1.004"                            ,
-      "tau 0.112 0.109  0.019  0.075 0.387     0.00495          0.045 487 1.004"                            ,
-      "PET 0.689 0.584  0.029  0.544 2.226     0.04007          0.069 212 1.001"                            ,
+      "mu  0.098 0.171 -0.280  0.107 0.388     0.01048          0.061 277 1.003"                            ,
+      "tau 0.112 0.109  0.019  0.075 0.387     0.00515          0.047 487 1.002"                            ,
+      "PET 0.689 0.584  0.029  0.544 2.226     0.04006          0.069 212 1.001"                            ,
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).",
       ""                                                                                                    ,
       "                                                               "                                     ,
@@ -396,9 +396,9 @@ test_that("Individual summary functions work", {
       ""                                                                                                    ,
       "Parameter estimates:"                                                                                ,
       "       Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD ESS R-hat"                          ,
-      "mu    0.100 0.190 -0.333  0.113 0.436     0.01353          0.071 209 1.018"                          ,
-      "tau   0.148 0.157  0.026  0.097 0.560     0.00923          0.059 288 1.068"                          ,
-      "PEESE 2.962 2.675  0.095  2.222 9.717     0.17426          0.065 236 1.026"                          ,
+      "mu    0.100 0.190 -0.333  0.113 0.436     0.01309          0.069 210 1.018"                          ,
+      "tau   0.148 0.157  0.026  0.097 0.560     0.01629          0.104 288 1.089"                          ,
+      "PEESE 2.962 2.675  0.095  2.222 9.717     0.17426          0.068 236 1.020"                          ,
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -421,10 +421,10 @@ test_that("Individual summary functions work", {
       ""                                                                                                             ,
       "Parameter estimates:"                                                                                         ,
       "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD ESS R-hat"                            ,
-      "mu           0.158 0.136 -0.136  0.160 0.402     0.00632          0.046 484 1.001"                            ,
-      "tau          0.111 0.111  0.021  0.078 0.407     0.00496          0.045 500 1.025"                            ,
+      "mu           0.158 0.136 -0.136  0.160 0.402     0.00633          0.046 485 1.001"                            ,
+      "tau          0.111 0.111  0.021  0.078 0.407     0.00498          0.045 500 1.027"                            ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA  NA    NA"                            ,
-      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA  NA    NA"                            ,
+      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500     0.00000             NA   0    NA"                            ,
       "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
     ))
   # test short names
@@ -446,10 +446,10 @@ test_that("Individual summary functions work", {
       ""                                                                                                             ,
       "Parameter estimates:"                                                                                         ,
       "              Mean    SD    lCI Median   uCI error(MCMC) error(MCMC)/SD ESS R-hat"                            ,
-      "mu           0.321 0.278 -0.272  0.322 0.827     0.01265          0.045 484 1.001"                            ,
-      "tau          0.222 0.222  0.042  0.157 0.814     0.00993          0.045 500 1.025"                            ,
+      "mu           0.321 0.278 -0.272  0.322 0.827     0.01295          0.047 484 1.001"                            ,
+      "tau          0.222 0.222  0.042  0.157 0.814     0.00997          0.045 500 1.027"                            ,
       "omega[0,0.1] 1.000 0.000  1.000  1.000 1.000          NA             NA  NA    NA"                            ,
-      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500          NA             NA  NA    NA"                            ,
+      "omega[0.1,1] 0.500 0.000  0.500  0.500 0.500     0.00000             NA   0    NA"                            ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -609,22 +609,22 @@ test_that("Heterogeneity summary functions work", {
       "Robust Bayesian meta-analysis"                                                           ,
       "Model-averaged heterogeneity estimates:"                                                 ,
       "      Mean Median  0.025   0.5"                                                          ,
-      "PI   0.359  0.163 -0.758 0.163"                                                          ,
+      "PI   0.354  0.159 -0.758 0.159"                                                          ,
       "tau  0.198  0.000  0.000 0.000"                                                          ,
       "tau2 0.045  0.000  0.000 0.000"                                                          ,
-      "I2   9.723  0.000  0.000 0.000"                                                          ,
-      "H2   1.256  1.000  1.000 1.000"                                                          ,
+      "I2   9.736  0.000  0.000 0.000"                                                          ,
+      "H2   1.258  1.000  1.000 1.000"                                                          ,
       "The prediction interval (PI) is summarized on the log(OR) scale."                        ,
       "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."             ,
       "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale.",
       ""                                                                                        ,
       "Conditional heterogeneity estimates:"                                                    ,
       "       Mean Median  0.025    0.5"                                                        ,
-      "PI    0.720  0.754 -0.577  0.754"                                                        ,
+      "PI    0.719  0.751 -0.564  0.751"                                                        ,
       "tau   0.440  0.308  0.072  0.308"                                                        ,
-      "tau2  0.107  0.026  0.001  0.026"                                                        ,
-      "I2   21.509 12.931  0.798 12.931"                                                        ,
-      "H2    1.611  1.149  1.008  1.149"                                                        ,
+      "tau2  0.108  0.026  0.001  0.026"                                                        ,
+      "I2   21.518 12.946  0.798 12.946"                                                        ,
+      "H2    1.612  1.149  1.008  1.149"                                                        ,
       "The prediction interval (PI) is summarized on the log(OR) scale."                        ,
       "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."             ,
       "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale."

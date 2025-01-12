@@ -202,6 +202,7 @@ test_that("Convergence warnings work", {
   expect_equal(
     suppressWarnings(RoBMA::check_RoBMA(fit_warnings)),
     c(
+      "Model (1): R-hat 1.026 is larger than the set target (1.01).",
       "Model (1): ESS 829 is lower than the set target (1000).",
       "Model (1): MCMC error 0.00733 is larger than the set target (0.001).",
       "Model (1): MCMC SD error 0.035 is larger than the set target (0.002)."
