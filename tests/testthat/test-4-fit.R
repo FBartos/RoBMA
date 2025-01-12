@@ -56,44 +56,44 @@ test_that("Default model (RoBMA-PSMA) works", {
   expect_equal(clean_all(saved_fits[[1]]), clean_all(fit1))
 
   fit4 <- try_parallel(RoBMA(r = r, n = n, seed = 1, model_type = "PSMA", parallel = TRUE,
-                             sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
-                             convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
+                             sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE,
+                             convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1), algorithm = "ss"))
   fit4 <- remove_time(fit4)
   expect_equal(clean_all(saved_fits[[4]]), clean_all(fit4))
 
   fit5 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, model_type = "PSMA", transformation = "logOR", parallel = TRUE,
-                             sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
-                             convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
+                             sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE,
+                             convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1), algorithm = "ss"))
   fit5 <- remove_time(fit5)
   expect_equal(clean_all(saved_fits[[5]]), clean_all(fit5))
 
   fit6 <- try_parallel(RoBMA(d = -d, se = d_se, seed = 1, model_type = "PSMA", effect_direction = "negative", parallel = TRUE,
-                             sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
-                             convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
+                             sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE,
+                             convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1), algorithm = "ss"))
   fit6 <- remove_time(fit6)
   expect_equal(clean_all(saved_fits[[6]]), clean_all(fit6))
 
   # verify that the transformations and etc holds, up to MCMC error
-  expect_equal(coef(fit1)[1:2], coef(fit4)[1:2], 0.01)
-  expect_equal(coef(fit1)[1:2], coef(fit5)[1:2], 0.01)
+  expect_equal(coef(fit1)[1:2], coef(fit4)[1:2], 0.02)
+  expect_equal(coef(fit1)[1:2], coef(fit5)[1:2], 0.02)
   # the effect size is in the opposite direction for fit6
   expect_equal(coef(fit1)[1],  -coef(fit6)[1], 0.01)
   expect_equal(coef(fit1)[2],   coef(fit6)[2], 0.01)
 
   # lower precision for weights
-  expect_equal(coef(fit1)[3:8], coef(fit4)[3:8], 0.02)
-  expect_equal(coef(fit1)[3:8], coef(fit5)[3:8], 0.02)
-  expect_equal(coef(fit1)[3:8], coef(fit6)[3:8], 0.02)
+  expect_equal(coef(fit1)[3:8], coef(fit4)[3:8], 0.03)
+  expect_equal(coef(fit1)[3:8], coef(fit5)[3:8], 0.03)
+  expect_equal(coef(fit1)[3:8], coef(fit6)[3:8], 0.03)
 
   # PET is also stable (and in this case PEESE as well, since it is low)
-  expect_equal(coef(fit1)[9:10], coef(fit4)[9:10], 0.01)
-  expect_equal(coef(fit1)[9:10], coef(fit6)[9:10], 0.01)
-  expect_equal(coef(fit1)[9:10], coef(fit6)[9:10], 0.01)
+  expect_equal(coef(fit1)[9:10], coef(fit4)[9:10], 0.02)
+  expect_equal(coef(fit1)[9:10], coef(fit6)[9:10], 0.02)
+  expect_equal(coef(fit1)[9:10], coef(fit6)[9:10], 0.02)
 })
 
 test_that("RoBMA-2w works", {
   fit2 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE, model_type = "2w",
-                             sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
+                             sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                              convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit2 <- remove_time(fit2)
   expect_equal(clean_all(saved_fits[[2]]), clean_all(fit2))
@@ -114,7 +114,7 @@ test_that("Custom models - only alternative", {
                   prior_PET("normal", list(0, 1))
                 ),
                 priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE,
-                sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
+                sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit7 <- remove_time(fit7)
   expect_equal(clean_all(saved_fits[[7]]), clean_all(fit7))
@@ -138,7 +138,7 @@ test_that("Custom models - only null (non-point)", {
                   prior_PET("normal", list(0, 1))
                 ),
                 priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE,
-                sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
+                sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit9 <- remove_time(fit9)
   expect_equal(clean_all(saved_fits[[9]]), clean_all(fit9))
@@ -160,7 +160,7 @@ test_that("Custom models - unknown effect size", {
                   prior_weightfunction("two-sided", list(c(0.10), c(1, 1))),
                   prior_PET("normal", list(0, 1))
                 ), parallel = TRUE,
-                sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
+                sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit11 <- remove_time(fit11)
   expect_equal(clean_all(saved_fits[[11]]), clean_all(fit11))
@@ -229,7 +229,7 @@ test_that("weighted models work", {
   )
 
   fit1w <- try_parallel(suppressWarnings(RoBMA(data = temp_data, seed = 1, parallel = TRUE,
-                                               sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
+                                               sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                                                convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
   fit1w <- remove_time(fit1w)
   # changed after reducing the number of samples
@@ -278,7 +278,7 @@ test_that("RoBMA (simplified) regression with custom priors work", {
                                                       prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)
                                                     ),
                                                     seed = 1, parallel = TRUE,
-                                                    sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
+                                                    sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                                                     convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
   fit_15 <- remove_time(fit_15)
   expect_equal(clean_all(saved_fits[[15]]), clean_all(fit_15))

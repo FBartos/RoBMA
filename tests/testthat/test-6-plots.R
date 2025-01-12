@@ -269,6 +269,12 @@ test_that("Individual model plots work", {
   # default ggplot2
   for(i in 1:length(saved_fits)){
 
+    if(saved_fits[[i]]$add_info[["algorithm"]] == "ss"){
+      expect_error(plot_models(saved_fits[[i]], plot_type = "ggplot"),
+                   "The estimated model using the spike and slab style model-averaging")
+      next
+    }
+
     vdiffr::expect_doppelganger(paste0("ggplot_models1_",i), plot_models(saved_fits[[i]], plot_type = "ggplot"))
 
     if(i %in% effect){

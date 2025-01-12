@@ -1418,11 +1418,11 @@
 
   return(order(fitting_difficulty, decreasing = TRUE))
 }
-.runjags_summary_list   <- function(fit, priors, prior_scale, warnings, remove_parameters = NULL, conditional = FALSE){
+.runjags_summary_list   <- function(fit, priors, prior_scale, warnings, remove_parameters = NULL, measures = c("d", "r", "z", "logOR", "OR"), transformations_only = FALSE){
 
   summary_list <- list()
 
-  for(measure in c("d", "r", "z", "logOR", "OR")){
+  for(measure in measures){
 
     # prepare transformations if necessary
     if(measure != prior_scale){
@@ -1462,13 +1462,18 @@
       transformations <- NULL
     }
 
+    if(transformations_only){
+      if(length(measures) > 1)
+        stop("Only one measure can be transformed at a time.")
+      return(transformations)
+    }
+
     summary_list[[measure]] <- suppressMessages(BayesTools::runjags_estimates_table(
       fit               = fit,
       transformations   = transformations,
       transform_factors = TRUE,
       formula_prefix    = FALSE,
       remove_inclusion  = TRUE,
-      conditional       = conditional,
       warnings          = warnings,
       footnotes         = .scale_note(prior_scale, measure),
       remove_parameters = remove_parameters

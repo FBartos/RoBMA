@@ -239,10 +239,18 @@ plot.RoBMA  <- function(x, parameter = "mu",
   # remove PET/PEESE prior class (otherwise PET-PEESE density is produced in BayesTools)
   if(parameter %in% c("PET", "PEESE")){
     for(i in seq_along(attr(samples[["PET"]], "prior_list"))){
-      class(attr(samples[["PET"]], "prior_list")[[i]])   <- class(attr(samples[["PET"]], "prior_list")[[i]])[!class(attr(samples[["PET"]], "prior_list")[[i]]) %in% "prior.PET"]
+      if(is.prior.PET(attr(samples[["PET"]], "prior_list")[[i]])){
+        class(attr(samples[["PET"]], "prior_list")[[i]])   <- class(attr(samples[["PET"]], "prior_list")[[i]])[!class(attr(samples[["PET"]], "prior_list")[[i]]) %in% "prior.PET"]
+      }else{
+        attr(samples[["PET"]], "prior_list")[[i]] <- prior("point", parameter = list("location" = 0), prior_weights = attr(samples[["PET"]], "prior_list")[[i]][["prior_weights"]])
+      }
     }
     for(i in seq_along(attr(samples[["PEESE"]], "prior_list"))){
-      class(attr(samples[["PEESE"]], "prior_list")[[i]]) <- class(attr(samples[["PEESE"]], "prior_list")[[i]])[!class(attr(samples[["PEESE"]], "prior_list")[[i]]) %in% "prior.PEESE"]
+      if(is.prior.PEESE(attr(samples[["PEESE"]], "prior_list")[[i]])){
+        class(attr(samples[["PEESE"]], "prior_list")[[i]])   <- class(attr(samples[["PEESE"]], "prior_list")[[i]])[!class(attr(samples[["PEESE"]], "prior_list")[[i]]) %in% "prior.PEESE"]
+      }else{
+        attr(samples[["PEESE"]], "prior_list")[[i]] <- prior("point", parameter = list("location" = 0), prior_weights = attr(samples[["PEESE"]], "prior_list")[[i]][["prior_weights"]])
+      }
     }
   }
 
@@ -356,6 +364,9 @@ plot.RoBMA  <- function(x, parameter = "mu",
 #' @export
 forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL, order = NULL, ...){
 
+  # apply version changes to RoBMA object
+  x <- .update_object(x)
+
   # check whether plotting is possible
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
@@ -381,7 +392,6 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   }else{
     data <- x[["data"]]
   }
-
 
 
   ### manage transformations
@@ -580,8 +590,14 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' @export
 plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale = NULL, plot_type = "base", order = "decreasing", order_by = "model", ...){
 
+  # apply version changes to RoBMA object
+  x <- .update_object(x)
+
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
+
+  if(saved_fits[[i]]$add_info[["algorithm"]] == "ss")
+    stop("The estimated model using the spike and slab style model-averaging (`algorithm = 'ss'`). As such, no models are directly iterated over and the individual model estimates cannot be displayed.")
 
   #check settings
   BayesTools::check_bool(conditional, "conditional")

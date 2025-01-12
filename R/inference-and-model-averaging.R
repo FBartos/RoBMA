@@ -552,12 +552,3 @@
     "PEESE"  = if(!is.null(RoBMA$posteriors[["PEESE"]])) mean(RoBMA$posteriors[["PEESE"]])
   ))
 }
-.compute_coeficients.ss <- function(model){
-  if(is.null(model$fit_summary)){
-    return(NULL)
-  }else{
-    coef        <- model$fit_summary[,"Mean"]
-    names(coef) <- rownames(model$fit_summary)
-    return(coef)
-  }
-}

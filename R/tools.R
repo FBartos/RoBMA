@@ -188,6 +188,10 @@ check_RoBMA_convergence <- function(fit){
     return(NULL)
   }
 
+  if(object[["add_info"]][["algorithm"]] == "ss"){
+    return("(Estimated publication weights omega correspond to one-sided p-values.)")
+  }
+
   is_one.sided       <- grepl("one.sided", bias_distributions)
   is_two.sided       <- grepl("two.sided", bias_distributions)
 
@@ -262,9 +266,7 @@ check_RoBMA_convergence <- function(fit){
 }
 .update_object               <- function(object){
 
-  if(!(is.RoBMA(object) || is.NoBMA(object) || is.BiBMA(object))){
-    stop("The object is not a model fitted with the RoBMA package.", call. = FALSE)
-  }
+  .check_is_any_RoBMA_object(object)
 
   # no package version number saved prior to 2.4
   if(!all("version" %in% names(object[["add_info"]]))){
