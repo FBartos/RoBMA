@@ -13,7 +13,7 @@
 "Robust Bayesian meta-regression"
 "Model-averaged heterogeneity estimates:"
 "       Mean Median  0.025 0.975"
-"PI   -0.013 -0.003 -0.174 0.045"
+"PI   -0.007 -0.004 -0.097 0.047"
 "tau   0.000  0.000  0.000 0.000"
 "tau2  0.000  0.000  0.000 0.000"
 "I2    0.000  0.000  0.000 0.000"

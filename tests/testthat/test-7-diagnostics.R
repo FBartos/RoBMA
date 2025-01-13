@@ -95,8 +95,8 @@ test_that("Diagnostic plots work", {
   chains_PET      <- diagnostics(saved_fits[[2]], "PET",       "chains", plot_type = "ggplot")
   chains_mod_con  <- diagnostics(saved_fits[[2]], "mod_con",   "chains", plot_type = "ggplot")
 
-  vdiffr::expect_doppelganger("plot_chains.reg_mu",      chains_mu[[6]])
-  vdiffr::expect_doppelganger("plot_chains.reg_omega",   chains_omega[[5]])
-  vdiffr::expect_doppelganger("plot_chains.reg_PET",     chains_PET[[6]])
-  vdiffr::expect_doppelganger("plot_chains.reg_mod_con", chains_mod_con[[6]])
+  vdiffr::expect_doppelganger("plot_chains.reg_mu",      chains_mu)
+  vdiffr::expect_doppelganger("plot_chains.reg_omega",   chains_omega[[1]])
+  vdiffr::expect_doppelganger("plot_chains.reg_PET",     chains_PET)
+  vdiffr::expect_doppelganger("plot_chains.reg_mod_con", chains_mod_con)
 })

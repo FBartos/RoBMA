@@ -713,9 +713,11 @@
       weight_null <- priors[["terms"]][[terms[i]]][["null"]]$prior_weights
       weight_alt  <- priors[["terms"]][[terms[i]]][["alt"]]$prior_weights
 
-      model_priors[["terms"]][[terms[i]]]  <- BayesTools::prior_spike_and_slab(
-        prior_parameter = priors[["terms"]][[terms[i]]][["alt"]],
-        prior_inclusion = prior("spike", parameters = list("location" = weight_alt / (weight_alt + weight_null)))
+      model_priors[["terms"]][[terms[i]]]  <- BayesTools::prior_mixture(
+        list(
+          priors[["terms"]][[terms[i]]][["null"]],
+          priors[["terms"]][[terms[i]]][["alt"]]
+        ), is_null = c(TRUE, FALSE)
       )
 
       terms_test <- c(terms_test, terms[i])

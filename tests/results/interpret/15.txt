@@ -1,6 +1,6 @@
 "Robust Bayesian meta-regression found strong evidence in favor of the effect, BF
-_10 = Inf, with mean model-averaged estimate Cohen's d = -0.013, 95% CI [-0.174,
-  0.045]. Robust Bayesian meta-regression found strong evidence against the hete
+_10 = Inf, with mean model-averaged estimate Cohen's d = -0.007, 95% CI [-0.097,
+  0.047]. Robust Bayesian meta-regression found strong evidence against the hete
 rogeneity, BF^rf = 0.000, with mean model-averaged estimate tau = 0.000, 95% CI 
-[0.000, 0.000]. Robust Bayesian meta-regression found weak evidence in favor of 
-the publication bias, BF_pb = 1.10."
+[0.000, 0.000]. Robust Bayesian meta-regression found weak evidence against the 
+publication bias, BF_pb = 0.998."

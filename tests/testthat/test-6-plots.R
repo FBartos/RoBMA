@@ -192,11 +192,23 @@ test_that("Parameter plots work", {
     }
 
     vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE1_",i), plot(saved_fits[[i]], "PETPEESE", plot_type = "ggplot"))
-    vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE2_",i), plot(saved_fits[[i]], "PETPEESE", prior = TRUE, plot_type = "ggplot"))
+
+    if(saved_fits[[i]]$add_info$algorithm == "ss"){
+      expect_error(plot(saved_fits[[i]], "PETPEESE", prior = TRUE, plot_type = "ggplot"),
+                   "The prior and posterior distribution for the PET-PEESE regression cannot be plotted for the ss algorithm.")
+    }else{
+      vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE2_",i), plot(saved_fits[[i]], "PETPEESE", prior = TRUE, plot_type = "ggplot"))
+    }
 
     if(i %in% PETPEESE){
-      vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE3_",i), plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"))
-      vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE4_",i), plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+      if(saved_fits[[i]]$add_info$algorithm == "ss"){
+        expect_error(plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"),
+                     "The conditional distribution for the PET-PEESE regression cannot be plotted for the ss algorithm.")
+      }else{
+        vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE3_",i), plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"))
+        vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE4_",i), plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+      }
+
     }else{
       expect_error(plot(saved_fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"),
                    "The ensemble does not contain any posterior samples model-averaged across the PET-PEESE publication bias adjustment. Please, verify that you specified at least one PET-PEESE publication bias adjustment.")
