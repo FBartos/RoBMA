@@ -159,7 +159,7 @@
       parameters_predictors_null[[.BayesTools_parameter_name(predictors[i])]] <-
         sapply(model_predictors_test, function(x) !(predictors[i] %in% x))
       parameters_marginal_null[[.BayesTools_parameter_name(predictors[i])]] <-
-        sapply(seq_along(models), function(j) !((predictors[i] %in% model_predictors_test[j]) || effect[j]))
+        sapply(seq_along(models), function(j) !((predictors[i] %in% model_predictors_test[[j]]) || effect[j]))
     }
 
 
