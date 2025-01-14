@@ -1,5 +1,5 @@
 ---
-title: "Fast Robust Bayesian Meta-Analysis"
+title: "Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm"
 author: "František Bartoš"
 date: "`r Sys.Date()`"
 output:
