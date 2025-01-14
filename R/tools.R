@@ -331,7 +331,7 @@ check_RoBMA_convergence <- function(fit){
   }
 
   # 3.2 -> 3.3
-  if(.object_version_older(object, "3.2.0")){
+  if(.object_version_older(object, "3.3.0")){
     object[["add_info"]][["algorithm"]] <- "bridge"
     object[["add_info"]][["version"]]   <- list(c(2,4,0))
   }
@@ -343,11 +343,24 @@ check_RoBMA_convergence <- function(fit){
   object  <- unlist(object[["add_info"]][["version"]])
   current <- as.numeric(unlist(strsplit(version, ".", fixed = TRUE)))
 
-  if(length(object) < 3 | length(current) < 3){
-    return(object[1] <= current[1] && object[2] <= current[2])
-  }else{
-    return(object[1] <= current[1] && object[2] <= current[2] && object[3] <= current[3])
+  # deal with potential missing trailing zeroes
+  if(length(object) == 2){
+    object <- c(object, 0)
   }
+  if(length(current) == 2){
+    current <- c(current, 0)
+  }
+
+  if(length(object) != 3)
+    stop("The current version number is not in the correct format.")
+  if(length(current) != 3)
+    stop("The version number to compare with is not in the correct format.")
+
+  # transform by 10^3 to compare the versions
+  object  <- object[1] * 1000^2 + object[2] * 1000 + object[3]
+  current <- current[1] * 1000^2 + current[2] * 1000 + current[3]
+
+  return(object < current)
 }
 .check_is_any_RoBMA_object   <- function(x){
   if(!(is.RoBMA(x) || is.RoBMA.reg(x) || is.NoBMA(x) || is.NoBMA.reg(x) || is.BiBMA(x))){
