@@ -34,7 +34,7 @@ if test [ -n "${PKG_CONFIG}" ] ; then
          JAGS_LIBS=`${PKG_CONFIG} --libs jags`
          JAGS_CFLAGS=`${PKG_CONFIG} --cflags jags`
          JAGS_LIBDIR=`${PKG_CONFIG} --variable libdir jags`
-         if test [ -z "${JAGS_LIBS}" -a -z "${JAGS_CFLAGS}" ] ; then
+         if test -z "${JAGS_LIBS}" && test -z "${JAGS_CFLAGS}" ; then
             AC_MSG_WARN([Cannot get information about jags ${PACKAGE_VERSION} from pkg-config])
          else
             AC_MSG_NOTICE([Setting compile and link flags according to pkg-config])
