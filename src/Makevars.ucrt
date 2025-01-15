@@ -76,7 +76,9 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
  		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
 		  distributions/DWB.o \
+		  distributions/DWNMIX.o distributions/DWWNMIX.o \
 		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
+		  transformations/omega.o \
 		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
 		  init.o RoBMA.o testRoBMA.o
@@ -95,7 +97,9 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
 #		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
 #		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
 #		  distributions/DWB.o \
+#		  distributions/DWNMIX.o distributions/DWWNMIX.o \
 #		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
+#		  transformations/omega.o \
 #		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 #		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
 #		  init.o RoBMA.o testRoBMA.o

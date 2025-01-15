@@ -45,8 +45,8 @@
 <polyline points='66.85,542.49 66.85,21.71 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
 <polyline points='128.53,542.49 128.53,21.71 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
 <polyline points='683.68,542.49 683.68,21.71 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polygon points='66.85,45.38 128.53,45.38 128.53,432.01 683.68,432.01 683.68,45.38 128.53,45.38 128.53,45.38 66.85,45.38 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #4D4D4D; fill-opacity: 0.30;' />
-<polyline points='66.85,45.38 128.53,45.38 128.53,97.93 683.68,97.93 ' style='stroke-width: 2.13; stroke-linecap: butt;' />
+<polygon points='66.85,45.38 128.53,45.38 128.53,436.70 683.68,436.70 683.68,45.38 128.53,45.38 128.53,45.38 66.85,45.38 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #4D4D4D; fill-opacity: 0.30;' />
+<polyline points='66.85,45.38 128.53,45.38 128.53,100.30 683.68,100.30 ' style='stroke-width: 2.13; stroke-linecap: butt;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <text x='31.08' y='522.26' text-anchor='end' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.0</text>

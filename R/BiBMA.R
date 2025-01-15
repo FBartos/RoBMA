@@ -130,6 +130,7 @@ BiBMA <- function(
     output_scale           = .transformation_var("logOR"),
     effect_measure         = attr(object[["data"]], "effect_measure"),
     effect_direction       = "positive",
+    algorithm              = "bridge",
     seed                   = seed,
     save                   = save,
     warnings               = NULL,

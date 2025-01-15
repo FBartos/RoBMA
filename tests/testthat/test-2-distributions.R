@@ -308,8 +308,67 @@ test_that("R and JAGS density is consistent", {
   # re-load the module
   RoBMA:::.load_RoBMA_module()
 
-
   ### one sided
+  # univariate (simple)
+  set.seed(1)
+  model_syntax <-
+    "model
+    {
+      x ~ dnorm(0, 1)
+
+      mu ~ dnorm(0, pow(0.30, -2))
+      sigma ~ dunif(0.1, 1.5)
+
+      omega[1] ~ dunif(0, 1)
+      omega[2] ~ dunif(0, 1)
+
+      log_lik = wnorm_1s_lpdf(x, mu, sigma, crit_x, omega)
+    }"
+
+  data <- list(
+    crit_x = matrix(c(0.25), nrow = 1, ncol = 1)
+  )
+
+  model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+
+
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:100, function(i){
+    RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
+  })), tolerance = 1e-3)
+
+  # univariate (more complex)
+  set.seed(1)
+  model_syntax <-
+    "model
+    {
+      x ~ dnorm(0, 1)
+
+      mu ~ dnorm(0, pow(0.30, -2))
+      sigma ~ dunif(0.1, 1.5)
+
+      omega[1] ~ dunif(0, 1)
+      omega[2] ~ dunif(0, 1)
+      omega[3] ~ dunif(0, 1)
+
+      log_lik = wnorm_1s_lpdf(x, mu, sigma, crit_x, omega)
+    }"
+
+  data <- list(
+    crit_x = matrix(c(
+      0.25,
+      0.70), nrow = 1, ncol = 2)
+  )
+
+  model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+
+
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:100, function(i){
+    RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
+  })), tolerance = 1e-3)
+
+  # multivariate
   set.seed(1)
   model_syntax <-
     "model
@@ -349,6 +408,38 @@ test_that("R and JAGS density is consistent", {
 
 
   ### two sided
+  # univariate
+  set.seed(1)
+  model_syntax <-
+    "model
+    {
+      x ~ dnorm(0, 1)
+
+      mu ~ dnorm(0, pow(0.30, -2))
+      sigma ~ dunif(0.1, 1.5)
+
+      omega[1] ~ dunif(0, 1)
+      omega[2] ~ dunif(0, 1)
+      omega[3] ~ dunif(0, 1)
+
+      log_lik = wnorm_2s_lpdf(x, mu, sigma, crit_x, omega)
+    }"
+
+  data <- list(
+    crit_x = matrix(c(
+      0.25,
+      0.70), nrow = 1, ncol = 2)
+  )
+
+  model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+
+
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:100, function(i){
+    RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "two.sided", log = TRUE)
+  })), tolerance = 1e-3)
+
+  # multivariate
   set.seed(1)
   model_syntax <-
     "model

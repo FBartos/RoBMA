@@ -8,4 +8,4 @@
 "Diagnostics overview:"
 " Model    Prior Effect    Prior Heterogeneity max[error(MCMC)] max[error(MCMC)/SD] min(ESS) max(R-hat)"
 "     1           Spike(0)            Spike(0)               NA                  NA       NA         NA"
-"     2 Normal(0, 1)[0, 1]            Spike(0)          0.00737               0.036      770      1.000"
+"     2 Normal(0, 1)[0, 1]            Spike(0)          0.00769               0.038      770      1.000"

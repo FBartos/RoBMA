@@ -1,10 +1,12 @@
 #include "tools.h"
 #include <JRmath.h>
 #include <cmath>
-
+#include <algorithm>
+#include <numeric> 
+#include <vector>
 #include "mnorm.h"
 
-// assigns log of weights product corresponding to the outcome x based on a one-sided weightfunction
+// assigns log of weights product corresponding to the outcome x based on a one/two-sided weightfunction
 double log_weight_onesided(double const *x, double const *crit_x, double const *omega, const int J)
 {
 	double w = -68;
@@ -28,7 +30,6 @@ double log_weight_onesided(double const *x, double const *crit_x, double const *
 	return std::log(w);
 }
 
-// assigns log of weights product corresponding to the outcome x based on a two-sided weightfunction
 double log_weight_twosided(double const *x, double const *crit_x, double const *omega, const int J)
 {
 	double w = -68;
@@ -52,8 +53,116 @@ double log_weight_twosided(double const *x, double const *crit_x, double const *
 	return std::log(w);
 }
 
+// compute the standardizing constant for a one/two-sided weightfunctions
+double log_std_constant_onesided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega, const int J) {
 
-double log_std_constant_onesided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega ,const int K, const int J)
+    // Pre-allocate the denoms vector with size J
+    std::vector<double> denoms(J, 0.0);
+
+    // Compute the first denominator
+    denoms[0] = pnorm(crit_x[0], *const_mu, *sigma, true, false);
+    denoms[0] = (denoms[0] < 0.0) ? 0.0 : denoms[0];
+    double denom_sum = denoms[0];
+
+    // Compute the middle denominators
+    for (int j = 1; j < J - 1; ++j) {
+        denoms[j] = pnorm(crit_x[j], *const_mu, *sigma, true, false) - denom_sum;
+        denoms[j] = (denoms[j] < 0.0) ? 0.0 : denoms[j];
+        denom_sum += denoms[j];
+    }
+
+    // Compute the last denominator
+    if (J > 1) { // Ensure there is more than one element
+        denoms[J - 1] = 1.0 - denom_sum;
+        denoms[J - 1] = (denoms[J - 1] < 0.0) ? 0.0 : denoms[J - 1];
+    }
+
+    // Pre-allocate log_terms vector with maximum possible size J
+    std::vector<double> log_terms;
+    log_terms.reserve(J);
+
+    // Populate log_terms with log(denoms[k]) + log(omega[k]) where denoms[k] and omega[k] > 0
+    for (int k = 0; k < J; ++k) {
+        if (denoms[k] > 0.0 && omega[k] > 0.0) {
+            log_terms.push_back(std::log(denoms[k]) + std::log(omega[k]));
+        }
+    }
+
+    // If no valid terms, return negative infinity
+    if (log_terms.empty()) {
+        return -INFINITY;
+    }
+
+    // Find the maximum log_term to use in the log-sum-exp trick
+    double max_log = *std::max_element(log_terms.begin(), log_terms.end());
+
+    // Compute the sum of exponentials of (log_terms - max_log)
+    double sum_exp = 0.0;
+    for (const auto& log_val : log_terms) {
+        sum_exp += std::exp(log_val - max_log);
+    }
+
+    // Compute log_sum_exp
+    double log_sum_exp = max_log + std::log(sum_exp);
+
+    return log_sum_exp;
+}
+
+double log_std_constant_twosided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega, const int J) {
+
+    // Pre-allocate the denoms vector with size J
+    std::vector<double> denoms(J, 0.0);
+
+    // Compute the first denominator: P(X < crit_x[0]) - P(X < -crit_x[0])
+    denoms[0] = pnorm(crit_x[0], *const_mu, *sigma, true, false) - pnorm(-crit_x[0], *const_mu, *sigma, true, false);
+    denoms[0] = (denoms[0] < 0.0) ? 0.0 : denoms[0];
+    double denom_sum = denoms[0];
+
+    // Compute the middle denominators: P(X < crit_x[j]) - P(X < -crit_x[j]) - denom_sum
+    for (int j = 1; j < J - 1; ++j) {
+        denoms[j] = pnorm(crit_x[j], *const_mu, *sigma, true, false) - pnorm(-crit_x[j], *const_mu, *sigma, true, false) - denom_sum;
+        denoms[j] = (denoms[j] < 0.0) ? 0.0 : denoms[j];
+        denom_sum += denoms[j];
+    }
+
+    // Compute the last denominator: 1.0 - denom_sum
+    if (J > 1) { // Ensure there is more than one element
+        denoms[J - 1] = 1.0 - denom_sum;
+        denoms[J - 1] = (denoms[J - 1] < 0.0) ? 0.0 : denoms[J - 1];
+    }
+
+    // Pre-allocate log_terms vector with maximum possible size J
+    std::vector<double> log_terms;
+    log_terms.reserve(J);
+
+    // Populate log_terms with log(denoms[k]) + log(omega[k]) where denoms[k] and omega[k] > 0
+    for (int k = 0; k < J; ++k) {
+        if (denoms[k] > 0.0 && omega[k] > 0.0) {
+            log_terms.push_back(std::log(denoms[k]) + std::log(omega[k]));
+        }
+    }
+
+    // If no valid terms, return negative infinity
+    if (log_terms.empty()) {
+        return -INFINITY;
+    }
+
+    // Find the maximum log_term to use in the log-sum-exp trick
+    double max_log = *std::max_element(log_terms.begin(), log_terms.end());
+
+    // Compute the sum of exponentials of (log_terms[k] - max_log)
+    double sum_exp = 0.0;
+    for (const auto& log_val : log_terms) {
+        sum_exp += std::exp(log_val - max_log);
+    }
+
+    // Compute log_sum_exp
+    double log_sum_exp = max_log + std::log(sum_exp);
+
+    return log_sum_exp;
+}
+
+double log_std_m_constant_onesided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega ,const int K, const int J)
 {
   double std_constant = 0;
 
@@ -150,8 +259,7 @@ double log_std_constant_onesided(double const *x, double const *const_mu, double
   return std::log(std_constant);
 }
 
-
-double log_std_constant_twosided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega ,const int K, const int J)
+double log_std_m_constant_twosided(double const *x, double const *const_mu, double const *sigma, double const *crit_x, double const *omega ,const int K, const int J)
 {
   double log_std_constant = 0;
 
@@ -180,7 +288,7 @@ double log_std_constant_twosided(double const *x, double const *const_mu, double
       }
   }
 
-  log_std_constant = log_std_constant_onesided(&x[0], &const_mu[0], &sigma[0], &crit_x_onesided[0], &omega_onesided[0], K, 2 * J - 1);
+  log_std_constant = log_std_m_constant_onesided(&x[0], &const_mu[0], &sigma[0], &crit_x_onesided[0], &omega_onesided[0], K, 2 * J - 1);
 
   // clean the memory
   delete[] omega_onesided;
@@ -189,7 +297,7 @@ double log_std_constant_twosided(double const *x, double const *const_mu, double
   return log_std_constant;
 }
 
-
+//// additional helper functions
 // increases index carrying the cutoff coordinates by one
 void increase_index(int *index, int i, int max_i)
 {
@@ -200,7 +308,6 @@ void increase_index(int *index, int i, int max_i)
     *(index + i) += 1;
   }
 }
-
 
 // parsing vector input into different pieces
 double * extract_x_v(const double *x_v, int indx_start, int K)
@@ -265,4 +372,24 @@ double * extract_crit_x_v(const double *crit_x_v, int indx_start, int K, const i
   }
 
   return &this_crit_x[0];
+}
+
+double ddirichlet(const std::vector<double>& x, const std::vector<double>& alpha){
+
+  int k = x.size();
+
+  double prod_gamma = 0.0, sum_alpha = 0.0, p_tmp = 0.0, beta_const = 0.0;
+
+  for (int j = 0; j < k; j++) {
+    double alpha_val = alpha[j];
+    double x_val = x[j];
+    sum_alpha += alpha_val;
+    prod_gamma += std::lgamma(alpha_val);
+    p_tmp += std::log(x_val) * (alpha_val - 1.0);
+  }
+
+  beta_const = prod_gamma - std::lgamma(sum_alpha);
+  double p = p_tmp - beta_const;
+
+  return p;
 }

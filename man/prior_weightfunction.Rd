@@ -42,6 +42,14 @@ its prior distributions.}
 \code{prior_weightfunction} creates a prior distribution for fitting
 a RoBMA selection model. The prior can be visualized by the \code{plot} function.
 }
+\details{
+Constrained cases of weight functions can be specified by adding
+".fixed" after the distribution name, i.e., \code{"two.sided.fixed"} and
+\code{"one.sided.fixed"}. In these cases, the functions are specified using
+\code{steps} and \code{omega} parameters, where the \code{omega} parameter
+is a vector of weights that corresponds to the relative publication probability
+(i.e., no parameters are estimated).
+}
 \examples{
 p1 <- prior_weightfunction("one-sided", parameters = list(steps = c(.05, .10), alpha = c(1, 1, 1)))
 

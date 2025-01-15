@@ -194,7 +194,7 @@
 <polyline points='472.31,49.26 472.31,42.06 472.31,34.86 ' style='stroke-width: 0.75;' />
 <polygon points='341.52,430.71 341.69,430.71 341.69,430.54 341.52,430.54 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='336.96,407.97 337.36,407.97 337.36,407.57 336.96,407.57 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='343.19,385.08 343.52,385.08 343.52,384.75 343.19,384.75 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
+<polygon points='343.19,385.08 343.53,385.08 343.53,384.75 343.19,384.75 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='349.66,362.22 349.99,362.22 349.99,361.89 349.66,361.89 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='359.23,339.28 359.40,339.28 359.40,339.12 359.23,339.12 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='370.68,316.43 370.85,316.43 370.85,316.26 370.68,316.26 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
@@ -210,6 +210,6 @@
 <polygon points='374.12,87.88 374.34,87.88 374.34,87.66 374.12,87.66 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='379.24,65.06 379.52,65.06 379.52,64.77 379.24,64.77 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='391.33,43.90 395.02,43.90 395.02,40.21 391.33,40.21 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='262.79,476.34 378.13,470.63 469.26,476.34 378.13,482.06 ' style='stroke-width: 0.75; fill: #000000;' />
+<polygon points='262.50,476.34 378.07,470.63 469.21,476.34 378.07,482.06 ' style='stroke-width: 0.75; fill: #000000;' />
 </g>
 </svg>

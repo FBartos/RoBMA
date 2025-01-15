@@ -76,6 +76,9 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
                                 output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
                                 short_name = FALSE, remove_spike_0 = FALSE, ...){
 
+  # apply version changes to RoBMA object
+  object <- .update_object(object)
+
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(type, "type")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
@@ -84,9 +87,6 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(short_name, "short_name")
   BayesTools::check_bool(remove_spike_0, "remove_spike_0")
-
-  # apply version changes to RoBMA object
-  object <- .update_object(object)
 
   # check the scales
   if(is.null(output_scale)){
@@ -104,6 +104,10 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     type        <- "diagnostics"
   }
 
+  # dispatch the spike and slab summary function if needed
+  if(object[["add_info"]][["algorithm"]] == "ss"){
+    return(.summary.RoBMA.ss(object, type, conditional, output_scale, probs, logBF, BF01, remove_spike_0, ...))
+  }
 
   if(substr(type,1,1) == "e"){
 
@@ -369,6 +373,175 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   }
 }
 
+.summary.RoBMA.ss    <- function(object, type, conditional, output_scale, probs, logBF, BF01, remove_spike_0, ...){
+
+  if(substr(type,1,1) == "e"){
+
+    # transform the estimates if needed
+    if(object$add_info[["output_scale"]] != output_scale){
+      object <- .transform_posterior(object, object$add_info[["output_scale"]], output_scale)
+    }
+
+    # obtain components overview
+    components <- BayesTools:::update.BayesTools_table(
+      object[["RoBMA"]][["inference"]],
+      title      = "Components summary:",
+      BF01       = BF01,
+      logBF      = logBF
+    )
+
+    # obtain estimates tables
+    estimates <- BayesTools::ensemble_estimates_table(
+      samples    = object$RoBMA[["posteriors"]],
+      parameters = names(object$RoBMA[["posteriors"]]),
+      probs      = probs,
+      title      = "Model-averaged estimates:",
+      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      warnings   = .collect_errors_and_warnings(object)
+    )
+
+    # deal with possibly empty table in case of no alternative models
+    if(is.null(object$RoBMA[["posteriors_conditional"]])){
+      estimates_conditional                    <- data.frame(matrix(nrow = 0, ncol = length(probs) + 2))
+      colnames(estimates_conditional)          <- c("Mean", "Median", probs)
+      class(estimates_conditional)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(estimates_conditional))
+      attr(estimates_conditional, "type")      <- rep("estimate", ncol(estimates_conditional))
+      attr(estimates_conditional, "rownames")  <- TRUE
+      attr(estimates_conditional, "title")     <- "Conditional estimates:"
+      attr(estimates_conditional, "footnotes") <- c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object))
+      attr(estimates_conditional, "warnings")  <- .collect_errors_and_warnings(object)
+    }else{
+      estimates_conditional <- BayesTools::ensemble_estimates_table(
+        samples    = object$RoBMA[["posteriors_conditional"]],
+        parameters = names(object$RoBMA[["posteriors_conditional"]]),
+        probs      = probs,
+        title      = "Conditional estimates:",
+        footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+        warnings   = .collect_errors_and_warnings(object)
+      )
+    }
+
+    # create the output object
+    output <- list(
+      call       = object[["call"]],
+      title      = .object_title(object),
+      components = components,
+      estimates  = estimates
+    )
+
+    if(conditional){
+      output$estimates_conditional <- estimates_conditional
+    }
+
+    # add meta-regression summaries
+    if(is.RoBMA.reg(object)){
+
+      if(!is.null(object$RoBMA[["inference_predictors"]])){
+        output$components_predictors <- BayesTools:::update.BayesTools_table(
+          object[["RoBMA"]][["inference_predictors"]],
+          title      = "Meta-regression components summary:",
+          BF01       = BF01,
+          logBF      = logBF
+        )
+      }
+
+      if(!is.null(object$RoBMA[["posteriors_predictors"]])){
+        # obtain estimates tables
+        output$estimates_predictors <- BayesTools::ensemble_estimates_table(
+          samples        = object$RoBMA[["posteriors_predictors"]],
+          parameters     = names(object$RoBMA[["posteriors_predictors"]]),
+          probs          = probs,
+          title          = "Model-averaged meta-regression estimates:",
+          formula_prefix = FALSE,
+          footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
+          warnings       = .collect_errors_and_warnings(object)
+        )
+      }
+
+      # deal with possibly empty table in case of no alternative models
+      if(conditional){
+        if(is.null(object$RoBMA[["posteriors_predictors_conditional"]])){
+          estimates_predictors_conditional                    <- data.frame(matrix(nrow = 0, ncol = length(probs) + 2))
+          colnames(estimates_predictors_conditional)          <- c("Mean", "Median", probs)
+          class(estimates_predictors_conditional)             <- c("BayesTools_table", "BayesTools_ensemble_summary", class(estimates_predictors_conditional))
+          attr(estimates_predictors_conditional, "type")      <- rep("estimate", ncol(estimates_predictors_conditional))
+          attr(estimates_predictors_conditional, "rownames")  <- TRUE
+          attr(estimates_predictors_conditional, "title")     <- "Conditional meta-regression estimates:"
+          attr(estimates_predictors_conditional, "footnotes") <- .scale_note(object$add_info[["prior_scale"]], output_scale)
+          attr(estimates_predictors_conditional, "warnings")  <- .collect_errors_and_warnings(object)
+        }else{
+          estimates_predictors_conditional <- BayesTools::ensemble_estimates_table(
+            samples    = object$RoBMA[["posteriors_predictors_conditional"]],
+            parameters = names(object$RoBMA[["posteriors_predictors_conditional"]]),
+            probs      = probs,
+            title      = "Conditional meta-regression estimates:",
+            formula_prefix = FALSE,
+            footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
+            warnings   = .collect_errors_and_warnings(object)
+          )
+        }
+        output$estimates_predictors_conditional <- estimates_predictors_conditional
+      }
+    }
+
+    class(output) <- "summary.RoBMA"
+    attr(output, "type") <- "ensemble"
+
+    return(output)
+
+  }else{
+
+    # transform the estimates if needed
+    if(object$add_info[["output_scale"]] != output_scale){
+      transformations <- .runjags_summary_list(NULL, priors = object$model[["priors"]], prior_scale = object$add_info[["prior_scale"]], measures = output_scale, transformations_only = TRUE)
+    }
+
+    estimates <- suppressMessages(BayesTools::runjags_estimates_table(
+      object[["model"]][["fit"]],
+      transformations   = if(object$add_info[["output_scale"]] != output_scale) transformations else NULL,
+      transform_factors = TRUE,
+      remove_spike_0    = remove_spike_0,
+      formula_prefix    = FALSE,
+      remove_inclusion  = TRUE,
+      conditional       = FALSE,
+      title             = "Model-averaged estimates:",
+      warnings          = .collect_errors_and_warnings(object),
+      footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+    ))
+
+    if(conditional){
+      estimates_conditional <- suppressMessages(BayesTools::runjags_estimates_table(
+        object[["model"]][["fit"]],
+        transformations   = if(object$add_info[["output_scale"]] != output_scale) transformations else NULL,
+        transform_factors = TRUE,
+        remove_spike_0    = remove_spike_0,
+        formula_prefix    = FALSE,
+        remove_inclusion  = TRUE,
+        conditional       = TRUE,
+        title             = "Conditional estimates:",
+        warnings          = .collect_errors_and_warnings(object),
+        footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      ))
+    }
+
+    # create the output object
+    output <- list(
+      call       = object[["call"]],
+      title      = .object_title(object),
+      estimates  = estimates
+    )
+
+    if(conditional){
+      output$estimates_conditional <- estimates_conditional
+    }
+
+    class(output) <- "summary.RoBMA"
+    attr(output, "type") <- "ensemble"
+
+    return(output)
+
+  }
+}
 
 #' @title Prints summary object for RoBMA method
 #'
@@ -512,39 +685,80 @@ interpret           <- function(object, output_scale = NULL){
     object <- .transform_posterior(object, object$add_info[["output_scale"]], output_scale)
   }
 
-  specification <- list()
-  if(any(names(object$RoBMA[["inference"]]) == "Effect")){
-    specification[["Effect"]] <- list(
-      inference           = "Effect",
-      samples             = "mu",
-      inference_name      = "effect",
-      inference_BF_name   = "BF_10",
-      samples_name        = .transformation_names(object$add_info[["output_scale"]])
+  if(object[["add_info"]][["algorithm"]] == "bridge"){
+
+    specification <- list()
+
+    if(any(names(object$RoBMA[["inference"]]) == "Effect")){
+      specification[["Effect"]] <- list(
+        inference           = "Effect",
+        samples             = "mu",
+        inference_name      = "effect",
+        inference_BF_name   = "BF_10",
+        samples_name        = .transformation_names(object$add_info[["output_scale"]])
+      )
+    }
+    if(any(names(object$RoBMA[["inference"]]) == "Heterogeneity")){
+      specification[["Heterogeneity"]] <- list(
+        inference           = "Heterogeneity",
+        samples             = "tau",
+        inference_name      = "heterogeneity",
+        inference_BF_name   = "BF^rf",
+        samples_name        = "tau"
+      )
+    }
+    if(any(names(object$RoBMA[["inference"]]) == "Bias")){
+      specification[["Bias"]] <- list(
+        inference           = "Bias",
+        inference_name      = "publication bias",
+        inference_BF_name   = "BF_pb"
+      )
+    }
+
+    text <- BayesTools::interpret(
+      inference     = object$RoBMA[["inference"]],
+      samples       = object$RoBMA[["posteriors"]],
+      specification = specification,
+      method        = .object_title(object)
     )
-  }
-  if(any(names(object$RoBMA[["inference"]]) == "Heterogeneity")){
-    specification[["Heterogeneity"]] <- list(
-      inference           = "Heterogeneity",
-      samples             = "tau",
-      inference_name      = "heterogeneity",
-      inference_BF_name   = "BF^rf",
-      samples_name        = "tau"
-    )
-  }
-  if(any(names(object$RoBMA[["inference"]]) == "Bias")){
-    specification[["Bias"]] <- list(
-      inference           = "Bias",
-      inference_name      = "publication bias",
-      inference_BF_name   = "BF_pb"
-    )
+
+  }else{
+
+    specification <- list()
+    components    <- summary(object)[["components"]]
+
+    if(any(rownames(components) == "Effect")){
+      specification[["Effect"]] <- list(
+        inference_name        = "effect",
+        inference_BF_name     = "BF_10",
+        inference_BF          = components[rownames(components) == "Effect", "inclusion_BF"],
+        estimate_name         = .transformation_names(object$add_info[["output_scale"]]),
+        estimate_samples      = as.numeric(object$RoBMA$posteriors[["mu"]]),
+        estimate_conditional  = FALSE
+      )
+    }
+    if(any(rownames(components) == "Heterogeneity")){
+      specification[["Heterogeneity"]] <- list(
+        inference_name        = "heterogeneity",
+        inference_BF_name     = "BF^rf",
+        inference_BF          = components[rownames(components) == "Heterogeneity", "inclusion_BF"],
+        estimate_name         = "tau",
+        estimate_samples      = as.numeric(object$RoBMA$posteriors[["tau"]]),
+        estimate_conditional  = FALSE
+      )
+    }
+    if(any(rownames(components) == "Bias")){
+      specification[["Bias"]] <- list(
+        inference_name      = "publication bias",
+        inference_BF_name   = "BF_pb",
+        inference_BF        = components[rownames(components) == "Bias", "inclusion_BF"]
+      )
+    }
+
+    text <- BayesTools::interpret2(specification, method = .object_title(object))
+
   }
 
-  text <- BayesTools::interpret(
-    inference     = object$RoBMA[["inference"]],
-    samples       = object$RoBMA[["posteriors"]],
-    specification = specification,
-    method        = .object_title(object)
-  )
 
   return(text)
 }

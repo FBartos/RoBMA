@@ -18,9 +18,12 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
                                   output_scale = NULL, probs = c(.025, .975),
                                   short_name = FALSE, remove_spike_0 = FALSE){
 
-  .check_is_any_RoBMA_object(object)
+  # apply version changes to RoBMA object
+  object <- .update_object(object)
+
   if(is.BiBMA(object))
     stop("The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
+
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_char(type, "type")
@@ -50,10 +53,17 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   v_tilde <- ((length(w) - 1) * sum(w)) / (sum(w)^2 - sum(w^2))
 
 
-  if(substr(type,1,1) == "e"){
+  if(substr(type,1,1) == "e" || object[["add_info"]][["algorithm"]] == "ss"){
 
     # prediction intervals (computed on the model scale -- returned on the prior scale)
-    PI <- .compute_ensemble_predictions(object, model_scale)
+    if(object[["add_info"]][["algorithm"]] == "ss"){
+      PI <- list(
+        "averaged"    = .compute_model_predictions(object[["model"]], model_scale),
+        "conditional" = .compute_model_predictions(object[["model"]], model_scale, conditional = TRUE)
+      )
+    }else{
+      PI <- .compute_ensemble_predictions(object, model_scale)
+    }
 
     # obtain estimates tables
     estimates <- BayesTools::ensemble_estimates_table(
@@ -184,12 +194,12 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   (tau^2 + v_tilde) / v_tilde
 }
 
-.compute_model_predictions    <- function(model, model_scale, seed = NULL){
+.compute_model_predictions    <- function(model, model_scale, seed = NULL, conditional = FALSE){
 
   if(model[["prior_scale"]] != model[["output_scale"]])
     stop("The prior_scale does not match the output_scale. (Individual models' MCMC samples must have been transformed earlier.)")
 
-  if(inherits(model, "RoBMA.reg.model")){
+  if(.is_model_regression(model)){
     if(BayesTools::is.prior.point(model$priors$terms[["intercept"]])){
       mu <- model$priors$terms[["intercept"]]$parameters[["location"]]
     }else{
@@ -222,6 +232,13 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   predictions <- stats::rnorm(n = max(length(mu), length(tau))*10, mean = mu, sd = tau)
   predictions <- .scale(predictions, model_scale, model[["prior_scale"]])
 
+  if(conditional){
+
+    tau_is_null   <- attr(model$priors[["tau"]], "components") == "null"
+    tau_indicator <- suppressWarnings(coda::as.mcmc(model[["fit"]])[,"tau_indicator"])
+
+    predictions <- predictions[tau_indicator %in% which(!tau_is_null)]
+  }
 
   return(predictions)
 }

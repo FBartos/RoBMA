@@ -16,6 +16,9 @@
 marginal_summary <- function(object, conditional = FALSE,
                              output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE){
 
+  # apply version changes to RoBMA object
+  object <- .update_object(object)
+
   if(!is.RoBMA.reg(object))
     stop("'marginal_summary' function is available only for RoBMA regression models")
   if(sum(.get_model_convergence(object)) == 0)
@@ -28,9 +31,6 @@ marginal_summary <- function(object, conditional = FALSE,
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_bool(BF01,  "BF01")
   BayesTools::check_bool(logBF, "logBF")
-
-  # apply version changes to RoBMA object
-  object <- .update_object(object)
 
   # check the scales
   if(is.null(output_scale)){
@@ -145,6 +145,9 @@ print.marginal_summary.RoBMA <- function(x, ...){
 #' @export
 marginal_plot  <- function(x, parameter, conditional = FALSE, plot_type = "base", prior = FALSE, output_scale = NULL, dots_prior = NULL, ...){
 
+  # apply version changes to RoBMA object
+  x <- .update_object(x)
+
   # check whether plotting is possible
   if(!is.RoBMA.reg(x))
     stop("'marginal_plot' function is available only for RoBMA regression models")
@@ -159,10 +162,6 @@ marginal_plot  <- function(x, parameter, conditional = FALSE, plot_type = "base"
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(prior, "prior")
-
-  # apply version changes to RoBMA object
-  x <- .update_object(x)
-
 
   ### manage transformations
   # get the settings

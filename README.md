@@ -20,10 +20,13 @@ bias) and uses Bayesian model averaging to combine them. The ensemble
 uses Bayes factors to test for the presence of absence of the individual
 components (e.g., effect vs. no effect) and model-averages parameter
 estimates based on posterior model probabilities. The user can define a
-wide range prior distributions for the effect size, heterogeneity, and
+wide range prior distributions for the effect size, heterogeneity,
 publication bias components (including selection, PET, and PEESE style
-models). The package provides convenient functions for summary,
-visualizations, and fit diagnostics.
+models), and moderators. The package provides convenient functions for
+summary, visualizations, and fit diagnostics. The package is designed to
+be user-friendly and provides a wide range of customization options. The
+package is also integrated into the JASP software (JASP Team, 2020) and
+can be used via the graphical user interface.
 
 See our manuscripts that for technical details and examples:
 
@@ -66,6 +69,8 @@ package:
   outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
 - [Fitting custom meta-analytic
   ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
+- [Fast Robust Bayesian Meta-Analysis via Spike and Slab
+  Algorithm](https://fbartos.github.io/RoBMA/articles/FastRoBMA.html)
 
 ## Updates
 
@@ -99,6 +104,8 @@ The 3.0 version brings several features to the package:
   `marginal_summary()` and `marginal_plot()` function
 - prediction intervals, I^2, and H^2 statistics using
   `summary_heterogeneity()` function
+- the spike and slab algorithm for faster model estimation via the
+  `algorithm = "ss"` argument
 
 The 2.0 version brought several updates to the package:
 

@@ -1,3 +1,12 @@
+## version 3.3
+### Features
+- the spike and slab algorithm for faster model estimation via the `algorithm = "ss"` argument (see a new vignette for more details)
+- refactoring of the JAGS C++ code of weighted distributions and exporting of the lpdfs into JAGS (maintenance)
+- weights_mix JAGS prior distribution to sample a mixture of weight functions directly
+
+### Fixes
+- incorrectly omitting models with more than one predictor when computing conditional marginal summary
+
 ## version 3.2.1
 ### Features
 - default prior distributions for all parameters are now set via the `set_default_priors()` function

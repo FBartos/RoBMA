@@ -651,3 +651,96 @@
 
   return(model)
 }
+
+.make_model_ss     <- function(priors, multivariate, weighted){
+
+  if(multivariate)
+    stop("The multivariate model is not supported for the spike and slab algorithm.")
+
+  # check the SS logarithm is implemented
+  if(any(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2"))))
+    stop("Spike and slab algorithm currently does not support non-monotonic weight functions. If you want to use the feature, please submit a feature request at the GitHub repository.")
+
+  # pre-compute model component information
+  priors_effect        <- priors[["effect"]]
+  priors_heterogeneity <- priors[["heterogeneity"]]
+  priors_bias          <- priors[["bias"]]
+
+  model <- list(priors = list())
+
+  # place effect priors
+  model$priors$mu <- BayesTools::prior_mixture(priors_effect, is_null = sapply(priors_effect, function(x) x[["is_null"]]))
+
+  # place heterogeneity priors
+  model$priors$tau <- BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]]))
+
+  # place bias priors
+  if(length(priors_bias) == 1 && is.prior.none(priors_bias[[1]])){
+    model$priors$bias <- priors_bias[[1]]
+  }else{
+    model$priors$bias <- BayesTools::prior_mixture(priors_bias, is_null = sapply(priors_bias, function(x) x[["is_null"]]))
+  }
+
+
+  class(model) <- "RoBMA.model_ss"
+
+  attr(model, "multivariate")  <- multivariate && !is.null(priors$rho)
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
+
+  return(model)
+}
+.make_model_ss.reg <- function(priors, multivariate, weighted, do_not_fit){
+
+  model_base <- .make_model_ss(priors = priors, multivariate = multivariate, weighted = weighted)
+
+  model_priors  <- model_base[["priors"]]
+  prior_weights <- model_base[["prior_weights"]]
+  terms         <- attr(priors, "terms")
+
+  ### add priors for the terms
+  model_priors[["terms"]] <- list()
+
+  # rename mu to the intercept
+  model_priors[["terms"]][["intercept"]] <- model_priors[["mu"]]
+  model_priors[["mu"]] <- NULL
+
+  terms_test <- NULL
+  for(i in seq_along(terms)){
+
+    if(all(c("null", "alt") %in% names(priors[["terms"]][[terms[i]]]))){
+
+      weight_null <- priors[["terms"]][[terms[i]]][["null"]]$prior_weights
+      weight_alt  <- priors[["terms"]][[terms[i]]][["alt"]]$prior_weights
+
+      model_priors[["terms"]][[terms[i]]]  <- BayesTools::prior_mixture(
+        list(
+          priors[["terms"]][[terms[i]]][["null"]],
+          priors[["terms"]][[terms[i]]][["alt"]]
+        ), is_null = c(TRUE, FALSE)
+      )
+
+      terms_test <- c(terms_test, terms[i])
+
+    }else{
+
+      model_priors[["terms"]][[terms[i]]]  <- priors[["terms"]][[terms[i]]][["alt"]]
+
+    }
+
+
+  }
+
+  model <- list(
+    priors       = model_priors,
+    terms        = terms,
+    terms_test   = terms_test
+  )
+
+  class(model) <- "RoBMA.reg.model_ss"
+  attr(model, "multivariate")  <- attr(model_base, "multivariate")
+  attr(model, "weighted")      <- attr(model_base, "weighted")
+  attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+
+  return(model)
+}

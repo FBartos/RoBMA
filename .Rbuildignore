@@ -21,6 +21,7 @@ tests/testthat/test-8-transformations.R
 ^Meta$
 ^RoBMA.Rcheck$
 README.Rmd
+README.html
 ^\.github$
 ^codecov\.yml$
 _pkgdown.yml

@@ -981,7 +981,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   convergence_checks[["balance_probability"]] <- balance_probability
   return(convergence_checks)
 }
-.check_and_list_add_info  <- function(model_type, predictors = NULL, predictors_test = NULL, prior_scale, output_scale, effect_measure, effect_direction, standardize_predictors = NULL, seed, save, warnings, errors){
+.check_and_list_add_info  <- function(model_type, predictors = NULL, predictors_test = NULL, prior_scale, output_scale, effect_measure, effect_direction, algorithm, standardize_predictors = NULL, seed, save, warnings, errors){
 
   BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative"))
   BayesTools::check_real(seed, "seed", allow_NULL = TRUE)
@@ -990,6 +990,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   BayesTools::check_char(predictors, "predictors", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_char(predictors_test, "predictors_test", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_bool(standardize_predictors, "standardize_predictors", allow_NULL = TRUE)
+  BayesTools::check_char(algorithm, "algorithm", allow_values = c("bridge", "ss"))
 
   if((prior_scale == "y" & effect_measure != "y") | (prior_scale != "y" & effect_measure == "y"))
     stop("Prior / effect size transformations are not available for unstandardized effect sizes.", call. = FALSE)
@@ -1003,6 +1004,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     effect_measure         = effect_measure,
     effect_direction       = effect_direction,
     standardize_predictors = standardize_predictors,
+    algorithm              = algorithm,
     seed                   = seed,
     save                   = save,
     warnings               = warnings,

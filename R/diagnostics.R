@@ -71,11 +71,12 @@
 diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = NULL,
                         lags = 30, title = is.null(show_models) | length(show_models) > 1, ...){
 
-  # check settings
-  if(!is.RoBMA(fit))
-    stop("Diagnostics are available only for RoBMA models.")
+  # apply version changes to RoBMA object
+  fit <- .update_object(fit)
+
   if(fit$add_info$save == "min")
     stop("Diagnostics cannot be produced because individual model posteriors were not save during the fitting process. Set 'save' parameter to 'all' while fitting the model (see ?RoBMA for more details).")
+
   BayesTools::check_char(parameter, "parameter")
   BayesTools::check_char(type, "type")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -119,6 +120,11 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
     show_figures <-  -1
   }else{
     show_figures <-  NULL
+  }
+
+
+  if(fit$add_info[["algorithm"]] == "ss"){
+    return(.diagnostics.ss(fit, parameter, parameter_samples, type, plot_type, lags, title, show_figures, ...))
   }
 
 
@@ -182,6 +188,63 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
     if(length(plots) == 1){
       plots <- plots[[1]]
     }
+    return(plots)
+  }
+}
+
+.diagnostics.ss <- function(fit, parameter, parameter_samples, type, plot_type, lags, title, show_figures, ...){
+
+
+  # a message with info about multiple plots
+  if(plot_type == "base" && parameter == "omega")
+    message("Multiple plots will be produced. See '?layout' for help with setting multiple plots.")
+
+  dots  <- .set_dots_diagnostics(..., type = type, chains = fit[["fit_control"]][["chains"]])
+  plots <- list()
+
+
+  model_parameters <- names(attr(fit$model[["fit"]], "prior_list"))
+  if("bias" %in% model_parameters){
+    model_parameters <- model_parameters[model_parameters != "bias"]
+    model_parameters <- c(
+      model_parameters,
+      if(any(sapply(attr(fit$model[["fit"]], "prior_list")[["bias"]], is.prior.weightfunction))) "omega",
+      if(any(sapply(attr(fit$model[["fit"]], "prior_list")[["bias"]], is.prior.PET))) "PET",
+      if(any(sapply(attr(fit$model[["fit"]], "prior_list")[["bias"]], is.prior.PEESE))) "PEESE"
+    )
+  }
+
+  if(!parameter_samples %in% model_parameters){
+
+    plots <- NULL
+
+  }else if(inherits(fit$model[["fit"]], "null_model")){
+
+    plots <- NULL
+
+  }else{
+
+    # get the parameter name
+    args                   <- dots
+    args$fit               <- fit$model[["fit"]]
+    args$parameter         <- parameter_samples
+    args$parameter_names   <- if(parameter %in% c("mu", "tau")) .plot.RoBMA_par_names(parameter, fit, fit$add_info[["prior_scale"]])[[1]]
+    args$type              <- type
+    args$plot_type         <- plot_type
+    args$lags              <- lags
+    args$transformations   <- NULL
+    args$transform_factors <- TRUE
+    args$short_name        <- FALSE
+    args$parameter_names   <- FALSE
+    args$formula_prefix    <- FALSE
+
+    plots <- do.call(BayesTools::JAGS_diagnostics, args)
+  }
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible(plots))
+  }else if(plot_type == "ggplot"){
     return(plots)
   }
 }

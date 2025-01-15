@@ -4,11 +4,9 @@
 #include <rng/RNG.h>
 #include <JRmath.h>
 
-
-
-
-
-
+#include "../source/mnorm.h"
+#include "../source/wmnorm.h"
+#include "../source/tools.h"
 
 // define parameters
 // mu  = par[0]
@@ -61,66 +59,19 @@ double DWWN2::logDensity(double const *x, unsigned int length, PDFType type,
 			  std::vector<unsigned int> const &len,
 			  double const *lower, double const *upper) const
 {
+  // reassign the addresses to pointers
+  const double *mu     = par[0];
+  const double var     = 1/ *par[1];
+  const double sigma   = std::sqrt(var);
+  const double *crit_x = par[2];
+  const double *omega  = par[3];
+  const double weight  = *par[4];
 
-  double abs_x = std::fabs(*x);
-  double mu    = *par[0];
-  double var   = 1/ *par[1];
-  double weight = *par[4];
+  // information about the dimensions
+  const int J = len[3]; // of the weights
 
-  double denom = 0;
-  double w = -68;
-  std::vector<double> denoms;
-
-  // select weight to correspond to the current cut-off
-  if(abs_x >= crit_x(par)[n_crit_x(len)-1]){
-    w = std::log(omega(par)[n_omega(len)-1]);
-  }else if(abs_x < crit_x(par)[0]){
-    w = std::log(omega(par)[0]);
-  }else{
-    for(unsigned i = 1; i < n_omega(len); ++i){
-      if( ( abs_x < crit_x(par)[i] ) && ( abs_x >= crit_x(par)[i-1]) ){
-        w = std::log(omega(par)[i]);
-        break;
-      }
-    }
-  }
-
-  // compute the nominator
-  double nom = dnorm(*x, mu, std::sqrt(var), true) + w;
-
-  // compute the probabilities between cutpoints
-  // the first one
-  denoms.push_back(pnorm(crit_x(par)[0], mu, std::sqrt(var), true, false) -  pnorm(-crit_x(par)[0], mu, std::sqrt(var), true, false));
-  // check and correct for possibly negative numbers due to numerical imprecision
-  if(denoms[0] < 0.0){
-    denoms[0] = 0.0;
-  }
-  double denom_sum = denoms[0];
-  // the ones in the middle
-  if(n_omega(len) > 1){
-    for(unsigned j = 1; j < n_omega(len) - 1; ++j){
-      denoms.push_back(pnorm(crit_x(par)[j], mu, std::sqrt(var), true, false) -  pnorm(-crit_x(par)[j], mu, std::sqrt(var), true, false) - denom_sum);
-      // check and correct for possibly negative numbers due to numerical imprecision
-      if(denoms[j] < 0.0){
-        denoms[j] = 0.0;
-      }
-      denom_sum = denom_sum + denoms[j];
-    }
-  }
-  // the last one
-  denoms.push_back(1.0 - denom_sum);
-  // check and correct for possibly negative numbers due to numerical imprecision
-  if(denoms[n_omega(len)-1] < 0.0){
-    denoms[n_omega(len)-1] = 0.0;
-  }
-
-  // weight and sum the denominators
-  for(unsigned k = 0; k < n_omega(len); ++k){
-    denom = denom + std::exp(std::log(denoms[k]) + std::log(omega(par)[k]));
-  }
-
-  // compute the log likelihood
-  double log_lik = (nom-std::log(denom)) * weight;
+  // the log weighted normal likelihood
+  double log_lik = cpp_wnorm_2s_lpdf(x, mu, &sigma, crit_x, omega, J) * weight;
 
   return log_lik;
 }
