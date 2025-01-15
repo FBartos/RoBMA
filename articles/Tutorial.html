@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -34,6 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -121,8 +122,6 @@ workspace with the <code><a href="https://rdrr.io/r/base/library.html" class="ex
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="st"><a href="https://www.metafor-project.org" class="external-link">"metafor"</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="st"><a href="http://faculty.ucmerced.edu/jvevea/" class="external-link">"weightr"</a></span><span class="op">)</span></span>
-<span><span class="co">#&gt; Error in get(paste0(generic, ".", class), envir = get_method_env()) : </span></span>
-<span><span class="co">#&gt;   object 'type_sum.accel' not found</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="st"><a href="https://fbartos.github.io/RoBMA/" class="external-link">"RoBMA"</a></span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
@@ -587,22 +586,22 @@ fitted model.</p>
 <span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
 <span><span class="co">#&gt; Components summary:</span></span>
 <span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect         18/36       0.500       0.552        1.232</span></span>
-<span><span class="co">#&gt; Heterogeneity  18/36       0.500       1.000    19168.311</span></span>
-<span><span class="co">#&gt; Bias           32/36       0.500       0.845        5.436</span></span>
+<span><span class="co">#&gt; Effect         18/36       0.500       0.552        1.231</span></span>
+<span><span class="co">#&gt; Heterogeneity  18/36       0.500       1.000    19060.032</span></span>
+<span><span class="co">#&gt; Bias           32/36       0.500       0.844        5.420</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-averaged estimates:</span></span>
 <span><span class="co">#&gt;                    Mean Median  0.025  0.975</span></span>
-<span><span class="co">#&gt; mu                0.195  0.087 -0.008  0.598</span></span>
+<span><span class="co">#&gt; mu                0.195  0.086 -0.008  0.598</span></span>
 <span><span class="co">#&gt; tau               0.330  0.307  0.166  0.597</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000  1.000  1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.025,0.05] 0.936  1.000  0.438  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.740  1.000  0.065  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.741  1.000  0.065  1.000</span></span>
 <span><span class="co">#&gt; omega[0.5,0.95]   0.697  1.000  0.028  1.000</span></span>
 <span><span class="co">#&gt; omega[0.95,0.975] 0.704  1.000  0.028  1.000</span></span>
 <span><span class="co">#&gt; omega[0.975,1]    0.713  1.000  0.028  1.000</span></span>
 <span><span class="co">#&gt; PET               0.828  0.000  0.000  3.291</span></span>
-<span><span class="co">#&gt; PEESE             0.802  0.000  0.000 10.805</span></span>
+<span><span class="co">#&gt; PEESE             0.803  0.000  0.000 10.826</span></span>
 <span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
 <span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span></code></pre></div>
 <p>The printed output consists of two parts. The first table called
@@ -645,9 +644,9 @@ estimates to the correlation coefficients by adding the
 <span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
 <span><span class="co">#&gt; Components summary:</span></span>
 <span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect         18/36       0.500       0.552        1.232</span></span>
-<span><span class="co">#&gt; Heterogeneity  18/36       0.500       1.000    19168.311</span></span>
-<span><span class="co">#&gt; Bias           32/36       0.500       0.845        5.436</span></span>
+<span><span class="co">#&gt; Effect         18/36       0.500       0.552        1.231</span></span>
+<span><span class="co">#&gt; Heterogeneity  18/36       0.500       1.000    19060.032</span></span>
+<span><span class="co">#&gt; Bias           32/36       0.500       0.844        5.420</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-averaged estimates:</span></span>
 <span><span class="co">#&gt;                    Mean Median  0.025  0.975</span></span>
@@ -655,12 +654,12 @@ estimates to the correlation coefficients by adding the
 <span><span class="co">#&gt; tau               0.165  0.154  0.083  0.299</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000  1.000  1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.025,0.05] 0.936  1.000  0.438  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.740  1.000  0.065  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.741  1.000  0.065  1.000</span></span>
 <span><span class="co">#&gt; omega[0.5,0.95]   0.697  1.000  0.028  1.000</span></span>
 <span><span class="co">#&gt; omega[0.95,0.975] 0.704  1.000  0.028  1.000</span></span>
 <span><span class="co">#&gt; omega[0.975,1]    0.713  1.000  0.028  1.000</span></span>
 <span><span class="co">#&gt; PET               0.828  0.000  0.000  3.291</span></span>
-<span><span class="co">#&gt; PEESE             1.603  0.000  0.000 21.610</span></span>
+<span><span class="co">#&gt; PEESE             1.605  0.000  0.000 21.652</span></span>
 <span><span class="co">#&gt; The effect size estimates are summarized on the correlation scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).</span></span>
 <span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span></code></pre></div>
 <p>Now, we have obtained the model-averaged effect size estimate on the
@@ -674,7 +673,7 @@ quick textual summary of the model can also be generated with the
 <code><a href="../reference/interpret.html">interpret()</a></code> function.</p>
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/interpret.html">interpret</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_scale <span class="op">=</span> <span class="st">"r"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "Robust Bayesian meta-analysis found weak evidence in favor of the effect, BF_10 = 1.23, with mean model-averaged estimate correlation = 0.095, 95% CI [-0.004,  0.286]. Robust Bayesian meta-analysis found strong evidence in favor of the heterogeneity, BF^rf = 19168.31, with mean model-averaged estimate tau = 0.165, 95% CI [0.083, 0.299]. Robust Bayesian meta-analysis found moderate evidence in favor of the publication bias, BF_pb = 5.44."</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] "Robust Bayesian meta-analysis found weak evidence in favor of the effect, BF_10 = 1.23, with mean model-averaged estimate correlation = 0.095, 95% CI [-0.004,  0.286]. Robust Bayesian meta-analysis found strong evidence in favor of the heterogeneity, BF^rf = 19060.03, with mean model-averaged estimate tau = 0.165, 95% CI [0.083, 0.299]. Robust Bayesian meta-analysis found moderate evidence in favor of the publication bias, BF_pb = 5.42."</span></span></code></pre></div>
 <p>We can also obtain summary information about the individual models by
 specifying the <code>type = "models"</code> option. The resulting table
 shows the prior and posterior model probabilities and inclusion Bayes
@@ -731,38 +730,38 @@ by abbreviating names of the prior distributions).</p>
 <span><span class="co">#&gt;            omega[2s: .05] ~ CumD(1, 1)             0.010       -49.60</span></span>
 <span><span class="co">#&gt;        omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010       -47.53</span></span>
 <span><span class="co">#&gt;            omega[1s: .05] ~ CumD(1, 1)             0.010       -41.70</span></span>
-<span><span class="co">#&gt;      omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010       -38.03</span></span>
-<span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010       -44.41</span></span>
+<span><span class="co">#&gt;      omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010       -38.04</span></span>
+<span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010       -44.42</span></span>
 <span><span class="co">#&gt;  omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010       -40.79</span></span>
 <span><span class="co">#&gt;                       PET ~ C(0, 1)[0, Inf]        0.031        -5.01</span></span>
 <span><span class="co">#&gt;                     PEESE ~ C(0, 5)[0, Inf]        0.031       -12.17</span></span>
 <span><span class="co">#&gt;                                                    0.125        -6.95</span></span>
 <span><span class="co">#&gt;            omega[2s: .05] ~ CumD(1, 1)             0.010        -5.96</span></span>
-<span><span class="co">#&gt;        omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010        -5.09</span></span>
+<span><span class="co">#&gt;        omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010        -5.10</span></span>
 <span><span class="co">#&gt;            omega[1s: .05] ~ CumD(1, 1)             0.010         2.72</span></span>
 <span><span class="co">#&gt;      omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010         2.93</span></span>
-<span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010         2.91</span></span>
+<span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010         2.90</span></span>
 <span><span class="co">#&gt;  omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010         3.30</span></span>
 <span><span class="co">#&gt;                       PET ~ C(0, 1)[0, Inf]        0.031         3.62</span></span>
-<span><span class="co">#&gt;                     PEESE ~ C(0, 5)[0, Inf]        0.031         1.62</span></span>
+<span><span class="co">#&gt;                     PEESE ~ C(0, 5)[0, Inf]        0.031         1.63</span></span>
 <span><span class="co">#&gt;                                                    0.125       -13.17</span></span>
 <span><span class="co">#&gt;            omega[2s: .05] ~ CumD(1, 1)             0.010       -13.10</span></span>
 <span><span class="co">#&gt;        omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010       -12.87</span></span>
-<span><span class="co">#&gt;            omega[1s: .05] ~ CumD(1, 1)             0.010       -12.75</span></span>
-<span><span class="co">#&gt;      omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010       -12.86</span></span>
-<span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010       -13.29</span></span>
+<span><span class="co">#&gt;            omega[1s: .05] ~ CumD(1, 1)             0.010       -12.76</span></span>
+<span><span class="co">#&gt;      omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010       -12.87</span></span>
+<span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010       -13.30</span></span>
 <span><span class="co">#&gt;  omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010       -13.25</span></span>
-<span><span class="co">#&gt;                       PET ~ C(0, 1)[0, Inf]        0.031        -7.07</span></span>
+<span><span class="co">#&gt;                       PET ~ C(0, 1)[0, Inf]        0.031        -7.04</span></span>
 <span><span class="co">#&gt;                     PEESE ~ C(0, 5)[0, Inf]        0.031        -7.58</span></span>
 <span><span class="co">#&gt;                                                    0.125         1.79</span></span>
 <span><span class="co">#&gt;            omega[2s: .05] ~ CumD(1, 1)             0.010         1.75</span></span>
 <span><span class="co">#&gt;        omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010         2.16</span></span>
-<span><span class="co">#&gt;            omega[1s: .05] ~ CumD(1, 1)             0.010         3.11</span></span>
+<span><span class="co">#&gt;            omega[1s: .05] ~ CumD(1, 1)             0.010         3.10</span></span>
 <span><span class="co">#&gt;      omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010         3.01</span></span>
 <span><span class="co">#&gt;        omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010         2.98</span></span>
-<span><span class="co">#&gt;  omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010         3.06</span></span>
-<span><span class="co">#&gt;                       PET ~ C(0, 1)[0, Inf]        0.031         2.75</span></span>
-<span><span class="co">#&gt;                     PEESE ~ C(0, 5)[0, Inf]        0.031         2.55</span></span>
+<span><span class="co">#&gt;  omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010         3.07</span></span>
+<span><span class="co">#&gt;                       PET ~ C(0, 1)[0, Inf]        0.031         2.74</span></span>
+<span><span class="co">#&gt;                     PEESE ~ C(0, 5)[0, Inf]        0.031         2.54</span></span>
 <span><span class="co">#&gt;  Post. prob. Inclusion BF</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
@@ -776,12 +775,12 @@ by abbreviating names of the prior distributions).</p>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
 <span><span class="co">#&gt;        0.000        0.001</span></span>
 <span><span class="co">#&gt;        0.000        0.001</span></span>
-<span><span class="co">#&gt;        0.033        3.231</span></span>
-<span><span class="co">#&gt;        0.041        4.025</span></span>
-<span><span class="co">#&gt;        0.040        3.919</span></span>
-<span><span class="co">#&gt;        0.059        5.927</span></span>
-<span><span class="co">#&gt;        0.243        9.957</span></span>
-<span><span class="co">#&gt;        0.033        1.055</span></span>
+<span><span class="co">#&gt;        0.033        3.234</span></span>
+<span><span class="co">#&gt;        0.040        4.008</span></span>
+<span><span class="co">#&gt;        0.039        3.894</span></span>
+<span><span class="co">#&gt;        0.059        5.941</span></span>
+<span><span class="co">#&gt;        0.243        9.977</span></span>
+<span><span class="co">#&gt;        0.033        1.059</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
@@ -791,15 +790,15 @@ by abbreviating names of the prior distributions).</p>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
 <span><span class="co">#&gt;        0.000        0.000</span></span>
-<span><span class="co">#&gt;        0.155        1.287</span></span>
-<span><span class="co">#&gt;        0.012        1.201</span></span>
-<span><span class="co">#&gt;        0.019        1.822</span></span>
-<span><span class="co">#&gt;        0.048        4.831</span></span>
-<span><span class="co">#&gt;        0.044        4.347</span></span>
-<span><span class="co">#&gt;        0.043        4.223</span></span>
-<span><span class="co">#&gt;        0.046        4.617</span></span>
-<span><span class="co">#&gt;        0.102        3.504</span></span>
-<span><span class="co">#&gt;        0.083        2.797</span></span></code></pre></div>
+<span><span class="co">#&gt;        0.156        1.291</span></span>
+<span><span class="co">#&gt;        0.012        1.200</span></span>
+<span><span class="co">#&gt;        0.019        1.824</span></span>
+<span><span class="co">#&gt;        0.048        4.803</span></span>
+<span><span class="co">#&gt;        0.044        4.358</span></span>
+<span><span class="co">#&gt;        0.043        4.242</span></span>
+<span><span class="co">#&gt;        0.046        4.632</span></span>
+<span><span class="co">#&gt;        0.101        3.485</span></span>
+<span><span class="co">#&gt;        0.082        2.785</span></span></code></pre></div>
 <p>To obtain a summary of the individual model diagnostics, we set the
 <code>type = "diagnostics"</code> argument. The resulting table provides
 information about the maximum MCMC error, relative MCMC error, minimum
@@ -853,58 +852,58 @@ values.</p>
 <span><span class="co">#&gt;     36 Normal(0, 1)   InvGamma(1, 0.15)</span></span>
 <span><span class="co">#&gt;                          Prior Bias                         max[error(MCMC)]</span></span>
 <span><span class="co">#&gt;                                                                           NA</span></span>
-<span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00024</span></span>
-<span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00295</span></span>
-<span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00014</span></span>
-<span><span class="co">#&gt;      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00326</span></span>
-<span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00033</span></span>
-<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00309</span></span>
-<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.00236</span></span>
-<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.01223</span></span>
-<span><span class="co">#&gt;                                                                      0.00118</span></span>
-<span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00296</span></span>
-<span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00295</span></span>
-<span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00110</span></span>
+<span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00025</span></span>
+<span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00299</span></span>
+<span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00015</span></span>
 <span><span class="co">#&gt;      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00331</span></span>
-<span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00357</span></span>
-<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00307</span></span>
-<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.00454</span></span>
-<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.02470</span></span>
+<span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00034</span></span>
+<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00313</span></span>
+<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.00237</span></span>
+<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.01224</span></span>
+<span><span class="co">#&gt;                                                                      0.00119</span></span>
+<span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00299</span></span>
+<span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00295</span></span>
+<span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00114</span></span>
+<span><span class="co">#&gt;      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00331</span></span>
+<span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00359</span></span>
+<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00308</span></span>
+<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.00455</span></span>
+<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.02479</span></span>
 <span><span class="co">#&gt;                                                                      0.00038</span></span>
-<span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00303</span></span>
+<span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00304</span></span>
 <span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00290</span></span>
 <span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00309</span></span>
 <span><span class="co">#&gt;      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00278</span></span>
 <span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00332</span></span>
-<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00293</span></span>
-<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.03247</span></span>
-<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.05228</span></span>
+<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00294</span></span>
+<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.03243</span></span>
+<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.05226</span></span>
 <span><span class="co">#&gt;                                                                      0.00090</span></span>
 <span><span class="co">#&gt;            omega[two-sided: .05] ~ CumDirichlet(1, 1)                0.00308</span></span>
-<span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00293</span></span>
-<span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00477</span></span>
-<span><span class="co">#&gt;      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00340</span></span>
-<span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00543</span></span>
-<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00499</span></span>
-<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.04070</span></span>
-<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.07238</span></span>
+<span><span class="co">#&gt;        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)             0.00294</span></span>
+<span><span class="co">#&gt;            omega[one-sided: .05] ~ CumDirichlet(1, 1)                0.00483</span></span>
+<span><span class="co">#&gt;      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)             0.00342</span></span>
+<span><span class="co">#&gt;        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)             0.00640</span></span>
+<span><span class="co">#&gt;  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)          0.00501</span></span>
+<span><span class="co">#&gt;                              PET ~ Cauchy(0, 1)[0, Inf]              0.04083</span></span>
+<span><span class="co">#&gt;                            PEESE ~ Cauchy(0, 5)[0, Inf]              0.07247</span></span>
 <span><span class="co">#&gt;  max[error(MCMC)/SD] min(ESS) max(R-hat)</span></span>
 <span><span class="co">#&gt;                   NA       NA         NA</span></span>
-<span><span class="co">#&gt;                0.016     4158      1.000</span></span>
-<span><span class="co">#&gt;                0.016     3793      1.000</span></span>
-<span><span class="co">#&gt;                0.015     4622      1.000</span></span>
-<span><span class="co">#&gt;                0.017     3357      1.000</span></span>
-<span><span class="co">#&gt;                0.017     3509      1.001</span></span>
-<span><span class="co">#&gt;                0.018     3064      1.001</span></span>
+<span><span class="co">#&gt;                0.016     4158      1.001</span></span>
+<span><span class="co">#&gt;                0.016     3793      1.001</span></span>
+<span><span class="co">#&gt;                0.016     4622      1.000</span></span>
+<span><span class="co">#&gt;                0.018     3357      1.003</span></span>
+<span><span class="co">#&gt;                0.018     3509      1.001</span></span>
+<span><span class="co">#&gt;                0.019     3064      1.003</span></span>
 <span><span class="co">#&gt;                0.010     9917      1.001</span></span>
 <span><span class="co">#&gt;                0.010     9589      1.000</span></span>
 <span><span class="co">#&gt;                0.010     9632      1.001</span></span>
-<span><span class="co">#&gt;                0.013     5518      1.002</span></span>
+<span><span class="co">#&gt;                0.014     5518      1.002</span></span>
 <span><span class="co">#&gt;                0.015     4565      1.001</span></span>
-<span><span class="co">#&gt;                0.015     4395      1.001</span></span>
-<span><span class="co">#&gt;                0.015     4502      1.002</span></span>
-<span><span class="co">#&gt;                0.018     3206      1.001</span></span>
-<span><span class="co">#&gt;                0.017     3480      1.001</span></span>
+<span><span class="co">#&gt;                0.016     4395      1.001</span></span>
+<span><span class="co">#&gt;                0.015     4502      1.003</span></span>
+<span><span class="co">#&gt;                0.019     3206      1.002</span></span>
+<span><span class="co">#&gt;                0.017     3480      1.003</span></span>
 <span><span class="co">#&gt;                0.012     7342      1.001</span></span>
 <span><span class="co">#&gt;                0.012     7051      1.000</span></span>
 <span><span class="co">#&gt;                0.010     9712      1.001</span></span>
@@ -921,8 +920,8 @@ values.</p>
 <span><span class="co">#&gt;                0.016     4103      1.001</span></span>
 <span><span class="co">#&gt;                0.021     2240      1.001</span></span>
 <span><span class="co">#&gt;                0.020     2527      1.001</span></span>
-<span><span class="co">#&gt;                0.026     1529      1.007</span></span>
-<span><span class="co">#&gt;                0.024     1756      1.000</span></span>
+<span><span class="co">#&gt;                0.030     1529      1.007</span></span>
+<span><span class="co">#&gt;                0.024     1756      1.001</span></span>
 <span><span class="co">#&gt;                0.038      692      1.001</span></span>
 <span><span class="co">#&gt;                0.024     1765      1.005</span></span></code></pre></div>
 <p>Finally, we can also plot the model-averaged posterior distribution
@@ -1057,40 +1056,40 @@ the settings.</p>
 <span><span class="co">#&gt;  log(marglik) Post. prob. Inclusion BF</span></span>
 <span><span class="co">#&gt;        -18.84       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -17.66       0.000        0.000</span></span>
-<span><span class="co">#&gt;        -17.06       0.000        0.000</span></span>
+<span><span class="co">#&gt;        -17.07       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -17.35       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -17.04       0.000        0.000</span></span>
-<span><span class="co">#&gt;        -18.11       0.000        0.000</span></span>
+<span><span class="co">#&gt;        -18.12       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -17.69       0.000        0.000</span></span>
 <span><span class="co">#&gt;         -5.24       0.000        0.000</span></span>
 <span><span class="co">#&gt;         -7.61       0.000        0.000</span></span>
 <span><span class="co">#&gt;         -3.20       0.000        0.003</span></span>
-<span><span class="co">#&gt;         -1.45       0.000        0.022</span></span>
+<span><span class="co">#&gt;         -1.46       0.000        0.022</span></span>
 <span><span class="co">#&gt;         -0.42       0.001        0.061</span></span>
-<span><span class="co">#&gt;          3.01       0.020        1.939</span></span>
-<span><span class="co">#&gt;          3.19       0.024        2.317</span></span>
-<span><span class="co">#&gt;          3.09       0.022        2.104</span></span>
-<span><span class="co">#&gt;          3.46       0.031        3.062</span></span>
-<span><span class="co">#&gt;          3.64       0.112        3.909</span></span>
-<span><span class="co">#&gt;          2.35       0.031        0.986</span></span>
+<span><span class="co">#&gt;          3.01       0.020        1.926</span></span>
+<span><span class="co">#&gt;          3.19       0.024        2.325</span></span>
+<span><span class="co">#&gt;          3.08       0.021        2.087</span></span>
+<span><span class="co">#&gt;          3.46       0.031        3.074</span></span>
+<span><span class="co">#&gt;          3.64       0.112        3.915</span></span>
+<span><span class="co">#&gt;          2.35       0.031        0.987</span></span>
 <span><span class="co">#&gt;        -11.84       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -11.88       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -11.71       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -11.54       0.000        0.000</span></span>
 <span><span class="co">#&gt;        -11.70       0.000        0.000</span></span>
-<span><span class="co">#&gt;        -12.05       0.000        0.000</span></span>
-<span><span class="co">#&gt;        -12.07       0.000        0.000</span></span>
+<span><span class="co">#&gt;        -12.06       0.000        0.000</span></span>
+<span><span class="co">#&gt;        -12.06       0.000        0.000</span></span>
 <span><span class="co">#&gt;         -8.38       0.000        0.000</span></span>
-<span><span class="co">#&gt;         -7.36       0.000        0.000</span></span>
-<span><span class="co">#&gt;          3.35       0.337        3.564</span></span>
-<span><span class="co">#&gt;          3.13       0.023        2.190</span></span>
-<span><span class="co">#&gt;          3.42       0.030        2.951</span></span>
-<span><span class="co">#&gt;          4.12       0.061        6.123</span></span>
-<span><span class="co">#&gt;          3.85       0.046        4.602</span></span>
-<span><span class="co">#&gt;          3.94       0.050        5.027</span></span>
-<span><span class="co">#&gt;          3.84       0.046        4.572</span></span>
-<span><span class="co">#&gt;          3.23       0.074        2.492</span></span>
-<span><span class="co">#&gt;          3.44       0.092        3.132</span></span></code></pre></div>
+<span><span class="co">#&gt;         -7.37       0.000        0.000</span></span>
+<span><span class="co">#&gt;          3.36       0.338        3.574</span></span>
+<span><span class="co">#&gt;          3.12       0.022        2.159</span></span>
+<span><span class="co">#&gt;          3.43       0.030        2.967</span></span>
+<span><span class="co">#&gt;          4.11       0.060        6.036</span></span>
+<span><span class="co">#&gt;          3.86       0.047        4.644</span></span>
+<span><span class="co">#&gt;          3.94       0.051        5.057</span></span>
+<span><span class="co">#&gt;          3.85       0.046        4.584</span></span>
+<span><span class="co">#&gt;          3.22       0.074        2.481</span></span>
+<span><span class="co">#&gt;          3.44       0.092        3.124</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level3 unnumbered">

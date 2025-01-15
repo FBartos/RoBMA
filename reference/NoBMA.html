@@ -15,7 +15,7 @@ for each component."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -27,6 +27,7 @@ for each component."></head><body>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -88,6 +89,7 @@ for each component.</p>
 <span>  priors_heterogeneity_null <span class="op">=</span> <span class="fu"><a href="set_default_priors.html">set_default_priors</a></span><span class="op">(</span><span class="st">"heterogeneity"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  priors_hierarchical <span class="op">=</span> <span class="fu"><a href="set_default_priors.html">set_default_priors</a></span><span class="op">(</span><span class="st">"hierarchical"</span><span class="op">)</span>,</span>
 <span>  priors_hierarchical_null <span class="op">=</span> <span class="fu"><a href="set_default_priors.html">set_default_priors</a></span><span class="op">(</span><span class="st">"hierarchical"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  algorithm <span class="op">=</span> <span class="st">"bridge"</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  sample <span class="op">=</span> <span class="fl">5000</span>,</span>
 <span>  burnin <span class="op">=</span> <span class="fl">2000</span>,</span>
@@ -252,6 +254,14 @@ Note that this is an experimental feature and see News for more details. Default
 <dt id="arg-priors-hierarchical-null">priors_hierarchical_null<a class="anchor" aria-label="anchor" href="#arg-priors-hierarchical-null"></a></dt>
 <dd><p>list of prior distributions for the correlation of random effects
 (<code>rho</code>) parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
+
+
+<dt id="arg-algorithm">algorithm<a class="anchor" aria-label="anchor" href="#arg-algorithm"></a></dt>
+<dd><p>a string specifying the algorithm used for the model averaging. Defaults to <code>"bridge"</code>
+which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
+sampling. An alternative is <code>"ss"</code> which uses spike and slab like parameterization to approximate the
+Bayesian model averaging with a single model. Note that significantly more <code>sample</code>, <code>burnin</code>, and
+<code>adapt</code> iterations are needed for the <code>"ss"</code> algorithm.</p></dd>
 
 
 <dt id="arg-chains">chains<a class="anchor" aria-label="anchor" href="#arg-chains"></a></dt>

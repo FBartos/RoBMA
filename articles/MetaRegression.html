@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -34,6 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -66,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2024-12-22</h4>
+            <h4 data-toc-skip class="date">2025-01-15</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/MetaRegression.Rmd" class="external-link"><code>vignettes/MetaRegression.Rmd</code></a></small>
       <div class="d-none name"><code>MetaRegression.Rmd</code></div>
@@ -295,20 +296,20 @@ scale.</p>
 <span><span class="co">#&gt;     priors_hierarchical = priors_hierarchical, priors_hierarchical_null = priors_hierarchical_null, </span></span>
 <span><span class="co">#&gt;     prior_covariates = prior_covariates, prior_covariates_null = prior_covariates_null, </span></span>
 <span><span class="co">#&gt;     prior_factors = prior_factors, prior_factors_null = prior_factors_null, </span></span>
-<span><span class="co">#&gt;     chains = chains, sample = sample, burnin = burnin, adapt = adapt, </span></span>
-<span><span class="co">#&gt;     thin = thin, parallel = parallel, autofit = autofit, autofit_control = autofit_control, </span></span>
-<span><span class="co">#&gt;     convergence_checks = convergence_checks, save = save, seed = seed, </span></span>
-<span><span class="co">#&gt;     silent = silent)</span></span>
+<span><span class="co">#&gt;     algorithm = algorithm, chains = chains, sample = sample, </span></span>
+<span><span class="co">#&gt;     burnin = burnin, adapt = adapt, thin = thin, parallel = parallel, </span></span>
+<span><span class="co">#&gt;     autofit = autofit, autofit_control = autofit_control, convergence_checks = convergence_checks, </span></span>
+<span><span class="co">#&gt;     save = save, seed = seed, silent = silent)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Bayesian model-averaged meta-regression (normal-normal model)</span></span>
 <span><span class="co">#&gt; Components summary:</span></span>
 <span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect          8/16       0.500       1.000 6.637645e+05</span></span>
-<span><span class="co">#&gt; Heterogeneity   8/16       0.500       1.000 3.439130e+40</span></span>
+<span><span class="co">#&gt; Effect          8/16       0.500       1.000 6.643142e+05</span></span>
+<span><span class="co">#&gt; Heterogeneity   8/16       0.500       1.000 3.438539e+40</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-regression components summary:</span></span>
 <span><span class="co">#&gt;         Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; measure   8/16       0.500       0.826        4.739</span></span>
+<span><span class="co">#&gt; measure   8/16       0.500       0.826        4.748</span></span>
 <span><span class="co">#&gt; age       8/16       0.500       0.197        0.245</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-averaged estimates:</span></span>
@@ -333,7 +334,7 @@ overwhelming evidence for both with inclusion Bayes factors
 <code>Meta-regression components summary</code> with the hypothesis test
 results for the moderators. We find moderate evidence for the moderation
 by the executive function assessment type,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">measure</mtext></msub><mo>=</mo><mn>4.74</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{measure}} = 4.74</annotation></semantics></math>.
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">measure</mtext></msub><mo>=</mo><mn>4.75</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{measure}} = 4.75</annotation></semantics></math>.
 Furthermore, we find moderate evidence for the null hypothesis of no
 moderation by mean age of the children,
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">age</mtext></msub><mo>=</mo><mn>0.245</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{age}} = 0.245</annotation></semantics></math>
@@ -379,16 +380,16 @@ estimates for each of the factor levels.</p>
 <span><span class="co">#&gt;     priors_hierarchical = priors_hierarchical, priors_hierarchical_null = priors_hierarchical_null, </span></span>
 <span><span class="co">#&gt;     prior_covariates = prior_covariates, prior_covariates_null = prior_covariates_null, </span></span>
 <span><span class="co">#&gt;     prior_factors = prior_factors, prior_factors_null = prior_factors_null, </span></span>
-<span><span class="co">#&gt;     chains = chains, sample = sample, burnin = burnin, adapt = adapt, </span></span>
-<span><span class="co">#&gt;     thin = thin, parallel = parallel, autofit = autofit, autofit_control = autofit_control, </span></span>
-<span><span class="co">#&gt;     convergence_checks = convergence_checks, save = save, seed = seed, </span></span>
-<span><span class="co">#&gt;     silent = silent)</span></span>
+<span><span class="co">#&gt;     algorithm = algorithm, chains = chains, sample = sample, </span></span>
+<span><span class="co">#&gt;     burnin = burnin, adapt = adapt, thin = thin, parallel = parallel, </span></span>
+<span><span class="co">#&gt;     autofit = autofit, autofit_control = autofit_control, convergence_checks = convergence_checks, </span></span>
+<span><span class="co">#&gt;     save = save, seed = seed, silent = silent)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
 <span><span class="co">#&gt; Model-averaged marginal estimates:</span></span>
 <span><span class="co">#&gt;                     Mean Median 0.025 0.975 Inclusion BF</span></span>
 <span><span class="co">#&gt; intercept          0.163  0.163 0.118 0.208          Inf</span></span>
-<span><span class="co">#&gt; measure[direct]    0.117  0.116 0.052 0.185       50.151</span></span>
+<span><span class="co">#&gt; measure[direct]    0.117  0.116 0.052 0.185       62.803</span></span>
 <span><span class="co">#&gt; measure[informant] 0.208  0.210 0.130 0.280          Inf</span></span>
 <span><span class="co">#&gt; age[-1SD]          0.160  0.161 0.106 0.208          Inf</span></span>
 <span><span class="co">#&gt; age[0SD]           0.163  0.163 0.118 0.208          Inf</span></span>
@@ -411,7 +412,7 @@ stronger effect of household chaos on child executive functions,
 hypothesis of marginal means equals 0. Here, we find very strong
 evidence for the effect size of studies using the informant-completed
 questionnaires differing from zero,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>50.1</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 50.1</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>62.8</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 62.8</annotation></semantics></math>
 and extreme evidence for the effect size of studies using the direct
 assessment differing from zero,
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mi>∞</mi></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = \infty</annotation></semantics></math>.
@@ -449,38 +450,38 @@ ensemble now contains 144 models.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_scale <span class="op">=</span> <span class="st">"r"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
 <span><span class="co">#&gt; RoBMA.reg(formula = ~measure + age, data = Andrews2021, chains = 1, </span></span>
-<span><span class="co">#&gt;     parallel = TRUE, seed = 1)</span></span>
+<span><span class="co">#&gt;     parallel = TRUE, save = "min", seed = 1)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Robust Bayesian meta-regression</span></span>
 <span><span class="co">#&gt; Components summary:</span></span>
 <span><span class="co">#&gt;                Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect         72/144       0.500       0.334 5.020000e-01</span></span>
-<span><span class="co">#&gt; Heterogeneity  72/144       0.500       1.000 1.043816e+23</span></span>
-<span><span class="co">#&gt; Bias          128/144       0.500       0.965 2.795800e+01</span></span>
+<span><span class="co">#&gt; Effect         72/144       0.500       0.339 5.130000e-01</span></span>
+<span><span class="co">#&gt; Heterogeneity  72/144       0.500       1.000 1.051976e+23</span></span>
+<span><span class="co">#&gt; Bias          128/144       0.500       0.966 2.825100e+01</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-regression components summary:</span></span>
 <span><span class="co">#&gt;         Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; measure 72/144       0.500       0.950       19.086</span></span>
-<span><span class="co">#&gt; age     72/144       0.500       0.154        0.182</span></span>
+<span><span class="co">#&gt; measure 72/144       0.500       0.951       19.213</span></span>
+<span><span class="co">#&gt; age     72/144       0.500       0.154        0.181</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-averaged estimates:</span></span>
 <span><span class="co">#&gt;                    Mean Median 0.025  0.975</span></span>
-<span><span class="co">#&gt; mu                0.031  0.000 0.000  0.164</span></span>
-<span><span class="co">#&gt; tau               0.106  0.104 0.074  0.147</span></span>
+<span><span class="co">#&gt; mu                0.032  0.000 0.000  0.164</span></span>
+<span><span class="co">#&gt; tau               0.106  0.104 0.074  0.146</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000  1.000 1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.025,0.05] 0.999  1.000 1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.05,0.5]   0.998  1.000 1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.5,0.95]   0.997  1.000 1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.95,0.975] 0.997  1.000 1.000  1.000</span></span>
 <span><span class="co">#&gt; omega[0.975,1]    0.997  1.000 1.000  1.000</span></span>
-<span><span class="co">#&gt; PET               2.056  2.494 0.000  3.293</span></span>
-<span><span class="co">#&gt; PEESE             1.916  0.000 0.000 19.068</span></span>
+<span><span class="co">#&gt; PET               2.046  2.489 0.000  3.292</span></span>
+<span><span class="co">#&gt; PEESE             1.955  0.000 0.000 19.101</span></span>
 <span><span class="co">#&gt; The effect size estimates are summarized on the correlation scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).</span></span>
 <span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-averaged meta-regression estimates:</span></span>
 <span><span class="co">#&gt;                            Mean Median  0.025 0.975</span></span>
-<span><span class="co">#&gt; intercept                 0.031  0.000  0.000 0.164</span></span>
+<span><span class="co">#&gt; intercept                 0.032  0.000  0.000 0.164</span></span>
 <span><span class="co">#&gt; measure [dif: direct]    -0.063 -0.064 -0.106 0.000</span></span>
 <span><span class="co">#&gt; measure [dif: informant]  0.063  0.064  0.000 0.106</span></span>
 <span><span class="co">#&gt; age                       0.000  0.000 -0.024 0.022</span></span>
@@ -493,39 +494,40 @@ publication bias.</p>
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">pb</mtext></msub><mo>=</mo><mn>28.0</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{pb}} = 28.0</annotation></semantics></math>.
 Furthermore, accounting for publication bias turns the previously found
 evidence for the overall effect into a weak evidence against the effect
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.50</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.50</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.51</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.51</annotation></semantics></math>
 and notably reduces the mean effect estimate
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ρ</mi><mo>=</mo><mn>0.031</mn></mrow><annotation encoding="application/x-tex">\rho = 0.031</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ρ</mi><mo>=</mo><mn>0.032</mn></mrow><annotation encoding="application/x-tex">\rho = 0.032</annotation></semantics></math>,
 95% CI [0.000, 0.164].</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/marginal_summary.html">marginal_summary</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_scale <span class="op">=</span> <span class="st">"r"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
 <span><span class="co">#&gt; RoBMA.reg(formula = ~measure + age, data = Andrews2021, chains = 1, </span></span>
-<span><span class="co">#&gt;     parallel = TRUE, seed = 1)</span></span>
+<span><span class="co">#&gt;     parallel = TRUE, save = "min", seed = 1)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
 <span><span class="co">#&gt; Model-averaged marginal estimates:</span></span>
 <span><span class="co">#&gt;                      Mean Median  0.025 0.975 Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept           0.031  0.000  0.000 0.164        0.516</span></span>
-<span><span class="co">#&gt; measure[direct]    -0.031 -0.056 -0.105 0.121        0.575</span></span>
-<span><span class="co">#&gt; measure[informant]  0.093  0.077  0.000 0.223        7.643</span></span>
-<span><span class="co">#&gt; age[-1SD]           0.031  0.000 -0.015 0.163        0.732</span></span>
-<span><span class="co">#&gt; age[0SD]            0.031  0.000  0.000 0.164        1.013</span></span>
-<span><span class="co">#&gt; age[1SD]            0.031  0.000 -0.024 0.168        0.743</span></span>
+<span><span class="co">#&gt; intercept           0.032  0.000  0.000 0.164        0.526</span></span>
+<span><span class="co">#&gt; measure[direct]    -0.031 -0.056 -0.105 0.120        0.709</span></span>
+<span><span class="co">#&gt; measure[informant]  0.094  0.077  0.000 0.222        8.230</span></span>
+<span><span class="co">#&gt; age[-1SD]           0.032  0.000 -0.015 0.164        0.307</span></span>
+<span><span class="co">#&gt; age[0SD]            0.032  0.000  0.000 0.164        0.381</span></span>
+<span><span class="co">#&gt; age[1SD]            0.031  0.000 -0.024 0.168        0.311</span></span>
 <span><span class="co">#&gt; The estimates are summarized on the correlation scale (priors were specified on the Cohen's d scale).</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">mu_age[0SD]: There is a considerable cluster of posterior samples at the exact null hypothesis values. The Savage-Dickey density ratio is likely to be invalid.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_age[0SD]: There is a considerable cluster of prior samples at the exact null hypothesis values. The Savage-Dickey density ratio is likely to be invalid.</span></span></span></code></pre></div>
 <p>The estimated marginal means now suggest that studies using the
 informant-completed questionnaires show a much smaller effect of
 household chaos on child executive functions,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ρ</mi><mo>=</mo><mn>0.093</mn></mrow><annotation encoding="application/x-tex">\rho = 0.093</annotation></semantics></math>,
-95% CI [0.000, 0.223] with only moderate evidence against no effect,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>7.64</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 7.64</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ρ</mi><mo>=</mo><mn>0.094</mn></mrow><annotation encoding="application/x-tex">\rho = 0.094</annotation></semantics></math>,
+95% CI [0.000, 0.222] with only moderate evidence against no effect,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>8.23</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 8.23</annotation></semantics></math>,
 while studies using direct assessment even provide weak evidence against
 the effect of household chaos on child executive functions,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.58</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.58</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.71</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.71</annotation></semantics></math>,
 with most likely effect sizes around zero,
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ρ</mi><mo>=</mo><mo>−</mo><mn>0.031</mn></mrow><annotation encoding="application/x-tex">\rho = -0.031</annotation></semantics></math>,
-95% CI [-0.105, 0.121].</p>
+95% CI [-0.105, 0.120].</p>
 <p>A visual summary of the estimated marginal means highlights the
 considerably wider model-averaged posterior distributions of the
 marginal means—a consequence of accounting and adjusting for publication

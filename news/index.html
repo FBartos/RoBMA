@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -42,6 +43,19 @@
       <small>Source: <a href="https://github.com/FBartos/RoBMA/blob/master/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="3.3" id="version-33">version 3.3<a class="anchor" aria-label="anchor" href="#version-33"></a></h2>
+<div class="section level3">
+<h3 id="features-3-3">Features<a class="anchor" aria-label="anchor" href="#features-3-3"></a></h3>
+<ul><li>the spike and slab algorithm for faster model estimation via the <code>algorithm = "ss"</code> argument (see a new vignette for more details)</li>
+<li>refactoring of the JAGS C++ code of weighted distributions and exporting of the lpdfs into JAGS (maintenance)</li>
+<li>weights_mix JAGS prior distribution to sample a mixture of weight functions directly</li>
+</ul></div>
+<div class="section level3">
+<h3 id="fixes-3-3">Fixes<a class="anchor" aria-label="anchor" href="#fixes-3-3"></a></h3>
+<ul><li>incorrectly omitting models with more than one predictor when computing conditional marginal summary</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="3.2.1" id="version-321">version 3.2.1<a class="anchor" aria-label="anchor" href="#version-321"></a></h2>
 <div class="section level3">
