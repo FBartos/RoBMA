@@ -12,7 +12,8 @@
     "BayesTools": {
       "Package": "BayesTools",
       "Version": "0.2.18",
-      "Source": "unknown",
+      "Source": "Repository",
+      "Repository": "CRAN",
       "Requirements": [
         "Rdpack",
         "bridgesampling",

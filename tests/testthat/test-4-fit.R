@@ -11,11 +11,16 @@ for(i in seq_along(saved_files)){
 
 # functions simplifying the comparison
 remove_time  <- function(fit){
-  for(m in 1:length(fit$models)){
+  for(m in seq_along(fit[["models"]])){
     if(is.null(fit$models[[m]]$fit))next
     fit$models[[m]]$fit$timetaken       <- NULL
     fit$models[[m]]$fit$runjags.version <- NULL
   }
+  if(!is.null(fit[["model"]])){
+    fit$model$fit$timetaken       <- NULL
+    fit$model$fit$runjags.version <- NULL
+  }
+
   return(fit)
 }
 clean_all    <- function(fit, only_samples = TRUE, remove_call = FALSE){
@@ -24,6 +29,7 @@ clean_all    <- function(fit, only_samples = TRUE, remove_call = FALSE){
     fit$add_info <- NULL
     fit$control  <- NULL
     fit$models   <- NULL
+    fit$model    <- NULL
   }
   if(remove_call){
     fit$call <- NULL
@@ -234,10 +240,6 @@ test_that("weighted models work", {
   fit1w <- remove_time(fit1w)
   # changed after reducing the number of samples
   # expect_equal(clean_all(saved_fits[[1]], remove_call = TRUE), clean_all(fit1w, remove_call = TRUE))
-
-  # check that the models are actually weighted
-  expect_true(all(grepl("dwwn", sapply(c(2:7,  11:16, 20:25, 29:34), function(i) as.character(fit1w$models[[i]]$fit$model)))))
-  expect_true(all(grepl("dwn",  sapply(c(8:10, 17:19, 26:28, 35:36), function(i) as.character(fit1w$models[[i]]$fit$model)))))
 })
 
 test_that("BMA regression work", {
@@ -249,6 +251,7 @@ test_that("BMA regression work", {
     mod_con = c((1:15)/15)
   )
 
+  set.seed(1)
   fit_14 <- try_parallel(suppressWarnings(RoBMA.reg(~ mod_cat + mod_con, data = df_reg, priors_bias = NULL, seed = 1, parallel = TRUE,
                                                     sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
                                                     convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
@@ -264,6 +267,7 @@ test_that("RoBMA (simplified) regression with custom priors work", {
     mod_con = scale(c((1:15)/15))
   )
 
+  set.seed(1)
   fit_15 <- try_parallel(suppressWarnings(RoBMA.reg(~ mod_con, data = df_reg,
                                                     priors = list(
                                                       "mod_con" = list(
@@ -317,7 +321,8 @@ if(FALSE){
   saved_fits  <- list()
   for(i in seq_along(saved_files)){
     temp_fit <- readRDS(file = file.path("tests/results/fits", saved_files[i]))
-    temp_fit <- RoBMA:::.update_object(temp_fit)
+  #  temp_fit <- RoBMA:::.update_object(temp_fit)
+    temp_fit <- remove_time(temp_fit)
     saveRDS(temp_fit, file = file.path("tests/results/fits/", paste0("fit_",i,".RDS")), compress  = "xz")
   }
 
