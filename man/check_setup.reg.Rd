@@ -184,7 +184,9 @@ the samples from prior distributions are internally transformed to match the
 the effect size scale of default output, but can be changed within the summary function.}
 
 \item{standardize_predictors}{whether continuous predictors should be standardized prior to
-estimating the model. Defaults to \code{TRUE}.}
+estimating the model. Defaults to \code{TRUE}. Continuous predictor standardization is important
+for applying the default prior distributions for continuous predictors. Note that the resulting
+output corresponds to standardized meta-regression coefficients.}
 
 \item{effect_direction}{the expected direction of the effect. Correctly specifying
 the expected direction of the effect is crucial for one-sided selection models,

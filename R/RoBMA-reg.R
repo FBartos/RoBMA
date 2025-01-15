@@ -56,14 +56,18 @@
 #' (unless set explicitly in \code{priors}). Defaults to a no effect
 #' \code{prior("spike",  parameters = list(location = 0))}.
 #' @param standardize_predictors whether continuous predictors should be standardized prior to
-#' estimating the model. Defaults to \code{TRUE}.
+#' estimating the model. Defaults to \code{TRUE}. Continuous predictor standardization is important
+#' for applying the default prior distributions for continuous predictors. Note that the resulting
+#' output corresponds to standardized meta-regression coefficients.
 #' @inheritParams RoBMA
 #' @inheritParams combine_data
 #'
 #' @details The \href{../doc/MetaRegression.html}{\code{vignette("/MetaRegression", package = "RoBMA")}}
 #' vignette describes how to use [RoBMA.reg()] function to fit Bayesian meta-regression ensembles. See
 #' \insertCite{bartos2023robust;textual}{RoBMA} for more details about the methodology and
-#' [RoBMA()] for more details about the function options.
+#' [RoBMA()] for more details about the function options. By default, the function standardizes
+#' continuous predictors. As such, the output should be interpreted as standardized meta-regression
+#' coefficients.
 #'
 #' The RoBMA.reg function first generates models from a combination of the
 #' provided priors for each of the model parameters. Then, the individual models

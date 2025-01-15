@@ -178,7 +178,10 @@ Note that this is an experimental feature and see News for more details. Default
 \item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
 which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
 sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
-Bayesian model averaging with a single model.}
+Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
+\code{adapt} iterations are needed for the \code{"ss"} algorithm.}
+
+\item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}
@@ -241,7 +244,11 @@ of the package (i.e., RoBMA < 2.0) used specifications proposed by
 obtained by setting \code{model_type = "2w"}. The RoBMA-PP specification from
 \insertCite{bartos2021no;textual}{RoBMA} can be obtained by setting
 \code{model_type = "PP"}. The complete list of default prior distributions is described at
-\code{\link[=set_default_priors]{set_default_priors()}}.
+\code{\link[=set_default_priors]{set_default_priors()}}. Note that inclusion of the PET and PEESE style publication bias adjustments
+models might pick up on small-study effects. To remove true heterogeneity due to study design,
+sub-populations, treatments etc. potentially causing small-study effects, use meta-regression
+via the \code{\link[=RoBMA.reg]{RoBMA.reg()}} function, or remove the PET and PEESE style models from the publication bias
+adjustment component of the ensemble.
 
 The \href{../doc/CustomEnsembles.html}{\code{vignette("CustomEnsembles", package = "RoBMA")}}
 and \href{../doc/ReproducingBMA.html}{\code{vignette("ReproducingBMA", package = "RoBMA")}}

@@ -31,6 +31,7 @@ NoBMA(
   priors_heterogeneity_null = set_default_priors("heterogeneity", null = TRUE),
   priors_hierarchical = set_default_priors("hierarchical"),
   priors_hierarchical_null = set_default_priors("hierarchical", null = TRUE),
+  algorithm = "bridge",
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -140,6 +141,14 @@ Note that this is an experimental feature and see News for more details. Default
 
 \item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
 (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
+
+\item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
+which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
+sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
+Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
+\code{adapt} iterations are needed for the \code{"ss"} algorithm.}
+
+\item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{sample}{a number of sampling iterations of the MCMC algorithm.
 Defaults to \code{5000}.}

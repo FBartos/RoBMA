@@ -383,7 +383,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     }
 
     # obtain components overview
-    components <- update(
+    components <- BayesTools:::update.BayesTools_table(
       object[["RoBMA"]][["inference"]],
       title      = "Components summary:",
       BF01       = BF01,
@@ -437,7 +437,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     if(is.RoBMA.reg(object)){
 
       if(!is.null(object$RoBMA[["inference_predictors"]])){
-        output$components_predictors <- update(
+        output$components_predictors <- BayesTools:::update.BayesTools_table(
           object[["RoBMA"]][["inference_predictors"]],
           title      = "Meta-regression components summary:",
           BF01       = BF01,
