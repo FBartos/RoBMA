@@ -11,16 +11,14 @@ BiBMA(
   n2,
   study_names = NULL,
   study_ids = NULL,
-  priors_effect = prior(distribution = "student", parameters = list(location = 0, scale =
-    0.58, df = 4)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1.77,
-    scale = 0.55)),
-  priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
-    0)),
-  priors_baseline = NULL,
-  priors_baseline_null = prior_factor("beta", parameters = list(alpha = 1, beta = 1),
-    contrast = "independent"),
+  rescale_priors = 1,
+  priors_effect = set_default_binomial_priors("effect", rescale = rescale_priors),
+  priors_heterogeneity = set_default_binomial_priors("heterogeneity", rescale =
+    rescale_priors),
+  priors_effect_null = set_default_binomial_priors("effect", null = TRUE),
+  priors_heterogeneity_null = set_default_binomial_priors("heterogeneity", null = TRUE),
+  priors_baseline = set_default_binomial_priors("baseline"),
+  priors_baseline_null = set_default_binomial_priors("baseline", null = TRUE),
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -51,6 +49,9 @@ BiBMA(
 \item{study_ids}{an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
+
+\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
+factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
 
 \item{priors_effect}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to

@@ -1,6 +1,8 @@
-## version 3.3.1
+## version 3.4
 ### Features
+- adding binomial-normal meta-regression models for binary data via the `BiBMA.reg` function
 - the spike and slab algorithm for faster model estimation via the `algorithm = "ss"` argument for BiBMA models
+- default prior distributions for all parameters of BiBMA models are now set via the `set_default_binomial_priors()` function
 
 ## version 3.3
 ### Features

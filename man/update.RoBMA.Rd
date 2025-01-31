@@ -4,7 +4,7 @@
 \alias{update.RoBMA}
 \title{Updates a fitted RoBMA object}
 \usage{
-\method{update}{RoBMA}(
+update.RoBMA(
   object,
   refit_failed = TRUE,
   extend_all = FALSE,

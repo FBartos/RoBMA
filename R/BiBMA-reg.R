@@ -59,22 +59,18 @@
 #' estimating the model. Defaults to \code{TRUE}. Continuous predictor standardization is important
 #' for applying the default prior distributions for continuous predictors. Note that the resulting
 #' output corresponds to standardized meta-regression coefficients.
+#' @inheritParams BiBMA
 #' @inheritParams RoBMA
+#' @inheritParams RoBMA.reg
 #' @inheritParams combine_data
 #'
-#' @details The \href{../doc/MetaRegression.html}{\code{vignette("/MetaRegression", package = "RoBMA")}}
-#' vignette describes how to use [RoBMA.reg()] function to fit Bayesian meta-regression ensembles. See
-#' \insertCite{bartos2023robust;textual}{RoBMA} for more details about the methodology and
-#' [RoBMA()] for more details about the function options. By default, the function standardizes
+#' @details [BiBMA.reg()] function estimates the Bayesian model-averaged binomial meta-regression.
+#' See \href{../doc/MetaRegression.html}{\code{vignette("/MetaRegression", package = "RoBMA")}}
+#' vignette describes how to use the similar [RoBMA.reg()] function to fit Bayesian meta-regression ensembles.
+#' See \insertCite{bartos2023robust;textual}{RoBMA} for more details about the methodology and
+#' [BiBMA()] for more details about the function options. By default, the function standardizes
 #' continuous predictors. As such, the output should be interpreted as standardized meta-regression
 #' coefficients.
-#'
-#' The RoBMA.reg function first generates models from a combination of the
-#' provided priors for each of the model parameters. Then, the individual models
-#' are fitted using \link[runjags]{autorun.jags} function. A marginal likelihood
-#' is computed using \link[bridgesampling]{bridge_sampler} function. The individual
-#' models are then combined into an ensemble using the posterior model probabilities
-#' using \link[BayesTools]{BayesTools} package.
 #'
 #' Generic [summary.RoBMA()], [print.RoBMA()], and [plot.RoBMA()] functions are
 #' provided to facilitate manipulation with the ensemble. A visual check of the
@@ -83,23 +79,6 @@
 #' Estimated marginal means can be computed by [marginal_summary()] function and
 #' visualized by the [marginal_plot()] function.
 #'
-#' @examples \dontrun{
-#' # using the example data from Andrews et al. (2021) and reproducing the example from
-#' # Bartos et al. (2024) with measure and age covariate.
-#'
-#'  # note the the Andrews2021 data.frame columns identify the effect size "r" and
-#'  # the standard error "se" of the effect size that are used to estimate the model
-#'  fit_RoBMA <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
-#'
-#'  # summarize the results
-#'  summary(fit_RoBMA, output_scale = "r")
-#'
-#'  # compute effect size estimates for each group
-#'  marginal_summary(fit_RoBMA, output_scale = "r")
-#'
-#'  # visualize the effect size estimates for each group
-#'  marginal_plot(fit_RoBMA, parameter = "measure", output_scale = "r", lwd = 2)
-#' }
 #'
 #' @references
 #' \insertAllCited{}
@@ -107,9 +86,9 @@
 #'
 #' @return \code{RoBMA.reg} returns an object of class 'RoBMA.reg'.
 #'
-#' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup.reg()]
+#' @seealso [BiBMA()] [summary.RoBMA()], [update.BiBMA()], [check_setup.reg()]
 #' @export
-RoBMA.reg <- function(
+BiBMA.reg <- function(
     formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
@@ -117,21 +96,19 @@ RoBMA.reg <- function(
     effect_direction       = "positive",
 
     # prior specification
-    priors = NULL, model_type = NULL, rescale_priors = 1,
+    priors = NULL, rescale_priors = 1,
 
-    priors_effect              = set_default_priors("effect",        rescale = rescale_priors),
-    priors_heterogeneity       = set_default_priors("heterogeneity", rescale = rescale_priors),
-    priors_bias                = set_default_priors("bias",          rescale = rescale_priors),
-    priors_effect_null         = set_default_priors("effect",        null = TRUE),
-    priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
-    priors_bias_null           = set_default_priors("bias",          null = TRUE),
-    priors_hierarchical        = set_default_priors("hierarchical"),
-    priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
+    priors_effect              = set_default_binomial_priors("effect",        rescale = rescale_priors),
+    priors_heterogeneity       = set_default_binomial_priors("heterogeneity", rescale = rescale_priors),
+    priors_effect_null         = set_default_binomial_priors("effect",        null = TRUE),
+    priors_heterogeneity_null  = set_default_binomial_priors("heterogeneity", null = TRUE),
+    prior_covariates           = set_default_binomial_priors("covariates", rescale = rescale_priors),
+    prior_covariates_null      = set_default_binomial_priors("covariates", null = TRUE),
+    prior_factors              = set_default_binomial_priors("factors", rescale = rescale_priors),
+    prior_factors_null         = set_default_binomial_priors("factors", null = TRUE),
 
-    prior_covariates       = set_default_priors("covariates", rescale = rescale_priors),
-    prior_covariates_null  = set_default_priors("covariates", null = TRUE),
-    prior_factors          = set_default_priors("factors", rescale = rescale_priors),
-    prior_factors_null     = set_default_priors("factors", null = TRUE),
+    priors_baseline            = set_default_binomial_priors("baseline"),
+    priors_baseline_null       = set_default_binomial_priors("baseline", null = TRUE),
 
     # MCMC fitting settings
     algorithm = "bridge", chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -147,7 +124,7 @@ RoBMA.reg <- function(
 
 
   ### prepare & check the data
-  object$data    <- .combine_data.reg(formula, data, standardize_predictors, transformation, study_names, study_ids)
+  object$data    <- .combine_data_bi.reg(formula, data, standardize_predictors, study_names, study_ids)
   object$formula <- formula
 
   # switch between multivariate and weighted models
@@ -155,7 +132,7 @@ RoBMA.reg <- function(
     .weighted_warning()
 
   if(.is_multivariate(object))
-    .multivariate_warning()
+    stop("Multivariate outcomes are not implemented for binomial outcomes.")
 
 
   ### check MCMC settings
@@ -165,22 +142,21 @@ RoBMA.reg <- function(
 
 
   ### prepare and check the settings
-  object$priors     <- .check_and_list_priors.reg(
-    priors = priors, data = object[["data"]], model_type = model_type, test_predictors = test_predictors, prior_scale = .transformation_var(prior_scale),
+  object$priors     <- .check_and_list_priors_bi.reg(
+    priors = priors, data = object[["data"]], test_predictors = test_predictors,
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
-    priors_bias_null = priors_bias_null, priors_bias = priors_bias,
-    priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
+    priors_baseline_null = priors_baseline_null, priors_baseline = priors_baseline,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
 
   ### additional information
   object$add_info <- .check_and_list_add_info(
-    model_type             = model_type,
+    model_type             = NULL,
     predictors             = attr(object[["priors"]], "terms"),
     predictors_test        = attr(object[["priors"]], "terms_test"),
-    prior_scale            = .transformation_var(prior_scale),
-    output_scale           = .transformation_var(prior_scale),
+    prior_scale            = .transformation_var("logOR"),
+    output_scale           = .transformation_var("logOR"),
     effect_measure         = attr(object$data[["outcome"]], "effect_measure"),
     effect_direction       = effect_direction,
     algorithm              = algorithm,
@@ -193,9 +169,9 @@ RoBMA.reg <- function(
 
   ### make models
   if(algorithm == "bridge"){
-    object$models <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
+    object$models <- .make_models_bi.reg(object[["priors"]], nrow(object$data[["outcome"]]), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_ss.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
+    object$model  <- .make_model_bi_ss.reg(object[["priors"]], nrow(object$data[["outcome"]]), .is_weighted(object))
   }
 
 
@@ -220,7 +196,7 @@ RoBMA.reg <- function(
       }
 
       for(i in seq_along(object[["models"]])){
-        object$models[[i]] <- .fit_RoBMA_model(object, i)
+        object$models[[i]] <- .fit_BiBMA_model(object, i)
         if(dots[["is_JASP"]]){
           .JASP_progress_bar_tick()
         }
@@ -234,7 +210,7 @@ RoBMA.reg <- function(
       cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
       parallel::clusterEvalQ(cl, {library("RoBMA")})
       parallel::clusterExport(cl, "object", envir = environment())
-      object$models <- parallel::parLapplyLB(cl, fitting_order, .fit_RoBMA_model, object = object)[order(fitting_order)]
+      object$models <- parallel::parLapplyLB(cl, fitting_order, .fit_BiBMA_model, object = object)[order(fitting_order)]
       parallel::stopCluster(cl)
 
     }
@@ -257,7 +233,7 @@ RoBMA.reg <- function(
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
-    object$model         <- .fit_RoBMA_model_ss(object)
+    object$model         <- .fit_BiBMA_model_ss(object)
     object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 
@@ -276,7 +252,6 @@ RoBMA.reg <- function(
   }
 
 
-  class(object) <- c("RoBMA", "RoBMA.reg")
+  class(object) <- c("BiBMA", "BiBMA.reg", "RoBMA", "RoBMA.reg")
   return(object)
 }
-

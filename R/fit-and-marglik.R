@@ -479,7 +479,7 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = inherits(model, "BiBMA.reg.model")
+    regression       = .is_model_regression(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
@@ -653,7 +653,6 @@
 
   if(attr(model, "multivariate")){
     stop("Multivariate models are not supported by this function.")
-    # object[["data"]] <- .order_data.mv(object[["data"]], inherits(model, "RoBMA.ss.reg.model"))
   }
 
   # deal with regression vs basic models
@@ -675,7 +674,7 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = inherits(model, "BiBMA.reg.model")
+    regression       = .is_model_regression(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings

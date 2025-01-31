@@ -75,14 +75,15 @@ BiBMA <- function(
   x1, x2, n1, n2, study_names = NULL, study_ids = NULL,
 
   # prior specification
-  priors_effect         = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4)),
-  priors_heterogeneity  = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55)),
+  rescale_priors = 1,
 
-  priors_effect_null         = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null  = prior(distribution = "point", parameters = list(location = 0)),
+  priors_effect              = set_default_binomial_priors("effect",        rescale = rescale_priors),
+  priors_heterogeneity       = set_default_binomial_priors("heterogeneity", rescale = rescale_priors),
+  priors_effect_null         = set_default_binomial_priors("effect",        null = TRUE),
+  priors_heterogeneity_null  = set_default_binomial_priors("heterogeneity", null = TRUE),
 
-  priors_baseline        = NULL,
-  priors_baseline_null   = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
+  priors_baseline                = set_default_binomial_priors("baseline"),
+  priors_baseline_null           = set_default_binomial_priors("baseline", null = TRUE),
 
   # MCMC fitting settings
   chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -97,7 +98,7 @@ BiBMA <- function(
 
 
   ### prepare & check the data
-  object$data <- .combine_data.bi(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = NULL)
+  object$data <- .combine_data_bi(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = NULL)
 
   # switch between multivariate and weighted models
   if(attr(object$data, "weighted"))
@@ -114,14 +115,14 @@ BiBMA <- function(
 
 
   ### prepare and check the settings
-  object$priors     <- .check_and_list_priors.bi(
+  object$priors     <- .check_and_list_priors_bi(
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_baseline_null = priors_baseline_null, priors_baseline = priors_baseline)
   if(algorithm == "bridge"){
-    object$models <- .make_models.bi(object[["priors"]], nrow(object$data), .is_weighted(object))
+    object$models <- .make_models_bi(object[["priors"]], nrow(object$data), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_ss.bi(object[["priors"]], nrow(object$data), .is_weighted(object))
+    object$model  <- .make_model_bi_ss(object[["priors"]], nrow(object$data), .is_weighted(object))
   }
 
 
@@ -296,7 +297,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
     what_to_do <- "fit_new_model"
     message("Fitting a new model with specified priors.")
-    new_priors <- .check_and_list_priors.bi(
+    new_priors <- .check_and_list_priors_bi(
       priors_effect_null        = prior_effect_null,        priors_effect        = prior_effect,
       priors_heterogeneity_null = prior_heterogeneity_null, priors_heterogeneity = prior_heterogeneity,
       priors_baseline_null      = prior_baseline_null,      priors_baseline      = prior_baseline)
