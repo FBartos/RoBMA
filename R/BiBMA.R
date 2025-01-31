@@ -302,7 +302,7 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
       priors_heterogeneity_null = prior_heterogeneity_null, priors_heterogeneity = prior_heterogeneity,
       priors_baseline_null      = prior_baseline_null,      priors_baseline      = prior_baseline)
 
-    object$models[length(object$models) + 1]  <- list(.make_models.bi(new_priors, nrow(object$data), .is_weighted(object))[[1]])
+    object$models[length(object$models) + 1]  <- list(.make_models_bi(new_priors, nrow(object$data), .is_weighted(object))[[1]])
 
     if(!is.null(prior_weights)){
       object$models[[length(object$models)]]$prior_weights     <- prior_weights
