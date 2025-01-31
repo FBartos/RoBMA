@@ -30,6 +30,7 @@ BiBMA(
   autofit = TRUE,
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
+  algorithm = "bridge",
   save = "all",
   seed = NULL,
   silent = TRUE,
@@ -109,6 +110,12 @@ options and default settings.}
 \item{convergence_checks}{automatic convergence checks to assess the fitted
 models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
 \code{?set_convergence_checks} for options and default settings.}
+
+\item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
+which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
+sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
+Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
+\code{adapt} iterations are needed for the \code{"ss"} algorithm.}
 
 \item{save}{whether all models posterior distributions should be kept
 after obtaining a model-averaged result. Defaults to \code{"all"} which

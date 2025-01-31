@@ -645,9 +645,10 @@
   )
   class(model) <- "BiBMA.model"
 
-  attr(model, "multivariate") <- FALSE
-  attr(model, "random")       <- is_random
-  attr(model, "weighted")     <- weighted
+  attr(model, "multivariate")  <- FALSE
+  attr(model, "random")        <- is_random
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
 
   return(model)
 }
@@ -741,6 +742,51 @@
   attr(model, "multivariate")  <- attr(model_base, "multivariate")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+
+  return(model)
+}
+.make_model_ss.bi  <- function(priors, K, weighted){
+
+  # pre-compute model component information
+  priors_effect        <- priors[["effect"]]
+  priors_heterogeneity <- priors[["heterogeneity"]]
+  priors_baseline      <- priors[["baseline"]]
+
+  model <- list(priors = list())
+
+  # place effect priors
+  model$priors$mu <- BayesTools::prior_mixture(priors_effect, is_null = sapply(priors_effect, function(x) x[["is_null"]]))
+
+  # place heterogeneity priors
+  model$priors$tau <- BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]]))
+
+  # place baseline priors
+  if(length(priors_baseline) == 1){
+    model$priors$pi <- priors_baseline[[1]]
+    # specify the number of levels
+    attr(model$priors$pi, "levels") <- K
+  }else{
+    model$priors$pi <- BayesTools::prior_mixture(priors_baseline, is_null = sapply(priors_baseline, function(x) x[["is_null"]]))
+    # specify the number of levels
+    for(i in seq_along(model$priors$pi)){
+      attr(model$priors$pi[[i]], "levels") <- K
+    }
+  }
+
+  # add non-central random effects
+  any_is_random <- !all(sapply(priors_heterogeneity, function(x) is.prior.point(x) && x$parameters[["location"]] != 0))
+  if(any_is_random){
+    model$priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(model$priors$gamma, "levels") <- K
+  }
+
+
+  class(model) <- "BiBMA.model_ss"
+
+  attr(model, "multivariate")  <- FALSE
+  attr(model, "random")        <- any_is_random
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
 
   return(model)
 }

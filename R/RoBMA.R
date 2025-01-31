@@ -330,7 +330,7 @@ RoBMA <- function(
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
-    object$model         <- .fit_RoBMA_model.ss(object)
+    object$model         <- .fit_RoBMA_model_ss(object)
     object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 
@@ -586,29 +586,31 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
       }
     }else if(object[["add_info"]][["algorithm"]] == "ss"){
-      object$model <- .fit_RoBMA_model.ss(object, extend = TRUE)
+      object$model <- .fit_RoBMA_model_ss(object, extend = TRUE)
     }
-
-
 
   }else if(what_to_do == "update_convergence_checks"){
 
     # propagate settings changes to the individual models
-    for(i in seq_along(object$models)){
-      object$models[[i]] <- .update_model_checks(object$models[[i]], object[["convergence_checks"]])
+    if(object[["add_info"]][["algorithm"]] == "bridge"){
+      for(i in seq_along(object$models)){
+        object$models[[i]] <- .update_model_checks(object$models[[i]], object[["convergence_checks"]], algorithm = "bridge")
+      }
+    }else if(object[["add_info"]][["algorithm"]] == "ss"){
+      object$model <- .update_model_checks(object$model, object[["convergence_checks"]], algorithm = "ss")
     }
 
   }else if(what_to_do == "transform_estimates"){
 
     # TODO: implement
     stop("Not implemented.")
-    for(i in c(1:length(object$models))){
-      object$models[[i]] <- .transform_posterior(object$models[[i]], object$add_info$output_scale, .transformation_var(output_scale))
-    }
-    object <- .transform_posterior(object, object$add_info$output_scale, .transformation_var(output_scale))
-    object$add_info$output_scale <- .transformation_var(output_scale)
-
-    return(object)
+    # for(i in c(1:length(object$models))){
+    #   object$models[[i]] <- .transform_posterior(object$models[[i]], object$add_info$output_scale, .transformation_var(output_scale))
+    # }
+    # object <- .transform_posterior(object, object$add_info$output_scale, .transformation_var(output_scale))
+    # object$add_info$output_scale <- .transformation_var(output_scale)
+    #
+    # return(object)
   }
 
 

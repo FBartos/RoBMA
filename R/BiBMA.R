@@ -89,7 +89,7 @@ BiBMA <- function(
   autofit = TRUE, autofit_control = set_autofit_control(), convergence_checks = set_convergence_checks(),
 
   # additional settings
-  save = "all", seed = NULL, silent = TRUE, ...){
+  algorithm = "bridge", save = "all", seed = NULL, silent = TRUE, ...){
 
   dots         <- .RoBMA_collect_dots(...)
   object       <- NULL
@@ -118,7 +118,12 @@ BiBMA <- function(
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_baseline_null = priors_baseline_null, priors_baseline = priors_baseline)
-  object$models     <- .make_models.bi(object[["priors"]], nrow(object$data), .is_weighted(object))
+  if(algorithm == "bridge"){
+    object$models <- .make_models.bi(object[["priors"]], nrow(object$data), .is_weighted(object))
+  }else if(algorithm == "ss"){
+    object$model  <- .make_model_ss.bi(object[["priors"]], nrow(object$data), .is_weighted(object))
+  }
+
 
 
   ### additional information
@@ -130,7 +135,7 @@ BiBMA <- function(
     output_scale           = .transformation_var("logOR"),
     effect_measure         = attr(object[["data"]], "effect_measure"),
     effect_direction       = "positive",
-    algorithm              = "bridge",
+    algorithm              = algorithm,
     seed                   = seed,
     save                   = save,
     warnings               = NULL,
@@ -143,43 +148,54 @@ BiBMA <- function(
 
 
   ### fit the models and compute marginal likelihoods
-  if(!object$fit_control[["parallel"]]){
+  if(object$add_info[["algorithm"]] == "bridge"){
 
-    if(dots[["is_JASP"]]){
-      .JASP_progress_bar_start(length(object[["models"]]))
-    }
+    if(!object$fit_control[["parallel"]]){
 
-    for(i in seq_along(object[["models"]])){
-      object$models[[i]] <- .fit_BiBMA_model(object, i)
       if(dots[["is_JASP"]]){
-        .JASP_progress_bar_tick()
+        .JASP_progress_bar_start(length(object[["models"]]))
       }
+
+      for(i in seq_along(object[["models"]])){
+        object$models[[i]] <- .fit_BiBMA_model(object, i)
+        if(dots[["is_JASP"]]){
+          .JASP_progress_bar_tick()
+        }
+      }
+
+    }else{
+
+      fitting_order <- .fitting_priority(object[["models"]])
+
+      cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
+      parallel::clusterEvalQ(cl, {library("RoBMA")})
+      parallel::clusterExport(cl, "object", envir = environment())
+      object$models <- parallel::parLapplyLB(cl, fitting_order, .fit_BiBMA_model, object = object)[order(fitting_order)]
+      parallel::stopCluster(cl)
+
     }
 
-  }else{
+    # create ensemble only if at least one model converged
+    if(any(.get_model_convergence(object))){
 
-    fitting_order <- .fitting_priority(object[["models"]])
+      # balance probability of non-converged models
+      if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
+        object <- .balance_component_probability(object)
+      }
 
-    cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
-    parallel::clusterEvalQ(cl, {library("RoBMA")})
-    parallel::clusterExport(cl, "object", envir = environment())
-    object$models <- parallel::parLapplyLB(cl, fitting_order, .fit_BiBMA_model, object = object)[order(fitting_order)]
-    parallel::stopCluster(cl)
-
-  }
-
-  # create ensemble only if at least one model converged
-  if(any(.get_model_convergence(object))){
-
-    # balance probability of non-converged models
-    if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_component_probability(object)
+      ### compute the model-space results
+      object$models        <- BayesTools::models_inference(object[["models"]])
+      object$RoBMA         <- .ensemble_inference(object)
+      object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
     }
 
-    ### compute the model-space results
-    object$models        <- BayesTools::models_inference(object[["models"]])
-    object$RoBMA         <- .ensemble_inference(object)
+  }else if(object$add_info[["algorithm"]] == "ss"){
+
+    # model fitting using JAGS with spike and slab priors
+    object$model         <- .fit_BiBMA_model_ss(object)
+    object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
+
   }
 
 
@@ -190,7 +206,7 @@ BiBMA <- function(
 
 
   ### remove model posteriors if asked to
-  if(save == "min"){
+  if(save == "min" && object$add_info[["algorithm"]] == "bridge"){
     object <- .remove_model_posteriors(object)
     object <- .remove_model_margliks(object)
   }
@@ -275,6 +291,9 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
      (!is.null(prior_heterogeneity)  | !is.null(prior_heterogeneity_null)) &
      (!is.null(prior_baseline)       | !is.null(prior_baseline_null))){
 
+    if(object[["add_info"]][["algorithm"]] == "ss")
+      stop("Adding a new model to the ensemble is not possible with BiBMA models estimated via spike and slab.")
+
     what_to_do <- "fit_new_model"
     message("Fitting a new model with specified priors.")
     new_priors <- .check_and_list_priors.bi(
@@ -291,6 +310,9 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
 
   }else if(!is.null(prior_weights)){
+
+    if(object[["add_info"]][["algorithm"]] == "ss")
+      stop("Updating prior odds is not possible with BiBMA models estimated via spike and slab.")
 
     what_to_do <- "update_prior_weights"
     message("Updating prior odds for the fitted models.")
@@ -344,59 +366,76 @@ update.BiBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
 
   }else if(what_to_do %in% c("refit_failed_models", "extend_all")){
 
-    models_to_update <- switch(
-      what_to_do,
-      "refit_failed_models" = seq_along(object$models)[!.get_model_convergence(object)],
-      "extend_all"          = seq_along(object$models)
-    )
+    if(object[["add_info"]][["algorithm"]] == "bridge"){
+      models_to_update <- switch(
+        what_to_do,
+        "refit_failed_models" = seq_along(object$models)[!.get_model_convergence(object)],
+        "extend_all"          = seq_along(object$models)
+      )
 
-    if(!object$fit_control[["parallel"]]){
+      if(!object$fit_control[["parallel"]]){
 
-      if(dots[["is_JASP"]]){
-        .JASP_progress_bar_start(length(models_to_update))
-      }
-
-      for(i in models_to_update){
-        object$models[[i]] <- .fit_BiBMA_model(object, i, extend = TRUE)
         if(dots[["is_JASP"]]){
-          .JASP_progress_bar_tick()
+          .JASP_progress_bar_start(length(models_to_update))
         }
+
+        for(i in models_to_update){
+          object$models[[i]] <- .fit_BiBMA_model(object, i, extend = TRUE)
+          if(dots[["is_JASP"]]){
+            .JASP_progress_bar_tick()
+          }
+        }
+
+      }else{
+
+        cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
+        parallel::clusterEvalQ(cl, {library("RoBMA")})
+        parallel::clusterExport(cl, "object", envir = environment())
+        object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_BiBMA_model, object = object, extend = TRUE)
+        parallel::stopCluster(cl)
+
       }
-
-    }else{
-
-      cl <- parallel::makePSOCKcluster(floor(RoBMA.get_option("max_cores") / object$fit_control[["chains"]]))
-      parallel::clusterEvalQ(cl, {library("RoBMA")})
-      parallel::clusterExport(cl, "object", envir = environment())
-      object$models[models_to_update] <- parallel::parLapplyLB(cl, models_to_update, .fit_BiBMA_model, object = object, extend = TRUE)
-      parallel::stopCluster(cl)
-
+    }else if(object[["add_info"]][["algorithm"]] == "ss"){
+      object$model <- .fit_BiBMA_model_ss(object, extend = TRUE)
     }
 
   }else if(what_to_do == "update_convergence"){
 
     # propagate settings changes to the individual models
-    for(i in seq_along(object$models)){
-      object$models[[i]] <- .update_model_checks(object$models[[i]], object[["convergence_checks"]])
+    if(object[["add_info"]][["algorithm"]] == "bridge"){
+      for(i in seq_along(object$models)){
+        object$models[[i]] <- .update_model_checks(object$models[[i]], object[["convergence_checks"]], algorithm = "bridge")
+      }
+    }else if(object[["add_info"]][["algorithm"]] == "ss"){
+      object$model <- .update_model_checks(object$model, object[["convergence_checks"]], algorithm = "ss")
     }
 
   }
 
-  # restore original prior model probabilities (possibly changed by previous balancing)
-  object <- .restore_component_probability(object)
+  if(object[["add_info"]][["algorithm"]] == "bridge"){
+    # restore original prior model probabilities (possibly changed by previous balancing)
+    object <- .restore_component_probability(object)
 
-  # create ensemble only if at least one model converged
-  if(any(.get_model_convergence(object))){
+    # create ensemble only if at least one model converged
+    if(any(.get_model_convergence(object))){
 
-    # balance probability of non-converged models
-    if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
-      object <- .balance_component_probability(object)
+      # balance probability of non-converged models
+      if(object$convergence_checks[["balance_probability"]] && !all(.get_model_convergence(object))){
+        object <- .balance_component_probability(object)
+      }
+
+      ### compute the model-space results
+      object$models        <- BayesTools::models_inference(object[["models"]])
+      object$RoBMA         <- .ensemble_inference(object)
+      object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
     }
 
-    ### compute the model-space results
-    object$models        <- BayesTools::models_inference(object[["models"]])
-    object$RoBMA         <- .ensemble_inference(object)
+  }else if(object[["add_info"]][["algorithm"]] == "ss"){
+
+    # update the ensemble results
+    object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
+
   }
 
 

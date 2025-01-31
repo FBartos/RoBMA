@@ -1,3 +1,7 @@
+## version 3.3.1
+### Features
+- the spike and slab algorithm for faster model estimation via the `algorithm = "ss"` argument for BiBMA models
+
 ## version 3.3
 ### Features
 - the spike and slab algorithm for faster model estimation via the `algorithm = "ss"` argument (see a new vignette for more details)
