@@ -207,7 +207,7 @@
   # add attributes
   priors_main$terms                <- priors_terms
   attr(priors_main, "terms")       <- attr(priors_terms, "terms")
-  attr(priors_main, "terms_test")  <- attr(priors_terms, "terms")
+  attr(priors_main, "terms_test")  <- attr(priors_terms, "terms_test")
 
   return(priors_main)
 }
@@ -240,7 +240,7 @@
   # add attributes
   priors_main$terms                <- priors_terms
   attr(priors_main, "terms")       <- attr(priors_terms, "terms")
-  attr(priors_main, "terms_test")  <- attr(priors_terms, "terms")
+  attr(priors_main, "terms_test")  <- attr(priors_terms, "terms_test")
 
   return(priors_main)
 }

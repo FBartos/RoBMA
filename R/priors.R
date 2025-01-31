@@ -248,8 +248,8 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
 #'   \item \strong{Effect:} T distribution with mean 0, scale 0.58, and 4 degrees of freedom.
 #'   \item \strong{Heterogeneity:} Inverse gamma distribution with shape 1.77 and scale 0.55.
 #'   \item \strong{Baseline:} No prior distribution.
-#'   \item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.145.
-#'   \item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.145.
+#'   \item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.29.
+#'   \item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.29.
 #' }
 #'
 #' **For the null hypothesis:**
@@ -298,8 +298,8 @@ set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
       heterogeneity = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55 * rescale)),
 
       baseline      = NULL,
-      covariates    = prior("normal", parameters = list(mean = 0, sd = 0.58 * (1/4) * rescale)),
-      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.58 * (1/4) * rescale), contrast = "meandif")
+      covariates    = prior("normal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale)),
+      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale), contrast = "meandif")
     ))
   }
 }

@@ -38,8 +38,8 @@ Specifically, the prior distributions are:
 \item \strong{Effect:} T distribution with mean 0, scale 0.58, and 4 degrees of freedom.
 \item \strong{Heterogeneity:} Inverse gamma distribution with shape 1.77 and scale 0.55.
 \item \strong{Baseline:} No prior distribution.
-\item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.145.
-\item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.145.
+\item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.29.
+\item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.29.
 }
 
 \strong{For the null hypothesis:}

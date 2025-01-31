@@ -10,10 +10,7 @@ BiBMA.reg(
   test_predictors = TRUE,
   study_names = NULL,
   study_ids = NULL,
-  transformation = if (any(colnames(data) != "y")) "fishers_z" else "none",
-  prior_scale = if (any(colnames(data) != "y")) "cohens_d" else "none",
   standardize_predictors = TRUE,
-  effect_direction = "positive",
   priors = NULL,
   rescale_priors = 1,
   priors_effect = set_default_binomial_priors("effect", rescale = rescale_priors),
@@ -69,31 +66,10 @@ is overridden.}
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
 
-\item{transformation}{transformation to be applied to the supplied
-effect sizes before fitting the individual models. Defaults to
-\code{"fishers_z"}. We highly recommend using \code{"fishers_z"}
-transformation since it is the only variance stabilizing measure
-and does not bias PET and PEESE style models. The other options are
-\code{"cohens_d"}, correlation coefficient \code{"r"} and \code{"logOR"}.
-Supplying \code{"none"} will treat the effect sizes as unstandardized and
-refrain from any transformations.}
-
-\item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
-Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
-and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
-the samples from prior distributions are internally transformed to match the
-\code{transformation} of the data. The \code{prior_scale} corresponds to
-the effect size scale of default output, but can be changed within the summary function.}
-
 \item{standardize_predictors}{whether continuous predictors should be standardized prior to
 estimating the model. Defaults to \code{TRUE}. Continuous predictor standardization is important
 for applying the default prior distributions for continuous predictors. Note that the resulting
 output corresponds to standardized meta-regression coefficients.}
-
-\item{effect_direction}{the expected direction of the effect. Correctly specifying
-the expected direction of the effect is crucial for one-sided selection models,
-as they specify cut-offs using one-sided p-values. Defaults to \code{"positive"}
-(another option is \code{"negative"}).}
 
 \item{priors}{named list of prior distributions for each predictor
 (with names corresponding to the predictors). It allows users to

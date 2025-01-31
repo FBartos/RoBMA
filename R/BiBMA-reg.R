@@ -90,10 +90,7 @@
 #' @export
 BiBMA.reg <- function(
     formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
-    transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
-    prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
-    effect_direction       = "positive",
 
     # prior specification
     priors = NULL, rescale_priors = 1,
@@ -158,7 +155,7 @@ BiBMA.reg <- function(
     prior_scale            = .transformation_var("logOR"),
     output_scale           = .transformation_var("logOR"),
     effect_measure         = attr(object$data[["outcome"]], "effect_measure"),
-    effect_direction       = effect_direction,
+    effect_direction       = "positive",
     algorithm              = algorithm,
     standardize_predictors = standardize_predictors,
     seed                   = seed,
