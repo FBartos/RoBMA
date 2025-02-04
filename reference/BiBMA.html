@@ -13,7 +13,7 @@ for each component."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -46,7 +46,7 @@ for each component."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Estimate a Bayesian Model-Averaged Meta-Analysis of Binomial Data</h1>
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.3.0/R/BiBMA.R" class="external-link"><code>R/BiBMA.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.4.0/R/BiBMA.R" class="external-link"><code>R/BiBMA.R</code></a></small>
       <div class="d-none name"><code>BiBMA.Rd</code></div>
     </div>
 
@@ -66,16 +66,14 @@ for each component.</p>
 <span>  <span class="va">n2</span>,</span>
 <span>  study_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  study_ids <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  priors_effect <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"student"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span>, scale <span class="op">=</span></span>
-<span>    <span class="fl">0.58</span>, df <span class="op">=</span> <span class="fl">4</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"invgamma"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">1.77</span>,</span>
-<span>    scale <span class="op">=</span> <span class="fl">0.55</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  priors_effect_null <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"point"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  priors_heterogeneity_null <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span>distribution <span class="op">=</span> <span class="st">"point"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span></span>
-<span>    <span class="fl">0</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  priors_baseline <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  priors_baseline_null <span class="op">=</span> <span class="fu"><a href="prior_factor.html">prior_factor</a></span><span class="op">(</span><span class="st">"beta"</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>alpha <span class="op">=</span> <span class="fl">1</span>, beta <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span>    contrast <span class="op">=</span> <span class="st">"independent"</span><span class="op">)</span>,</span>
+<span>  rescale_priors <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  priors_effect <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"effect"</span>, rescale <span class="op">=</span> <span class="va">rescale_priors</span><span class="op">)</span>,</span>
+<span>  priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"heterogeneity"</span>, rescale <span class="op">=</span></span>
+<span>    <span class="va">rescale_priors</span><span class="op">)</span>,</span>
+<span>  priors_effect_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"effect"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  priors_heterogeneity_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"heterogeneity"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  priors_baseline <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"baseline"</span><span class="op">)</span>,</span>
+<span>  priors_baseline_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"baseline"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  sample <span class="op">=</span> <span class="fl">5000</span>,</span>
 <span>  burnin <span class="op">=</span> <span class="fl">2000</span>,</span>
@@ -85,6 +83,7 @@ for each component.</p>
 <span>  autofit <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  autofit_control <span class="op">=</span> <span class="fu"><a href="RoBMA_control.html">set_autofit_control</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  convergence_checks <span class="op">=</span> <span class="fu"><a href="RoBMA_control.html">set_convergence_checks</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  algorithm <span class="op">=</span> <span class="st">"bridge"</span>,</span>
 <span>  save <span class="op">=</span> <span class="st">"all"</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  silent <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -120,6 +119,11 @@ for each component.</p>
 <dd><p>an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to <code>NULL</code> for
 studies being independent.</p></dd>
+
+
+<dt id="arg-rescale-priors">rescale_priors<a class="anchor" aria-label="anchor" href="#arg-rescale-priors"></a></dt>
+<dd><p>a re-scaling factor for the prior distributions. The re-scaling
+factor allows to adjust the width of all default priors simultaneously. Defaults to <code>1</code>.</p></dd>
 
 
 <dt id="arg-priors-effect">priors_effect<a class="anchor" aria-label="anchor" href="#arg-priors-effect"></a></dt>
@@ -209,6 +213,14 @@ options and default settings.</p></dd>
 <dd><p>automatic convergence checks to assess the fitted
 models, passed with <code><a href="RoBMA_control.html">set_convergence_checks()</a></code> function. See
 <code><a href="RoBMA_control.html">?set_convergence_checks</a></code> for options and default settings.</p></dd>
+
+
+<dt id="arg-algorithm">algorithm<a class="anchor" aria-label="anchor" href="#arg-algorithm"></a></dt>
+<dd><p>a string specifying the algorithm used for the model averaging. Defaults to <code>"bridge"</code>
+which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
+sampling. An alternative is <code>"ss"</code> which uses spike and slab like parameterization to approximate the
+Bayesian model averaging with a single model. Note that significantly more <code>sample</code>, <code>burnin</code>, and
+<code>adapt</code> iterations are needed for the <code>"ss"</code> algorithm.</p></dd>
 
 
 <dt id="arg-save">save<a class="anchor" aria-label="anchor" href="#arg-save"></a></dt>
