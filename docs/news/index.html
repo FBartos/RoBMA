@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -19,6 +19,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -42,6 +43,37 @@
       <small>Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="3.4" id="version-34">version 3.4<a class="anchor" aria-label="anchor" href="#version-34"></a></h2>
+<div class="section level3">
+<h3 id="features-3-4">Features<a class="anchor" aria-label="anchor" href="#features-3-4"></a></h3>
+<ul><li>adding binomial-normal meta-regression models for binary data via the <code>BiBMA.reg</code> function</li>
+<li>the spike and slab algorithm for faster model estimation via the <code>algorithm = "ss"</code> argument for BiBMA models</li>
+<li>default prior distributions for all parameters of BiBMA models are now set via the <code><a href="../reference/set_default_binomial_priors.html">set_default_binomial_priors()</a></code> function</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="3.3" id="version-33">version 3.3<a class="anchor" aria-label="anchor" href="#version-33"></a></h2>
+<div class="section level3">
+<h3 id="features-3-3">Features<a class="anchor" aria-label="anchor" href="#features-3-3"></a></h3>
+<ul><li>the spike and slab algorithm for faster model estimation via the <code>algorithm = "ss"</code> argument (see a new vignette for more details)</li>
+<li>refactoring of the JAGS C++ code of weighted distributions and exporting of the lpdfs into JAGS (maintenance)</li>
+<li>weights_mix JAGS prior distribution to sample a mixture of weight functions directly</li>
+</ul></div>
+<div class="section level3">
+<h3 id="fixes-3-3">Fixes<a class="anchor" aria-label="anchor" href="#fixes-3-3"></a></h3>
+<ul><li>incorrectly omitting models with more than one predictor when computing conditional marginal summary</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="3.2.1" id="version-321">version 3.2.1<a class="anchor" aria-label="anchor" href="#version-321"></a></h2>
+<div class="section level3">
+<h3 id="features-3-2-1">Features<a class="anchor" aria-label="anchor" href="#features-3-2-1"></a></h3>
+<ul><li>default prior distributions for all parameters are now set via the <code><a href="../reference/set_default_priors.html">set_default_priors()</a></code> function</li>
+<li>
+<code>rescale_priors</code> argument allows to conveniently re-scale the prior distributions for the effect, heterogeneity, and bias simultaneously</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="3.2" id="version-32">version 3.2<a class="anchor" aria-label="anchor" href="#version-32"></a></h2>
 <div class="section level3">
@@ -199,8 +231,8 @@
 <li>prior distributions for specifying weight functions now use a dedicated function (<code>prior(distribution = "two.sided", parameters = ...)</code> -&gt; <code>prior_weightfunction(distribution = "two.sided", parameters = ...)</code>),</li>
 <li>new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (<code><a href="../reference/prior_none.html">prior_none()</a></code>),</li>
 <li>new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (<code>prior_PET(distribution = "Cauchy", parameters = ...)</code> and <code>prior_PEESE(distribution = "Cauchy", parameters = ...)</code>),</li>
-<li>new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al., 2021 <a href="https://osf.io/preprints/psyarxiv/kvsp7/" class="external-link">preprint</a>),</li>
-<li>new <code>model_type</code> argument allowing to specify different “pre-canned” models (<code>"PSMA"</code> = RoBMA-PSMA, <code>"PP"</code> = RoBMA-PP, <code>"2w"</code> = corresponding to Maier et al., in press , <a href="https://osf.io/preprints/psyarxiv/u4cns/" class="external-link">manuscript</a>),</li>
+<li>new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al., 2021 <a href="https://doi.org/10.1002/jrsm.1594" class="external-link">manuscript</a>),</li>
+<li>new <code>model_type</code> argument allowing to specify different “pre-canned” models (<code>"PSMA"</code> = RoBMA-PSMA, <code>"PP"</code> = RoBMA-PP, <code>"2w"</code> = corresponding to Maier et al., in press , <a href="https://doi.org/10.1037/met0000405" class="external-link">manuscript</a>),</li>
 <li>
 <code>combine_data</code> function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the <code>RoBMA</code> function),</li>
 <li>better and improved automatic fitting procedure now enabled by default (can be turned of with <code>autofit = FALSE</code>)</li>
@@ -221,7 +253,7 @@
 <h2 class="pkg-version" data-toc-text="1.2.0" id="version-120">version 1.2.0<a class="anchor" aria-label="anchor" href="#version-120"></a></h2><p class="text-muted">CRAN release: 2021-01-21</p>
 <div class="section level3">
 <h3 id="changes-1-2-0">Changes<a class="anchor" aria-label="anchor" href="#changes-1-2-0"></a></h3>
-<ul><li>the studies’s true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our <a href="https://osf.io/preprints/psyarxiv/u4cns/" class="external-link">prerint</a> for more details). As a results, arguments referring to the true effects are now disabled.</li>
+<ul><li>the studies’s true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our <a href="https://doi.org/10.1037/met0000405" class="external-link">manuscript</a> for more details). As a results, arguments referring to the true effects are now disabled.</li>
 <li>all models are now being estimated using the likelihood of effect sizes (instead of test-statistics as usually defined). We reproduced the simulation study that we used to evaluate the method performance and it achieved identical results (up to MCMC error, before marginalizing out the true effects). A big advantage of using the normal likelihood for effect sizes is a considerable speed up of the whole estimation process.</li>
 <li>as a results of these two changes, the results of the models will differ to those of pre 1.2.0 version</li>
 </ul></div>

@@ -11,8 +11,8 @@
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Robust Bayesian Meta-Analyses">
-<meta name="description" content="A framework for estimating ensembles of meta-analytic models (assuming either presence or absence of the effect, heterogeneity, and publication bias). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;). Users can define a wide range of non-informative or informative prior distributions for the effect size, heterogeneity, and publication bias components (including selection models and PET-PEESE). The package provides convenient functions for summary, visualizations, and fit diagnostics.">
-<meta property="og:description" content="A framework for estimating ensembles of meta-analytic models (assuming either presence or absence of the effect, heterogeneity, and publication bias). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;). Users can define a wide range of non-informative or informative prior distributions for the effect size, heterogeneity, and publication bias components (including selection models and PET-PEESE). The package provides convenient functions for summary, visualizations, and fit diagnostics.">
+<meta name="description" content="A framework for estimating ensembles of meta-analytic and meta-regression models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;). Users can define a wide range of prior distributions for + the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
+<meta property="og:description" content="A framework for estimating ensembles of meta-analytic and meta-regression models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;). Users can define a wide range of prior distributions for + the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -36,6 +36,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -68,7 +69,7 @@
 <div class="section level1">
 <h1 id="robust-bayesian-meta-analysis-robma">Robust Bayesian Meta-Analysis (RoBMA)<a class="anchor" aria-label="anchor" href="#robust-bayesian-meta-analysis-robma"></a>
 </h1>
-<p>This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range prior distributions for the effect size, heterogeneity, and publication bias components (including selection, PET, and PEESE style models). The package provides convenient functions for summary, visualizations, and fit diagnostics.</p>
+<p>This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. The package is also integrated into the JASP software (JASP Team, 2020) and can be used via the graphical user interface.</p>
 <p>See our manuscripts that for technical details and examples:</p>
 <ul>
 <li>Bartoš, Maier, Stanley, et al. (2023) (<a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link uri">https://doi.org/10.31234/osf.io/98xb5</a>) extends RoBMA-PSMA into meta-regression</li>
@@ -86,6 +87,7 @@
 <li><a href="https://fbartos.github.io/RoBMA/articles/MedicineBMA.html" class="external-link">Informed Bayesian model-averaged meta-analysis in medicine</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html" class="external-link">Informed Bayesian model-averaged meta-analysis with binary outcomes</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html" class="external-link">Fitting custom meta-analytic ensembles</a></li>
+<li><a href="https://fbartos.github.io/RoBMA/articles/FastRoBMA.html" class="external-link">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
 </ul>
 <div class="section level2">
 <h2 id="updates">Updates<a class="anchor" aria-label="anchor" href="#updates"></a>
@@ -111,6 +113,7 @@
 <li>publication bias unadjusted models via the <code><a href="reference/NoBMA.html">NoBMA()</a></code> and <code><a href="reference/NoBMA.reg.html">NoBMA.reg()</a></code> functions (wrappers around <code><a href="reference/RoBMA.html">RoBMA()</a></code> and <code><a href="reference/RoBMA.reg.html">RoBMA.reg()</a></code>)</li>
 <li>marginal summaries and plots of the regression models via the <code><a href="reference/marginal_summary.html">marginal_summary()</a></code> and <code><a href="reference/marginal_plot.html">marginal_plot()</a></code> function</li>
 <li>prediction intervals, I^2, and H^2 statistics using <code><a href="reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> function</li>
+<li>the spike and slab algorithm for faster model estimation via the <code>algorithm = "ss"</code> argument</li>
 </ul>
 <p>The 2.0 version brought several updates to the package:</p>
 <ul>

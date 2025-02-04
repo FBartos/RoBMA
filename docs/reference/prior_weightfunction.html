@@ -9,7 +9,7 @@ a RoBMA selection model. The prior can be visualized by the plot function."></he
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,6 +21,7 @@ a RoBMA selection model. The prior can be visualized by the plot function."></he
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -99,6 +100,15 @@ its prior distributions.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>prior_weightfunction</code> returns an object of class 'prior'.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Constrained cases of weight functions can be specified by adding
+".fixed" after the distribution name, i.e., <code>"two.sided.fixed"</code> and
+<code>"one.sided.fixed"</code>. In these cases, the functions are specified using
+<code>steps</code> and <code>omega</code> parameters, where the <code>omega</code> parameter
+is a vector of weights that corresponds to the relative publication probability
+(i.e., no parameters are estimated).</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
