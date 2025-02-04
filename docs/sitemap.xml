@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://https://fbartos.github.io/RoBMA/404.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/FastRoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/index.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html</loc></url>
@@ -15,6 +16,7 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Andrews2021.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Bem2011.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/BiBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/BiBMA.reg.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/check_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/check_setup.BiBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/check_setup.html</loc></url>
@@ -54,6 +56,8 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA_control.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/RoBMA_options.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/sample_sizes.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/set_default_binomial_priors.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/set_default_priors.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/standard_errors.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/summary.RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.html</loc></url>

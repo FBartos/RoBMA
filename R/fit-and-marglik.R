@@ -281,7 +281,7 @@
 
   return(model)
 }
-.fit_RoBMA_model.ss    <- function(object,    extend = FALSE){
+.fit_RoBMA_model_ss    <- function(object,    extend = FALSE){
 
   model              <- object[["model"]]
   priors             <- object[["model"]][["priors"]]
@@ -335,7 +335,7 @@
 
   }else{
     # generate the model syntax
-    model_syntax <- .generate_model_syntax.ss(
+    model_syntax <- .generate_model_syntax_ss(
       priors           = priors,
       effect_direction = add_info[["effect_direction"]],
       prior_scale      = add_info[["prior_scale"]],
@@ -345,7 +345,7 @@
     )
 
     # remove unnecessary objects from data to mitigate warnings
-    fit_data     <- .fit_data.ss(
+    fit_data     <- .fit_data_ss(
       data             = data_outcome,
       priors           = priors,
       effect_direction = add_info[["effect_direction"]],
@@ -461,7 +461,7 @@
 
   ### the model is never constant as there needs to be a prior for pi
   # deal with regression vs basic models
-  if(inherits(model, "BiBMA.reg.model")){
+  if(.is_model_regression(model)){
     data_outcome       <- object[["data"]][["outcome"]]
     fit_priors         <- priors[names(priors) != "terms"]
     formula_list       <- .generate_model_formula_list(object[["formula"]])
@@ -479,7 +479,7 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = inherits(model, "BiBMA.reg.model")
+    regression       = .is_model_regression(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
@@ -639,6 +639,140 @@
 
   return(model)
 }
+.fit_BiBMA_model_ss    <- function(object,    extend = FALSE){
+
+  model              <- object[["model"]]
+  priors             <- object[["model"]][["priors"]]
+  fit_control        <- object[["fit_control"]]
+  autofit_control    <- object[["autofit_control"]]
+  convergence_checks <- object[["convergence_checks"]]
+  add_info           <- object[["add_info"]]
+
+  errors   <- NULL
+  warnings <- NULL
+
+  if(attr(model, "multivariate")){
+    stop("Multivariate models are not supported by this function.")
+  }
+
+  # deal with regression vs basic models
+  if(.is_model_regression(model)){
+    data_outcome       <- object[["data"]][["outcome"]]
+    fit_priors         <- priors[names(priors) != "terms"]
+    formula_list       <- .generate_model_formula_list(object[["formula"]])
+    formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
+    formula_prior_list <- .generate_model_formula_prior_list(priors)
+  }else if(inherits(model, "BiBMA.model_ss")){
+    data_outcome       <- object[["data"]]
+    fit_priors         <- priors
+    formula_list       <- NULL
+    formula_data_list  <- NULL
+    formula_prior_list <- NULL
+  }
+
+  model_syntax <- .generate_model_syntax.bi(
+    priors           = fit_priors,
+    random           = attr(model, "random"),
+    weighted         = attr(model, "weighted"),
+    regression       = .is_model_regression(model)
+  )
+
+  # remove unnecessary objects from data to mitigate warnings
+  fit_data     <- .fit_data.bi(
+    data             = data_outcome,
+    weighted         = attr(model, "weighted"),
+    weighted_type    = attr(model, "weighted_type")
+  )
+
+
+  # fit the model
+  if(!extend || length(model[["fit"]]) == 0){
+
+    fit <- BayesTools::JAGS_fit(
+      model_syntax          = model_syntax,
+      data                  = fit_data,
+      prior_list            = fit_priors,
+      formula_list          = formula_list,
+      formula_data_list     = formula_data_list,
+      formula_prior_list    = formula_prior_list,
+      chains                = fit_control[["chains"]],
+      adapt                 = fit_control[["adapt"]],
+      burnin                = fit_control[["burnin"]],
+      sample                = fit_control[["sample"]],
+      thin                  = fit_control[["thin"]],
+      autofit               = fit_control[["autofit"]],
+      autofit_control       = autofit_control,
+      parallel              = fit_control[["parallel"]],
+      cores                 = fit_control[["cores"]],
+      silent                = fit_control[["silent"]],
+      seed                  = fit_control[["seed"]],
+      required_packages     = "RoBMA"
+    )
+
+  }else{
+
+    fit <- BayesTools::JAGS_extend(
+      fit                = model[["fit"]],
+      autofit_control    = autofit_control,
+      parallel           = fit_control[["parallel"]],
+      cores              = fit_control[["cores"]],
+      silent             = fit_control[["silent"]],
+      seed               = fit_control[["seed"]]
+    )
+
+  }
+
+
+  # assess the model fit and deal with errors
+  if(inherits(fit, "error")){
+
+    if(grepl("Unknown function", fit$message))
+      stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
+
+    fit                     <- list()
+    attr(fit, "prior_list") <- fit_priors
+
+    converged      <- FALSE
+    has_posterior  <- FALSE
+    errors         <- c(errors, fit$message)
+
+    # deal with failed models
+    marglik        <- list()
+    marglik$logml  <- NA
+    class(marglik) <- "bridge"
+
+  }else{
+
+    has_posterior <- TRUE
+    check_fit     <- BayesTools::JAGS_check_convergence(
+      fit          = fit,
+      prior_list   = attr(fit, "prior_list"),
+      max_Rhat     = convergence_checks[["max_Rhat"]],
+      min_ESS      = convergence_checks[["min_ESS"]],
+      max_error    = convergence_checks[["max_error"]],
+      max_SD_error = convergence_checks[["max_SD_error"]]
+    )
+    warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
+    if(convergence_checks[["remove_failed"]] && !check_fit){
+      converged <- FALSE
+    }else{
+      converged <- TRUE
+    }
+
+  }
+
+
+  # add results
+  model$fit           <- fit
+  model$errors        <- errors
+  model$warnings      <- warnings
+  model$converged     <- converged
+  model$has_posterior <- has_posterior
+  model$output_scale  <- add_info[["prior_scale"]]
+  model$prior_scale   <- add_info[["prior_scale"]]
+
+  return(model)
+}
 
 # tools
 .fit_data                 <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
@@ -733,7 +867,7 @@
 
   return(fit_data)
 }
-.fit_data.ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
+.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -1006,7 +1140,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression){
+.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression){
 
   ### extract prior information
   if(is.prior.mixture(priors[["bias"]])){
@@ -1443,7 +1577,7 @@
   return(priors)
 }
 .is_model_regression    <- function(model){
-  return(inherits(model, "RoBMA.reg.model") || inherits(model, "RoBMA.reg.model_ss") || inherits(model, "BiBMA.reg.model"))
+  return(inherits(model, "RoBMA.reg.model") || inherits(model, "RoBMA.reg.model_ss") || inherits(model, "BiBMA.reg.model") || inherits(model, "BiBMA.reg.model_ss"))
 }
 
 .generate_model_formula_list       <- function(formula){

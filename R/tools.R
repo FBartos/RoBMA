@@ -29,7 +29,7 @@ check_RoBMA_convergence <- function(fit){
 }
 
 
-.update_model_checks       <- function(model, convergence_checks){
+.update_model_checks       <- function(model, convergence_checks, algorithm = "bridge"){
 
   fit     <- model[["fit"]]
   marglik <- model[["marglik"]]
@@ -58,18 +58,17 @@ check_RoBMA_convergence <- function(fit){
     converged <- TRUE
   }
 
-  # check the marginal likelihood and keep the errors
-  if(is.na(marglik$logml)){
-
-    errors         <- c(errors, attr(marglik, "errors"))
-    converged      <- FALSE
-
-  }else{
-
-    # forward warnings if present
-    warnings <- c(warnings, attr(marglik, "warnings"))
-
+  if(algorithm == "bridge"){
+    # check the marginal likelihood and keep the errors
+    if(is.na(marglik$logml)){
+      errors         <- c(errors, attr(marglik, "errors"))
+      converged      <- FALSE
+    }else{
+      # forward warnings if present
+      warnings <- c(warnings, attr(marglik, "warnings"))
+    }
   }
+
 
   model$errors    <- errors
   model$warnings  <- warnings

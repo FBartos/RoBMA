@@ -193,9 +193,9 @@ RoBMA.reg <- function(
 
   ### make models
   if(algorithm == "bridge"){
-    object$models <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object), dots[["do_not_fit"]])
+    object$models <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_ss.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object), dots[["do_not_fit"]])
+    object$model  <- .make_model_ss.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   }
 
 
@@ -257,7 +257,7 @@ RoBMA.reg <- function(
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
-    object$model         <- .fit_RoBMA_model.ss(object)
+    object$model         <- .fit_RoBMA_model_ss(object)
     object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 
@@ -280,123 +280,3 @@ RoBMA.reg <- function(
   return(object)
 }
 
-
-.combine_data.reg <- function(formula, data, standardize_predictors, transformation, study_names, study_ids){
-
-  if(!is.language(formula))
-    stop("The 'formula' is not specidied as a formula.")
-  if(!is.data.frame(data))
-    stop("'data' must be an object of type data.frame.")
-  BayesTools::check_bool(standardize_predictors, "standardize_predictors")
-
-
-  ### deal with the effect sizes
-  data_outcome <- combine_data(
-    d      = if("d"      %in%  colnames(data)) data[,"d"],
-    r      = if("r"      %in%  colnames(data)) data[,"r"],
-    z      = if("z"      %in%  colnames(data)) data[,"z"],
-    logOR  = if("logOR"  %in%  colnames(data)) data[,"logOR"],
-    t      = if("t"      %in%  colnames(data)) data[,"t"],
-    y      = if("y"      %in%  colnames(data)) data[,"y"],
-    se     = if("se"     %in%  colnames(data)) data[,"se"],
-    v      = if("v"      %in%  colnames(data)) data[,"v"],
-    n      = if("n"      %in%  colnames(data)) data[,"n"],
-    lCI    = if("lCI"    %in%  colnames(data)) data[,"lCI"],
-    uCI    = if("uCI"    %in%  colnames(data)) data[,"uCI"],
-    weight = if("weight" %in%  colnames(data)) data[,"weight"],
-    study_names    = study_names,
-    study_ids      = study_ids,
-    transformation = transformation,
-    return_all     = FALSE)
-
-  ### obtain the predictors part
-  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
-
-  if(attr(stats::terms(formula), "response") == 1){
-    formula[2] <- NULL
-  }
-  rhs             <- formula[c(1,2)]
-  model_frame     <- stats::model.frame(rhs, data = data_predictors)
-
-  # check that intercept is specified
-  if(attr(attr(model_frame, "terms"),"intercept") == 0)
-    stop("Intercept cannot be ommited from the model (you can set the coefficient to zero via 'priors_effect'). ")
-
-  # change characters into factors
-  for(i in seq_along(attr(attr(model_frame, "terms"), "dataClasses"))){
-    if(attr(attr(model_frame, "terms"), "dataClasses")[[i]] == "character"){
-      model_frame[,names(attr(attr(model_frame, "terms"), "dataClasses"))[i]] <-
-        as.factor(model_frame[,names(attr(attr(model_frame, "terms"), "dataClasses"))[i]])
-      attr(attr(model_frame, "terms"), "dataClasses")[[i]] <- "factor"
-    }
-  }
-
-
-  model_frame     <- as.list(model_frame)
-  if(length(model_frame) == 0){
-    data_predictors <- list()
-  }else{
-    data_predictors <- model_frame[1:length(model_frame)]
-  }
-  attr(data_predictors, "variables")  <- attr(attr(model_frame, "terms"), "term.labels")[attr(attr(model_frame, "terms"), "order") == 1]
-  attr(data_predictors, "terms")      <- attr(attr(model_frame, "terms"), "term.labels")
-  attr(data_predictors, "terms_type") <- attr(attr(model_frame, "terms"), "dataClasses")
-
-
-  # add additional information about the predictors
-  data_predictors_info <- list()
-  to_warn              <- NULL
-  for(i in seq_along(data_predictors)){
-    if(attr(data_predictors, "terms_type")[i] == "numeric"){
-
-      data_predictors_info[[names(data_predictors)[i]]] <- list(
-        type = "continuous",
-        mean = mean(data_predictors[[names(data_predictors)[i]]]),
-        sd   = stats::sd(data_predictors[[names(data_predictors)[i]]])
-      )
-
-      if(standardize_predictors){
-        data_predictors[[names(data_predictors)[i]]] <- .pred_scale(data_predictors[[names(data_predictors)[i]]], data_predictors_info[[names(data_predictors)[i]]])
-      }else if(RoBMA.get_option("check_scaling") && (abs(mean(data_predictors[[names(data_predictors)[i]]])) > 0.01 | abs(1 - stats::sd(data_predictors[[names(data_predictors)[i]]])) > 0.01)){
-        to_warn <- c(to_warn, names(data_predictors)[i])
-      }
-
-    }else if(attr(data_predictors, "terms_type")[i] == "factor"){
-
-      data_predictors_info[[names(data_predictors)[i]]] <- list(
-        type    = "factor",
-        default = levels(data_predictors[[names(data_predictors)[i]]])[1],
-        levels  = levels(data_predictors[[names(data_predictors)[i]]])
-      )
-
-    }
-  }
-  attr(data_predictors, "variables_info") <- data_predictors_info
-
-
-  output <- list(
-    outcome    = data_outcome,
-    predictors = data_predictors
-  )
-
-  # throw warnings and errors
-  if(length(to_warn) > 0){
-    scaling_warning <- paste0("The continuous predictors ", paste0("'", to_warn, "'", collapse = ", "), " are not scaled. Note that extra care need to be taken when specifying prior distributions for unscaled predictors.")
-    warning(scaling_warning, immediate. = TRUE, call. = FALSE)
-    warning("You can suppress this and following warnings via 'RoBMA.options(check_scaling = FALSE)'. To automatically rescale predictors set 'standardize_predictors = TRUE'.", immediate. = TRUE, call. = FALSE)
-    attr(output, "warnings") <- scaling_warning
-  }
-
-  # check for reserved words
-  if(any(attr(data_predictors, "terms") %in% .reserved_words()))
-    stop(paste0("The following variable names are internally reserved keywords and cannot be used: ",
-                paste0(" '", attr(data_predictors, "terms")[attr(data_predictors, "terms") %in% .reserved_words()], "' ", collapse = ", ")))
-
-  return(output)
-}
-.pred_scale   <- function(x, predictor_info){
-  (x - predictor_info[["mean"]]) / predictor_info[["sd"]]
-}
-.pred_unscale <- function(x, predictor_info){
-  x * predictor_info[["sd"]] + predictor_info[["mean"]]
-}

@@ -244,7 +244,7 @@ test_that("data combination works", {
   expect_equivalent(comb_logOR, comb_OR)
 
   # using combine_data.bi
-  com.RoBMA   <- .combine_data.bi(x1 = c(0, 1), x2 = c(1, 2), n1  = c(5, 6), n2  = c(6, 5), return_all = TRUE, transformation = "logOR")
+  com.RoBMA   <- .combine_data_bi(x1 = c(0, 1), x2 = c(1, 2), n1  = c(5, 6), n2  = c(6, 5), return_all = TRUE, transformation = "logOR")
   com.metafor <- metafor::escalc( ai = c(0, 1), ci = c(1, 2), n1i = c(5, 6), n2i = c(6, 5), measure = "OR")
 
   com.RoBMA <- data.frame(

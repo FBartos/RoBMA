@@ -425,7 +425,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
   # get the CIs (+add transformation if necessary)
   if(is.BiBMA(x)){
-    data <- .combine_data.bi(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
+    data <- .combine_data_bi(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
   }else{
     data <- combine_data(data = data, transformation = .transformation_invar(output_scale, estimation = FALSE), return_all = TRUE, estimation = FALSE)
   }

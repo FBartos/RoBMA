@@ -1,3 +1,9 @@
+## version 3.4
+### Features
+- adding binomial-normal meta-regression models for binary data via the `BiBMA.reg` function
+- the spike and slab algorithm for faster model estimation via the `algorithm = "ss"` argument for BiBMA models
+- default prior distributions for all parameters of BiBMA models are now set via the `set_default_binomial_priors()` function
+
 ## version 3.3
 ### Features
 - the spike and slab algorithm for faster model estimation via the `algorithm = "ss"` argument (see a new vignette for more details)
@@ -117,8 +123,8 @@ Please notice that this is a major release that breaks backwards compatibility.
  - prior distributions for specifying weight functions now use a dedicated function (`prior(distribution = "two.sided", parameters = ...)` -> `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
  - new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (`prior_none()`),
  - new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (`prior_PET(distribution = "Cauchy", parameters = ...)` and `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
- - new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al., 2021 [preprint](https://osf.io/preprints/psyarxiv/kvsp7/)),
- - new `model_type` argument allowing to specify different "pre-canned" models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` = corresponding to Maier et al., in press , [manuscript](https://osf.io/preprints/psyarxiv/u4cns/)),
+ - new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš et al., 2021 [manuscript](https://doi.org/10.1002/jrsm.1594)),
+ - new `model_type` argument allowing to specify different "pre-canned" models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` = corresponding to Maier et al., in press , [manuscript](https://doi.org/10.1037/met0000405)),
  - `combine_data` function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the `RoBMA` function),
  - better and improved automatic fitting procedure now enabled by default (can be turned of with `autofit = FALSE`)
  - prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher's z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen's d by default, but both of them can be overwritten with the `prior_scale` and `transformation` arguments),
@@ -132,7 +138,7 @@ Please notice that this is a major release that breaks backwards compatibility.
 
 ## version 1.2.0
 ### Changes
-- the studies's true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our [prerint](https://osf.io/preprints/psyarxiv/u4cns/) for more details). As a results, arguments referring to the true effects are now disabled.
+- the studies's true effects are now marginalized out of the random effects models and are no longer estimated (see Appendix A of our [manuscript](https://doi.org/10.1037/met0000405) for more details). As a results, arguments referring to the true effects are now disabled.
 - all models are now being estimated using the likelihood of effect sizes (instead of test-statistics as usually defined). We reproduced the simulation study that we used to evaluate the method performance and it achieved identical results (up to MCMC error, before marginalizing out the true effects). A big advantage of using the normal likelihood for effect sizes is a considerable speed up of the whole estimation process.
 - as a results of these two changes, the results of the models will differ to those of pre 1.2.0 version
 

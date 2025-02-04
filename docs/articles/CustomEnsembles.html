@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -34,6 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
@@ -66,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2024-12-11</h4>
+            <h4 data-toc-skip class="date">2025-02-04</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/CustomEnsembles.Rmd" class="external-link"><code>vignettes/CustomEnsembles.Rmd</code></a></small>
       <div class="d-none name"><code>CustomEnsembles.Rmd</code></div>
@@ -111,6 +112,8 @@ by Bem in one of his later replies <span class="citation">(Bem et al.,
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span></span>
 <span><span class="co">#&gt; Loading required namespace: runjags</span></span>
 <span><span class="co">#&gt; Loading required namespace: mvtnorm</span></span>
+<span><span class="co">#&gt; RoBMA version 3.3 now features spike-and-slab style model-averaging via the 'algorithm = "ss"' argument.</span></span>
+<span><span class="co">#&gt; See 'vignette("FastRoBMA", package = "RoBMA")' for more details ('algorithm = "ss"' argument will become the default setting in the future major release of the package).</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Bem2011"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span></span>
 <span><span class="va">Bem2011</span></span>

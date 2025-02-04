@@ -3,7 +3,7 @@ skip_on_cran()
 skip_on_covr()
 
 # test objects
-saved_files <- paste0("fit_", 1:16, ".RDS")
+saved_files <- paste0("fit_", 1:17, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
   saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
@@ -300,6 +300,23 @@ test_that("BiBMA works", {
 
   fit_16 <- remove_time(fit_16)
   expect_equal(clean_all(saved_fits[[16]]), clean_all(fit_16))
+})
+
+test_that("BiBMA.reg works", {
+
+  df_reg <- data.frame(
+    x1 = c(5, 6, 4, 5, 6, 12, 11, 10, 13, 12),
+    x2 = c(6, 5, 6, 4, 5,  6,  5,  6,  4,  5),
+    n1 = rep(20, 10),
+    n2 = rep(20, 10),
+    mod_cat = c(rep("A", 5), rep("B", 5))
+  )
+
+  fit_17 <- try_parallel(BiBMA.reg( ~ mod_cat, data = df_reg, seed = 1, parallel = TRUE, rescale_priors = 2,
+                               sample = 1500, burnin = 750, adapt = 750, chains = 2, autofit = FALSE, algorithm = "ss"))
+
+  fit_17 <- remove_time(fit_17)
+  expect_equal(clean_all(saved_fits[[17]]), clean_all(fit_17))
 })
 
 

@@ -222,3 +222,84 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
     ))
   }
 }
+
+#' @title Set default prior distributions for binomial meta-analytic models
+#'
+#' @description Set default prior distributions for BiBMA models.
+#'
+#' @param parameter a character string specifying the parameter for
+#' which the prior distribution should be set. Available options are
+#' "effect", "heterogeneity", "baseline", "covariates",
+#' "factors".
+#' @param null a logical indicating whether the prior distribution
+#' should be set for the null hypothesis. Defaults to \code{FALSE}.
+#' @param rescale a numeric value specifying the re-scaling factor
+#' for the default prior distributions. Defaults to 1. Allows
+#' convenient re-scaling of prior distributions simultaneously.
+#'
+#' @details The default prior are based on the binary outcome meta-analyses
+#' in the Cochrane Database of Systematic Reviews outlined in
+#'  \insertCite{bartos2023empirical;textual}{RoBMA}.
+#'
+#' Specifically, the prior distributions are:
+#'
+#' **For the alternative hypothesis:**
+#' \itemize{
+#'   \item \strong{Effect:} T distribution with mean 0, scale 0.58, and 4 degrees of freedom.
+#'   \item \strong{Heterogeneity:} Inverse gamma distribution with shape 1.77 and scale 0.55.
+#'   \item \strong{Baseline:} No prior distribution.
+#'   \item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.29.
+#'   \item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.29.
+#' }
+#'
+#' **For the null hypothesis:**
+#' \itemize{
+#'   \item \strong{Effect:} Point distribution at 0.
+#'   \item \strong{Heterogeneity:} Point distribution at 0.
+#'   \item \strong{Baseline:} Independent uniform distributions.
+#'   \item \strong{Standardized continuous covariates:} Point distribution at 0.
+#'   \item \strong{Factors (via by-level differences from the grand mean):} Point distribution at 0.
+#' }
+#'
+#' The rescaling factor adjusts the width of the effect, heterogeneity, covariates, factor, and PEESE-style model prior distributions.
+#' PET-style and weight function prior distributions are scale-invariant.
+#'
+#' @examples
+#'
+#' set_default_binomial_priors("effect")
+#' set_default_binomial_priors("heterogeneity")
+#' set_default_binomial_priors("baseline")
+#'
+#' @return A prior distribution object or a list of prior distribution
+#' objects.
+#'
+#' @export
+set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
+
+  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "baseline", "covariates", "factors"))
+  BayesTools::check_bool(null, "null")
+  BayesTools::check_real(rescale, "rescale", lower = 0)
+
+
+  if(null){
+    return(switch(
+      parameter,
+      effect        = prior(distribution = "point", parameters = list(location = 0)),
+      heterogeneity = prior(distribution = "point", parameters = list(location = 0)),
+      baseline      = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
+
+      covariates    = prior(distribution = "point", parameters = list(location = 0)),
+      factors       = prior_factor("spike", parameters = list(location = 0), contrast = "meandif")
+    ))
+  }else{
+    return(switch(
+      parameter,
+      effect        = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58 * rescale, df = 4)),
+      heterogeneity = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55 * rescale)),
+
+      baseline      = NULL,
+      covariates    = prior("normal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale)),
+      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale), contrast = "meandif")
+    ))
+  }
+}

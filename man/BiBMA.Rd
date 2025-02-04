@@ -11,16 +11,14 @@ BiBMA(
   n2,
   study_names = NULL,
   study_ids = NULL,
-  priors_effect = prior(distribution = "student", parameters = list(location = 0, scale =
-    0.58, df = 4)),
-  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1.77,
-    scale = 0.55)),
-  priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
-  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
-    0)),
-  priors_baseline = NULL,
-  priors_baseline_null = prior_factor("beta", parameters = list(alpha = 1, beta = 1),
-    contrast = "independent"),
+  rescale_priors = 1,
+  priors_effect = set_default_binomial_priors("effect", rescale = rescale_priors),
+  priors_heterogeneity = set_default_binomial_priors("heterogeneity", rescale =
+    rescale_priors),
+  priors_effect_null = set_default_binomial_priors("effect", null = TRUE),
+  priors_heterogeneity_null = set_default_binomial_priors("heterogeneity", null = TRUE),
+  priors_baseline = set_default_binomial_priors("baseline"),
+  priors_baseline_null = set_default_binomial_priors("baseline", null = TRUE),
   chains = 3,
   sample = 5000,
   burnin = 2000,
@@ -30,6 +28,7 @@ BiBMA(
   autofit = TRUE,
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
+  algorithm = "bridge",
   save = "all",
   seed = NULL,
   silent = TRUE,
@@ -50,6 +49,9 @@ BiBMA(
 \item{study_ids}{an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
+
+\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
+factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
 
 \item{priors_effect}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
@@ -109,6 +111,12 @@ options and default settings.}
 \item{convergence_checks}{automatic convergence checks to assess the fitted
 models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
 \code{?set_convergence_checks} for options and default settings.}
+
+\item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
+which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
+sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
+Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
+\code{adapt} iterations are needed for the \code{"ss"} algorithm.}
 
 \item{save}{whether all models posterior distributions should be kept
 after obtaining a model-averaged result. Defaults to \code{"all"} which

@@ -174,7 +174,7 @@ test_that("RoBMA.reg model preview works", {
   )
 
   expect_equal(
-    capture_output_lines(check_setup.reg(~ mod_cat + mod_con, data = df_reg, models = FALSE), print = TRUE, width = 150),
+    capture_output_lines(suppressWarnings(check_setup.reg(~ mod_cat + mod_con, data = df_reg, models = FALSE)), print = TRUE, width = 150),
     c("Robust Bayesian meta-regression (set-up)",
       "Components summary:"                     ,
       "               Models Prior prob."       ,

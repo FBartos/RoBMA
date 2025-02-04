@@ -1,5 +1,5 @@
 ### functions for creating model objects
-.check_and_list_priors      <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, prior_scale){
+.check_and_list_priors       <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, prior_scale){
 
   # format the model-type (in RoBMA.reg, the add_info check is run only after .check_and_list_priors)
   model_type <- .check_and_set_model_type(model_type, prior_scale)
@@ -61,130 +61,7 @@
 
   return(priors)
 }
-.check_and_list_priors.reg  <- function(priors, data, model_type, test_predictors, prior_scale,
-                                        priors_effect_null, priors_effect,
-                                        priors_heterogeneity_null, priors_heterogeneity,
-                                        priors_bias_null, priors_bias,
-                                        priors_hierarchical_null, priors_hierarchical,
-                                        prior_covariates_null, prior_covariates,
-                                        prior_factors_null, prior_factors){
-
-  priors_main <- .check_and_list_priors(
-    model_type                = model_type,
-    priors_effect_null        = priors_effect_null,
-    priors_effect             = priors_effect,
-    priors_heterogeneity_null = priors_heterogeneity_null,
-    priors_heterogeneity      = priors_heterogeneity,
-    priors_bias_null          = priors_bias_null,
-    priors_bias               = priors_bias,
-    priors_hierarchical_null  = priors_hierarchical_null,
-    priors_hierarchical       = priors_hierarchical,
-    prior_scale               = prior_scale
-  )
-
-  predictors      <- attr(data[["predictors"]],"terms")
-  predictors_type <- attr(data[["predictors"]],"terms_type")
-
-  # check the input
-  if(!is.prior.simple(prior_covariates_null) || is.prior.factor(prior_covariates_null))
-    stop("The default prior for covariates (null) is not a valid prior distribution.", call. = FALSE)
-  if(!is.prior.simple(prior_covariates) || is.prior.factor(prior_covariates))
-    stop("The default prior for covariates is not a valid prior distribution.", call. = FALSE)
-  if(!is.prior.factor(prior_factors_null) & !is.prior.point(prior_factors_null))
-    stop("The default prior for factors (null) is not a valid prior distribution.", call. = FALSE)
-  if(!is.prior.factor(prior_factors) & !is.prior.point(prior_factors))
-    stop("The default prior for factors is not a valid prior distribution.", call. = FALSE)
-
-  # check for reserved words
-  if(any(names(priors) %in% .reserved_words()))
-    stop(paste0("The following prior names are internally reserved keywords and cannot be used: ",
-                paste0(" '", names(priors)[names(priors) %in% .reserved_words()], "' ", collapse = ", ")), call. = FALSE)
-
-
-  # completely the prior distribution specification
-  if(is.null(priors)){
-
-    # standardize possible inputs for no predictors testing
-    if(is.null(test_predictors) || isFALSE(test_predictors) || length(test_predictors) == 0){
-      # no testing
-      test_predictors <- character()
-    }else if(isTRUE(test_predictors)){
-      # tests all predictors with default priors
-      test_predictors <- predictors
-    }else{
-      BayesTools::check_char(test_predictors, "test_predictors", check_length = FALSE, allow_values = predictors)
-    }
-
-    # update the predictors specification
-    priors <- list()
-
-    to_test <- predictors[predictors %in% test_predictors]
-    no_test <- predictors[!predictors %in% test_predictors]
-
-    for(i in seq_along(to_test)){
-      priors[[to_test[i]]] <- list(
-        "null" = if(predictors_type[to_test[i]] == "factor") prior_factors_null else prior_covariates_null,
-        "alt"  = if(predictors_type[to_test[i]] == "factor") prior_factors      else prior_covariates
-      )
-    }
-    for(i in seq_along(no_test)){
-      priors[[no_test[i]]] <- list(
-        "alt"  = if(predictors_type[no_test[i]] == "factor") prior_factors else prior_covariates
-      )
-    }
-
-  }else{
-
-    priors_by_user  <- priors
-    priors          <- list()
-    test_predictors <- character()
-
-    # reformat and updated the user specified priors
-    for(i in seq_along(predictors)){
-
-      p <- predictors[i]
-
-      if(is.null(priors_by_user[[p]])){
-        # no user specified priors -- default estimation only
-        priors[[p]] <- list(
-          "alt"  = if(predictors_type[p] == "factor") prior_factors else prior_covariates
-        )
-
-      }else if(is.prior(priors_by_user[[p]])){
-        # a single, unmanned prior distribution -- assume it's alternative and perform default test
-        test_predictors <- c(test_predictors, p)
-        priors[[p]]     <- list(
-          "null" = if(predictors_type[p] == "factor") prior_factors_null else prior_covariates_null,
-          "alt"  = priors_by_user[[p]]
-        )
-
-      }else if(is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 1 && length(names(priors_by_user[[p]])) == 1 &&
-               names(priors_by_user[[p]]) %in% c("null", "alt") && is.prior(priors_by_user[[p]][[1]])){
-        # a single, named prior distribution -- do not add any additional prior
-        priors[[p]] <- priors_by_user[[p]]
-
-      }else if(is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 2 && length(names(priors_by_user[[p]])) == 2 &&
-               all(names(priors_by_user[[p]]) %in% c("null", "alt")) && all(sapply(priors_by_user[[p]], is.prior))){
-        # both prior distributions are specified by the user
-        test_predictors <- c(test_predictors, p)
-        priors[[p]]     <- priors_by_user[[p]]
-
-      }else{
-        stop(paste0("The prior distribution for '",p,"' is specified incorrectly."))
-      }
-    }
-
-  }
-
-
-  # add attributes
-  priors_main$terms                <- priors
-  attr(priors_main, "terms")       <- predictors
-  attr(priors_main, "terms_test")  <- if(length(test_predictors) == 0) NULL else test_predictors
-
-  return(priors_main)
-}
-.check_and_list_priors.bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_baseline_null, priors_baseline){
+.check_and_list_priors_bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_baseline_null, priors_baseline){
 
   priors <- list()
   priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
@@ -193,26 +70,7 @@
 
   return(priors)
 }
-.check_and_list_priors.reg  <- function(priors, data, model_type, test_predictors, prior_scale,
-                                        priors_effect_null, priors_effect,
-                                        priors_heterogeneity_null, priors_heterogeneity,
-                                        priors_bias_null, priors_bias,
-                                        priors_hierarchical_null, priors_hierarchical,
-                                        prior_covariates_null, prior_covariates,
-                                        prior_factors_null, prior_factors){
-
-  priors_main <- .check_and_list_priors(
-    model_type                = model_type,
-    priors_effect_null        = priors_effect_null,
-    priors_effect             = priors_effect,
-    priors_heterogeneity_null = priors_heterogeneity_null,
-    priors_heterogeneity      = priors_heterogeneity,
-    priors_bias_null          = priors_bias_null,
-    priors_bias               = priors_bias,
-    priors_hierarchical_null  = priors_hierarchical_null,
-    priors_hierarchical       = priors_hierarchical,
-    prior_scale               = prior_scale
-  )
+.check_and_list_priors_terms <- function(priors, data, test_predictors, prior_covariates_null, prior_covariates, prior_factors_null, prior_factors){
 
   predictors      <- attr(data[["predictors"]],"terms")
   predictors_type <- attr(data[["predictors"]],"terms_type")
@@ -310,12 +168,83 @@
 
 
   # add attributes
-  priors_main$terms                <- priors
-  attr(priors_main, "terms")       <- predictors
-  attr(priors_main, "terms_test")  <- if(length(test_predictors) == 0) NULL else test_predictors
+  attr(priors, "terms")       <- predictors
+  attr(priors, "terms_test")  <- if(length(test_predictors) == 0) NULL else test_predictors
+
+  return(priors)
+}
+
+.check_and_list_priors.reg      <- function(priors, data, model_type, test_predictors, prior_scale,
+                                            priors_effect_null, priors_effect,
+                                            priors_heterogeneity_null, priors_heterogeneity,
+                                            priors_bias_null, priors_bias,
+                                            priors_hierarchical_null, priors_hierarchical,
+                                            prior_covariates_null, prior_covariates,
+                                            prior_factors_null, prior_factors){
+
+  priors_main <- .check_and_list_priors(
+    model_type                = model_type,
+    priors_effect_null        = priors_effect_null,
+    priors_effect             = priors_effect,
+    priors_heterogeneity_null = priors_heterogeneity_null,
+    priors_heterogeneity      = priors_heterogeneity,
+    priors_bias_null          = priors_bias_null,
+    priors_bias               = priors_bias,
+    priors_hierarchical_null  = priors_hierarchical_null,
+    priors_hierarchical       = priors_hierarchical,
+    prior_scale               = prior_scale
+  )
+  priors_terms <- .check_and_list_priors_terms(
+    priors                 = priors,
+    data                   = data,
+    test_predictors        = test_predictors,
+    prior_covariates_null  = prior_covariates_null,
+    prior_covariates       = prior_covariates,
+    prior_factors_null     = prior_factors_null,
+    prior_factors          = prior_factors
+  )
+
+  # add attributes
+  priors_main$terms                <- priors_terms
+  attr(priors_main, "terms")       <- attr(priors_terms, "terms")
+  attr(priors_main, "terms_test")  <- attr(priors_terms, "terms_test")
 
   return(priors_main)
 }
+
+.check_and_list_priors_bi.reg   <- function(priors, data, test_predictors, prior_scale,
+                                            priors_effect_null, priors_effect,
+                                            priors_heterogeneity_null, priors_heterogeneity,
+                                            priors_baseline_null, priors_baseline,
+                                            prior_covariates_null, prior_covariates,
+                                            prior_factors_null, prior_factors){
+
+  priors_main <- .check_and_list_priors_bi(
+    priors_effect_null        = priors_effect_null,
+    priors_effect             = priors_effect,
+    priors_heterogeneity_null = priors_heterogeneity_null,
+    priors_heterogeneity      = priors_heterogeneity,
+    priors_baseline_null      = priors_baseline_null,
+    priors_baseline           = priors_baseline
+  )
+  priors_terms <- .check_and_list_priors_terms(
+    priors                 = priors,
+    data                   = data,
+    test_predictors        = test_predictors,
+    prior_covariates_null  = prior_covariates_null,
+    prior_covariates       = prior_covariates,
+    prior_factors_null     = prior_factors_null,
+    prior_factors          = prior_factors
+  )
+
+  # add attributes
+  priors_main$terms                <- priors_terms
+  attr(priors_main, "terms")       <- attr(priors_terms, "terms")
+  attr(priors_main, "terms_test")  <- attr(priors_terms, "terms_test")
+
+  return(priors_main)
+}
+
 .check_and_list_component_priors  <- function(priors_null, priors_alt, component){
 
   # check that at least one prior is specified (either null or alternative)
@@ -460,7 +389,7 @@
   return(priors)
 }
 
-.make_models     <- function(priors, multivariate, weighted){
+.make_models        <- function(priors, multivariate, weighted){
 
   # create models according to the set priors
   models <- NULL
@@ -500,7 +429,82 @@
 
   return(models)
 }
-.make_model      <- function(prior_effect, prior_heterogeneity, prior_bias, prior_hierarchical, prior_weights, multivariate, weighted){
+.make_models.reg    <- function(priors, multivariate, weighted){
+
+  models_base <- .make_models(priors = priors, multivariate = multivariate, weighted = weighted)
+
+  ### create grid of the models
+  grid <- list(
+    model = seq_along(models_base)
+  )
+
+  # add prior terms
+  terms <- attr(priors, "terms")
+  for(i in seq_along(attr(priors, "terms"))){
+    grid[[terms[i]]] <- names(priors[["terms"]][[terms[i]]])
+  }
+
+  grid <- do.call(expand.grid, grid)
+
+  if(nrow(grid) > 50)
+    warning(sprintf("You are about to estimate %i models based on the model formula and prior specification.", nrow(grid)), immediate. = TRUE, call. = FALSE)
+
+  ### create empty models objects for fitting
+  models <- lapply(1:nrow(grid), function(i) .add_model_terms(models_base[[grid[i,1]]], grid[i,-1,drop=FALSE], priors))
+
+  return(models)
+}
+.make_models_bi     <- function(priors, K, weighted){
+
+  # create models according to the set priors
+  models <- NULL
+  for(effect in priors[["effect"]]){
+    for(heterogeneity in priors[["heterogeneity"]]){
+      for(baseline in priors[["baseline"]]){
+        models <- c(
+          models,
+          list(.make_model_bi(
+            prior_effect        = effect,
+            prior_heterogeneity = heterogeneity,
+            prior_baseline      = baseline,
+            prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * baseline[["prior_weights"]],
+            K                   = K,
+            weighted            = weighted
+          )))
+      }
+    }
+  }
+
+  return(models)
+}
+.make_models_bi.reg <- function(priors, K, weighted){
+
+  # create models according to the set priors
+  models_base <- .make_models_bi(priors = priors, K = K, weighted = weighted)
+
+  ### create grid of the models
+  grid <- list(
+    model = seq_along(models_base)
+  )
+
+  # add prior terms
+  terms <- attr(priors, "terms")
+  for(i in seq_along(attr(priors, "terms"))){
+    grid[[terms[i]]] <- names(priors[["terms"]][[terms[i]]])
+  }
+
+  grid <- do.call(expand.grid, grid)
+
+  if(nrow(grid) > 50)
+    warning(sprintf("You are about to estimate %i models based on the model formula and prior specification.", nrow(grid)), immediate. = TRUE, call. = FALSE)
+
+  ### create empty models objects for fitting
+  models <- lapply(1:nrow(grid), function(i) .add_model_terms(models_base[[grid[i,1]]], grid[i,-1,drop=FALSE], priors))
+
+  return(models)
+}
+
+.make_model        <- function(prior_effect, prior_heterogeneity, prior_bias, prior_hierarchical, prior_weights, multivariate, weighted){
 
   priors <- list()
 
@@ -531,33 +535,40 @@
 
   return(model)
 }
+.make_model_bi     <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, K, weighted){
 
-.make_models.reg <- function(priors, multivariate, weighted, do_not_fit){
+  is_random <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
 
-  models_base <- .make_models(priors = priors, multivariate = multivariate, weighted = weighted)
+  priors <- list()
 
-  ### create grid of the models
-  grid <- list(
-    model = seq_along(models_base)
-  )
+  priors$mu    <- prior_effect
+  priors$tau   <- prior_heterogeneity
+  priors$pi    <- prior_baseline
 
-  # add prior terms
-  terms <- attr(priors, "terms")
-  for(i in seq_along(attr(priors, "terms"))){
-    grid[[terms[i]]] <- names(priors[["terms"]][[terms[i]]])
+  # specify the number of levels
+  attr(priors$pi, "levels") <- K
+
+  # add non-central random effects
+  if(is_random){
+    priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(priors$gamma, "levels") <- K
   }
 
-  grid <- do.call(expand.grid, grid)
+  model <- list(
+    priors            = priors,
+    prior_weights     = prior_weights,
+    prior_weights_set = prior_weights
+  )
+  class(model) <- "BiBMA.model"
 
-  if(nrow(grid) > 50 && !do_not_fit)
-    warning(sprintf("You are about to estimate %i models based on the model formula and prior specification.", nrow(grid)), immediate. = TRUE, call. = FALSE)
+  attr(model, "multivariate")  <- FALSE
+  attr(model, "random")        <- is_random
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
 
-  ### create empty models objects for fitting
-  models <- lapply(1:nrow(grid), function(i) .make_model.reg(models_base[[grid[i,1]]], grid[i,-1,drop=FALSE], priors))
-
-  return(models)
+  return(model)
 }
-.make_model.reg  <- function(model_base, grid_row, priors, multivariate, weighted){
+.add_model_terms   <- function(model_base, grid_row, priors, multivariate, weighted){
 
   model_priors  <- model_base[["priors"]]
   prior_weights <- model_base[["prior_weights"]]
@@ -589,6 +600,7 @@
   )
 
   class(model) <- "RoBMA.reg.model"
+  attr(model, "random")        <- attr(model_base, "random")       # applies only to BiBMA
   attr(model, "multivariate")  <- attr(model_base, "multivariate")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
@@ -596,63 +608,7 @@
   return(model)
 }
 
-.make_models.bi  <- function(priors, K, weighted){
-
-  # create models according to the set priors
-  models <- NULL
-  for(effect in priors[["effect"]]){
-    for(heterogeneity in priors[["heterogeneity"]]){
-      for(baseline in priors[["baseline"]]){
-        models <- c(
-          models,
-          list(.make_model.bi(
-            prior_effect        = effect,
-            prior_heterogeneity = heterogeneity,
-            prior_baseline      = baseline,
-            prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * baseline[["prior_weights"]],
-            K                   = K,
-            weighted            = weighted
-        )))
-      }
-    }
-  }
-
-  return(models)
-}
-.make_model.bi   <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, K, weighted){
-
-  is_random <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
-
-  priors <- list()
-
-  priors$mu    <- prior_effect
-  priors$tau   <- prior_heterogeneity
-  priors$pi    <- prior_baseline
-
-  # specify the number of levels
-  attr(priors$pi, "levels") <- K
-
-  # add non-central random effects
-  if(is_random){
-    priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
-    attr(priors$gamma, "levels") <- K
-  }
-
-  model <- list(
-    priors            = priors,
-    prior_weights     = prior_weights,
-    prior_weights_set = prior_weights
-  )
-  class(model) <- "BiBMA.model"
-
-  attr(model, "multivariate") <- FALSE
-  attr(model, "random")       <- is_random
-  attr(model, "weighted")     <- weighted
-
-  return(model)
-}
-
-.make_model_ss     <- function(priors, multivariate, weighted){
+.make_model_ss         <- function(priors, multivariate, weighted){
 
   if(multivariate)
     stop("The multivariate model is not supported for the spike and slab algorithm.")
@@ -690,9 +646,77 @@
 
   return(model)
 }
-.make_model_ss.reg <- function(priors, multivariate, weighted, do_not_fit){
+.make_model_ss.reg     <- function(priors, multivariate, weighted){
 
   model_base <- .make_model_ss(priors = priors, multivariate = multivariate, weighted = weighted)
+  model      <- .add_model_ss_terms(model_base, priors)
+
+  class(model) <- "RoBMA.reg.model_ss"
+  attr(model, "multivariate")  <- attr(model_base, "multivariate")
+  attr(model, "weighted")      <- attr(model_base, "weighted")
+  attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+
+  return(model)
+}
+.make_model_bi_ss      <- function(priors, K, weighted){
+
+  # pre-compute model component information
+  priors_effect        <- priors[["effect"]]
+  priors_heterogeneity <- priors[["heterogeneity"]]
+  priors_baseline      <- priors[["baseline"]]
+
+  model <- list(priors = list())
+
+  # place effect priors
+  model$priors$mu <- BayesTools::prior_mixture(priors_effect, is_null = sapply(priors_effect, function(x) x[["is_null"]]))
+
+  # place heterogeneity priors
+  model$priors$tau <- BayesTools::prior_mixture(priors_heterogeneity, is_null = sapply(priors_heterogeneity, function(x) x[["is_null"]]))
+
+  # place baseline priors
+  if(length(priors_baseline) == 1){
+    model$priors$pi <- priors_baseline[[1]]
+    # specify the number of levels
+    attr(model$priors$pi, "levels") <- K
+  }else{
+    model$priors$pi <- BayesTools::prior_mixture(priors_baseline, is_null = sapply(priors_baseline, function(x) x[["is_null"]]))
+    # specify the number of levels
+    for(i in seq_along(model$priors$pi)){
+      attr(model$priors$pi[[i]], "levels") <- K
+    }
+  }
+
+  # add non-central random effects
+  any_is_random <- !all(sapply(priors_heterogeneity, function(x) is.prior.point(x) && x$parameters[["location"]] != 0))
+  if(any_is_random){
+    model$priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(model$priors$gamma, "levels") <- K
+  }
+
+
+  class(model) <- "BiBMA.model_ss"
+
+  attr(model, "multivariate")  <- FALSE
+  attr(model, "random")        <- any_is_random
+  attr(model, "weighted")      <- weighted
+  attr(model, "weighted_type") <- attr(weighted, "type")
+
+  return(model)
+}
+.make_model_bi_ss.reg  <- function(priors, K, weighted){
+
+  model_base <- .make_model_bi_ss(priors = priors, K = K, weighted = weighted)
+  model      <- .add_model_ss_terms(model_base, priors)
+
+  class(model) <- "BiBMA.reg.model_ss"
+  attr(model, "multivariate")  <- FALSE
+  attr(model, "random")        <- attr(model_base, "random")
+  attr(model, "weighted")      <- attr(model_base, "weighted")
+  attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+
+  return(model)
+}
+.add_model_ss_terms    <- function(model_base, priors){
 
   model_priors  <- model_base[["priors"]]
   prior_weights <- model_base[["prior_weights"]]
@@ -728,7 +752,6 @@
 
     }
 
-
   }
 
   model <- list(
@@ -736,11 +759,6 @@
     terms        = terms,
     terms_test   = terms_test
   )
-
-  class(model) <- "RoBMA.reg.model_ss"
-  attr(model, "multivariate")  <- attr(model_base, "multivariate")
-  attr(model, "weighted")      <- attr(model_base, "weighted")
-  attr(model, "weighted_type") <- attr(model_base, "weighted_type")
 
   return(model)
 }
