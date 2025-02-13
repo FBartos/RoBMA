@@ -274,7 +274,7 @@ RoBMA <- function(
   if(algorithm == "bridge"){
     object$models <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_ss(object[["priors"]], .is_multivariate(object), .is_weighted(object))
+    object$model  <- .make_model_ss(object[["priors"]], .is_multivariate(object), length(unique(object$data[["study_ids"]])), .is_weighted(object))
   }
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 

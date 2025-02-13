@@ -608,10 +608,7 @@
   return(model)
 }
 
-.make_model_ss         <- function(priors, multivariate, weighted){
-
-  if(multivariate)
-    stop("The multivariate model is not supported for the spike and slab algorithm.")
+.make_model_ss         <- function(priors, multivariate, K, weighted){
 
   # check the SS logarithm is implemented
   if(any(sapply(priors[["bias"]][sapply(priors[["bias"]], BayesTools::is.prior.weightfunction)], function(x) any(names(x[["parameters"]]) == "alpha2"))))
@@ -621,6 +618,7 @@
   priors_effect        <- priors[["effect"]]
   priors_heterogeneity <- priors[["heterogeneity"]]
   priors_bias          <- priors[["bias"]]
+  priors_hierarchical  <- priors[["hierarchical"]]
 
   model <- list(priors = list())
 
@@ -637,18 +635,30 @@
     model$priors$bias <- BayesTools::prior_mixture(priors_bias, is_null = sapply(priors_bias, function(x) x[["is_null"]]))
   }
 
+  # place hierarchical priors
+  if(multivariate){
+    if(length(priors_hierarchical) == 1 && is.prior.none(priors_hierarchical[[1]])){
+      model$priors$rho <- priors_hierarchical[[1]]
+    }else{
+      model$priors$rho <- BayesTools::prior_mixture(priors_hierarchical, is_null = sapply(priors_hierarchical, function(x) x[["is_null"]]))
+    }
+
+    # add non-central random effects
+    model$priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(model$priors$gamma, "levels") <- K
+  }
 
   class(model) <- "RoBMA.model_ss"
 
-  attr(model, "multivariate")  <- multivariate && !is.null(priors$rho)
+  attr(model, "multivariate")  <- multivariate && !is.null(model$priors$rho)
   attr(model, "weighted")      <- weighted
   attr(model, "weighted_type") <- attr(weighted, "type")
 
   return(model)
 }
-.make_model_ss.reg     <- function(priors, multivariate, weighted){
+.make_model_ss.reg     <- function(priors, multivariate, K, weighted){
 
-  model_base <- .make_model_ss(priors = priors, multivariate = multivariate, weighted = weighted)
+  model_base <- .make_model_ss(priors = priors, multivariate = multivariate, K = K, weighted = weighted)
   model      <- .add_model_ss_terms(model_base, priors)
 
   class(model) <- "RoBMA.reg.model_ss"
