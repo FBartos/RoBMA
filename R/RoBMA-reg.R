@@ -195,7 +195,7 @@ RoBMA.reg <- function(
   if(algorithm == "bridge"){
     object$models <- .make_models.reg(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_ss.reg(object[["priors"]], .is_multivariate(object), length(unique(object$data[["study_ids"]])), .is_weighted(object))
+    object$model  <- .make_model_ss.reg(object[["priors"]], .is_multivariate(object), .get_K(object), .is_weighted(object))
   }
 
 
