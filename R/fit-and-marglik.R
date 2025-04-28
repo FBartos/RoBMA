@@ -1183,7 +1183,7 @@
 
   # marginalized random effects and the effect size
   if(multivariate){
-    tau2 <- "( pow(se[i],2) + pow(tau_within_transformed,2) )"
+    tau2 <- "( pow(se[i],2) + pow(tau_between_transformed,2) )"
   }else{
     tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
   }
@@ -1205,7 +1205,7 @@
 
   # add hierarchical
   if(multivariate){
-    eff <- paste0(eff, " + gamma[study_ids[i]] * tau_between_transformed")
+    eff <- paste0(eff, " + gamma[study_ids[i]] * tau_within_transformed")
   }
 
   if(any(is_weightfunction)){

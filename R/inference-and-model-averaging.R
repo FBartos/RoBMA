@@ -312,7 +312,7 @@
   effect         <- if(.is_model_regression(model)) !.is.prior_null(priors[["terms"]][["intercept"]]) else !.is.prior_null(priors[["mu"]])
   heterogeneity  <- if(!is.null(priors[["tau"]]))          !.is.prior_null(priors[["tau"]])
   bias           <- if(!is.null(priors[["bias"]]))         !.is.prior_null(priors[["bias"]])
-  hierarchical   <- if(!is.null(priors[["hierarchical"]])) !.is.prior_null(priors[["hierarchical"]])
+  hierarchical   <- if(!is.null(priors[["rho"]]))          !.is.prior_null(priors[["rho"]])
   baseline       <- if(!is.null(priors[["baseline"]]))     !.is.prior_null(priors[["baseline"]])
 
   # obtain the parameter types
