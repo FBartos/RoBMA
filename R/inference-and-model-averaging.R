@@ -338,11 +338,14 @@
     rownames(inference)[rownames(inference) == "intercept"] <- "Effect"
 
     # add marginal inference
+    parameters          <- NULL
     marginal_parameters <- NULL
     conditional_list    <- list()
 
     for(i in seq_along(priors[["terms"]])){
-      if(is.prior.spike_and_slab(priors[["terms"]][[i]]) || is.prior.mixture(priors[["terms"]][[i]])){
+      parameters <- c(parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
+      if(is.prior.spike_and_slab(priors[["terms"]][[i]]) ||
+         (is.prior.mixture(priors[["terms"]][[i]]) && !all(attr(priors[["terms"]][[i]], "components") == "null"))){
         marginal_parameters <- c(marginal_parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
         conditional_list[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- c(
           if(names(priors[["terms"]])[i] != "intercept") .BayesTools_parameter_name("intercept"),
@@ -354,7 +357,7 @@
     inference_marginal <- BayesTools::as_marginal_inference(
       model               = model[["fit"]],
       marginal_parameters = marginal_parameters,
-      parameters          = names(conditional_list),
+      parameters          = parameters,
       conditional_list    = conditional_list,
       conditional_rule    = "OR",
       formula             = object[["formula"]],
