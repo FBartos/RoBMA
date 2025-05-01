@@ -90,7 +90,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   dots <- list(...)
   transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
 
-
   # forward information about the original measure when re-transformating the data
   if(inherits(data, "data.RoBMA")){
     colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
@@ -436,6 +435,18 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
 
+  # dispatch study_names and study_ids
+  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
+    study_ids <- data[[study_ids]]
+  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
+    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+  if (length(study_names) == 1 && study_names %in% colnames(data)){
+    study_names <- data[[study_names]]
+  } else if (!(length(study_names) == nrow(data) || length(study_names) == 0)) {
+    stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+
   dots <- list(...)
   transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
 
@@ -599,6 +610,18 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("'data' must be an object of type data.frame.")
   BayesTools::check_bool(standardize_predictors, "standardize_predictors")
 
+  # dispatch study_names and study_ids
+  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
+    study_ids <- data[[study_ids]]
+  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
+    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+  if (length(study_names) == 1 && study_names %in% colnames(data)){
+    study_names <- data[[study_names]]
+  } else if (!(length(study_names) == nrow(data) || length(study_names) == 0)) {
+    stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+
   ### deal with the effect sizes
   data_outcome <- combine_data(
     d      = if("d"      %in%  colnames(data)) data[,"d"],
@@ -637,6 +660,17 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("'data' must be an object of type data.frame.")
   BayesTools::check_bool(standardize_predictors, "standardize_predictors")
 
+  # dispatch study_names and study_ids
+  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
+    study_ids <- data[[study_ids]]
+  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
+    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+  if (length(study_names) == 1 && study_names %in% colnames(data)){
+    study_names <- data[[study_names]]
+  } else if (!(length(study_names) == nrow(data) || length(study_names) == 0)) {
+    stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
+  }
 
   ### deal with the effect sizes
   data_outcome <- .combine_data_bi(
