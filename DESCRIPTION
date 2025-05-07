@@ -23,10 +23,10 @@ Description: A framework for estimating ensembles of meta-analytic and meta-regr
     and uses Bayes factors to test for the presence or absence of the
     individual components (e.g., effect vs. no effect; Bartoš et al., 2022, 
     <doi:10.1002/jrsm.1594>; Maier, Bartoš & Wagenmakers, 2022, 
-    <doi:10.1037/met0000405>). Users can define a wide range of prior distributions for +
-    the effect size, heterogeneity, publication bias (including selection models and PET-PEESE),
-    and moderator components. The package provides convenient functions for summary, visualizations, and 
-    fit diagnostics.
+    <doi:10.1037/met0000405>; Bartoš et al., 2025, <doi:10.1037/met0000737>). 
+    Users can define a wide range of prior distributions for the effect size, heterogeneity, 
+    publication bias (including selection models and PET-PEESE), and moderator components. 
+    The package provides convenient functions for summary, visualizations, and fit diagnostics.
 URL: https://fbartos.github.io/RoBMA/
 BugReports: https://github.com/FBartos/RoBMA/issues
 License: GPL-3
