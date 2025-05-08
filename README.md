@@ -390,9 +390,10 @@ Practices in Psychological Science*, *5*(3), 1–19.
 
 <div id="ref-bartos2023robust" class="csl-entry">
 
-Bartoš, F., Maier, M., Stanley, T., & Wagenmakers, E.-J. (2025). *Robust
+Bartoš, F., Maier, M., Stanley, T., & Wagenmakers, E.-J. (2025). Robust
 Bayesian meta-regression: Model-averaged moderation analysis in the
-presence of publication bias*. <https://doi.org/10.1037/met0000737>
+presence of publication bias. *Psychological Methods*.
+<https://doi.org/10.1037/met0000737>
 
 </div>
 

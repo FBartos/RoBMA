@@ -344,17 +344,14 @@
 
     for(i in seq_along(priors[["terms"]])){
       parameters <- c(parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
-      if(is.prior.spike_and_slab(priors[["terms"]][[i]]) ||
-         (is.prior.mixture(priors[["terms"]][[i]]) && !all(attr(priors[["terms"]][[i]], "components") == "null"))){
-        marginal_parameters <- c(marginal_parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
-        conditional_list[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- c(
-          if(names(priors[["terms"]])[i] != "intercept") .BayesTools_parameter_name("intercept"),
-          .BayesTools_parameter_name(names(priors[["terms"]])[i])
-        )
-      }
+      marginal_parameters <- c(marginal_parameters, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
+      conditional_list[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- c(
+        if(names(priors[["terms"]])[i] != "intercept") .BayesTools_parameter_name("intercept"),
+        .BayesTools_parameter_name(names(priors[["terms"]])[i])
+      )
     }
 
-    inference_marginal <- BayesTools::as_marginal_inference(
+    inference_marginal <- suppressWarnings(BayesTools::as_marginal_inference(
       model               = model[["fit"]],
       marginal_parameters = marginal_parameters,
       parameters          = parameters,
@@ -363,7 +360,7 @@
       formula             = object[["formula"]],
       silent              = TRUE,
       force_plots         = TRUE
-    )
+    ))
   }else{
 
     # rename effect
@@ -487,9 +484,7 @@
     # add the terms
     for(i in seq_along(priors[["terms"]])){
       parameters_predictors <- c(parameters_predictors, .BayesTools_parameter_name(names(priors[["terms"]])[i]))
-      if(is.prior.spike_and_slab(priors[["terms"]][[i]]) || is.prior.mixture(priors[["terms"]][[i]])){
-        conditional_predictors[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- .BayesTools_parameter_name(names(priors[["terms"]])[i])
-      }
+      conditional_predictors[[.BayesTools_parameter_name(names(priors[["terms"]])[i])]] <- .BayesTools_parameter_name(names(priors[["terms"]])[i])
     }
 
     posteriors_predictors <- BayesTools::as_mixed_posteriors(
@@ -502,11 +497,12 @@
     if(length(conditional_predictors) > 0){
       posteriors_predictors_conditional <- list()
       for(i in seq_along(conditional_predictors)){
-        posteriors_predictors_conditional[[conditional_predictors[[i]]]] <- BayesTools::as_mixed_posteriors(
+        # suppress the not a conditional parameter warning in order to get "conditional estimates"
+        posteriors_predictors_conditional[[conditional_predictors[[i]]]] <- suppressWarnings(BayesTools::as_mixed_posteriors(
           model        = model[["fit"]],
           parameters   = names(conditional_predictors)[i],
           conditional  = conditional_predictors[[i]]
-        )[[names(conditional_predictors)[i]]]
+        ))[[names(conditional_predictors)[i]]]
       }
       posteriors_predictors_conditional <- BayesTools::transform_factor_samples(posteriors_predictors_conditional)
     }else{
