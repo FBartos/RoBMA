@@ -100,10 +100,8 @@ assign("check_scaling",   TRUE,                                       envir = Ro
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 
-  min_OK <- sum(as.numeric(strsplit(BayesTools_required[1], ".", fixed = TRUE)[[1]]) * c(1e9, 1e6, 1e3)) <=
-    sum(unlist(BayesTools.version) * c(1e9, 1e6, 1e3))
-  max_OK <- sum(as.numeric(strsplit(BayesTools_required[2], ".", fixed = TRUE)[[1]]) * c(1e9, 1e6, 1e3)) >=
-    sum(unlist(BayesTools.version) * c(1e9, 1e6, 1e3))
+  min_OK <- package_version(BayesTools_required[1]) <= BayesTools.version
+  max_OK <- package_version(BayesTools_required[2]) >= BayesTools.version
 
   if(min_OK && max_OK){
     return(invisible(TRUE))
