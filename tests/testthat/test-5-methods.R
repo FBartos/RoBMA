@@ -610,6 +610,75 @@ test_that("Heterogeneity summary functions work", {
 
 })
 
+# test effect size summary function
+test_that("Effect size summary functions work", {
+
+  # testing for consistency among pooled vs adjusted for standard models
+  expect_equivalent(
+    as.data.frame(pooled_effect(saved_fits[[15]])[["estimates"]]),
+    as.data.frame(adjusted_effect(saved_fits[[15]])[["estimates"]])
+  )
+  expect_equivalent(
+    as.data.frame(pooled_effect(saved_fits[[15]], conditional = TRUE)[["estimates_conditional"]]),
+    as.data.frame(adjusted_effect(saved_fits[[15]], conditional = TRUE)[["estimates_conditional"]])
+  )
+
+  expect_equal(
+    capture_output_lines(pooled_effect(saved_fits[[15]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    c("Call:"                                                                                                  ,
+      "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "    ,
+      "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                       ,
+      "    priors_heterogeneity = NULL, priors_bias = list(prior_weightfunction(distribution = \"two.sided\", ",
+      "        parameters = list(alpha = c(1, 1), steps = c(0.05)), "                                          ,
+      "        prior_weights = 1/2), prior_PET(distribution = \"Cauchy\", "                                    ,
+      "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "                    ,
+      "    priors_effect_null = NULL, algorithm = \"ss\", chains = 2, "                                        ,
+      "    sample = 2500, burnin = 1000, adapt = 500, parallel = TRUE, "                                       ,
+      "    autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "                        ,
+      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                      ,
+      ""                                                                                                       ,
+      "Robust Bayesian meta-regression"                                                                        ,
+      "Model-averaged pooled effect estimate:"                                                                 ,
+      "           Mean Median  0.025    0.5"                                                                   ,
+      "estimate -0.013 -0.007 -0.175 -0.007"                                                                   ,
+      "PI       -0.013 -0.007 -0.175 -0.007"                                                                   ,
+      ""                                                                                                       ,
+      "Conditional pooled effect estimate:"                                                                    ,
+      "           Mean Median  0.025    0.5"                                                                   ,
+      "estimate -0.013 -0.007 -0.175 -0.007"                                                                   ,
+      "PI       -0.013 -0.007 -0.175 -0.007"                                                                   ,
+      "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale)."
+    ))
+
+  expect_equal(
+    capture_output_lines(adjusted_effect(saved_fits[[15]], conditional = TRUE, output_scale = "r", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    c("Call:"                                                                                                                                                                    ,
+      "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "                                                                      ,
+      "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                                                                                         ,
+      "    priors_heterogeneity = NULL, priors_bias = list(prior_weightfunction(distribution = \"two.sided\", "                                                                  ,
+      "        parameters = list(alpha = c(1, 1), steps = c(0.05)), "                                                                                                            ,
+      "        prior_weights = 1/2), prior_PET(distribution = \"Cauchy\", "                                                                                                      ,
+      "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "                                                                                      ,
+      "    priors_effect_null = NULL, algorithm = \"ss\", chains = 2, "                                                                                                          ,
+      "    sample = 2500, burnin = 1000, adapt = 500, parallel = TRUE, "                                                                                                         ,
+      "    autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "                                                                                          ,
+      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                                                                                        ,
+      ""                                                                                                                                                                         ,
+      "Robust Bayesian meta-regression"                                                                                                                                          ,
+      "Model-averaged adjusted effect estimate:"                                                                                                                                 ,
+      "           Mean Median  0.025    0.5"                                                                                                                                     ,
+      "estimate -0.004 -0.002 -0.048 -0.002"                                                                                                                                     ,
+      "PI       -0.004 -0.002 -0.048 -0.002"                                                                                                                                     ,
+      ""                                                                                                                                                                         ,
+      "Conditional adjusted effect estimate:"                                                                                                                                    ,
+      "           Mean Median  0.025    0.5"                                                                                                                                     ,
+      "estimate -0.004 -0.002 -0.048 -0.002"                                                                                                                                     ,
+      "PI       -0.004 -0.002 -0.048 -0.002"                                                                                                                                     ,
+      "The effect size estimates are summarized on the correlation scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."
+    ))
+
+})
+
 #### creating / updating the test settings ####
 if(FALSE){
 

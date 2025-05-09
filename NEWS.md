@@ -2,12 +2,13 @@
 ### Features
 - approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `study_ids` argument when using `algorithm = "ss"`
 - `pooled_effect()` function to compute the pooled effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
+- `adjusted_effect()` function to compute the adjusted effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 
 ### Fixes
 - passing and checks of the `study_ids` and `study_labels` arguments
 - PEESE prior distribution now scale as 1/scale instead of 1/scale^2 with the `rescale_priors` argument  
 - the conditional prediction interval based on `summary_heterogeneity()` is now conditional on the presence of the effect
-- additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specfied etc)
+- additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specified etc)
 
 ## version 3.4
 ### Features
