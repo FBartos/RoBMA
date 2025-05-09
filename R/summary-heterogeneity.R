@@ -11,7 +11,12 @@
 #' Can be abbreviated to first letters.
 #' @inheritParams summary.RoBMA
 #'
-#' @return \code{summary.RoBMA} returns a list of tables of class 'BayesTools_table'.
+#' @details
+#' The `conditional` argument allows for computing the conditional prediction interval based
+#' on models assuming the presence of the effect and the conditional heterogeneity estimates
+#' tau, tau^2, I^2, and H^2 assuming the presence of the heterogeneity.
+#'
+#' @return \code{summary_heterogeneity} returns a list of tables of class 'BayesTools_table'.
 #'
 #' @export
 summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE,
@@ -199,24 +204,26 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   if(model[["prior_scale"]] != model[["output_scale"]])
     stop("The prior_scale does not match the output_scale. (Individual models' MCMC samples must have been transformed earlier.)")
 
+  posterior_samples <- try(suppressWarnings(coda::as.mcmc(model[["fit"]])))
+
   if(.is_model_regression(model)){
     if(BayesTools::is.prior.point(model$priors$terms[["intercept"]])){
       mu <- model$priors$terms[["intercept"]]$parameters[["location"]]
     }else{
-      mu <- suppressWarnings(coda::as.mcmc(model[["fit"]]))[,"mu_intercept"]
+      mu <- posterior_samples[,"mu_intercept"]
     }
   }else{
     if(BayesTools::is.prior.point(model$priors[["mu"]])){
       mu <- model$priors[["mu"]]$parameters[["location"]]
     }else{
-      mu <- suppressWarnings(coda::as.mcmc(model[["fit"]]))[,"mu"]
+      mu <- posterior_samples[,"mu"]
     }
   }
 
   if(BayesTools::is.prior.point(model$priors[["tau"]])){
     tau <- model$priors[["tau"]]$parameters[["location"]]
   }else{
-    tau <- suppressWarnings(coda::as.mcmc(model[["fit"]]))[,"tau"]
+    tau <- posterior_samples[,"tau"]
   }
 
   mu  <- .scale(mu,  model[["prior_scale"]], model_scale)
@@ -234,10 +241,15 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
 
   if(conditional){
 
-    tau_is_null   <- attr(model$priors[["tau"]], "components") == "null"
-    tau_indicator <- suppressWarnings(coda::as.mcmc(model[["fit"]])[,"tau_indicator"])
+    if(.is_model_regression(model)) {
+      mu_is_null   <- attr(model$priors$terms[["intercept"]], "components") == "null"
+      mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+    } else {
+      mu_is_null   <- attr(model$priors[["mu"]], "components") == "null"
+      mu_indicator <- posterior_samples[,"mu_indicator"]
+    }
 
-    predictions <- predictions[tau_indicator %in% which(!tau_is_null)]
+    predictions <- predictions[mu_indicator %in% which(!mu_is_null)]
   }
 
   return(predictions)

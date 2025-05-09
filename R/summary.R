@@ -506,7 +506,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       conditional       = FALSE,
       title             = "Model-averaged estimates:",
       warnings          = .collect_errors_and_warnings(object),
-      footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object))
     ))
 
     if(conditional){
@@ -520,7 +520,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
         conditional       = TRUE,
         title             = "Conditional estimates:",
         warnings          = .collect_errors_and_warnings(object),
-        footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+        footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object))
       ))
     }
 
@@ -763,3 +763,137 @@ interpret           <- function(object, output_scale = NULL){
   return(text)
 }
 
+
+#' @title Compute pooled effect size
+#'
+#' @description \code{pooled_effect} computes the pooled effect size
+#' for a fitted RoBMA.reg and BiBMA.reg object.
+#'
+#' @inheritParams summary.RoBMA
+#'
+#' @details
+#' The meta-regression specification results in the intercept corresponding
+#' to the adjusted effect estimate (i.e., adjusting for the effect of moderators).
+#' In case of moderators inbalance, the adjusted effect estimate might not be
+#' representative of the sample of studies. The pooled effect size function averages
+#' the effect size estimate across the moderators proportionately to the
+#' moderators levels observed in the data set. Note that there is no Bayes factor
+#' test for the presence of the pooled effect (the summary function provides the
+#' adjusted effect and the test for the presence of the adjusted effect).
+#'
+#' The conditional estimate is calculated conditional on the presence of the adjusted
+#' effect (i.e., the intercept).
+#'
+#'
+#' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+#'
+#' @export
+pooled_effect <- function(object, conditional = FALSE,
+                          output_scale = NULL, probs = c(.025, .975), ...) {
+
+  .check_is_any_RoBMA_object(object)
+  if(.is_model_regression(object))
+    stop("The pooled effect size can only be computed for regression models.")
+  if(object[["add_info"]][["algorithm"]] != "ss")
+    stop("The pooled effect size can only be computed for spike and slab models.")
+
+  if(is.null(output_scale)){
+    output_scale <- object$add_info[["output_scale"]]
+  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+    stop("Models estimated using the generall effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  dots <- list(...)
+
+  # get posterior samples
+  posterior_samples <- suppressWarnings(coda::as.mcmc(object[["model"]][["fit"]]))
+
+  ### compute pooled effect
+  pooled_estimate <- BayesTools::JAGS_evaluate_formula(
+    fit         = posterior_samples,
+    formula     = object[["formula"]],
+    parameter   = "mu",
+    data        = do.call(cbind.data.frame, object[["data"]][["predictors"]]),
+    prior_list  = attr(object[["model"]][["fit"]], "prior_list")
+  )
+
+  # average across the design matrix multiplied by the samples
+  pooled_estimate <- rowMeans(t(pooled_estimate))
+
+  ### compute prediction interval
+  # simulate predictions for PI
+  if(is.null(object$add_info[["seed"]])){
+    set.seed(1)
+  }else{
+    set.seed(object$add_info[["seed"]])
+  }
+
+  if(BayesTools::is.prior.point(object[["model"]]$priors[["tau"]])){
+    tau <- object[["model"]]$priors[["tau"]]$parameters[["location"]]
+  }else{
+    tau <- posterior_samples[,"tau"]
+  }
+
+  # these needs to be simulated as the posteriors can be non-normal
+  predictions <- stats::rnorm(length(pooled_estimate), mean = pooled_estimate, sd = tau)
+
+  # compute conditional estimates
+  mu_is_null   <- attr(object[["model"]]$priors$terms[["intercept"]], "components") == "null"
+  mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+
+  pooled_estimate_conditional <- pooled_estimate[mu_indicator %in% which(!mu_is_null)]
+  predictions_conditional     <- predictions[mu_indicator %in% which(!mu_is_null)]
+
+  # return samples if requested
+  if (!is.null(dots[["as_samples"]]) && isTRUE(dots[["as_samples"]])){
+    return(list(
+      estimate    = .transform_mu(pooled_estimate, from = object$add_info[["prior_scale"]], to = output_scale),
+      predictions = .transform_mu(predictions,     from = object$add_info[["prior_scale"]], to = output_scale),
+      estimate_conditional    = .transform_mu(pooled_estimate_conditional, from = object$add_info[["prior_scale"]], to = output_scale),
+      predictions_conditional = .transform_mu(predictions_conditional,     from = object$add_info[["prior_scale"]], to = output_scale)
+    ))
+  }
+
+  # obtain estimates tables
+  estimates <- BayesTools::ensemble_estimates_table(
+    samples    = list(
+      estimate  = .transform_mu(pooled_estimate, from = object$add_info[["prior_scale"]], to = output_scale),
+      PI        = .transform_mu(predictions,     from = object$add_info[["prior_scale"]], to = output_scale)
+    ),
+    parameters = c("estimate","PI"),
+    probs      = probs,
+    title      = "Model-averaged pooled effect estimates:",
+    warnings   = .collect_errors_and_warnings(object)
+  )
+
+  estimates_conditional <- BayesTools::ensemble_estimates_table(
+    samples    = list(
+      estimate  = .transform_mu(pooled_estimate_conditional, from = object$add_info[["prior_scale"]], to = output_scale),
+      PI        = .transform_mu(predictions_conditional,     from = object$add_info[["prior_scale"]], to = output_scale)
+    ),
+    parameters = c("estimate","PI"),
+    probs      = probs,
+    title      = "Conditional pooled effect estimates:",
+    warnings   = .collect_errors_and_warnings(object),
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+  )
+
+  # create the output object
+  output <- list(
+    call       = object[["call"]],
+    title      = .object_title(object),
+    estimates  = estimates,
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+  )
+
+  if(conditional){
+    output$estimates_conditional <- estimates_conditional
+  }
+
+  class(output) <- "summary.RoBMA"
+  attr(output, "type") <- "ensemble"
+
+  return(output)
+}
