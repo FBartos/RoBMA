@@ -600,3 +600,64 @@ test_that("Set convergence checks works", {
 
 })
 
+# test priors & regression set-up works
+test_that("Prior regression set-up works", {
+
+  df <- data.frame(
+    d  = rep(0.0, 10),
+    se = rep(0.1, 10),
+    x  = rnorm(10)
+  )
+
+  setup_default  <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE)
+
+  # all alternative ways of specifying the same model
+  setup_default1 <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE,
+                              priors = list(
+                                "x" = set_default_priors("covariates")
+                              ))
+
+  expect_equal(setup_default, setup_default1)
+
+  setup_default2 <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE,
+                              priors = list(
+                                "x" = list(set_default_priors("covariates"))
+                              ))
+  expect_equal(setup_default, setup_default2)
+
+
+  setup_default3 <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE,
+                              priors = list(
+                                "x" = list(null = set_default_priors("covariates", null = TRUE),
+                                           alt = set_default_priors("covariates")))
+                              )
+  expect_equal(setup_default, setup_default3)
+
+  setup_default4  <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE, test_predictors = "x")
+  expect_equal(setup_default, setup_default4)
+
+  # setup conditional
+  setup_conditional  <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE, test_predictors = FALSE)
+
+  # all alternative ways of specifying the same model
+  setup_conditional1 <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE,
+                              priors = list(
+                                "x" = list(alt = set_default_priors("covariates"),
+                                           null = NULL)
+                              ))
+
+  expect_equal(setup_conditional, setup_conditional1)
+
+  setup_conditional2 <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE,
+                                  priors = list(
+                                    "x" = list(null = list(),
+                                               alt = set_default_priors("covariates"))
+                                  ))
+
+  expect_equal(setup_conditional, setup_conditional2)
+
+  setup_conditional3  <- NoBMA.reg(~x, data = df, algorithm = "ss", do_not_fit = TRUE, test_predictors = NULL)
+  expect_equal(setup_conditional, setup_conditional3)
+
+})
+

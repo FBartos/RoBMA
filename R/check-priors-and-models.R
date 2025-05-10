@@ -134,6 +134,10 @@
 
       p <- predictors[i]
 
+      # remove empty list elements
+      if (!is.prior(priors_by_user[[p]]))
+        priors_by_user[[p]] <- priors_by_user[[p]][sapply(priors_by_user[[p]], function(x) !is.null(x) && length(x) > 0)]
+
       # unlist a potentially listed unnamed prior
       if (!is.prior(priors_by_user[[p]]) && is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 1 && length(names(priors_by_user[[p]])) == 0 && is.prior(priors_by_user[[p]][[1]]))
         priors_by_user[[p]] <- priors_by_user[[p]][[1]]
