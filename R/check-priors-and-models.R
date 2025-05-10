@@ -91,7 +91,7 @@
                 paste0(" '", names(priors)[names(priors) %in% .reserved_words()], "' ", collapse = ", ")), call. = FALSE)
 
 
-  # completely the prior distribution specification
+  # default prior distribution specification
   if(is.null(priors)){
 
     # standardize possible inputs for no predictors testing
@@ -133,6 +133,10 @@
     for(i in seq_along(predictors)){
 
       p <- predictors[i]
+
+      # unlist a potentially listed unnamed prior
+      if (!is.prior(priors_by_user[[p]]) && is.list(priors_by_user[[p]]) && length(priors_by_user[[p]]) == 1 && length(names(priors_by_user[[p]])) == 0 && is.prior(priors_by_user[[p]][[1]]))
+        priors_by_user[[p]] <- priors_by_user[[p]][[1]]
 
       if(is.null(priors_by_user[[p]])){
         # no user specified priors -- default estimation only
@@ -758,7 +762,10 @@
 
     }else{
 
-      model_priors[["terms"]][[terms[i]]]  <- priors[["terms"]][[terms[i]]][["alt"]]
+      if(length(priors[["terms"]][[terms[i]]]) != 1)
+        stop("The prior distribution for the term '", terms[i], "' is not specified correctly. It should be a single prior distribution or a list of two prior distributions (null and alternative).")
+
+      model_priors[["terms"]][[terms[i]]]  <- priors[["terms"]][[terms[i]]][[1]]
 
     }
 
