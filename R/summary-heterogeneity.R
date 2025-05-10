@@ -16,6 +16,8 @@
 #' on models assuming the presence of the effect and the conditional heterogeneity estimates
 #' tau, tau^2, I^2, and H^2 assuming the presence of the heterogeneity.
 #'
+#' Relative heterogeneity measures (I^2 and H^2) are not available for BiBMA models.
+#'
 #' @return \code{summary_heterogeneity} returns a list of tables of class 'BayesTools_table'.
 #'
 #' @export
@@ -26,9 +28,6 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   # apply version changes to RoBMA object
   object <- .update_object(object)
 
-  if(is.BiBMA(object))
-    stop("The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
-
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
   BayesTools::check_char(type, "type")
@@ -36,7 +35,11 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   BayesTools::check_bool(remove_spike_0, "remove_spike_0")
 
   # transform the data and posterior to scale used for fitting the model (to compute the metrics)
-  model_scale <- object$add_info[["effect_measure"]]
+  if (is.BiBMA(object)) {
+    model_scale <- "logOR"
+  } else {
+    model_scale <- object$add_info[["effect_measure"]]
+  }
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]
   }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale, estimation = FALSE) != "y"){
@@ -50,12 +53,14 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
   }
 
   # v_tilde for I^2 and H^2 statistic
-  if(.is_regression(object)){
-    w <- 1/object[["data"]][["outcome"]][["se"]]^2
-  }else{
-    w <- 1/object[["data"]][["se"]]^2
+  if (!is.BiBMA(object)) {
+    if(.is_regression(object)){
+      w <- 1/object[["data"]][["outcome"]][["se"]]^2
+    }else{
+      w <- 1/object[["data"]][["se"]]^2
+    }
+    v_tilde <- ((length(w) - 1) * sum(w)) / (sum(w)^2 - sum(w^2))
   }
-  v_tilde <- ((length(w) - 1) * sum(w)) / (sum(w)^2 - sum(w^2))
 
 
   if(substr(type,1,1) == "e" || object[["add_info"]][["algorithm"]] == "ss"){
@@ -76,13 +81,14 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
         PI    = .transform_mu(PI[["averaged"]], from = object$add_info[["prior_scale"]], to = output_scale),
         tau   = .scale(object$RoBMA$posteriors$tau,   model_scale, output_scale),
         tau2  = .scale(object$RoBMA$posteriors$tau^2, model_scale, output_scale),
-        I2    = .compute_I2(object$RoBMA$posteriors$tau, v_tilde),
-        H2    = .compute_H2(object$RoBMA$posteriors$tau, v_tilde)
+        I2    = if (!is.BiBMA(object)) .compute_I2(object$RoBMA$posteriors$tau, v_tilde),
+        H2    = if (!is.BiBMA(object)) .compute_H2(object$RoBMA$posteriors$tau, v_tilde)
       ),
-      parameters = c("PI","tau", "tau2", "I2", "H2"),
+      parameters = c("PI","tau", "tau2", if (!is.BiBMA(object)) c("I2", "H2")),
       probs      = probs,
       title      = "Model-averaged heterogeneity estimates:",
-      footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
+      footnotes  = if (is.BiBMA(object)) .scale_note(object$add_info[["prior_scale"]], output_scale)
+                    else c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
       warnings   = .collect_errors_and_warnings(object)
     )
 
@@ -101,13 +107,14 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
           PI    = .transform_mu(PI[["conditional"]], from = object$add_info[["prior_scale"]], to = output_scale),
           tau   = .scale(object$RoBMA$posteriors_conditional$tau,   model_scale, output_scale),
           tau2  = .scale(object$RoBMA$posteriors_conditional$tau^2, model_scale, output_scale),
-          I2    = .compute_I2(object$RoBMA$posteriors_conditional$tau, v_tilde),
-          H2    = .compute_H2(object$RoBMA$posteriors_conditional$tau, v_tilde)
+          I2    = if (!is.BiBMA(object)) .compute_I2(object$RoBMA$posteriors_conditional$tau, v_tilde),
+          H2    = if (!is.BiBMA(object)) .compute_H2(object$RoBMA$posteriors_conditional$tau, v_tilde)
         ),
-        parameters = c("PI", "tau", "tau2", "I2", "H2"),
+        parameters = c("PI","tau", "tau2", if (!is.BiBMA(object)) c("I2", "H2")),
         probs      = probs,
         title      = "Conditional heterogeneity estimates:",
-        footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
+        footnotes  = if (is.BiBMA(object)) .scale_note(object$add_info[["prior_scale"]], output_scale)
+                      else c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
         warnings   = .collect_errors_and_warnings(object)
       )
     }
@@ -158,13 +165,14 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
           PI    = .transform_mu(PI, from = object[["models"]][[i]][["prior_scale"]], to = output_scale),
           tau   = .scale(tau, object[["models"]][[i]][["prior_scale"]], output_scale),
           tau2  = .scale(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale)^2, model_scale, output_scale),
-          I2    = .compute_I2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde),
-          H2    = .compute_H2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde)
+          I2    = if (!is.BiBMA(object)) .compute_I2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde),
+          H2    = if (!is.BiBMA(object)) .compute_H2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde)
         ),
-        parameters = c("PI", "tau", "tau2", "I2", "H2"),
+        parameters = c("PI","tau", "tau2", if (!is.BiBMA(object)) c("I2", "H2")),
         probs      = probs,
         title      = "Heterogeneity estimates:",
-        footnotes  = c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
+        footnotes  = if (is.BiBMA(object)) .scale_note(object$add_info[["prior_scale"]], output_scale)
+                      else c(.heterogeneity_scale_note(model_scale, object$add_info[["prior_scale"]], output_scale, .is_regression(object))),
         warnings   = .collect_errors_and_warnings(object)
       )
 

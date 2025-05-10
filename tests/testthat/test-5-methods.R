@@ -560,22 +560,16 @@ test_that("Heterogeneity summary functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_fits)){
-    if(is.BiBMA(saved_fits[[i]]))
-      expect_error(summary_heterogeneity(saved_fits[[i]]), "The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
-    else
-      expect_equal(
-        capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150),
-        read.table(file = file.path("../results/summary_heterogeneity", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+    expect_equal(
+      capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150),
+      read.table(file = file.path("../results/summary_heterogeneity", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_fits)){
-    if(is.BiBMA(saved_fits[[i]]))
-      expect_error(summary_heterogeneity(saved_fits[[i]]), "The 'summary_heterogeneity' function is not available for Binomial meta-analytic models.")
-    else
-      expect_equal(
-        capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150),
-        read.table(file = file.path("../results/summary_heterogeneity.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+    expect_equal(
+      capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150),
+      read.table(file = file.path("../results/summary_heterogeneity.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # test BiBMA
@@ -720,17 +714,11 @@ if(FALSE){
 
   # generate summary_heterogeneity files
   for(i in seq_along(saved_fits)){
-    if(is.BiBMA(saved_fits[[i]]))
-      next
-    else
-      write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+    write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary_heterogeneity.individual files
   for(i in seq_along(saved_fits)){
-    if(is.BiBMA(saved_fits[[i]]))
-      next
-    else
-      write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+    write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 }

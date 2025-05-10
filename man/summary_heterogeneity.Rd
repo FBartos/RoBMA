@@ -49,4 +49,6 @@ heterogeneity  (tau, tau^2), and relative measures of heterogeneity
 The \code{conditional} argument allows for computing the conditional prediction interval based
 on models assuming the presence of the effect and the conditional heterogeneity estimates
 tau, tau^2, I^2, and H^2 assuming the presence of the heterogeneity.
+
+Relative heterogeneity measures (I^2 and H^2) are not available for BiBMA models.
 }
