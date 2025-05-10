@@ -702,6 +702,7 @@
     for(i in seq_along(model$priors$pi)){
       attr(model$priors$pi[[i]], "levels") <- K
     }
+    attr(model$priors$pi, "levels") <- K
   }
 
   # add non-central random effects

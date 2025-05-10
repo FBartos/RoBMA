@@ -10,6 +10,7 @@
 - PEESE prior distribution now scale as 1/scale instead of 1/scale^2 with the `rescale_priors` argument  
 - the conditional prediction interval based on `summary_heterogeneity()` is now conditional on the presence of the effect
 - additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specified etc)
+- diagnostics with mixture baseline priors when using `algorithm = "ss"`
 
 ## version 3.4
 ### Features
