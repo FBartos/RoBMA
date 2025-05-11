@@ -61,12 +61,13 @@
 
   return(priors)
 }
-.check_and_list_priors_bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_baseline_null, priors_baseline){
+.check_and_list_priors_bi    <- function(priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_baseline_null, priors_baseline, priors_hierarchical_null, priors_hierarchical){
 
   priors <- list()
   priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
   priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
   priors$baseline       <- .check_and_list_component_priors(priors_baseline_null,        priors_baseline,       "baseline")
+  priors$hierarchical   <- .check_and_list_component_priors(priors_hierarchical_null,    priors_hierarchical,   "hierarchical")
 
   return(priors)
 }
@@ -224,6 +225,7 @@
                                             priors_effect_null, priors_effect,
                                             priors_heterogeneity_null, priors_heterogeneity,
                                             priors_baseline_null, priors_baseline,
+                                            priors_hierarchical_null, priors_hierarchical,
                                             prior_covariates_null, prior_covariates,
                                             prior_factors_null, prior_factors){
 
@@ -233,7 +235,9 @@
     priors_heterogeneity_null = priors_heterogeneity_null,
     priors_heterogeneity      = priors_heterogeneity,
     priors_baseline_null      = priors_baseline_null,
-    priors_baseline           = priors_baseline
+    priors_baseline           = priors_baseline,
+    priors_hierarchical_null  = priors_hierarchical_null,
+    priors_hierarchical       = priors_hierarchical
   )
   priors_terms <- .check_and_list_priors_terms(
     priors                 = priors,
@@ -462,7 +466,10 @@
 
   return(models)
 }
-.make_models_bi     <- function(priors, K, weighted){
+.make_models_bi     <- function(priors, multivariate, N, K, weighted){
+
+  if(multivariate)
+    stop("Multivariate outcomes are implemented only for 'ss' algorithm.", call. = FALSE)
 
   # create models according to the set priors
   models <- NULL
@@ -476,7 +483,7 @@
             prior_heterogeneity = heterogeneity,
             prior_baseline      = baseline,
             prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * baseline[["prior_weights"]],
-            K                   = K,
+            N                   = N,
             weighted            = weighted
           )))
       }
@@ -485,10 +492,13 @@
 
   return(models)
 }
-.make_models_bi.reg <- function(priors, K, weighted){
+.make_models_bi.reg <- function(priors, multivariate, N, K, weighted){
+
+  if(multivariate)
+    stop("Multivariate outcomes are implemented only for 'ss' algorithm.", call. = FALSE)
 
   # create models according to the set priors
-  models_base <- .make_models_bi(priors = priors, K = K, weighted = weighted)
+  models_base <- .make_models_bi(priors = priors, multivariate = multivariate, N = N, weighted = weighted)
 
   ### create grid of the models
   grid <- list(
@@ -543,7 +553,7 @@
 
   return(model)
 }
-.make_model_bi     <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, K, weighted){
+.make_model_bi     <- function(prior_effect, prior_heterogeneity, prior_baseline, prior_weights, N, weighted){
 
   is_random <- !(is.prior.point(prior_heterogeneity) && prior_heterogeneity$parameters[["location"]] == 0)
 
@@ -554,12 +564,12 @@
   priors$pi    <- prior_baseline
 
   # specify the number of levels
-  attr(priors$pi, "levels") <- K
+  attr(priors$pi, "levels") <- N
 
   # add non-central random effects
   if(is_random){
     priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
-    attr(priors$gamma, "levels") <- K
+    attr(priors$gamma, "levels") <- N
   }
 
   model <- list(
@@ -676,12 +686,13 @@
 
   return(model)
 }
-.make_model_bi_ss      <- function(priors, K, weighted){
+.make_model_bi_ss      <- function(priors, multivariate, N, K, weighted){
 
   # pre-compute model component information
   priors_effect        <- priors[["effect"]]
   priors_heterogeneity <- priors[["heterogeneity"]]
   priors_baseline      <- priors[["baseline"]]
+  priors_hierarchical  <- priors[["hierarchical"]]
 
   model <- list(priors = list())
 
@@ -695,40 +706,53 @@
   if(length(priors_baseline) == 1){
     model$priors$pi <- priors_baseline[[1]]
     # specify the number of levels
-    attr(model$priors$pi, "levels") <- K
+    attr(model$priors$pi, "levels") <- N
   }else{
     model$priors$pi <- BayesTools::prior_mixture(priors_baseline, is_null = sapply(priors_baseline, function(x) x[["is_null"]]))
     # specify the number of levels
     for(i in seq_along(model$priors$pi)){
-      attr(model$priors$pi[[i]], "levels") <- K
+      attr(model$priors$pi[[i]], "levels") <- N
     }
-    attr(model$priors$pi, "levels") <- K
+    attr(model$priors$pi, "levels") <- N
   }
 
   # add non-central random effects
   any_is_random <- !all(sapply(priors_heterogeneity, function(x) is.prior.point(x) && x$parameters[["location"]] != 0))
   if(any_is_random){
     model$priors$gamma <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
-    attr(model$priors$gamma, "levels") <- K
+    attr(model$priors$gamma, "levels") <- N
+  }
+
+  # place hierarchical priors
+  if(multivariate){
+    if(length(priors_hierarchical) == 1 && is.prior.none(priors_hierarchical[[1]])){
+      model$priors$rho <- priors_hierarchical[[1]]
+    }else{
+      model$priors$rho <- BayesTools::prior_mixture(priors_hierarchical, is_null = sapply(priors_hierarchical, function(x) x[["is_null"]]))
+    }
+
+    # add non-central random effects
+    model$priors$epsilon <- prior_factor("normal", parameters = list(0, 1), contrast = "independent")
+    attr(model$priors$epsilon, "levels") <- K
   }
 
 
   class(model) <- "BiBMA.model_ss"
 
-  attr(model, "multivariate")  <- FALSE
+  attr(model, "multivariate")  <- multivariate && !is.null(model$priors$rho)
   attr(model, "random")        <- any_is_random
   attr(model, "weighted")      <- weighted
   attr(model, "weighted_type") <- attr(weighted, "type")
 
   return(model)
 }
-.make_model_bi_ss.reg  <- function(priors, K, weighted){
+.make_model_bi_ss.reg  <- function(priors, multivariate, N, K, weighted){
 
-  model_base <- .make_model_bi_ss(priors = priors, K = K, weighted = weighted)
+  model_base <- .make_model_bi_ss(priors = priors, multivariate = multivariate, N = N, K = K, weighted = weighted)
   model      <- .add_model_ss_terms(model_base, priors)
 
   class(model) <- "BiBMA.reg.model_ss"
-  attr(model, "multivariate")  <- FALSE
+  attr(model, "multivariate")  <- attr(model_base, "multivariate")
   attr(model, "random")        <- attr(model_base, "random")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")

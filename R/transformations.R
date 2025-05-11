@@ -435,15 +435,15 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
 
-  # dispatch study_names and study_ids
-  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
-    study_ids <- data[[study_ids]]
-  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
+  # check study_names and study_ids
+  if (!(length(study_ids) == 0 ||
+    (length(data) != 0 && length(study_ids) == nrow(data)) ||
+    (length(data) == 0 && length(x1) != 0 && length(study_ids) == length(x1)))) {
     stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
   }
-  if (length(study_names) == 1 && study_names %in% colnames(data)){
-    study_names <- data[[study_names]]
-  } else if (!(length(study_names) == nrow(data) || length(study_names) == 0)) {
+  if (!(length(study_names) == 0 ||
+        (length(data) != 0 && length(study_names) == nrow(data)) ||
+        (length(data) == 0 && length(x1) != 0 && length(study_names) == length(x1)))) {
     stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
   }
 

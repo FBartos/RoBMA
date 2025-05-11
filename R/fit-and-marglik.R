@@ -454,14 +454,16 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = .is_model_regression(model)
+    regression       = .is_model_regression(model),
+    multivariate     = .is_model_multivariate(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
   fit_data     <- .fit_data.bi(
     data             = data_outcome,
     weighted         = attr(model, "weighted"),
-    weighted_type    = attr(model, "weighted_type")
+    weighted_type    = attr(model, "weighted_type"),
+    multivariate     = .is_model_multivariate(model)
   )
 
   # fit the model
@@ -626,10 +628,6 @@
   errors   <- NULL
   warnings <- NULL
 
-  if(.is_model_multivariate(model)){
-    stop("Multivariate models are not supported by this function.")
-  }
-
   # deal with regression vs basic models
   if(.is_model_regression(model)){
     data_outcome       <- object[["data"]][["outcome"]]
@@ -649,14 +647,16 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = .is_model_regression(model)
+    regression       = .is_model_regression(model),
+    multivariate     = .is_model_multivariate(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
   fit_data     <- .fit_data.bi(
     data             = data_outcome,
     weighted         = attr(model, "weighted"),
-    weighted_type    = attr(model, "weighted_type")
+    weighted_type    = attr(model, "weighted_type"),
+    multivariate     = .is_model_multivariate(model)
   )
 
 
@@ -735,7 +735,6 @@
     }
 
   }
-
 
   # add results
   model$fit           <- fit
@@ -825,7 +824,7 @@
 
   return(fit_data)
 }
-.fit_data.bi              <- function(data, weighted, weighted_type){
+.fit_data.bi              <- function(data, weighted, weighted_type, multivariate){
 
   # unlist the data frame
   fit_data <- list()
@@ -838,6 +837,12 @@
   # add weights proportional to the number of estimates from a study
   if(weighted){
     fit_data$weight <- .get_id_weights(data, weighted_type)
+  }
+
+  if(multivariate){
+    # rewritting ids as previous formating used NAs for unique ones
+    data[,"study_ids"][is.na(data[,"study_ids"])] <- (max(data[,"study_ids"], na.rm = TRUE) + 1):(max(data[,"study_ids"], na.rm = TRUE) + sum(is.na(data[,"study_ids"])))
+    fit_data$study_ids <- data[,"study_ids"]
   }
 
   return(fit_data)
@@ -1080,31 +1085,37 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.bi <- function(priors, random, weighted, regression){
+.generate_model_syntax.bi <- function(priors, random, weighted, regression, multivariate){
 
   model_syntax <- "model{\n"
 
   ### priors and model are always specified on log(OR) scale
   # no need to apply transformations here
 
+  if(random && multivariate){
+    model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(rho)\n")
+    model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(1-rho)\n")
+  }
+
   ### model
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
-
-  # deal with the random/fixed models (they are not marginalized as in the normal case) & meta-regression
   # using non-central parameterization
-  if(random && regression){
-    eff <- "(mu[i] + gamma[i] * tau)"
-  }else if(random && !regression){
-    eff <- "(mu + gamma[i] * tau)"
-  }else if(!random && regression){
+  if(regression){
     eff <- "mu[i]"
-  }else if(!random && !regression){
+  }else{
     eff <- "mu"
+  }
+  if(random && multivariate){
+    eff <- paste0(eff, " + epsilon[study_ids[i]] * tau_within + gamma[i] * tau_between")
+  }else if(random && !multivariate){
+    eff <- paste0(eff, " + gamma[i] * tau")
+  }else if(!random && multivariate){
+    eff <- paste0(eff, " + epsilon[study_ids[i]] * tau")
   }
 
   # transform the parameters to the probability scale
-  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) + 0.5 * ", eff, "\n")
-  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) - 0.5 * ", eff, "\n")
+  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) + 0.5 * (", eff, ")\n")
+  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) - 0.5 * (", eff, ")\n")
 
   # the observed data
   if(weighted){

@@ -344,6 +344,6 @@ if(FALSE){
   }
 
   # single model update
-  fit_14 <- remove_time(fit_14)
-  saveRDS(fit_14, file = file.path("tests/results/fits/", paste0("fit_",14,".RDS")), compress  = "xz")
+  fit_16 <- remove_time(fit_16)
+  saveRDS(fit_16, file = file.path("tests/results/fits/", paste0("fit_",16,".RDS")), compress  = "xz")
 }

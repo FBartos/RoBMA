@@ -1,6 +1,7 @@
 ## version 3.5
 ### Features
 - approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `study_ids` argument when using `algorithm = "ss"`
+- 3lvl binomial-normal models for binary data via the `BiBMA` and `BiBMA.reg` functions with the `study_ids` argument when using `algorithm = "ss"`
 - `pooled_effect()` function to compute the pooled effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 - `adjusted_effect()` function to compute the adjusted effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 - enables `summary_heterogeneity()` for BiBMA models

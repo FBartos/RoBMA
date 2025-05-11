@@ -276,7 +276,7 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
 #' @export
 set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
 
-  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "baseline", "covariates", "factors"))
+  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "baseline", "covariates", "factors", "hierarchical"))
   BayesTools::check_bool(null, "null")
   BayesTools::check_real(rescale, "rescale", lower = 0)
 
@@ -287,6 +287,7 @@ set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
       effect        = prior(distribution = "point", parameters = list(location = 0)),
       heterogeneity = prior(distribution = "point", parameters = list(location = 0)),
       baseline      = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
+      hierarchical  = NULL,
 
       covariates    = prior(distribution = "point", parameters = list(location = 0)),
       factors       = prior_factor("spike", parameters = list(location = 0), contrast = "meandif")
@@ -296,8 +297,9 @@ set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
       parameter,
       effect        = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58 * rescale, df = 4)),
       heterogeneity = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55 * rescale)),
-
       baseline      = NULL,
+      hierarchical  = prior("beta", parameters = list(alpha = 1, beta = 1)),
+
       covariates    = prior("normal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale)),
       factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale), contrast = "meandif")
     ))
