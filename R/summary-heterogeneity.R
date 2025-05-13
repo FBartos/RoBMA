@@ -52,8 +52,14 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
     object <- .transform_posterior(object, object$add_info[["output_scale"]], model_scale)
   }
 
+  # check whether relative heterogeneity should/can be produced
+  # not possible for binomial models or when there is only a single test statistic
+  make_relative <- !(is.BiBMA(object) ||
+      (.is_regression(object)  && length(object[["data"]][["outcome"]][["se"]]) < 2) ||
+      (!.is_regression(object) && length(object[["data"]][["se"]]) < 2))
+
   # v_tilde for I^2 and H^2 statistic
-  if (!is.BiBMA(object)) {
+  if (make_relative) {
     if(.is_regression(object)){
       w <- 1/object[["data"]][["outcome"]][["se"]]^2
     }else{
@@ -81,10 +87,10 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
         PI    = .transform_mu(PI[["averaged"]], from = object$add_info[["prior_scale"]], to = output_scale),
         tau   = .scale(object$RoBMA$posteriors$tau,   model_scale, output_scale),
         tau2  = .scale(object$RoBMA$posteriors$tau^2, model_scale, output_scale),
-        I2    = if (!is.BiBMA(object)) .compute_I2(object$RoBMA$posteriors$tau, v_tilde),
-        H2    = if (!is.BiBMA(object)) .compute_H2(object$RoBMA$posteriors$tau, v_tilde)
+        I2    = if (make_relative) .compute_I2(object$RoBMA$posteriors$tau, v_tilde),
+        H2    = if (make_relative) .compute_H2(object$RoBMA$posteriors$tau, v_tilde)
       ),
-      parameters = c("PI","tau", "tau2", if (!is.BiBMA(object)) c("I2", "H2")),
+      parameters = c("PI","tau", "tau2", if (make_relative) c("I2", "H2")),
       probs      = probs,
       title      = "Model-averaged heterogeneity estimates:",
       footnotes  = if (is.BiBMA(object)) .scale_note(object$add_info[["prior_scale"]], output_scale)
@@ -107,10 +113,10 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
           PI    = .transform_mu(PI[["conditional"]], from = object$add_info[["prior_scale"]], to = output_scale),
           tau   = .scale(object$RoBMA$posteriors_conditional$tau,   model_scale, output_scale),
           tau2  = .scale(object$RoBMA$posteriors_conditional$tau^2, model_scale, output_scale),
-          I2    = if (!is.BiBMA(object)) .compute_I2(object$RoBMA$posteriors_conditional$tau, v_tilde),
-          H2    = if (!is.BiBMA(object)) .compute_H2(object$RoBMA$posteriors_conditional$tau, v_tilde)
+          I2    = if (make_relative) .compute_I2(object$RoBMA$posteriors_conditional$tau, v_tilde),
+          H2    = if (make_relative) .compute_H2(object$RoBMA$posteriors_conditional$tau, v_tilde)
         ),
-        parameters = c("PI","tau", "tau2", if (!is.BiBMA(object)) c("I2", "H2")),
+        parameters = c("PI","tau", "tau2", if (make_relative) c("I2", "H2")),
         probs      = probs,
         title      = "Conditional heterogeneity estimates:",
         footnotes  = if (is.BiBMA(object)) .scale_note(object$add_info[["prior_scale"]], output_scale)
@@ -165,10 +171,10 @@ summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE
           PI    = .transform_mu(PI, from = object[["models"]][[i]][["prior_scale"]], to = output_scale),
           tau   = .scale(tau, object[["models"]][[i]][["prior_scale"]], output_scale),
           tau2  = .scale(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale)^2, model_scale, output_scale),
-          I2    = if (!is.BiBMA(object)) .compute_I2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde),
-          H2    = if (!is.BiBMA(object)) .compute_H2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde)
+          I2    = if (make_relative) .compute_I2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde),
+          H2    = if (make_relative) .compute_H2(.scale(tau, object[["models"]][[i]][["prior_scale"]], model_scale), v_tilde)
         ),
-        parameters = c("PI","tau", "tau2", if (!is.BiBMA(object)) c("I2", "H2")),
+        parameters = c("PI","tau", "tau2", if (make_relative) c("I2", "H2")),
         probs      = probs,
         title      = "Heterogeneity estimates:",
         footnotes  = if (is.BiBMA(object)) .scale_note(object$add_info[["prior_scale"]], output_scale)
