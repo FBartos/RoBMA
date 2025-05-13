@@ -1082,9 +1082,6 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     dots[["is_JASP"]] <- TRUE
   }
-  if(is.null(dots[["is_JASP_prefix"]])){
-    dots[["is_JASP_prefix"]] <- ""
-  }
 
   if(is.null(dots[["weighted"]])){
     dots[["weighted"]] <- FALSE
