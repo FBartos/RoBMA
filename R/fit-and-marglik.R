@@ -281,7 +281,7 @@
 
   return(model)
 }
-.fit_RoBMA_model_ss    <- function(object,    extend = FALSE){
+.fit_RoBMA_model_ss    <- function(object, dots, extend = FALSE){
 
   model              <- object[["model"]]
   priors             <- object[["model"]][["priors"]]
@@ -351,7 +351,9 @@
       cores                 = fit_control[["cores"]],
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
-      required_packages     = "RoBMA"
+      required_packages     = "RoBMA",
+      is_JASP               = dots[["is_JASP"]],
+      is_JASP_prefix        = dots[["is_JASP_prefix"]]
     )
 
   }else{
@@ -616,7 +618,7 @@
 
   return(model)
 }
-.fit_BiBMA_model_ss    <- function(object,    extend = FALSE){
+.fit_BiBMA_model_ss    <- function(object, dots, extend = FALSE){
 
   model              <- object[["model"]]
   priors             <- object[["model"]][["priors"]]
@@ -681,7 +683,9 @@
       cores                 = fit_control[["cores"]],
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
-      required_packages     = "RoBMA"
+      required_packages     = "RoBMA",
+      is_JASP               = dots[["is_JASP"]],
+      is_JASP_prefix        = dots[["is_JASP_prefix"]]
     )
 
   }else{

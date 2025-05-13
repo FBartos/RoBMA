@@ -1073,7 +1073,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   dots <- list(...)
 
-  known_dots <- c("is_JASP", "weighted", "do_not_fit", "weighted_type")
+  known_dots <- c("is_JASP", "is_JASP_prefix", "weighted", "do_not_fit", "weighted_type")
   if(any(!names(dots) %in% known_dots))
     stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
 
@@ -1081,6 +1081,9 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     dots[["is_JASP"]] <- FALSE
   }else{
     dots[["is_JASP"]] <- TRUE
+  }
+  if(is.null(dots[["is_JASP_prefix"]])){
+    dots[["is_JASP_prefix"]] <- ""
   }
 
   if(is.null(dots[["weighted"]])){

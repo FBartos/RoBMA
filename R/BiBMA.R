@@ -196,7 +196,7 @@ BiBMA <- function(
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
-    object$model         <- .fit_BiBMA_model_ss(object)
+    object$model         <- .fit_BiBMA_model_ss(object, dots)
     object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 
