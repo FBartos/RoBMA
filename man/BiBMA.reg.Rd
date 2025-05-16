@@ -22,6 +22,8 @@ BiBMA.reg(
   prior_covariates_null = set_default_binomial_priors("covariates", null = TRUE),
   prior_factors = set_default_binomial_priors("factors", rescale = rescale_priors),
   prior_factors_null = set_default_binomial_priors("factors", null = TRUE),
+  priors_hierarchical = set_default_binomial_priors("hierarchical"),
+  priors_hierarchical_null = set_default_binomial_priors("hierarchical", null = TRUE),
   priors_baseline = set_default_binomial_priors("baseline"),
   priors_baseline_null = set_default_binomial_priors("baseline", null = TRUE),
   algorithm = "bridge",
@@ -134,6 +136,15 @@ multivariate normal distribution specifying differences from the mean contrasts
 of categorical covariates on the effect size under the null hypothesis
 (unless set explicitly in \code{priors}). Defaults to a no effect
 \code{prior("spike",  parameters = list(location = 0))}.}
+
+\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
+\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{priors_baseline}{prior distributions for the alternative hypothesis about
 intercepts (\code{pi}) of each study. Defaults to \code{NULL}.}

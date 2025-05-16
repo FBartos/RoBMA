@@ -5,7 +5,8 @@
 #' a data.frame \code{data} with columns named corresponding to the
 #' arguments or vectors with individual values can be passed.
 #'
-#' @param d a vector of effect sizes measured as Cohen's d
+#' @param d a vector of effect sizes measured as Cohen's d / Hedges' g
+#'  (standardized mean differences)
 #' @param r a vector of effect sizes measured as correlations
 #' @param OR a vector of effect sizes measured as odds ratios
 #' @param logOR a vector of effect sizes measured as log odds ratios

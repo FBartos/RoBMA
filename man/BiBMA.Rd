@@ -17,6 +17,8 @@ BiBMA(
     rescale_priors),
   priors_effect_null = set_default_binomial_priors("effect", null = TRUE),
   priors_heterogeneity_null = set_default_binomial_priors("heterogeneity", null = TRUE),
+  priors_hierarchical = set_default_binomial_priors("hierarchical"),
+  priors_hierarchical_null = set_default_binomial_priors("hierarchical", null = TRUE),
   priors_baseline = set_default_binomial_priors("baseline"),
   priors_baseline_null = set_default_binomial_priors("baseline", null = TRUE),
   chains = 3,
@@ -74,6 +76,15 @@ a point null hypotheses at zero,
 parameter that will be treated as belonging to the null hypothesis. Defaults to
 a point null hypotheses at zero (a fixed effect meta-analytic models),
 \code{prior(distribution = "point", parameters = list(location = 0))}.}
+
+\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
+\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
+
+\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
+(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{priors_baseline}{prior distributions for the alternative hypothesis about
 intercepts (\code{pi}) of each study. Defaults to \code{NULL}.}
