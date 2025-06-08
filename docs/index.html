@@ -11,8 +11,8 @@
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Robust Bayesian Meta-Analyses">
-<meta name="description" content="A framework for estimating ensembles of meta-analytic and meta-regression models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;). Users can define a wide range of prior distributions for + the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
-<meta property="og:description" content="A framework for estimating ensembles of meta-analytic and meta-regression models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;). Users can define a wide range of prior distributions for + the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
+<meta name="description" content="A framework for estimating ensembles of meta-analytic, meta-regression, and multilevel models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;; Bartoš et al., 2025, &lt;doi:10.1037/met0000737&gt;). Users can define a wide range of prior distributions for the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
+<meta property="og:description" content="A framework for estimating ensembles of meta-analytic, meta-regression, and multilevel models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;; Bartoš et al., 2025, &lt;doi:10.1037/met0000737&gt;). Users can define a wide range of prior distributions for the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -72,9 +72,9 @@
 <p>This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. The package is also integrated into the JASP software (JASP Team, 2020) and can be used via the graphical user interface.</p>
 <p>See our manuscripts that for technical details and examples:</p>
 <ul>
-<li>Bartoš, Maier, Stanley, et al. (2023) (<a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link uri">https://doi.org/10.31234/osf.io/98xb5</a>) extends RoBMA-PSMA into meta-regression</li>
+<li>Bartoš et al. (2025) (<a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link uri">https://doi.org/10.31234/osf.io/98xb5</a>) extends RoBMA-PSMA into meta-regression</li>
 <li>Bartoš, Otte, et al. (2023) (<a href="https://doi.org/10.48550/arXiv.2306.11468" class="external-link uri">https://doi.org/10.48550/arXiv.2306.11468</a>) outlines binomial-normal Bayesian model-averaged meta-analysis for binary outcomes (+ develops informed prior distributions for log OR, log RR, RD, and log HR in medical settings, also see Bartoš et al. (2021) for informed prior distributions for Cohen’s d, based on the Cochrane Database of Systematic Reviews)</li>
-<li>Bartoš, Maier, Wagenmakers, et al. (2023) (<a href="https://doi.org/10.1002/jrsm.1594" class="external-link uri">https://doi.org/10.1002/jrsm.1594</a>) describes the newest version of publication bias adjustment, RoBMA-PSMA, which combines selection models and PET-PEESE,</li>
+<li>Bartoš, Maier, et al. (2023) (<a href="https://doi.org/10.1002/jrsm.1594" class="external-link uri">https://doi.org/10.1002/jrsm.1594</a>) describes the newest version of publication bias adjustment, RoBMA-PSMA, which combines selection models and PET-PEESE,</li>
 <li>Maier et al. (2023) (<a href="https://doi.org/10.1037/met0000405" class="external-link uri">https://doi.org/10.1037/met0000405</a>) introduces the RoBMA framework and the original version of the method,</li>
 <li>Bartoš et al. (2022) (<a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>) provides an accessible tutorial on the method including the implementation in the the user-friendly graphical user interface of JASP (JASP Team, 2020)</li>
 </ul>
@@ -121,7 +121,7 @@
 <li>prior distributions for specifying weight functions now use a dedicated function (<code>prior(distribution = "two.sided", parameters = ...)</code> -&gt; <code>prior_weightfunction(distribution = "two.sided", parameters = ...)</code>),</li>
 <li>new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (<code><a href="reference/prior_none.html">prior_none()</a></code>),</li>
 <li>new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (<code>prior_PET(distribution = "Cauchy", parameters = ...)</code> and <code>prior_PEESE(distribution = "Cauchy", parameters = ...)</code>),</li>
-<li>new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš, Maier, Wagenmakers, et al. (2023)),</li>
+<li>new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš, Maier, et al. (2023)),</li>
 <li>new <code>model_type</code> argument allowing to specify different “pre-canned” models (<code>"PSMA"</code> = RoBMA-PSMA, <code>"PP"</code> = RoBMA-PP, <code>"2w"</code> = corresponding to Maier et al. (2023)),</li>
 <li>
 <code>combine_data</code> function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the <code>RoBMA</code> function)</li>
@@ -145,12 +145,14 @@
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h2>
-<p>To illustrate the functionality of the package, we fit the RoBMA-PSMA model from the example in Bartoš, Maier, Wagenmakers, et al. (2023) to adjust for publication bias in the infamous Bem (2011) “Feeling the future” pre-cognition study. The RoBMA-PSMA model combines six selection models and PET-PEESE to adjust for publication bias. As in the pre-print, we analyze the data as described by Bem et al. (2011) in his reply to methodological critiques.</p>
+<p>To illustrate the functionality of the package, we fit the RoBMA-PSMA model from the example in Bartoš, Maier, et al. (2023) to adjust for publication bias in the infamous Bem (2011) “Feeling the future” pre-cognition study. The RoBMA-PSMA model combines six selection models and PET-PEESE to adjust for publication bias. As in the pre-print, we analyze the data as described by Bem et al. (2011) in his reply to methodological critiques.</p>
 <p>First, we load the package and the data set included in the package.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span></span>
 <span><span class="co">#&gt; Loading required namespace: runjags</span></span>
 <span><span class="co">#&gt; Loading required namespace: mvtnorm</span></span>
+<span><span class="co">#&gt; RoBMA version 3.3 now features spike-and-slab style model-averaging via the 'algorithm = "ss"' argument.</span></span>
+<span><span class="co">#&gt; See 'vignette("FastRoBMA", package = "RoBMA")' for more details ('algorithm = "ss"' argument will become the default setting in the future major release of the package).</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Bem2011"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span></span>
 <span><span class="va">Bem2011</span></span>
@@ -258,7 +260,7 @@ Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp; Wagenmakers,
 Bartoš, F., Maier, Maximilian, Quintana, D. S., &amp; Wagenmakers, E.-J. (2022). Adjusting for publication bias in JASP and R — Selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>
 </div>
 <div id="ref-bartos2023robust" class="csl-entry">
-Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2023). <em>Robust Bayesian meta-regression—Model-averaged moderation analysis in the presence of publication bias</em>. <a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link uri">https://doi.org/10.31234/osf.io/98xb5</a>
+Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2025). Robust Bayesian meta-regression: Model-averaged moderation analysis in the presence of publication bias. <em>Psychological Methods</em>. <a href="https://doi.org/10.1037/met0000737" class="external-link uri">https://doi.org/10.1037/met0000737</a>
 </div>
 <div id="ref-bartos2021no" class="csl-entry">
 Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp; Stanley, T. D. (2023). Robust Bayesian meta-analysis: Model-averaging across complementary publication bias adjustment methods. <em>Research Synthesis Methods</em>, <em>14</em>(1), 99–116. <a href="https://doi.org/10.1002/jrsm.1594" class="external-link uri">https://doi.org/10.1002/jrsm.1594</a>
@@ -313,8 +315,8 @@ Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2023). Robust Bayesian meta-an
 <div class="developers">
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li>František Bartoš <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0000-0002-0018-5573" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
-<li>Maximilian Maier <br><small class="roles"> Author </small> <a href="https://orcid.org/0000-0002-9873-6096" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
+<li>František Bartoš <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0000-0002-0018-5573" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li>Maximilian Maier <br><small class="roles"> Author </small> <a href="https://orcid.org/0000-0002-9873-6096" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
@@ -338,7 +340,7 @@ Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2023). Robust Bayesian meta-an
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer>

@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-02-04</h4>
+            <h4 data-toc-skip class="date">2025-06-08</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/MetaRegression.Rmd" class="external-link"><code>vignettes/MetaRegression.Rmd</code></a></small>
       <div class="d-none name"><code>MetaRegression.Rmd</code></div>
@@ -83,10 +83,11 @@ meta-analytic effect in a unified framework (e.g., accounting for
 uncertainty in the presence vs. absence of the effect, heterogeneity,
 and publication bias). This vignette illustrates how to fit a robust
 Bayesian model-averaged meta-regression using the <code>RoBMA</code> R
-package. We reproduce the example from <span class="citation">Bartoš,
-Maier, Stanley, et al. (2023)</span>, who re-analyzed a meta-analysis of
-the effect of household chaos on child executive functions with the mean
-age and assessment type covariates based on <span class="citation">Andrews et al. (2021)</span>’s meta-analysis.</p>
+package. We reproduce the example from <span class="citation">Bartoš et
+al. (2025)</span>, who re-analyzed a meta-analysis of the effect of
+household chaos on child executive functions with the mean age and
+assessment type covariates based on <span class="citation">Andrews et
+al. (2021)</span>’s meta-analysis.</p>
 <p>First, we fit a frequentist meta-regression using the
 <code>metafor</code> R package. Second, we explain the Bayesian
 meta-regression model specification, the default prior distributions for
@@ -440,10 +441,10 @@ visualized by the <code><a href="../reference/marginal_plot.html">marginal_plot(
 by fitting the robust Bayesian model-averaged meta-regression. In
 contrast to the previous publication bias unadjusted model ensemble,
 RoBMA-reg extends the model ensemble by the publication bias component
-specified via 6 weight functions and PET-PEESE <span class="citation">(Bartoš, Maier, Wagenmakers, et al., 2023)</span>. We
-use the <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> function with the same arguments as in
-the previous section. The estimation time further increases as the
-ensemble now contains 144 models.</p>
+specified via 6 weight functions and PET-PEESE <span class="citation">(Bartoš et al., 2023)</span>. We use the
+<code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> function with the same arguments as in the
+previous section. The estimation time further increases as the ensemble
+now contains 144 models.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_RoBMA</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/RoBMA.reg.html">RoBMA.reg</a></span><span class="op">(</span><span class="op">~</span> <span class="va">measure</span> <span class="op">+</span> <span class="va">age</span>, data <span class="op">=</span> <span class="va">Andrews2021</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
@@ -555,10 +556,10 @@ Examining the effects of household chaos on child executive functions:
 <em>147</em>(1), 16–32. <a href="https://doi.org/10.1037/bul0000311" class="external-link">https://doi.org/10.1037/bul0000311</a>
 </div>
 <div id="ref-bartos2023robust" class="csl-entry">
-Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2023).
-<em>Robust <span>B</span>ayesian meta-regression:
+Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2025).
+Robust <span>B</span>ayesian meta-regression:
 <span>M</span>odel-averaged moderation analysis in the presence of
-publication bias</em>. <a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link">https://doi.org/10.31234/osf.io/98xb5</a>
+publication bias. <em>Psychological Methods</em>. <a href="https://doi.org/10.1037/met0000737" class="external-link">https://doi.org/10.1037/met0000737</a>
 </div>
 <div id="ref-bartos2021no" class="csl-entry">
 Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp;
@@ -596,7 +597,7 @@ Software</em>, <em>36</em>(3), 1–48. <a href="https://www.jstatsoft.org/v36/i0
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer>

@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-02-04</h4>
+            <h4 data-toc-skip class="date">2025-06-08</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/HierarchicalBMA.Rmd" class="external-link"><code>vignettes/HierarchicalBMA.Rmd</code></a></small>
       <div class="d-none name"><code>HierarchicalBMA.Rmd</code></div>
@@ -90,6 +90,20 @@ package and discuss the results. Third, we outline the hierarchical
 meta-analysis parameterization. Fourth, we estimate the Bayesian
 model-averaged hierarchical meta-analysis. Finally, we conclude by
 discussing further extensions and publication bias adjustment.</p>
+<p>Note that since version 3.5 of the <code>RoBMA</code> package, the
+hierarchical meta-analysis and meta-regression can use the
+spike-and-slab model-averaging algorithm described in <a href="FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and
+Slab Algorithm</a>. The spike-and-slab model-averaging algorithm is a
+more efficient alternative to the bridge algorithm, which is the current
+default in the <code>RoBMA</code> package. For non-selection models, the
+likelihood used in the spike-and-slab algorithm is equivalent to the
+bridge algorithm. However, the likelihood in the selection models is
+modified since marginalization of the random-effects is not performed.
+As such, the selection models use likelihood that closely approximates
+the exact selection model likelihood. In our testing and a simulation
+study, found that the approximate selection likelihood performs
+reasonably well and is better than the non-hierarchical exact likelihood
+model when within-study dependencies are present.</p>
 <div class="section level3">
 <h3 id="example-data-set">Example Data Set<a class="anchor" aria-label="anchor" href="#example-data-set"></a>
 </h3>
@@ -621,7 +635,7 @@ Psychology</em>, <em>2</em>(1), 123–138. <a href="https://doi.org/10.1080/2374
 <div id="ref-konstantopoulos2011fixed" class="csl-entry">
 Konstantopoulos, S. (2011). Fixed effects and variance components
 estimation in three-level meta-analysis. <em>Research Synthesis
-Methods</em>, <em>2</em>(1), 61–76. <a href="https://doi.org/10.1002/jrsm.35%E2%81%A0" class="external-link">https://doi.org/10.1002/jrsm.35⁠</a>
+Methods</em>, <em>2</em>(1), 61–76. <a href="https://doi.org/10.1002/jrsm.35" class="external-link">https://doi.org/10.1002/jrsm.35</a>
 </div>
 <div id="ref-metadat" class="csl-entry">
 Thomas, W., Daniel, N., Alistair, S., W. Kyle, H., &amp; Wolfgang, V.
@@ -646,7 +660,7 @@ Software</em>, <em>36</em>(3), 1–48. <a href="https://www.jstatsoft.org/v36/i0
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer>

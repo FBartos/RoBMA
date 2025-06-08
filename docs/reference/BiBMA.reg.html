@@ -13,7 +13,7 @@ for each component."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -77,6 +77,8 @@ for each component.</p>
 <span>  prior_covariates_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"covariates"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  prior_factors <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"factors"</span>, rescale <span class="op">=</span> <span class="va">rescale_priors</span><span class="op">)</span>,</span>
 <span>  prior_factors_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"factors"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  priors_hierarchical <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"hierarchical"</span><span class="op">)</span>,</span>
+<span>  priors_hierarchical_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"hierarchical"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  priors_baseline <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"baseline"</span><span class="op">)</span>,</span>
 <span>  priors_baseline_null <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"baseline"</span>, null <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  algorithm <span class="op">=</span> <span class="st">"bridge"</span>,</span>
@@ -172,7 +174,8 @@ factor allows to adjust the width of all default priors simultaneously. Defaults
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 <code>prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4))</code>,
 based on logOR meta-analytic estimates from the Cochrane Database of Systematic Reviews
-bartos2023empiricalRoBMA.</p></dd>
+(Bartoš et al. 2023)
+.</p></dd>
 
 
 <dt id="arg-priors-heterogeneity">priors_heterogeneity<a class="anchor" aria-label="anchor" href="#arg-priors-heterogeneity"></a></dt>
@@ -180,7 +183,8 @@ bartos2023empiricalRoBMA.</p></dd>
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 <code>prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55))</code> that
 is based on heterogeneities of logOR estimates from the Cochrane Database of Systematic Reviews
-bartos2023empiricalRoBMA.</p></dd>
+(Bartoš et al. 2023)
+.</p></dd>
 
 
 <dt id="arg-priors-effect-null">priors_effect_null<a class="anchor" aria-label="anchor" href="#arg-priors-effect-null"></a></dt>
@@ -224,6 +228,19 @@ multivariate normal distribution specifying differences from the mean contrasts
 of categorical covariates on the effect size under the null hypothesis
 (unless set explicitly in <code>priors</code>). Defaults to a no effect
 <code>prior("spike",  parameters = list(location = 0))</code>.</p></dd>
+
+
+<dt id="arg-priors-hierarchical">priors_hierarchical<a class="anchor" aria-label="anchor" href="#arg-priors-hierarchical"></a></dt>
+<dd><p>list of prior distributions for the correlation of random effects
+(<code>rho</code>) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
+users to fit a hierarchical (three-level) meta-analysis when <code>study_ids</code> are supplied.
+Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
+<code>prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))</code>.</p></dd>
+
+
+<dt id="arg-priors-hierarchical-null">priors_hierarchical_null<a class="anchor" aria-label="anchor" href="#arg-priors-hierarchical-null"></a></dt>
+<dd><p>list of prior distributions for the correlation of random effects
+(<code>rho</code>) parameter that will be treated as belonging to the null hypothesis. Defaults to <code>NULL</code>.</p></dd>
 
 
 <dt id="arg-priors-baseline">priors_baseline<a class="anchor" aria-label="anchor" href="#arg-priors-baseline"></a></dt>
@@ -326,7 +343,8 @@ also suppresses all messages.</p></dd>
     <p><code>BiBMA.reg()</code> function estimates the Bayesian model-averaged binomial meta-regression.
 See <a href="../doc/MetaRegression.html"><code>vignette("/MetaRegression", package = "RoBMA")</code></a>
 vignette describes how to use the similar <code><a href="RoBMA.reg.html">RoBMA.reg()</a></code> function to fit Bayesian meta-regression ensembles.
-See bartos2023robust;textualRoBMA for more details about the methodology and
+See Bartoš et al. (2025)
+ for more details about the methodology and
 <code><a href="BiBMA.html">BiBMA()</a></code> for more details about the function options. By default, the function standardizes
 continuous predictors. As such, the output should be interpreted as standardized meta-regression
 coefficients.</p>
@@ -339,7 +357,14 @@ visualized by the <code><a href="marginal_plot.html">marginal_plot()</a></code> 
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p></p>
+    <p>Bartoš F, Maier M, Stanley TD, Wagenmakers E (2025).
+“Robust Bayesian meta-regression: Model-averaged moderation analysis in the presence of publication bias.”
+<em>Psychological Methods</em>.
+<a href="https://doi.org/10.1037/met0000737" class="external-link">doi:10.1037/met0000737</a>
+.<br><br> Bartoš F, Otte WM, Gronau QF, Timmers B, Ly A, Wagenmakers E (2023).
+“Empirical prior distributions for Bayesian meta-analyses of binary and time-to-event outcomes.”
+<a href="https://doi.org/10.48550/arXiv.2306.11468" class="external-link">doi:10.48550/arXiv.2306.11468</a>
+, Preprint available at https://doi.org/10.48550/arXiv.2306.11468.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -355,7 +380,7 @@ visualized by the <code><a href="marginal_plot.html">marginal_plot()</a></code> 
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer></div>
