@@ -1,0 +1,114 @@
+name: "Copilot Setup Steps"
+
+# Allow testing of the setup steps from your repository's "Actions" tab.
+on: workflow_dispatch
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    # Set the permissions to the lowest permissions possible needed for your steps.
+    # Copilot will be given its own token for its operations.
+    permissions:
+      # If you want to clone the repository as part of your setup steps, for example to install dependencies, you'll need the `contents: read` permission. If you don't clone the repository in your setup steps, Copilot will do this for you automatically after the steps complete.
+      contents: read
+
+    # You can define any steps you want, and they will run before the agent starts.
+    # If you do not check out your code, Copilot will do this for you.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+
+      # Install system dependencies matching R-CMD-tests workflow
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libharfbuzz-dev \
+            libfribidi-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libtiff5-dev \
+            libjpeg-dev \
+            libcairo2-dev \
+            jags
+
+      # Set up renv to match the R-CMD-tests workflow
+      - name: Setup renv
+        uses: r-lib/actions/setup-renv@v2
+
+      # Install packages matching R-CMD-tests workflow
+      - name: Install R packages
+        run: |
+          # Core packages from R-CMD-tests
+          install.packages(c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc'))
+          # Additional development packages
+          install.packages(c('roxygen2', 'pkgdown', 'rcmdcheck', 'rjags', 'runjags', 'BayesTools', 'coda', 'bridgesampling', 'mvtnorm', 'extraDistr', 'ggplot2', 'scales', 'checkmate'))
+        shell: Rscript {0}
+
+      # Install the RoBMA package
+      - name: Install RoBMA package
+        run: |
+          devtools::install()
+        shell: Rscript {0}
+
+      - name: Verify JAGS installation
+        run: |
+          which jags || echo "JAGS not found in PATH"
+          jags -version 2>/dev/null || echo "Could not get JAGS version"
+
+      - name: Test JAGS R interface
+        run: |
+          cat('R version:', R.version.string, '\n')
+          
+          # Test rjags connection
+          if (require(rjags, quietly = TRUE)) {
+            cat('rjags loaded successfully\n')
+            tryCatch({
+              # Simple JAGS model test
+              model_string <- "
+              model {
+                x ~ dnorm(0, 1)
+              }"
+              model <- jags.model(textConnection(model_string), n.chains = 1, quiet = TRUE)
+              cat('JAGS model creation successful\n')
+            }, error = function(e) {
+              cat('JAGS model creation failed:', e$message, '\n')
+            })
+          } else {
+            cat('Failed to load rjags\n')
+          }
+        shell: Rscript {0}
+
+      - name: Test RoBMA package functionality
+        run: |
+          # Basic functionality test
+          cat('Testing basic RoBMA functionality...\n')
+          tryCatch({
+            # Load example data
+            data("Anderson2010", package = "RoBMA")
+            cat('Example data loaded successfully\n')
+            
+            # Test basic package loading
+            library(RoBMA)
+            cat('RoBMA package loaded successfully\n')
+          }, error = function(e) {
+            cat('RoBMA basic test failed:', e$message, '\n')
+          })
+        shell: Rscript {0}
+
+      - name: Run basic tests
+        run: |
+          # Run tests matching R-CMD-tests workflow
+          devtools::test()
+        shell: Rscript {0}
