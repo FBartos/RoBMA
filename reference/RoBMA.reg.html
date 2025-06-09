@@ -46,7 +46,7 @@ for each component."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Estimate a Robust Bayesian Meta-Analysis Meta-Regression</h1>
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.4.0/R/RoBMA-reg.R" class="external-link"><code>R/RoBMA-reg.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/R/RoBMA-reg.R" class="external-link"><code>R/RoBMA-reg.R</code></a></small>
       <div class="d-none name"><code>RoBMA.reg.Rd</code></div>
     </div>
 
@@ -219,7 +219,8 @@ a standard normal distribution
 <dd><p>list of prior distributions for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 <code>prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))</code> that
-is based on heterogeneities estimates from psychology erp2017estimatesRoBMA.</p></dd>
+is based on heterogeneities estimates from psychology (van Erp et al. 2017)
+.</p></dd>
 
 
 <dt id="arg-priors-bias">priors_bias<a class="anchor" aria-label="anchor" href="#arg-priors-bias"></a></dt>
@@ -242,7 +243,8 @@ prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0
      prior_weights = 1/4),
 prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
      prior_weights = 1/4)
-)</code>, corresponding to the RoBMA-PSMA model introduce by bartos2021no;textualRoBMA.</p></dd>
+)</code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2023)
+.</p></dd>
 
 
 <dt id="arg-priors-effect-null">priors_effect_null<a class="anchor" aria-label="anchor" href="#arg-priors-effect-null"></a></dt>
@@ -395,7 +397,8 @@ also suppresses all messages.</p></dd>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The <a href="../doc/MetaRegression.html"><code>vignette("/MetaRegression", package = "RoBMA")</code></a>
 vignette describes how to use <code>RoBMA.reg()</code> function to fit Bayesian meta-regression ensembles. See
-bartos2023robust;textualRoBMA for more details about the methodology and
+Bartoš et al. (2023)
+ for more details about the methodology and
 <code><a href="RoBMA.html">RoBMA()</a></code> for more details about the function options. By default, the function standardizes
 continuous predictors. As such, the output should be interpreted as standardized meta-regression
 coefficients.</p>
@@ -414,7 +417,18 @@ visualized by the <code><a href="marginal_plot.html">marginal_plot()</a></code> 
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p></p>
+    <p>Bartoš F, Maier M, Stanley TD, Wagenmakers E (2023).
+“Robust Bayesian meta-regression: Model-averaged moderation analysis in the presence of publication bias.”
+<a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link">doi:10.31234/osf.io/98xb5</a>
+, Preprint available at https://doi.org/10.31234/osf.io/98xb5.<br><br> Bartoš F, Maier M, Wagenmakers E, Doucouliagos H, Stanley TD (2023).
+“Robust Bayesian meta-analysis: Model-averaging across complementary publication bias adjustment methods.”
+<em>Research Synthesis Methods</em>, <b>14</b>(1), 99–116.
+<a href="https://doi.org/10.1002/jrsm.1594" class="external-link">doi:10.1002/jrsm.1594</a>
+.<br><br> van Erp S, Verhagen J, Grasman RP, Wagenmakers E (2017).
+“Estimates of between-study heterogeneity for 705 meta-analyses reported in Psychological Bulletin from 1990–2013.”
+<em>Journal of Open Psychology Data</em>, <b>5</b>(1), 1–5.
+<a href="https://doi.org/10.5334/jopd.33" class="external-link">doi:10.5334/jopd.33</a>
+.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -452,7 +466,7 @@ visualized by the <code><a href="marginal_plot.html">marginal_plot()</a></code> 
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer></div>

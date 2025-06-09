@@ -46,7 +46,7 @@ for each component."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Estimate a Robust Bayesian Meta-Analysis</h1>
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.4.0/R/RoBMA.R" class="external-link"><code>R/RoBMA.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/R/RoBMA.R" class="external-link"><code>R/RoBMA.R</code></a></small>
       <div class="d-none name"><code>RoBMA.Rd</code></div>
     </div>
 
@@ -233,7 +233,8 @@ a standard normal distribution
 <dd><p>list of prior distributions for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 <code>prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))</code> that
-is based on heterogeneities estimates from psychology erp2017estimatesRoBMA.</p></dd>
+is based on heterogeneities estimates from psychology (van Erp et al. 2017)
+.</p></dd>
 
 
 <dt id="arg-priors-bias">priors_bias<a class="anchor" aria-label="anchor" href="#arg-priors-bias"></a></dt>
@@ -256,7 +257,8 @@ prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0
      prior_weights = 1/4),
 prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
      prior_weights = 1/4)
-)</code>, corresponding to the RoBMA-PSMA model introduce by bartos2021no;textualRoBMA.</p></dd>
+)</code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2023)
+.</p></dd>
 
 
 <dt id="arg-priors-effect-null">priors_effect_null<a class="anchor" aria-label="anchor" href="#arg-priors-effect-null"></a></dt>
@@ -379,11 +381,14 @@ also suppresses all messages.</p></dd>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The default settings of the RoBMA 2.0 package corresponds to the RoBMA-PSMA
-ensemble proposed by bartos2021no;textualRoBMA. The previous versions
+ensemble proposed by Bartoš et al. (2023)
+. The previous versions
 of the package (i.e., RoBMA &lt; 2.0) used specifications proposed by
-maier2020robust;textualRoBMA (this specification can be easily
+Maier et al. (2023)
+ (this specification can be easily
 obtained by setting <code>model_type = "2w"</code>. The RoBMA-PP specification from
-bartos2021no;textualRoBMA can be obtained by setting
+Bartoš et al. (2023)
+ can be obtained by setting
 <code>model_type = "PP"</code>. The complete list of default prior distributions is described at
 <code><a href="set_default_priors.html">set_default_priors()</a></code>. Note that inclusion of the PET and PEESE style publication bias adjustments
 models might pick up on small-study effects. To remove true heterogeneity due to study design,
@@ -408,7 +413,19 @@ The fitted model can be further updated or modified by <code><a href="update.RoB
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p></p>
+    <p>Bartoš F, Maier M, Wagenmakers E, Doucouliagos H, Stanley TD (2023).
+“Robust Bayesian meta-analysis: Model-averaging across complementary publication bias adjustment methods.”
+<em>Research Synthesis Methods</em>, <b>14</b>(1), 99–116.
+<a href="https://doi.org/10.1002/jrsm.1594" class="external-link">doi:10.1002/jrsm.1594</a>
+.<br><br> Maier M, Bartoš F, Wagenmakers E (2023).
+“Robust Bayesian Meta-Analysis: Addressing publication bias with model-averaging.”
+<em>Psychological Methods</em>, <b>28</b>(1), 107–122.
+<a href="https://doi.org/10.1037/met0000405" class="external-link">doi:10.1037/met0000405</a>
+.<br><br> van Erp S, Verhagen J, Grasman RP, Wagenmakers E (2017).
+“Estimates of between-study heterogeneity for 705 meta-analyses reported in Psychological Bulletin from 1990–2013.”
+<em>Journal of Open Psychology Data</em>, <b>5</b>(1), 1–5.
+<a href="https://doi.org/10.5334/jopd.33" class="external-link">doi:10.5334/jopd.33</a>
+.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -470,7 +487,7 @@ The fitted model can be further updated or modified by <code><a href="update.RoB
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer></div>

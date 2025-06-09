@@ -44,7 +44,7 @@ the ensemble configuration prior to fitting all of the models.'></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Prints summary of <code>"RoBMA"</code> ensemble implied by the specified priors</h1>
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.4.0/R/check-input-and-settings.R" class="external-link"><code>R/check-input-and-settings.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/R/check-input-and-settings.R" class="external-link"><code>R/check-input-and-settings.R</code></a></small>
       <div class="d-none name"><code>check_setup.Rd</code></div>
     </div>
 
@@ -139,7 +139,8 @@ a standard normal distribution
 <dd><p>list of prior distributions for the heterogeneity <code>tau</code>
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 <code>prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))</code> that
-is based on heterogeneities estimates from psychology erp2017estimatesRoBMA.</p></dd>
+is based on heterogeneities estimates from psychology (van Erp et al. 2017)
+.</p></dd>
 
 
 <dt id="arg-priors-bias">priors_bias<a class="anchor" aria-label="anchor" href="#arg-priors-bias"></a></dt>
@@ -162,7 +163,8 @@ prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0
      prior_weights = 1/4),
 prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
      prior_weights = 1/4)
-)</code>, corresponding to the RoBMA-PSMA model introduce by bartos2021no;textualRoBMA.</p></dd>
+)</code>, corresponding to the RoBMA-PSMA model introduce by Bartoš et al. (2023)
+.</p></dd>
 
 
 <dt id="arg-priors-effect-null">priors_effect_null<a class="anchor" aria-label="anchor" href="#arg-priors-effect-null"></a></dt>
@@ -224,7 +226,7 @@ Note that this is an experimental feature and see News for more details. Default
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer></div>

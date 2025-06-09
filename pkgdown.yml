@@ -1,5 +1,5 @@
 pandoc: 3.1.11
-pkgdown: 2.1.1
+pkgdown: 2.1.3
 pkgdown_sha: ~
 articles:
   CustomEnsembles: CustomEnsembles.html
@@ -10,7 +10,7 @@ articles:
   MetaRegression: MetaRegression.html
   ReproducingBMA: ReproducingBMA.html
   Tutorial: Tutorial.html
-last_built: 2025-02-04T20:15Z
+last_built: 2025-06-09T08:34Z
 urls:
   reference: https://https://fbartos.github.io/RoBMA/reference
   article: https://https://fbartos.github.io/RoBMA/articles
