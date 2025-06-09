@@ -61,12 +61,13 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
-      # Install JAGS on macOS
-      - name: Install JAGS (macOS)
+      # Install JAGS and dependencies on macOS
+      - name: Install Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install jags
+          brew install jags gettext
+          brew link --force gettext
 
       # Find and Set JAGS Paths
       - name: Set Environment Variables (macOS)
