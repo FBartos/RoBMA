@@ -74,9 +74,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           JAGS_BIN=$(brew --prefix jags)/bin
+          GETTEXT_PREFIX=$(brew --prefix gettext)
           echo "JAGS_ROOT=$(brew --prefix jags)" >> $GITHUB_ENV
           echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$(brew --prefix jags)/lib/pkgconfig" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I$GETTEXT_PREFIX/include" >> $GITHUB_ENV
+          echo "LDFLAGS=-L$GETTEXT_PREFIX/lib" >> $GITHUB_ENV
 
       # Create Symlink for jags-terminal (if necessary)
       - name: Create Symlink for jags-terminal (macOS)
