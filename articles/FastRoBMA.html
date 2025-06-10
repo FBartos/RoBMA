@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-06-09</h4>
+            <h4 data-toc-skip class="date">2025-06-10</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/FastRoBMA.Rmd" class="external-link"><code>vignettes/FastRoBMA.Rmd</code></a></small>
       <div class="d-none name"><code>FastRoBMA.Rmd</code></div>
@@ -87,16 +87,20 @@ model-averaged meta-regression (<code><a href="../reference/RoBMA.reg.html">RoBM
 summaries, marginal summaries, and illustrative plots. We then discuss
 advantages and disadvantages of the spike-and-slab approach, especially
 for complex meta-regression with multiple moderators. We will use the
-example from <span class="citation">(Bartoš et al., 2023)</span> which
+example from <span class="citation">(Bartoš et al., 2025)</span> which
 focuses on the effect of household chaos on child executive functions
 with two moderators: assessment type (measure: “direct” vs. “informant”)
 and mean child age (age). See <span class="citation">(Bartoš et al.,
-2023)</span> and <a href="MetaRegression.html">Robust Bayesian
+2025)</span> and <a href="MetaRegression.html">Robust Bayesian
 Model-Averaged Meta-Regression</a> vignette for in depth discussion of
 the example and guidance on applying robust Bayesian model-averaged
 meta-regression. Here, we show that both algorithms produce essentially
 identical results; however, spike-and-slab can be much faster when many
-moderators (hence many models) are present.</p>
+moderators (hence many models) are present. Note that the spike-and-slab
+algorithm can be also applied in the case of hierarchical (3-lvl) models
+(see <a href="HierarchicalBMA">Hierarchical Bayesian Model-Averaged
+Meta-Analysis</a>) which makes hierarchical approximate selection models
+feasible.</p>
 <div class="section level3">
 <h3 id="fitting-models-via-bridge-sampling-vs--spike-and-slab">Fitting Models via Bridge Sampling vs. Spike-and-Slab<a class="anchor" aria-label="anchor" href="#fitting-models-via-bridge-sampling-vs--spike-and-slab"></a>
 </h3>
@@ -344,10 +348,10 @@ MCMC settings).</p>
 </h3>
 <div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0" line-spacing="2">
 <div id="ref-bartos2023robust" class="csl-entry">
-Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2023).
-<em>Robust <span>B</span>ayesian meta-regression:
+Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2025).
+Robust <span>B</span>ayesian meta-regression:
 <span>M</span>odel-averaged moderation analysis in the presence of
-publication bias</em>. <a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link">https://doi.org/10.31234/osf.io/98xb5</a>
+publication bias. <em>Psychological Methods</em>. <a href="https://doi.org/10.1037/met0000737" class="external-link">https://doi.org/10.1037/met0000737</a>
 </div>
 </div>
 </div>

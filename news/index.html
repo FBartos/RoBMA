@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,32 @@
       <small>Source: <a href="https://github.com/FBartos/RoBMA/blob/master/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="3.5" id="version-35">version 3.5<a class="anchor" aria-label="anchor" href="#version-35"></a></h2>
+<div class="section level3">
+<h3 id="features-3-5">Features<a class="anchor" aria-label="anchor" href="#features-3-5"></a></h3>
+<ul><li>approximate and computationally feasibly 3lvl selection models via the <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> functions with the <code>study_ids</code> argument when using <code>algorithm = "ss"</code>
+</li>
+<li>3lvl binomial-normal models for binary data via the <code>BiBMA</code> and <code>BiBMA.reg</code> functions with the <code>study_ids</code> argument when using <code>algorithm = "ss"</code>
+</li>
+<li>
+<code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> function to compute the pooled effect size from the <code>RoBMA.reg</code>, <code>NoBMA.reg</code>, and <code>BiBMA.reg</code> models</li>
+<li>
+<code><a href="../reference/adjusted_effect.html">adjusted_effect()</a></code> function to compute the adjusted effect size from the <code>RoBMA.reg</code>, <code>NoBMA.reg</code>, and <code>BiBMA.reg</code> models</li>
+<li>enables <code><a href="../reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> for BiBMA models</li>
+</ul></div>
+<div class="section level3">
+<h3 id="fixes-3-5">Fixes<a class="anchor" aria-label="anchor" href="#fixes-3-5"></a></h3>
+<ul><li>passing and checks of the <code>study_ids</code> and <code>study_labels</code> arguments</li>
+<li>PEESE prior distribution now scale as 1/scale instead of 1/scale^2 with the <code>rescale_priors</code> argument<br></li>
+<li>the conditional prediction interval based on <code><a href="../reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> is now conditional on the presence of the effect</li>
+<li>additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specified etc)</li>
+<li>diagnostics with mixture baseline priors when using <code>algorithm = "ss"</code>
+</li>
+<li>
+<code><a href="../reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> with only a single study does not produce relative heterogeneity instead of crashing</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="3.4" id="version-34">version 3.4<a class="anchor" aria-label="anchor" href="#version-34"></a></h2>
 <div class="section level3">
