@@ -804,6 +804,7 @@ check_setup.reg <- function(
 #' in the case of non-convergence. Defaults to \code{TRUE}.
 #' @param restarts number of times new initial values should be generated in case a
 #' model fails to initialize. Defaults to \code{10}.
+#' @param max_extend number of times after which the automatic fitting function is stopped.
 #'
 #'
 #' @return \code{set_autofit_control} returns a list of autofit control settings
@@ -818,7 +819,7 @@ check_setup.reg <- function(
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10){
 
   autofit_settings <- list(
     max_Rhat      = max_Rhat,
@@ -827,7 +828,8 @@ set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     max_SD_error  = max_SD_error,
     max_time      = max_time,
     sample_extend = sample_extend,
-    restarts      = restarts
+    restarts      = restarts,
+    max_extend    = max_extend
   )
   autofit_settings <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_settings, call = "Checking 'autofit_control':\n\t")
 
@@ -1073,7 +1075,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   dots <- list(...)
 
-  known_dots <- c("is_JASP", "weighted", "do_not_fit", "weighted_type")
+  known_dots <- c("is_JASP", "is_JASP_prefix", "weighted", "do_not_fit", "weighted_type")
   if(any(!names(dots) %in% known_dots))
     stop(paste0("Uknown arguments to 'RoBMA': ", paste("'", names(dots)[!names(dots) %in% known_dots], "'", collapse = ", "), "."), call. = FALSE)
 

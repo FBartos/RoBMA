@@ -274,7 +274,7 @@ RoBMA <- function(
   if(algorithm == "bridge"){
     object$models <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_ss(object[["priors"]], .is_multivariate(object), .is_weighted(object))
+    object$model  <- .make_model_ss(object[["priors"]], .is_multivariate(object), .get_K(object), .is_weighted(object))
   }
   object$add_info$warnings <- c(object$add_info[["warnings"]], .check_effect_direction(object))
 
@@ -330,7 +330,7 @@ RoBMA <- function(
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
-    object$model         <- .fit_RoBMA_model_ss(object)
+    object$model         <- .fit_RoBMA_model_ss(object, dots)
     object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 

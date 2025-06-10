@@ -38,88 +38,67 @@ prior_weightfunction <- BayesTools::prior_weightfunction
 #' @export
 prior_informed <- BayesTools::prior_informed
 
-#' @title Orthornomal contrast matrix
+# needs to be completely re-exported because of some odd roxygen issues
+#' @title BayesTools Contrast Matrices
 #'
-#' @description Return a matrix of orthornomal contrasts.
-#' Code is based on \code{stanova::contr.bayes} and corresponding to description
-#' by \insertCite{rouder2012default;textual}{BayesTools}
+#' @description BayesTools provides several contrast matrix functions for Bayesian factor analysis.
+#' These functions create different types of contrast matrices that can be used with factor
+#' variables in Bayesian models.
+#'
+#' @details
+#' The package includes the following contrast functions:
+#' \describe{
+#'   \item{\code{contr.orthonormal}}{Return a matrix of orthonormal contrasts.
+#'     Code is based on \code{stanova::contr.bayes} and corresponding to description
+#'     by \insertCite{rouder2012default;textual}{BayesTools}. Returns a matrix with n rows and
+#'     k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n if \code{contrasts = FALSE}.}
+#'   \item{\code{contr.meandif}}{Return a matrix of mean difference contrasts.
+#'     This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
+#'     distributions on difference between the gran mean and factor level are identical independent
+#'     of the number of factor levels (which does not hold for the orthonormal contrast). Furthermore,
+#'     the contrast is re-scaled so the specified prior distribution exactly corresponds to the prior
+#'     distribution on difference between each factor level and the grand mean -- this is approximately
+#'     twice the scale of \code{contr.orthonormal}. Returns a matrix with n rows and k columns,
+#'     with k = n - 1 if \code{contrasts = TRUE} and k = n if \code{contrasts = FALSE}.}
+#'   \item{\code{contr.independent}}{Return a matrix of independent contrasts -- a level for each term.
+#'     Returns a matrix with n rows and k columns, with k = n if \code{contrasts = TRUE} and k = n
+#'     if \code{contrasts = FALSE}.}
+#' }
 #'
 #' @param n a vector of levels for a factor, or the number of levels
 #' @param contrasts logical indicating whether contrasts should be computed
 #'
 #' @examples
+#' # Orthonormal contrasts
 #' contr.orthonormal(c(1, 2))
 #' contr.orthonormal(c(1, 2, 3))
 #'
-#' @references
-#' \insertAllCited{}
-#'
-#' @return A matrix with n rows and k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n
-#' if \code{contrasts = FALSE}.
-#'
-#' @export
-contr.orthonormal <- BayesTools::contr.orthonormal
-
-#' @title Mean difference contrast matrix
-#'
-#' @description Return a matrix of mean difference contrasts.
-#' This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
-#' distributions on difference between the gran mean and factor level are identical independent
-#' of the number of factor levels (which does not hold for the orthonormal contrast). Furthermore,
-#' the contrast is re-scaled so the specified prior distribution exactly corresponds to the prior
-#' distribution on difference between each factor level and the grand mean -- this is approximately
-#' twice the scale of \code{contr.orthonormal}.
-#'
-#' @param n a vector of levels for a factor, or the number of levels
-#' @param contrasts logical indicating whether contrasts should be computed
-#'
-#' @examples
+#' # Mean difference contrasts
 #' contr.meandif(c(1, 2))
 #' contr.meandif(c(1, 2, 3))
 #'
-#' @references
-#' \insertAllCited{}
-#'
-#' @return A matrix with n rows and k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n
-#' if \code{contrasts = FALSE}.
-#'
-#' @export
-contr.meandif <- BayesTools::contr.meandif
-
-#' @title Independent contrast matrix
-#'
-#' @description Return a matrix of independent contrasts -- a level for each term.
-#'
-#' @param n a vector of levels for a factor, or the number of levels
-#' @param contrasts logical indicating whether contrasts should be computed
-#'
-#' @examples
+#' # Independent contrasts
 #' contr.independent(c(1, 2))
 #' contr.independent(c(1, 2, 3))
 #'
 #' @references
 #' \insertAllCited{}
 #'
-#' @return A matrix with n rows and k columns, with k = n if \code{contrasts = TRUE} and k = n
-#' if \code{contrasts = FALSE}.
-#'
+#' @aliases contr.orthonormal contr.meandif contr.independent
+#' @name contr.BayesTools
+NULL
+
+#' @rdname contr.BayesTools
 #' @export
-contr.independent <- function(n, contrasts = TRUE){
+contr.orthonormal <- BayesTools::contr.orthonormal
 
-  if(length(n) <= 1L){
-    if(is.numeric(n) && length(n) == 1L && n >= 1L){
-      return(TRUE)
-    }else{
-      stop("Not enough degrees of freedom to define contrasts.")
-    }
-  }else{
-    n <- length(n)
-  }
+#' @rdname contr.BayesTools
+#' @export
+contr.meandif <- BayesTools::contr.meandif
 
-  cont <- diag(x = 1, nrow = n, ncol = n)
-
-  return(cont)
-}
+#' @rdname contr.BayesTools
+#' @export
+contr.independent <- BayesTools::contr.independent
 
 
 #' @title Set default prior distributions
@@ -213,8 +192,8 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
         prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
         prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
         prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-        prior_PET(distribution = "Cauchy",   parameters = list(0, 1),             truncation = list(0, Inf), prior_weights = 1/4),
-        prior_PEESE(distribution = "Cauchy", parameters = list(0, 5 / rescale^2), truncation = list(0, Inf), prior_weights = 1/4)
+        prior_PET(distribution = "Cauchy",   parameters = list(0, 1),            truncation = list(0, Inf), prior_weights = 1/4),
+        prior_PEESE(distribution = "Cauchy", parameters = list(0, 5 / rescale),  truncation = list(0, Inf), prior_weights = 1/4)
         ),
       hierarchical  = prior("beta", parameters = list(alpha = 1, beta = 1)),
       covariates    = prior("normal", parameters = list(mean = 0, sd = 0.25 * rescale)),
@@ -276,7 +255,7 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
 #' @export
 set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
 
-  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "baseline", "covariates", "factors"))
+  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "baseline", "covariates", "factors", "hierarchical"))
   BayesTools::check_bool(null, "null")
   BayesTools::check_real(rescale, "rescale", lower = 0)
 
@@ -287,6 +266,7 @@ set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
       effect        = prior(distribution = "point", parameters = list(location = 0)),
       heterogeneity = prior(distribution = "point", parameters = list(location = 0)),
       baseline      = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
+      hierarchical  = NULL,
 
       covariates    = prior(distribution = "point", parameters = list(location = 0)),
       factors       = prior_factor("spike", parameters = list(location = 0), contrast = "meandif")
@@ -296,8 +276,9 @@ set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
       parameter,
       effect        = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58 * rescale, df = 4)),
       heterogeneity = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55 * rescale)),
-
       baseline      = NULL,
+      hierarchical  = prior("beta", parameters = list(alpha = 1, beta = 1)),
+
       covariates    = prior("normal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale)),
       factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale), contrast = "meandif")
     ))

@@ -48,7 +48,8 @@ NoBMA(
 )
 }
 \arguments{
-\item{d}{a vector of effect sizes measured as Cohen's d}
+\item{d}{a vector of effect sizes measured as Cohen's d / Hedges' g
+(standardized mean differences)}
 
 \item{r}{a vector of effect sizes measured as correlations}
 

@@ -506,7 +506,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       conditional       = FALSE,
       title             = "Model-averaged estimates:",
       warnings          = .collect_errors_and_warnings(object),
-      footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+      footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object))
     ))
 
     if(conditional){
@@ -520,7 +520,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
         conditional       = TRUE,
         title             = "Conditional estimates:",
         warnings          = .collect_errors_and_warnings(object),
-        footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object)),
+        footnotes         = c(.scale_note(object$add_info[["prior_scale"]], output_scale), .note_omega(object))
       ))
     }
 
@@ -762,4 +762,3 @@ interpret           <- function(object, output_scale = NULL){
 
   return(text)
 }
-

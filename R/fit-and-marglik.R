@@ -18,7 +18,7 @@
   # don't sample the complete null model
   if(!.is_model_constant(priors)){
 
-    if(attr(model, "multivariate")){
+    if(.is_model_multivariate(model)){
       object[["data"]] <- .order_data.mv(object[["data"]], .is_model_regression(model))
     }
 
@@ -39,7 +39,7 @@
     }
 
     # deal with multivariate vs univariate models
-    if(attr(model, "multivariate")){
+    if(.is_model_multivariate(model)){
       # generate the model syntax
       model_syntax <- .generate_model_syntax.mv(
         priors           = fit_priors,
@@ -166,7 +166,7 @@
         formula_list       = formula_list,
         formula_data_list  = formula_data_list,
         formula_prior_list = formula_prior_list,
-        log_posterior      = if(attr(model, "multivariate")) .marglik_function.mv  else .marglik_function,
+        log_posterior      = if(.is_model_multivariate(model)) .marglik_function.mv  else .marglik_function,
         maxiter            = 50000,
         silent             = fit_control[["silent"]],
         priors             = priors,
@@ -281,7 +281,7 @@
 
   return(model)
 }
-.fit_RoBMA_model_ss    <- function(object,    extend = FALSE){
+.fit_RoBMA_model_ss    <- function(object, dots, extend = FALSE){
 
   model              <- object[["model"]]
   priors             <- object[["model"]][["priors"]]
@@ -293,11 +293,6 @@
   errors   <- NULL
   warnings <- NULL
 
-  if(attr(model, "multivariate")){
-    stop("Multivariate models are not supported by this function.")
-    # object[["data"]] <- .order_data.mv(object[["data"]], inherits(model, "RoBMA.ss.reg.model"))
-  }
-
   # deal with regression vs basic models
   if(.is_model_regression(model)){
     data_outcome       <- object[["data"]][["outcome"]]
@@ -305,7 +300,7 @@
     formula_list       <- .generate_model_formula_list(object[["formula"]])
     formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
     formula_prior_list <- .generate_model_formula_prior_list(priors)
-  }else if(inherits(model, "RoBMA.model_ss")){
+  }else{
     data_outcome       <- object[["data"]]
     fit_priors         <- priors
     formula_list       <- NULL
@@ -313,47 +308,27 @@
     formula_prior_list <- NULL
   }
 
-  # deal with multivariate vs univariate models
-  if(attr(model, "multivariate")){
-    # generate the model syntax
-    model_syntax <- .generate_model_syntax.mv(
-      priors           = fit_priors,
-      effect_direction = add_info[["effect_direction"]],
-      prior_scale      = add_info[["prior_scale"]],
-      effect_measure   = add_info[["effect_measure"]],
-      data             = data_outcome,
-      regression       = .is_model_regression(model)
-    )
+  # generate the model syntax
+  model_syntax <- .generate_model_syntax_ss(
+    priors           = priors,
+    effect_direction = add_info[["effect_direction"]],
+    prior_scale      = add_info[["prior_scale"]],
+    effect_measure   = add_info[["effect_measure"]],
+    weighted         = attr(model, "weighted"),
+    regression       = .is_model_regression(model),
+    multivariate     = .is_model_multivariate(model)
+  )
 
-    # remove unnecessary objects from data to mitigate warnings
-    fit_data     <- .fit_data.mv(
-      data             = data_outcome,
-      priors           = fit_priors,
-      effect_direction = add_info[["effect_direction"]],
-      prior_scale      = add_info[["prior_scale"]]
-    )
-
-  }else{
-    # generate the model syntax
-    model_syntax <- .generate_model_syntax_ss(
-      priors           = priors,
-      effect_direction = add_info[["effect_direction"]],
-      prior_scale      = add_info[["prior_scale"]],
-      effect_measure   = add_info[["effect_measure"]],
-      weighted         = attr(model, "weighted"),
-      regression       = .is_model_regression(model)
-    )
-
-    # remove unnecessary objects from data to mitigate warnings
-    fit_data     <- .fit_data_ss(
-      data             = data_outcome,
-      priors           = priors,
-      effect_direction = add_info[["effect_direction"]],
-      prior_scale      = add_info[["prior_scale"]],
-      weighted         = attr(model, "weighted"),
-      weighted_type    = attr(model, "weighted_type")
-    )
-  }
+  # remove unnecessary objects from data to mitigate warnings
+  fit_data     <- .fit_data_ss(
+    data             = data_outcome,
+    priors           = priors,
+    effect_direction = add_info[["effect_direction"]],
+    prior_scale      = add_info[["prior_scale"]],
+    weighted         = attr(model, "weighted"),
+    weighted_type    = attr(model, "weighted_type"),
+    multivariate     = .is_model_multivariate(model)
+  )
 
   # fit the model
   if(!extend || length(model[["fit"]]) == 0){
@@ -376,7 +351,9 @@
       cores                 = fit_control[["cores"]],
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
-      required_packages     = "RoBMA"
+      required_packages     = "RoBMA",
+      is_JASP               = dots[["is_JASP"]],
+      is_JASP_prefix        = dots[["is_JASP_prefix"]]
     )
 
   }else{
@@ -479,14 +456,16 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = .is_model_regression(model)
+    regression       = .is_model_regression(model),
+    multivariate     = .is_model_multivariate(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
   fit_data     <- .fit_data.bi(
     data             = data_outcome,
     weighted         = attr(model, "weighted"),
-    weighted_type    = attr(model, "weighted_type")
+    weighted_type    = attr(model, "weighted_type"),
+    multivariate     = .is_model_multivariate(model)
   )
 
   # fit the model
@@ -639,7 +618,7 @@
 
   return(model)
 }
-.fit_BiBMA_model_ss    <- function(object,    extend = FALSE){
+.fit_BiBMA_model_ss    <- function(object, dots, extend = FALSE){
 
   model              <- object[["model"]]
   priors             <- object[["model"]][["priors"]]
@@ -650,10 +629,6 @@
 
   errors   <- NULL
   warnings <- NULL
-
-  if(attr(model, "multivariate")){
-    stop("Multivariate models are not supported by this function.")
-  }
 
   # deal with regression vs basic models
   if(.is_model_regression(model)){
@@ -674,14 +649,16 @@
     priors           = fit_priors,
     random           = attr(model, "random"),
     weighted         = attr(model, "weighted"),
-    regression       = .is_model_regression(model)
+    regression       = .is_model_regression(model),
+    multivariate     = .is_model_multivariate(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
   fit_data     <- .fit_data.bi(
     data             = data_outcome,
     weighted         = attr(model, "weighted"),
-    weighted_type    = attr(model, "weighted_type")
+    weighted_type    = attr(model, "weighted_type"),
+    multivariate     = .is_model_multivariate(model)
   )
 
 
@@ -706,7 +683,9 @@
       cores                 = fit_control[["cores"]],
       silent                = fit_control[["silent"]],
       seed                  = fit_control[["seed"]],
-      required_packages     = "RoBMA"
+      required_packages     = "RoBMA",
+      is_JASP               = dots[["is_JASP"]],
+      is_JASP_prefix        = dots[["is_JASP_prefix"]]
     )
 
   }else{
@@ -760,7 +739,6 @@
     }
 
   }
-
 
   # add results
   model$fit           <- fit
@@ -850,7 +828,7 @@
 
   return(fit_data)
 }
-.fit_data.bi              <- function(data, weighted, weighted_type){
+.fit_data.bi              <- function(data, weighted, weighted_type, multivariate){
 
   # unlist the data frame
   fit_data <- list()
@@ -865,9 +843,15 @@
     fit_data$weight <- .get_id_weights(data, weighted_type)
   }
 
+  if(multivariate){
+    # rewritting ids as previous formating used NAs for unique ones
+    data[,"study_ids"][is.na(data[,"study_ids"])] <- (max(data[,"study_ids"], na.rm = TRUE) + 1):(max(data[,"study_ids"], na.rm = TRUE) + sum(is.na(data[,"study_ids"])))
+    fit_data$study_ids <- data[,"study_ids"]
+  }
+
   return(fit_data)
 }
-.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type){
+.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -911,6 +895,12 @@
     fit_data$crit_y             <- t(crit_y)
     fit_data$crit_y_mapping     <- t(crit_y_mapping)
     fit_data$crit_y_mapping_max <- crit_y_mapping_max
+  }
+
+  if(multivariate){
+    # rewritting ids as previous formating used NAs for unique ones
+    data[,"study_ids"][is.na(data[,"study_ids"])] <- (max(data[,"study_ids"], na.rm = TRUE) + 1):(max(data[,"study_ids"], na.rm = TRUE) + sum(is.na(data[,"study_ids"])))
+    fit_data$study_ids <- data[,"study_ids"]
   }
 
   return(fit_data)
@@ -1099,31 +1089,37 @@
 
   return(model_syntax)
 }
-.generate_model_syntax.bi <- function(priors, random, weighted, regression){
+.generate_model_syntax.bi <- function(priors, random, weighted, regression, multivariate){
 
   model_syntax <- "model{\n"
 
   ### priors and model are always specified on log(OR) scale
   # no need to apply transformations here
 
+  if(random && multivariate){
+    model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(rho)\n")
+    model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(1-rho)\n")
+  }
+
   ### model
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
-
-  # deal with the random/fixed models (they are not marginalized as in the normal case) & meta-regression
   # using non-central parameterization
-  if(random && regression){
-    eff <- "(mu[i] + gamma[i] * tau)"
-  }else if(random && !regression){
-    eff <- "(mu + gamma[i] * tau)"
-  }else if(!random && regression){
+  if(regression){
     eff <- "mu[i]"
-  }else if(!random && !regression){
+  }else{
     eff <- "mu"
+  }
+  if(random && multivariate){
+    eff <- paste0(eff, " + epsilon[study_ids[i]] * tau_within + gamma[i] * tau_between")
+  }else if(random && !multivariate){
+    eff <- paste0(eff, " + gamma[i] * tau")
+  }else if(!random && multivariate){
+    eff <- paste0(eff, " + epsilon[study_ids[i]] * tau")
   }
 
   # transform the parameters to the probability scale
-  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) + 0.5 * ", eff, "\n")
-  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) - 0.5 * ", eff, "\n")
+  model_syntax <- paste0(model_syntax, "  logit(p1[i]) = logit(pi[i]) + 0.5 * (", eff, ")\n")
+  model_syntax <- paste0(model_syntax, "  logit(p2[i]) = logit(pi[i]) - 0.5 * (", eff, ")\n")
 
   # the observed data
   if(weighted){
@@ -1140,7 +1136,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression){
+.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate){
 
   ### extract prior information
   if(is.prior.mixture(priors[["bias"]])){
@@ -1169,7 +1165,16 @@
     model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "mu",  "mu_transformed"))
   }
 
-  model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau", "tau_transformed"))
+  if(multivariate){
+    model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(rho)\n")
+    model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(1-rho)\n")
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau", "tau_transformed"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau_within",  "tau_within_transformed"))
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau_between", "tau_between_transformed"))
+  }else{
+    model_syntax <- paste0(model_syntax, .JAGS_scale(prior_scale, effect_measure, "tau", "tau_transformed"))
+  }
+
   if(any(is_PET)){
     model_syntax <- paste0(model_syntax, paste0("PET_transformed = PET\n"))
   }
@@ -1188,13 +1193,15 @@
     eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
   }
 
-  # TODO: add hierarchical
-
   ### model
   model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
 
   # marginalized random effects and the effect size
-  tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
+  if(multivariate){
+    tau2 <- "( pow(se[i],2) + pow(tau_between_transformed,2) )"
+  }else{
+    tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
+  }
 
   # deal with mu as a vector or scalar based on whether it is regression or not
   if(regression){
@@ -1209,6 +1216,11 @@
   }
   if(any(is_PEESE)){
     eff <- paste0(eff, " + PEESE_transformed * pow(se[i],2)")
+  }
+
+  # add hierarchical
+  if(multivariate){
+    eff <- paste0(eff, " + gamma[study_ids[i]] * tau_within_transformed")
   }
 
   if(any(is_weightfunction)){
@@ -1578,6 +1590,9 @@
 }
 .is_model_regression    <- function(model){
   return(inherits(model, "RoBMA.reg.model") || inherits(model, "RoBMA.reg.model_ss") || inherits(model, "BiBMA.reg.model") || inherits(model, "BiBMA.reg.model_ss"))
+}
+.is_model_multivariate  <- function(model){
+  return(attr(model, "multivariate"))
 }
 
 .generate_model_formula_list       <- function(formula){

@@ -103,6 +103,8 @@ BiBMA.reg <- function(
     prior_covariates_null      = set_default_binomial_priors("covariates", null = TRUE),
     prior_factors              = set_default_binomial_priors("factors", rescale = rescale_priors),
     prior_factors_null         = set_default_binomial_priors("factors", null = TRUE),
+    priors_hierarchical        = set_default_binomial_priors("hierarchical"),
+    priors_hierarchical_null   = set_default_binomial_priors("hierarchical", null = TRUE),
 
     priors_baseline            = set_default_binomial_priors("baseline"),
     priors_baseline_null       = set_default_binomial_priors("baseline", null = TRUE),
@@ -129,7 +131,7 @@ BiBMA.reg <- function(
     .weighted_warning()
 
   if(.is_multivariate(object))
-    stop("Multivariate outcomes are not implemented for binomial outcomes.")
+    .multivariate_warning()
 
 
   ### check MCMC settings
@@ -144,6 +146,7 @@ BiBMA.reg <- function(
     priors_effect_null = priors_effect_null, priors_effect = priors_effect,
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_baseline_null = priors_baseline_null, priors_baseline = priors_baseline,
+    priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
 
@@ -166,9 +169,9 @@ BiBMA.reg <- function(
 
   ### make models
   if(algorithm == "bridge"){
-    object$models <- .make_models_bi.reg(object[["priors"]], nrow(object$data[["outcome"]]), .is_weighted(object))
+    object$models <- .make_models_bi.reg(object[["priors"]], .is_multivariate(object), nrow(object$data[["outcome"]]), .get_K(object), .is_weighted(object))
   }else if(algorithm == "ss"){
-    object$model  <- .make_model_bi_ss.reg(object[["priors"]], nrow(object$data[["outcome"]]), .is_weighted(object))
+    object$model  <- .make_model_bi_ss.reg(object[["priors"]], .is_multivariate(object), nrow(object$data[["outcome"]]), .get_K(object), .is_weighted(object))
   }
 
 
@@ -230,7 +233,7 @@ BiBMA.reg <- function(
   }else if(object$add_info[["algorithm"]] == "ss"){
 
     # model fitting using JAGS with spike and slab priors
-    object$model         <- .fit_BiBMA_model_ss(object)
+    object$model         <- .fit_BiBMA_model_ss(object, dots)
     object$RoBMA         <- .as_ensemble_inference(object)
     object$coefficients  <- .compute_coeficients(object[["RoBMA"]])
 

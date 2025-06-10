@@ -374,6 +374,16 @@ check_RoBMA_convergence <- function(fit){
     return(steps)
   }
 }
+.get_K                       <- function(object){
+  if(.is_regression(object)){
+    ids <- object$data$outcome[["study_ids"]]
+  }else{
+    ids <- object$data[["study_ids"]]
+  }
+  ids_NA <- is.na(ids)
+  K      <- length(unique(ids[!ids_NA])) + sum(ids_NA)
+  return(K)
+}
 
 
 

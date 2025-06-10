@@ -14,7 +14,8 @@ set_autofit_control(
   max_SD_error = NULL,
   max_time = list(time = 60, unit = "mins"),
   sample_extend = 1000,
-  restarts = 10
+  restarts = 10,
+  max_extend = 10
 )
 
 set_convergence_checks(
@@ -53,6 +54,8 @@ Defaults to \code{1000}.}
 
 \item{restarts}{number of times new initial values should be generated in case a
 model fails to initialize. Defaults to \code{10}.}
+
+\item{max_extend}{number of times after which the automatic fitting function is stopped.}
 
 \item{remove_failed}{whether models not satisfying the convergence checks should
 be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.}

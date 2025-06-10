@@ -30,9 +30,8 @@ can be used via the graphical user interface.
 
 See our manuscripts that for technical details and examples:
 
-- Bartoš, Maier, Stanley, et al. (2023)
-  (<https://doi.org/10.31234/osf.io/98xb5>) extends RoBMA-PSMA into
-  meta-regression
+- Bartoš et al. (2025) (<https://doi.org/10.31234/osf.io/98xb5>) extends
+  RoBMA-PSMA into meta-regression
 - Bartoš, Otte, et al. (2023)
   (<https://doi.org/10.48550/arXiv.2306.11468>) outlines binomial-normal
   Bayesian model-averaged meta-analysis for binary outcomes (+ develops
@@ -40,10 +39,9 @@ See our manuscripts that for technical details and examples:
   medical settings, also see Bartoš et al. (2021) for informed prior
   distributions for Cohen’s d, based on the Cochrane Database of
   Systematic Reviews)
-- Bartoš, Maier, Wagenmakers, et al. (2023)
-  (<https://doi.org/10.1002/jrsm.1594>) describes the newest version of
-  publication bias adjustment, RoBMA-PSMA, which combines selection
-  models and PET-PEESE,
+- Bartoš, Maier, et al. (2023) (<https://doi.org/10.1002/jrsm.1594>)
+  describes the newest version of publication bias adjustment,
+  RoBMA-PSMA, which combines selection models and PET-PEESE,
 - Maier et al. (2023) (<https://doi.org/10.1037/met0000405>) introduces
   the RoBMA framework and the original version of the method,
 - Bartoš et al. (2022) (<https://doi.org/10.1177/25152459221109259>)
@@ -125,7 +123,7 @@ The 2.0 version brought several updates to the package:
   `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
 - new default prior distribution specification for the publication bias
   adjustment part of the models (corresponding to the RoBMA-PSMA model
-  from Bartoš, Maier, Wagenmakers, et al. (2023)),
+  from Bartoš, Maier, et al. (2023)),
 - new `model_type` argument allowing to specify different “pre-canned”
   models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` =
   corresponding to Maier et al. (2023)),
@@ -161,12 +159,12 @@ devtools::install_github("FBartos/RoBMA")
 ## Example
 
 To illustrate the functionality of the package, we fit the RoBMA-PSMA
-model from the example in Bartoš, Maier, Wagenmakers, et al. (2023) to
-adjust for publication bias in the infamous Bem (2011) “Feeling the
-future” pre-cognition study. The RoBMA-PSMA model combines six selection
-models and PET-PEESE to adjust for publication bias. As in the
-pre-print, we analyze the data as described by Bem et al. (2011) in his
-reply to methodological critiques.
+model from the example in Bartoš, Maier, et al. (2023) to adjust for
+publication bias in the infamous Bem (2011) “Feeling the future”
+pre-cognition study. The RoBMA-PSMA model combines six selection models
+and PET-PEESE to adjust for publication bias. As in the pre-print, we
+analyze the data as described by Bem et al. (2011) in his reply to
+methodological critiques.
 
 First, we load the package and the data set included in the package.
 
@@ -174,6 +172,8 @@ First, we load the package and the data set included in the package.
 library(RoBMA)
 #> Loading required namespace: runjags
 #> Loading required namespace: mvtnorm
+#> RoBMA version 3.3 now features spike-and-slab style model-averaging via the 'algorithm = "ss"' argument.
+#> See 'vignette("FastRoBMA", package = "RoBMA")' for more details ('algorithm = "ss"' argument will become the default setting in the future major release of the package).
 
 data("Bem2011", package = "RoBMA")
 Bem2011
@@ -390,9 +390,10 @@ Practices in Psychological Science*, *5*(3), 1–19.
 
 <div id="ref-bartos2023robust" class="csl-entry">
 
-Bartoš, F., Maier, M., Stanley, T., & Wagenmakers, E.-J. (2023). *Robust
-Bayesian meta-regression—Model-averaged moderation analysis in the
-presence of publication bias*. <https://doi.org/10.31234/osf.io/98xb5>
+Bartoš, F., Maier, M., Stanley, T., & Wagenmakers, E.-J. (2025). Robust
+Bayesian meta-regression: Model-averaged moderation analysis in the
+presence of publication bias. *Psychological Methods*.
+<https://doi.org/10.1037/met0000737>
 
 </div>
 

@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.4.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-02-04</h4>
+            <h4 data-toc-skip class="date">2025-06-10</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/HEAD/vignettes/MedicineBMA.Rmd" class="external-link"><code>vignettes/MedicineBMA.Rmd</code></a></small>
       <div class="d-none name"><code>MedicineBMA.Rmd</code></div>
@@ -124,9 +124,9 @@ set them manually,</p>
 <span>                 transformation <span class="op">=</span> <span class="st">"cohens_d"</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p>with <code>priors_effect</code> and <code>priors_heterogeneity</code>
 corresponding to the
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>δ</mi><mo>∼</mo><mi>T</mi><mrow><mo stretchy="true" form="prefix">(</mo><mn>0</mn><mo>,</mo><mn>0.51</mn><mo>,</mo><mn>5</mn><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\delta \sim T(0,0.51,5)</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>δ</mi><mo>∼</mo><mi>T</mi><mo stretchy="false" form="prefix">(</mo><mn>0</mn><mo>,</mo><mn>0.51</mn><mo>,</mo><mn>5</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\delta \sim T(0,0.51,5)</annotation></semantics></math>
 and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>∼</mo><mi>I</mi><mi>n</mi><mi>v</mi><mi>G</mi><mi>a</mi><mi>m</mi><mi>m</mi><mi>a</mi><mrow><mo stretchy="true" form="prefix">(</mo><mn>1.79</mn><mo>,</mo><mn>0.28</mn><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\tau \sim InvGamma(1.79,0.28)</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>∼</mo><mi>I</mi><mi>n</mi><mi>v</mi><mi>G</mi><mi>a</mi><mi>m</mi><mi>m</mi><mi>a</mi><mo stretchy="false" form="prefix">(</mo><mn>1.79</mn><mo>,</mo><mn>0.28</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\tau \sim InvGamma(1.79,0.28)</annotation></semantics></math>
 informed prior distributions for the “oral health” subfield and removing
 the publication bias adjustment models by setting
 <code>priors_bias = NULL</code><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi></mi><mn>1</mn></msup><annotation encoding="application/x-tex">^1</annotation></semantics></math>.
@@ -258,7 +258,7 @@ completely omitting their estimates from the figure. Furthermore, the
 much larger box of Model 4 (the random effect model assuming the
 presence of the effect) shows that Model 4 received the largest share of
 the posterior probability,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>P</mi><mrow><mo stretchy="true" form="prefix">(</mo><msubsup><mi>H</mi><mn>1</mn><mtext mathvariant="normal">r</mtext></msubsup><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><mn>0.77</mn></mrow><annotation encoding="application/x-tex">P(H_1^{\text{r}}) = 0.77</annotation></semantics></math>)</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>P</mi><mo stretchy="false" form="prefix">(</mo><msubsup><mi>H</mi><mn>1</mn><mtext mathvariant="normal">r</mtext></msubsup><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mn>0.77</mn></mrow><annotation encoding="application/x-tex">P(H_1^{\text{r}}) = 0.77</annotation></semantics></math>)</p>
 <p>The last type of visualization that we show here is the forest plot.
 It displays the original studies’ effects and the meta-analytic estimate
 within one figure. It can be requested by using the
@@ -508,7 +508,7 @@ estimating effect size in the presence of publication bias.
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
 </div>
 
     </footer>

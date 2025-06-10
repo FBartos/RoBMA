@@ -38,10 +38,17 @@ Defaults to \code{c(.025, .975)}}
 be omitted from the summary. Defaults to \code{FALSE}.}
 }
 \value{
-\code{summary.RoBMA} returns a list of tables of class 'BayesTools_table'.
+\code{summary_heterogeneity} returns a list of tables of class 'BayesTools_table'.
 }
 \description{
 Computes the prediction interval, the absolute
 heterogeneity  (tau, tau^2), and relative measures of heterogeneity
 (I^2, H^2) for a fitted RoBMA object.
+}
+\details{
+The \code{conditional} argument allows for computing the conditional prediction interval based
+on models assuming the presence of the effect and the conditional heterogeneity estimates
+tau, tau^2, I^2, and H^2 assuming the presence of the heterogeneity.
+
+Relative heterogeneity measures (I^2 and H^2) are not available for BiBMA models.
 }

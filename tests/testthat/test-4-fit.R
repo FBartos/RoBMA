@@ -322,7 +322,7 @@ test_that("BiBMA.reg works", {
 
 #### creating / updating the test settings ####
 if(FALSE){
-  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13, fit_14, fit_15, fit_16)
+  saved_fits <- list(fit1, fit2, fit3, fit4, fit5, fit6, fit7, fit8, fit9, fit10, fit11, fit12, fit13, fit_14, fit_15, fit_16, fit_17)
 
   for(i in 1:length(saved_fits)){
     saved_fits[[i]] <- remove_time(saved_fits[[i]])
@@ -334,7 +334,7 @@ if(FALSE){
 
   # package version update
   # test objects
-  saved_files <- paste0("fit_", 1:16, ".RDS")
+  saved_files <- paste0("fit_", 1:17, ".RDS")
   saved_fits  <- list()
   for(i in seq_along(saved_files)){
     temp_fit <- readRDS(file = file.path("tests/results/fits", saved_files[i]))
@@ -344,6 +344,6 @@ if(FALSE){
   }
 
   # single model update
-  fit_14 <- remove_time(fit_14)
-  saveRDS(fit_14, file = file.path("tests/results/fits/", paste0("fit_",14,".RDS")), compress  = "xz")
+  fit_16 <- remove_time(fit_16)
+  saveRDS(fit_16, file = file.path("tests/results/fits/", paste0("fit_",16,".RDS")), compress  = "xz")
 }
