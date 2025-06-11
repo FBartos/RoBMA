@@ -10,13 +10,19 @@ if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
 
 saved_files <- paste0("fit_", 1:16, ".RDS")
 
+# Read all fits at the beginning for efficiency
+fits <- list()
+for (i in 1:16) {
+  fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
+}
+names(fits) <- paste0("fit_", 1:16)
+
 test_that("Print functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
-    fit <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
     expect_equal(
-      capture_output_lines(fit, print = TRUE, width = 150),
+      capture_output_lines(fits[[i]], print = TRUE, width = 150),
       read.table(file = file.path("../results/print", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 })
@@ -25,16 +31,14 @@ test_that("Summary functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
-    fit <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
     expect_equal(
-      capture_output_lines(summary(fit), print = TRUE, width = 150),
+      capture_output_lines(summary(fits[[i]]), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # all options
-  fit1 <- readRDS(file = file.path(temp_fits_dir, "fit_1.RDS"))
   expect_equal(
-    capture_output_lines(summary(fit1, conditional = TRUE, logBF = TRUE, BF01 = TRUE, probs = c(0.10, 0.50, .90)), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], conditional = TRUE, logBF = TRUE, BF01 = TRUE, probs = c(0.10, 0.50, .90)), print = TRUE, width = 150),
     c("Call:",
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)",
       "",
@@ -78,9 +82,8 @@ test_that("Summary functions work", {
   )
 
   # different effect size measure
-  fit1 <- readRDS(file = file.path(temp_fits_dir, "fit_1.RDS"))
   expect_equal(
-    capture_output_lines(summary(fit1, output_scale = "fishers_z"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "fishers_z"), print = TRUE, width = 150),
     c("Call:"                                                                                               ,
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                  ,
       ""                                                                                                    ,
@@ -108,7 +111,7 @@ test_that("Summary functions work", {
   )
 
   expect_equal(
-    capture_output_lines(summary(fit1, output_scale = "r"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "r"), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                                    ,
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                                       ,
       ""                                                                                                                                                                         ,
@@ -137,7 +140,7 @@ test_that("Summary functions work", {
   )
 
   expect_equal(
-    capture_output_lines(summary(fit1, output_scale = "OR"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "OR"), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                      ,
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                         ,
       ""                                                                                                                                                           ,
@@ -166,7 +169,7 @@ test_that("Summary functions work", {
   )
 
   expect_equal(
-    capture_output_lines(summary(fit1, output_scale = "logOR"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "logOR"), print = TRUE, width = 150),
     c("Call:"                                                                                            ,
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                               ,
       ""                                                                                                 ,
@@ -194,9 +197,8 @@ test_that("Summary functions work", {
     )
   )
 
-  fit16 <- readRDS(file = file.path(temp_fits_dir, "fit_16.RDS"))
   expect_equal( # try with BiBMA
-    capture_output_lines(summary(fit16), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_16"]]), print = TRUE, width = 150),
     c("Call:"                                                                                          ,
       "BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20, 5), n2 = rep(20, 5), chains = 2, "                       ,
       "    sample = 500, burnin = 250, adapt = 100, parallel = TRUE, "                                 ,
@@ -218,7 +220,7 @@ test_that("Summary functions work", {
   )
 
   expect_equal( # try with BiBMA
-    capture_output_lines(summary(fit16, output_scale = "cohens_d"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_16"]], output_scale = "cohens_d"), print = TRUE, width = 150),
     c("Call:"                                                                                            ,
       "BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20, 5), n2 = rep(20, 5), chains = 2, "                         ,
       "    sample = 500, burnin = 250, adapt = 100, parallel = TRUE, "                                   ,
@@ -240,9 +242,8 @@ test_that("Summary functions work", {
   )
 
   # no conditional, yet requested
-  fit8 <- readRDS(file = file.path(temp_fits_dir, "fit_8.RDS"))
   expect_equal(
-    capture_output_lines(summary(fit8, conditional = TRUE), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_8"]], conditional = TRUE), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_effect = NULL, priors_heterogeneity = NULL, "                                  ,
       "    priors_bias = NULL, chains = 2, sample = 500, burnin = 250, "                                             ,
@@ -272,15 +273,14 @@ test_that("Models summary functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
-    fit <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
     expect_equal(
-      capture_output_lines(summary(fit, type = "models"), print = TRUE, width = 150),
+      capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary.models", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # test short names
   expect_equal(
-    capture_output_lines(summary(fit1, type = "models", short_name = TRUE), print = TRUE, width = 150)[1:15],
+    capture_output_lines(summary(fits[["fit_1"]], type = "models", short_name = TRUE), print = TRUE, width = 150)[1:15],
     c( "Call:"                                                                                                                                ,
        "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                   ,
        ""                                                                                                                                     ,
@@ -300,7 +300,7 @@ test_that("Models summary functions work", {
 
   # test no spikes
   expect_equal(
-    capture_output_lines(summary(fit1, type = "models", remove_spike_0 = TRUE), print = TRUE, width = 150)[1:15],
+    capture_output_lines(summary(fits[["fit_1"]], type = "models", remove_spike_0 = TRUE), print = TRUE, width = 150)[1:15],
     c("Call:"                                                                                                                                               ,
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                  ,
       ""                                                                                                                                                    ,
@@ -323,9 +323,8 @@ test_that("Diagnostics summary functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
-    fit <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
     expect_equal(
-      capture_output_lines(summary(fit, type = "diagnostics"), print = TRUE, width = 200),
+      capture_output_lines(summary(fits[[i]], type = "diagnostics"), print = TRUE, width = 200),
       read.table(file = file.path("../results/summary.diagnostics", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 })
@@ -334,16 +333,14 @@ test_that("Individual summary functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
-    fit <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
     expect_equal(
-      capture_output_lines(summary(fit, type = "individual"), print = TRUE, width = 150),
+      capture_output_lines(summary(fits[[i]], type = "individual"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # different effect size measure
-  fit10 <- readRDS(file = file.path(temp_fits_dir, "fit_10.RDS"))
   expect_equal(
-    capture_output_lines(summary(fit10, type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_10"]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                             ,
       "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "                  ,
@@ -369,7 +366,7 @@ test_that("Individual summary functions work", {
 
   # different effect size measure (with PET and PEESE)
   expect_equal(
-    capture_output_lines(summary(readRDS(file = file.path(temp_fits_dir, "fit_3.RDS")), type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150)[132:158],
+    capture_output_lines(summary(fits[["fit_3"]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150)[132:158],
     c("                                                               "                                     ,
       " Model             11             Parameter prior distributions"                                     ,
       " Prior prob.    0.062                 mu ~ Normal(0, 1)        "                                     ,
@@ -401,7 +398,7 @@ test_that("Individual summary functions work", {
 
   # different effect size measure
   expect_equal(
-    capture_output_lines(summary(fit10, type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_10"]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                             ,
       "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "                  ,
@@ -426,7 +423,7 @@ test_that("Individual summary functions work", {
     ))
   # test short names
   expect_equal(
-    capture_output_lines(summary(fit10, type = "individual", short_name = TRUE), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_10"]], type = "individual", short_name = TRUE), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                             ,
       "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "                  ,
@@ -452,7 +449,7 @@ test_that("Individual summary functions work", {
 
   # test no spikes
   expect_equal(
-    capture_output_lines(summary(fit8, type = "individual", remove_spike_0 = TRUE), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_8"]], type = "individual", remove_spike_0 = TRUE), print = TRUE, width = 150),
     c("Call:"                                                                                                                                     ,
       "RoBMA(d = d, se = d_se, priors_effect = NULL, priors_heterogeneity = NULL, "                                                               ,
       "    priors_bias = NULL, chains = 2, sample = 500, burnin = 250, "                                                                          ,
@@ -480,13 +477,13 @@ test_that("Interpret functions work", {
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
     expect_equal(
-      gsub("(.{80})", "\\1\\\n", interpret(readRDS(file = file.path(temp_fits_dir, saved_files[i])))),
+      gsub("(.{80})", "\\1\\\n", interpret(fits[[i]])),
       read.table(file = file.path("../results/interpret", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # with transformation
   expect_equal(
-    interpret(fit1, output_scale = "r"),
+    interpret(fits[["fit_1"]], output_scale = "r"),
     "Robust Bayesian meta-analysis found weak evidence against the effect, BF_10 = 0.973, with mean model-averaged estimate correlation = 0.094, 95% CI [-0.032,  0.379]. Robust Bayesian meta-analysis found weak evidence against the heterogeneity, BF^rf = 0.858, with mean model-averaged estimate tau = 0.055, 95% CI [0.000, 0.312]. Robust Bayesian meta-analysis found weak evidence in favor of the publication bias, BF_pb = 1.17."
   )
 
@@ -494,10 +491,10 @@ test_that("Interpret functions work", {
 
 test_that("Marginal summary functions work", {
 
-  expect_error(marginal_summary(fit1), "'marginal_summary' function is available only for RoBMA regression models")
+  expect_error(marginal_summary(fits[["fit_1"]]), "'marginal_summary' function is available only for RoBMA regression models")
 
   expect_equal(
-    capture_output_lines(marginal_summary(readRDS(file = file.path(temp_fits_dir, "fit_14.RDS"))), print = TRUE, width = 150),
+    capture_output_lines(marginal_summary(fits[["fit_14"]]), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                                               ,
       "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "                                                                                                         ,
       "    chains = 2, sample = 500, burnin = 250, adapt = 100, parallel = TRUE, "                                                                                                          ,
@@ -529,7 +526,7 @@ test_that("Marginal summary functions work", {
   )
 
   expect_equal(
-    capture_output_lines(marginal_summary(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")), conditional = TRUE, output_scale = "r"), print = TRUE, width = 150),
+    capture_output_lines(marginal_summary(fits[["fit_15"]], conditional = TRUE, output_scale = "r"), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                             ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "                                                               ,
       "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                                                                                  ,
@@ -572,20 +569,20 @@ test_that("Heterogeneity summary functions work", {
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary_heterogeneity(readRDS(file = file.path(temp_fits_dir, saved_files[i]))), print = TRUE, width = 150),
+      capture_output_lines(summary_heterogeneity(fits[[i]]), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary_heterogeneity", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary_heterogeneity(readRDS(file = file.path(temp_fits_dir, saved_files[i])), type = "i"), print = TRUE, width = 150),
+      capture_output_lines(summary_heterogeneity(fits[[i]], type = "i"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary_heterogeneity.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # test BiBMA
   expect_equal(
-    capture_output_lines(summary_heterogeneity(fit1, conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    capture_output_lines(summary_heterogeneity(fits[["fit_1"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
     c("Call:"                                                                                   ,
       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                      ,
       ""                                                                                        ,
@@ -620,16 +617,16 @@ test_that("Effect size summary functions work", {
 
   # testing for consistency among pooled vs adjusted for standard models
   expect_equivalent(
-    as.data.frame(pooled_effect(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")))[["estimates"]]),
-    as.data.frame(adjusted_effect(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")))[["estimates"]])
+    as.data.frame(pooled_effect(fits[["fit_15"]])[["estimates"]]),
+    as.data.frame(adjusted_effect(fits[["fit_15"]])[["estimates"]])
   )
   expect_equivalent(
-    as.data.frame(pooled_effect(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")), conditional = TRUE)[["estimates_conditional"]]),
-    as.data.frame(adjusted_effect(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")), conditional = TRUE)[["estimates_conditional"]])
+    as.data.frame(pooled_effect(fits[["fit_15"]], conditional = TRUE)[["estimates_conditional"]]),
+    as.data.frame(adjusted_effect(fits[["fit_15"]], conditional = TRUE)[["estimates_conditional"]])
   )
 
   expect_equal(
-    capture_output_lines(pooled_effect(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")), conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    capture_output_lines(pooled_effect(fits[["fit_15"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
     c("Call:"                                                                                                  ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "    ,
       "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                       ,
@@ -656,7 +653,7 @@ test_that("Effect size summary functions work", {
     ))
 
   expect_equal(
-    capture_output_lines(adjusted_effect(readRDS(file = file.path(temp_fits_dir, "fit_15.RDS")), conditional = TRUE, output_scale = "r", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    capture_output_lines(adjusted_effect(fits[["fit_15"]], conditional = TRUE, output_scale = "r", probs = c(0.025, 0.5)), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                                    ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "                                                                      ,
       "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                                                                                         ,
