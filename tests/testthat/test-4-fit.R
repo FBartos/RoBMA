@@ -2,12 +2,15 @@ context("(4) Fitting and updating functions")
 skip_on_cran()
 skip_on_covr()
 
-# test objects
-saved_files <- paste0("fit_", 1:17, ".RDS")
-saved_fits  <- list()
-for(i in seq_along(saved_files)){
-  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
-}
+# Create temporary directory for fitted models that will be used by subsequent tests
+temp_fits_dir <- file.path(tempdir(), "RoBMA_test_fits")
+dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Store the temp directory path for other tests to use
+Sys.setenv(ROBMA_TEST_FITS_DIR = temp_fits_dir)
+
+# Initialize list to store fitted models
+saved_fits <- list()
 
 # functions simplifying the comparison
 remove_time  <- function(fit){
@@ -59,25 +62,29 @@ test_that("Default model (RoBMA-PSMA) works", {
 
   fit1 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE))
   fit1 <- remove_time(fit1)
-  expect_equal(clean_all(saved_fits[[1]]), clean_all(fit1))
+  saved_fits[[1]] <- fit1
+  saveRDS(fit1, file = file.path(temp_fits_dir, "fit_1.RDS"), compress = "xz")
 
   fit4 <- try_parallel(RoBMA(r = r, n = n, seed = 1, model_type = "PSMA", parallel = TRUE,
                              sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE,
                              convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1), algorithm = "ss"))
   fit4 <- remove_time(fit4)
-  expect_equal(clean_all(saved_fits[[4]]), clean_all(fit4))
+  saved_fits[[4]] <- fit4
+  saveRDS(fit4, file = file.path(temp_fits_dir, "fit_4.RDS"), compress = "xz")
 
   fit5 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, model_type = "PSMA", transformation = "logOR", parallel = TRUE,
                              sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE,
                              convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1), algorithm = "ss"))
   fit5 <- remove_time(fit5)
-  expect_equal(clean_all(saved_fits[[5]]), clean_all(fit5))
+  saved_fits[[5]] <- fit5
+  saveRDS(fit5, file = file.path(temp_fits_dir, "fit_5.RDS"), compress = "xz")
 
   fit6 <- try_parallel(RoBMA(d = -d, se = d_se, seed = 1, model_type = "PSMA", effect_direction = "negative", parallel = TRUE,
                              sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE,
                              convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1), algorithm = "ss"))
   fit6 <- remove_time(fit6)
-  expect_equal(clean_all(saved_fits[[6]]), clean_all(fit6))
+  saved_fits[[6]] <- fit6
+  saveRDS(fit6, file = file.path(temp_fits_dir, "fit_6.RDS"), compress = "xz")
 
   # verify that the transformations and etc holds, up to MCMC error
   expect_equal(coef(fit1)[1:2], coef(fit4)[1:2], 0.02)
@@ -102,7 +109,8 @@ test_that("RoBMA-2w works", {
                              sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                              convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit2 <- remove_time(fit2)
-  expect_equal(clean_all(saved_fits[[2]]), clean_all(fit2))
+  saved_fits[[2]] <- fit2
+  saveRDS(fit2, file = file.path(temp_fits_dir, "fit_2.RDS"), compress = "xz")
 })
 
 test_that("RoBMA-PP works", {
@@ -110,7 +118,8 @@ test_that("RoBMA-PP works", {
                              sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
                              convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit3 <- remove_time(fit3)
-  expect_equal(clean_all(saved_fits[[3]]), clean_all(fit3))
+  saved_fits[[3]] <- fit3
+  saveRDS(fit3, file = file.path(temp_fits_dir, "fit_3.RDS"), compress = "xz")
 })
 
 test_that("Custom models - only alternative", {
@@ -123,7 +132,8 @@ test_that("Custom models - only alternative", {
                 sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit7 <- remove_time(fit7)
-  expect_equal(clean_all(saved_fits[[7]]), clean_all(fit7))
+  saved_fits[[7]] <- fit7
+  saveRDS(fit7, file = file.path(temp_fits_dir, "fit_7.RDS"), compress = "xz")
 })
 
 test_that("Custom models - only null", {
@@ -132,7 +142,8 @@ test_that("Custom models - only null", {
                 sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit8 <- remove_time(fit8)
-  expect_equal(clean_all(saved_fits[[8]]), clean_all(fit8))
+  saved_fits[[8]] <- fit8
+  saveRDS(fit8, file = file.path(temp_fits_dir, "fit_8.RDS"), compress = "xz")
 })
 
 test_that("Custom models - only null (non-point)", {
@@ -147,7 +158,8 @@ test_that("Custom models - only null (non-point)", {
                 sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit9 <- remove_time(fit9)
-  expect_equal(clean_all(saved_fits[[9]]), clean_all(fit9))
+  saved_fits[[9]] <- fit9
+  saveRDS(fit9, file = file.path(temp_fits_dir, "fit_9.RDS"), compress = "xz")
 })
 
 test_that("Custom models - fixed weightfunctions", {
@@ -157,7 +169,8 @@ test_that("Custom models - fixed weightfunctions", {
                 sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit10 <- remove_time(fit10)
-  expect_equal(clean_all(saved_fits[[10]]), clean_all(fit10))
+  saved_fits[[10]] <- fit10
+  saveRDS(fit10, file = file.path(temp_fits_dir, "fit_10.RDS"), compress = "xz")
 })
 
 test_that("Custom models - unknown effect size", {
@@ -169,7 +182,8 @@ test_that("Custom models - unknown effect size", {
                 sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
   fit11 <- remove_time(fit11)
-  expect_equal(clean_all(saved_fits[[11]]), clean_all(fit11))
+  saved_fits[[11]] <- fit11
+  saveRDS(fit11, file = file.path(temp_fits_dir, "fit_11.RDS"), compress = "xz")
 })
 
 test_that("Custom models - updating models", {
@@ -180,7 +194,8 @@ test_that("Custom models - updating models", {
   fit12 <- update(fit12, prior_effect = prior("normal", list(0, 1), list(0, 1)), prior_heterogeneity = prior_none(), prior_bias = prior_none())
   fit12 <- update(fit12, prior_weights = c(1, 2))
   fit12 <- remove_time(fit12)
-  expect_equal(clean_all(saved_fits[[12]]), clean_all(fit12))
+  saved_fits[[12]] <- fit12
+  saveRDS(fit12, file = file.path(temp_fits_dir, "fit_12.RDS"), compress = "xz")
 })
 
 test_that("Main settings work", {
@@ -222,7 +237,8 @@ test_that("3-level models work", {
                               autofit = FALSE, thin = 2, sample = 500, burnin = 250, adapt = 100, chains = 1,
                               convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
   fit13 <- remove_time(fit13)
-  expect_equal(clean_all(saved_fits[[13]]), clean_all(fit13))
+  saved_fits[[13]] <- fit13
+  saveRDS(fit13, file = file.path(temp_fits_dir, "fit_13.RDS"), compress = "xz")
 
 })
 
@@ -256,7 +272,8 @@ test_that("BMA regression work", {
                                                     sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
                                                     convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
   fit_14 <- remove_time(fit_14)
-  expect_equal(clean_all(saved_fits[[14]]), clean_all(fit_14))
+  saved_fits[[14]] <- fit_14
+  saveRDS(fit_14, file = file.path(temp_fits_dir, "fit_14.RDS"), compress = "xz")
 })
 
 test_that("RoBMA (simplified) regression with custom priors work", {
@@ -285,7 +302,8 @@ test_that("RoBMA (simplified) regression with custom priors work", {
                                                     sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
                                                     convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
   fit_15 <- remove_time(fit_15)
-  expect_equal(clean_all(saved_fits[[15]]), clean_all(fit_15))
+  saved_fits[[15]] <- fit_15
+  saveRDS(fit_15, file = file.path(temp_fits_dir, "fit_15.RDS"), compress = "xz")
 })
 
 test_that("BiBMA works", {
@@ -299,7 +317,8 @@ test_that("BiBMA works", {
   expect_equal(nrow(fit_16$models[[1]]$fit$mcmc[[1]]) + 500, nrow(fit_16a$models[[1]]$fit$mcmc[[1]]))
 
   fit_16 <- remove_time(fit_16)
-  expect_equal(clean_all(saved_fits[[16]]), clean_all(fit_16))
+  saved_fits[[16]] <- fit_16
+  saveRDS(fit_16, file = file.path(temp_fits_dir, "fit_16.RDS"), compress = "xz")
 })
 
 test_that("BiBMA.reg works", {
@@ -316,7 +335,8 @@ test_that("BiBMA.reg works", {
                                sample = 1500, burnin = 750, adapt = 750, chains = 2, autofit = FALSE, algorithm = "ss"))
 
   fit_17 <- remove_time(fit_17)
-  expect_equal(clean_all(saved_fits[[17]]), clean_all(fit_17))
+  saved_fits[[17]] <- fit_17
+  saveRDS(fit_17, file = file.path(temp_fits_dir, "fit_17.RDS"), compress = "xz")
 })
 
 

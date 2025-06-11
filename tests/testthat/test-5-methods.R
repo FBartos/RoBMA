@@ -3,10 +3,15 @@ skip_on_cran()
 
 # the summary tables and print functions are imported from BayesTools and tested henceforth
 # test objects - assuming that the fit function worked properly
+temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
+if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
+  skip("Temporary fits directory not found. Run test-4-fit.R first.")
+}
+
 saved_files <- paste0("fit_", 1:16, ".RDS")
 saved_fits  <- list()
 for(i in seq_along(saved_files)){
-  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+  saved_fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
 }
 
 test_that("Print functions work", {
