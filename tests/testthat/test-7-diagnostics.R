@@ -4,7 +4,7 @@ skip_on_cran()
 # test objects - assuming that the fit function worked properly
 temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
 if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
-  skip("Temporary fits directory not found. Run test-4-fit.R first.")
+  stop("Temporary fits directory not found. Run test-4-fit.R first.")
 }
 
 saved_files <- paste0("fit_", c(1, 15), ".RDS")
