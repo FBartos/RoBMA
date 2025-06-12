@@ -67,8 +67,9 @@
 #'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
-# Helper function for input validation
-.validate_combine_data_inputs <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, weight, study_names, transformation, return_all, ...) {
+combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
+                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
+
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
   BayesTools::check_bool(return_all, "return_all")
@@ -89,17 +90,6 @@
 
   dots <- list(...)
   transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
-  
-  return(list(transformation = transformation, dots = dots))
-}
-
-combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
-                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
-
-  # Input validation
-  validation_result <- .validate_combine_data_inputs(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, weight, study_names, transformation, return_all, ...)
-  transformation <- validation_result$transformation
-  dots <- validation_result$dots
 
 # Helper function for data preparation
 .prepare_combine_data_frame <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data, original_measure) {
