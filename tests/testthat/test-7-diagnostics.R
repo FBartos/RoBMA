@@ -1,18 +1,20 @@
 context("(7) Diagnostics plots")
 skip_on_cran()
 
+### Read all prefitted objects
 # test objects - assuming that the fit function worked properly
 temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
 if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
   stop("Temporary fits directory not found. Run test-4-fit.R first.")
 }
 
-saved_files <- paste0("fit_", c(1, 15), ".RDS")
-
-# Read all fits at the beginning for efficiency
+saved_files <- paste0("fit_", 1:16, ".RDS")
 fits <- list()
-fits[["fit_1"]] <- fits[["fit_1"]]
-fits[["fit_15"]] <- fits[["fit_15"]]
+for (i in 1:16) {
+  fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
+}
+names(fits) <- paste0("fit_", 1:16)
+
 
 test_that("Diagnostic plots work", {
 

@@ -1,7 +1,7 @@
 context("(6) Plot functions")
 skip_on_cran()
 
-# the plotting functions are imported from BayesTools and tested henceforth
+### Read all prefitted objects
 # test objects - assuming that the fit function worked properly
 temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
 if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
@@ -9,13 +9,12 @@ if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
 }
 
 saved_files <- paste0("fit_", 1:16, ".RDS")
-
-# Read all fits at the beginning for efficiency
 fits <- list()
 for (i in 1:16) {
-  fits[[i]] <- fits[[i]]
+  fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
 }
 names(fits) <- paste0("fit_", 1:16)
+
 
 # alternative components present in the models:
 effect             <- c(1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16)
