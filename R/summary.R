@@ -26,31 +26,30 @@ print.RoBMA <- function(x, ...){
   # Get predictor information
   variables_info <- attr(object$data$predictors, "variables_info")
   
-  # For each continuous predictor, multiply coefficients by their standard deviation
+  # Get intercept parameter name
+  intercept_param <- .BayesTools_parameter_name("intercept")
+  
+  # Apply transformation for continuous predictors and intercept
   for (predictor_name in names(variables_info)) {
     if (variables_info[[predictor_name]]$type == "continuous") {
-      # Try different parameter name formats to find the right one
-      param_names_to_try <- c(
-        .BayesTools_parameter_name(predictor_name),
-        predictor_name,
-        paste0("mu_", predictor_name)
-      )
-      
-      param_name <- NULL
-      for (pname in param_names_to_try) {
-        if (pname %in% rownames(estimates)) {
-          param_name <- pname
-          break
-        }
-      }
+      # Get the correct parameter name
+      param_name <- .BayesTools_parameter_name(predictor_name)
       
       # Apply transformation if parameter found
-      if (!is.null(param_name)) {
-        sd_value <- variables_info[[predictor_name]]$sd
+      if (param_name %in% rownames(estimates)) {
+        predictor_info <- variables_info[[predictor_name]]
         
         # Apply transformation to the coefficient columns (mean, median, and quantiles)
         numeric_cols <- sapply(estimates, is.numeric)
-        estimates[param_name, numeric_cols] <- estimates[param_name, numeric_cols] * sd_value
+        
+        # Transform intercept: subtract mean-centered effect
+        if (intercept_param %in% rownames(estimates)) {
+          estimates[intercept_param, numeric_cols] <- estimates[intercept_param, numeric_cols] -
+            estimates[param_name, "Mean"] * (predictor_info$mean / predictor_info$sd)
+        }
+        
+        # Transform continuous predictor: divide by standard deviation
+        estimates[param_name, numeric_cols] <- estimates[param_name, numeric_cols] / predictor_info$sd
       }
     }
   }
