@@ -67,29 +67,6 @@
 #'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
-combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
-                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
-
-  # settings & input  check
-  BayesTools::check_char(transformation, "transformation")
-  BayesTools::check_bool(return_all, "return_all")
-  BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
-  BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(logOR[!is.na(logOR)],   "logOR",  allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(OR[!is.na(OR)],         "OR",     allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(v[!is.na(v)],           "v",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_int( n[!is.na(n)],           "n",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(lCI[!is.na(lCI)],       "lCI",    allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(uCI[!is.na(uCI)],       "uCI",    allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
-
-  dots <- list(...)
-  transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
 
 # Helper function for data preparation
 .prepare_combine_data_frame <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data, original_measure) {
@@ -124,19 +101,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
   return(list(data = data, original_measure = original_measure))
 }
-
-  # forward information about the original measure when re-transformating the data
-  if(inherits(data, "data.RoBMA")){
-    colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
-    original_measure                      <- attr(data, "original_measure")
-  }else{
-    original_measure <- NULL
-  }
-
-  # Data preparation
-  data_prep_result <- .prepare_combine_data_frame(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data, original_measure)
-  data <- data_prep_result$data
-  original_measure <- data_prep_result$original_measure
 
 # Helper function for logical validation
 .validate_combine_data_logic <- function(data, original_measure) {
@@ -189,18 +153,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   return(original_measure)
 }
 
-  ### create holder of the output
-  output <- data.frame(
-    y  = rep(NA, nrow(data)),
-    se = rep(NA, nrow(data)),
-    study_names = rep(NA, nrow(data)),
-    study_ids   = rep(NA, nrow(data)),
-    weight      = rep(NA, nrow(data))
-  )
-
-  # Logical validation and original measure assignment
-  original_measure <- .validate_combine_data_logic(data, original_measure)
-
 # Helper function for data preprocessing
 .preprocess_combine_data <- function(data) {
   # transform variance to standard errors
@@ -224,10 +176,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   return(data)
 }
 
-  # Data preprocessing
-  data <- .preprocess_combine_data(data)
-
-  ### deal with general 'unstandardized' input
 # Helper function for processing unstandardized data
 .process_unstandardized_data <- function(data, transformation, return_all, original_measure, output) {
   if(transformation != "y")
@@ -261,12 +209,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 }
 
-  # Handle unstandardized data
-  if(!anyNA(data[,"y"])){
-    return(.process_unstandardized_data(data, transformation, return_all, original_measure, output))
-  }
-
-
 # Helper function for calculating standard errors from confidence intervals
 .calculate_standard_errors_from_ci <- function(data) {
   ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
@@ -289,15 +231,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
   return(data)
 }
-
-  ### transform OR to logOR
-  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
-  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
-  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
-
-  # Calculate standard errors from confidence intervals
-  data <- .calculate_standard_errors_from_ci(data)
-
 
 # Helper function for calculating sample sizes
 .calculate_sample_sizes <- function(data) {
@@ -357,16 +290,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   return(data)
 }
 
-  # Calculate sample sizes
-  data <- .calculate_sample_sizes(data)
-
-  # Calculate standard errors from sample sizes  
-  data <- .calculate_standard_errors_from_n(data)
-
-  # Calculate test statistics
-  data <- .calculate_test_statistics(data)
-
-  # transform effect sizes and standard errors to the required metric
 # Helper function for effect size transformations
 .transform_effect_sizes <- function(data, transformation) {
   if(transformation == "d"){
@@ -491,13 +414,1099 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 }
 
+
+.combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
+
+  # settings & input  check
+  BayesTools::check_char(transformation, "transformation")
+  BayesTools::check_bool(return_all, "return_all")
+  BayesTools::check_int(x1[!is.na(x1)], "x1", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_int(x2[!is.na(x2)], "x2", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_int(n1[!is.na(n1)], "n1", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_int(n2[!is.na(n2)], "n2", allow_NULL = TRUE, check_length = FALSE, lower = 0)
+  BayesTools::check_char(study_names, "study_names", allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+
+  # check study_names and study_ids
+  if (!(length(study_ids) == 0 ||
+    (length(data) != 0 && length(study_ids) == nrow(data)) ||
+    (length(data) == 0 && length(x1) != 0 && length(study_ids) == length(x1)))) {
+    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+  if (!(length(study_names) == 0 ||
+        (length(data) != 0 && length(study_names) == nrow(data)) ||
+        (length(data) == 0 && length(x1) != 0 && length(study_names) == length(x1)))) {
+    stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+
+  dots <- list(...)
+  transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
+
+  input_variables <- c("x1", "x2", "n1", "n2", "study_names", "study_ids", "weight")
+
+  if(!is.null(data)){
+    if(!is.data.frame(data))
+      stop("Data must be passed as a data.frame.")
+    if(any(!colnames(data) %in% input_variables))
+      stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
+    data <- data[,colnames(data) %in% input_variables]
+  }else{
+    data <- data.frame(do.call(cbind, list(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = weight)))
+  }
+
+  ### add the remaining columns
+  for(var in input_variables){
+    if(!any(colnames(data) == var)){
+      data <- cbind(data, NA)
+      colnames(data)[ncol(data)] <- var
+    }
+  }
+
+  ### into numeric
+  for(var in c("x1", "x2", "n1", "n2", "weight")){
+    data[,var] <- as.numeric(as.character(data[,var]))
+  }
+
+  if(any(!rowSums(!is.na(data[,c("x1", "x2", "n1", "n2")])) == 4))
+    stop("All frequencies must be suplied.")
+
+  if(any(data[,"x1"] > data[,"n1"]) | any(data[,"x2"] > data[,"n2"]))
+    stop("Number of events cannot be larger than the number of observations")
+
+  # add study names if missing
+  if(all(is.na(data[,"study_names"]))){
+    data[,"study_names"] <- paste0("Study ", 1:nrow(data))
+  }
+
+  # remove indicators from independent studies
+  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
+  # assign factor levels
+  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
+
+  # add weights if missing
+  if(all(is.na(data[,"weight"]))){
+    data[,"weight"] <- NA
+  }
+
+
+  if(return_all){
+    # zero cell correction
+    data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] <- data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] + 1
+    data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] <- data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] + 0.5
+    logOR    <- log( (data$x1/(data$n1 - data$x1)) / (data$x2/(data$n2 - data$x2)) )
+    logORse  <- sqrt( 1/data$x1 + 1/data$x2 + 1/(data$n1 - data$x1) + 1/(data$n2 - data$x2) )
+
+    return(combine_data(logOR = logOR, se = logORse, study_names = study_names, study_ids = study_ids, weight = weight,
+                        transformation = .transformation_invar(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]]), estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]], return_all = return_all))
+  }
+
+  attr(data, "effect_measure")   <- "freq"
+  attr(data, "outcome")          <- "freq"
+  attr(data, "all_independent")  <- all(is.na(data[,"study_ids"]))
+  attr(data, "weighted")         <- !all(is.na(data[,"weight"]))
+  class(data) <- c(class(data), "data.BiBMA")
+
+  return(data)
+}
+.combine_data_add_terms <- function(formula, data_predictors, standardize_predictors){
+
+  if(!is.language(formula))
+    stop("The 'formula' is not specidied as a formula.")
+  if(!is.data.frame(data_predictors))
+    stop("'data' must be an object of type data.frame.")
+  BayesTools::check_bool(standardize_predictors, "standardize_predictors")
+
+  if(attr(stats::terms(formula), "response") == 1){
+    formula[2] <- NULL
+  }
+
+  rhs             <- formula[c(1,2)]
+  model_frame     <- stats::model.frame(rhs, data = data_predictors)
+
+  # check that intercept is specified
+  if(attr(attr(model_frame, "terms"),"intercept") == 0)
+    stop("Intercept cannot be ommited from the model (you can set the coefficient to zero via 'priors_effect'). ")
+
+  # change characters into factors
+  for(i in seq_along(attr(attr(model_frame, "terms"), "dataClasses"))){
+    if(attr(attr(model_frame, "terms"), "dataClasses")[[i]] == "character"){
+      model_frame[,names(attr(attr(model_frame, "terms"), "dataClasses"))[i]] <-
+        as.factor(model_frame[,names(attr(attr(model_frame, "terms"), "dataClasses"))[i]])
+      attr(attr(model_frame, "terms"), "dataClasses")[[i]] <- "factor"
+    }
+  }
+
+
+  model_frame     <- as.list(model_frame)
+  if(length(model_frame) == 0){
+    data_predictors <- list()
+  }else{
+    data_predictors <- model_frame[1:length(model_frame)]
+  }
+  attr(data_predictors, "variables")  <- attr(attr(model_frame, "terms"), "term.labels")[attr(attr(model_frame, "terms"), "order") == 1]
+  attr(data_predictors, "terms")      <- attr(attr(model_frame, "terms"), "term.labels")
+  attr(data_predictors, "terms_type") <- attr(attr(model_frame, "terms"), "dataClasses")
+
+
+  # add additional information about the predictors
+  data_predictors_info <- list()
+  to_warn              <- NULL
+  for(i in seq_along(data_predictors)){
+    if(attr(data_predictors, "terms_type")[i] == "numeric"){
+
+      data_predictors_info[[names(data_predictors)[i]]] <- list(
+        type = "continuous",
+        mean = mean(data_predictors[[names(data_predictors)[i]]]),
+        sd   = stats::sd(data_predictors[[names(data_predictors)[i]]])
+      )
+
+      if(standardize_predictors){
+        data_predictors[[names(data_predictors)[i]]] <- .pred_scale(data_predictors[[names(data_predictors)[i]]], data_predictors_info[[names(data_predictors)[i]]])
+      }else if(RoBMA.get_option("check_scaling") && (abs(mean(data_predictors[[names(data_predictors)[i]]])) > 0.01 | abs(1 - stats::sd(data_predictors[[names(data_predictors)[i]]])) > 0.01)){
+        to_warn <- c(to_warn, names(data_predictors)[i])
+      }
+
+    }else if(attr(data_predictors, "terms_type")[i] == "factor"){
+
+      data_predictors_info[[names(data_predictors)[i]]] <- list(
+        type    = "factor",
+        default = levels(data_predictors[[names(data_predictors)[i]]])[1],
+        levels  = levels(data_predictors[[names(data_predictors)[i]]])
+      )
+
+    }
+  }
+  attr(data_predictors, "variables_info") <- data_predictors_info
+
+  # throw warnings and errors
+  if(length(to_warn) > 0){
+    scaling_warning <- paste0("The continuous predictors ", paste0("'", to_warn, "'", collapse = ", "), " are not scaled. Note that extra care need to be taken when specifying prior distributions for unscaled predictors.")
+    warning(scaling_warning, immediate. = TRUE, call. = FALSE)
+    warning("You can suppress this and following warnings via 'RoBMA.options(check_scaling = FALSE)'. To automatically rescale predictors set 'standardize_predictors = TRUE'.", immediate. = TRUE, call. = FALSE)
+    attr(output, "warnings") <- scaling_warning
+  }
+
+  # check for reserved words
+  if(any(attr(data_predictors, "terms") %in% .reserved_words()))
+    stop(paste0("The following variable names are internally reserved keywords and cannot be used: ",
+                paste0(" '", attr(data_predictors, "terms")[attr(data_predictors, "terms") %in% .reserved_words()], "' ", collapse = ", ")))
+
+  return(data_predictors)
+}
+
+.combine_data.reg       <- function(formula, data, standardize_predictors, transformation, study_names, study_ids){
+
+  if(!is.language(formula))
+    stop("The 'formula' is not specidied as a formula.")
+  if(!is.data.frame(data))
+    stop("'data' must be an object of type data.frame.")
+  BayesTools::check_bool(standardize_predictors, "standardize_predictors")
+
+  # dispatch study_names and study_ids
+  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
+    study_ids <- data[[study_ids]]
+  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
+    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+  if (length(study_names) == 1 && study_names %in% colnames(data)){
+    study_names <- data[[study_names]]
+  } else if (!(length(study_names) == nrow(data) || length(study_names) == 0)) {
+    stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+
+  ### deal with the effect sizes
+  data_outcome <- combine_data(
+    d      = if("d"      %in%  colnames(data)) data[,"d"],
+    r      = if("r"      %in%  colnames(data)) data[,"r"],
+    z      = if("z"      %in%  colnames(data)) data[,"z"],
+    logOR  = if("logOR"  %in%  colnames(data)) data[,"logOR"],
+    t      = if("t"      %in%  colnames(data)) data[,"t"],
+    y      = if("y"      %in%  colnames(data)) data[,"y"],
+    se     = if("se"     %in%  colnames(data)) data[,"se"],
+    v      = if("v"      %in%  colnames(data)) data[,"v"],
+    n      = if("n"      %in%  colnames(data)) data[,"n"],
+    lCI    = if("lCI"    %in%  colnames(data)) data[,"lCI"],
+    uCI    = if("uCI"    %in%  colnames(data)) data[,"uCI"],
+    weight = if("weight" %in%  colnames(data)) data[,"weight"],
+    study_names    = study_names,
+    study_ids      = study_ids,
+    transformation = transformation,
+    return_all     = FALSE)
+
+  ### obtain the predictors part
+  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
+  data_predictors <- .combine_data_add_terms(formula, data_predictors, standardize_predictors)
+
+  output <- list(
+    outcome    = data_outcome,
+    predictors = data_predictors
+  )
+
+  return(output)
+}
+.combine_data_bi.reg    <- function(formula, data, standardize_predictors, study_names, study_ids){
+
+  if(!is.language(formula))
+    stop("The 'formula' is not specidied as a formula.")
+  if(!is.data.frame(data))
+    stop("'data' must be an object of type data.frame.")
+  BayesTools::check_bool(standardize_predictors, "standardize_predictors")
+
+  # dispatch study_names and study_ids
+  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
+    study_ids <- data[[study_ids]]
+  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
+    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+  if (length(study_names) == 1 && study_names %in% colnames(data)){
+    study_names <- data[[study_names]]
+  } else if (!(length(study_names) == nrow(data) || length(study_names) == 0)) {
+    stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
+  }
+
+  ### deal with the effect sizes
+  data_outcome <- .combine_data_bi(
+    x1     = if("x1" %in%  colnames(data)) data[,"x1"],
+    x2     = if("x2" %in%  colnames(data)) data[,"x2"],
+    n1     = if("n1" %in%  colnames(data)) data[,"n1"],
+    n2     = if("n2" %in%  colnames(data)) data[,"n2"],
+    weight = if("weight" %in%  colnames(data)) data[,"weight"],
+    study_names    = study_names,
+    study_ids      = study_ids,
+    return_all     = FALSE)
+
+  ### obtain the predictors part
+  data_predictors <- data[,!colnames(data) %in% c("x1", "x2", "n1", "n2", "weight"), drop = FALSE]
+  data_predictors <- .combine_data_add_terms(formula, data_predictors, standardize_predictors)
+
+  output <- list(
+    outcome    = data_outcome,
+    predictors = data_predictors
+  )
+
+  return(output)
+}
+
+.pred_scale   <- function(x, predictor_info){
+  (x - predictor_info[["mean"]]) / predictor_info[["sd"]]
+}
+.pred_unscale <- function(x, predictor_info){
+  x * predictor_info[["sd"]] + predictor_info[["mean"]]
+}
+
+.transform_posterior       <- function(object, current_scale, output_scale){
+
+  for(type in c("posteriors", "posteriors_conditional")){
+
+    if(!is.null(object$RoBMA[[type]][["mu"]])){
+      object$RoBMA[[type]][["mu"]] <- .transform_mu(
+        object$RoBMA[[type]][["mu"]],
+        current_scale,
+        output_scale
+      )
+    }
+
+    if(!is.null(object$RoBMA[[type]][["tau"]])){
+      object$RoBMA[[type]][["tau"]] <- .scale(
+        object$RoBMA[[type]][["tau"]],
+        current_scale,
+        output_scale
+      )
+    }
+
+    if(!is.null(object$RoBMA[[type]][["PEESE"]])){
+      # the transformation for PEESE is inverse
+      object$RoBMA[[type]][["PEESE"]] <- .scale(
+        object$RoBMA[[type]][["PEESE"]],
+        output_scale,
+        current_scale
+      )
+    }
+  }
+
+  for(type in c("posteriors_predictors", "posteriors_predictors_conditional")){
+
+    for(i in seq_along(object$RoBMA[[type]])){
+
+      if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.factor")){
+        for(j in 1:ncol(object$RoBMA[[type]][[i]])){
+          object$RoBMA[[type]][[i]][,j] <- .transform_mu(
+            object$RoBMA[[type]][[i]][,j],
+            current_scale,
+            output_scale
+          )
+        }
+      }else if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.simple")){
+        object$RoBMA[[type]][[i]] <- .transform_mu(
+          object$RoBMA[[type]][[i]],
+          current_scale,
+          output_scale
+        )
+      }
+
+    }
+
+  }
+
+  for(type in c("conditional", "averaged")){
+
+    for(i in seq_along(object$RoBMA$inference_marginal[[type]])){
+
+      for(j in seq_along(object$RoBMA$inference_marginal[[type]][[i]])){
+        object$RoBMA$inference_marginal[[type]][[i]][[j]] <- .transform_mu(
+          object$RoBMA$inference_marginal[[type]][[i]][[j]],
+          current_scale,
+          output_scale
+        )
+        attr(object$RoBMA$inference_marginal[[type]][[i]][[j]], "prior_samples") <- .transform_mu(
+          attr(object$RoBMA$inference_marginal[[type]][[i]][[j]], "prior_samples"),
+          current_scale,
+          output_scale
+        )
+      }
+
+    }
+  }
+
+
+  object$add_info[["output_scale"]] <- output_scale
+
+  return(object)
+}
+.transform_model_posterior <- function(model,  current_scale, output_scale){
+
+  if(length(model[["fit"]]) == 0){
+    return(model)
+  }
+
+  for(chain in seq_along(model[["fit"]][["mcmc"]])){
+    for(par in colnames(model[["fit"]][["mcmc"]][[chain]])){
+
+      if(par == "mu"){
+        model[["fit"]][["mcmc"]][[chain]][,par] <- .transform_mu(
+          model[["fit"]][["mcmc"]][[chain]][,par],
+          current_scale,
+          output_scale
+        )
+      }else if(par == "tau"){
+        model[["fit"]][["mcmc"]][[chain]][[par]] <- .scale(
+          model[["fit"]][["mcmc"]][[chain]][,par],
+          current_scale,
+          output_scale
+        )
+      }else if(par == "PEESE"){
+        # the transformation for PEESE is inverse
+        model[["fit"]][["mcmc"]][[chain]][[par]] <- .scale(
+          model[["fit"]][["mcmc"]][[chain]][,par],
+          output_scale,
+          current_scale
+        )
+      }
+    }
+
+  }
+
+  model[["output_scale"]] <- output_scale
+
+  return(model)
+}
+
+#### effect sizes transformation ####
+# based on Borenstein, M., Hedges, L. V., Higgins, J. P., & Rothstein, H. R. (2011). Introduction to meta-analysis. John Wiley & Sons.
+
+#' @title Effect size transformations
+#'
+#' @description Functions for transforming between different
+#' effect size measures.
+#'
+#' @param d Cohen's d.
+#' @param r correlation coefficient.
+#' @param z Fisher's z.
+#' @param logOR log(odds ratios).
+#' @param OR offs ratios.
+#'
+#' @details All transformations are based on
+#' \insertCite{borenstein2011introduction}{RoBMA}. In case that
+#' a direct transformation is not available, the transformations
+#' are chained to provide the effect size of interest.
+#'
+#' @export d2r
+#' @export d2z
+#' @export d2logOR
+#' @export d2OR
+#' @export r2d
+#' @export r2z
+#' @export r2logOR
+#' @export r2OR
+#' @export z2d
+#' @export z2r
+#' @export z2logOR
+#' @export z2OR
+#' @export logOR2d
+#' @export logOR2r
+#' @export logOR2z
+#' @export logOR2OR
+#' @export OR2d
+#' @export OR2r
+#' @export OR2z
+#' @export OR2logOR
+#'
+#' @name effect_sizes
+#'
+#' @references
+#' \insertAllCited{}
+#' @seealso [standard_errors()], [sample_sizes()]
+NULL
+
+#' @title Standard errors transformations
+#'
+#' @description Functions for transforming between
+#' standard errors of different effect size measures.
+#'
+#' @param se_d standard error of Cohen's d
+#' @param se_r standard error of correlation coefficient
+#' @param se_z standard error of Fisher's z
+#' @param se_logOR standard error of log(odds ratios)
+#' @param d Cohen's d
+#' @param r correlation coefficient
+#' @param z Fisher's z
+#' @param logOR log(odds ratios)
+#'
+#' @details Transformations for Cohen's d, Fisher's z, and log(OR) are
+#' based on \insertCite{borenstein2011introduction}{RoBMA}. Calculations
+#' for correlation coefficient were modified to make the standard error
+#' corresponding to the computed on Fisher's z scale under the same sample
+#' size (in order to make all other transformations consistent). In case that
+#' a direct transformation is not available, the transformations
+#' are chained to provide the effect size of interest.
+#'
+#' It is important to keep in mind that the transformations are only
+#' approximations to the true values. From our experience,
+#' \code{se_d2se_z} works well for values of se(Cohen's d) < 0.5. Do
+#' not forget that the effect sizes are standardized and variance of
+#' Cohen's d = 1. Therefore, a standard error of study cannot be larger
+#' unless the participants provided negative information (of course, the
+#' variance is dependent on the effect size as well, and, can therefore be
+#' larger).
+#'
+#' When setting prior distributions, do NOT attempt to transform a standard
+#' normal distribution on Cohen's d (mean = 0, sd = 1) to a normal
+#' distribution on Fisher's z with mean 0 and sd = \code{se_d2se_z(0, 1)}.
+#' The approximation does NOT work well in this range of values. Instead,
+#' approximate the sd of distribution on Fisher's z using samples in this way:
+#' \code{sd(d2z(rnorm(10000, 0, 1)))} or, specify the distribution on Cohen's d
+#' directly.
+#'
+#'
+#' @export se_d2se_r
+#' @export se_d2se_z
+#' @export se_d2se_logOR
+#' @export se_r2se_d
+#' @export se_r2se_z
+#' @export se_r2se_logOR
+#' @export se_z2se_d
+#' @export se_z2se_r
+#' @export se_z2se_logOR
+#' @export se_logOR2se_d
+#' @export se_logOR2se_r
+#' @export se_logOR2se_z
+#'
+#' @name standard_errors
+#'
+#' @references
+#' \insertAllCited{}
+#' @seealso [effect_sizes()], [sample_sizes()]
+NULL
+
+#' @title Sample sizes to standard errors calculations
+#'
+#' @description Functions for transforming between standard
+#' errors and sample sizes (assuming equal sample sizes per group).
+#'
+#' @param d Cohen's d
+#' @param r correlation coefficient
+#' @param se standard error of the corresponding effect size
+#' @param n sample size of the corresponding effect size
+#'
+#' @details Calculations for Cohen's d, Fisher's z, and log(OR) are
+#' based on \insertCite{borenstein2011introduction}{RoBMA}. Calculations
+#' for correlation coefficient were modified to make the standard error
+#' corresponding to the computed on Fisher's z scale under the same sample
+#' size (in order to make all other transformations consistent). In case that
+#' a direct transformation is not available, the transformations
+#' are chained to provide the effect size of interest.
+#'
+#' Note that sample size and standard error calculation for log(OR)
+#' is not available. The standard error is highly dependent on the
+#' odds within the groups and sample sizes for individual events are
+#' required. Theoretically, the sample size could be obtained by
+#' transforming the effect size and standard error to a different measure
+#' and obtaining the sample size using corresponding function, however,
+#' it leads to a very poor approximation and it is not recommended.
+#'
+#' @export se_d
+#' @export se_r
+#' @export se_z
+#' @export n_d
+#' @export n_r
+#' @export n_z
+#'
+#' @name sample_sizes
+#'
+#' @references
+#' \insertAllCited{}
+#' @seealso [effect_sizes()], [standard_errors()]
+NULL
+
+#' @rdname effect_sizes
+d2r     <- function(d) .d2r$fun(d)
+#' @rdname effect_sizes
+d2z     <- function(d) .d2z$fun(d)
+#' @rdname effect_sizes
+d2logOR <- function(d) .d2logOR$fun(d)
+#' @rdname effect_sizes
+d2OR    <- function(d) .d2OR$fun(d)
+
+#' @rdname effect_sizes
+r2d     <- function(r) .r2d$fun(r)
+#' @rdname effect_sizes
+r2z     <- function(r) .r2z$fun(r)
+#' @rdname effect_sizes
+r2logOR <- function(r) .r2logOR$fun(r)
+#' @rdname effect_sizes
+r2OR    <- function(r) .r2OR$fun(r)
+
+#' @rdname effect_sizes
+z2r     <- function(z) .z2r$fun(z)
+#' @rdname effect_sizes
+z2d     <- function(z) .z2d$fun(z)
+#' @rdname effect_sizes
+z2logOR <- function(z) .z2logOR$fun(z)
+#' @rdname effect_sizes
+z2OR    <- function(z) .z2OR$fun(z)
+
+#' @rdname effect_sizes
+logOR2r     <- function(logOR) .logOR2r$fun(logOR)
+#' @rdname effect_sizes
+logOR2z     <- function(logOR) .logOR2z$fun(logOR)
+#' @rdname effect_sizes
+logOR2d     <- function(logOR) .logOR2d$fun(logOR)
+#' @rdname effect_sizes
+logOR2OR    <- function(logOR) .logOR2OR$fun(logOR)
+
+#' @rdname effect_sizes
+OR2r     <- function(OR) .OR2r$fun(OR)
+#' @rdname effect_sizes
+OR2z     <- function(OR) .OR2z$fun(OR)
+#' @rdname effect_sizes
+OR2logOR <- function(OR) .OR2logOR$fun(OR)
+#' @rdname effect_sizes
+OR2d     <- function(OR) .OR2d$fun(OR)
+
+
+# sample size / standard errors calculations
+#' @rdname sample_sizes
+se_d     <- function(d, n) sqrt(4/n + d^2/(2*n))
+#' @rdname sample_sizes
+n_d      <- function(d, se) (d^2 + 8) / (2 * se^2)
+#' @rdname sample_sizes
+se_r     <- function(r, n){
+  # sqrt((1-r^2)^2/(n-1)) : according to the Borenstein, however, it is not consistent with the remaining transformations
+  d    <- r2d(r)
+  se_d <- se_d(d, n)
+  se_d2se_r(se_d, d)
+}
+#' @rdname sample_sizes
+n_r      <- function(r, se){
+  # (r^4 - 2*r^2 + se^2 + 1)/se^2 : according to the Borenstein, however, it is not consistent with the remaining
+  d    <- r2d(r)
+  se_d <- se_r2se_d(se, r)
+  n_d(d, se_d)
+}
+#' @rdname sample_sizes
+se_z     <- function(n) sqrt(1/(n-3))
+#' @rdname sample_sizes
+n_z      <- function(se) (3*se^2 + 1)/se^2
+
+# sample size / standard errors calculations based on chaining the transformations among the remaining effect sizes (introduces more error due to multiple approximations and missing detailed information - terrible, don't use)
+# se_logOR <- function(logOR, n){
+#   d    <- logOR2d(logOR)
+#   se_d <- se_d(d, n)
+#   se_d2se_logOR(se_d)
+# }
+# n_logOR  <- function(logOR, se){
+#   (3*logOR^2 + 8*pi^2)/(6*se^2) # backsolved by WolframAlpha
+# }
+
+# transformation between standard errors of effect sizes
+#' @rdname standard_errors
+se_d2se_logOR <- function(se_d, logOR) sqrt(se_d^2 * pi^2 / 3)
+#' @rdname standard_errors
+se_d2se_r     <- function(se_d, d) sqrt((4^2*se_d^2)/(d^2+4)^3)
+#' @rdname standard_errors
+se_r2se_d     <- function(se_r, r) sqrt((4*se_r^2)/(1-r^2)^3)
+#' @rdname standard_errors
+se_logOR2se_d <- function(se_logOR, logOR) sqrt(se_logOR^2 * 3 / pi^2)
+
+# compound transformations
+#' @rdname standard_errors
+se_d2se_z     <- function(se_d, d){
+  n <- n_d(d, se_d)
+  se_z(n)
+}
+#' @rdname standard_errors
+se_r2se_z     <- function(se_r, r){
+  n <- n_r(r, se_r)
+  se_z(n)
+}
+#' @rdname standard_errors
+se_r2se_logOR <- function(se_r, r){
+  se_d <- se_r2se_d(se_r, r)
+  se_d2se_logOR(se_d)
+}
+#' @rdname standard_errors
+se_logOR2se_r <- function(se_logOR, logOR){
+  se_d <- se_logOR2se_d(se_logOR)
+  d    <- logOR2d(logOR)
+  se_d2se_r(se_d, d)
+}
+#' @rdname standard_errors
+se_logOR2se_z <- function(se_logOR, logOR){
+  se_d <- se_logOR2se_d(se_logOR)
+  d    <- logOR2d(logOR)
+  se_d2se_z(se_d, d)
+}
+#' @rdname standard_errors
+se_z2se_d     <- function(se_z, z){
+  n <- n_z(se_z)
+  d <- z2d(z)
+  se_d(d, n)
+}
+#' @rdname standard_errors
+se_z2se_r     <- function(se_z, z){
+  r <- z2r(z)
+  n <- n_z(se_z)
+  se_r(r, n)
+}
+#' @rdname standard_errors
+se_z2se_logOR <- function(se_z, z){
+  se_d <- se_z2se_d(se_z, z)
+  se_d2se_logOR(se_d)
+}
+
+
+# sample size based on effect sizes and test statistics
+.n_rt <- function(r, t){
+  (r^2 * -(t^2) + 2 * r^2 + t^2 ) / r^2
+}
+.n_dt <- function(d, t){
+  4*t^2/d^2
+}
+.n_zt <- function(z, t){
+  n_z(z/t)
+}
+# test statistics based on effect sizes and sample sizes
+.t_rn <- function(r, n){
+  r * sqrt((n - 2)/(1 - r^2))
+}
+.t_dn <- function(d, n){
+  d * sqrt(n)/2
+}
+.t_zn <- function(z, n){
+  z/se_z(n)
+}
+# effect sizes based on test statistics and sample sizes
+.r_tn <- function(t, n){
+  t / sqrt(n + t^2 - 2)
+}
+.d_tn <- function(t, n){
+  2 * t / sqrt(n)
+}
+.z_tn <- function(t, n){
+  t * se_z(n)
+}
+# cutoffs based on effect sizes, standard errors, and t-statistics
+# 'c_z' and 'c_logOR' do not require the effect sizes - keeping them for consistency when creating calls to the functions automatically
+.c_r     <- function(r, se, t){
+  .r_tn(t, n_r(r, se))
+}
+.c_d     <- function(d, se, t){
+  .d_tn(t, n_d(d, se))
+}
+.c_z     <- function(z, se, t){
+  t * se
+}
+.c_logOR <- function(logOR, se, t){
+  t * se
+}
+
+.get_cutoffs <- function(y, se, prior, original_measure, effect_measure){
+
+  crit_y <- matrix(ncol = length(prior$parameters$steps), nrow = length(y))
+
+  if(effect_measure == "y"){
+
+    crit_t <- matrix(ncol = 0, nrow = length(y))
+
+    for(step in prior$parameters$steps){
+      if(prior$distribution == "one.sided"){
+        crit_t <- cbind(crit_t, stats::qnorm(step,   lower.tail = FALSE))
+      }else if(prior$distribution == "two.sided"){
+        crit_t <- cbind(crit_t, stats::qnorm(step/2, lower.tail = FALSE))
+      }
+    }
+
+    crit_y <- crit_t * matrix(se, ncol = ncol(crit_t), nrow = nrow(crit_t))
+
+  }else{
+
+    for(i in 1:length(y)){
+
+      backtransformed_y    <- do.call(
+        .get_transformation(effect_measure, original_measure[i]),
+        args = list(y[i]))
+
+      backtransformed_y_se <- do.call(
+        .get_transformation_se(effect_measure, original_measure[i]),
+        args = list(se[i], y[i]))
+
+      backtransformed_df   <- switch(
+        original_measure[i],
+        "d"     = n_d(backtransformed_y, backtransformed_y_se) - 2,
+        "r"     = n_r(backtransformed_y, backtransformed_y_se) - 2,
+        "z"     = n_z(backtransformed_y_se) - 2,
+        "logOR" = Inf
+      )
+
+      if(grepl("one.sided", prior[["distribution"]])){
+        backtransformed_t    <- stats::qt(prior$parameters[["steps"]],   backtransformed_df, lower.tail = FALSE)
+      }else if(grepl("two.sided", prior[["distribution"]])){
+        backtransformed_t    <- stats::qt(prior$parameters[["steps"]]/2, backtransformed_df, lower.tail = FALSE)
+      }
+
+      backtransformed_c    <- do.call(
+        eval(parse(text = paste0(".c_", original_measure[i]))),
+        args = list(backtransformed_y, backtransformed_y_se, backtransformed_t))
+
+      # transform back the backtransformed measures
+      crit_y[i,] <- do.call(
+        .get_transformation(original_measure[i], effect_measure),
+        args = list(backtransformed_c))
+    }
+  }
+
+  return(crit_y)
+}
+
+
+.transformation_var    <- function(name, estimation = TRUE){
+
+  if(estimation && !name %in% c("fishers_z", "cohens_d", "r", "logOR", "none"))
+    stop("Unknown effect size / transformation. The available options are 'fishers_z', 'cohens_d', 'r', 'logOR', and 'none'.")
+  else if(!name %in% c("fishers_z", "cohens_d", "r", "logOR", "none", "OR"))
+    stop("Unknown effect size / transformation. The available options are 'fishers_z', 'cohens_d', 'r', 'logOR', 'OR', and 'none'.")
+
+  return(switch(
+    name,
+    "fishers_z" = "z",
+    "cohens_d"  = "d",
+    "r"         = "r",
+    "logOR"     = "logOR",
+    "OR"        = "OR",
+    "none"      = "y"
+  ))
+}
+.transformation_invar  <- function(name, estimation = TRUE){
+
+  if(estimation && !name %in% c("z", "d", "r", "logOR", "y"))
+    stop("Unknown effect size / transformation shortcut. The available options are 'z', 'd', 'r', 'logOR', and 'y'.")
+  else if(!name %in% c("z", "d", "r", "logOR", "OR", "y"))
+    stop("Unknown effect size / transformation shortcut. The available options are 'z', 'd', 'r', 'logOR', 'OR', and 'y'.")
+
+  return(switch(
+    name,
+    "z"     = "fishers_z",
+    "d"     = "cohens_d",
+    "r"     = "r",
+    "logOR" = "logOR",
+    "OR"    = "OR",
+    "y"     = "none"
+  ))
+}
+.transformation_names  <- function(var, estimation = TRUE){
+
+  if(estimation && !var %in% c("z", "d", "r", "logOR", "y"))
+    stop("Unknown variable type. The available options are 'z', 'd', 'r', 'logOR', and 'y'.")
+  else if(!var %in% c("z", "d", "r", "logOR", "OR", "y"))
+    stop("Unknown variable type. The available options are 'z', 'd', 'r', 'logOR', 'OR', and 'y'.")
+
+  return(switch(
+    var,
+    "z"       = "Fisher's z",
+    "d"       = "Cohen's d",
+    "r"       = "correlation",
+    "logOR"   = "log(OR)",
+    "OR"      = "OR",
+    "y"       = "none"
+  ))
+}
+
+.get_transformation    <- function(from, to){
+  if(any(c(from, to) == "y"))
+    stop("Prior / effect size transformations are not available for unstandardized effect sizes.")
+  if(from == to){
+    return(function(x) x)
+  }else{
+    return(eval(parse(text = paste0(from, "2", to))))
+  }
+}
+.get_transformation_se <- function(from, to){
+  if(any(c(from, to) == "y"))
+    stop("Prior / effect size transformations are not available for unstandardized effect sizes.")
+  if(from == to){
+    return(function(se_x, x)se_x)
+  }else{
+    return(eval(parse(text = paste0("se_", from, "2", "se_", to))))
+  }
+}
+
+# approximate linear transformations used for prior distribution - as in metaBMA package
+scale_d2r     <- function(d) .scale_d2r$fun(d)
+scale_d2z     <- function(d) .scale_d2z$fun(d)
+scale_d2logOR <- function(d) .scale_d2logOR$fun(d)
+scale_d2OR    <- function(d) .scale_d2OR$fun(d)
+
+scale_r2d     <- function(r) .scale_r2d$fun(r)
+scale_r2z     <- function(r) .scale_r2z$fun(r)
+scale_r2logOR <- function(r) .scale_r2logOR$fun(r)
+scale_r2OR    <- function(r) .scale_r2OR$fun(r)
+
+scale_z2r     <- function(z) .scale_z2r$fun(z)
+scale_z2d     <- function(z) .scale_z2d$fun(z)
+scale_z2logOR <- function(z) .scale_z2logOR$fun(z)
+scale_z2OR    <- function(z) .scale_z2OR$fun(z)
+
+scale_logOR2r     <- function(logOR) .scale_logOR2r$fun(logOR)
+scale_logOR2z     <- function(logOR) .scale_logOR2z$fun(logOR)
+scale_logOR2d     <- function(logOR) .scale_logOR2d$fun(logOR)
+scale_logOR2OR    <- function(logOR) .scale_logOR2OR$fun(logOR)
+
+scale_OR2r     <- function(OR) .scale_OR2r$fun(OR)
+scale_OR2z     <- function(OR) .scale_OR2z$fun(OR)
+scale_OR2d     <- function(OR) .scale_OR2d$fun(OR)
+scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
+
+
+.get_scale  <- function(from, to, fun = TRUE){
+
+  # choose between the raw transformation function or the transformation list (for BayesTools)
+  if(fun){
+    prefix <- ""
+  }else{
+    prefix <- "."
+  }
+
+  # don't transform scale to either OR or r
+  if(to == "OR"){
+    to <- "logOR"
+  }
+  if(to == "r"){
+    to <- "z"
+  }
+
+  if(from == to){
+    if(fun){
+      return(function(x) x)
+    }else{
+      return(NULL)
+    }
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    return(eval(parse(text = paste0(prefix, "scale_", from, "2", to))))
+  }
+}
+.scale      <- function(x, from, to){
+
+  # don't transform scale to either OR or r
+  if(to == "OR"){
+    to <- "logOR"
+  }
+  if(to == "r"){
+    to <- "z"
+  }
+
+  if(from == to){
+    return(x)
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    do.call(
+      .get_scale(from, to),
+      args = list(x))
+  }
+}
+.scale_note <- function(prior_scale, output_scale, marginal = FALSE){
+  if(!marginal && output_scale == "OR"){
+    return(sprintf(
+      "The effect size estimates are summarized on the %1$s scale and heterogeneity is summarized on the logOR scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
+  }else if(!marginal && output_scale == "r"){
+    return(sprintf(
+      "The effect size estimates are summarized on the %1$s scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
+  }else{
+    return(sprintf(
+      "The estimates are summarized on the %1$s scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
+  }
+}
+
+.get_transform_mu <- function(from, to, fun = TRUE){
+
+  # choose between the raw transformation function or the transformation list (for BayesTools)
+  if(fun){
+    prefix <- ""
+  }else{
+    prefix <- "."
+  }
+
+  if(from == to){
+    if(fun){
+      return(function(x) x)
+    }else{
+      return(NULL)
+    }
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    return(eval(parse(text = paste0(prefix, from, "2", to))))
+  }
+}
+.transform_mu     <- function(mu, from, to){
+  if(from == to){
+    return(mu)
+  }else if(any(c(from, to) %in% c("y"))){
+    stop("Prior rescaling is not available for unstandardized effect sizes.")
+  }else{
+    return(do.call(
+      .get_transform_mu(from, to),
+      args = list(mu)))
+  }
+}
+# tau and PEESE coefficients are only re-scaled as in metaBMA
+# .transform_tau   <- function(tau, mu, from, to){
+#   if(all(c(from, to) %in% c("d", "logOR"))){
+#     return(do.call(
+#       .get_transformation_se(from, to),
+#       args = list(tau)))
+#   }else{
+#     return(do.call(
+#       .get_transformation_se(from, to),
+#       args = list(tau, if(!is.null(mu)) mu else 0)))
+#   }
+# }
+# .transform_PEESE <- function(PEESE, mu, from, to){
+#   do.call(
+#     .get_transformation_PEESE(from, to),
+#     args = list(PEESE, if(!is.null(mu)) mu else 0))
+# }
+
+
+
+
+#### helper functions ####
+# helper functions
+.row_NA <- function(data){
+  if(!is.data.frame(data))
+    stop("data must be a data.frame")
+  apply(data, 1, anyNA)
+}
+combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
+                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
+
+  # settings & input  check
+  BayesTools::check_char(transformation, "transformation")
+  BayesTools::check_bool(return_all, "return_all")
+  BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
+  BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)],   "logOR",  allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(OR[!is.na(OR)],         "OR",     allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(v[!is.na(v)],           "v",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_int( n[!is.na(n)],           "n",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(lCI[!is.na(lCI)],       "lCI",    allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(uCI[!is.na(uCI)],       "uCI",    allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
+
+  dots <- list(...)
+  transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
+
+  # forward information about the original measure when re-transformating the data
+  if(inherits(data, "data.RoBMA")){
+    colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
+    original_measure                      <- attr(data, "original_measure")
+  }else{
+    original_measure <- NULL
+  }
+
+  # Data preparation
+  data_prep_result <- .prepare_combine_data_frame(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data, original_measure)
+  data <- data_prep_result$data
+  original_measure <- data_prep_result$original_measure
+
+  ### create holder of the output
+  output <- data.frame(
+    y  = rep(NA, nrow(data)),
+    se = rep(NA, nrow(data)),
+    study_names = rep(NA, nrow(data)),
+    study_ids   = rep(NA, nrow(data)),
+    weight      = rep(NA, nrow(data))
+  )
+
+  # Logical validation and original measure assignment
+  original_measure <- .validate_combine_data_logic(data, original_measure)
+
+  # Data preprocessing
+  data <- .preprocess_combine_data(data)
+
+  ### deal with general 'unstandardized' input
+  # Handle unstandardized data
+  if(!anyNA(data[,"y"])){
+    return(.process_unstandardized_data(data, transformation, return_all, original_measure, output))
+  }
+
+  ### transform OR to logOR
+  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
+  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
+  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
+
+  # Calculate standard errors from confidence intervals
+  data <- .calculate_standard_errors_from_ci(data)
+
+  # Calculate sample sizes from effect sizes and standard errors/t-statistics
+  data <- .calculate_sample_sizes(data)
+
+  # Calculate standard errors from sample sizes
+  data <- .calculate_standard_errors_from_n(data)
+
+  # Calculate test statistics
+  data <- .calculate_test_statistics(data)
+
   # Transform effect sizes to the required metric
   data <- .transform_effect_sizes(data, transformation)
 
   # Build and return final output
   return(.build_combine_data_output(data, transformation, return_all, original_measure, output))
 }
-
 .combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
 
   # settings & input  check
