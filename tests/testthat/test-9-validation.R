@@ -63,6 +63,24 @@ test_that("Validate normal model with metafor", {
   expect_equal(sum.RoBMA.reg.re["alloc[systematic]","Mean"], fit.metafor.rereg$b[[3]], tolerance = 2.1e-2)
   expect_equal(sum.RoBMA.reg.re["year","Mean"],              fit.metafor.rereg$b[[4]], tolerance = 2e-2)
 
+  # Test standardized_coefficients = FALSE for raw coefficients
+  fit.metafor.fereg2 <- rma(yi, vi, mods = ~ factor(alloc) + year, data = dat, method = "REML")
+  
+  sum.RoBMA.reg.fe.raw <- summary(fit.RoBMA.reg.fe, standardized_coefficients = FALSE)$estimates_predictors
+  sum.RoBMA.reg.re.raw <- summary(fit.RoBMA.reg.re, standardized_coefficients = FALSE)$estimates_predictors
+  
+  # For raw coefficients, only the continuous predictor (year) should be transformed
+  # Factor predictors (alloc) and intercept should be similar to standardized version for factors
+  expect_equal(sum.RoBMA.reg.fe.raw["intercept","Mean"],         fit.metafor.fereg2$b[[1]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg.fe.raw["alloc[random]","Mean"],     fit.metafor.fereg2$b[[2]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg.fe.raw["alloc[systematic]","Mean"], fit.metafor.fereg2$b[[3]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg.fe.raw["year","Mean"],              fit.metafor.fereg2$b[[4]], tolerance = 1e-2)
+  
+  expect_equal(sum.RoBMA.reg.re.raw["intercept","Mean"],         fit.metafor.fereg2$b[[1]], tolerance = 2e-2)
+  expect_equal(sum.RoBMA.reg.re.raw["alloc[random]","Mean"],     fit.metafor.fereg2$b[[2]], tolerance = 2e-2)
+  expect_equal(sum.RoBMA.reg.re.raw["alloc[systematic]","Mean"], fit.metafor.fereg2$b[[3]], tolerance = 2.1e-2)
+  expect_equal(sum.RoBMA.reg.re.raw["year","Mean"],              fit.metafor.fereg2$b[[4]], tolerance = 2e-2)
+
 })
 
 test_that("Validate binomial model with metafor", {

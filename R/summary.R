@@ -16,46 +16,7 @@ print.RoBMA <- function(x, ...){
 }
 
 
-.unstandardize_coefficients <- function(estimates, object) {
-  # Only apply transformation if we have predictor data and the object was fitted with standardized predictors
-  if (!is.RoBMA.reg(object) || is.null(object$data$predictors) || 
-      is.null(attr(object$data$predictors, "variables_info"))) {
-    return(estimates)
-  }
-  
-  # Get predictor information
-  variables_info <- attr(object$data$predictors, "variables_info")
-  
-  # Get intercept parameter name
-  intercept_param <- .BayesTools_parameter_name("intercept")
-  
-  # Apply transformation for continuous predictors and intercept
-  for (predictor_name in names(variables_info)) {
-    if (variables_info[[predictor_name]]$type == "continuous") {
-      # Get the correct parameter name
-      param_name <- .BayesTools_parameter_name(predictor_name)
-      
-      # Apply transformation if parameter found
-      if (param_name %in% rownames(estimates)) {
-        predictor_info <- variables_info[[predictor_name]]
-        
-        # Apply transformation to the coefficient columns (mean, median, and quantiles)
-        numeric_cols <- sapply(estimates, is.numeric)
-        
-        # Transform intercept: subtract mean-centered effect
-        if (intercept_param %in% rownames(estimates)) {
-          estimates[intercept_param, numeric_cols] <- estimates[intercept_param, numeric_cols] -
-            estimates[param_name, "Mean"] * (predictor_info$mean / predictor_info$sd)
-        }
-        
-        # Transform continuous predictor: divide by standard deviation
-        estimates[param_name, numeric_cols] <- estimates[param_name, numeric_cols] / predictor_info$sd
-      }
-    }
-  }
-  
-  return(estimates)
-}
+
 
 
 #' @title Summarize fitted RoBMA object
@@ -238,21 +199,23 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       }
 
       if(!is.null(object$RoBMA[["posteriors_predictors"]])){
+        # Transform samples if raw coefficients are requested
+        samples_predictors <- if (!standardized_coefficients) {
+          .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors"]], object)
+        } else {
+          object$RoBMA[["posteriors_predictors"]]
+        }
+        
         # obtain estimates tables
         output$estimates_predictors <- BayesTools::ensemble_estimates_table(
-          samples        = object$RoBMA[["posteriors_predictors"]],
-          parameters     = names(object$RoBMA[["posteriors_predictors"]]),
+          samples        = samples_predictors,
+          parameters     = names(samples_predictors),
           probs          = probs,
           title          = "Model-averaged meta-regression estimates:",
           formula_prefix = FALSE,
           footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
           warnings       = .collect_errors_and_warnings(object)
         )
-        
-        # Apply transformation if raw coefficients are requested
-        if (!standardized_coefficients) {
-          output$estimates_predictors <- .unstandardize_coefficients(output$estimates_predictors, object)
-        }
       }
 
 
@@ -268,20 +231,22 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
           attr(estimates_predictors_conditional, "footnotes") <- .scale_note(object$add_info[["prior_scale"]], output_scale)
           attr(estimates_predictors_conditional, "warnings")  <- .collect_errors_and_warnings(object)
         }else{
+          # Transform samples if raw coefficients are requested
+          samples_predictors_conditional <- if (!standardized_coefficients) {
+            .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors_conditional"]], object)
+          } else {
+            object$RoBMA[["posteriors_predictors_conditional"]]
+          }
+          
           estimates_predictors_conditional <- BayesTools::ensemble_estimates_table(
-            samples    = object$RoBMA[["posteriors_predictors_conditional"]],
-            parameters = names(object$RoBMA[["posteriors_predictors_conditional"]]),
+            samples    = samples_predictors_conditional,
+            parameters = names(samples_predictors_conditional),
             probs      = probs,
             title      = "Conditional meta-regression estimates:",
             formula_prefix = FALSE,
             footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
             warnings   = .collect_errors_and_warnings(object)
           )
-          
-          # Apply transformation if raw coefficients are requested
-          if (!standardized_coefficients) {
-            estimates_predictors_conditional <- .unstandardize_coefficients(estimates_predictors_conditional, object)
-          }
         }
         output$estimates_predictors_conditional <- estimates_predictors_conditional
       }
@@ -507,21 +472,23 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       }
 
       if(!is.null(object$RoBMA[["posteriors_predictors"]])){
+        # Transform samples if raw coefficients are requested
+        samples_predictors <- if (!standardized_coefficients) {
+          .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors"]], object)
+        } else {
+          object$RoBMA[["posteriors_predictors"]]
+        }
+        
         # obtain estimates tables
         output$estimates_predictors <- BayesTools::ensemble_estimates_table(
-          samples        = object$RoBMA[["posteriors_predictors"]],
-          parameters     = names(object$RoBMA[["posteriors_predictors"]]),
+          samples        = samples_predictors,
+          parameters     = names(samples_predictors),
           probs          = probs,
           title          = "Model-averaged meta-regression estimates:",
           formula_prefix = FALSE,
           footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
           warnings       = .collect_errors_and_warnings(object)
         )
-        
-        # Apply transformation if raw coefficients are requested
-        if (!standardized_coefficients) {
-          output$estimates_predictors <- .unstandardize_coefficients(output$estimates_predictors, object)
-        }
       }
 
       # deal with possibly empty table in case of no alternative models
@@ -536,20 +503,22 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
           attr(estimates_predictors_conditional, "footnotes") <- .scale_note(object$add_info[["prior_scale"]], output_scale)
           attr(estimates_predictors_conditional, "warnings")  <- .collect_errors_and_warnings(object)
         }else{
+          # Transform samples if raw coefficients are requested
+          samples_predictors_conditional <- if (!standardized_coefficients) {
+            .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors_conditional"]], object)
+          } else {
+            object$RoBMA[["posteriors_predictors_conditional"]]
+          }
+          
           estimates_predictors_conditional <- BayesTools::ensemble_estimates_table(
-            samples    = object$RoBMA[["posteriors_predictors_conditional"]],
-            parameters = names(object$RoBMA[["posteriors_predictors_conditional"]]),
+            samples    = samples_predictors_conditional,
+            parameters = names(samples_predictors_conditional),
             probs      = probs,
             title      = "Conditional meta-regression estimates:",
             formula_prefix = FALSE,
             footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
             warnings   = .collect_errors_and_warnings(object)
           )
-          
-          # Apply transformation if raw coefficients are requested
-          if (!standardized_coefficients) {
-            estimates_predictors_conditional <- .unstandardize_coefficients(estimates_predictors_conditional, object)
-          }
         }
         output$estimates_predictors_conditional <- estimates_predictors_conditional
       }
