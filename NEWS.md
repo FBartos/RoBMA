@@ -1,3 +1,11 @@
+## version 3.5.1
+### Features
+
+### Fixes
+
+### Changes
+- improving the speed of unit tests
+
 ## version 3.5
 ### Features
 - approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `study_ids` argument when using `algorithm = "ss"`

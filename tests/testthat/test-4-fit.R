@@ -47,7 +47,9 @@ d_se <- se_d(d, n)
 
 test_that("Default model (RoBMA-PSMA) works", {
 
-  fit1 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE))
+  fit1 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1, parallel = TRUE,
+                             sample = 1000, burnin = 250, adapt = 250, chains = 2, autofit = FALSE,
+                             convergence_checks = set_convergence_checks(max_Rhat = 1.25, min_ESS = 100, max_error = 1, max_SD_error = 1)))
   fit1 <- remove_time(fit1)
   expect_true(is.RoBMA(fit1))
   saveRDS(fit1, file = file.path(temp_fits_dir, "fit_1.RDS"), compress = "xz")
