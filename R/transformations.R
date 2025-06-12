@@ -70,357 +70,35 @@
 combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
                           study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
 
-  # settings & input  check
-  BayesTools::check_char(transformation, "transformation")
-  BayesTools::check_bool(return_all, "return_all")
-  BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
-  BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(logOR[!is.na(logOR)],   "logOR",  allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(OR[!is.na(OR)],         "OR",     allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(v[!is.na(v)],           "v",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_int( n[!is.na(n)],           "n",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(lCI[!is.na(lCI)],       "lCI",    allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(uCI[!is.na(uCI)],       "uCI",    allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
-
+  # Validate inputs and setup transformation
   dots <- list(...)
-  transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
+  transformation <- .combine_data_validate_inputs(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, weight, study_names, transformation, return_all, dots)
 
-  # forward information about the original measure when re-transformating the data
-  if(inherits(data, "data.RoBMA")){
-    colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
-    original_measure                      <- attr(data, "original_measure")
-  }else{
-    original_measure <- NULL
-  }
+  # Prepare data frame
+  data_info <- .combine_data_prepare_data(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data)
+  data <- data_info$data
+  original_measure <- data_info$original_measure
 
-  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
+  # Validate data and prepare output structure
+  setup_info <- .combine_data_validate_and_setup(data, original_measure)
+  output <- setup_info$output
+  data <- setup_info$data
+  original_measure <- setup_info$original_measure
 
-  if(!is.null(data)){
-    if(!is.data.frame(data))
-      stop("Data must be passed as a data.frame.")
-    if(any(!colnames(data) %in% input_variables))
-      stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
-    data <- data[,colnames(data) %in% input_variables]
-  }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
-  }
-
-  if(is.null(original_measure)){
-    original_measure <- rep(NA, nrow(data))
-  }
-
-  ### add the remaining columns
-  for(var in input_variables){
-    if(!any(colnames(data) == var)){
-      data <- cbind(data, NA)
-      colnames(data)[ncol(data)] <- var
-    }
-  }
-
-  ### into numeric
-  for(var in c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight")){
-    data[,var] <- as.numeric(as.character(data[,var]))
-  }
-
-  ### create holder of the output
-  output <- data.frame(
-    y  = rep(NA, nrow(data)),
-    se = rep(NA, nrow(data)),
-    study_names = rep(NA, nrow(data)),
-    study_ids   = rep(NA, nrow(data)),
-    weight      = rep(NA, nrow(data))
-  )
-
-  ### check for sufficient input
-  if(all(is.na(data[, c("d", "r", "z", "logOR", "OR", "y")])))
-    stop("The data do not contain any effect size measure.")
-  if(all(is.na(data[, c("se", "v", "n", "lCI", "uCI", "t")])))
-    stop("The data do not contain any variability measure.")
-
-  # logical check for confidence intervals
-  if(nrow(stats::na.omit(data[,c("lCI", "uCI")]) > 0)){
-    if(any(stats::na.omit(data[,"lCI"]) > stats::na.omit(data[,"uCI"])))
-      stop("'lCI' must be lower than 'uCI'.")
-    for(var in c("d", "r", "z", "logOR", "OR", "y")){
-      if(any(!is.na(data[,var]))){
-        if((any(data[!is.na(data[,var]) & !is.na(data[,"lCI"]),var] < data[!is.na(data[,var]) & !is.na(data[,"lCI"]),"lCI"]) | any(data[!is.na(data[,var]) & !is.na(data[,"uCI"]),var] > data[!is.na(data[,var]) & !is.na(data[,"uCI"]),"uCI"])))
-          stop("All effect sizes must be within the CI intervals.")
-      }
-    }
-  }
-
-  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) > 1))
-    stop("Only one effect size measure per study can be supplied.")
-
-  if(any(rowSums(!is.na(data[,c("se", "v", "n", "t", "lCI")])) > 1))
-    stop("Only one variability measure per study can be supplied.")
-
-  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) != 1))
-    stop("At least one effect size measure per study must be supplied.")
-
-  if(any(!rowSums(!is.na(data[,c("lCI", "uCI")])) %in% c(0,2)))
-    stop("Either none or both CI bounds must be supplied.")
-
-  if(any(rowSums(!is.na(data[,c("t", "se", "v", "n", "lCI")])) < 1))
-    stop("At least one variability measure per study must be supplied.")
-
-
-  ### store the original effect size measure
-  original_measure[!is.na(data[,"d"])]     <- "d"
-  original_measure[!is.na(data[,"r"])]     <- "r"
-  original_measure[!is.na(data[,"z"])]     <- "z"
-  original_measure[!is.na(data[,"logOR"])] <- "logOR"
-  original_measure[!is.na(data[,"OR"])]    <- "OR"
-  original_measure[!is.na(data[,"y"])]     <- "none"
-
-  if(anyNA(original_measure))
-    stop("At least one effect size measure per study must be supplied.")
-  if(!(sum(original_measure == "none") == 0 | sum(original_measure == "none") == nrow(data)))
-    stop("Standardized and general effect sizes cannot be combined.")
-
-  # transform variance to standard errors
-  data[is.na(data[,"se"]),"se"] <- sqrt(data[is.na(data[,"se"]),"v"])
-
-  # add study names if missing
-  if(all(is.na(data[,"study_names"]))){
-    data[,"study_names"] <- paste0("Study ", 1:nrow(data))
-  }
-
-  # remove indicators from independent studies
-  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
-  # assign factor levels
-  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
-
-  # add weights if missing
-  if(all(is.na(data[,"weight"]))){
-    data[,"weight"] <- NA
-  }
-
-  ### deal with general 'unstandardized' input
-  if(!anyNA(data[,"y"])){
-
-    if(transformation != "y")
-      stop("Effect sizes cannot be transformed in a presence of unstandardized measure ('y').")
-
-    data[is.na(data[,"se"]),"se"] <- (data[is.na(data[,"se"]),"uCI"] - data[is.na(data[,"se"]),"lCI"]) / (2*stats::qnorm(.975))
-
-    ### t-statistics from effect sizes and standard errors
-    data[is.na(data[,"t"]),"t"] <- data[is.na(data[,"t"]),"y"] / data[is.na(data[,"t"]),"se"]
-
-    ### add missing standard errors
-    data[is.na(data[,"se"]),"se"] <- data[is.na(data[,"se"]),"y"] / data[is.na(data[,"se"]),"t"]
-
-    if(return_all){
-      data[,"lCI"] <- data[,"y"] + stats::qnorm(0.025) * data[,"se"]
-      data[,"uCI"] <- data[,"y"] + stats::qnorm(0.975) * data[,"se"]
-      return(data)
-    }else{
-      output$y  <- data[,"y"]
-      output$se <- data[,"se"]
-      output$study_names <- data[,"study_names"]
-      output$study_ids   <- data[,"study_ids"]
-      output$weight      <- data[,"weight"]
-      attr(output, "effect_measure")   <- transformation
-      attr(output, "original_measure") <- original_measure
-      attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
-      attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
-      class(output) <- c(class(output), "data.RoBMA")
-
-      return(output)
-    }
+  # Handle unstandardized effect sizes
+  if(!anyNA(data[,"y"])) {
+    return(.combine_data_handle_unstandardized(data, transformation, return_all, original_measure))
   }
 
 
-  ### transform OR to logOR
-  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
-  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
-  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
+  # Transform OR to logOR and perform calculations
+  data <- .combine_data_calculations(data)
 
-  ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "se"] <- se_z2se_d(
-    ( d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"uCI"]) -
-        d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
-    d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "d"])
-  )
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "se"] <- se_z2se_r(
-    ( r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"uCI"]) -
-        r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
-    r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "r"])
-  )
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]), "se"] <-
-    (data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"uCI"] -
-       data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]), "se"] <-
-    (data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"uCI"] -
-       data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
+  # Transform effect sizes and standard errors
+  data <- .combine_data_transform(data, transformation)
 
-
-  ### calculate sample sizes
-  # based on effect sizes and standard errors
-  data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"n"] <- n_d(
-    data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"d"], data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"se"])
-  data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "se")]),"n"] <- n_z(
-    data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "se")]),"se"])
-  data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "se")]),"n"] <- n_r(
-    data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "se")]),"r"], data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "se")]),"se"])
-
-  # based on effect sizes and t-statistics
-  data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "t")]),"n"] <- .n_dt(
-    data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "t")]),"d"], data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "t")]),"t"])
-  data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "t")]),"n"] <- .n_zt(
-    data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "t")]),"z"], data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "t")]),"t"])
-  data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "t")]),"n"] <- .n_rt(
-    data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "t")]),"r"], data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "t")]),"t"])
-
-  # check whether all of them are positive
-  if(any(data[!is.na(data[,"n"]), "n"] < 0)){
-    stop("One of the effect sizes and standard errors implies a negative sample size. Please, check the input.")
-  }
-
-  ### calculate standard errors on effect sizes and sample sizes (pushes some remaining info from t-stats)
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"se"] <- se_d(
-    data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"d"], data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"n"])
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "n")]),"se"] <- se_z(
-    data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "n")]),"n"])
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "n")]),"se"] <- se_r(
-    data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "n")]),"r"], data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "n")]),"n"])
-  # or add standard errors directly on t-statistics for logOR
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"se"] <-
-    data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"logOR"] / data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"t"]
-
-
-  ### compute test statistics based on sample sizes and standard errors / sample sizes
-  data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"t"] <- .t_dn(
-    data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"d"], data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"n"])
-  data[is.na(data[,"t"]) & !.row_NA(data[,c("z", "n")]),"t"] <- .t_zn(
-    data[is.na(data[,"t"]) & !.row_NA(data[,c("z", "n")]),"z"], data[is.na(data[,"t"]) & !.row_NA(data[,c("z", "n")]),"n"])
-  data[is.na(data[,"t"]) & !.row_NA(data[,c("r", "n")]),"t"] <- .t_rn(
-    data[is.na(data[,"t"]) & !.row_NA(data[,c("r", "n")]),"r"], data[is.na(data[,"t"]) & !.row_NA(data[,c("r", "n")]),"n"])
-  data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"t"] <-
-    data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"logOR"] / data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"se"]
-
-  # transform effect sizes and standard errors to the required metric
-  if(transformation == "d"){
-    data[is.na(data[,"d"]) & !is.na(data[,"r"]),    "d"] <-     r2d(data[is.na(data[,"d"]) & !is.na(data[,"r"]),        "r"])
-    data[is.na(data[,"d"]) & !is.na(data[,"z"]),    "d"] <-     z2d(data[is.na(data[,"d"]) & !is.na(data[,"z"]),        "z"])
-    data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"d"] <- logOR2d(data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_d(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]),    "se"] <-     se_z2se_d(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_d(
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"])
-
-    # add CI for export
-    data[,"lCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.025) * se_d2se_z(data[,"se"], data[,"d"]))
-    data[,"uCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.975) * se_d2se_z(data[,"se"], data[,"d"]))
-
-  }else if(transformation == "z"){
-    data[is.na(data[,"z"]) & !is.na(data[,"d"]),    "z"] <-     d2z(data[is.na(data[,"z"]) & !is.na(data[,"d"]),        "d"])
-    data[is.na(data[,"z"]) & !is.na(data[,"r"]),    "z"] <-     r2z(data[is.na(data[,"z"]) & !is.na(data[,"r"]),        "r"])
-    data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"z"] <- logOR2z(data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_z(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_z(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_z(
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "logOR"])
-
-    # add CI for export
-    data[,"lCI"] <- data[,"z"] + stats::qnorm(0.025) * data[,"se"]
-    data[,"uCI"] <- data[,"z"] + stats::qnorm(0.975) * data[,"se"]
-
-  }else if(transformation == "r"){
-    data[is.na(data[,"r"]) & !is.na(data[,"d"]),    "r"] <-     d2r(data[is.na(data[,"r"]) & !is.na(data[,"d"]),        "d"])
-    data[is.na(data[,"r"]) & !is.na(data[,"z"]),    "r"] <-     z2r(data[is.na(data[,"r"]) & !is.na(data[,"z"]),        "z"])
-    data[is.na(data[,"r"]) & !is.na(data[,"logOR"]),"r"] <- logOR2r(data[is.na(data[,"r"]) & !is.na(data[,"logOR"]),"logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_r(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]),    "se"] <-     se_z2se_r(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_r(
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),   "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"logOR"])
-
-    # add CI for export
-    data[,"lCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.025) * se_r2se_z(data[,"se"], data[,"r"]))
-    data[,"uCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.975) * se_r2se_z(data[,"se"], data[,"r"]))
-
-  }else if(transformation == "logOR"){
-    data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "logOR"] <- d2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "d"])
-    data[is.na(data[,"logOR"]) & !is.na(data[,"r"]), "logOR"] <- r2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"r"]), "r"])
-    data[is.na(data[,"logOR"]) & !is.na(data[,"z"]), "logOR"] <- z2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"z"]), "z"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"] <- se_d2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"] <- se_r2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"] <- se_z2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-
-    # add CI for export
-    data[,"lCI"] <- data[,"logOR"] + stats::qnorm(0.025) * data[,"se"]
-    data[,"uCI"] <- data[,"logOR"] + stats::qnorm(0.975) * data[,"se"]
-  }else if(transformation == "OR"){
-    data[is.na(data[,"OR"]) & !is.na(data[,"d"]),     "OR"] <- exp(d2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"d"]), "d"]))
-    data[is.na(data[,"OR"]) & !is.na(data[,"r"]),     "OR"] <- exp(r2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"r"]), "r"]))
-    data[is.na(data[,"OR"]) & !is.na(data[,"z"]),     "OR"] <- exp(z2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"z"]), "z"]))
-    data[is.na(data[,"OR"]) & !is.na(data[,"logOR"]), "OR"] <- exp(data[is.na(data[,"OR"])& !is.na(data[,"logOR"]), "logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"]    <- se_d2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"]    <- se_r2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"]    <- se_z2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "se"] <-
-      data[!is.na(data[,"se"]) & !is.na(data[,"OR"]),    "se"]
-
-    # add CI for export
-    data[,"lCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.025) * data[,"se"])
-    data[,"uCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.975) * data[,"se"])
-  }
-
-  if(return_all){
-    return(data)
-  }else{
-    output$y           <- data[,transformation]
-    output$se          <- data[,"se"]
-    output$study_names <- data[,"study_names"]
-    output$study_ids   <- data[,"study_ids"]
-    output$weight      <- data[,"weight"]
-    attr(output, "effect_measure")   <- transformation
-    attr(output, "original_measure") <- original_measure
-    attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
-    attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
-    class(output) <- c(class(output), "data.RoBMA")
-
-    if(anyNA(data[,"se"]) | anyNA(data[,"se"])){
-      stop("One of the effect sizes and/or standard errors could not be transformed. Please, check the input.")
-    }
-
-    return(output)
-  }
+  # Prepare final output
+  return(.combine_data_create_output(data, output, transformation, original_measure, return_all))
 }
 
 .combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
@@ -1469,4 +1147,375 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
   }
 
   return(transformed_samples)
+}
+
+# Helper functions for combine_data refactoring
+.combine_data_validate_inputs <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, weight, study_names, transformation, return_all, dots) {
+  # settings & input check
+  BayesTools::check_char(transformation, "transformation")
+  BayesTools::check_bool(return_all, "return_all")
+  BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
+  BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)],   "logOR",  allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(OR[!is.na(OR)],         "OR",     allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(v[!is.na(v)],           "v",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_int( n[!is.na(n)],           "n",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(lCI[!is.na(lCI)],       "lCI",    allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(uCI[!is.na(uCI)],       "uCI",    allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
+
+  return(.transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]]))
+}
+
+.combine_data_prepare_data <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data) {
+  # forward information about the original measure when re-transformating the data
+  if(inherits(data, "data.RoBMA")){
+    colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
+    original_measure                      <- attr(data, "original_measure")
+  }else{
+    original_measure <- NULL
+  }
+
+  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
+
+  if(!is.null(data)){
+    if(!is.data.frame(data))
+      stop("Data must be passed as a data.frame.")
+    if(any(!colnames(data) %in% input_variables))
+      stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
+    data <- data[,colnames(data) %in% input_variables]
+  }else{
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
+  }
+
+  if(is.null(original_measure)){
+    original_measure <- rep(NA, nrow(data))
+  }
+
+  ### add the remaining columns
+  for(var in input_variables){
+    if(!any(colnames(data) == var)){
+      data <- cbind(data, NA)
+      colnames(data)[ncol(data)] <- var
+    }
+  }
+
+  ### into numeric
+  for(var in c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight")){
+    data[,var] <- as.numeric(as.character(data[,var]))
+  }
+
+  return(list(data = data, original_measure = original_measure))
+}
+
+.combine_data_validate_and_setup <- function(data, original_measure) {
+  ### create holder of the output
+  output <- data.frame(
+    y  = rep(NA, nrow(data)),
+    se = rep(NA, nrow(data)),
+    study_names = rep(NA, nrow(data)),
+    study_ids   = rep(NA, nrow(data)),
+    weight      = rep(NA, nrow(data))
+  )
+
+  ### check for sufficient input
+  if(all(is.na(data[, c("d", "r", "z", "logOR", "OR", "y")])))
+    stop("The data do not contain any effect size measure.")
+  if(all(is.na(data[, c("se", "v", "n", "lCI", "uCI", "t")])))
+    stop("The data do not contain any variability measure.")
+
+  # logical check for confidence intervals
+  if(nrow(stats::na.omit(data[,c("lCI", "uCI")]) > 0)){
+    if(any(stats::na.omit(data[,"lCI"]) > stats::na.omit(data[,"uCI"])))
+      stop("'lCI' must be lower than 'uCI'.")
+    for(var in c("d", "r", "z", "logOR", "OR", "y")){
+      if(any(!is.na(data[,var]))){
+        if((any(data[!is.na(data[,var]) & !is.na(data[,"lCI"]),var] < data[!is.na(data[,var]) & !is.na(data[,"lCI"]),"lCI"]) | any(data[!is.na(data[,var]) & !is.na(data[,"uCI"]),var] > data[!is.na(data[,var]) & !is.na(data[,"uCI"]),"uCI"])))
+          stop("All effect sizes must be within the CI intervals.")
+      }
+    }
+  }
+
+  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) > 1))
+    stop("Only one effect size measure per study can be supplied.")
+
+  if(any(rowSums(!is.na(data[,c("se", "v", "n", "t", "lCI")])) > 1))
+    stop("Only one variability measure per study can be supplied.")
+
+  if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) != 1))
+    stop("At least one effect size measure per study must be supplied.")
+
+  if(any(!rowSums(!is.na(data[,c("lCI", "uCI")])) %in% c(0,2)))
+    stop("Either none or both CI bounds must be supplied.")
+
+  if(any(rowSums(!is.na(data[,c("t", "se", "v", "n", "lCI")])) < 1))
+    stop("At least one variability measure per study must be supplied.")
+
+
+  ### store the original effect size measure
+  original_measure[!is.na(data[,"d"])]     <- "d"
+  original_measure[!is.na(data[,"r"])]     <- "r"
+  original_measure[!is.na(data[,"z"])]     <- "z"
+  original_measure[!is.na(data[,"logOR"])] <- "logOR"
+  original_measure[!is.na(data[,"OR"])]    <- "OR"
+  original_measure[!is.na(data[,"y"])]     <- "none"
+
+  if(anyNA(original_measure))
+    stop("At least one effect size measure per study must be supplied.")
+  if(!(sum(original_measure == "none") == 0 | sum(original_measure == "none") == nrow(data)))
+    stop("Standardized and general effect sizes cannot be combined.")
+
+  # transform variance to standard errors
+  data[is.na(data[,"se"]),"se"] <- sqrt(data[is.na(data[,"se"]),"v"])
+
+  # add study names if missing
+  if(all(is.na(data[,"study_names"]))){
+    data[,"study_names"] <- paste0("Study ", 1:nrow(data))
+  }
+
+  # remove indicators from independent studies
+  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
+  # assign factor levels
+  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
+
+  # add weights if missing
+  if(all(is.na(data[,"weight"]))){
+    data[,"weight"] <- NA
+  }
+
+  return(list(output = output, data = data, original_measure = original_measure))
+}
+
+.combine_data_handle_unstandardized <- function(data, transformation, return_all, original_measure) {
+  if(transformation != "y")
+    stop("Effect sizes cannot be transformed in a presence of unstandardized measure ('y').")
+
+  data[is.na(data[,"se"]),"se"] <- (data[is.na(data[,"se"]),"uCI"] - data[is.na(data[,"se"]),"lCI"]) / (2*stats::qnorm(.975))
+
+  ### t-statistics from effect sizes and standard errors
+  data[is.na(data[,"t"]),"t"] <- data[is.na(data[,"t"]),"y"] / data[is.na(data[,"t"]),"se"]
+
+  ### add missing standard errors
+  data[is.na(data[,"se"]),"se"] <- data[is.na(data[,"se"]),"y"] / data[is.na(data[,"se"]),"t"]
+
+  if(return_all){
+    data[,"lCI"] <- data[,"y"] + stats::qnorm(0.025) * data[,"se"]
+    data[,"uCI"] <- data[,"y"] + stats::qnorm(0.975) * data[,"se"]
+    return(data)
+  }else{
+    output <- data.frame(
+      y  = data[,"y"],
+      se = data[,"se"],
+      study_names = data[,"study_names"],
+      study_ids   = data[,"study_ids"],
+      weight      = data[,"weight"]
+    )
+    attr(output, "effect_measure")   <- transformation
+    attr(output, "original_measure") <- original_measure
+    attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+    attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
+    class(output) <- c(class(output), "data.RoBMA")
+
+    return(output)
+  }
+}
+
+.combine_data_calculations <- function(data) {
+  ### transform OR to logOR
+  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
+  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
+  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
+
+  ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "se"] <- se_z2se_d(
+    ( d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"uCI"]) -
+        d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
+    d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "d"])
+  )
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "se"] <- se_z2se_r(
+    ( r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"uCI"]) -
+        r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
+    r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "r"])
+  )
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]), "se"] <-
+    (data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"uCI"] -
+       data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]), "se"] <-
+    (data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"uCI"] -
+       data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
+
+
+  ### calculate sample sizes
+  # based on effect sizes and standard errors
+  data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"n"] <- n_d(
+    data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"d"], data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"se"])
+  data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "se")]),"n"] <- n_z(
+    data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "se")]),"se"])
+  data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "se")]),"n"] <- n_r(
+    data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "se")]),"r"], data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "se")]),"se"])
+
+  # based on effect sizes and t-statistics
+  data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "t")]),"n"] <- .n_dt(
+    data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "t")]),"d"], data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "t")]),"t"])
+  data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "t")]),"n"] <- .n_zt(
+    data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "t")]),"z"], data[is.na(data[,"n"]) & !.row_NA(data[,c("z", "t")]),"t"])
+  data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "t")]),"n"] <- .n_rt(
+    data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "t")]),"r"], data[is.na(data[,"n"]) & !.row_NA(data[,c("r", "t")]),"t"])
+
+  # check whether all of them are positive
+  if(any(data[!is.na(data[,"n"]), "n"] < 0)){
+    stop("One of the effect sizes and standard errors implies a negative sample size. Please, check the input.")
+  }
+
+  ### calculate standard errors on effect sizes and sample sizes (pushes some remaining info from t-stats)
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"se"] <- se_d(
+    data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"d"], data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"n"])
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "n")]),"se"] <- se_z(
+    data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "n")]),"n"])
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "n")]),"se"] <- se_r(
+    data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "n")]),"r"], data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "n")]),"n"])
+  # or add standard errors directly on t-statistics for logOR
+  data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"se"] <-
+    data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"logOR"] / data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"t"]
+
+
+  ### compute test statistics based on sample sizes and standard errors / sample sizes
+  data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"t"] <- .t_dn(
+    data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"d"], data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"n"])
+  data[is.na(data[,"t"]) & !.row_NA(data[,c("z", "n")]),"t"] <- .t_zn(
+    data[is.na(data[,"t"]) & !.row_NA(data[,c("z", "n")]),"z"], data[is.na(data[,"t"]) & !.row_NA(data[,c("z", "n")]),"n"])
+  data[is.na(data[,"t"]) & !.row_NA(data[,c("r", "n")]),"t"] <- .t_rn(
+    data[is.na(data[,"t"]) & !.row_NA(data[,c("r", "n")]),"r"], data[is.na(data[,"t"]) & !.row_NA(data[,c("r", "n")]),"n"])
+  data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"t"] <-
+    data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"logOR"] / data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"se"]
+
+  return(data)
+}
+
+.combine_data_transform <- function(data, transformation) {
+  # transform effect sizes and standard errors to the required metric
+  if(transformation == "d"){
+    data[is.na(data[,"d"]) & !is.na(data[,"r"]),    "d"] <-     r2d(data[is.na(data[,"d"]) & !is.na(data[,"r"]),        "r"])
+    data[is.na(data[,"d"]) & !is.na(data[,"z"]),    "d"] <-     z2d(data[is.na(data[,"d"]) & !is.na(data[,"z"]),        "z"])
+    data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"d"] <- logOR2d(data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"logOR"])
+
+    data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_d(
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"z"]),    "se"] <-     se_z2se_d(
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_d(
+      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"])
+
+    # add CI for export
+    data[,"lCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.025) * se_d2se_z(data[,"se"], data[,"d"]))
+    data[,"uCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.975) * se_d2se_z(data[,"se"], data[,"d"]))
+
+  }else if(transformation == "z"){
+    data[is.na(data[,"z"]) & !is.na(data[,"d"]),    "z"] <-     d2z(data[is.na(data[,"z"]) & !is.na(data[,"d"]),        "d"])
+    data[is.na(data[,"z"]) & !is.na(data[,"r"]),    "z"] <-     r2z(data[is.na(data[,"z"]) & !is.na(data[,"r"]),        "r"])
+    data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"z"] <- logOR2z(data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"logOR"])
+
+    data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_z(
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_z(
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_z(
+      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "logOR"])
+
+    # add CI for export
+    data[,"lCI"] <- data[,"z"] + stats::qnorm(0.025) * data[,"se"]
+    data[,"uCI"] <- data[,"z"] + stats::qnorm(0.975) * data[,"se"]
+
+  }else if(transformation == "r"){
+    data[is.na(data[,"r"]) & !is.na(data[,"d"]),    "r"] <-     d2r(data[is.na(data[,"r"]) & !is.na(data[,"d"]),        "d"])
+    data[is.na(data[,"r"]) & !is.na(data[,"z"]),    "r"] <-     z2r(data[is.na(data[,"r"]) & !is.na(data[,"z"]),        "z"])
+    data[is.na(data[,"r"]) & !is.na(data[,"logOR"]),"r"] <- logOR2r(data[is.na(data[,"r"]) & !is.na(data[,"logOR"]),"logOR"])
+
+    data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_r(
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"z"]),    "se"] <-     se_z2se_r(
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_r(
+      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),   "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"logOR"])
+
+    # add CI for export
+    data[,"lCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.025) * se_r2se_z(data[,"se"], data[,"r"]))
+    data[,"uCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.975) * se_r2se_z(data[,"se"], data[,"r"]))
+
+  }else if(transformation == "logOR"){
+    data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "logOR"] <- d2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "d"])
+    data[is.na(data[,"logOR"]) & !is.na(data[,"r"]), "logOR"] <- r2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"r"]), "r"])
+    data[is.na(data[,"logOR"]) & !is.na(data[,"z"]), "logOR"] <- z2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"z"]), "z"])
+
+    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"] <- se_d2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"] <- se_r2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"] <- se_z2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
+
+    # add CI for export
+    data[,"lCI"] <- data[,"logOR"] + stats::qnorm(0.025) * data[,"se"]
+    data[,"uCI"] <- data[,"logOR"] + stats::qnorm(0.975) * data[,"se"]
+  }else if(transformation == "OR"){
+    data[is.na(data[,"OR"]) & !is.na(data[,"d"]),     "OR"] <- exp(d2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"d"]), "d"]))
+    data[is.na(data[,"OR"]) & !is.na(data[,"r"]),     "OR"] <- exp(r2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"r"]), "r"]))
+    data[is.na(data[,"OR"]) & !is.na(data[,"z"]),     "OR"] <- exp(z2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"z"]), "z"]))
+    data[is.na(data[,"OR"]) & !is.na(data[,"logOR"]), "OR"] <- exp(data[is.na(data[,"OR"])& !is.na(data[,"logOR"]), "logOR"])
+
+    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"]    <- se_d2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"]    <- se_r2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"]    <- se_z2se_logOR(
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
+      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
+    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "se"] <-
+      data[!is.na(data[,"se"]) & !is.na(data[,"OR"]),    "se"]
+
+    # add CI for export
+    data[,"lCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.025) * data[,"se"])
+    data[,"uCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.975) * data[,"se"])
+  }
+
+  return(data)
+}
+
+.combine_data_create_output <- function(data, output, transformation, original_measure, return_all) {
+  if(return_all){
+    return(data)
+  }else{
+    output$y           <- data[,transformation]
+    output$se          <- data[,"se"]
+    output$study_names <- data[,"study_names"]
+    output$study_ids   <- data[,"study_ids"]
+    output$weight      <- data[,"weight"]
+    attr(output, "effect_measure")   <- transformation
+    attr(output, "original_measure") <- original_measure
+    attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+    attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
+    class(output) <- c(class(output), "data.RoBMA")
+
+    if(anyNA(data[,"se"]) | anyNA(data[,"se"])){
+      stop("One of the effect sizes and/or standard errors could not be transformed. Please, check the input.")
+    }
+
+    return(output)
+  }
 }
