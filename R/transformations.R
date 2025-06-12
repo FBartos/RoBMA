@@ -67,9 +67,8 @@
 #'
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
-combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
-                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
-
+# Helper function for input validation
+.validate_combine_data_inputs <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, weight, study_names, transformation, return_all, ...) {
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
   BayesTools::check_bool(return_all, "return_all")
@@ -90,15 +89,20 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
   dots <- list(...)
   transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
+  
+  return(list(transformation = transformation, dots = dots))
+}
 
-  # forward information about the original measure when re-transformating the data
-  if(inherits(data, "data.RoBMA")){
-    colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
-    original_measure                      <- attr(data, "original_measure")
-  }else{
-    original_measure <- NULL
-  }
+combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
+                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
 
+  # Input validation
+  validation_result <- .validate_combine_data_inputs(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, weight, study_names, transformation, return_all, ...)
+  transformation <- validation_result$transformation
+  dots <- validation_result$dots
+
+# Helper function for data preparation
+.prepare_combine_data_frame <- function(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data, original_measure) {
   input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
 
   if(!is.null(data)){
@@ -128,15 +132,24 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     data[,var] <- as.numeric(as.character(data[,var]))
   }
 
-  ### create holder of the output
-  output <- data.frame(
-    y  = rep(NA, nrow(data)),
-    se = rep(NA, nrow(data)),
-    study_names = rep(NA, nrow(data)),
-    study_ids   = rep(NA, nrow(data)),
-    weight      = rep(NA, nrow(data))
-  )
+  return(list(data = data, original_measure = original_measure))
+}
 
+  # forward information about the original measure when re-transformating the data
+  if(inherits(data, "data.RoBMA")){
+    colnames(data)[colnames(data) == "y"] <- attr(data, "effect_measure")
+    original_measure                      <- attr(data, "original_measure")
+  }else{
+    original_measure <- NULL
+  }
+
+  # Data preparation
+  data_prep_result <- .prepare_combine_data_frame(d, r, z, logOR, OR, t, y, se, v, n, lCI, uCI, study_names, study_ids, weight, data, original_measure)
+  data <- data_prep_result$data
+  original_measure <- data_prep_result$original_measure
+
+# Helper function for logical validation
+.validate_combine_data_logic <- function(data, original_measure) {
   ### check for sufficient input
   if(all(is.na(data[, c("d", "r", "z", "logOR", "OR", "y")])))
     stop("The data do not contain any effect size measure.")
@@ -170,7 +183,6 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   if(any(rowSums(!is.na(data[,c("t", "se", "v", "n", "lCI")])) < 1))
     stop("At least one variability measure per study must be supplied.")
 
-
   ### store the original effect size measure
   original_measure[!is.na(data[,"d"])]     <- "d"
   original_measure[!is.na(data[,"r"])]     <- "r"
@@ -184,6 +196,23 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   if(!(sum(original_measure == "none") == 0 | sum(original_measure == "none") == nrow(data)))
     stop("Standardized and general effect sizes cannot be combined.")
 
+  return(original_measure)
+}
+
+  ### create holder of the output
+  output <- data.frame(
+    y  = rep(NA, nrow(data)),
+    se = rep(NA, nrow(data)),
+    study_names = rep(NA, nrow(data)),
+    study_ids   = rep(NA, nrow(data)),
+    weight      = rep(NA, nrow(data))
+  )
+
+  # Logical validation and original measure assignment
+  original_measure <- .validate_combine_data_logic(data, original_measure)
+
+# Helper function for data preprocessing
+.preprocess_combine_data <- function(data) {
   # transform variance to standard errors
   data[is.na(data[,"se"]),"se"] <- sqrt(data[is.na(data[,"se"]),"v"])
 
@@ -202,46 +231,54 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     data[,"weight"] <- NA
   }
 
+  return(data)
+}
+
+  # Data preprocessing
+  data <- .preprocess_combine_data(data)
+
   ### deal with general 'unstandardized' input
+# Helper function for processing unstandardized data
+.process_unstandardized_data <- function(data, transformation, return_all, original_measure, output) {
+  if(transformation != "y")
+    stop("Effect sizes cannot be transformed in a presence of unstandardized measure ('y').")
+
+  data[is.na(data[,"se"]),"se"] <- (data[is.na(data[,"se"]),"uCI"] - data[is.na(data[,"se"]),"lCI"]) / (2*stats::qnorm(.975))
+
+  ### t-statistics from effect sizes and standard errors
+  data[is.na(data[,"t"]),"t"] <- data[is.na(data[,"t"]),"y"] / data[is.na(data[,"t"]),"se"]
+
+  ### add missing standard errors
+  data[is.na(data[,"se"]),"se"] <- data[is.na(data[,"se"]),"y"] / data[is.na(data[,"se"]),"t"]
+
+  if(return_all){
+    data[,"lCI"] <- data[,"y"] + stats::qnorm(0.025) * data[,"se"]
+    data[,"uCI"] <- data[,"y"] + stats::qnorm(0.975) * data[,"se"]
+    return(data)
+  }else{
+    output$y  <- data[,"y"]
+    output$se <- data[,"se"]
+    output$study_names <- data[,"study_names"]
+    output$study_ids   <- data[,"study_ids"]
+    output$weight      <- data[,"weight"]
+    attr(output, "effect_measure")   <- transformation
+    attr(output, "original_measure") <- original_measure
+    attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+    attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
+    class(output) <- c(class(output), "data.RoBMA")
+
+    return(output)
+  }
+}
+
+  # Handle unstandardized data
   if(!anyNA(data[,"y"])){
-
-    if(transformation != "y")
-      stop("Effect sizes cannot be transformed in a presence of unstandardized measure ('y').")
-
-    data[is.na(data[,"se"]),"se"] <- (data[is.na(data[,"se"]),"uCI"] - data[is.na(data[,"se"]),"lCI"]) / (2*stats::qnorm(.975))
-
-    ### t-statistics from effect sizes and standard errors
-    data[is.na(data[,"t"]),"t"] <- data[is.na(data[,"t"]),"y"] / data[is.na(data[,"t"]),"se"]
-
-    ### add missing standard errors
-    data[is.na(data[,"se"]),"se"] <- data[is.na(data[,"se"]),"y"] / data[is.na(data[,"se"]),"t"]
-
-    if(return_all){
-      data[,"lCI"] <- data[,"y"] + stats::qnorm(0.025) * data[,"se"]
-      data[,"uCI"] <- data[,"y"] + stats::qnorm(0.975) * data[,"se"]
-      return(data)
-    }else{
-      output$y  <- data[,"y"]
-      output$se <- data[,"se"]
-      output$study_names <- data[,"study_names"]
-      output$study_ids   <- data[,"study_ids"]
-      output$weight      <- data[,"weight"]
-      attr(output, "effect_measure")   <- transformation
-      attr(output, "original_measure") <- original_measure
-      attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
-      attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
-      class(output) <- c(class(output), "data.RoBMA")
-
-      return(output)
-    }
+    return(.process_unstandardized_data(data, transformation, return_all, original_measure, output))
   }
 
 
-  ### transform OR to logOR
-  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
-  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
-  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
-
+# Helper function for calculating standard errors from confidence intervals
+.calculate_standard_errors_from_ci <- function(data) {
   ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
   data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "se"] <- se_z2se_d(
     ( d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"uCI"]) -
@@ -260,7 +297,20 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     (data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"uCI"] -
        data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
 
+  return(data)
+}
 
+  ### transform OR to logOR
+  data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
+  data[!is.na(data[,"OR"]), "lCI"]   <- log(data[!is.na(data[,"OR"]), "lCI"])
+  data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
+
+  # Calculate standard errors from confidence intervals
+  data <- .calculate_standard_errors_from_ci(data)
+
+
+# Helper function for calculating sample sizes
+.calculate_sample_sizes <- function(data) {
   ### calculate sample sizes
   # based on effect sizes and standard errors
   data[is.na(data[,"n"]) & !.row_NA(data[,c("d", "se")]),"n"] <- n_d(
@@ -283,6 +333,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("One of the effect sizes and standard errors implies a negative sample size. Please, check the input.")
   }
 
+  return(data)
+}
+
+# Helper function for calculating standard errors from sample sizes
+.calculate_standard_errors_from_n <- function(data) {
   ### calculate standard errors on effect sizes and sample sizes (pushes some remaining info from t-stats)
   data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"se"] <- se_d(
     data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"d"], data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "n")]),"n"])
@@ -294,7 +349,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"se"] <-
     data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"logOR"] / data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "t")]),"t"]
 
+  return(data)
+}
 
+# Helper function for calculating test statistics
+.calculate_test_statistics <- function(data) {
   ### compute test statistics based on sample sizes and standard errors / sample sizes
   data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"t"] <- .t_dn(
     data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"d"], data[is.na(data[,"t"]) & !.row_NA(data[,c("d", "n")]),"n"])
@@ -305,7 +364,21 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"t"] <-
     data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"logOR"] / data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"se"]
 
+  return(data)
+}
+
+  # Calculate sample sizes
+  data <- .calculate_sample_sizes(data)
+
+  # Calculate standard errors from sample sizes  
+  data <- .calculate_standard_errors_from_n(data)
+
+  # Calculate test statistics
+  data <- .calculate_test_statistics(data)
+
   # transform effect sizes and standard errors to the required metric
+# Helper function for effect size transformations
+.transform_effect_sizes <- function(data, transformation) {
   if(transformation == "d"){
     data[is.na(data[,"d"]) & !is.na(data[,"r"]),    "d"] <-     r2d(data[is.na(data[,"d"]) & !is.na(data[,"r"]),        "r"])
     data[is.na(data[,"d"]) & !is.na(data[,"z"]),    "d"] <-     z2d(data[is.na(data[,"d"]) & !is.na(data[,"z"]),        "z"])
@@ -401,6 +474,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     data[,"uCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.975) * data[,"se"])
   }
 
+  return(data)
+}
+
+# Helper function for building final output
+.build_combine_data_output <- function(data, transformation, return_all, original_measure, output) {
   if(return_all){
     return(data)
   }else{
@@ -421,6 +499,13 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
     return(output)
   }
+}
+
+  # Transform effect sizes to the required metric
+  data <- .transform_effect_sizes(data, transformation)
+
+  # Build and return final output
+  return(.build_combine_data_output(data, transformation, return_all, original_measure, output))
 }
 
 .combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
