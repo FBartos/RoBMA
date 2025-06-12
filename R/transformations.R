@@ -1325,6 +1325,22 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
   }
 }
 
+# Helper function to reduce repetition in SE calculations from CI
+.calculate_se_from_ci <- function(data, effect_col, z_transform_func, se_transform_func) {
+  mask <- is.na(data[,"se"]) & !.row_NA(data[,c(effect_col, "lCI", "uCI")])
+  if (any(mask)) {
+    if (!is.null(z_transform_func) && !is.null(se_transform_func)) {
+      # For d and r: use Fisher's z transformation
+      z_se <- (z_transform_func(data[mask,"uCI"]) - z_transform_func(data[mask,"lCI"])) / (2*stats::qnorm(.975))
+      data[mask, "se"] <- se_transform_func(z_se, z_transform_func(data[mask, effect_col]))
+    } else {
+      # For logOR and z: use original scale
+      data[mask, "se"] <- (data[mask,"uCI"] - data[mask,"lCI"]) / (2*stats::qnorm(.975))
+    }
+  }
+  return(data)
+}
+
 .combine_data_calculations <- function(data) {
   ### transform OR to logOR
   data[!is.na(data[,"OR"]), "logOR"] <- log(data[!is.na(data[,"OR"]), "OR"])
@@ -1332,22 +1348,10 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
   data[!is.na(data[,"OR"]), "uCI"]   <- log(data[!is.na(data[,"OR"]), "uCI"])
 
   ### calculate standard errors from CI using Fisher's z (for Cohen's d and r) and on original scale for log(OR) and Fisher's z
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "se"] <- se_z2se_d(
-    ( d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"uCI"]) -
-        d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
-    d2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("d", "lCI", "uCI")]), "d"])
-  )
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "se"] <- se_z2se_r(
-    ( r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"uCI"]) -
-        r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]),"lCI"]))/(2*stats::qnorm(.975)),
-    r2z(data[is.na(data[,"se"]) & !.row_NA(data[,c("r", "lCI", "uCI")]), "r"])
-  )
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]), "se"] <-
-    (data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"uCI"] -
-       data[is.na(data[,"se"]) & !.row_NA(data[,c("logOR", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
-  data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]), "se"] <-
-    (data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"uCI"] -
-       data[is.na(data[,"se"]) & !.row_NA(data[,c("z", "lCI", "uCI")]),"lCI"])/(2*stats::qnorm(.975))
+  data <- .calculate_se_from_ci(data, "d", d2z, se_z2se_d)
+  data <- .calculate_se_from_ci(data, "r", r2z, se_z2se_r)
+  data <- .calculate_se_from_ci(data, "logOR", NULL, NULL)
+  data <- .calculate_se_from_ci(data, "z", NULL, NULL)
 
 
   ### calculate sample sizes
@@ -1397,97 +1401,114 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
   return(data)
 }
 
+# Helper functions to reduce repetition in transform function
+.transform_effect_sizes <- function(data, target, sources, transform_funcs) {
+  for (i in seq_along(sources)) {
+    source_col <- sources[i]
+    transform_func <- transform_funcs[[i]]
+    mask <- is.na(data[,target]) & !is.na(data[,source_col])
+    if (any(mask)) {
+      data[mask, target] <- transform_func(data[mask, source_col])
+    }
+  }
+  return(data)
+}
+
+.transform_standard_errors <- function(data, sources, se_transform_funcs, needs_effect_value = NULL) {
+  for (i in seq_along(sources)) {
+    source_col <- sources[i]
+    se_transform_func <- se_transform_funcs[[i]]
+    needs_effect <- if(is.null(needs_effect_value)) FALSE else needs_effect_value[i]
+    
+    mask <- !is.na(data[,"se"]) & !is.na(data[,source_col])
+    if (any(mask)) {
+      if (needs_effect) {
+        # se_transform_func takes se and effect value
+        data[mask, "se"] <- se_transform_func(data[mask, "se"], data[mask, source_col])
+      } else {
+        # se_transform_func takes only se
+        data[mask, "se"] <- se_transform_func(data[mask, "se"])
+      }
+    }
+  }
+  return(data)
+}
+
 .combine_data_transform <- function(data, transformation) {
   # transform effect sizes and standard errors to the required metric
   if(transformation == "d"){
-    data[is.na(data[,"d"]) & !is.na(data[,"r"]),    "d"] <-     r2d(data[is.na(data[,"d"]) & !is.na(data[,"r"]),        "r"])
-    data[is.na(data[,"d"]) & !is.na(data[,"z"]),    "d"] <-     z2d(data[is.na(data[,"d"]) & !is.na(data[,"z"]),        "z"])
-    data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"d"] <- logOR2d(data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_d(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]),    "se"] <-     se_z2se_d(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_d(
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"])
+    # Transform effect sizes to d
+    data <- .transform_effect_sizes(data, "d", c("r", "z", "logOR"), 
+                                    list(r2d, z2d, logOR2d))
+    
+    # Transform standard errors to d
+    data <- .transform_standard_errors(data, c("r", "z", "logOR"), 
+                                       list(se_r2se_d, se_z2se_d, se_logOR2se_d),
+                                       needs_effect_value = c(TRUE, TRUE, FALSE))
 
     # add CI for export
     data[,"lCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.025) * se_d2se_z(data[,"se"], data[,"d"]))
     data[,"uCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.975) * se_d2se_z(data[,"se"], data[,"d"]))
 
   }else if(transformation == "z"){
-    data[is.na(data[,"z"]) & !is.na(data[,"d"]),    "z"] <-     d2z(data[is.na(data[,"z"]) & !is.na(data[,"d"]),        "d"])
-    data[is.na(data[,"z"]) & !is.na(data[,"r"]),    "z"] <-     r2z(data[is.na(data[,"z"]) & !is.na(data[,"r"]),        "r"])
-    data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"z"] <- logOR2z(data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"logOR"])
+    # Transform effect sizes to z
+    data <- .transform_effect_sizes(data, "z", c("d", "r", "logOR"), 
+                                    list(d2z, r2z, logOR2z))
+    
+    # Transform standard errors to z
+    data <- .transform_standard_errors(data, c("d", "r", "logOR"), 
+                                       list(se_d2se_z, se_r2se_z, se_logOR2se_z),
+                                       needs_effect_value = c(TRUE, TRUE, TRUE))
 
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_z(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_z(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_z(
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "logOR"])
-
-    # add CI for export
+    # add CI for export  
     data[,"lCI"] <- data[,"z"] + stats::qnorm(0.025) * data[,"se"]
     data[,"uCI"] <- data[,"z"] + stats::qnorm(0.975) * data[,"se"]
 
   }else if(transformation == "r"){
-    data[is.na(data[,"r"]) & !is.na(data[,"d"]),    "r"] <-     d2r(data[is.na(data[,"r"]) & !is.na(data[,"d"]),        "d"])
-    data[is.na(data[,"r"]) & !is.na(data[,"z"]),    "r"] <-     z2r(data[is.na(data[,"r"]) & !is.na(data[,"z"]),        "z"])
-    data[is.na(data[,"r"]) & !is.na(data[,"logOR"]),"r"] <- logOR2r(data[is.na(data[,"r"]) & !is.na(data[,"logOR"]),"logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_r(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]),    "se"] <-     se_z2se_r(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_r(
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),   "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"logOR"])
+    # Transform effect sizes to r
+    data <- .transform_effect_sizes(data, "r", c("d", "z", "logOR"), 
+                                    list(d2r, z2r, logOR2r))
+    
+    # Transform standard errors to r
+    data <- .transform_standard_errors(data, c("d", "z", "logOR"), 
+                                       list(se_d2se_r, se_z2se_r, se_logOR2se_r),
+                                       needs_effect_value = c(TRUE, TRUE, TRUE))
 
     # add CI for export
     data[,"lCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.025) * se_r2se_z(data[,"se"], data[,"r"]))
     data[,"uCI"] <- z2r(r2z(data[,"r"]) + stats::qnorm(0.975) * se_r2se_z(data[,"se"], data[,"r"]))
 
   }else if(transformation == "logOR"){
-    data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "logOR"] <- d2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"d"]), "d"])
-    data[is.na(data[,"logOR"]) & !is.na(data[,"r"]), "logOR"] <- r2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"r"]), "r"])
-    data[is.na(data[,"logOR"]) & !is.na(data[,"z"]), "logOR"] <- z2logOR(data[is.na(data[,"logOR"]) & !is.na(data[,"z"]), "z"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"] <- se_d2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"] <- se_r2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"] <- se_z2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
+    # Transform effect sizes to logOR
+    data <- .transform_effect_sizes(data, "logOR", c("d", "r", "z"), 
+                                    list(d2logOR, r2logOR, z2logOR))
+    
+    # Transform standard errors to logOR
+    data <- .transform_standard_errors(data, c("d", "r", "z"), 
+                                       list(se_d2se_logOR, se_r2se_logOR, se_z2se_logOR),
+                                       needs_effect_value = c(FALSE, TRUE, TRUE))
 
     # add CI for export
     data[,"lCI"] <- data[,"logOR"] + stats::qnorm(0.025) * data[,"se"]
     data[,"uCI"] <- data[,"logOR"] + stats::qnorm(0.975) * data[,"se"]
+    
   }else if(transformation == "OR"){
-    data[is.na(data[,"OR"]) & !is.na(data[,"d"]),     "OR"] <- exp(d2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"d"]), "d"]))
-    data[is.na(data[,"OR"]) & !is.na(data[,"r"]),     "OR"] <- exp(r2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"r"]), "r"]))
-    data[is.na(data[,"OR"]) & !is.na(data[,"z"]),     "OR"] <- exp(z2logOR(data[is.na(data[,"OR"]) & !is.na(data[,"z"]), "z"]))
-    data[is.na(data[,"OR"]) & !is.na(data[,"logOR"]), "OR"] <- exp(data[is.na(data[,"OR"])& !is.na(data[,"logOR"]), "logOR"])
-
-    data[!is.na(data[,"se"]) & !is.na(data[,"d"]), "se"]    <- se_d2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"r"]), "se"]    <- se_r2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"r"]),         "r"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"z"]), "se"]    <- se_z2se_logOR(
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "se"],
-      data[!is.na(data[,"se"]) & !is.na(data[,"z"]),        "z"])
-    data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "se"] <-
-      data[!is.na(data[,"se"]) & !is.na(data[,"OR"]),    "se"]
+    # Transform effect sizes to OR
+    data <- .transform_effect_sizes(data, "OR", c("d", "r", "z", "logOR"), 
+                                    list(function(x) exp(d2logOR(x)), 
+                                         function(x) exp(r2logOR(x)), 
+                                         function(x) exp(z2logOR(x)), 
+                                         exp))
+    
+    # Transform standard errors to OR (logOR scale)
+    data <- .transform_standard_errors(data, c("d", "r", "z"), 
+                                       list(se_d2se_logOR, se_r2se_logOR, se_z2se_logOR),
+                                       needs_effect_value = c(FALSE, TRUE, TRUE))
+    # Handle logOR to OR se transformation
+    mask <- !is.na(data[,"se"]) & !is.na(data[,"logOR"])
+    if (any(mask)) {
+      data[mask, "se"] <- data[mask, "se"]  # Keep same SE for logOR->OR
+    }
 
     # add CI for export
     data[,"lCI"] <- exp(log(data[,"OR"]) + stats::qnorm(0.025) * data[,"se"])
