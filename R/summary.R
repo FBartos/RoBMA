@@ -16,6 +16,49 @@ print.RoBMA <- function(x, ...){
 }
 
 
+.unstandardize_coefficients <- function(estimates, object) {
+  # Only apply transformation if we have predictor data and the object was fitted with standardized predictors
+  if (!is.RoBMA.reg(object) || is.null(object$data$predictors) || 
+      is.null(attr(object$data$predictors, "variables_info"))) {
+    return(estimates)
+  }
+  
+  # Get predictor information
+  variables_info <- attr(object$data$predictors, "variables_info")
+  
+  # For each continuous predictor, multiply coefficients by their standard deviation
+  for (predictor_name in names(variables_info)) {
+    if (variables_info[[predictor_name]]$type == "continuous") {
+      # Try different parameter name formats to find the right one
+      param_names_to_try <- c(
+        .BayesTools_parameter_name(predictor_name),
+        predictor_name,
+        paste0("mu_", predictor_name)
+      )
+      
+      param_name <- NULL
+      for (pname in param_names_to_try) {
+        if (pname %in% rownames(estimates)) {
+          param_name <- pname
+          break
+        }
+      }
+      
+      # Apply transformation if parameter found
+      if (!is.null(param_name)) {
+        sd_value <- variables_info[[predictor_name]]$sd
+        
+        # Apply transformation to the coefficient columns (mean, median, and quantiles)
+        numeric_cols <- sapply(estimates, is.numeric)
+        estimates[param_name, numeric_cols] <- estimates[param_name, numeric_cols] * sd_value
+      }
+    }
+  }
+  
+  return(estimates)
+}
+
+
 #' @title Summarize fitted RoBMA object
 #'
 #' @description \code{summary.RoBMA} creates summary tables for a
@@ -40,6 +83,9 @@ print.RoBMA <- function(x, ...){
 #' (couple) of letters. Defaults to \code{FALSE}.
 #' @param remove_spike_0 whether spike prior distributions with location at zero should
 #' be omitted from the summary. Defaults to \code{FALSE}.
+#' @param standardized_coefficients whether to show standardized meta-regression coefficients.
+#' Defaults to \code{TRUE}. When set to \code{FALSE}, raw (unstandardized) meta-regression 
+#' coefficients are returned for continuous predictors. Only affects meta-regression models.
 #' @param ... additional arguments
 #'
 #' @examples \dontrun{
@@ -74,7 +120,7 @@ print.RoBMA <- function(x, ...){
 #' @export
 summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
                                 output_scale = NULL, probs = c(.025, .975), logBF = FALSE, BF01 = FALSE,
-                                short_name = FALSE, remove_spike_0 = FALSE, ...){
+                                short_name = FALSE, remove_spike_0 = FALSE, standardized_coefficients = TRUE, ...){
 
   # apply version changes to RoBMA object
   object <- .update_object(object)
@@ -87,6 +133,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(short_name, "short_name")
   BayesTools::check_bool(remove_spike_0, "remove_spike_0")
+  BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
 
   # check the scales
   if(is.null(output_scale)){
@@ -106,7 +153,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
   # dispatch the spike and slab summary function if needed
   if(object[["add_info"]][["algorithm"]] == "ss"){
-    return(.summary.RoBMA.ss(object, type, conditional, output_scale, probs, logBF, BF01, remove_spike_0, ...))
+    return(.summary.RoBMA.ss(object, type, conditional, output_scale, probs, logBF, BF01, remove_spike_0, standardized_coefficients, ...))
   }
 
   if(substr(type,1,1) == "e"){
@@ -197,6 +244,11 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
           footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
           warnings       = .collect_errors_and_warnings(object)
         )
+        
+        # Apply transformation if raw coefficients are requested
+        if (!standardized_coefficients) {
+          output$estimates_predictors <- .unstandardize_coefficients(output$estimates_predictors, object)
+        }
       }
 
 
@@ -221,6 +273,11 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
             footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
             warnings   = .collect_errors_and_warnings(object)
           )
+          
+          # Apply transformation if raw coefficients are requested
+          if (!standardized_coefficients) {
+            estimates_predictors_conditional <- .unstandardize_coefficients(estimates_predictors_conditional, object)
+          }
         }
         output$estimates_predictors_conditional <- estimates_predictors_conditional
       }
@@ -373,7 +430,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
   }
 }
 
-.summary.RoBMA.ss    <- function(object, type, conditional, output_scale, probs, logBF, BF01, remove_spike_0, ...){
+.summary.RoBMA.ss    <- function(object, type, conditional, output_scale, probs, logBF, BF01, remove_spike_0, standardized_coefficients, ...){
 
   if(substr(type,1,1) == "e"){
 
@@ -456,6 +513,11 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
           footnotes      = .scale_note(object$add_info[["prior_scale"]], output_scale),
           warnings       = .collect_errors_and_warnings(object)
         )
+        
+        # Apply transformation if raw coefficients are requested
+        if (!standardized_coefficients) {
+          output$estimates_predictors <- .unstandardize_coefficients(output$estimates_predictors, object)
+        }
       }
 
       # deal with possibly empty table in case of no alternative models
@@ -479,6 +541,11 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
             footnotes  = .scale_note(object$add_info[["prior_scale"]], output_scale),
             warnings   = .collect_errors_and_warnings(object)
           )
+          
+          # Apply transformation if raw coefficients are requested
+          if (!standardized_coefficients) {
+            estimates_predictors_conditional <- .unstandardize_coefficients(estimates_predictors_conditional, object)
+          }
         }
         output$estimates_predictors_conditional <- estimates_predictors_conditional
       }
