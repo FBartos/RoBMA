@@ -64,22 +64,49 @@ test_that("Validate normal model with metafor", {
   expect_equal(sum.RoBMA.reg.re["year","Mean"],              fit.metafor.rereg$b[[4]], tolerance = 2e-2)
 
   # Test standardized_coefficients = FALSE for raw coefficients
-  fit.metafor.fereg2 <- rma(yi, vi, mods = ~ factor(alloc) + year, data = dat, method = "REML")
-  
+  fit.metafor.fereg2 <- rma(yi, vi, mods = ~ factor(alloc) + year, data = dat, method = "FE")
+  fit.metafor.rereg2 <- rma(yi, vi, mods = ~ factor(alloc) + year, data = dat, method = "REML")
+
   sum.RoBMA.reg.fe.raw <- summary(fit.RoBMA.reg.fe, standardized_coefficients = FALSE)$estimates_predictors
   sum.RoBMA.reg.re.raw <- summary(fit.RoBMA.reg.re, standardized_coefficients = FALSE)$estimates_predictors
-  
-  # For raw coefficients, only the continuous predictor (year) should be transformed
-  # Factor predictors (alloc) and intercept should be similar to standardized version for factors
+
+  # For raw coefficients, only intercept and continuous predictor (year) should be transformed
   expect_equal(sum.RoBMA.reg.fe.raw["intercept","Mean"],         fit.metafor.fereg2$b[[1]], tolerance = 1e-2)
   expect_equal(sum.RoBMA.reg.fe.raw["alloc[random]","Mean"],     fit.metafor.fereg2$b[[2]], tolerance = 1e-2)
   expect_equal(sum.RoBMA.reg.fe.raw["alloc[systematic]","Mean"], fit.metafor.fereg2$b[[3]], tolerance = 1e-2)
   expect_equal(sum.RoBMA.reg.fe.raw["year","Mean"],              fit.metafor.fereg2$b[[4]], tolerance = 1e-2)
-  
-  expect_equal(sum.RoBMA.reg.re.raw["intercept","Mean"],         fit.metafor.fereg2$b[[1]], tolerance = 2e-2)
-  expect_equal(sum.RoBMA.reg.re.raw["alloc[random]","Mean"],     fit.metafor.fereg2$b[[2]], tolerance = 2e-2)
-  expect_equal(sum.RoBMA.reg.re.raw["alloc[systematic]","Mean"], fit.metafor.fereg2$b[[3]], tolerance = 2.1e-2)
-  expect_equal(sum.RoBMA.reg.re.raw["year","Mean"],              fit.metafor.fereg2$b[[4]], tolerance = 2e-2)
+
+  expect_equal(sum.RoBMA.reg.re.raw["intercept","Mean"],         fit.metafor.rereg2$b[[1]], tolerance = 2.5e-2)
+  expect_equal(sum.RoBMA.reg.re.raw["alloc[random]","Mean"],     fit.metafor.rereg2$b[[2]], tolerance = 2.5e-2)
+  expect_equal(sum.RoBMA.reg.re.raw["alloc[systematic]","Mean"], fit.metafor.rereg2$b[[3]], tolerance = 2.5e-2)
+  expect_equal(sum.RoBMA.reg.re.raw["year","Mean"],              fit.metafor.rereg2$b[[4]], tolerance = 2.5e-2)
+
+  ## multiple continuous predictors
+  fit.metafor.fereg3std <- rma(yi, vi, mods = ~ factor(alloc) + scale(year) + scale(tpos), data = dat, method = "FE")
+  fit.metafor.fereg3raw <- rma(yi, vi, mods = ~ factor(alloc) + year + tpos, data = dat, method = "FE")
+  fit.RoBMA.reg3.fe     <- suppressWarnings(NoBMA.reg(~ alloc + year+ tpos, data = dat,
+                                                 prior_covariates     = prior("normal", list(0, 5)),
+                                                 prior_factors        = prior_factor("normal", list(0, 5), contrast = "treatment"),
+                                                 priors_effect        = prior("normal", list(0, 5)),
+                                                 priors_heterogeneity = NULL,
+                                                 test_predictors      = FALSE, priors_effect_null = NULL,
+                                                 prior_scale = "none", transformation = "none", standardize_predictors = TRUE, seed = 1,
+                                                 algorithm = "ss", chains = 2, sample = 2000, burnin = 500, adapt = 500, parallel = FALSE))
+
+  sum.RoBMA.reg3std.fe <- summary(fit.RoBMA.reg3.fe, standardized_coefficients = TRUE)$estimates_predictors
+  sum.RoBMA.reg3raw.fe <- summary(fit.RoBMA.reg3.fe, standardized_coefficients = FALSE)$estimates_predictors
+
+  expect_equal(sum.RoBMA.reg3std.fe["intercept","Mean"],         fit.metafor.fereg3std$b[[1]], tolerance = 2e-2)
+  expect_equal(sum.RoBMA.reg3std.fe["alloc[random]","Mean"],     fit.metafor.fereg3std$b[[2]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg3std.fe["alloc[systematic]","Mean"], fit.metafor.fereg3std$b[[3]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg3std.fe["year","Mean"],              fit.metafor.fereg3std$b[[4]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg3std.fe["tpos","Mean"],              fit.metafor.fereg3std$b[[5]], tolerance = 1e-2)
+
+  expect_equal(sum.RoBMA.reg3raw.fe["intercept","Mean"],         fit.metafor.fereg3raw$b[[1]], tolerance = 2e-2)
+  expect_equal(sum.RoBMA.reg3raw.fe["alloc[random]","Mean"],     fit.metafor.fereg3raw$b[[2]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg3raw.fe["alloc[systematic]","Mean"], fit.metafor.fereg3raw$b[[3]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg3raw.fe["year","Mean"],              fit.metafor.fereg3raw$b[[4]], tolerance = 1e-2)
+  expect_equal(sum.RoBMA.reg3raw.fe["tpos","Mean"],              fit.metafor.fereg3raw$b[[5]], tolerance = 1e-2)
 
 })
 
@@ -100,4 +127,36 @@ test_that("Validate binomial model with metafor", {
 
   expect_equal(fit.RoBMA.re["mu","Mean"], fit.metafor.re$b[[1]], tolerance = 1e-2)
 
+
+  # regression
+  df <- dat.anand1999
+  fit.metafor.reg  <- suppressWarnings(metafor::rma.glmm(measure = "OR", ai = df$ai, ci = df$ci, n1i = df$n1i, n2i = df$n2i,
+                                                       mods = ~ scale(year), data = df, model = "UM.FS"))
+  fit.metafor.reg2 <- suppressWarnings(metafor::rma.glmm(measure = "OR", ai = df$ai, ci = df$ci, n1i = df$n1i, n2i = df$n2i,
+                                                        mods = ~ year, data = df, model = "UM.FS"))
+
+  dfb <- data.frame(
+    x1 = df$ai,
+    x2 = df$ci,
+    n1 = df$n1i,
+    n2 = df$n2i,
+    year = df$year
+  )
+  fit.BiBMA.reg <- BiBMA.reg(formula = ~ year, data = dfb,
+                             prior_covariates     = prior("normal", list(0, 5)),
+                             priors_effect        = prior("normal", list(0, 5)),
+                             priors_heterogeneity = prior("normal", list(0, 5), list(0, Inf)),
+                             test_predictors      = FALSE, priors_effect_null = NULL,
+                             priors_heterogeneity_null = NULL,
+                             seed = 1,
+                             algorithm = "ss", chains = 2, sample = 2000, burnin = 1000, adapt = 1000, parallel = FALSE)
+
+  sum.BiBMA.reg     <- summary(fit.BiBMA.reg)$estimates_predictors
+  sum.BiBMA.reg.raw <- summary(fit.BiBMA.reg, standardized_coefficients = FALSE)$estimates_predictors
+
+  expect_equal(sum.BiBMA.reg["intercept","Mean"],  fit.metafor.reg$b[[1]], tolerance = 2.5e-2)
+  expect_equal(sum.BiBMA.reg["year","Mean"],       fit.metafor.reg$b[[2]], tolerance = 2.5e-2)
+
+  expect_equal(sum.BiBMA.reg.raw["intercept","Mean"],  fit.metafor.reg2$b[[1]], tolerance = 2e-1)
+  expect_equal(sum.BiBMA.reg.raw["year","Mean"],       fit.metafor.reg2$b[[2]], tolerance = 2.5e-2)
 })

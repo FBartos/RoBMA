@@ -1,6 +1,6 @@
 This is an R package that must strictly follow CRAN guidelines for code, documentation, and package structure.
 
-Always use snake_case for function and variable names throughout the codebase.
+Always use snake_case for function and variable names throughout the codebase. Use consistent style with the existing R code.
 
 Place all R scripts in the R/ directory, tests in tests/testthat/, and vignettes in vignettes/.
 
