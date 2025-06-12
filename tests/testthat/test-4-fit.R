@@ -1,6 +1,5 @@
 context("(4) Fitting and updating functions")
 skip_on_cran()
-skip_on_covr()
 
 # Create temporary directory for fitted models that will be used by subsequent tests
 temp_fits_dir <- file.path(tempdir(), "RoBMA_test_fits")

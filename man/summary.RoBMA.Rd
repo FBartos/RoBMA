@@ -14,6 +14,7 @@
   BF01 = FALSE,
   short_name = FALSE,
   remove_spike_0 = FALSE,
+  standardized_coefficients = TRUE,
   ...
 )
 }
@@ -45,6 +46,10 @@ Defaults to \code{c(.025, .975)}}
 
 \item{remove_spike_0}{whether spike prior distributions with location at zero should
 be omitted from the summary. Defaults to \code{FALSE}.}
+
+\item{standardized_coefficients}{whether to show standardized meta-regression coefficients.
+Defaults to \code{TRUE}. When set to \code{FALSE}, raw (unstandardized) meta-regression
+coefficients are returned for continuous predictors. Only affects meta-regression models.}
 
 \item{...}{additional arguments}
 }
@@ -80,6 +85,11 @@ summary(fit, type = "diagnostics")
 
 # summary of individual models and their parameters can be further obtained by
 summary(fit, type = "individual")
+
+# for meta-regression models, raw (unstandardized) coefficients can be obtained with
+# data(Kroupova2021)  # example data with predictors  
+# fit_reg <- RoBMA.reg(r ~ age, data = Kroupova2021[1:20,])
+# summary(fit_reg, standardized_coefficients = FALSE)
 }
 
 }

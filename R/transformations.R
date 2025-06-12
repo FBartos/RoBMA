@@ -1434,3 +1434,39 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
     stop("data must be a data.frame")
   apply(data, 1, anyNA)
 }
+
+.unstandardize_posterior_samples <- function(samples, variables_info) {
+
+  # Only apply transformation if we have predictors
+  if (length(names(variables_info)) == 0){
+    return(samples)
+  }
+
+  # Make a copy of the samples to avoid modifying the original
+  transformed_samples <- samples
+
+  # Get intercept parameter name
+  intercept_param <- .BayesTools_parameter_name("intercept")
+
+  # Apply transformation for continuous predictors and intercept
+  for (predictor_name in names(variables_info)) {
+    if (variables_info[[predictor_name]][["type"]] == "continuous") {
+      # Get the parameter name
+      param_name <- .BayesTools_parameter_name(predictor_name)
+
+      # Apply transformation
+      predictor_info <- variables_info[[predictor_name]]
+
+      # Transform continuous predictor: divide by standard deviation to get raw coefficient
+      transformed_samples[[param_name]] <- transformed_samples[[param_name]] / predictor_info[["sd"]]
+
+      # Transform intercept: subtract mean-centered effect
+      if (intercept_param %in% names(transformed_samples)) {
+        adjustment <- mean(samples[[param_name]]) * (predictor_info[["mean"]] / predictor_info[["sd"]])
+        transformed_samples[[intercept_param]] <- transformed_samples[[intercept_param]] - adjustment
+      }
+    }
+  }
+
+  return(transformed_samples)
+}

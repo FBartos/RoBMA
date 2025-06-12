@@ -1,5 +1,6 @@
 ## version 3.5.1
 ### Features
+- summary() now supports a `standardized_coefficients` argument to report either standardized (default) or raw meta-regression coefficients
 
 ### Fixes
 
