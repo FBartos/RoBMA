@@ -46,7 +46,7 @@
 <line x1='590.40' y1='259.20' x2='597.60' y2='259.20' style='stroke-width: 0.75; stroke: none;' />
 <line x1='590.40' y1='179.20' x2='597.60' y2='179.20' style='stroke-width: 0.75; stroke: none;' />
 <line x1='590.40' y1='99.20' x2='597.60' y2='99.20' style='stroke-width: 0.75; stroke: none;' />
-<text x='604.80' y='423.33' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.72 [-0.38, 1.63]</text>
+<text x='604.80' y='423.33' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.72 [-0.36, 1.62]</text>
 <text x='604.80' y='263.33' style='font-size: 12.00px; font-family: sans;' textLength='90.07px' lengthAdjust='spacingAndGlyphs'>1.14 [ 0.11, 2.17]</text>
 <text x='604.80' y='183.33' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.74 [-0.87, 2.35]</text>
 <text x='604.80' y='103.33' style='font-size: 12.00px; font-family: sans;' textLength='90.73px' lengthAdjust='spacingAndGlyphs'>0.36 [-1.48, 2.21]</text>
@@ -70,6 +70,6 @@
 <polygon points='319.28,101.90 324.68,101.90 324.68,96.50 319.28,96.50 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='354.87,181.90 360.27,181.90 360.27,176.50 354.87,176.50 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
 <polygon points='392.76,261.90 398.16,261.90 398.16,256.50 392.76,256.50 ' style='stroke-width: 0.75; stroke: none; fill: #000000;' />
-<polygon points='251.40,419.20 355.74,399.20 441.97,419.20 355.74,439.20 ' style='stroke-width: 0.75; fill: #000000;' />
+<polygon points='253.78,419.20 355.93,399.20 440.80,419.20 355.93,439.20 ' style='stroke-width: 0.75; fill: #000000;' />
 </g>
 </svg>

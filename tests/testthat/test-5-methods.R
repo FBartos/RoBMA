@@ -1,20 +1,27 @@
 context("(5) Print and summary functions")
 skip_on_cran()
 
-# the summary tables and print functions are imported from BayesTools and tested henceforth
+### Read all prefitted objects
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", 1:16, ".RDS")
-saved_fits  <- list()
-for(i in seq_along(saved_files)){
-  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
+if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
+  stop("Temporary fits directory not found. Run test-4-fit.R first.")
 }
+
+saved_files <- paste0("fit_", 1:16, ".RDS")
+fits <- list()
+for (i in 1:16) {
+  fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
+}
+names(fits) <- paste0("fit_", 1:16)
+
 
 test_that("Print functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(saved_fits[[i]], print = TRUE, width = 150),
+      capture_output_lines(fits[[i]], print = TRUE, width = 150),
       read.table(file = file.path("../results/print", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 })
@@ -22,175 +29,186 @@ test_that("Print functions work", {
 test_that("Summary functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary(saved_fits[[i]]), print = TRUE, width = 150),
+      capture_output_lines(summary(fits[[i]]), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # all options
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], conditional = TRUE, logBF = TRUE, BF01 = TRUE, probs = c(0.10, 0.50, .90)), print = TRUE, width = 150),
-    c("Call:",
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)",
-      "",
-      "Robust Bayesian meta-analysis",
-      "Components summary:",
-      "              Models Prior prob. Post. prob. log(Exclusion BF)",
-      "Effect         18/36       0.500       0.493             0.028",
-      "Heterogeneity  18/36       0.500       0.462             0.153",
-      "Bias           32/36       0.500       0.540            -0.160",
-      "",
-      "Model-averaged estimates:",
-      "                   Mean Median   0.1   0.5   0.9",
-      "mu                0.196  0.000 0.000 0.000 0.618",
-      "tau               0.109  0.000 0.000 0.000 0.328",
-      "omega[0,0.025]    1.000  1.000 1.000 1.000 1.000",
-      "omega[0.025,0.05] 0.924  1.000 0.671 1.000 1.000",
-      "omega[0.05,0.5]   0.824  1.000 0.308 1.000 1.000",
-      "omega[0.5,0.95]   0.759  1.000 0.126 1.000 1.000",
-      "omega[0.95,0.975] 0.770  1.000 0.131 1.000 1.000",
-      "omega[0.975,1]    0.801  1.000 0.136 1.000 1.000",
-      "PET               0.111  0.000 0.000 0.000 0.404",
-      "PEESE             0.088  0.000 0.000 0.000 0.000",
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
-      "(Estimated publication weights omega correspond to one-sided p-values.)",
-      "",
-      "Conditional estimates:",
-      "                   Mean Median   0.1   0.5   0.9",
-      "mu                0.398  0.414 0.054 0.414 0.732",
-      "tau               0.242  0.170 0.061 0.170 0.490",
-      "omega[0,0.025]    1.000  1.000 1.000 1.000 1.000",
-      "omega[0.025,0.05] 0.784  0.888 0.372 0.888 1.000",
-      "omega[0.05,0.5]   0.499  0.488 0.156 0.488 0.864",
-      "omega[0.5,0.95]   0.313  0.247 0.039 0.247 0.711",
-      "omega[0.95,0.975] 0.341  0.267 0.040 0.267 0.778",
-      "omega[0.975,1]    0.435  0.304 0.040 0.304 1.000",
-      "PET               0.825  0.752 0.168 0.752 1.564",
-      "PEESE             1.691  1.541 0.348 1.541 3.203",
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
-      "(Estimated publication weights omega correspond to one-sided p-values.)"
+    capture_output_lines(summary(fits[["fit_1"]], conditional = TRUE, logBF = TRUE, BF01 = TRUE, probs = c(0.10, 0.50, .90)), print = TRUE, width = 150),
+  c( "Call:"                                                                                                           ,
+     "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                               ,
+     "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, ",
+     "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                              ,
+     ""                                                                                                                ,
+     "Robust Bayesian meta-analysis"                                                                                   ,
+     "Components summary:"                                                                                             ,
+     "              Models Prior prob. Post. prob. log(Exclusion BF)"                                                  ,
+     "Effect         18/36       0.500       0.494             0.025"                                                  ,
+     "Heterogeneity  18/36       0.500       0.462             0.154"                                                 ,
+     "Bias           32/36       0.500       0.537            -0.150"                                                 ,
+     ""                                                                                                               ,
+     "Model-averaged estimates:"                                                                                      ,
+     "                   Mean Median   0.1   0.5   0.9"                                                               ,
+     "mu                0.193  0.000 0.000 0.000 0.605"                                                               ,
+     "tau               0.115  0.000 0.000 0.000 0.357"                                                               ,
+     "omega[0,0.025]    1.000  1.000 1.000 1.000 1.000"                                                               ,
+     "omega[0.025,0.05] 0.924  1.000 0.673 1.000 1.000"                                                               ,
+     "omega[0.05,0.5]   0.823  1.000 0.309 1.000 1.000"                                                               ,
+     "omega[0.5,0.95]   0.757  1.000 0.118 1.000 1.000"                                                               ,
+     "omega[0.95,0.975] 0.768  1.000 0.123 1.000 1.000"                                                               ,
+     "omega[0.975,1]    0.800  1.000 0.129 1.000 1.000"                                                               ,
+     "PET               0.105  0.000 0.000 0.000 0.365"                                                               ,
+     "PEESE             0.095  0.000 0.000 0.000 0.000"                                                               ,
+     "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."            ,
+     "(Estimated publication weights omega correspond to one-sided p-values.)"                                        ,
+     ""                                                                                                               ,
+     "Conditional estimates:"                                                                                         ,
+     "                   Mean Median   0.1   0.5   0.9"                                                               ,
+     "mu                0.399  0.412 0.059 0.412 0.724"                                                               ,
+     "tau               0.251  0.181 0.064 0.181 0.508"                                                               ,
+     "omega[0,0.025]    1.000  1.000 1.000 1.000 1.000"                                                               ,
+     "omega[0.025,0.05] 0.783  0.889 0.366 0.889 1.000"                                                               ,
+     "omega[0.05,0.5]   0.497  0.484 0.152 0.484 0.873"                                                               ,
+     "omega[0.5,0.95]   0.310  0.243 0.039 0.243 0.706"                                                               ,
+     "omega[0.95,0.975] 0.339  0.267 0.039 0.267 0.781"                                                               ,
+     "omega[0.975,1]    0.435  0.305 0.039 0.305 1.000"                                                               ,
+     "PET               0.789  0.706 0.160 0.706 1.506"                                                               ,
+     "PEESE             1.678  1.522 0.341 1.522 3.175"                                                               ,
+     "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."            ,
+     "(Estimated publication weights omega correspond to one-sided p-values.)"
       )
   )
 
   # different effect size measure
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], output_scale = "fishers_z"), print = TRUE, width = 150),
-    c("Call:"                                                                                               ,
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                  ,
-      ""                                                                                                    ,
-      "Robust Bayesian meta-analysis"                                                                       ,
-      "Components summary:"                                                                                 ,
-      "              Models Prior prob. Post. prob. Inclusion BF"                                           ,
-      "Effect         18/36       0.500       0.493        0.973"                                           ,
-      "Heterogeneity  18/36       0.500       0.462        0.858"                                           ,
-      "Bias           32/36       0.500       0.540        1.174"                                           ,
-      ""                                                                                                    ,
-      "Model-averaged estimates:"                                                                           ,
-      "                   Mean Median  0.025 0.975"                                                         ,
-      "mu                0.096  0.000 -0.032 0.399"                                                         ,
-      "tau               0.055  0.000  0.000 0.312"                                                         ,
-      "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                         ,
-      "omega[0.025,0.05] 0.924  1.000  0.310 1.000"                                                         ,
-      "omega[0.05,0.5]   0.824  1.000  0.126 1.000"                                                         ,
-      "omega[0.5,0.95]   0.759  1.000  0.026 1.000"                                                         ,
-      "omega[0.95,0.975] 0.770  1.000  0.027 1.000"                                                         ,
-      "omega[0.975,1]    0.801  1.000  0.027 1.000"                                                         ,
-      "PET               0.111  0.000  0.000 1.311"                                                         ,
-      "PEESE             0.175  0.000  0.000 3.152"                                                         ,
-      "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).",
-      "(Estimated publication weights omega correspond to one-sided p-values.)" )
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "fishers_z"), print = TRUE, width = 150),
+    c("Call:"                                                                                                           ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                               ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, ",
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                              ,
+      ""                                                                                                                ,
+      "Robust Bayesian meta-analysis"                                                                                   ,
+      "Components summary:"                                                                                             ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                                       ,
+      "Effect         18/36       0.500       0.494        0.975"                                                       ,
+      "Heterogeneity  18/36       0.500       0.462        0.858"                                                       ,
+      "Bias           32/36       0.500       0.537        1.162"                                                       ,
+      ""                                                                                                                ,
+      "Model-averaged estimates:"                                                                                       ,
+      "                   Mean Median  0.025 0.975"                                                                     ,
+      "mu                0.095  0.000 -0.027 0.396"                                                                     ,
+      "tau               0.058  0.000  0.000 0.330"                                                                     ,
+      "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                                     ,
+      "omega[0.025,0.05] 0.924  1.000  0.311 1.000"                                                                     ,
+      "omega[0.05,0.5]   0.823  1.000  0.130 1.000"                                                                     ,
+      "omega[0.5,0.95]   0.757  1.000  0.027 1.000"                                                                     ,
+      "omega[0.95,0.975] 0.768  1.000  0.028 1.000"                                                                     ,
+      "omega[0.975,1]    0.800  1.000  0.028 1.000"                                                                     ,
+      "PET               0.105  0.000  0.000 1.259"                                                                     ,
+      "PEESE             0.190  0.000  0.000 3.359"                                                                     ,
+      "The estimates are summarized on the Fisher's z scale (priors were specified on the Cohen's d scale)."            ,
+      "(Estimated publication weights omega correspond to one-sided p-values.)"
+      )
   )
 
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], output_scale = "r"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "r"), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                                    ,
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                                       ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                                                                                        ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, "                                                         ,
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                                                                                       ,
       ""                                                                                                                                                                         ,
       "Robust Bayesian meta-analysis"                                                                                                                                            ,
       "Components summary:"                                                                                                                                                      ,
       "              Models Prior prob. Post. prob. Inclusion BF"                                                                                                                ,
-      "Effect         18/36       0.500       0.493        0.973"                                                                                                                ,
+      "Effect         18/36       0.500       0.494        0.975"                                                                                                                ,
       "Heterogeneity  18/36       0.500       0.462        0.858"                                                                                                                ,
-      "Bias           32/36       0.500       0.540        1.174"                                                                                                                ,
+      "Bias           32/36       0.500       0.537        1.162"                                                                                                                ,
       ""                                                                                                                                                                         ,
       "Model-averaged estimates:"                                                                                                                                                ,
       "                   Mean Median  0.025 0.975"                                                                                                                              ,
-      "mu                0.094  0.000 -0.032 0.379"                                                                                                                              ,
-      "tau               0.055  0.000  0.000 0.312"                                                                                                                              ,
+      "mu                0.093  0.000 -0.027 0.376"                                                                                                                              ,
+      "tau               0.058  0.000  0.000 0.330"                                                                                                                              ,
       "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                                                                                              ,
-      "omega[0.025,0.05] 0.924  1.000  0.310 1.000"                                                                                                                              ,
-      "omega[0.05,0.5]   0.824  1.000  0.126 1.000"                                                                                                                              ,
-      "omega[0.5,0.95]   0.759  1.000  0.026 1.000"                                                                                                                              ,
-      "omega[0.95,0.975] 0.770  1.000  0.027 1.000"                                                                                                                              ,
-      "omega[0.975,1]    0.801  1.000  0.027 1.000"                                                                                                                              ,
-      "PET               0.111  0.000  0.000 1.311"                                                                                                                              ,
-      "PEESE             0.175  0.000  0.000 3.152"                                                                                                                              ,
+      "omega[0.025,0.05] 0.924  1.000  0.311 1.000"                                                                                                                              ,
+      "omega[0.05,0.5]   0.823  1.000  0.130 1.000"                                                                                                                              ,
+      "omega[0.5,0.95]   0.757  1.000  0.027 1.000"                                                                                                                              ,
+      "omega[0.95,0.975] 0.768  1.000  0.028 1.000"                                                                                                                              ,
+      "omega[0.975,1]    0.800  1.000  0.028 1.000"                                                                                                                              ,
+      "PET               0.105  0.000  0.000 1.259"                                                                                                                              ,
+      "PEESE             0.190  0.000  0.000 3.359"                                                                                                                              ,
       "The effect size estimates are summarized on the correlation scale and heterogeneity is summarized on the Fisher's z scale (priors were specified on the Cohen's d scale).",
       "(Estimated publication weights omega correspond to one-sided p-values.)"
       )
   )
 
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], output_scale = "OR"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "OR"), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                      ,
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                         ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                                                                          ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, "                                           ,
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                                                                         ,
       ""                                                                                                                                                           ,
       "Robust Bayesian meta-analysis"                                                                                                                              ,
       "Components summary:"                                                                                                                                        ,
       "              Models Prior prob. Post. prob. Inclusion BF"                                                                                                  ,
-      "Effect         18/36       0.500       0.493        0.973"                                                                                                  ,
+      "Effect         18/36       0.500       0.494        0.975"                                                                                                  ,
       "Heterogeneity  18/36       0.500       0.462        0.858"                                                                                                  ,
-      "Bias           32/36       0.500       0.540        1.174"                                                                                                  ,
+      "Bias           32/36       0.500       0.537        1.162"                                                                                                  ,
       ""                                                                                                                                                           ,
       "Model-averaged estimates:"                                                                                                                                  ,
       "                   Mean Median 0.025 0.975"                                                                                                                 ,
-      "mu                1.650  1.000 0.892 4.423"                                                                                                                 ,
-      "tau               0.198  0.000 0.000 1.134"                                                                                                                 ,
+      "mu                1.636  1.000 0.906 4.366"                                                                                                                 ,
+      "tau               0.209  0.000 0.000 1.195"                                                                                                                 ,
       "omega[0,0.025]    1.000  1.000 1.000 1.000"                                                                                                                 ,
-      "omega[0.025,0.05] 0.924  1.000 0.310 1.000"                                                                                                                 ,
-      "omega[0.05,0.5]   0.824  1.000 0.126 1.000"                                                                                                                 ,
-      "omega[0.5,0.95]   0.759  1.000 0.026 1.000"                                                                                                                 ,
-      "omega[0.95,0.975] 0.770  1.000 0.027 1.000"                                                                                                                 ,
-      "omega[0.975,1]    0.801  1.000 0.027 1.000"                                                                                                                 ,
-      "PET               0.111  0.000 0.000 1.311"                                                                                                                 ,
-      "PEESE             0.890  0.551 0.551 2.666"                                                                                                                 ,
+      "omega[0.025,0.05] 0.924  1.000 0.311 1.000"                                                                                                                 ,
+      "omega[0.05,0.5]   0.823  1.000 0.130 1.000"                                                                                                                 ,
+      "omega[0.5,0.95]   0.757  1.000 0.027 1.000"                                                                                                                 ,
+      "omega[0.95,0.975] 0.768  1.000 0.028 1.000"                                                                                                                 ,
+      "omega[0.975,1]    0.800  1.000 0.028 1.000"                                                                                                                 ,
+      "PET               0.105  0.000 0.000 1.259"                                                                                                                 ,
+      "PEESE             1.372  0.551 0.551 2.956"                                                                                                                 ,
       "The effect size estimates are summarized on the OR scale and heterogeneity is summarized on the logOR scale (priors were specified on the Cohen's d scale).",
       "(Estimated publication weights omega correspond to one-sided p-values.)"
     )
   )
 
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], output_scale = "logOR"), print = TRUE, width = 150),
-    c("Call:"                                                                                            ,
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                               ,
-      ""                                                                                                 ,
-      "Robust Bayesian meta-analysis"                                                                    ,
-      "Components summary:"                                                                              ,
-      "              Models Prior prob. Post. prob. Inclusion BF"                                        ,
-      "Effect         18/36       0.500       0.493        0.973"                                        ,
-      "Heterogeneity  18/36       0.500       0.462        0.858"                                        ,
-      "Bias           32/36       0.500       0.540        1.174"                                        ,
-      ""                                                                                                 ,
-      "Model-averaged estimates:"                                                                        ,
-      "                   Mean Median  0.025 0.975"                                                      ,
-      "mu                0.355  0.000 -0.114 1.487"                                                      ,
-      "tau               0.198  0.000  0.000 1.134"                                                      ,
-      "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                      ,
-      "omega[0.025,0.05] 0.924  1.000  0.310 1.000"                                                      ,
-      "omega[0.05,0.5]   0.824  1.000  0.126 1.000"                                                      ,
-      "omega[0.5,0.95]   0.759  1.000  0.026 1.000"                                                      ,
-      "omega[0.95,0.975] 0.770  1.000  0.027 1.000"                                                      ,
-      "omega[0.975,1]    0.801  1.000  0.027 1.000"                                                      ,
-      "PET               0.111  0.000  0.000 1.311"                                                      ,
-      "PEESE             0.048  0.000  0.000 0.869"                                                      ,
-      "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale).",
+    capture_output_lines(summary(fits[["fit_1"]], output_scale = "logOR"), print = TRUE, width = 150),
+    c("Call:"                                                                                                           ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                               ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, ",
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                              ,
+      ""                                                                                                                ,
+      "Robust Bayesian meta-analysis"                                                                                   ,
+      "Components summary:"                                                                                             ,
+      "              Models Prior prob. Post. prob. Inclusion BF"                                                       ,
+      "Effect         18/36       0.500       0.494        0.975"                                                       ,
+      "Heterogeneity  18/36       0.500       0.462        0.858"                                                       ,
+      "Bias           32/36       0.500       0.537        1.162"                                                       ,
+      ""                                                                                                                ,
+      "Model-averaged estimates:"                                                                                       ,
+      "                   Mean Median  0.025 0.975"                                                                     ,
+      "mu                0.351  0.000 -0.098 1.474"                                                                     ,
+      "tau               0.209  0.000  0.000 1.195"                                                                     ,
+      "omega[0,0.025]    1.000  1.000  1.000 1.000"                                                                     ,
+      "omega[0.025,0.05] 0.924  1.000  0.311 1.000"                                                                     ,
+      "omega[0.05,0.5]   0.823  1.000  0.130 1.000"                                                                     ,
+      "omega[0.5,0.95]   0.757  1.000  0.027 1.000"                                                                     ,
+      "omega[0.95,0.975] 0.768  1.000  0.028 1.000"                                                                     ,
+      "omega[0.975,1]    0.800  1.000  0.028 1.000"                                                                     ,
+      "PET               0.105  0.000  0.000 1.259"                                                                     ,
+      "PEESE             0.052  0.000  0.000 0.926"                                                                     ,
+      "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale)."               ,
       "(Estimated publication weights omega correspond to one-sided p-values.)"
     )
   )
 
   expect_equal( # try with BiBMA
-    capture_output_lines(summary(saved_fits[[16]]), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_16"]]), print = TRUE, width = 150),
     c("Call:"                                                                                          ,
       "BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20, 5), n2 = rep(20, 5), chains = 2, "                       ,
       "    sample = 500, burnin = 250, adapt = 100, parallel = TRUE, "                                 ,
@@ -212,7 +230,7 @@ test_that("Summary functions work", {
   )
 
   expect_equal( # try with BiBMA
-    capture_output_lines(summary(saved_fits[[16]], output_scale = "cohens_d"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_16"]], output_scale = "cohens_d"), print = TRUE, width = 150),
     c("Call:"                                                                                            ,
       "BiBMA(x1 = 0:4, x2 = 2:6, n1 = rep(20, 5), n2 = rep(20, 5), chains = 2, "                         ,
       "    sample = 500, burnin = 250, adapt = 100, parallel = TRUE, "                                   ,
@@ -235,7 +253,7 @@ test_that("Summary functions work", {
 
   # no conditional, yet requested
   expect_equal(
-    capture_output_lines(summary(saved_fits[[8]], conditional = TRUE), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_8"]], conditional = TRUE), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_effect = NULL, priors_heterogeneity = NULL, "                                  ,
       "    priors_bias = NULL, chains = 2, sample = 500, burnin = 250, "                                             ,
@@ -264,59 +282,59 @@ test_that("Summary functions work", {
 test_that("Models summary functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary(saved_fits[[i]], type = "models"), print = TRUE, width = 150),
+      capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary.models", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # test short names
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], type = "models", short_name = TRUE), print = TRUE, width = 150)[1:15],
-    c( "Call:"                                                                                                                                ,
-       "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                   ,
-       ""                                                                                                                                     ,
-       "Robust Bayesian meta-analysis"                                                                                                        ,
-       "Models overview:"                                                                                                                     ,
-       " Model Prior Effect Prior Heterogeneity                  Prior Bias                 Prior prob. log(marglik) Post. prob. Inclusion BF",
-       "     1         S(0)                S(0)                                                   0.125        -0.83       0.076        0.578",
-       "     2         S(0)                S(0)           omega[2s: .05] ~ CumD(1, 1)             0.010        -0.29       0.011        1.048",
-       "     3         S(0)                S(0)       omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010        -0.38       0.010        0.956",
-       "     4         S(0)                S(0)           omega[1s: .05] ~ CumD(1, 1)             0.010        -0.28       0.011        1.061",
-       "     5         S(0)                S(0)     omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010         0.03       0.015        1.451",
-       "     6         S(0)                S(0)       omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010         0.56       0.025        2.484",
-       "     7         S(0)                S(0) omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010         0.80       0.032        3.183",
-       "     8         S(0)                S(0)                      PET ~ C(0, 1)[0, Inf]        0.031         0.16       0.051        1.674",
-       "     9         S(0)                S(0)                    PEESE ~ C(0, 5)[0, Inf]        0.031        -0.86       0.019        0.586"
+    capture_output_lines(summary(fits[["fit_1"]], type = "models", short_name = TRUE), print = TRUE, width = 150)[1:15],
+    c("Call:"                                                                                                                                ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                                                    ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, "                     ,
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                                                   ,
+      ""                                                                                                                                     ,
+      "Robust Bayesian meta-analysis"                                                                                                        ,
+      "Models overview:"                                                                                                                     ,
+      " Model Prior Effect Prior Heterogeneity                  Prior Bias                 Prior prob. log(marglik) Post. prob. Inclusion BF",
+      "     1         S(0)                S(0)                                                   0.125        -0.83       0.076        0.580",
+      "     2         S(0)                S(0)           omega[2s: .05] ~ CumD(1, 1)             0.010        -0.30       0.011        1.049",
+      "     3         S(0)                S(0)       omega[2s: .1, .05] ~ CumD(1, 1, 1)          0.010        -0.40       0.010        0.948",
+      "     4         S(0)                S(0)           omega[1s: .05] ~ CumD(1, 1)             0.010        -0.28       0.011        1.066",
+      "     5         S(0)                S(0)     omega[1s: .05, .025] ~ CumD(1, 1, 1)          0.010         0.02       0.015        1.440",
+      "     6         S(0)                S(0)       omega[1s: .5, .05] ~ CumD(1, 1, 1)          0.010         0.55       0.025        2.472",
+      "     7         S(0)                S(0) omega[1s: .5, .05, .025] ~ CumD(1, 1, 1, 1)       0.010         0.79       0.032        3.170"
     ))
 
   # test no spikes
   expect_equal(
-    capture_output_lines(summary(saved_fits[[1]], type = "models", remove_spike_0 = TRUE), print = TRUE, width = 150)[1:15],
+    capture_output_lines(summary(fits[["fit_1"]], type = "models", remove_spike_0 = TRUE), print = TRUE, width = 150)[1:15],
     c("Call:"                                                                                                                                               ,
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                                                                                  ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                                                                   ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, "                                    ,
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                                                                  ,
       ""                                                                                                                                                    ,
       "Robust Bayesian meta-analysis"                                                                                                                       ,
       "Models overview:"                                                                                                                                    ,
       " Model Prior Effect Prior Heterogeneity                         Prior Bias                         Prior prob. log(marglik) Post. prob. Inclusion BF",
-      "     1                                                                                                   0.125        -0.83       0.076        0.578",
-      "     2                                            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010        -0.29       0.011        1.048",
-      "     3                                        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010        -0.38       0.010        0.956",
-      "     4                                            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010        -0.28       0.011        1.061",
-      "     5                                      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010         0.03       0.015        1.451",
-      "     6                                        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010         0.56       0.025        2.484",
-      "     7                                  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010         0.80       0.032        3.183",
-      "     8                                                              PET ~ Cauchy(0, 1)[0, Inf]           0.031         0.16       0.051        1.674",
-      "     9                                                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031        -0.86       0.019        0.586"
+      "     1                                                                                                   0.125        -0.83       0.076        0.580",
+      "     2                                            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010        -0.30       0.011        1.049",
+      "     3                                        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010        -0.40       0.010        0.948",
+      "     4                                            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010        -0.28       0.011        1.066",
+      "     5                                      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010         0.02       0.015        1.440",
+      "     6                                        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010         0.55       0.025        2.472",
+      "     7                                  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010         0.79       0.032        3.170"
     ))
 })
 
 test_that("Diagnostics summary functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary(saved_fits[[i]], type = "diagnostics"), print = TRUE, width = 200),
+      capture_output_lines(summary(fits[[i]], type = "diagnostics"), print = TRUE, width = 200),
       read.table(file = file.path("../results/summary.diagnostics", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 })
@@ -324,15 +342,15 @@ test_that("Diagnostics summary functions work", {
 test_that("Individual summary functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary(saved_fits[[i]], type = "individual"), print = TRUE, width = 150),
+      capture_output_lines(summary(fits[[i]], type = "individual"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # different effect size measure
   expect_equal(
-    capture_output_lines(summary(saved_fits[[10]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_10"]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                             ,
       "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "                  ,
@@ -358,7 +376,7 @@ test_that("Individual summary functions work", {
 
   # different effect size measure (with PET and PEESE)
   expect_equal(
-    capture_output_lines(summary(saved_fits[[3]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150)[132:158],
+    capture_output_lines(summary(fits[["fit_3"]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150)[132:158],
     c("                                                               "                                     ,
       " Model             11             Parameter prior distributions"                                     ,
       " Prior prob.    0.062                 mu ~ Normal(0, 1)        "                                     ,
@@ -390,7 +408,7 @@ test_that("Individual summary functions work", {
 
   # different effect size measure
   expect_equal(
-    capture_output_lines(summary(saved_fits[[10]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_10"]], type = "individual", output_scale = "fishers_z"), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                             ,
       "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "                  ,
@@ -415,7 +433,7 @@ test_that("Individual summary functions work", {
     ))
   # test short names
   expect_equal(
-    capture_output_lines(summary(saved_fits[[10]], type = "individual", short_name = TRUE), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_10"]], type = "individual", short_name = TRUE), print = TRUE, width = 150),
     c("Call:"                                                                                                        ,
       "RoBMA(d = d, se = d_se, priors_bias = prior_weightfunction(\"one-sided.fixed\", "                             ,
       "    list(c(0.1), c(1, 0.5))), priors_effect_null = NULL, priors_heterogeneity_null = NULL, "                  ,
@@ -441,7 +459,7 @@ test_that("Individual summary functions work", {
 
   # test no spikes
   expect_equal(
-    capture_output_lines(summary(saved_fits[[8]], type = "individual", remove_spike_0 = TRUE), print = TRUE, width = 150),
+    capture_output_lines(summary(fits[["fit_8"]], type = "individual", remove_spike_0 = TRUE), print = TRUE, width = 150),
     c("Call:"                                                                                                                                     ,
       "RoBMA(d = d, se = d_se, priors_effect = NULL, priors_heterogeneity = NULL, "                                                               ,
       "    priors_bias = NULL, chains = 2, sample = 500, burnin = 250, "                                                                          ,
@@ -467,26 +485,26 @@ test_that("Individual summary functions work", {
 test_that("Interpret functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      gsub("(.{80})", "\\1\\\n", interpret(saved_fits[[i]])),
+      gsub("(.{80})", "\\1\\\n", interpret(fits[[i]])),
       read.table(file = file.path("../results/interpret", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # with transformation
   expect_equal(
-    interpret(saved_fits[[1]], output_scale = "r"),
-    "Robust Bayesian meta-analysis found weak evidence against the effect, BF_10 = 0.973, with mean model-averaged estimate correlation = 0.094, 95% CI [-0.032,  0.379]. Robust Bayesian meta-analysis found weak evidence against the heterogeneity, BF^rf = 0.858, with mean model-averaged estimate tau = 0.055, 95% CI [0.000, 0.312]. Robust Bayesian meta-analysis found weak evidence in favor of the publication bias, BF_pb = 1.17."
+    interpret(fits[["fit_1"]], output_scale = "r"),
+    "Robust Bayesian meta-analysis found weak evidence against the effect, BF_10 = 0.975, with mean model-averaged estimate correlation = 0.093, 95% CI [-0.027,  0.376]. Robust Bayesian meta-analysis found weak evidence against the heterogeneity, BF^rf = 0.858, with mean model-averaged estimate tau = 0.058, 95% CI [0.000, 0.330]. Robust Bayesian meta-analysis found weak evidence in favor of the publication bias, BF_pb = 1.16."
   )
 
 })
 
 test_that("Marginal summary functions work", {
 
-  expect_error(marginal_summary(saved_fits[[1]]), "'marginal_summary' function is available only for RoBMA regression models")
+  expect_error(marginal_summary(fits[["fit_1"]]), "'marginal_summary' function is available only for RoBMA regression models")
 
   expect_equal(
-    capture_output_lines(marginal_summary(saved_fits[[14]]), print = TRUE, width = 150),
+    capture_output_lines(marginal_summary(fits[["fit_14"]]), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                                               ,
       "RoBMA.reg(formula = ~mod_cat + mod_con, data = df_reg, priors_bias = NULL, "                                                                                                         ,
       "    chains = 2, sample = 500, burnin = 250, adapt = 100, parallel = TRUE, "                                                                                                          ,
@@ -518,7 +536,7 @@ test_that("Marginal summary functions work", {
   )
 
   expect_equal(
-    capture_output_lines(marginal_summary(saved_fits[[15]], conditional = TRUE, output_scale = "r"), print = TRUE, width = 150),
+    capture_output_lines(marginal_summary(fits[["fit_15"]], conditional = TRUE, output_scale = "r"), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                             ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "                                                               ,
       "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                                                                                  ,
@@ -559,46 +577,47 @@ test_that("Marginal summary functions work", {
 test_that("Heterogeneity summary functions work", {
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150),
+      capture_output_lines(summary_heterogeneity(fits[[i]]), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary_heterogeneity", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
   # testing consistency across all model specifications
-  for(i in 1:length(saved_fits)){
+  for(i in 1:length(saved_files)){
     expect_equal(
-      capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150),
+      capture_output_lines(summary_heterogeneity(fits[[i]], type = "i"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary_heterogeneity.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
   }
 
-  # test BiBMA
   expect_equal(
-    capture_output_lines(summary_heterogeneity(saved_fits[[1]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
-    c("Call:"                                                                                   ,
-      "RoBMA(d = d, se = d_se, parallel = TRUE, seed = 1)"                                      ,
-      ""                                                                                        ,
-      "Robust Bayesian meta-analysis"                                                           ,
-      "Model-averaged heterogeneity estimates:"                                                 ,
-      "      Mean Median  0.025   0.5"                                                          ,
-      "PI   0.354  0.159 -0.758 0.159"                                                          ,
-      "tau  0.198  0.000  0.000 0.000"                                                          ,
-      "tau2 0.045  0.000  0.000 0.000"                                                          ,
-      "I2   9.736  0.000  0.000 0.000"                                                          ,
-      "H2   1.258  1.000  1.000 1.000"                                                          ,
-      "The prediction interval (PI) is summarized on the log(OR) scale."                        ,
-      "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."             ,
-      "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale.",
-      ""                                                                                        ,
-      "Conditional heterogeneity estimates:"                                                    ,
-      "       Mean Median  0.025    0.5"                                                        ,
-      "PI    0.719  0.751 -0.564  0.751"                                                        ,
-      "tau   0.440  0.308  0.072  0.308"                                                        ,
-      "tau2  0.108  0.026  0.001  0.026"                                                        ,
-      "I2   21.518 12.946  0.798 12.946"                                                        ,
-      "H2    1.612  1.149  1.008  1.149"                                                        ,
-      "The prediction interval (PI) is summarized on the log(OR) scale."                        ,
-      "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."             ,
+    capture_output_lines(summary_heterogeneity(fits[["fit_1"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    c("Call:"                                                                                                           ,
+      "RoBMA(d = d, se = d_se, chains = 2, sample = 1000, burnin = 250, "                                               ,
+      "    adapt = 250, parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 1.25, ",
+      "        min_ESS = 100, max_error = 1, max_SD_error = 1), seed = 1)"                                              ,
+      ""                                                                                                                ,
+      "Robust Bayesian meta-analysis"                                                                                   ,
+      "Model-averaged heterogeneity estimates:"                                                                         ,
+      "       Mean Median  0.025   0.5"                                                                                 ,
+      "PI    0.354  0.163 -0.768 0.163"                                                                                 ,
+      "tau   0.209  0.000  0.000 0.000"                                                                                ,
+      "tau2  0.051  0.000  0.000 0.000"                                                                                ,
+      "I2   10.424  0.000  0.000 0.000"                                                                                ,
+      "H2    1.289  1.000  1.000 1.000"                                                                                ,
+      "The prediction interval (PI) is summarized on the log(OR) scale."                                               ,
+      "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."                                    ,
+      "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale."                       ,
+      ""                                                                                                               ,
+      "Conditional heterogeneity estimates:"                                                                           ,
+      "       Mean Median  0.025    0.5"                                                                               ,
+      "PI    0.715  0.747 -0.570  0.747"                                                                               ,
+      "tau   0.454  0.328  0.072  0.328"                                                                               ,
+      "tau2  0.108  0.030  0.001  0.030"                                                                               ,
+      "I2   22.526 14.392  0.812 14.392"                                                                               ,
+      "H2    1.612  1.168  1.008  1.168"                                                                               ,
+      "The prediction interval (PI) is summarized on the log(OR) scale."                                               ,
+      "The absolute heterogeneity (tau, tau^2) is summarized on the log(OR) scale."                                    ,
       "The relative heterogeneity indicies (I^2 and H^2) were computed on the Fisher's z scale."
     ))
 
@@ -609,16 +628,16 @@ test_that("Effect size summary functions work", {
 
   # testing for consistency among pooled vs adjusted for standard models
   expect_equivalent(
-    as.data.frame(pooled_effect(saved_fits[[15]])[["estimates"]]),
-    as.data.frame(adjusted_effect(saved_fits[[15]])[["estimates"]])
+    as.data.frame(pooled_effect(fits[["fit_15"]])[["estimates"]]),
+    as.data.frame(adjusted_effect(fits[["fit_15"]])[["estimates"]])
   )
   expect_equivalent(
-    as.data.frame(pooled_effect(saved_fits[[15]], conditional = TRUE)[["estimates_conditional"]]),
-    as.data.frame(adjusted_effect(saved_fits[[15]], conditional = TRUE)[["estimates_conditional"]])
+    as.data.frame(pooled_effect(fits[["fit_15"]], conditional = TRUE)[["estimates_conditional"]]),
+    as.data.frame(adjusted_effect(fits[["fit_15"]], conditional = TRUE)[["estimates_conditional"]])
   )
 
   expect_equal(
-    capture_output_lines(pooled_effect(saved_fits[[15]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    capture_output_lines(pooled_effect(fits[["fit_15"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
     c("Call:"                                                                                                  ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "    ,
       "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                       ,
@@ -645,7 +664,7 @@ test_that("Effect size summary functions work", {
     ))
 
   expect_equal(
-    capture_output_lines(adjusted_effect(saved_fits[[15]], conditional = TRUE, output_scale = "r", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    capture_output_lines(adjusted_effect(fits[["fit_15"]], conditional = TRUE, output_scale = "r", probs = c(0.025, 0.5)), print = TRUE, width = 150),
     c("Call:"                                                                                                                                                                    ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "                                                                      ,
       "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                                                                                         ,
@@ -673,52 +692,56 @@ test_that("Effect size summary functions work", {
 
 })
 
+
 #### creating / updating the test settings ####
 if(FALSE){
 
-  saved_files <- paste0("fit_", 1:17, ".RDS")
-  saved_fits  <- list()
-  for(i in seq_along(saved_files)){
-    saved_fits[[i]] <- readRDS(file = file.path("tests/results/fits", saved_files[i]))
+  temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
+
+  saved_files <- paste0("fit_", 1:16, ".RDS")
+  fits <- list()
+  for (i in 1:16) {
+    fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
   }
+  names(fits) <- paste0("fit_", 1:16)
 
   # generate print files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(saved_fits[[i]], print = TRUE, width = 150), file = file.path("tests/results/print", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(fits[[i]], print = TRUE, width = 150), file = file.path("tests/results/print", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(summary(saved_fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(summary(fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary.models files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(summary(saved_fits[[i]], type = "models"), print = TRUE, width = 150), file = file.path("tests/results/summary.models", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150), file = file.path("tests/results/summary.models", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary.diagnostics files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(summary(saved_fits[[i]], type = "diagnostics"), print = TRUE, width = 200), file = file.path("tests/results/summary.diagnostics", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(summary(fits[[i]], type = "diagnostics"), print = TRUE, width = 200), file = file.path("tests/results/summary.diagnostics", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary.individual files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(summary(saved_fits[[i]], type = "individual"), print = TRUE, width = 150), file = file.path("tests/results/summary.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(summary(fits[[i]], type = "individual"), print = TRUE, width = 150), file = file.path("tests/results/summary.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary.individual files
-  for(i in seq_along(saved_fits)){
-    write.table(gsub("(.{80})", "\\1\\\n", interpret(saved_fits[[i]])), file = file.path("tests/results/interpret", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(gsub("(.{80})", "\\1\\\n", interpret(fits[[i]])), file = file.path("tests/results/interpret", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary_heterogeneity files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(summary_heterogeneity(fits[[i]]), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 
   # generate summary_heterogeneity.individual files
-  for(i in seq_along(saved_fits)){
-    write.table(capture_output_lines(summary_heterogeneity(saved_fits[[i]], type = "i"), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+  for(i in seq_along(fits)){
+    write.table(capture_output_lines(summary_heterogeneity(fits[[i]], type = "i"), print = TRUE, width = 150), file = file.path("tests/results/summary_heterogeneity.individual", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
   }
 }

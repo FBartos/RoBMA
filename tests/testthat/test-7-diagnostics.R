@@ -1,24 +1,32 @@
 context("(7) Diagnostics plots")
 skip_on_cran()
 
+### Read all prefitted objects
 # test objects - assuming that the fit function worked properly
-saved_files <- paste0("fit_", c(1, 15), ".RDS")
-saved_fits  <- list()
-for(i in seq_along(saved_files)){
-  saved_fits[[i]] <- readRDS(file = file.path("../results/fits", saved_files[i]))
+temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
+if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
+  stop("Temporary fits directory not found. Run test-4-fit.R first.")
 }
+
+saved_files <- paste0("fit_", 1:16, ".RDS")
+fits <- list()
+for (i in 1:16) {
+  fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
+}
+names(fits) <- paste0("fit_", 1:16)
+
 
 test_that("Diagnostic plots work", {
 
   # RoBMA
-  chains_mu    <- diagnostics(saved_fits[[1]], "mu",    "chains", plot_type = "ggplot")
-  chains_tau   <- diagnostics(saved_fits[[1]], "tau",   "chains", plot_type = "ggplot")
-  chains_omega <- diagnostics(saved_fits[[1]], "omega", "chains", plot_type = "ggplot")
-  chains_PET   <- diagnostics(saved_fits[[1]], "PET",   "chains", plot_type = "ggplot")
-  chains_PEESE <- diagnostics(saved_fits[[1]], "PEESE", "chains", plot_type = "ggplot")
+  chains_mu    <- diagnostics(fits[["fit_1"]], "mu",    "chains", plot_type = "ggplot")
+  chains_tau   <- diagnostics(fits[["fit_1"]], "tau",   "chains", plot_type = "ggplot")
+  chains_omega <- diagnostics(fits[["fit_1"]], "omega", "chains", plot_type = "ggplot")
+  chains_PET   <- diagnostics(fits[["fit_1"]], "PET",   "chains", plot_type = "ggplot")
+  chains_PEESE <- diagnostics(fits[["fit_1"]], "PEESE", "chains", plot_type = "ggplot")
 
-  autocorrelation_mu   <- diagnostics(saved_fits[[1]], "mu",    "autocorrelation", plot_type = "ggplot")
-  densities_mu         <- diagnostics(saved_fits[[1]], "mu",    "densities", plot_type = "ggplot")
+  autocorrelation_mu   <- diagnostics(fits[["fit_1"]], "mu",    "autocorrelation", plot_type = "ggplot")
+  densities_mu         <- diagnostics(fits[["fit_1"]], "mu",    "densities", plot_type = "ggplot")
 
 
   expect_equal(all(sapply(chains_mu[1:18],  is.null)), TRUE)
@@ -50,50 +58,50 @@ test_that("Diagnostic plots work", {
   vdiffr::expect_doppelganger(paste0("ggplot_chains_PEESE"),       chains_PEESE[[36]])
 
   # base plots
-  vdiffr::expect_doppelganger(paste0("plot_chains_mu"),          function()diagnostics(saved_fits[[1]], "mu", "chains",          show_models = 36))
-  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_mu"), function()diagnostics(saved_fits[[1]], "mu", "autocorrelation", show_models = 36))
-  vdiffr::expect_doppelganger(paste0("plot_densities_mu"),       function()diagnostics(saved_fits[[1]], "mu", "densities",       show_models = 36))
+  vdiffr::expect_doppelganger(paste0("plot_chains_mu"),          function()diagnostics(fits[["fit_1"]], "mu", "chains",          show_models = 36))
+  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_mu"), function()diagnostics(fits[["fit_1"]], "mu", "autocorrelation", show_models = 36))
+  vdiffr::expect_doppelganger(paste0("plot_densities_mu"),       function()diagnostics(fits[["fit_1"]], "mu", "densities",       show_models = 36))
 
-  vdiffr::expect_doppelganger(paste0("plot_chains_tau"),          function()diagnostics(saved_fits[[1]], "tau", "chains",          show_models = 10))
-  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_tau"), function()diagnostics(saved_fits[[1]], "tau", "autocorrelation", show_models = 10))
-  vdiffr::expect_doppelganger(paste0("plot_densities_tau"),       function()diagnostics(saved_fits[[1]], "tau", "densities",       show_models = 10))
+  vdiffr::expect_doppelganger(paste0("plot_chains_tau"),          function()diagnostics(fits[["fit_1"]], "tau", "chains",          show_models = 10))
+  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_tau"), function()diagnostics(fits[["fit_1"]], "tau", "autocorrelation", show_models = 10))
+  vdiffr::expect_doppelganger(paste0("plot_densities_tau"),       function()diagnostics(fits[["fit_1"]], "tau", "densities",       show_models = 10))
 
   vdiffr::expect_doppelganger(paste0("plot_chains_omega"),        function(){
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]]))
     par(mfrow = c(3,1))
-    suppressMessages(diagnostics(saved_fits[[1]], "omega", "chains", show_models = 7))
+    suppressMessages(diagnostics(fits[["fit_1"]], "omega", "chains", show_models = 7))
   })
   vdiffr::expect_doppelganger(paste0("plot_autocorrelation_omega"),        function(){
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]]))
     par(mfrow = c(3,1))
-    suppressMessages(diagnostics(saved_fits[[1]], "omega", "autocorrelation", show_models = 7))
+    suppressMessages(diagnostics(fits[["fit_1"]], "omega", "autocorrelation", show_models = 7))
   })
   vdiffr::expect_doppelganger(paste0("plot_densities_omega"),        function(){
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]]))
     par(mfrow = c(3,1))
-    suppressMessages(diagnostics(saved_fits[[1]], "omega", "densities", show_models = 7))
+    suppressMessages(diagnostics(fits[["fit_1"]], "omega", "densities", show_models = 7))
   })
 
-  vdiffr::expect_doppelganger(paste0("plot_chains_omega_2"),           function()suppressMessages(diagnostics(saved_fits[[1]], "omega", "chains",          show_models = 2)))
-  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_omega_2"),  function()suppressMessages(diagnostics(saved_fits[[1]], "omega", "autocorrelation", show_models = 2)))
-  vdiffr::expect_doppelganger(paste0("plot_densities_omega_2"),        function()suppressMessages(diagnostics(saved_fits[[1]], "omega", "densities",       show_models = 2)))
+  vdiffr::expect_doppelganger(paste0("plot_chains_omega_2"),           function()suppressMessages(diagnostics(fits[["fit_1"]], "omega", "chains",          show_models = 2)))
+  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_omega_2"),  function()suppressMessages(diagnostics(fits[["fit_1"]], "omega", "autocorrelation", show_models = 2)))
+  vdiffr::expect_doppelganger(paste0("plot_densities_omega_2"),        function()suppressMessages(diagnostics(fits[["fit_1"]], "omega", "densities",       show_models = 2)))
 
-  vdiffr::expect_doppelganger(paste0("plot_chains_PET"),          function()diagnostics(saved_fits[[1]], "PET", "chains",          show_models = 8))
-  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_PET"), function()diagnostics(saved_fits[[1]], "PET", "autocorrelation", show_models = 8))
-  vdiffr::expect_doppelganger(paste0("plot_densities_PET"),       function()diagnostics(saved_fits[[1]], "PET", "densities",       show_models = 8))
+  vdiffr::expect_doppelganger(paste0("plot_chains_PET"),          function()diagnostics(fits[["fit_1"]], "PET", "chains",          show_models = 8))
+  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_PET"), function()diagnostics(fits[["fit_1"]], "PET", "autocorrelation", show_models = 8))
+  vdiffr::expect_doppelganger(paste0("plot_densities_PET"),       function()diagnostics(fits[["fit_1"]], "PET", "densities",       show_models = 8))
 
-  vdiffr::expect_doppelganger(paste0("plot_chains_PEESE"),          function()diagnostics(saved_fits[[1]], "PEESE", "chains",          show_models = 36))
-  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_PEESE"), function()diagnostics(saved_fits[[1]], "PEESE", "autocorrelation", show_models = 36))
-  vdiffr::expect_doppelganger(paste0("plot_densities_PEESE"),       function()diagnostics(saved_fits[[1]], "PEESE", "densities",       show_models = 36))
+  vdiffr::expect_doppelganger(paste0("plot_chains_PEESE"),          function()diagnostics(fits[["fit_1"]], "PEESE", "chains",          show_models = 36))
+  vdiffr::expect_doppelganger(paste0("plot_autocorrelation_PEESE"), function()diagnostics(fits[["fit_1"]], "PEESE", "autocorrelation", show_models = 36))
+  vdiffr::expect_doppelganger(paste0("plot_densities_PEESE"),       function()diagnostics(fits[["fit_1"]], "PEESE", "densities",       show_models = 36))
 
   ### RoBMA.reg
-  chains_mu       <- diagnostics(saved_fits[[2]], "mu",        "chains", plot_type = "ggplot")
-  chains_omega    <- diagnostics(saved_fits[[2]], "omega",     "chains", plot_type = "ggplot")
-  chains_PET      <- diagnostics(saved_fits[[2]], "PET",       "chains", plot_type = "ggplot")
-  chains_mod_con  <- diagnostics(saved_fits[[2]], "mod_con",   "chains", plot_type = "ggplot")
+  chains_mu       <- diagnostics(fits[["fit_15"]], "mu",        "chains", plot_type = "ggplot")
+  chains_omega    <- diagnostics(fits[["fit_15"]], "omega",     "chains", plot_type = "ggplot")
+  chains_PET      <- diagnostics(fits[["fit_15"]], "PET",       "chains", plot_type = "ggplot")
+  chains_mod_con  <- diagnostics(fits[["fit_15"]], "mod_con",   "chains", plot_type = "ggplot")
 
   vdiffr::expect_doppelganger("plot_chains.reg_mu",      chains_mu)
   vdiffr::expect_doppelganger("plot_chains.reg_omega",   chains_omega[[1]])

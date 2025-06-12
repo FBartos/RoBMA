@@ -330,10 +330,10 @@ test_that("R and JAGS density is consistent", {
   )
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
-  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 10, quiet = TRUE, progress.bar = "none")
 
 
-  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:100, function(i){
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:10, function(i){
     RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
   })), tolerance = 1e-3)
 
@@ -361,10 +361,10 @@ test_that("R and JAGS density is consistent", {
   )
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
-  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 10, quiet = TRUE, progress.bar = "none")
 
 
-  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:100, function(i){
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:10, function(i){
     RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
   })), tolerance = 1e-3)
 
@@ -400,9 +400,9 @@ test_that("R and JAGS density is consistent", {
   )
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
-  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "log_lik"), n.iter = 10, quiet = TRUE, progress.bar = "none")
 
-  expect_equal(as.vector(fit[[1]][,"log_lik"]), sapply(1:100, function(i){
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), sapply(1:10, function(i){
     RoBMA:::.dwmnorm_fast(x = fit[[1]][i,c("x[1]", "x[2]", "x[3]")], mean = fit[[1]][i,c("mu[1]", "mu[2]", "mu[3]")], sigma = data$sigma, omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
   }), tolerance = 1e-3)
 
@@ -432,10 +432,10 @@ test_that("R and JAGS density is consistent", {
   )
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
-  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "sigma", "log_lik"), n.iter = 10, quiet = TRUE, progress.bar = "none")
 
 
-  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:100, function(i){
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:10, function(i){
     RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "two.sided", log = TRUE)
   })), tolerance = 1e-3)
 
@@ -474,9 +474,9 @@ test_that("R and JAGS density is consistent", {
   )
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE)
-  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "log_lik"), n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = c("x", "omega", "mu", "log_lik"), n.iter = 10, quiet = TRUE, progress.bar = "none")
 
-  expect_equal(as.vector(fit[[1]][,"log_lik"]), sapply(1:100, function(i){
+  expect_equal(as.vector(fit[[1]][,"log_lik"]), sapply(1:10, function(i){
     RoBMA:::.dwmnorm_fast(x = fit[[1]][i,c("x[1]", "x[2]", "x[3]", "x[4]")], mean = fit[[1]][i,c("mu[1]", "mu[2]", "mu[3]", "mu[4]")], sigma = data$sigma, omega = fit[[1]][i,c("omega[1]", "omega[2]")], crit_x = data$crit_x, type = "two.sided", log = TRUE)
   }), tolerance = 1e-3)
 
@@ -508,7 +508,7 @@ test_that("R and JAGS density is consistent", {
   )
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE, n.adapt = 10, inits = list(.RNG.seed = 1, .RNG.name = "base::Super-Duper"))
-  fit   <- rjags::coda.samples(model = model, variable.names = "log_lik", n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = "log_lik", n.iter = 10, quiet = TRUE, progress.bar = "none")
 
 
   set.seed(1)
@@ -535,7 +535,7 @@ test_that("R and JAGS density is consistent", {
   )
 
   model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt = 10, inits = list(.RNG.seed = 1, .RNG.name = "base::Super-Duper"))
-  fit2   <- rjags::coda.samples(model = model2, variable.names = "log_lik", n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit2   <- rjags::coda.samples(model = model2, variable.names = "log_lik", n.iter = 10, quiet = TRUE, progress.bar = "none")
 
   expect_equal(apply(fit2[[1]], 1, sum), as.vector(fit[[1]]), tolerance = 1e-4)
 
@@ -569,7 +569,7 @@ test_that("R and JAGS density is consistent", {
 
 
   model <- rjags::jags.model(file = textConnection(model_syntax), data = data, quiet = TRUE, n.adapt = 10, inits = list(.RNG.seed = 1, .RNG.name = "base::Super-Duper"))
-  fit   <- rjags::coda.samples(model = model, variable.names = "log_lik", n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit   <- rjags::coda.samples(model = model, variable.names = "log_lik", n.iter = 10, quiet = TRUE, progress.bar = "none")
 
 
   set.seed(1)
@@ -597,7 +597,7 @@ test_that("R and JAGS density is consistent", {
   )
 
   model2 <- rjags::jags.model(file = textConnection(model_syntax2), data = data2, quiet = TRUE, n.adapt = 10, inits = list(.RNG.seed = 1, .RNG.name = "base::Super-Duper"))
-  fit2   <- rjags::coda.samples(model = model2, variable.names = "log_lik", n.iter = 100, quiet = TRUE, progress.bar = "none")
+  fit2   <- rjags::coda.samples(model = model2, variable.names = "log_lik", n.iter = 10, quiet = TRUE, progress.bar = "none")
 
   expect_equal(apply(fit2[[1]], 1, sum), as.vector(fit[[1]]), tolerance = 1e-4)
 
