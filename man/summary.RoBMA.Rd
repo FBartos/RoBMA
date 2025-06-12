@@ -85,6 +85,11 @@ summary(fit, type = "diagnostics")
 
 # summary of individual models and their parameters can be further obtained by
 summary(fit, type = "individual")
+
+# for meta-regression models, raw (unstandardized) coefficients can be obtained with
+# data(Kroupova2021)  # example data with predictors  
+# fit_reg <- RoBMA.reg(r ~ age, data = Kroupova2021[1:20,])
+# summary(fit_reg, standardized_coefficients = FALSE)
 }
 
 }
