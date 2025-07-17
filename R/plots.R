@@ -79,42 +79,12 @@ plot.RoBMA  <- function(x, parameter = "mu",
                         conditional = FALSE, plot_type = "base", prior = FALSE, output_scale = NULL,
                         rescale_x = FALSE, show_data = TRUE, dots_prior = NULL, ...){
 
-  # apply version changes to RoBMA object
-  x <- .update_object(x)
-
-  # check whether plotting is possible
-  if(sum(.get_model_convergence(x)) == 0)
-    stop("There is no converged model in the ensemble.")
-
-  #check settings
-  BayesTools::check_char(parameter, "parameter")
-  BayesTools::check_bool(conditional, "conditional")
+  # forwarded options checked within the .extract_posterior.RoBMA function
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(prior, "prior")
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(rescale_x, "rescale_x")
   BayesTools::check_bool(show_data, "show_data")
-
-  # deal with bad parameter names for PET-PEESE, weightfunction
-  if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) %in% c("weightfunction", "weigthfunction", "omega")){
-    parameter         <- "omega"
-    parameter_samples <- "omega"
-  }else if(tolower(gsub("-", "", gsub("_", "", gsub(".", "", parameter, fixed = TRUE),fixed = TRUE), fixed = TRUE)) == "petpeese"){
-    parameter         <- "PETPEESE"
-    parameter_samples <- "PETPEESE"
-  }else if(parameter %in% c("mu", "tau", "rho", "PET", "PEESE")){
-    parameter         <- parameter
-    parameter_samples <- parameter
-  }else if(is.RoBMA.reg(x) && parameter %in% x$add_info[["predictors"]]){
-    parameter         <- parameter
-    parameter_samples <- .BayesTools_parameter_name(parameter)
-  }else{
-    if(is.RoBMA.reg(x)){
-      stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE') or any of the specified predictors: ", paste0("'", x$add_info[["predictors"]], "'", collapse = ", "), ". See '?plot.RoBMA' for more details."))
-    }else{
-      stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE'). See '?plot.RoBMA' for more details."))
-    }
-  }
 
   # TODO: add implementation of those in BayesTools
   # don't allow prior and posterior PET-PEESE for ss algorithm (the samples specification is not available)
@@ -126,7 +96,15 @@ plot.RoBMA  <- function(x, parameter = "mu",
     stop("The conditional distribution for the PET-PEESE regression cannot be plotted for the ss algorithm.")
   }
 
+  # get the name of the parameter
+  parameter         <- .check_and_transform_parameter_name(parameter, x$add_info[["predictors"]])
+  parameter_samples <- .check_and_transform_parameter_samples_name(parameter, x$add_info[["predictors"]])
+
+  ### obtain posterior samples
+  samples <- .extract_posterior.RoBMA(x, parameter, conditional)
+
   ### manage transformations
+  # (transformation passed to the plotting function so prior density can be also transformed)
   # get the settings
   results_scale <- x$add_info[["output_scale"]]
   if(is.null(output_scale)){
@@ -153,98 +131,6 @@ plot.RoBMA  <- function(x, parameter = "mu",
   }else{
     transformation <- NULL
   }
-
-
-  # choose the samples
-  if(conditional && parameter == "PETPEESE"){
-
-    # get model-averaged posterior across PET and PEESE parameters
-    models <- x[["models"]]
-
-    effect <- sapply(x[["models"]], function(model)!.is_component_null(model[["priors"]], "effect"))
-    PET    <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
-    PEESE  <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))
-
-    if(any(PET) & any(PEESE)){
-      is_conditional  <- effect & (PET | PEESE)
-      if(sum(is_conditional) == 0)
-        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
-      parameters      <- c("mu", "PET", "PEESE")
-      parameters_null <- c("mu" = list(!is_conditional), "PET" = list(!is_conditional), "PEESE" = list(!is_conditional))
-    }else if(any(PET)){
-      is_conditional  <- effect & PET
-      if(sum(is_conditional) == 0)
-        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
-      parameters      <- c("mu", "PET")
-      parameters_null <- c("mu" = list(!is_conditional), "PET"   = list(!is_conditional))
-    }else if(any(PEESE)){
-      is_conditional  <- effect & PEESE
-      if(sum(is_conditional) == 0)
-        stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
-      parameters      <- c("mu", "PEESE")
-      parameters_null <- c("mu" = list(!is_conditional), "PEESE" = list(!is_conditional))
-    }else{
-      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
-    }
-
-    samples <- BayesTools::mix_posteriors(
-      model_list   = models,
-      parameters   = parameters,
-      is_null_list = parameters_null,
-      seed         = x$add_info[["seed"]],
-      conditional  = TRUE
-    )
-
-  }else{
-    if(conditional & parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "PETPEESE", "omega")){
-      samples <- x[["RoBMA"]][["posteriors_conditional"]]
-    }else if(conditional & parameter %in% x$add_info[["predictors"]]){
-      samples <- x[["RoBMA"]][["posteriors_predictors_conditional"]]
-    }else if(!conditional &  parameter %in% c("mu", "tau", "rho", "PET", "PEESE", "PETPEESE", "omega")){
-      samples <- x[["RoBMA"]][["posteriors"]]
-    }else if(!conditional &  parameter %in% x$add_info[["predictors"]]){
-      samples <- x[["RoBMA"]][["posteriors_predictors"]]
-    }
-  }
-
-
-  if(parameter %in% c("mu", "tau", "rho", "omega", "PET", "PEESE")){
-    if(conditional && is.null(samples[[parameter]])){
-      switch(
-        parameter,
-        "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the effect. Please, verify that you specified at least one model assuming the presence of the effect."),
-        "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the heterogeneity. Please, verify that you specified at least one model assuming the presence of the heterogeneity."),
-        "PET"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PET models. Please, verify that you specified at least one model assuming the presence of the PET models."),
-        "PEESE" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PEESE models. Please, verify that you specified at least one model assuming the presence of the PEESE models."),
-        "rho"   = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the three-level structure. Please, verify that you specified at least one model assuming the presence of the three-level structure."),
-        "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of selection models publication bias adjustment. Please, verify that you specified at least one model assuming the presence of selection models publication bias adjustment.")
-      )
-    }else if(is.null(samples[[parameter]])){
-      switch(
-        parameter,
-        "mu"    = stop("The ensemble does not contain any posterior samples model-averaged across the effect. Please, verify that you specified at least one model for the effect."),
-        "tau"   = stop("The ensemble does not contain any posterior samples model-averaged across the heterogeneity. Please, verify that you specified at least one model for the heterogeneity."),
-        "PET"   = stop("The ensemble does not contain any posterior samples model-averaged across the PET. Please, verify that you specified at least one model for the PET."),
-        "PEESE" = stop("The ensemble does not contain any posterior samples model-averaged across the PEESE. Please, verify that you specified at least one model for the PEESE."),
-        "rho"   = stop("The ensemble does not contain any posterior samples model-averaged across the three-level structure. Please, verify that you specified at least one model for the three-level structure."),
-        "omega" = stop("The ensemble does not contain any posterior samples model-averaged across the selection models publication bias adjustment. Please, verify that you specified at least one selection models publication bias adjustment.")
-      )
-    }
-  }else if(parameter %in% "PETPEESE"){
-    # checking for mu since it's the common parameter for PET-PEESE
-    if(conditional && (is.null(samples[["mu"]]) || is.null(samples[["PET"]]) && is.null(samples[["PEESE"]]))){
-      stop("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of PET-PEESE publication bias adjustment. Please, verify that you specified at least one model assuming the presence of PET-PEESE publication bias adjustment.")
-    }else if(is.null(samples[["mu"]]) || is.null(samples[["PET"]]) && is.null(samples[["PEESE"]])){
-      stop("The ensemble does not contain any posterior samples model-averaged across the PET-PEESE publication bias adjustment. Please, verify that you specified at least one PET-PEESE publication bias adjustment.")
-    }
-  }else if(parameter %in% x$add_info[["predictors"]]){
-    if(conditional && is.null(samples[[parameter_samples]])){
-      stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the '%1$s' predictor. Please, verify that you specified at least one model assuming the presence of '%1$s' predictor.", parameter))
-    }else if(is.null(samples[[parameter_samples]])){
-      stop(sprintf("The ensemble does not contain any posterior samples model-averaged across the '%1$s' predictor. Please, verify that you specified at least one model containing the '%1$s' predictor.", parameter))
-    }
-  }
-
 
   # remove PET/PEESE prior class (otherwise PET-PEESE density is produced in BayesTools)
   if(parameter %in% c("PET", "PEESE")){
