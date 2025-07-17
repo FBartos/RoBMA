@@ -57,8 +57,8 @@ extract_posterior <- function(x, parameter = "mu", conditional = FALSE, output_s
     samples <- do.call(cbind, samples)
   } else {
     samples <- samples[[parameter_samples]]
+    attributes(samples)[!names(attributes(samples)) %in% c("dim", "dimnames")] <- NULL
   }
-
 
   # return metadata if requested
   if (!is.null(dots[["metadata"]]) && isTRUE(dots[["metadata"]]))
@@ -75,7 +75,7 @@ extract_posterior <- function(x, parameter = "mu", conditional = FALSE, output_s
   return(samples)
 }
 
-.extract_posterior.RoBMA            <- function(x, parameter, conditional) {
+.extract_posterior.RoBMA <- function(x, parameter, conditional) {
 
   # apply version changes to RoBMA object
   x <- .update_object(x)
