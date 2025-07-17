@@ -29,8 +29,9 @@ publication bias adjustment.}
 
 \item{output_scale}{transform the effect sizes and the meta-analytic
 effect size estimate to a different scale. Defaults to \code{NULL}
-which returns the same scale as the model was estimated on.
-#' @param ... additional arguments passed to the method.}
+which returns the same scale as the model was estimated on.}
+
+\item{...}{additional arguments passed to the method.}
 }
 \value{
 A matrix containing the posterior samples for the specified parameter.

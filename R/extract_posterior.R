@@ -16,7 +16,7 @@
 #' @param output_scale transform the effect sizes and the meta-analytic
 #' effect size estimate to a different scale. Defaults to \code{NULL}
 #' which returns the same scale as the model was estimated on.
-#' #' @param ... additional arguments passed to the method.
+#' @param ... additional arguments passed to the method.
 #'
 #' @return A matrix containing the posterior samples for the specified parameter.
 #'
