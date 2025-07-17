@@ -1,6 +1,7 @@
 ## version 3.5.1
 ### Features
-- summary() now supports a `standardized_coefficients` argument to report either standardized (default) or raw meta-regression coefficients
+- `summary()` function now supports a `standardized_coefficients` argument to report either standardized (default) or raw meta-regression coefficients
+- `extract()` function extracts the posterior samples of the model parameters
 
 ### Fixes
 

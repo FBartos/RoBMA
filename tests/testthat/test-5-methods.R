@@ -692,6 +692,34 @@ test_that("Effect size summary functions work", {
 
 })
 
+# test posterior extraction
+test_that("Posterior extraction works", {
+
+  temp_summary <- summary(fits[["fit_15"]], conditional = TRUE)
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "mu")
+  expect_equal(mean(temp_samples), temp_summary$estimates["mu", "Mean"])
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "mu", conditional = TRUE)
+  expect_equal(mean(temp_samples), temp_summary$estimates_conditional["mu", "Mean"])
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "tau")
+  expect_equal(mean(temp_samples), temp_summary$estimates["tau", "Mean"])
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "omega")
+  expect_equal(unname(apply(temp_samples, 2, mean)), temp_summary$estimates[colnames(temp_samples), "Mean"])
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "PET")
+  expect_equal(mean(temp_samples), temp_summary$estimates["PET", "Mean"])
+
+  temp_summary <- summary(fits[["fit_15"]], conditional = TRUE, output_scale = "OR")
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "mu", output_scale = "OR")
+  expect_equal(mean(temp_samples), temp_summary$estimates["mu", "Mean"])
+
+  temp_samples <- extract_posterior(fits[["fit_15"]], parameter = "mu", conditional = TRUE, output_scale = "OR")
+  expect_equal(mean(temp_samples), temp_summary$estimates_conditional["mu", "Mean"])
+})
 
 #### creating / updating the test settings ####
 if(FALSE){
