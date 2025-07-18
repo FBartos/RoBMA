@@ -32,7 +32,8 @@ Defaults to \code{c(.025, .975)}}
 }
 \description{
 \code{adjusted_effect} computes the adjusted effect size
-for a fitted RoBMA.reg and BiBMA.reg object.
+for a fitted RoBMA.reg and BiBMA.reg object. Only available for models
+estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
 Non-default meta-regression specification (i.e., using treatment contrasts for

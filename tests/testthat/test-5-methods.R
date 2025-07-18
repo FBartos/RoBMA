@@ -721,6 +721,148 @@ test_that("Posterior extraction works", {
   expect_equal(mean(temp_samples), temp_summary$estimates_conditional["mu", "Mean"])
 })
 
+# test posterior extraction
+test_that("True effects summary", {
+
+  expect_equal(
+    capture_output_lines(true_effects(fits[["fit_4"]], conditional = TRUE), print = TRUE, width = 150),
+    c(
+      "Call:"                                                                                              ,
+      "RoBMA(r = r, n = n, model_type = \"PSMA\", algorithm = \"ss\", chains = 2, "                        ,
+      "    sample = 2500, burnin = 1000, adapt = 500, parallel = TRUE, "                                   ,
+      "    autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "                    ,
+      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
+      ""                                                                                                   ,
+      "Robust Bayesian meta-analysis"                                                                      ,
+      "True effect estimates:"                                                                             ,
+      "             Mean Median  0.025 0.975"                                                              ,
+      "estimate[1] 0.192  0.045 -0.051 0.795"                                                              ,
+      "estimate[2] 0.213  0.105 -0.016 0.797"                                                              ,
+      "estimate[3] 0.266  0.227  0.000 0.795"                                                              ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
+      ""                                                                                                   ,
+      "Conditional true effect estimates:"                                                                 ,
+      "             Mean Median  0.025 0.975"                                                              ,
+      "estimate[1] 0.391  0.402 -0.146 0.889"                                                              ,
+      "estimate[2] 0.405  0.413 -0.134 0.889"                                                              ,
+      "estimate[3] 0.438  0.453 -0.071 0.883"                                                              ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
+    ))
+
+  expect_equal(
+    capture_output_lines(true_effects(fits[["fit_15"]], conditional = TRUE), print = TRUE, width = 150),
+    c(
+      "Call:"                                                                                                  ,
+      "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "    ,
+      "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                       ,
+      "    priors_heterogeneity = NULL, priors_bias = list(prior_weightfunction(distribution = \"two.sided\", ",
+      "        parameters = list(alpha = c(1, 1), steps = c(0.05)), "                                          ,
+      "        prior_weights = 1/2), prior_PET(distribution = \"Cauchy\", "                                    ,
+      "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "                    ,
+      "    priors_effect_null = NULL, algorithm = \"ss\", chains = 2, "                                        ,
+      "    sample = 2500, burnin = 1000, adapt = 500, parallel = TRUE, "                                       ,
+      "    autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "                        ,
+      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                      ,
+      ""                                                                                                       ,
+      "Robust Bayesian meta-regression"                                                                        ,
+      "True effect estimates:"                                                                                 ,
+      "               Mean Median  0.025  0.975"                                                               ,
+      "estimate[1]  -1.585 -1.581 -1.731 -1.472"                                                               ,
+      "estimate[2]  -1.329 -1.325 -1.457 -1.232"                                                               ,
+      "estimate[3]  -1.088 -1.084 -1.202 -1.004"                                                               ,
+      "estimate[4]  -0.858 -0.854 -0.961 -0.786"                                                               ,
+      "estimate[5]  -0.637 -0.634 -0.737 -0.574"                                                               ,
+      "estimate[6]  -0.423 -0.420 -0.517 -0.365"                                                               ,
+      "estimate[7]  -0.214 -0.211 -0.305 -0.160"                                                               ,
+      "estimate[8]  -0.007 -0.004 -0.097  0.047"                                                               ,
+      "estimate[9]   0.200  0.203  0.112  0.255"                                                               ,
+      "estimate[10]  0.409  0.412  0.317  0.468"                                                               ,
+      "estimate[11]  0.622  0.626  0.529  0.689"                                                               ,
+      "estimate[12]  0.842  0.846  0.742  0.918"                                                               ,
+      "estimate[13]  1.071  1.075  0.964  1.160"                                                               ,
+      "estimate[14]  1.312  1.315  1.193  1.413"                                                               ,
+      "estimate[15]  1.567  1.569  1.432  1.686"                                                               ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."    ,
+      ""                                                                                                       ,
+      "Conditional true effect estimates:"                                                                     ,
+      "               Mean Median  0.025  0.975"                                                               ,
+      "estimate[1]  -1.585 -1.581 -1.731 -1.472"                                                               ,
+      "estimate[2]  -1.329 -1.325 -1.457 -1.232"                                                               ,
+      "estimate[3]  -1.088 -1.084 -1.202 -1.004"                                                               ,
+      "estimate[4]  -0.858 -0.854 -0.961 -0.786"                                                               ,
+      "estimate[5]  -0.637 -0.634 -0.737 -0.574"                                                               ,
+      "estimate[6]  -0.423 -0.420 -0.517 -0.365"                                                               ,
+      "estimate[7]  -0.214 -0.211 -0.305 -0.160"                                                               ,
+      "estimate[8]  -0.007 -0.004 -0.097  0.047"                                                               ,
+      "estimate[9]   0.200  0.203  0.112  0.255"                                                               ,
+      "estimate[10]  0.409  0.412  0.317  0.468"                                                               ,
+      "estimate[11]  0.622  0.626  0.529  0.689"                                                               ,
+      "estimate[12]  0.842  0.846  0.742  0.918"                                                               ,
+      "estimate[13]  1.071  1.075  0.964  1.160"                                                               ,
+      "estimate[14]  1.312  1.315  1.193  1.413"                                                               ,
+      "estimate[15]  1.567  1.569  1.432  1.686"                                                               ,
+      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
+    ))
+
+  expect_equal(
+    capture_output_lines(summary_heterogeneity(fits[["fit_15"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    c(
+      "Call:"                                                                                                  ,
+      "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "    ,
+      "    list(0, 0.05)), alt = prior(\"normal\", list(0.3, 0.15)))), "                                       ,
+      "    priors_heterogeneity = NULL, priors_bias = list(prior_weightfunction(distribution = \"two.sided\", ",
+      "        parameters = list(alpha = c(1, 1), steps = c(0.05)), "                                          ,
+      "        prior_weights = 1/2), prior_PET(distribution = \"Cauchy\", "                                    ,
+      "        parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)), "                    ,
+      "    priors_effect_null = NULL, algorithm = \"ss\", chains = 2, "                                        ,
+      "    sample = 2500, burnin = 1000, adapt = 500, parallel = TRUE, "                                       ,
+      "    autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "                        ,
+      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                      ,
+      ""                                                                                                       ,
+      "Robust Bayesian meta-regression"                                                                        ,
+      "True effect estimates:"                                                                                 ,
+      "               Mean Median  0.025    0.5"                                                               ,
+      "estimate[1]  -2.875 -2.868 -3.139 -2.868"                                                               ,
+      "estimate[2]  -2.411 -2.404 -2.642 -2.404"                                                               ,
+      "estimate[3]  -1.973 -1.966 -2.180 -1.966"                                                               ,
+      "estimate[4]  -1.556 -1.549 -1.744 -1.549"                                                               ,
+      "estimate[5]  -1.156 -1.149 -1.337 -1.149"                                                               ,
+      "estimate[6]  -0.768 -0.761 -0.938 -0.761"                                                               ,
+      "estimate[7]  -0.389 -0.382 -0.554 -0.382"                                                               ,
+      "estimate[8]  -0.013 -0.007 -0.175 -0.007"                                                               ,
+      "estimate[9]   0.362  0.368  0.203  0.368"                                                               ,
+      "estimate[10]  0.741  0.747  0.575  0.747"                                                               ,
+      "estimate[11]  1.129  1.135  0.959  1.135"                                                               ,
+      "estimate[12]  1.528  1.534  1.347  1.534"                                                               ,
+      "estimate[13]  1.943  1.949  1.748  1.949"                                                               ,
+      "estimate[14]  2.380  2.385  2.164  2.385"                                                               ,
+      "estimate[15]  2.841  2.845  2.596  2.845"                                                               ,
+      "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale)."      ,
+      ""                                                                                                       ,
+      "Conditional true effect estimates:"                                                                     ,
+      "               Mean Median  0.025    0.5"                                                               ,
+      "estimate[1]  -2.875 -2.868 -3.139 -2.868"                                                               ,
+      "estimate[2]  -2.411 -2.404 -2.642 -2.404"                                                               ,
+      "estimate[3]  -1.973 -1.966 -2.180 -1.966"                                                               ,
+      "estimate[4]  -1.556 -1.549 -1.744 -1.549"                                                               ,
+      "estimate[5]  -1.156 -1.149 -1.337 -1.149"                                                               ,
+      "estimate[6]  -0.768 -0.761 -0.938 -0.761"                                                               ,
+      "estimate[7]  -0.389 -0.382 -0.554 -0.382"                                                               ,
+      "estimate[8]  -0.013 -0.007 -0.175 -0.007"                                                               ,
+      "estimate[9]   0.362  0.368  0.203  0.368"                                                               ,
+      "estimate[10]  0.741  0.747  0.575  0.747"                                                               ,
+      "estimate[11]  1.129  1.135  0.959  1.135"                                                               ,
+      "estimate[12]  1.528  1.534  1.347  1.534"                                                               ,
+      "estimate[13]  1.943  1.949  1.748  1.949"                                                               ,
+      "estimate[14]  2.380  2.385  2.164  2.385"                                                               ,
+      "estimate[15]  2.841  2.845  2.596  2.845"                                                               ,
+      "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale)."
+    ))
+
+
+})
+
+
 #### creating / updating the test settings ####
 if(FALSE){
 

@@ -32,7 +32,8 @@ Defaults to \code{c(.025, .975)}}
 }
 \description{
 \code{pooled_effect} computes the pooled effect size
-for a fitted RoBMA.reg and BiBMA.reg object.
+for a fitted RoBMA.reg and BiBMA.reg object. Only available for models
+estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
 The meta-regression specification results in the intercept corresponding

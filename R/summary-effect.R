@@ -1,7 +1,8 @@
 #' @title Compute pooled effect size
 #'
 #' @description \code{pooled_effect} computes the pooled effect size
-#' for a fitted RoBMA.reg and BiBMA.reg object.
+#' for a fitted RoBMA.reg and BiBMA.reg object. Only available for models
+#' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
 #'
@@ -30,7 +31,8 @@ pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, prob
 #' @title Compute adjusted effect size
 #'
 #' @description \code{adjusted_effect} computes the adjusted effect size
-#' for a fitted RoBMA.reg and BiBMA.reg object.
+#' for a fitted RoBMA.reg and BiBMA.reg object. Only available for models
+#' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
 #'
@@ -57,7 +59,7 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 .compute_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), type = "pooled", ...) {
 
   .check_is_any_RoBMA_object(object)
-  if(.is_model_regression(object))
+  if(!(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")))
     stop("The pooled effect size can only be computed for regression models.")
   if(object[["add_info"]][["algorithm"]] != "ss")
     stop("The pooled effect size can only be computed for spike and slab models.")
@@ -162,6 +164,157 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
     warnings   = .collect_errors_and_warnings(object),
     footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
   )
+
+  # create the output object
+  output <- list(
+    call       = object[["call"]],
+    title      = .object_title(object),
+    estimates  = estimates,
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+  )
+
+  if(conditional){
+    output$estimates_conditional <- estimates_conditional
+  }
+
+  class(output) <- "summary.RoBMA"
+  attr(output, "type") <- "ensemble"
+
+  return(output)
+}
+
+
+#' @title Compute estimated true effect sizes
+#'
+#' @description \code{true_effects} computes the estimated true effect size
+#' for a fitted RoBMA object. These estimates correspond to the frequentist
+#' "Best Linear Unbiased Predictions (BLUPs). Only available for normal-normal models
+#' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
+#'
+#' @inheritParams summary.RoBMA
+#'
+#' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+#' @export
+true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), ...){
+
+  .check_is_any_RoBMA_object(object)
+  if(inherits(object, "BiBMA") || inherits(object, "BiBMA.reg"))
+    stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
+  if(object[["add_info"]][["algorithm"]] != "ss")
+    stop("The true effects can only be computed for spike and slab models.")
+
+  if (is.BiBMA(object)) {
+    model_scale <- "logOR"
+  } else {
+    model_scale <- object$add_info[["effect_measure"]]
+  }
+  if(is.null(output_scale)){
+    output_scale <- object$add_info[["output_scale"]]
+  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+    stop("Models estimated using the generall effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  dots <- list(...)
+
+  # extract posterior samples (and obtain conditional indicator)
+  posterior_samples <- suppressWarnings(coda::as.mcmc(object[["model"]][["fit"]]))
+
+  # obtain the (study-specific) mu estimate
+  # meta-regression and meta-analysis separately
+  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+
+    mu_samples  <- BayesTools::JAGS_evaluate_formula(
+      fit         = object$model$fit,
+      formula     = object$formula,
+      parameter   = "mu",
+      data        = do.call(cbind.data.frame, object$data$predictors),
+      prior_list  = attr(object$model$fit, "prior_list")
+    )
+    tau_samples  <- matrix(posterior_samples[,"tau"], byrow = TRUE, nrow = nrow(object$data$outcome), ncol = nrow(posterior_samples))
+
+    mu_is_null   <- attr(object[["model"]]$priors$terms[["intercept"]], "components") == "null"
+    mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+
+    effect_size    <- matrix(object$data$outcome[,"y"],  nrow = nrow(object$data$outcome), ncol = nrow(posterior_samples))
+    standard_error <- matrix(object$data$outcome[,"se"], nrow = nrow(object$data$outcome), ncol = nrow(posterior_samples))
+
+  }else{
+
+    mu_samples   <- matrix(posterior_samples[,"mu"],  byrow = TRUE, nrow = nrow(object$data), ncol = nrow(posterior_samples))
+    tau_samples  <- matrix(posterior_samples[,"tau"], byrow = TRUE, nrow = nrow(object$data), ncol = nrow(posterior_samples))
+
+    mu_is_null   <- attr(object[["model"]]$priors$mu, "components") == "null"
+    mu_indicator <- posterior_samples[,"mu_indicator"]
+
+    effect_size    <- matrix(object$data[,"y"],  nrow = nrow(object$data), ncol = nrow(posterior_samples))
+    standard_error <- matrix(object$data[,"se"], nrow = nrow(object$data), ncol = nrow(posterior_samples))
+
+  }
+
+  # transform the samples to the model fitting scale (the data are at the model fitting scale)
+  mu_samples  <- .scale(mu_samples,  object$add_info[["output_scale"]], model_scale)
+  tau_samples <- .scale(tau_samples, object$add_info[["output_scale"]], model_scale)
+
+  # add conditional warnings
+  if(conditional){
+    if(sum(mu_indicator %in% which(!mu_is_null)) < 100)
+      warning(gettextf("There is only a very small number of posterior samples (%1s$) assuming presence of the effect. The resulting estimates are not reliable.",
+                       sum(mu_indicator %in% which(!mu_is_null))), call. = FALSE, immediate. = TRUE)
+    if(sum(mu_indicator %in% which(!mu_is_null)) <= 2)
+      stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
+  }
+
+  # get the shrinkage matrix
+  lambda <- tau_samples^2 / (tau_samples^2 + standard_error^2)
+
+  # get the blups matrix
+  true_effects_samples <- lambda * effect_size + (1 - lambda) * mu_samples
+
+  # compute conditional estimates
+  if(conditional){
+    true_effects_samples_conditional <- true_effects_samples[,mu_indicator %in% which(!mu_is_null), drop=FALSE]
+    true_effects_samples_conditional <- lapply(1:nrow(true_effects_samples_conditional), function(i) {
+      .transform_mu(true_effects_samples_conditional[i,], from = model_scale, to = output_scale)
+    })
+    names(true_effects_samples_conditional) <- sapply(seq_along(true_effects_samples_conditional), function(x) paste0("estimate[", x, "]"))
+  }
+
+  # transform the effect sizes (and name the matrix)
+  true_effects_samples <- lapply(1:nrow(true_effects_samples), function(i) {
+    .transform_mu(true_effects_samples[i,], from = model_scale, to = output_scale)
+  })
+  names(true_effects_samples) <- sapply(seq_along(true_effects_samples), function(x) paste0("estimate[", x, "]"))
+
+  # return samples if requested
+  if (!is.null(dots[["as_samples"]]) && isTRUE(dots[["as_samples"]])){
+    if(conditional){
+      return(true_effects_samples_conditional)
+    }else{
+      return(true_effects_samples)
+    }
+  }
+
+  # obtain estimates tables
+  estimates <- BayesTools::ensemble_estimates_table(
+    samples    = true_effects_samples,
+    parameters = names(true_effects_samples),
+    probs      = probs,
+    title      = "True effect estimates:",
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+  )
+
+  if(conditional){
+    estimates_conditional <- BayesTools::ensemble_estimates_table(
+      samples    = true_effects_samples_conditional,
+      parameters = names(true_effects_samples_conditional),
+      probs      = probs,
+      title      = "Conditional true effect estimates:",
+      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+    )
+  }
+
 
   # create the output object
   output <- list(

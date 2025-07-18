@@ -15,6 +15,17 @@ test_that("Validate normal model with metafor", {
                      priors_heterogeneity = prior("normal", list(0, 5), list(0, Inf)), seed = 1,
                      algorithm = "bridge", chains = 2, sample = 1000, burnin = 250, adapt = 250, thin = 1, parallel = FALSE)
 
+  fit.RoBMA_ss.fe <- NoBMA(y = dat$yi, se = sqrt(dat$vi),
+                           priors_effect        = prior("normal", list(0, 5)),
+                           priors_heterogeneity = NULL, seed = 1,
+                           priors_effect_null = NULL,
+                           algorithm = "ss", chains = 2, sample = 2000, burnin = 500, adapt = 500, thin = 1, parallel = FALSE)
+  fit.RoBMA_ss.re <- NoBMA(y = dat$yi, se = sqrt(dat$vi),
+                     priors_effect        = prior("normal", list(0, 5)),
+                     priors_heterogeneity = prior("normal", list(0, 5), list(0, Inf)), seed = 1,
+                     priors_effect_null = NULL, priors_heterogeneity_null = NULL,
+                     algorithm = "ss", chains = 2, sample = 2000, burnin = 500, adapt = 500, thin = 1, parallel = FALSE)
+
 
   fit.RoBMA.fe <- fit.RoBMA$models[[3]]$fit_summary
   fit.RoBMA.re <- fit.RoBMA$models[[4]]$fit_summary
@@ -108,6 +119,22 @@ test_that("Validate normal model with metafor", {
   expect_equal(sum.RoBMA.reg3raw.fe["year","Mean"],              fit.metafor.fereg3raw$b[[4]], tolerance = 1e-2)
   expect_equal(sum.RoBMA.reg3raw.fe["tpos","Mean"],              fit.metafor.fereg3raw$b[[5]], tolerance = 1e-2)
 
+  # validate BLUPs
+  robma_blups   <- true_effects(fit.RoBMA_ss.fe)
+  metafor_blups <- blup(fit.metafor.fe)
+  expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 1e-2)
+
+  robma_blups   <- true_effects(fit.RoBMA_ss.re)
+  metafor_blups <- blup(fit.metafor.re)
+  expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 4e-2)
+
+  robma_blups   <- true_effects(fit.RoBMA.reg.re)
+  metafor_blups <- blup(fit.metafor.rereg2)
+  expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 2e-2)
+
+  robma_blups   <- true_effects(fit.RoBMA.reg.fe)
+  metafor_blups <- blup(fit.metafor.fereg2)
+  expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 1e-2)
 })
 
 test_that("Validate binomial model with metafor", {
