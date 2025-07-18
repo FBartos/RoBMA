@@ -805,7 +805,7 @@ test_that("True effects summary", {
     ))
 
   expect_equal(
-    capture_output_lines(true_effects(fits[["fit_15"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
+    capture_output_lines(summary_heterogeneity(fits[["fit_15"]], conditional = TRUE, output_scale = "logOR", probs = c(0.025, 0.5)), print = TRUE, width = 150),
     c(
       "Call:"                                                                                                  ,
       "RoBMA.reg(formula = ~mod_con, data = df_reg, priors = list(mod_con = list(null = prior(\"normal\", "    ,
