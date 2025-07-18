@@ -33,6 +33,6 @@ Defaults to \code{c(.025, .975)}}
 \description{
 \code{true_effects} computes the estimated true effect size
 for a fitted RoBMA object. These estimates correspond to the frequentist
-"Best Linear Unbiased Predictions (BLUPs). Only available for models
+"Best Linear Unbiased Predictions (BLUPs). Only available for normal-normal models
 estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 }
