@@ -188,7 +188,7 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 #'
 #' @description \code{true_effects} computes the estimated true effect size
 #' for a fitted RoBMA object. These estimates correspond to the frequentist
-#' "Best Linear Unbiased Predictions (BLUPs). Only available for normal-normal models
+#' "Best Linear Unbiased Predictions (BLUPs)". Only available for normal-normal models
 #' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
@@ -211,7 +211,7 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
   if(is.null(output_scale)){
     output_scale <- object$add_info[["output_scale"]]
   }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
-    stop("Models estimated using the generall effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+    stop("Models estimated using the general effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
   }else{
     output_scale <- .transformation_var(output_scale)
   }
@@ -260,7 +260,7 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
   # add conditional warnings
   if(conditional){
     if(sum(mu_indicator %in% which(!mu_is_null)) < 100)
-      warning(gettextf("There is only a very small number of posterior samples (%1s$) assuming presence of the effect. The resulting estimates are not reliable.",
+      warning(gettextf("There is only a very small number of posterior samples (%1s) assuming presence of the effect. The resulting estimates are not reliable.",
                        sum(mu_indicator %in% which(!mu_is_null))), call. = FALSE, immediate. = TRUE)
     if(sum(mu_indicator %in% which(!mu_is_null)) <= 2)
       stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
