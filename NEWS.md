@@ -2,6 +2,7 @@
 ### Features
 - `summary()` function now supports a `standardized_coefficients` argument to report either standardized (default) or raw meta-regression coefficients
 - `extract()` function extracts the posterior samples of the model parameters
+- `true_effects()` function to summarize the true effect size estimates
 
 ### Fixes
 
