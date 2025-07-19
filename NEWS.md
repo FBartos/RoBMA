@@ -5,6 +5,7 @@
 - `true_effects()` function to summarize the true effect size estimates
 
 ### Fixes
+- fitting a meta-regression using predictors with missing values result in a clear error message
 
 ### Changes
 - improving the speed of unit tests
