@@ -193,6 +193,10 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 #'
 #' @inheritParams summary.RoBMA
 #'
+#' @details
+#' The conditional estimate is calculated conditional on the presence of the effect
+#' (in meta-analysis) or the intercept (in meta-regression).
+#'
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 #' @export
 true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), ...){
