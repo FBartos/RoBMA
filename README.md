@@ -31,7 +31,7 @@ can be used via the graphical user interface.
 
 See our manuscripts that for technical details and examples:
 
-- Bartoš et al. (2025) (<https://doi.org/10.31234/osf.io/98xb5>) extends
+- Bartoš et al. (2025) (<https://doi.org/10.1037/met0000737>) extends
   RoBMA-PSMA into meta-regression
 - Bartoš, Otte, et al. (2023)
   (<https://doi.org/10.48550/arXiv.2306.11468>) outlines binomial-normal
