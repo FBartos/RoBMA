@@ -1,0 +1,317 @@
+#' @title Predict method for Robust Bayesian Meta-Analysis Fits
+#'
+#' @description \code{predict.RoBMA} predicts values based on the RoBMA model.
+#' Only available for normal-normal models estimated using the spike-and-slab
+#' algorithm (i.e., \code{algorithm = "ss"}).
+#' Note that in contrast to metafor, the \code{type = "response"} produces
+#' predictions for the new effect size estimates (instead of the true study effects).
+#'
+#' @inheritParams summary.RoBMA
+#' @inheritParams pooled_effect
+#' @param newdata a data.frame (if prediction for a meta-regression is performed) or
+#' a list named list with the effect size measure and variability metrics (if prediction
+#' for a meta-analysis is performed) for new studies. Note that the input has to corresponds
+#' to the format and naming that was used to estimate the original fit. Defaults to
+#' \code{NULL} which corresponds to prediction for the observed data.
+#' @param type type of prediction to be performed. Defaults to \code{"response"} which
+#' produces predictions for the observed effect size estimates. An alternative is
+#' \code{"terms"} which produces the mean effect size estimate at the given predictors
+#' levels (not accounting for the random-effects).
+#' @param incorporate_publication_bias whether sampling of new values should incorporate
+#' the estimated publication bias.
+#'
+#' @details
+#' The conditional estimate is calculated conditional on the presence of the effect
+#' (in meta-analysis) or the intercept (in meta-regression).
+#'
+#' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+#' @export
+predict.RoBMA <- function(object, newdata = NULL, type = "response",
+                          conditional = FALSE, output_scale = NULL, probs = c(.025, .975),
+                          incorporate_publication_bias = TRUE, as_samples = FALSE, ...){
+
+  # some options checked inside BayesTools table directly
+  BayesTools::check_char(type, "type", allow_values = c("response", "terms"))
+  if(type == "terms" && !(is.null(newdata) || is.data.frame(newdata)))
+    stop("The 'newdata' argument must be a data frame or NULL when predicting terms", call. = FALSE)
+  if(type == "response" && !(is.null(newdata) || list(newdata)))
+    stop("The 'newdata' argument must be a list or NULL when predicting response", call. = FALSE)
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_bool(incorporate_publication_bias, "incorporate_publication_bias")
+  BayesTools::check_bool(as_samples, "as_samples")
+  dots <- list(...)
+
+  # get the model fitting scale
+  if (is.BiBMA(object)) {
+    model_scale <- "logOR"
+  } else {
+    model_scale <- object$add_info[["effect_measure"]]
+  }
+  if(is.null(output_scale)){
+    output_scale <- object$add_info[["output_scale"]]
+  }else if(object$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+    stop("Models estimated using the general effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  # predict for the current data if no data are specified
+  if(is.null(newdata)){
+    if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+      newdata.predictors <- do.call(cbind.data.frame, object$data[["predictors"]])
+      newdata.outcome    <- object$data[["outcome"]]
+    }else{
+      newdata.outcome <- object$data
+    }
+  }else{
+    if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+
+      RoBMA.options(check_scaling = FALSE)
+      newdata <- .combine_data.reg(
+        formula                = object[["formula"]],
+        data                   = newdata,
+        standardize_predictors = FALSE,
+        transformation         = .transformation_invar(model_scale),
+        study_names            = NULL,
+        study_ids              = NULL
+      )
+      RoBMA.options(check_scaling = TRUE)
+
+      # manually standardize predictors to match the original scaling
+      if(object$add_info[["standardize_predictors"]]){
+        variables_info <- attr(object$data[["predictors"]], "variables_info")
+        for(i in seq_along(variables_info)){
+          if(variables_info[[i]][["type"]] == "continuous"){
+            newdata[["predictors"]][[i]] <- (newdata[["predictors"]][[i]] - variables_info[[i]][["mean"]]) / variables_info[[i]][["sd"]]
+          }
+        }
+      }
+
+      newdata.predictors <- do.call(cbind.data.frame, newdata[["predictors"]])
+      newdata.outcome    <- newdata[["outcome"]]
+
+    }else{
+
+      newdata.outcome <- with(newdata, combine_data(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
+                                                    study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = model_scale))
+
+    }
+  }
+
+
+  # extract posterior samples (and obtain conditional indicator)
+  posterior_samples <- suppressWarnings(coda::as.mcmc(object[["model"]][["fit"]]))
+  priors            <- object[["priors"]]
+
+  # obtain the (study-specific) mu estimate
+  # meta-regression and meta-analysis separately
+  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+
+    mu_samples  <- t(BayesTools::JAGS_evaluate_formula(
+      fit         = object$model$fit,
+      formula     = object$formula,
+      parameter   = "mu",
+      data        = newdata.predictors,
+      prior_list  = attr(object$model$fit, "prior_list")
+    ))
+    mu_is_null   <- attr(object[["model"]]$priors$terms[["intercept"]], "components") == "null"
+    mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+
+  }else{
+
+    mu_samples   <- matrix(posterior_samples[,"mu"],  ncol = nrow(newdata.outcome), nrow = nrow(posterior_samples))
+    mu_is_null   <- attr(object[["model"]]$priors$mu, "components") == "null"
+    mu_indicator <- posterior_samples[,"mu_indicator"]
+
+  }
+
+  # transform the samples to the model fitting scale (the data are at the model fitting scale)
+  mu_samples  <- .scale(mu_samples,  object$add_info[["output_scale"]], model_scale)
+
+  # add conditional warnings
+  if(conditional){
+    if(sum(mu_indicator %in% which(!mu_is_null)) < 100)
+      warning(gettextf("There is only a very small number of posterior samples (%1s) assuming presence of the effect. The resulting estimates are not reliable.",
+                       sum(mu_indicator %in% which(!mu_is_null))), call. = FALSE, immediate. = TRUE)
+    if(sum(mu_indicator %in% which(!mu_is_null)) <= 2)
+      stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
+  }
+
+  # create response prediction if required
+  if(type == "response"){
+
+    if(!incorporate_publication_bias || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg") || length(priors$bias) == 1 && is.prior.none(priors$bias[[1]])){
+
+      # predicting responses without selection models does not require incorporating the between-study random-effects
+      # (the marginalized and non-marginalized parameterization are equivalent)
+      tau_samples <- matrix(posterior_samples[,"tau"], ncol = nrow(newdata.outcome), nrow = nrow(posterior_samples))
+      tau_samples <- .scale(tau_samples, object$add_info[["output_scale"]], model_scale)
+
+      # sample the observed studies
+      outcome_samples <- matrix(NA, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
+      for(i in seq_len(ncol(mu_samples))){
+        outcome_samples[,i] <- rnorm(nrow(mu_samples), mu_samples[,i], sqrt(tau_samples[,i]^2 + newdata.outcome[i,"se"]^2))
+      }
+
+    }else{
+
+      # predicting response requires incorporating the between-study random effects if selection models are present
+      # (we use approximate selection likelihood which samples the true study effects instead of marginalizing them)
+      if(.is_multivariate(object)){
+
+        tau_samples <- posterior_samples[,"tau"]
+        rho_samples <- posterior_samples[,"rho"]
+        # deal with computer precision errors from JAGS
+        rho_samples[rho_samples>1] <- 1
+        rho_samples[rho_samples<0] <- 0
+        # tau_within  = tau * sqrt(rho)
+        # tau_between = tau * sqrt(1-rho)
+        tau_within_samples  <- tau_samples * sqrt(rho_samples)
+        tau_between_samples <- tau_samples * sqrt(1-rho_samples)
+        gamma_samples       <- posterior_samples[,grep("gamma", colnames(posterior_samples)),drop = FALSE]
+
+        tau_between_samples <- .scale(tau_between_samples, object$add_info[["output_scale"]], model_scale)
+        tau_within_samples  <- .scale(tau_within_samples,  object$add_info[["output_scale"]], model_scale)
+
+        # incorporate study level effects into the predictor
+        for(i in seq_len(nrow(newdata.outcome))){
+          if(!is.na(newdata.outcome$study_ids[i])){
+            # eff + gamma[study_ids[i]] * tau_within_transformed
+            mu_samples[,i] <- mu_samples[,i] + gamma_samples[,newdata.outcome$study_ids[i]] * tau_within_samples
+          }
+        }
+
+        # tau_between samples work as tau for the final sampling step
+        tau_samples <- tau_between_samples
+
+      }else{
+
+        tau_samples  <- matrix(posterior_samples[,"tau"],  ncol = nrow(newdata.outcome), nrow = nrow(posterior_samples))
+        tau_samples  <- .scale(tau_samples,  object$add_info[["output_scale"]], model_scale)
+
+      }
+
+      outcome_samples <- matrix(NA, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
+
+      # required for crit_x values in selection models
+      fit_data <- .fit_data_ss(
+        data             = newdata.outcome,
+        priors           = priors,
+        effect_direction = object$add_info[["effect_direction"]],
+        prior_scale      = object$add_info[["prior_scale"]],
+        weighted         = FALSE,
+        weighted_type    = FALSE,
+        multivariate     = FALSE
+      )
+
+      # selection models are sampled separately for increased efficiency
+      priors_bias              <- priors[["bias"]]
+      bias_indicator           <- posterior_samples[,"bias_indicator"]
+      weightfunction_indicator <- bias_indicator %in% which(sapply(priors[["bias"]], is.prior.weightfunction))
+
+      if(any(sapply(priors_bias, is.prior.PET))){
+        PET_samples <- posterior_samples[,"PET"]
+        # PET is scale invariant (no-scaling needed)
+      }else{
+        PET_samples <- rep(0, nrow(posterior_samples))
+      }
+      if(any(sapply(priors_bias, is.prior.PET))){
+        PEESE_samples <- posterior_samples[,"PEESE"]
+        # PEESE scales with the inverse
+        PEESE_samples <- .scale(PEESE_samples, model_scale, object$add_info[["output_scale"]])
+      }
+
+      for(i in seq_len(ncol(mu_samples))){
+
+        # sample normal models/PET/PEESE
+        if(any(!weightfunction_indicator)){
+          outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
+            n    = sum(!weightfunction_indicator),
+            mean = mu_samples[!weightfunction_indicator,i] +
+              mu_samples[!weightfunction_indicator,i] + PET_samples[!weightfunction_indicator]   * newdata.outcome[i,"se"] +
+              mu_samples[!weightfunction_indicator,i] + PEESE_samples[!weightfunction_indicator] * newdata.outcome[i,"se"]^2,
+            sd   = sqrt(tau_samples[!weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2)
+          )
+        }
+
+        # sample selection models
+        if(any(weightfunction_indicator)){
+          outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
+            mean   = mu_samples[weightfunction_indicator,i],
+            sd     = sqrt(tau_samples[weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2),
+            omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
+            crit_x = fit_data$crit_y[, i]
+          )
+        }
+
+      }
+    }
+
+  }else if(type == "terms"){
+    # terms only returns the mean for the prediction
+    outcome_samples <- mu_samples
+  }
+
+
+  # select conditional estimates
+  if(conditional){
+    outcome_samples_conditional <- outcome_samples[mu_indicator %in% which(!mu_is_null),, drop=FALSE]
+    outcome_samples_conditional <- lapply(1:ncol(outcome_samples_conditional), function(i) {
+      .transform_mu(outcome_samples_conditional[,i], from = model_scale, to = output_scale)
+    })
+    names(outcome_samples_conditional) <- sapply(seq_along(outcome_samples_conditional), function(x) paste0("estimate[", x, "]"))
+  }
+
+  # transform the effect sizes (and name the matrix)
+  outcome_samples <- lapply(1:ncol(outcome_samples), function(i) {
+    .transform_mu(outcome_samples[,i], from = model_scale, to = output_scale)
+  })
+  names(outcome_samples) <- sapply(seq_along(outcome_samples), function(x) paste0("estimate[", x, "]"))
+
+  # return samples if requested
+  if (as_samples){
+    if(conditional){
+      return(do.call(cbind, outcome_samples_conditional))
+    }else{
+      return(do.call(cbind, outcome_samples))
+    }
+  }
+
+  # obtain estimates tables
+  estimates <- BayesTools::ensemble_estimates_table(
+    samples    = outcome_samples,
+    parameters = names(outcome_samples),
+    probs      = probs,
+    title      = "Posterior predictions:",
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+  )
+
+  if(conditional){
+    estimates_conditional <- BayesTools::ensemble_estimates_table(
+      samples    = outcome_samples_conditional,
+      parameters = names(outcome_samples_conditional),
+      probs      = probs,
+      title      = "Conditional posterior predictions:",
+      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+    )
+  }
+
+
+  # create the output object
+  output <- list(
+    call       = object[["call"]],
+    title      = .object_title(object),
+    estimates  = estimates,
+    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+  )
+
+  if(conditional){
+    output$estimates_conditional <- estimates_conditional
+  }
+
+  class(output) <- "summary.RoBMA"
+  attr(output, "type") <- "ensemble"
+
+  return(output)
+}

@@ -5,6 +5,8 @@
 #' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
+#' @param as_samples whether posterior samples instead of a summary table should
+#' be returned. Defaults to \code{FALSE}.
 #'
 #' @details
 #' The meta-regression specification results in the intercept corresponding
@@ -35,6 +37,7 @@ pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, prob
 #' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
+#' @inheritParams pooled_effect
 #'
 #' @details
 #' Non-default meta-regression specification (i.e., using treatment contrasts for
@@ -56,9 +59,13 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
   return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "adjusted", ...))
 }
 
-.compute_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), type = "pooled", ...) {
+.compute_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), type = "pooled", as_samples = FALSE) {
 
   .check_is_any_RoBMA_object(object)
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_char(type, "type", allow_values = c("pooled", "adjusted"))
+  BayesTools::check_bool(as_samples, "as_samples")
   if(!(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")))
     stop("The pooled effect size can only be computed for regression models.")
   if(object[["add_info"]][["algorithm"]] != "ss")
@@ -71,8 +78,6 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
   }else{
     output_scale <- .transformation_var(output_scale)
   }
-
-  dots <- list(...)
 
   # get posterior samples
   posterior_samples <- suppressWarnings(coda::as.mcmc(object[["model"]][["fit"]]))
@@ -132,7 +137,7 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
   predictions_conditional     <- predictions[mu_indicator %in% which(!mu_is_null)]
 
   # return samples if requested
-  if (!is.null(dots[["as_samples"]]) && isTRUE(dots[["as_samples"]])){
+  if (as_samples){
     return(list(
       estimate    = .transform_mu(pooled_estimate, from = object$add_info[["prior_scale"]], to = output_scale),
       predictions = .transform_mu(predictions,     from = object$add_info[["prior_scale"]], to = output_scale),
@@ -192,6 +197,7 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 #' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
+#' @inheritParams pooled_effect
 #'
 #' @details
 #' The conditional estimate is calculated conditional on the presence of the effect
@@ -199,9 +205,12 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 #'
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 #' @export
-true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), ...){
+true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE){
 
   .check_is_any_RoBMA_object(object)
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_bool(as_samples, "as_samples")
   if(inherits(object, "BiBMA") || inherits(object, "BiBMA.reg"))
     stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
   if(object[["add_info"]][["algorithm"]] != "ss")
@@ -219,8 +228,6 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
   }else{
     output_scale <- .transformation_var(output_scale)
   }
-
-  dots <- list(...)
 
   # extract posterior samples (and obtain conditional indicator)
   posterior_samples <- suppressWarnings(coda::as.mcmc(object[["model"]][["fit"]]))
@@ -276,7 +283,7 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
   # get the blups matrix
   true_effects_samples <- lambda * effect_size + (1 - lambda) * mu_samples
 
-  # compute conditional estimates
+  # select conditional estimates
   if(conditional){
     true_effects_samples_conditional <- true_effects_samples[,mu_indicator %in% which(!mu_is_null), drop=FALSE]
     true_effects_samples_conditional <- lapply(1:nrow(true_effects_samples_conditional), function(i) {
@@ -292,7 +299,7 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
   names(true_effects_samples) <- sapply(seq_along(true_effects_samples), function(x) paste0("theta[", x, "]"))
 
   # return samples if requested
-  if (!is.null(dots[["as_samples"]]) && isTRUE(dots[["as_samples"]])){
+  if (as_samples){
     if(conditional){
       return(do.call(cbind, true_effects_samples_conditional))
     }else{
