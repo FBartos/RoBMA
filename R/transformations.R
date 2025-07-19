@@ -530,7 +530,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 
   rhs             <- formula[c(1,2)]
-  model_frame     <- stats::model.frame(rhs, data = data_predictors)
+  model_frame     <- stats::model.frame(rhs, data = data_predictors, na.action = stats::na.pass)
+
+  if(anyNA(model_frame))
+    stop(sprintf("Predictors (%1$s) contain missing (NA) values. Please, remove the missing values from the data set.",
+                 paste0("'", names(which(apply(model_frame, 2, anyNA))), "'", collapse = ", ")), call. = FALSE)
 
   # check that intercept is specified
   if(attr(attr(model_frame, "terms"),"intercept") == 0)
