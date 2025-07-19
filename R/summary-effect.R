@@ -278,21 +278,21 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
     true_effects_samples_conditional <- lapply(1:nrow(true_effects_samples_conditional), function(i) {
       .transform_mu(true_effects_samples_conditional[i,], from = model_scale, to = output_scale)
     })
-    names(true_effects_samples_conditional) <- sapply(seq_along(true_effects_samples_conditional), function(x) paste0("estimate[", x, "]"))
+    names(true_effects_samples_conditional) <- sapply(seq_along(true_effects_samples_conditional), function(x) paste0("theta[", x, "]"))
   }
 
   # transform the effect sizes (and name the matrix)
   true_effects_samples <- lapply(1:nrow(true_effects_samples), function(i) {
     .transform_mu(true_effects_samples[i,], from = model_scale, to = output_scale)
   })
-  names(true_effects_samples) <- sapply(seq_along(true_effects_samples), function(x) paste0("estimate[", x, "]"))
+  names(true_effects_samples) <- sapply(seq_along(true_effects_samples), function(x) paste0("theta[", x, "]"))
 
   # return samples if requested
   if (!is.null(dots[["as_samples"]]) && isTRUE(dots[["as_samples"]])){
     if(conditional){
-      return(true_effects_samples_conditional)
+      return(do.call(cbind, true_effects_samples_conditional))
     }else{
-      return(true_effects_samples)
+      return(do.call(cbind, true_effects_samples))
     }
   }
 
