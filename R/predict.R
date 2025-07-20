@@ -3,8 +3,6 @@
 #' @description \code{predict.RoBMA} predicts values based on the RoBMA model.
 #' Only available for normal-normal models estimated using the spike-and-slab
 #' algorithm (i.e., \code{algorithm = "ss"}).
-#' Note that in contrast to metafor, the \code{type = "response"} produces
-#' predictions for the new effect size estimates (instead of the true study effects).
 #'
 #' @inheritParams summary.RoBMA
 #' @inheritParams pooled_effect
@@ -14,13 +12,24 @@
 #' to the format and naming that was used to estimate the original fit. Defaults to
 #' \code{NULL} which corresponds to prediction for the observed data.
 #' @param type type of prediction to be performed. Defaults to \code{"response"} which
-#' produces predictions for the observed effect size estimates. An alternative is
+#' produces predictions for the observed effect size estimates. Alternatives are
 #' \code{"terms"} which produces the mean effect size estimate at the given predictors
-#' levels (not accounting for the random-effects).
+#' levels (not accounting for the random-effects) and \code{"effect"} which predicts the
+#' distribution of the true study effects at the given predictors levels
+#' (i.e., incorporating heterogeneity into \code{"terms"}).
 #' @param incorporate_publication_bias whether sampling of new values should incorporate
-#' the estimated publication bias.
+#' the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}
+#' of predictions while selection models adjustment can be incorporated only in
+#' \code{type = "response"}.
 #'
 #' @details
+#' Note that in contrast to metafor, the \code{type = "response"} produces
+#' predictions for the new effect size estimates (instead of the true study effects).
+#' To obtain results corresponding to the metafor's predict function, use the
+#' \code{type = "terms"} to obtain the mean effect size estimate in its credible interval
+#' and \code{type = "effect"} to obtain the distribution of the true study effects (i.e.,
+#' prediction interval).
+#'
 #' The conditional estimate is calculated conditional on the presence of the effect
 #' (in meta-analysis) or the intercept (in meta-regression).
 #'
@@ -31,11 +40,11 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
                           incorporate_publication_bias = TRUE, as_samples = FALSE, ...){
 
   # some options checked inside BayesTools table directly
-  BayesTools::check_char(type, "type", allow_values = c("response", "terms"))
-  if(type == "terms" && !(is.null(newdata) || is.data.frame(newdata)))
-    stop("The 'newdata' argument must be a data frame or NULL when predicting terms", call. = FALSE)
-  if(type == "response" && !(is.null(newdata) || list(newdata)))
-    stop("The 'newdata' argument must be a list or NULL when predicting response", call. = FALSE)
+  BayesTools::check_char(type, "type", allow_values = c("response", "terms", "effect"))
+  if((is.RoBMA.reg(object) || is.NoBMA.reg(object) || is.BiBMA.reg(object)) && !(is.null(newdata) || is.data.frame(newdata)))
+    stop("The 'newdata' argument must be a data frame or NULL when performing prediction for meta-regression models.", call. = FALSE)
+  if(!(is.RoBMA.reg(object) || is.NoBMA.reg(object) || is.BiBMA.reg(object)) && !(is.null(newdata) || is.list(newdata)))
+    stop("The 'newdata' argument must be a list or NULL when performing prediction for meta-analytic models.", call. = FALSE)
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_bool(incorporate_publication_bias, "incorporate_publication_bias")
@@ -93,8 +102,10 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
     }else{
 
-      newdata.outcome <- with(newdata, combine_data(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
-                                                    study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = model_scale))
+      newdata.outcome <- combine_data(d = newdata[["d"]], r = newdata[["r"]], z = newdata[["z"]], logOR = newdata[["logOR"]],
+                                      OR = newdata[["OR"]], t = newdata[["t"]], y = newdata[["y"]], se = newdata[["se"]],
+                                      v = newdata[["v"]], n = newdata[["n"]], lCI = newdata[["lCI"]], uCI = newdata[["uCI"]],
+                                      study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = .transformation_invar(model_scale))
 
     }
   }
@@ -138,21 +149,51 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
   }
 
-  # create response prediction if required
-  if(type == "response"){
+  # add PET/PEESE adjustment
+  priors_bias  <- priors[["bias"]]
+  if(incorporate_publication_bias){
+    if(any(sapply(priors_bias, is.prior.PET))){
+      PET_samples <- posterior_samples[,"PET"]
+      # PET is scale invariant (no-scaling needed)
+    }else{
+      PET_samples <- rep(0, nrow(posterior_samples))
+    }
+    if(any(sapply(priors_bias, is.prior.PET))){
+      PEESE_samples <- posterior_samples[,"PEESE"]
+      # PEESE scales with the inverse
+      PEESE_samples <- .scale(PEESE_samples, model_scale, object$add_info[["output_scale"]])
+    }else{
+      PEESE_samples <- rep(0, nrow(posterior_samples))
+    }
 
-    if(!incorporate_publication_bias || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg") || length(priors$bias) == 1 && is.prior.none(priors$bias[[1]])){
+    for(i in seq_len(ncol(mu_samples))){
+      mu_samples[,i] <- mu_samples[,i] + PET_samples * newdata.outcome[i,"se"] + PEESE_samples * newdata.outcome[i,"se"]^2
+    }
+  }
+
+
+  # create response prediction if required
+  if(type %in% c("response", "effect")){
+
+    if(type == "effect" || !incorporate_publication_bias || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg") || (length(priors$bias) == 1 && is.prior.none(priors$bias[[1]]))){
 
       # predicting responses without selection models does not require incorporating the between-study random-effects
       # (the marginalized and non-marginalized parameterization are equivalent)
       tau_samples <- matrix(posterior_samples[,"tau"], ncol = nrow(newdata.outcome), nrow = nrow(posterior_samples))
       tau_samples <- .scale(tau_samples, object$add_info[["output_scale"]], model_scale)
 
-      # sample the observed studies
+      # sample the effects / observed studies
       outcome_samples <- matrix(NA, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
-      for(i in seq_len(ncol(mu_samples))){
-        outcome_samples[,i] <- rnorm(nrow(mu_samples), mu_samples[,i], sqrt(tau_samples[,i]^2 + newdata.outcome[i,"se"]^2))
+      if (type == "effect"){
+        for(i in seq_len(ncol(mu_samples))){
+          outcome_samples[,i] <- rnorm(nrow(mu_samples), mu_samples[,i], tau_samples[,i])
+        }
+      }else if (type == "response"){
+        for(i in seq_len(ncol(mu_samples))){
+          outcome_samples[,i] <- rnorm(nrow(mu_samples), mu_samples[,i], sqrt(tau_samples[,i]^2 + newdata.outcome[i,"se"]^2))
+        }
       }
+
 
     }else{
 
@@ -206,21 +247,8 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       )
 
       # selection models are sampled separately for increased efficiency
-      priors_bias              <- priors[["bias"]]
       bias_indicator           <- posterior_samples[,"bias_indicator"]
       weightfunction_indicator <- bias_indicator %in% which(sapply(priors[["bias"]], is.prior.weightfunction))
-
-      if(any(sapply(priors_bias, is.prior.PET))){
-        PET_samples <- posterior_samples[,"PET"]
-        # PET is scale invariant (no-scaling needed)
-      }else{
-        PET_samples <- rep(0, nrow(posterior_samples))
-      }
-      if(any(sapply(priors_bias, is.prior.PET))){
-        PEESE_samples <- posterior_samples[,"PEESE"]
-        # PEESE scales with the inverse
-        PEESE_samples <- .scale(PEESE_samples, model_scale, object$add_info[["output_scale"]])
-      }
 
       for(i in seq_len(ncol(mu_samples))){
 
@@ -228,9 +256,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
         if(any(!weightfunction_indicator)){
           outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
             n    = sum(!weightfunction_indicator),
-            mean = mu_samples[!weightfunction_indicator,i] +
-              mu_samples[!weightfunction_indicator,i] + PET_samples[!weightfunction_indicator]   * newdata.outcome[i,"se"] +
-              mu_samples[!weightfunction_indicator,i] + PEESE_samples[!weightfunction_indicator] * newdata.outcome[i,"se"]^2,
+            mean = mu_samples[!weightfunction_indicator,i],
             sd   = sqrt(tau_samples[!weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2)
           )
         }

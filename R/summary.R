@@ -655,6 +655,7 @@ print.summary.RoBMA <- function(x, ...){
 #' @export is.NoBMA
 #' @export is.NoBMA.reg
 #' @export is.BiBMA
+#' @export is.BiBMA.reg
 
 #' @rdname is.RoBMA
 is.RoBMA            <- function(x){
@@ -675,6 +676,10 @@ is.NoBMA.reg        <- function(x){
 #' @rdname is.RoBMA
 is.BiBMA            <- function(x){
   inherits(x, "BiBMA")
+}
+#' @rdname is.RoBMA
+is.BiBMA.reg        <- function(x){
+  inherits(x, "BiBMA.reg")
 }
 
 

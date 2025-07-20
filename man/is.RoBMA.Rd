@@ -6,6 +6,7 @@
 \alias{is.NoBMA}
 \alias{is.NoBMA.reg}
 \alias{is.BiBMA}
+\alias{is.BiBMA.reg}
 \title{Reports whether x is a RoBMA object}
 \usage{
 is.RoBMA(x)
@@ -17,6 +18,8 @@ is.NoBMA(x)
 is.NoBMA.reg(x)
 
 is.BiBMA(x)
+
+is.BiBMA.reg(x)
 }
 \arguments{
 \item{x}{an object to test}

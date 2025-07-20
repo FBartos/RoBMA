@@ -25,10 +25,12 @@ for a meta-analysis is performed) for new studies. Note that the input has to co
 to the format and naming that was used to estimate the original fit. Defaults to
 \code{NULL} which corresponds to prediction for the observed data.}
 
-\item{type}{whether to show the overall RoBMA results (\code{"ensemble"}),
-an overview of the individual models (\code{"models"}), an overview of
-the individual models MCMC diagnostics (\code{"diagnostics"}), or a detailed summary
-of the individual models (\code{"individual"}). Can be abbreviated to first letters.}
+\item{type}{type of prediction to be performed. Defaults to \code{"response"} which
+produces predictions for the observed effect size estimates. Alternatives are
+\code{"terms"} which produces the mean effect size estimate at the given predictors
+levels (not accounting for the random-effects) and \code{"effect"} which predicts the
+distribution of the true study effects at the given predictors levels
+(i.e., incorporating heterogeneity into \code{"terms"}).}
 
 \item{conditional}{show the conditional estimates (assuming that the
 alternative is true). Defaults to \code{FALSE}. Only available for
@@ -41,7 +43,9 @@ scale. Defaults to \code{NULL} which returns the same scale as the model was est
 Defaults to \code{c(.025, .975)}}
 
 \item{incorporate_publication_bias}{whether sampling of new values should incorporate
-the estimated publication bias.}
+the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}
+of predictions while selection models adjustment can be incorporated only in
+\code{type = "response"}.}
 
 \item{as_samples}{whether posterior samples instead of a summary table should
 be returned. Defaults to \code{FALSE}.}
@@ -57,6 +61,13 @@ Only available for normal-normal models estimated using the spike-and-slab
 algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
+Note that in contrast to metafor, the \code{type = "response"} produces
+predictions for the new effect size estimates (instead of the true study effects).
+To obtain results corresponding to the metafor's predict function, use the
+\code{type = "terms"} to obtain the mean effect size estimate in its credible interval
+and \code{type = "effect"} to obtain the distribution of the true study effects (i.e.,
+prediction interval).
+
 The conditional estimate is calculated conditional on the presence of the effect
 (in meta-analysis) or the intercept (in meta-regression).
 }

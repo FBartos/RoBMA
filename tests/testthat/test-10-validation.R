@@ -135,6 +135,45 @@ test_that("Validate normal model with metafor", {
   robma_blups   <- true_effects(fit.RoBMA.reg.fe)
   metafor_blups <- blup(fit.metafor.fereg2)
   expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 1e-2)
+
+  # validate predictions
+  set.seed(1)
+  robma_preds   <- predict(fit.RoBMA_ss.fe, type = "effect")
+  metafor_preds <- predict(fit.metafor.fe)
+  expect_equal(as.numeric(robma_preds$estimates[1,c("Mean", "0.025", "0.975")]), c(metafor_preds$pred, metafor_preds$ci.lb, metafor_preds$ci.ub), tolerance = 1e-2)
+
+  robma_preds   <- predict(fit.RoBMA_ss.re, type = "effect")
+  metafor_preds <- predict(fit.metafor.re)
+  # Bayesian tau estimate is larger -> credibile/prediction intervals mismatch too
+  expect_equal(as.numeric(robma_preds$estimates[1,c("Mean")]), c(metafor_preds$pred), tolerance = 1e-2)
+
+  robma_preds   <- predict(fit.RoBMA.reg.re, type = "effect")
+  metafor_preds <- predict(fit.metafor.rereg2)
+  expect_equal(as.numeric(robma_preds$estimates[,c("Mean")]), c(metafor_preds$pred), tolerance = 2e-2)
+
+  robma_preds   <- predict(fit.RoBMA.reg.fe, type = "effect")
+  metafor_preds <- predict(fit.metafor.fereg2)
+  expect_equal(as.numeric(robma_preds$estimates[,c("Mean")]), c(metafor_preds$pred), tolerance = 1e-2)
+  expect_equal(as.numeric(robma_preds$estimates[,c("0.025")]), c(metafor_preds$ci.lb), tolerance = 1e-2)
+  expect_equal(as.numeric(robma_preds$estimates[,c("0.975")]), c(metafor_preds$ci.ub), tolerance = 1e-2)
+
+  robma_preds.terms    <- predict(fit.RoBMA.reg.re, newdata = data.frame(alloc = "random", year = 1950:2000, y = 0, se = 0.50), type = "terms")
+  robma_preds.effect   <- predict(fit.RoBMA.reg.re, newdata = data.frame(alloc = "random", year = 1950:2000, y = 0, se = 0.50), type = "effect")
+  robma_preds.response <- predict(fit.RoBMA.reg.re, newdata = data.frame(alloc = "random", year = 1950:2000, y = 0, se = 0.50), type = "response")
+
+  vdiffr::expect_doppelganger("predict-distribution", function(){
+    plot(NA, xlim = c(1950, 2000), ylim = c(-4, 4), xlab = "Year", ylab = "Effect", las = 1)
+    polygon(c(1950:2000, rev(1950:2000)),
+            c(robma_preds.terms$estimates[,"0.025"], rev(robma_preds.terms$estimates[,"0.975"])),
+            col = rgb(0, 0, 1, alpha = 0.2), border = NA)
+    polygon(c(1950:2000, rev(1950:2000)),
+            c(robma_preds.effect$estimates[,"0.025"], rev(robma_preds.effect$estimates[,"0.975"])),
+            col = rgb(0, 0, 1, alpha = 0.2), border = NA)
+    polygon(c(1950:2000, rev(1950:2000)),
+            c(robma_preds.response$estimates[,"0.025"], rev(robma_preds.response$estimates[,"0.975"])),
+            col = rgb(0, 0, 1, alpha = 0.2), border = NA)
+  })
+
 })
 
 test_that("Validate binomial model with metafor", {
