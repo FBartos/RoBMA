@@ -53,7 +53,7 @@ be returned. Defaults to \code{FALSE}.}
 \item{...}{additional arguments}
 }
 \value{
-\code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+\code{predict.RoBMA} returns a list of tables of class 'BayesTools_table'.
 }
 \description{
 \code{predict.RoBMA} predicts values based on the RoBMA model.
