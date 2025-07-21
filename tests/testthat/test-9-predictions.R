@@ -1,4 +1,4 @@
-context("(10) Prediction functions")
+context("(9) Prediction functions")
 skip_on_cran()
 
 ### Read all prefitted objects
