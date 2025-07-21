@@ -43,7 +43,7 @@ scale. Defaults to \code{NULL} which returns the same scale as the model was est
 Defaults to \code{c(.025, .975)}}
 
 \item{incorporate_publication_bias}{whether sampling of new values should incorporate
-the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}
+the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}s
 of predictions while selection models adjustment can be incorporated only in
 \code{type = "response"}.}
 
@@ -61,7 +61,7 @@ Only available for normal-normal models estimated using the spike-and-slab
 algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
-Note that in contrast to metafor, the \code{type = "response"} produces
+Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 predictions for the new effect size estimates (instead of the true study effects).
 To obtain results corresponding to the metafor's predict function, use the
 \code{type = "terms"} to obtain the mean effect size estimate in its credible interval

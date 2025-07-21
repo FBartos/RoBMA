@@ -18,12 +18,12 @@
 #' distribution of the true study effects at the given predictors levels
 #' (i.e., incorporating heterogeneity into \code{"terms"}).
 #' @param incorporate_publication_bias whether sampling of new values should incorporate
-#' the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}
+#' the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}s
 #' of predictions while selection models adjustment can be incorporated only in
 #' \code{type = "response"}.
 #'
 #' @details
-#' Note that in contrast to metafor, the \code{type = "response"} produces
+#' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 #' predictions for the new effect size estimates (instead of the true study effects).
 #' To obtain results corresponding to the metafor's predict function, use the
 #' \code{type = "terms"} to obtain the mean effect size estimate in its credible interval
@@ -50,6 +50,11 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
   BayesTools::check_bool(incorporate_publication_bias, "incorporate_publication_bias")
   BayesTools::check_bool(as_samples, "as_samples")
   dots <- list(...)
+  if(object[["add_info"]][["algorithm"]] != "ss")
+    stop("The pooled effect size can only be computed for spike and slab models.")
+  if(inherits(object, "BiBMA") || inherits(object, "BiBMA.reg"))
+    stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
+
 
   # get the model fitting scale
   if (is.BiBMA(object)) {

@@ -193,8 +193,9 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 #'
 #' @description \code{true_effects} computes the estimated true effect size
 #' for a fitted RoBMA object. These estimates correspond to the frequentist
-#' "Best Linear Unbiased Predictions (BLUPs)". Only available for normal-normal models
-#' estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
+#' "Best Linear Unbiased Predictions (BLUPs)" (\link[metafor]{blup}).
+#' Only available for normal-normal models estimated using the
+#' spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 #'
 #' @inheritParams summary.RoBMA
 #' @inheritParams pooled_effect

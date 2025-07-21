@@ -34,8 +34,9 @@ be returned. Defaults to \code{FALSE}.}
 \description{
 \code{true_effects} computes the estimated true effect size
 for a fitted RoBMA object. These estimates correspond to the frequentist
-"Best Linear Unbiased Predictions (BLUPs)". Only available for normal-normal models
-estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
+"Best Linear Unbiased Predictions (BLUPs)" (\link[metafor]{blup}).
+Only available for normal-normal models estimated using the
+spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
 The conditional estimate is calculated conditional on the presence of the effect
