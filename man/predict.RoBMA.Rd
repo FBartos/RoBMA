@@ -43,9 +43,9 @@ scale. Defaults to \code{NULL} which returns the same scale as the model was est
 Defaults to \code{c(.025, .975)}}
 
 \item{incorporate_publication_bias}{whether sampling of new values should incorporate
-the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}s
-of predictions while selection models adjustment can be incorporated only in
-\code{type = "response"}.}
+the estimated publication bias (note that selection models do not affect the mean paramater
+when \code{"terms"} (equal mean parameter under normal vs. weighted likelihood equals different
+expectation).}
 
 \item{as_samples}{whether posterior samples instead of a summary table should
 be returned. Defaults to \code{FALSE}.}
@@ -53,7 +53,7 @@ be returned. Defaults to \code{FALSE}.}
 \item{...}{additional arguments}
 }
 \value{
-\code{predict.RoBMA} returns a list of tables of class 'BayesTools_table'.
+\code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 }
 \description{
 \code{predict.RoBMA} predicts values based on the RoBMA model.

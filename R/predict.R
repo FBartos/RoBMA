@@ -18,9 +18,9 @@
 #' distribution of the true study effects at the given predictors levels
 #' (i.e., incorporating heterogeneity into \code{"terms"}).
 #' @param incorporate_publication_bias whether sampling of new values should incorporate
-#' the estimated publication bias. PET/PEESE adjustment is incorporate in all \code{type}s
-#' of predictions while selection models adjustment can be incorporated only in
-#' \code{type = "response"}.
+#' the estimated publication bias (note that selection models do not affect the mean paramater
+#' when \code{"terms"} (equal mean parameter under normal vs. weighted likelihood equals different
+#' expectation).
 #'
 #' @details
 #' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
@@ -262,22 +262,22 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
   # create response prediction if required
   if(type %in% c("response", "effect")){
 
-    if(type == "effect" || !incorporate_publication_bias || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg") || (length(priors$bias) == 1 && is.prior.none(priors$bias[[1]]))){
+    if(!incorporate_publication_bias || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg") || (length(priors$bias) == 1 && is.prior.none(priors$bias[[1]]))){
 
       # predicting responses without selection models does not require incorporating the between-study random-effects
       # (the marginalized and non-marginalized parameterization are equivalent)
-      tau_samples <- matrix(posterior_samples[,"tau"], ncol = nrow(newdata.outcome), nrow = nrow(posterior_samples))
+      tau_samples <- posterior_samples[,"tau"]
       tau_samples <- .scale(tau_samples, object$add_info[["output_scale"]], model_scale)
 
       # sample the effects / observed studies
       outcome_samples <- matrix(NA, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
       if (type == "effect"){
         for(i in seq_len(ncol(mu_samples))){
-          outcome_samples[,i] <- stats::rnorm(nrow(mu_samples), mu_samples[,i], tau_samples[,i])
+          outcome_samples[,i] <- stats::rnorm(nrow(mu_samples), mu_samples[,i], tau_samples)
         }
       }else if (type == "response"){
         for(i in seq_len(ncol(mu_samples))){
-          outcome_samples[,i] <- stats::rnorm(nrow(mu_samples), mu_samples[,i], sqrt(tau_samples[,i]^2 + newdata.outcome[i,"se"]^2))
+          outcome_samples[,i] <- stats::rnorm(nrow(mu_samples), mu_samples[,i], sqrt(tau_samples^2 + newdata.outcome[i,"se"]^2))
         }
       }
 
@@ -331,7 +331,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
       }else{
 
-        tau_samples  <- matrix(posterior_samples[,"tau"],  ncol = nrow(newdata.outcome), nrow = nrow(posterior_samples))
+        tau_samples  <- posterior_samples[,"tau"]
         tau_samples  <- .scale(tau_samples,  object$add_info[["output_scale"]], model_scale)
 
       }
@@ -342,28 +342,58 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       bias_indicator           <- posterior_samples[,"bias_indicator"]
       weightfunction_indicator <- bias_indicator %in% which(sapply(priors[["bias"]], is.prior.weightfunction))
 
-      for(i in seq_len(ncol(mu_samples))){
+      # sample the effects / observed studies
+      if(type == "effect"){
 
-        # sample normal models/PET/PEESE
-        if(any(!weightfunction_indicator)){
-          outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
-            n    = sum(!weightfunction_indicator),
-            mean = mu_samples[!weightfunction_indicator,i],
-            sd   = sqrt(tau_samples[!weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2)
-          )
+        for(i in seq_len(ncol(mu_samples))){
+
+          # sample normal models/PET/PEESE
+          if(any(!weightfunction_indicator)){
+            outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
+              n    = sum(!weightfunction_indicator),
+              mean = mu_samples[!weightfunction_indicator,i],
+              sd   = tau_samples[!weightfunction_indicator]
+            )
+          }
+
+          # sample selection models (.rwnorm_predict_true_fast returns the implied random effects for given selection)
+          if(any(weightfunction_indicator)){
+            outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_true_fast(
+              mean   = mu_samples[weightfunction_indicator,i],
+              tau    = tau_samples[weightfunction_indicator],
+              se     = newdata.outcome[i,"se"],
+              omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
+              crit_x = fit_data$crit_y[, i]
+            )
+          }
         }
 
-        # sample selection models
-        if(any(weightfunction_indicator)){
-          outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
-            mean   = mu_samples[weightfunction_indicator,i],
-            sd     = sqrt(tau_samples[weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2),
-            omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
-            crit_x = fit_data$crit_y[, i]
-          )
+      }else if(type == "response"){
+
+        for(i in seq_len(ncol(mu_samples))){
+
+          # sample normal models/PET/PEESE
+          if(any(!weightfunction_indicator)){
+            outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
+              n    = sum(!weightfunction_indicator),
+              mean = mu_samples[!weightfunction_indicator,i],
+              sd   = sqrt(tau_samples[!weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2)
+            )
+          }
+
+          # sample selection models
+          if(any(weightfunction_indicator)){
+            outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
+              mean   = mu_samples[weightfunction_indicator,i],
+              sd     = sqrt(tau_samples[weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2),
+              omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
+              crit_x = fit_data$crit_y[, i]
+            )
+          }
         }
 
       }
+
     }
 
   }else if(type == "terms"){
@@ -378,23 +408,24 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     outcome_samples_conditional <- lapply(1:ncol(outcome_samples_conditional), function(i) {
       .transform_mu(outcome_samples_conditional[,i], from = model_scale, to = output_scale)
     })
-    names(outcome_samples_conditional) <- sapply(seq_along(outcome_samples_conditional), function(x) paste0("estimate[", x, "]"))
+    names(outcome_samples_conditional) <- switch(
+      type,
+      "terms"    = sapply(seq_along(outcome_samples_conditional), function(x) paste0("mu[", x, "]")),
+      "effect"   = sapply(seq_along(outcome_samples_conditional), function(x) paste0("theta[", x, "]")),
+      "response" = sapply(seq_along(outcome_samples_conditional), function(x) paste0("estimate[", x, "]"))
+    )
   }
 
   # transform the effect sizes (and name the matrix)
   outcome_samples <- lapply(1:ncol(outcome_samples), function(i) {
     .transform_mu(outcome_samples[,i], from = model_scale, to = output_scale)
   })
-  names(outcome_samples) <- sapply(seq_along(outcome_samples), function(x) paste0("estimate[", x, "]"))
-
-  # return samples if requested
-  if (as_samples){
-    if(conditional){
-      return(do.call(cbind, outcome_samples_conditional))
-    }else{
-      return(do.call(cbind, outcome_samples))
-    }
-  }
+  names(outcome_samples) <- switch(
+    type,
+    "terms"    = sapply(seq_along(outcome_samples), function(x) paste0("mu[", x, "]")),
+    "effect"   = sapply(seq_along(outcome_samples), function(x) paste0("theta[", x, "]")),
+    "response" = sapply(seq_along(outcome_samples), function(x) paste0("estimate[", x, "]"))
+  )
 
   # obtain estimates tables
   estimates <- BayesTools::ensemble_estimates_table(

@@ -457,7 +457,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 # fast computation - no input check, pre-formatted for posterior predictive
-.rwnorm_predict_fast <- function(mean, sd, omega, crit_x){
+.rwnorm_predict_fast      <- function(mean, sd, omega, crit_x){
 
   # samples
   x <- stats::rnorm(length(mean), mean = mean, sd = sd)
@@ -484,6 +484,35 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }
 
   return(x)
+}
+.rwnorm_predict_true_fast <- function(mean, tau, se, omega, crit_x){
+
+  # samples
+  xt <- stats::rnorm(length(mean), mean = mean, sd = tau)
+  xo <- stats::rnorm(length(mean), mean = xt,   sd = se)
+
+  # find correct weight
+  w <- rep(NA, length(mean))
+  for(i in rev(seq_along(crit_x))){
+    w[is.na(w) & xo >= crit_x[i]] <- omega[is.na(w) & xo >= crit_x[i], i + 1]
+  }
+  w[is.na(w) & xo < crit_x[i]] <- omega[is.na(w) & xo < crit_x[i], 1]
+
+  # deal with computer precision errors from JAGS
+  w[w > 1] <- 1
+  w[w < 0] <- 0
+
+  # assign publication status
+  p <- stats::rbinom(length(mean), 1, prob = w) == 1
+
+  # re-sample the missing estimates
+  xt[!p] <- NA
+
+  if(any(!p)){
+    xt[!p] <- .rwnorm_predict_true_fast(mean[!p], tau[!p], se, omega[!p,,drop=FALSE], crit_x)
+  }
+
+  return(xt)
 }
 
 # helper functions
