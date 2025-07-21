@@ -26,7 +26,7 @@
 #' @seealso [adjusted_effect()]
 #' @export
 pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE) {
-  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "pooled", as_samples = FALSE))
+  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "pooled", as_samples = as_samples))
 }
 
 
