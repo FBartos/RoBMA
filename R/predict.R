@@ -67,13 +67,26 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
   # predict for the current data if no data are specified
   if(is.null(newdata)){
+
+    # an existing data are used
+    same_data <- TRUE
+    # - when predicting effects/outcomes for multilevel outcomes, use estimated gamma levels
+
+    # dispatch between meta-regression / meta-analysis input
     if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
       newdata.predictors <- do.call(cbind.data.frame, object$data[["predictors"]])
       newdata.outcome    <- object$data[["outcome"]]
     }else{
       newdata.outcome <- object$data
     }
+
   }else{
+
+    # a new data are used
+    same_data <- FALSE
+    # - when predicting effects/outcomes for multilevel outcomes, average across possible tau_within levels via sampling
+
+    # dispatch between meta-regression / meta-analysis input
     if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
 
       RoBMA.options(check_scaling = FALSE)
@@ -158,7 +171,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     }else{
       PET_samples <- rep(0, nrow(posterior_samples))
     }
-    if(any(sapply(priors_bias, is.prior.PET))){
+    if(any(sapply(priors_bias, is.prior.PEESE))){
       PEESE_samples <- posterior_samples[,"PEESE"]
       # PEESE scales with the inverse
       PEESE_samples <- .scale(PEESE_samples, model_scale, object$add_info[["output_scale"]])
@@ -197,6 +210,17 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
     }else{
 
+      # required for study ids / crit_x values in selection models
+      fit_data <- .fit_data_ss(
+        data             = newdata.outcome,
+        priors           = priors,
+        effect_direction = object$add_info[["effect_direction"]],
+        prior_scale      = object$add_info[["prior_scale"]],
+        weighted         = FALSE,
+        weighted_type    = FALSE,
+        multivariate     = if (same_data) .is_multivariate(object) else FALSE
+      )
+
       # predicting response requires incorporating the between-study random effects if selection models are present
       # (we use approximate selection likelihood which samples the true study effects instead of marginalizing them)
       if(.is_multivariate(object)){
@@ -215,13 +239,18 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
         tau_between_samples <- .scale(tau_between_samples, object$add_info[["output_scale"]], model_scale)
         tau_within_samples  <- .scale(tau_within_samples,  object$add_info[["output_scale"]], model_scale)
 
-        # incorporate study level effects into the predictor
-        for(i in seq_len(nrow(newdata.outcome))){
-          if(!is.na(newdata.outcome$study_ids[i])){
-            # eff + gamma[study_ids[i]] * tau_within_transformed
-            mu_samples[,i] <- mu_samples[,i] + gamma_samples[,newdata.outcome$study_ids[i]] * tau_within_samples
+        # incorporate within study heterogeneity into the predictor
+        # either estimated for prediction on the same data or integrated over for new data
+        if(same_data){
+          for(i in seq_len(nrow(newdata.outcome))){
+            mu_samples[,i] <- mu_samples[,i] + gamma_samples[,fit_data$study_ids[i]] * tau_within_samples
+          }
+        }else{
+          for(i in seq_len(nrow(newdata.outcome))){
+            mu_samples[,i] <- mu_samples[,i] + stats::rnorm(nrow(mu_samples)) * tau_within_samples
           }
         }
+
 
         # tau_between samples work as tau for the final sampling step
         tau_samples <- tau_between_samples
@@ -234,17 +263,6 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       }
 
       outcome_samples <- matrix(NA, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
-
-      # required for crit_x values in selection models
-      fit_data <- .fit_data_ss(
-        data             = newdata.outcome,
-        priors           = priors,
-        effect_direction = object$add_info[["effect_direction"]],
-        prior_scale      = object$add_info[["prior_scale"]],
-        weighted         = FALSE,
-        weighted_type    = FALSE,
-        multivariate     = FALSE
-      )
 
       # selection models are sampled separately for increased efficiency
       bias_indicator           <- posterior_samples[,"bias_indicator"]

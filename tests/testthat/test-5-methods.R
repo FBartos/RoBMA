@@ -8,12 +8,12 @@ if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
   stop("Temporary fits directory not found. Run test-4-fit.R first.")
 }
 
-saved_files <- paste0("fit_", 1:16, ".RDS")
+saved_files <- paste0("fit_", 1:18, ".RDS")
 fits <- list()
-for (i in 1:16) {
+for (i in 1:18) {
   fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
 }
-names(fits) <- paste0("fit_", 1:16)
+names(fits) <- paste0("fit_", 1:18)
 
 
 test_that("Print functions work", {
@@ -868,12 +868,12 @@ if(FALSE){
 
   temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
 
-  saved_files <- paste0("fit_", 1:16, ".RDS")
+  saved_files <- paste0("fit_", 1:18, ".RDS")
   fits <- list()
-  for (i in 1:16) {
+  for (i in 1:18) {
     fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
   }
-  names(fits) <- paste0("fit_", 1:16)
+  names(fits) <- paste0("fit_", 1:18)
 
   # generate print files
   for(i in seq_along(fits)){

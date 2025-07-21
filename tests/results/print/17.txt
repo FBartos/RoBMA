@@ -1,0 +1,8 @@
+"Call:"
+"BiBMA.reg(formula = ~mod_cat, data = df_reg, rescale_priors = 2, "
+"    algorithm = \"ss\", chains = 2, sample = 1500, burnin = 750, "
+"    adapt = 750, parallel = TRUE, autofit = FALSE, seed = 1)"
+""
+"Estimates:"
+"       intercept mod_cat [dif: A] mod_cat [dif: B]              tau "
+"      0.64732173      -0.58544487       0.58544487       0.08787191 "
