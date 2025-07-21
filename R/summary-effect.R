@@ -56,7 +56,7 @@ pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, prob
 #' @seealso [pooled_effect()]
 #' @export
 adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE) {
-  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "adjusted", as_samples = FALSE))
+  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "adjusted", as_samples = as_samples))
 }
 
 .compute_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), type = "pooled", as_samples = FALSE) {
