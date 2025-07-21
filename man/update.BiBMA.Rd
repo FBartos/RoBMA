@@ -4,7 +4,7 @@
 \alias{update.BiBMA}
 \title{Updates a fitted BiBMA object}
 \usage{
-\method{update}{BiBMA}(
+update.BiBMA(
   object,
   refit_failed = TRUE,
   extend_all = FALSE,

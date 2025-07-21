@@ -25,8 +25,8 @@
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 #' @seealso [adjusted_effect()]
 #' @export
-pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), ...) {
-  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "pooled", ...))
+pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE) {
+  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "pooled", as_samples = FALSE))
 }
 
 
@@ -55,8 +55,8 @@ pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, prob
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 #' @seealso [pooled_effect()]
 #' @export
-adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), ...) {
-  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "adjusted", ...))
+adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE) {
+  return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "adjusted", as_samples = FALSE))
 }
 
 .compute_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), type = "pooled", as_samples = FALSE) {

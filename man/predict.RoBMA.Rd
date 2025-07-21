@@ -71,3 +71,74 @@ prediction interval).
 The conditional estimate is calculated conditional on the presence of the effect
 (in meta-analysis) or the intercept (in meta-regression).
 }
+\examples{
+\dontrun{
+require(metafor)
+dat <- escalc(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg,
+              data = dat.bcg)
+
+# fit meta-regression
+robma_dat <- data.frame(
+  logOR  = dat$yi,
+  se     = sqrt(dat$vi),
+  ablat  = dat$ablat,
+  alloc  = dat$alloc
+)
+
+fit <- NoBMA.reg(~ ablat + alloc, data = robma_dat,
+                 seed = 1, algorithm = "ss", parallel = TRUE)
+
+# prediction for the mean effect, prediction interval, and posterior predictive
+mean_effect          <- predict(fit, type = "terms")
+prediction_interval  <- predict(fit, type = "effect")
+posterior_predictive <- predict(fit, type = "response")
+
+# visualize the estimates vs predictions
+plot(NA, type = "n", xlim = c(-3, 3), ylim = c(0, nrow(robma_dat) + 1),
+     xlab = "logOR", ylab = "Observation", las = 1)
+points(robma_dat$logOR, seq_along(robma_dat$logOR), cex = 2, pch = 16)
+points(mean_effect$estimates$Mean, seq_along(robma_dat$logOR) + 0.2,
+       cex = 1.5, pch = 16, col = "blue")
+sapply(seq_along(robma_dat$logOR), function(i){
+  lines(c(robma_dat$logOR[i] - 1.96 * robma_dat$se[i],
+          robma_dat$logOR[i] + 1.96 * robma_dat$se[i]),
+        c(i, i), lwd = 2)
+  lines(c(mean_effect$estimates[i,"0.025"],
+          mean_effect$estimates[i,"0.975"]),
+        c(i + 0.2, i + 0.2), lwd = 2, col = "blue")
+  lines(c(prediction_interval$estimates[i,"0.025"],
+          prediction_interval$estimates[i,"0.975"]),
+        c(i + 0.3, i + 0.3), lwd = 2, lty = 2, col = "blue")
+  lines(c(posterior_predictive$estimates[i,"0.025"],
+          posterior_predictive$estimates[i,"0.975"]),
+        c(i + 0.4, i + 0.4), lwd = 2, lty = 3, col = "blue")
+})
+legend("bottomright", legend = c("Observed + CI", "Predicted + CI", "Prediction Int.", "Sampling Int."),
+       col = c("black", rep("blue", 3)), lwd = 2, lty = c(1, 1, 2, 3), bty = "n")
+
+ # prediction across a lattitude
+ fit2 <- NoBMA.reg(~ ablat, data = robma_dat,
+                   seed = 1, algorithm = "ss", parallel = TRUE)
+
+ new_df <- data.frame(
+   logOR  = 0,   # only relevant for "response" (not plotted here)
+   se     = 0.1, # only relevant for "response" (not plotted here)
+   ablat  = 10:60
+ )
+ new_mean_effect          <- predict(fit2, newdata = new_df, type = "terms")
+ new_prediction_interval  <- predict(fit2, newdata = new_df, type = "effect")
+
+ # create bubble plot
+ plot(robma_dat$ablat, robma_dat$logOR,  ylim = c(-2, 1),
+      xlab = "Latitude", ylab = "logOR", las = 1, cex = 0.3/robma_dat$se, pch = 16)
+ polygon(c(10:60, rev(10:60)),
+         c(new_mean_effect$estimates[,"0.025"],
+           rev(new_mean_effect$estimates[,"0.975"])),
+         col = rgb(0, 0, 1, alpha = 0.2), border = NA)
+ polygon(c(10:60, rev(10:60)),
+         c(new_prediction_interval$estimates[,"0.025"],
+           rev(new_prediction_interval$estimates[,"0.975"])),
+         col = rgb(0, 0, 1, alpha = 0.2), border = NA)
+}
+
+}
