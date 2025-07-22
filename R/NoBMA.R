@@ -17,6 +17,14 @@
 #' @return \code{NoBMA} returns an object of class 'RoBMA'.
 #'
 #' @seealso [RoBMA()], [summary.RoBMA()], [update.RoBMA()], [check_setup()]
+#' @examples
+#' \dontrun{
+#' # fit a publication bias unadjusted meta-analysis
+#' data(Andrews2021)
+#' fit <- NoBMA(~ measure + age, data = Andrews2021, parallel = TRUE,
+#'              seed = 1, algorithm = "ss")
+#' summary(fit)
+#' }
 #' @export
 NoBMA <- function(
     # data specification

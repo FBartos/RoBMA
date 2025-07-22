@@ -137,6 +137,20 @@ Note that this is an experimental feature and see News for more details. Default
 implied by the specified prior distributions. It is useful for checking
 the ensemble configuration prior to fitting all of the models.
 }
+\examples{
+# check default RoBMA setup
+check_setup()
+
+# check setup with custom priors
+check_setup(
+  priors_effect = prior("normal", list(mean = 0, sd = 0.5)),
+  priors_heterogeneity = prior("invgamma", list(shape = 2, scale = 0.3)),  
+  models = TRUE
+)
+
+# show detailed model overview
+check_setup(models = TRUE)
+}
 \seealso{
 \code{\link[=check_setup.reg]{check_setup.reg()}} \code{\link[=RoBMA]{RoBMA()}}
 }
