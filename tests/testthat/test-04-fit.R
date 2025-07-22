@@ -220,13 +220,21 @@ test_that("Convergence warnings work", {
 })
 
 test_that("3-level models work", {
-
+  # uses the old multivariate selection model parameterization
   fit13 <- suppressWarnings(try_parallel(RoBMA(d = d, se = d_se, study_ids = c(1,1,2), seed = 1, parallel = TRUE,
                               autofit = FALSE, thin = 2, sample = 500, burnin = 250, adapt = 100, chains = 1,
                               convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
   fit13 <- remove_time(fit13)
   expect_true(is.RoBMA(fit13))
   saveRDS(fit13, file = file.path(temp_fits_dir, "fit_13.RDS"), compress = "xz")
+
+
+  fit18 <- suppressWarnings(try_parallel(RoBMA(d = d, se = d_se, study_ids = c(1,1,2), seed = 1, parallel = TRUE, algorithm = "ss",
+                                               autofit = FALSE, thin = 2, sample = 500, burnin = 250, adapt = 100, chains = 1,
+                                               convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1))))
+  fit18 <- remove_time(fit18)
+  expect_true(is.RoBMA(fit18))
+  saveRDS(fit18, file = file.path(temp_fits_dir, "fit_18.RDS"), compress = "xz")
 
 })
 

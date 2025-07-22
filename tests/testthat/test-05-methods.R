@@ -8,12 +8,12 @@ if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
   stop("Temporary fits directory not found. Run test-4-fit.R first.")
 }
 
-saved_files <- paste0("fit_", 1:16, ".RDS")
+saved_files <- paste0("fit_", 1:18, ".RDS")
 fits <- list()
-for (i in 1:16) {
+for (i in 1:18) {
   fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
 }
-names(fits) <- paste0("fit_", 1:16)
+names(fits) <- paste0("fit_", 1:18)
 
 
 test_that("Print functions work", {
@@ -628,6 +628,10 @@ test_that("Effect size summary functions work", {
 
   # testing for consistency among pooled vs adjusted for standard models
   expect_equivalent(
+    as.data.frame(pooled_effect(fits[["fit_4"]], conditional = TRUE)[["estimates_conditional"]]),
+    as.data.frame(adjusted_effect(fits[["fit_4"]], conditional = TRUE)[["estimates_conditional"]])
+  )
+  expect_equivalent(
     as.data.frame(pooled_effect(fits[["fit_15"]])[["estimates"]]),
     as.data.frame(adjusted_effect(fits[["fit_15"]])[["estimates"]])
   )
@@ -735,17 +739,17 @@ test_that("True effects summary", {
       ""                                                                                                   ,
       "Robust Bayesian meta-analysis"                                                                      ,
       "True effect estimates:"                                                                             ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.192  0.045 -0.051 0.795"                                                              ,
-      "estimate[2] 0.213  0.105 -0.016 0.797"                                                              ,
-      "estimate[3] 0.266  0.227  0.000 0.795"                                                              ,
+      "          Mean Median  0.025 0.975"                                                              ,
+      "theta[1] 0.192  0.045 -0.051 0.795"                                                              ,
+      "theta[2] 0.213  0.105 -0.016 0.797"                                                              ,
+      "theta[3] 0.266  0.227  0.000 0.795"                                                              ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
       ""                                                                                                   ,
       "Conditional true effect estimates:"                                                                 ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.391  0.402 -0.146 0.889"                                                              ,
-      "estimate[2] 0.405  0.413 -0.134 0.889"                                                              ,
-      "estimate[3] 0.438  0.453 -0.071 0.883"                                                              ,
+      "          Mean Median  0.025 0.975"                                                              ,
+      "theta[1] 0.391  0.402 -0.146 0.889"                                                              ,
+      "theta[2] 0.405  0.413 -0.134 0.889"                                                              ,
+      "theta[3] 0.438  0.453 -0.071 0.883"                                                              ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -766,41 +770,41 @@ test_that("True effects summary", {
       ""                                                                                                       ,
       "Robust Bayesian meta-regression"                                                                        ,
       "True effect estimates:"                                                                                 ,
-      "               Mean Median  0.025  0.975"                                                               ,
-      "estimate[1]  -1.585 -1.581 -1.731 -1.472"                                                               ,
-      "estimate[2]  -1.329 -1.325 -1.457 -1.232"                                                               ,
-      "estimate[3]  -1.088 -1.084 -1.202 -1.004"                                                               ,
-      "estimate[4]  -0.858 -0.854 -0.961 -0.786"                                                               ,
-      "estimate[5]  -0.637 -0.634 -0.737 -0.574"                                                               ,
-      "estimate[6]  -0.423 -0.420 -0.517 -0.365"                                                               ,
-      "estimate[7]  -0.214 -0.211 -0.305 -0.160"                                                               ,
-      "estimate[8]  -0.007 -0.004 -0.097  0.047"                                                               ,
-      "estimate[9]   0.200  0.203  0.112  0.255"                                                               ,
-      "estimate[10]  0.409  0.412  0.317  0.468"                                                               ,
-      "estimate[11]  0.622  0.626  0.529  0.689"                                                               ,
-      "estimate[12]  0.842  0.846  0.742  0.918"                                                               ,
-      "estimate[13]  1.071  1.075  0.964  1.160"                                                               ,
-      "estimate[14]  1.312  1.315  1.193  1.413"                                                               ,
-      "estimate[15]  1.567  1.569  1.432  1.686"                                                               ,
+      "            Mean Median  0.025  0.975"                                                               ,
+      "theta[1]  -1.585 -1.581 -1.731 -1.472"                                                               ,
+      "theta[2]  -1.329 -1.325 -1.457 -1.232"                                                               ,
+      "theta[3]  -1.088 -1.084 -1.202 -1.004"                                                               ,
+      "theta[4]  -0.858 -0.854 -0.961 -0.786"                                                               ,
+      "theta[5]  -0.637 -0.634 -0.737 -0.574"                                                               ,
+      "theta[6]  -0.423 -0.420 -0.517 -0.365"                                                               ,
+      "theta[7]  -0.214 -0.211 -0.305 -0.160"                                                               ,
+      "theta[8]  -0.007 -0.004 -0.097  0.047"                                                               ,
+      "theta[9]   0.200  0.203  0.112  0.255"                                                               ,
+      "theta[10]  0.409  0.412  0.317  0.468"                                                               ,
+      "theta[11]  0.622  0.626  0.529  0.689"                                                               ,
+      "theta[12]  0.842  0.846  0.742  0.918"                                                               ,
+      "theta[13]  1.071  1.075  0.964  1.160"                                                               ,
+      "theta[14]  1.312  1.315  1.193  1.413"                                                               ,
+      "theta[15]  1.567  1.569  1.432  1.686"                                                               ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."    ,
       ""                                                                                                       ,
       "Conditional true effect estimates:"                                                                     ,
-      "               Mean Median  0.025  0.975"                                                               ,
-      "estimate[1]  -1.585 -1.581 -1.731 -1.472"                                                               ,
-      "estimate[2]  -1.329 -1.325 -1.457 -1.232"                                                               ,
-      "estimate[3]  -1.088 -1.084 -1.202 -1.004"                                                               ,
-      "estimate[4]  -0.858 -0.854 -0.961 -0.786"                                                               ,
-      "estimate[5]  -0.637 -0.634 -0.737 -0.574"                                                               ,
-      "estimate[6]  -0.423 -0.420 -0.517 -0.365"                                                               ,
-      "estimate[7]  -0.214 -0.211 -0.305 -0.160"                                                               ,
-      "estimate[8]  -0.007 -0.004 -0.097  0.047"                                                               ,
-      "estimate[9]   0.200  0.203  0.112  0.255"                                                               ,
-      "estimate[10]  0.409  0.412  0.317  0.468"                                                               ,
-      "estimate[11]  0.622  0.626  0.529  0.689"                                                               ,
-      "estimate[12]  0.842  0.846  0.742  0.918"                                                               ,
-      "estimate[13]  1.071  1.075  0.964  1.160"                                                               ,
-      "estimate[14]  1.312  1.315  1.193  1.413"                                                               ,
-      "estimate[15]  1.567  1.569  1.432  1.686"                                                               ,
+      "            Mean Median  0.025  0.975"                                                               ,
+      "theta[1]  -1.585 -1.581 -1.731 -1.472"                                                               ,
+      "theta[2]  -1.329 -1.325 -1.457 -1.232"                                                               ,
+      "theta[3]  -1.088 -1.084 -1.202 -1.004"                                                               ,
+      "theta[4]  -0.858 -0.854 -0.961 -0.786"                                                               ,
+      "theta[5]  -0.637 -0.634 -0.737 -0.574"                                                               ,
+      "theta[6]  -0.423 -0.420 -0.517 -0.365"                                                               ,
+      "theta[7]  -0.214 -0.211 -0.305 -0.160"                                                               ,
+      "theta[8]  -0.007 -0.004 -0.097  0.047"                                                               ,
+      "theta[9]   0.200  0.203  0.112  0.255"                                                               ,
+      "theta[10]  0.409  0.412  0.317  0.468"                                                               ,
+      "theta[11]  0.622  0.626  0.529  0.689"                                                               ,
+      "theta[12]  0.842  0.846  0.742  0.918"                                                               ,
+      "theta[13]  1.071  1.075  0.964  1.160"                                                               ,
+      "theta[14]  1.312  1.315  1.193  1.413"                                                               ,
+      "theta[15]  1.567  1.569  1.432  1.686"                                                               ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -821,41 +825,41 @@ test_that("True effects summary", {
       ""                                                                                                       ,
       "Robust Bayesian meta-regression"                                                                        ,
       "True effect estimates:"                                                                                 ,
-      "               Mean Median  0.025    0.5"                                                               ,
-      "estimate[1]  -2.875 -2.868 -3.139 -2.868"                                                               ,
-      "estimate[2]  -2.411 -2.404 -2.642 -2.404"                                                               ,
-      "estimate[3]  -1.973 -1.966 -2.180 -1.966"                                                               ,
-      "estimate[4]  -1.556 -1.549 -1.744 -1.549"                                                               ,
-      "estimate[5]  -1.156 -1.149 -1.337 -1.149"                                                               ,
-      "estimate[6]  -0.768 -0.761 -0.938 -0.761"                                                               ,
-      "estimate[7]  -0.389 -0.382 -0.554 -0.382"                                                               ,
-      "estimate[8]  -0.013 -0.007 -0.175 -0.007"                                                               ,
-      "estimate[9]   0.362  0.368  0.203  0.368"                                                               ,
-      "estimate[10]  0.741  0.747  0.575  0.747"                                                               ,
-      "estimate[11]  1.129  1.135  0.959  1.135"                                                               ,
-      "estimate[12]  1.528  1.534  1.347  1.534"                                                               ,
-      "estimate[13]  1.943  1.949  1.748  1.949"                                                               ,
-      "estimate[14]  2.380  2.385  2.164  2.385"                                                               ,
-      "estimate[15]  2.841  2.845  2.596  2.845"                                                               ,
+      "            Mean Median  0.025    0.5"                                                               ,
+      "theta[1]  -2.875 -2.868 -3.139 -2.868"                                                               ,
+      "theta[2]  -2.411 -2.404 -2.642 -2.404"                                                               ,
+      "theta[3]  -1.973 -1.966 -2.180 -1.966"                                                               ,
+      "theta[4]  -1.556 -1.549 -1.744 -1.549"                                                               ,
+      "theta[5]  -1.156 -1.149 -1.337 -1.149"                                                               ,
+      "theta[6]  -0.768 -0.761 -0.938 -0.761"                                                               ,
+      "theta[7]  -0.389 -0.382 -0.554 -0.382"                                                               ,
+      "theta[8]  -0.013 -0.007 -0.175 -0.007"                                                               ,
+      "theta[9]   0.362  0.368  0.203  0.368"                                                               ,
+      "theta[10]  0.741  0.747  0.575  0.747"                                                               ,
+      "theta[11]  1.129  1.135  0.959  1.135"                                                               ,
+      "theta[12]  1.528  1.534  1.347  1.534"                                                               ,
+      "theta[13]  1.943  1.949  1.748  1.949"                                                               ,
+      "theta[14]  2.380  2.385  2.164  2.385"                                                               ,
+      "theta[15]  2.841  2.845  2.596  2.845"                                                               ,
       "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale)."      ,
       ""                                                                                                       ,
       "Conditional true effect estimates:"                                                                     ,
-      "               Mean Median  0.025    0.5"                                                               ,
-      "estimate[1]  -2.875 -2.868 -3.139 -2.868"                                                               ,
-      "estimate[2]  -2.411 -2.404 -2.642 -2.404"                                                               ,
-      "estimate[3]  -1.973 -1.966 -2.180 -1.966"                                                               ,
-      "estimate[4]  -1.556 -1.549 -1.744 -1.549"                                                               ,
-      "estimate[5]  -1.156 -1.149 -1.337 -1.149"                                                               ,
-      "estimate[6]  -0.768 -0.761 -0.938 -0.761"                                                               ,
-      "estimate[7]  -0.389 -0.382 -0.554 -0.382"                                                               ,
-      "estimate[8]  -0.013 -0.007 -0.175 -0.007"                                                               ,
-      "estimate[9]   0.362  0.368  0.203  0.368"                                                               ,
-      "estimate[10]  0.741  0.747  0.575  0.747"                                                               ,
-      "estimate[11]  1.129  1.135  0.959  1.135"                                                               ,
-      "estimate[12]  1.528  1.534  1.347  1.534"                                                               ,
-      "estimate[13]  1.943  1.949  1.748  1.949"                                                               ,
-      "estimate[14]  2.380  2.385  2.164  2.385"                                                               ,
-      "estimate[15]  2.841  2.845  2.596  2.845"                                                               ,
+      "            Mean Median  0.025    0.5"                                                               ,
+      "theta[1]  -2.875 -2.868 -3.139 -2.868"                                                               ,
+      "theta[2]  -2.411 -2.404 -2.642 -2.404"                                                               ,
+      "theta[3]  -1.973 -1.966 -2.180 -1.966"                                                               ,
+      "theta[4]  -1.556 -1.549 -1.744 -1.549"                                                               ,
+      "theta[5]  -1.156 -1.149 -1.337 -1.149"                                                               ,
+      "theta[6]  -0.768 -0.761 -0.938 -0.761"                                                               ,
+      "theta[7]  -0.389 -0.382 -0.554 -0.382"                                                               ,
+      "theta[8]  -0.013 -0.007 -0.175 -0.007"                                                               ,
+      "theta[9]   0.362  0.368  0.203  0.368"                                                               ,
+      "theta[10]  0.741  0.747  0.575  0.747"                                                               ,
+      "theta[11]  1.129  1.135  0.959  1.135"                                                               ,
+      "theta[12]  1.528  1.534  1.347  1.534"                                                               ,
+      "theta[13]  1.943  1.949  1.748  1.949"                                                               ,
+      "theta[14]  2.380  2.385  2.164  2.385"                                                               ,
+      "theta[15]  2.841  2.845  2.596  2.845"                                                               ,
       "The estimates are summarized on the log(OR) scale (priors were specified on the Cohen's d scale)."
     ))
 
@@ -868,12 +872,12 @@ if(FALSE){
 
   temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
 
-  saved_files <- paste0("fit_", 1:16, ".RDS")
+  saved_files <- paste0("fit_", 1:18, ".RDS")
   fits <- list()
-  for (i in 1:16) {
+  for (i in 1:18) {
     fits[[i]] <- readRDS(file = file.path(temp_fits_dir, saved_files[i]))
   }
-  names(fits) <- paste0("fit_", 1:16)
+  names(fits) <- paste0("fit_", 1:18)
 
   # generate print files
   for(i in seq_along(fits)){

@@ -83,6 +83,7 @@ plot.RoBMA  <- function(x, parameter = "mu",
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
+  BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(rescale_x, "rescale_x")
   BayesTools::check_bool(show_data, "show_data")
 

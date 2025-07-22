@@ -9,7 +9,7 @@ true_effects(
   conditional = FALSE,
   output_scale = NULL,
   probs = c(0.025, 0.975),
-  ...
+  as_samples = FALSE
 )
 }
 \arguments{
@@ -25,7 +25,8 @@ scale. Defaults to \code{NULL} which returns the same scale as the model was est
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .975)}}
 
-\item{...}{additional arguments}
+\item{as_samples}{whether posterior samples instead of a summary table should
+be returned. Defaults to \code{FALSE}.}
 }
 \value{
 \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
@@ -33,8 +34,9 @@ Defaults to \code{c(.025, .975)}}
 \description{
 \code{true_effects} computes the estimated true effect size
 for a fitted RoBMA object. These estimates correspond to the frequentist
-"Best Linear Unbiased Predictions (BLUPs)". Only available for normal-normal models
-estimated using the spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
+"Best Linear Unbiased Predictions (BLUPs)" (\link[metafor]{blup}).
+Only available for normal-normal models estimated using the
+spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
 The conditional estimate is calculated conditional on the presence of the effect

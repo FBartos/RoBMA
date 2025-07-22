@@ -1,8 +1,9 @@
 ## version 3.5.1
 ### Features
 - `summary()` function now supports a `standardized_coefficients` argument to report either standardized (default) or raw meta-regression coefficients
-- `extract()` function extracts the posterior samples of the model parameters
-- `true_effects()` function to summarize the true effect size estimates
+- `extract()` function to extract the posterior samples of the model parameters
+- `true_effects()` function to summarize the true effect size estimates of `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
+- `predict()` method for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
 
 ### Fixes
 - fitting a meta-regression using predictors with missing values result in a clear error message
