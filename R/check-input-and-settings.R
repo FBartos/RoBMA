@@ -12,6 +12,19 @@
 #'
 #' @seealso [check_setup.reg()] [RoBMA()]
 #' @aliases check_setup.RoBMA
+#' @examples
+#' # check default RoBMA setup
+#' check_setup()
+#' 
+#' # check setup with custom priors
+#' check_setup(
+#'   priors_effect = prior("normal", list(mean = 0, sd = 0.5)),
+#'   priors_heterogeneity = prior("invgamma", list(shape = 2, scale = 0.3)),  
+#'   models = TRUE
+#' )
+#' 
+#' # show detailed model overview
+#' check_setup(models = TRUE)
 #' @export
 check_setup <- function(
   model_type   = NULL,
@@ -168,6 +181,15 @@ check_setup.RoBMA <- check_setup
 #'
 #' @seealso [check_setup()] [RoBMA.reg()]
 #' @aliases check_setup.RoBMA.reg
+#' @examples
+#' # check regression setup with example data
+#' data(Andrews2021)
+#' check_setup.reg(~ measure + age, data = Andrews2021)
+#' 
+#' # check setup with custom priors
+#' check_setup.reg(~ measure + age, data = Andrews2021,
+#'                 priors_effect = prior("normal", list(mean = 0, sd = 0.5),
+#'                 prior_weight = 2))
 #' @export
 check_setup.reg <- function(
     formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,

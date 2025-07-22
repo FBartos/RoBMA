@@ -211,6 +211,15 @@ See \code{\link[=RoBMA]{RoBMA()}} for more details.
 Note that these default prior distributions are relatively wide and more informed
 prior distributions for testing for the presence of moderation should be considered.
 }
+\examples{
+\dontrun{
+# fit a publication bias unadjusted meta-analysis
+data(Andrews2021)
+fit <- NoBMA(~ measure + age, data = Andrews2021, parallel = TRUE,
+             seed = 1, algorithm = "ss")
+summary(fit)
+}
+}
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=summary.RoBMA]{summary.RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}, \code{\link[=check_setup]{check_setup()}}
 }

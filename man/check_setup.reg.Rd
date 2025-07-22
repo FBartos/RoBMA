@@ -313,6 +313,16 @@ the ensemble configuration prior to fitting all of the models.
 implied by the specified prior distributions. It is useful for checking
 the ensemble configuration prior to fitting all of the models.
 }
+\examples{
+# check regression setup with example data
+data(Andrews2021)
+check_setup.reg(~ measure + age, data = Andrews2021)
+
+# check setup with custom priors
+check_setup.reg(~ measure + age, data = Andrews2021,
+                priors_effect = prior("normal", list(mean = 0, sd = 0.5),
+                prior_weight = 2))
+}
 \seealso{
 \code{\link[=check_setup]{check_setup()}} \code{\link[=RoBMA.reg]{RoBMA.reg()}}
 
