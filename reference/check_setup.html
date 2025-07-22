@@ -217,6 +217,192 @@ Note that this is an experimental feature and see News for more details. Default
     <div class="dont-index"><p><code><a href="check_setup.reg.html">check_setup.reg()</a></code> <code><a href="RoBMA.html">RoBMA()</a></code></p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># check default RoBMA setup</span></span></span>
+<span class="r-in"><span><span class="fu">check_setup</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Robust Bayesian meta-analysis (set-up)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Components summary:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>               Models Prior prob.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Effect         18/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Heterogeneity  18/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Bias           32/36       0.500</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># check setup with custom priors</span></span></span>
+<span class="r-in"><span><span class="fu">check_setup</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  priors_effect <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"normal"</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="prior.html">prior</a></span><span class="op">(</span><span class="st">"invgamma"</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">2</span>, scale <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span><span class="op">)</span>,  </span></span>
+<span class="r-in"><span>  models <span class="op">=</span> <span class="cn">TRUE</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Robust Bayesian meta-analysis (set-up)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Components summary:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>               Models Prior prob.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Effect         18/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Heterogeneity  18/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Bias           32/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Models overview:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  Model  Prior Effect  Prior Heterogeneity</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      1       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      2       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      3       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      4       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      5       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      6       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      7       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      8       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      9       Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     10       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     11       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     12       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     13       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     14       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     15       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     16       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     17       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     18       Spike(0)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     19 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     20 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     21 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     22 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     23 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     24 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     25 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     26 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     27 Normal(0, 0.5)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     28 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     29 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     30 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     31 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     32 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     33 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     34 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     35 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     36 Normal(0, 0.5)    InvGamma(2, 0.3)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                          Prior Bias                         Prior prob.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># show detailed model overview</span></span></span>
+<span class="r-in"><span><span class="fu">check_setup</span><span class="op">(</span>models <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Robust Bayesian meta-analysis (set-up)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Components summary:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>               Models Prior prob.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Effect         18/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Heterogeneity  18/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Bias           32/36       0.500</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Models overview:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  Model Prior Effect Prior Heterogeneity</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      1     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      2     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      3     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      4     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      5     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      6     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      7     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      8     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      9     Spike(0)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     10     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     11     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     12     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     13     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     14     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     15     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     16     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     17     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     18     Spike(0)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     19 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     20 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     21 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     22 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     23 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     24 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     25 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     26 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     27 Normal(0, 1)            Spike(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     28 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     29 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     30 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     31 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     32 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     33 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     34 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     35 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     36 Normal(0, 1)   InvGamma(1, 0.15)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                          Prior Bias                         Prior prob.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                   0.125</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[two-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[two-sided: .1, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            omega[one-sided: .05] ~ CumDirichlet(1, 1)             0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      omega[one-sided: .05, .025] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        omega[one-sided: .5, .05] ~ CumDirichlet(1, 1, 1)          0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  omega[one-sided: .5, .05, .025] ~ CumDirichlet(1, 1, 1, 1)       0.010</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                              PET ~ Cauchy(0, 1)[0, Inf]           0.031</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                            PEESE ~ Cauchy(0, 5)[0, Inf]           0.031</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 
