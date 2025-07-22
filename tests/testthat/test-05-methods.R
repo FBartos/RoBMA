@@ -628,6 +628,10 @@ test_that("Effect size summary functions work", {
 
   # testing for consistency among pooled vs adjusted for standard models
   expect_equivalent(
+    as.data.frame(pooled_effect(fits[["fit_4"]], conditional = TRUE)[["estimates_conditional"]]),
+    as.data.frame(adjusted_effect(fits[["fit_4"]], conditional = TRUE)[["estimates_conditional"]])
+  )
+  expect_equivalent(
     as.data.frame(pooled_effect(fits[["fit_15"]])[["estimates"]]),
     as.data.frame(adjusted_effect(fits[["fit_15"]])[["estimates"]])
   )

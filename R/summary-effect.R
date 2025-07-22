@@ -66,8 +66,6 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)
   BayesTools::check_char(type, "type", allow_values = c("pooled", "adjusted"))
   BayesTools::check_bool(as_samples, "as_samples")
-  if(!(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")))
-    stop("The pooled effect size can only be computed for regression models.")
   if(object[["add_info"]][["algorithm"]] != "ss")
     stop("The pooled effect size can only be computed for spike and slab models.")
 
@@ -83,34 +81,73 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
   posterior_samples <- suppressWarnings(coda::as.mcmc(object[["model"]][["fit"]]))
 
   ### compute pooled/adjusted effect
-  if (type == "pooled") {
-    # use sample proportions
-    design_data <- do.call(cbind.data.frame, object[["data"]][["predictors"]])
-  } else if (type == "adjusted") {
-    # use equivalent proportions
-    predictors  <- object[["data"]][["predictors"]]
-    design_data <- lapply(names(predictors), function(predictor) {
-      if (attr(predictors,"variables_info")[[predictor]][["type"]] == "continuous") {
-        return(mean(predictors[[predictor]]))
-      } else if (attr(predictors,"variables_info")[[predictor]][["type"]] == "factor") {
-        return(unique(predictors[[predictor]]))
-      }
-    })
-    names(design_data) <- names(predictors)
-    design_data <- data.frame(expand.grid(design_data))
+  # dispatch between adjusted / non-adjusted models
+  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+
+    # create design matrix for evaluating predictors
+    if(type == "pooled") {
+
+      # use sample proportions
+      design_data <- do.call(cbind.data.frame, object[["data"]][["predictors"]])
+
+    }else if(type == "adjusted") {
+
+      # use equivalent proportions
+      predictors  <- object[["data"]][["predictors"]]
+      design_data <- lapply(names(predictors), function(predictor) {
+        if (attr(predictors,"variables_info")[[predictor]][["type"]] == "continuous") {
+          return(mean(predictors[[predictor]]))
+        } else if (attr(predictors,"variables_info")[[predictor]][["type"]] == "factor") {
+          return(unique(predictors[[predictor]]))
+        }
+      })
+      names(design_data) <- names(predictors)
+      design_data <- data.frame(expand.grid(design_data))
+
+    }
+
+    ### compute adjusted effect
+    pooled_estimate <- BayesTools::JAGS_evaluate_formula(
+      fit         = posterior_samples,
+      formula     = object[["formula"]],
+      parameter   = "mu",
+      data        = design_data,
+      prior_list  = attr(object[["model"]][["fit"]], "prior_list")
+    )
+
+    # average across the design matrix multiplied by the samples
+    pooled_estimate <- rowMeans(t(pooled_estimate))
+
+    # prepare indicators for conditional estimates
+    if(is.prior.spike_and_slab(object[["model"]]$priors$terms[["intercept"]]) || is.prior.mixture(object[["model"]]$priors$terms[["intercept"]])){
+      mu_is_null   <- attr(object[["model"]]$priors$terms[["intercept"]], "components") == "null"
+      mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+    }else{
+      mu_is_null   <- FALSE
+      mu_indicator <- rep(1, nrow(posterior_samples))
+    }
+
+
+  }else{
+
+    # use the mean parameter directly
+    if(BayesTools::is.prior.point(object[["model"]]$priors[["mu"]])){
+      pooled_estimate <- rep(object[["model"]]$priors[["mu"]]$parameters[["location"]], nrow(posterior_samples))
+    }else{
+      pooled_estimate <- posterior_samples[,"mu"]
+    }
+
+    # prepare indicators for conditional estimates
+    if(is.prior.spike_and_slab(object[["model"]]$priors[["mu"]]) || is.prior.mixture(object[["model"]]$priors[["mu"]])){
+      mu_is_null   <- attr(object[["model"]]$priors[["mu"]], "components") == "null"
+      mu_indicator <- posterior_samples[,"mu_indicator"]
+    }else{
+      mu_is_null   <- FALSE
+      mu_indicator <- rep(1, nrow(posterior_samples))
+    }
+
   }
 
-  ### compute adjusted effect
-  pooled_estimate <- BayesTools::JAGS_evaluate_formula(
-    fit         = posterior_samples,
-    formula     = object[["formula"]],
-    parameter   = "mu",
-    data        = design_data,
-    prior_list  = attr(object[["model"]][["fit"]], "prior_list")
-  )
-
-  # average across the design matrix multiplied by the samples
-  pooled_estimate <- rowMeans(t(pooled_estimate))
 
   ### compute prediction interval
   # simulate predictions for PI
@@ -129,9 +166,6 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
   # these needs to be simulated as the posteriors can be non-normal
   predictions <- stats::rnorm(length(pooled_estimate), mean = pooled_estimate, sd = tau)
 
-  # compute conditional estimates
-  mu_is_null   <- attr(object[["model"]]$priors$terms[["intercept"]], "components") == "null"
-  mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
 
   pooled_estimate_conditional <- pooled_estimate[mu_indicator %in% which(!mu_is_null)]
   predictions_conditional     <- predictions[mu_indicator %in% which(!mu_is_null)]
