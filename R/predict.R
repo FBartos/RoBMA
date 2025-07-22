@@ -74,8 +74,11 @@
 #'           posterior_predictive$estimates[i,"0.975"]),
 #'         c(i + 0.4, i + 0.4), lwd = 2, lty = 3, col = "blue")
 #' })
-#' legend("bottomright", legend = c("Observed + CI", "Predicted + CI", "Prediction Int.", "Sampling Int."),
-#'        col = c("black", rep("blue", 3)), lwd = 2, lty = c(1, 1, 2, 3), bty = "n")
+#' legend("bottomright", col = c("black", rep("blue", 3)),
+#'        lwd = 2, lty = c(1, 1, 2, 3), bty = "n",
+#'        legend = c("Observed + CI", "Predicted + CI",
+#'                   "Prediction Int.", "Sampling Int.")
+#'       )
 #'
 #'  # prediction across a lattitude
 #'  fit2 <- NoBMA.reg(~ ablat, data = robma_dat,
