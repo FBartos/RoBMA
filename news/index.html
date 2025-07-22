@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -50,9 +50,13 @@
 <ul><li>
 <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> function now supports a <code>standardized_coefficients</code> argument to report either standardized (default) or raw meta-regression coefficients</li>
 <li>
-<code>extract()</code> function extracts the posterior samples of the model parameters</li>
+<code>extract()</code> function to extract the posterior samples of the model parameters</li>
 <li>
-<code><a href="../reference/true_effects.html">true_effects()</a></code> function to summarize the true effect size estimates</li>
+<code><a href="../reference/true_effects.html">true_effects()</a></code> function to summarize the true effect size estimates of <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> models when using the <code>algorithm = "ss"</code>
+</li>
+<li>
+<code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> method for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> models when using the <code>algorithm = "ss"</code>
+</li>
 </ul></div>
 <div class="section level3">
 <h3 id="fixes-3-5-1">Fixes<a class="anchor" aria-label="anchor" href="#fixes-3-5-1"></a></h3>

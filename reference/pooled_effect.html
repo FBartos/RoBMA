@@ -11,7 +11,7 @@ estimated using the spike-and-slab algorithm (i.e., algorithm = "ss").'></head><
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -61,7 +61,7 @@ estimated using the spike-and-slab algorithm (i.e., <code>algorithm = "ss"</code
 <span>  conditional <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  output_scale <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  probs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.025</span>, <span class="fl">0.975</span><span class="op">)</span>,</span>
-<span>  <span class="va">...</span></span>
+<span>  as_samples <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -89,8 +89,9 @@ scale. Defaults to <code>NULL</code> which returns the same scale as the model w
 Defaults to <code>c(.025, .975)</code></p></dd>
 
 
-<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>additional arguments</p></dd>
+<dt id="arg-as-samples">as_samples<a class="anchor" aria-label="anchor" href="#arg-as-samples"></a></dt>
+<dd><p>whether posterior samples instead of a summary table should
+be returned. Defaults to <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

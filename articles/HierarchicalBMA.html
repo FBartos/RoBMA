@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,7 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-07-19</h4>
+            <h4 data-toc-skip class="date">2025-07-22</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/HierarchicalBMA.Rmd" class="external-link"><code>vignettes/HierarchicalBMA.Rmd</code></a></small>
       <div class="d-none name"><code>HierarchicalBMA.Rmd</code></div>
@@ -112,7 +112,7 @@ model when within-study dependencies are present.</p>
 2019)</span> that is used for the same functionality in the metafor
 <span class="citation">(Wolfgang, 2010)</span> R package. We roughly
 follow the example in the data set’s help file,
-<code>?dat.konstantopoulos2011</code>. The data set consists of 56
+<code><a href="https://wviechtb.github.io/metadat/reference/dat.konstantopoulos2011.html" class="external-link">?dat.konstantopoulos2011</a></code>. The data set consists of 56
 studies estimating the effects of modified school calendars on students’
 achievement. The 56 studies were run in individual schools, which can be
 grouped into 11 districts. We might expect more similar effect size
@@ -154,7 +154,7 @@ within the same district.</li>
 <code>metafor</code><a class="anchor" aria-label="anchor" href="#frequentist-hierarchical-meta-analysis-with-metafor"></a>
 </h3>
 <p>We follow the data set’s help file and fit a simple random effects
-meta-analysis using the <code>rma()</code> function from
+meta-analysis using the <code><a href="https://wviechtb.github.io/metafor/reference/rma.uni.html" class="external-link">rma()</a></code> function from
 <code>metafor</code> package. This model ignores the dependency between
 effect size estimates. We use this simple model as our starting point
 and as a comparison with the later models.</p>
@@ -186,7 +186,7 @@ effect size estimate
 and a considerable heterogeneity estimate
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>=</mo><mn>0.297</mn></mrow><annotation encoding="application/x-tex">\tau = 0.297</annotation></semantics></math>.</p>
 <p>We extend the model to account for the hierarchical structure of the
-data, i.e., schools within districts, by using the <code>rma.mv()</code>
+data, i.e., schools within districts, by using the <code><a href="https://wviechtb.github.io/metafor/reference/rma.mv.html" class="external-link">rma.mv()</a></code>
 function from the <code>metafor</code> package and extending it with the
 <code>random = ~ school | district</code> argument.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
