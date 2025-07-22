@@ -123,7 +123,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
   BayesTools::check_bool(as_samples, "as_samples")
   dots <- list(...)
   if(object[["add_info"]][["algorithm"]] != "ss")
-    stop("The pooled effect size can only be computed for spike and slab models.")
+    stop("Predictions can only be computed for spike and slab models.")
   if(inherits(object, "BiBMA") || inherits(object, "BiBMA.reg"))
     stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
 
