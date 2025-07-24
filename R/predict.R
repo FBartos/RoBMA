@@ -430,6 +430,15 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     "response" = sapply(seq_along(outcome_samples), function(x) paste0("estimate[", x, "]"))
   )
 
+  # return only samples if requested
+  if(as_samples){
+    if(conditional){
+      return(outcome_samples_conditional)
+    }else{
+      return(outcome_samples)
+    }
+  }
+
   # obtain estimates tables
   estimates <- BayesTools::ensemble_estimates_table(
     samples    = outcome_samples,
@@ -448,7 +457,6 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
     )
   }
-
 
   # create the output object
   output <- list(

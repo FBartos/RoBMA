@@ -39,6 +39,10 @@ Only available for normal-normal models estimated using the
 spike-and-slab algorithm (i.e., \code{algorithm = "ss"}).
 }
 \details{
+The true effect size estimates are computed under the normal likelihood. As such,
+they might not approximate the true effect size estimates under selection
+models well.
+
 The conditional estimate is calculated conditional on the presence of the effect
 (in meta-analysis) or the intercept (in meta-regression).
 }
