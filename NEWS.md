@@ -1,3 +1,7 @@
+## version 3.5.2
+### Features
+- `residuals()` method for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
+
 ## version 3.5.1
 ### Features
 - `summary()` function now supports a `standardized_coefficients` argument to report either standardized (default) or raw meta-regression coefficients

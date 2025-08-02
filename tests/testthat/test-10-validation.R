@@ -119,7 +119,7 @@ test_that("Validate normal model with metafor", {
   expect_equal(sum.RoBMA.reg3raw.fe["year","Mean"],              fit.metafor.fereg3raw$b[[4]], tolerance = 1e-2)
   expect_equal(sum.RoBMA.reg3raw.fe["tpos","Mean"],              fit.metafor.fereg3raw$b[[5]], tolerance = 1e-2)
 
-  # validate BLUPs
+  ### validate BLUPs ----
   robma_blups   <- true_effects(fit.RoBMA_ss.fe)
   metafor_blups <- blup(fit.metafor.fe)
   expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 1e-2)
@@ -136,7 +136,7 @@ test_that("Validate normal model with metafor", {
   metafor_blups <- blup(fit.metafor.fereg2)
   expect_equal(robma_blups$estimates[,"Mean"], metafor_blups$pred, tolerance = 1e-2)
 
-  # validate predictions
+  ### validate predictions ----
   set.seed(1)
   robma_preds   <- predict(fit.RoBMA_ss.fe, type = "effect")
   metafor_preds <- predict(fit.metafor.fe)
@@ -173,6 +173,13 @@ test_that("Validate normal model with metafor", {
             c(robma_preds.response$estimates[,"0.025"], rev(robma_preds.response$estimates[,"0.975"])),
             col = rgb(0, 0, 1, alpha = 0.2), border = NA)
   })
+
+
+  ### validate residuals ----
+  expect_equal(unname(residuals(fit.metafor.fe)), residuals(fit.RoBMA_ss.fe)$estimates[,"Mean"], tolerance = 1e-3)
+  expect_equal(unname(residuals(fit.metafor.re)), residuals(fit.RoBMA_ss.re)$estimates[,"Mean"], tolerance = 1e-3)
+  expect_equal(unname(residuals(fit.metafor.fereg2)), residuals(fit.RoBMA.reg.fe)$estimates[,"Mean"], tolerance = 1e-2)
+  expect_equal(unname(residuals(fit.metafor.rereg2)), residuals(fit.RoBMA.reg.re)$estimates[,"Mean"], tolerance = 2.5e-2)
 
 })
 

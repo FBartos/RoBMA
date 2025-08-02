@@ -1377,6 +1377,14 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
       .transformation_names(prior_scale, estimation = FALSE)))
   }
 }
+.scale_note_simple <- function(prior_scale, output_scale){
+  if(output_scale != "none"){
+    return(sprintf(
+      "The estimates are summarized on the %1$s scale (priors were specified on the %2$s scale).",
+      .transformation_names(output_scale, estimation = FALSE),
+      .transformation_names(prior_scale, estimation = FALSE)))
+  }
+}
 
 .get_transform_mu <- function(from, to, fun = TRUE){
 
