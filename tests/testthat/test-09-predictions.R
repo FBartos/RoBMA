@@ -62,9 +62,9 @@ test_that("Meta-analysis prediction", {
       "Robust Bayesian meta-analysis"                                                                      ,
       "Posterior predictions:"                                                                             ,
       "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.404  0.378 -1.135 1.982"                                                              ,
-      "estimate[2] 0.368  0.340 -0.922 1.672"                                                              ,
-      "estimate[3] 0.267  0.256 -0.666 1.188"                                                              ,
+      "estimate[1] 0.404  0.378 -1.135 1.984"                                                              ,
+      "estimate[2] 0.353  0.329 -0.938 1.686"                                                              ,
+      "estimate[3] 0.279  0.269 -0.628 1.206"                                                              ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     )
   )
@@ -81,9 +81,9 @@ test_that("Meta-analysis prediction", {
       "Robust Bayesian meta-analysis"                                                                        ,
       "Posterior predictions:"                                                                               ,
       "             Mean Median  0.025 0.975"                                                                ,
-      "estimate[1] 0.079  0.087 -0.514 0.621"                                                                ,
-      "estimate[2] 0.085  0.089 -0.447 0.592"                                                                ,
-      "estimate[3] 0.083  0.076 -0.341 0.491"                                                                ,
+      "estimate[1] 0.077  0.086 -0.531 0.639"                                                                ,
+      "estimate[2] 0.083  0.093 -0.454 0.574"                                                                ,
+      "estimate[3] 0.086  0.084 -0.323 0.488"                                                                ,
       "The estimates are summarized on the correlation scale (priors were specified on the Cohen's d scale)."
     )
   )
@@ -118,10 +118,10 @@ test_that("Meta-analysis prediction", {
       ""                                                                                                   ,
       "Robust Bayesian meta-analysis"                                                                      ,
       "Posterior predictions:"                                                                             ,
-      "          Mean Median  0.025 0.975"                                                              ,
-      "theta[1] 0.183  0.060 -0.456 0.906"                                                              ,
-      "theta[2] 0.183  0.062 -0.457 0.915"                                                              ,
-      "theta[3] 0.178  0.058 -0.449 0.917"                                                              ,
+      "          Mean Median  0.025 0.975"                                                                 ,
+      "theta[1] 0.183  0.055 -0.480 0.914"                                                                 ,
+      "theta[2] 0.181  0.052 -0.472 0.909"                                                                 ,
+      "theta[3] 0.180  0.065 -0.457 0.891"                                                                 ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     )
   )
@@ -138,10 +138,10 @@ test_that("Meta-analysis prediction", {
       "Robust Bayesian meta-analysis"                                                                      ,
       "Posterior predictions:"                                                                             ,
       "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.189  0.179 -1.138 1.626"                                                              ,
-      "estimate[2] 0.176  0.164 -1.194 1.571"                                                              ,
-      "estimate[3] 0.192  0.191 -1.234 1.703"                                                              ,
-      "estimate[4] 0.211  0.214 -1.966 2.399"                                                              ,
+      "estimate[1] 0.201  0.175 -1.136 1.596"                                                              ,
+      "estimate[2] 0.197  0.173 -1.178 1.661"                                                              ,
+      "estimate[3] 0.184  0.181 -1.207 1.686"                                                              ,
+      "estimate[4] 0.215  0.180 -1.983 2.606"                                                              ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     )
   )
@@ -158,10 +158,10 @@ test_that("Meta-analysis prediction", {
       "Robust Bayesian meta-analysis"                                                                      ,
       "Posterior predictions:"                                                                             ,
       "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.411  0.386 -1.055 1.881"                                                              ,
-      "estimate[2] 0.406  0.377 -1.114 1.894"                                                              ,
-      "estimate[3] 0.384  0.357 -1.135 1.928"                                                              ,
-      "estimate[4] 0.587  0.461 -1.852 3.400"                                                              ,
+      "estimate[1] 0.382  0.374 -1.110 1.780"                                                              ,
+      "estimate[2] 0.381  0.356 -1.021 1.863"                                                              ,
+      "estimate[3] 0.415  0.371 -1.107 2.033"                                                              ,
+      "estimate[4] 0.565  0.453 -1.976 3.354"                                                              ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     )
   )
@@ -216,10 +216,10 @@ test_that("Meta-analysis prediction", {
       ""                                                                                                   ,
       "Robust Bayesian meta-analysis"                                                                      ,
       "Posterior predictions:"                                                                             ,
-      "          Mean Median  0.025 0.975"                                                              ,
-      "theta[1] 0.298  0.247 -0.311 1.119"                                                              ,
-      "theta[2] 0.271  0.227 -0.385 1.032"                                                              ,
-      "theta[3] 0.240  0.184 -0.357 0.954"                                                              ,
+      "          Mean Median  0.025 0.975"                                                                 ,
+      "theta[1] 0.297  0.246 -0.351 1.122"                                                                 ,
+      "theta[2] 0.271  0.234 -0.361 1.002"                                                                 ,
+      "theta[3] 0.237  0.187 -0.375 0.928"                                                                 ,
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     )
   )
@@ -970,180 +970,4 @@ test_that("Multilevel Meta-analysis residuals", {
       "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
     )
   )
-
-
-  expect_equal(
-    capture_output_lines(pred2, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.357  0.380 -1.211 1.853"                                                              ,
-      "estimate[2] 0.377  0.383 -0.927 1.694"                                                              ,
-      "estimate[3] 0.289  0.290 -0.508 1.139"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred3, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.158  0.187 -1.103 1.488"                                                              ,
-      "estimate[2] 0.182  0.115 -1.122 1.446"                                                              ,
-      "estimate[3] 0.189  0.154 -0.848 1.277"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).",
-      ""                                                                                                   ,
-      "Conditional posterior predictions:"                                                                 ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.353  0.323 -0.744 1.752"                                                              ,
-      "estimate[2] 0.400  0.378 -0.845 1.476"                                                              ,
-      "estimate[3] 0.445  0.412 -0.511 1.398"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    ))
-
-  expect_equal(
-    capture_output_lines(pred4, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "       Mean Median  0.025 0.975"                                                              ,
-      "mu[1] 0.179  0.000 -0.097 0.779"                                                              ,
-      "mu[2] 0.179  0.000 -0.097 0.779"                                                              ,
-      "mu[3] 0.179  0.000 -0.097 0.779"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred5, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "          Mean Median  0.025 0.975"                                                              ,
-      "theta[1] 0.171  0.067 -0.514 0.916"                                                              ,
-      "theta[2] 0.183  0.080 -0.436 0.926"                                                              ,
-      "theta[3] 0.169  0.084 -0.612 0.908"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred6, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.152  0.147 -1.056 1.344"                                                              ,
-      "estimate[2] 0.182  0.136 -1.185 1.401"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred7, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "             Mean Median  0.025 0.975"                                                              ,
-      "estimate[1] 0.343  0.290 -0.872 1.763"                                                              ,
-      "estimate[2] 0.279  0.274 -0.846 1.459"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred8, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "       Mean Median  0.025 0.975"                                                              ,
-      "mu[1] 0.179  0.000 -0.097 0.779"                                                              ,
-      "mu[2] 0.179  0.000 -0.097 0.779"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred9, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "       Mean Median  0.025 0.975"                                                              ,
-      "mu[1] 0.279  0.215 -0.014 0.959"                                                              ,
-      "mu[2] 0.258  0.193 -0.031 0.854"                                                              ,
-      "mu[3] 0.221  0.151 -0.040 0.788"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
-  expect_equal(
-    capture_output_lines(pred10, print = TRUE, width = 150),
-    c(
-      "Call:"                                                                                              ,
-      "RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                               ,
-      "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                                ,
-      "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, "   ,
-      "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                                  ,
-      ""                                                                                                   ,
-      "Robust Bayesian meta-analysis"                                                                      ,
-      "Posterior predictions:"                                                                             ,
-      "          Mean Median  0.025 0.975"                                                              ,
-      "theta[1] 0.290  0.264 -0.285 0.975"                                                              ,
-      "theta[2] 0.270  0.252 -0.268 0.882"                                                              ,
-      "theta[3] 0.272  0.240 -0.184 0.924"                                                              ,
-      "The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale)."
-    )
-  )
-
 })

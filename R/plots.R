@@ -446,6 +446,298 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 }
 
 
+#' @title Funnel plot for a RoBMA object
+#'
+#' @description \code{funnel} creates a funnel plot for
+#' a \code{"RoBMA"} object.
+#' Only available for normal-normal models estimated using the spike-and-slab
+#' algorithm (i.e., \code{algorithm = "ss"}). This function uses several
+#' simplifications to visualize the sampling distribution, see Details for
+#' more information.
+#'
+#' @inheritParams plot.RoBMA
+#' @param incorporate_heterogeneity Whether heterogeneity should be incorporated
+#' into the sampling distribution. Defaults to \code{TRUE}.
+#' @param incorporate_publication_bias Whether publication bias should be incorporated
+#' into the sampling distribution. Defaults to \code{TRUE}.
+#'
+#' @details
+#' The \code{funnel} function differs from the corresponding
+#' \link[metafor]{funnel} function in two regards; 1) The heterogeneity is
+#' by default incorporated into the model and 2) the sampling distribution
+#' under publication bias is approximate by sampling from the estimated
+#' weighted normal distribution under the pooled effect. This approximation
+#' may distort the true sampling distribution (but that would be impossible)
+#' to visualize in the usual funnel plot style anyway?.
+#'
+#' The sampling distribution is drawn under the mean effect size and heterogeneity
+#' estimates (the uncertainty about those values is not incorporated into the figure).
+#'
+#' @export
+funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL,
+                   incorporate_heterogeneity = TRUE, incorporate_publication_bias = TRUE, ...){
+
+  # obtain residuals on the model scale
+  # data are already on the model scale
+  # scale the data and residuals to the output scale
+  # (residuals are differences, must be scaled instead of transformed)
+  dots <- list(...)
+  x    <- .update_object(x)
+  if(x[["add_info"]][["algorithm"]] != "ss")
+    stop("Predictions can only be computed for spike and slab models.")
+  if(inherits(x, "BiBMA") || inherits(x, "BiBMA.reg"))
+    stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+
+  # get the model fitting scale
+  if (is.BiBMA(x)) {
+    model_scale <- "logOR"
+  } else {
+    model_scale <- x$add_info[["effect_measure"]]
+  }
+  if(is.null(output_scale)){
+    output_scale <- x$add_info[["output_scale"]]
+  }else if(x$add_info[["output_scale"]] == "y" & .transformation_var(output_scale) != "y"){
+    stop("Models estimated using the general effect size scale 'y' / 'none' cannot be transformed to a different effect size scale.")
+  }else{
+    output_scale <- .transformation_var(output_scale)
+  }
+
+  # get the residuals (automatically checks all the input)
+  res <- stats::residuals(x, conditional = conditional, output_scale = .transformation_invar(model_scale), as_samples = TRUE)
+
+  # use mean residuals for the visualization
+  res <- sapply(res, mean)
+
+  # obtain the standard errors: dispatch between meta-regression / meta-analysis input
+  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+    se <- x$data[["outcome"]][["se"]]
+  }else{
+    se <- x[["data"]][["se"]]
+  }
+
+  # get plotting range
+  se_range    <- pretty(c(0, max(se))) # generating sequence on the output scale to make ticks look pretty
+  se_sequence <- seq(0, .scale(max(se_range), from = model_scale, to = output_scale), length.out = 21)
+  se_sequence <- .scale(se_sequence, from = output_scale, to = model_scale)
+
+  # extract posterior samples and priors information
+  posterior_samples <- suppressWarnings(coda::as.mcmc(x[["model"]][["fit"]]))
+  priors            <- x[["priors"]]
+
+  # include the heterogeneity estimate
+  if(incorporate_heterogeneity){
+    tau_samples <- posterior_samples[,"tau"]
+    tau_samples <- .scale(tau_samples, x$add_info[["output_scale"]], model_scale)
+  }else{
+    tau_samples <- rep(0, nrow(posterior_samples))
+  }
+
+  # check whether any publication bias adjustment is present
+  priors             <- x[["priors"]]
+  any_weightfunction <- !is.null(priors[["bias"]]) && any(sapply(priors[["bias"]], is.prior.weightfunction))
+
+  if(!incorporate_publication_bias || !any_weightfunction){
+    # compute contours (based on metafor::funnel.rma)
+    # use the normal likelihood for generating the sampling distribution funnel
+    ci_left  <- sapply(se_sequence, function(se) stats::qnorm(0.025) * mean(sqrt(se^2 + tau_samples^2)))
+    ci_right <- sapply(se_sequence, function(se) stats::qnorm(0.975) * mean(sqrt(se^2 + tau_samples^2)))
+  }else{
+    # simulate data from the fitted model to obtain the sampling distribution funnel
+
+    # use the pooled effect for the location
+    mu_samples <- pooled_effect(x, conditional = conditional, output_scale = .transformation_invar(model_scale), as_samples = TRUE)
+    if(conditional){
+      mu_samples <- rep(mean(mu_samples[["estimate_conditional"]]), nrow(posterior_samples))
+    }else{
+      mu_samples <- rep(mean(mu_samples[["estimate"]]), nrow(posterior_samples))
+    }
+
+    if(is.RoBMA.reg(x) || is.NoBMA.reg(x) || is.BiBMA.reg(x))
+      message("The sampling distribution is generated at the pooled effect size estimate. The resulting funnel plot only approximates the sampling distribution.")
+
+    # borrowing code from the predict function (sampling outcomes under selection)
+    outcome_samples <- matrix(NA, nrow = length(mu_samples), ncol = length(se_sequence))
+
+    # selection models are sampled separately for increased efficiency
+    bias_indicator           <- posterior_samples[,"bias_indicator"]
+    weightfunction_indicator <- bias_indicator %in% which(sapply(priors[["bias"]], is.prior.weightfunction))
+
+    # create the weightfunction mapping for effect size thresholds
+    steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
+    steps  <- rev(steps)[c(-1, -length(steps))]
+    crit_y <- .get_cutoffs(
+      y     = rep(mean(mu_samples), length(se_sequence)),
+      se    = se_sequence,
+      prior = list(distribution = "one.sided", parameters = list(steps = steps)),
+      original_measure = rep(model_scale, length(se_sequence)),
+      effect_measure   = model_scale
+    )
+
+    for(i in seq_len(length(se_sequence))){
+
+      # sample normal models/PET/PEESE
+      if(any(!weightfunction_indicator)){
+        outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
+          n    = sum(!weightfunction_indicator),
+          mean = mu_samples[!weightfunction_indicator],
+          sd   = sqrt(tau_samples[!weightfunction_indicator]^2 + se_sequence[i]^2)
+        )
+      }
+
+      # sample selection models
+      if(any(weightfunction_indicator)){
+
+        outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
+          mean   = mu_samples[weightfunction_indicator],
+          sd     = sqrt(tau_samples[weightfunction_indicator]^2 + se_sequence[i]^2),
+          omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
+          crit_x = crit_y[i,]
+        )
+      }
+    }
+
+    ci_left  <- apply(outcome_samples, 2, stats::quantile, probs = 0.025)
+    ci_right <- apply(outcome_samples, 2, stats::quantile, probs = 0.975)
+
+  }
+
+  # re-scale to the output scale
+  ci_left     <- .scale(ci_left,     from = model_scale, to = output_scale)
+  ci_right    <- .scale(ci_right,    from = model_scale, to = output_scale)
+  res         <- .scale(res,         from = model_scale, to = output_scale)
+  se          <- .scale(se,          from = model_scale, to = output_scale)
+  se_range    <- .scale(se_range,    from = model_scale, to = output_scale)
+  se_sequence <- .scale(se_sequence, from = model_scale, to = output_scale)
+
+  # create objects for plotting
+  x_range <- pretty(c(ci_left, ci_right))
+  df_points <- data.frame(
+    x  = res,
+    y  = se
+  )
+  df_funnel <- data.frame(
+    x = c(rev(ci_left),     ci_right),
+    y = c(rev(se_sequence), se_sequence)
+  )
+  df_funnel_edge1 <- data.frame(
+    x = ci_left,
+    y = se_sequence
+  )
+  df_funnel_edge2 <- data.frame(
+    x = ci_right,
+    y = se_sequence
+  )
+  df_background <- data.frame(
+    x = c(min(x_range),  max(x_range),  max(x_range),  min(x_range)),
+    y = c(min(se_range), min(se_range), max(se_range), max(se_range))
+  )
+
+  # allow data return for JASP
+  if(isTRUE(dots[["as_data"]])){
+    return(list(
+      points = df_points,
+      funnel = df_funnel,
+      funnel_edge1 = df_funnel_edge1,
+      funnel_edge2 = df_funnel_edge2,
+      background   = df_background,
+      x_range      = x_range,
+      y_range      = se_range
+    ))
+  }
+
+
+  if(plot_type == "ggplot"){
+
+    out <- ggplot2::ggplot() +
+      ggplot2::geom_polygon(
+        mapping = ggplot2::aes(
+          x = df_background$x,
+          y = df_background$y),
+        fill    = "grey",
+      ) +
+      ggplot2::geom_polygon(
+        mapping = ggplot2::aes(
+          x = df_funnel$x,
+          y = df_funnel$y),
+        fill    = "white",
+      ) +
+      ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = c(0, 0),
+          y = range(se_range)),
+        linetype = "dotted"
+      ) +
+      ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = df_funnel_edge1$x,
+          y = df_funnel_edge1$y),
+        linetype = "dotted"
+      ) +
+      ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = df_funnel_edge2$x,
+          y = df_funnel_edge2$y),
+        linetype = "dotted"
+      ) +
+      ggplot2::geom_point(
+        mapping = ggplot2::aes(
+          x = df_points$x,
+          y = df_points$y),
+        fill    = "black",
+        shape = if(is.null(dots[["shape"]])) 21 else dots[["shape"]],
+        size  = if(is.null(dots[["size"]]))  2  else dots[["size"]]
+      )
+
+    out <- out +
+      ggplot2::scale_x_continuous(breaks = x_range, limits = range(x_range), name = gettext("Residual")) +
+      ggplot2::scale_y_reverse(breaks = rev(se_range), limits = rev(range(se_range)), name = gettext("Standard Error"))
+
+  }else if(plot_type == "base"){
+
+    # Set up the plot area with reversed y-axis
+    graphics::plot(
+      NA, NA,
+      xlim = range(x_range),
+      ylim = rev(range(se_range)),
+      xlab = gettext("Residual"),
+      ylab = gettext("Standard Error"),
+      type = "n",
+      axes = FALSE
+    )
+    graphics::axis(1, at = x_range)
+    graphics::axis(2, at = rev(se_range), las = 1)
+
+    # Draw background polygon (grey)
+    graphics::polygon(df_background$x, df_background$y, col = "grey", border = NA)
+
+    # Draw funnel polygon (white)
+    graphics::polygon(df_funnel$x, df_funnel$y, col = "white", border = NA)
+
+    # Vertical dotted line at x = 0
+    graphics::lines(c(0, 0), range(se_range), lty = "dotted")
+
+    # Funnel edges (dotted lines)
+    graphics::lines(df_funnel_edge1$x, df_funnel_edge1$y, lty = "dotted")
+    graphics::lines(df_funnel_edge2$x, df_funnel_edge2$y, lty = "dotted")
+
+    # Determine point shape and size
+    point_shape <- if (is.null(dots[["shape"]])) 21  else dots[["shape"]]
+    point_size  <- if (is.null(dots[["size"]]))  1   else dots[["size"]]
+
+    # Plot points with black fill
+    graphics::points(df_points$x, df_points$y, pch = point_shape, bg = "black", cex = point_size)
+
+  }
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible())
+  }else if(plot_type == "ggplot"){
+    return(out)
+  }
+}
+
 #' @title Models plot for a RoBMA object
 #'
 #' @description \code{plot_models} plots individual models'

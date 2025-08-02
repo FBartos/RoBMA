@@ -282,7 +282,6 @@ test_that("Parameter plots work", {
   plot(fits[["fit_14"]], "mod_cat", conditional = TRUE)
 })
 
-
 test_that("Individual model plots work", {
 
   # default ggplot2
@@ -329,7 +328,6 @@ test_that("Individual model plots work", {
 
 })
 
-
 test_that("Forest plots work", {
 
   # default ggplot2
@@ -364,7 +362,6 @@ test_that("Forest plots work", {
 
 })
 
-
 test_that("Marginal posterior plots work", {
 
 
@@ -376,4 +373,20 @@ test_that("Marginal posterior plots work", {
   vdiffr::expect_doppelganger("mm_ggplot_mod_cat_3", marginal_plot(fits[["fit_14"]], "mod_cat", prior = TRUE, plot_type = "ggplot", output_scale = "r"))
   vdiffr::expect_doppelganger("mm_ggplot_mod_con_1", marginal_plot(fits[["fit_14"]], "mod_con", prior = TRUE, plot_type = "ggplot", xlim = c(-1, 1)))
   vdiffr::expect_doppelganger("mm_ggplot_mod_con_2", function()marginal_plot(fits[["fit_15"]], "mod_con", conditional = TRUE))
+})
+
+test_that("Funnel plots work", {
+
+  # meta-analysis
+  i <- 4
+  vdiffr::expect_doppelganger(paste0("plot_funnel1_",i), function()funnel(fits[[i]]))
+  vdiffr::expect_doppelganger(paste0("plot_funnel2_",i), function()funnel(fits[[i]], conditional = TRUE))
+  vdiffr::expect_doppelganger(paste0("plot_funnel3_",i), function()funnel(fits[[i]], incorporate_publication_bias = FALSE))
+  vdiffr::expect_doppelganger(paste0("plot_funnel4_",i), function()funnel(fits[[i]], incorporate_publication_bias = FALSE, incorporate_heterogeneity = FALSE))
+  vdiffr::expect_doppelganger(paste0("plot_funnel5_",i), function()funnel(fits[[i]], incorporate_publication_bias = FALSE, incorporate_heterogeneity = FALSE, output_scale = "r"))
+  vdiffr::expect_doppelganger(paste0("plot_funnel6_",i), function()funnel(fits[[i]], plot_type = "ggplot"))
+  # meta-regression
+  i <- 15
+  vdiffr::expect_doppelganger(paste0("plot_forest1_",i), function()suppressMessages(funnel(fits[[i]])))
+
 })

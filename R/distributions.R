@@ -41,16 +41,16 @@
 #' @seealso \link[stats]{Normal}
 #' @examples
 #' # generate random samples from weighted normal distribution
-#' samples <- rwnorm(n = 10000, mean = 0.15, sd = 0.10, 
-#'                   steps = c(0.025, 0.5), omega = c(0.1, 0.5, 1), 
+#' samples <- rwnorm(n = 10000, mean = 0.15, sd = 0.10,
+#'                   steps = c(0.025, 0.5), omega = c(0.1, 0.5, 1),
 #'                   type = "one.sided")
 #' # hist(samples)
-#' 
+#'
 #' # compute density at specific values
-#' density_vals <- dwnorm(x = c(-2, 0, 2), mean = 0, sd = 1, 
+#' density_vals <- dwnorm(x = c(-2, 0, 2), mean = 0, sd = 1,
 #'                        steps = c(0.05), omega = c(0.5, 1))
-#' 
-#' # compute cumulative probabilities  
+#'
+#' # compute cumulative probabilities
 #' prob_vals <- pwnorm(q = c(-1, 0, 1), mean = 0, sd = 1,
 #'                     steps = c(0.05), omega = c(0.5, 1))
 NULL
@@ -471,7 +471,12 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 # fast computation - no input check, pre-formatted for posterior predictive
-.rwnorm_predict_fast      <- function(mean, sd, omega, crit_x){
+.rwnorm_predict_fast      <- function(mean, sd, omega, crit_x, iter = 1){
+
+  if(iter >= 50){
+    # avoid getting stuck in an infinite recursion
+    return(.rwnorm_predict_fast2(mean, sd, omega, crit_x))
+  }
 
   # samples
   x <- stats::rnorm(length(mean), mean = mean, sd = sd)
@@ -490,11 +495,16 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   # assign publication status
   p <- stats::rbinom(length(mean), 1, prob = w) == 1
 
+  # deal with possibility of sd = 0
+  # (sampling never finishes, insert the mean value instead)
+  x[!p & sd < sqrt(.Machine$double.ep)] <- mean
+  p[!p & sd < sqrt(.Machine$double.ep)] <- TRUE
+
   # re-sample the missing estimates
   x[!p] <- NA
 
   if(any(!p)){
-    x[!p] <- .rwnorm_predict_fast(mean[!p], sd[!p], omega[!p,,drop=FALSE], crit_x)
+    x[!p] <- .rwnorm_predict_fast(mean[!p], sd[!p], omega[!p,,drop=FALSE], crit_x, iter = iter + 1)
   }
 
   return(x)
@@ -527,6 +537,125 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }
 
   return(xt)
+}
+
+# alternative version using inverse probability transform
+# (helps when .rwnorm_predict_fast gets stuck)
+.rwnorm_predict_fast2  <- function(mean, sd, omega, crit_x){
+
+  # generate uniform random numbers
+  u <- stats::runif(length(mean))
+
+  # use fast quantile function
+  x <- .qwnorm_fast(u, mean, sd, omega, crit_x)
+
+  return(x)
+}
+
+# fast preformated p and q functions
+.pwnorm_fast <- function(q, mean, sd, omega, crit_x){
+
+  n     <- length(q)
+  log_p <- rep(0, n)
+
+  # compute standardizing constant once for all observations
+  n_cuts    <- length(crit_x)
+  n_weights <- ncol(omega)
+
+  # pre-compute normal CDFs for all cutpoints and means/sds
+  cdf_cuts <- matrix(0, nrow = n, ncol = n_cuts)
+  for(j in seq_len(n_cuts)){
+    cdf_cuts[, j] <- stats::pnorm(crit_x[j], mean, sd)
+  }
+
+  # compute denominators (standardizing constants)
+  denoms <- matrix(0, nrow = n, ncol = n_weights)
+  denoms[, 1] <- cdf_cuts[, 1]
+  if(n_weights > 2){
+    for(j in 2:(n_weights - 1)){
+      denoms[, j] <- cdf_cuts[, j] - rowSums(denoms[, 1:(j-1), drop = FALSE])
+    }
+  }
+  denoms[, n_weights] <- 1 - rowSums(denoms[, 1:(n_weights-1), drop = FALSE])
+
+  # ensure non-negative (numerical precision)
+  denoms[denoms < 0] <- 0
+
+  log_denoms      <- log(denoms) + log(omega)
+  log_denom_total <- log(rowSums(exp(log_denoms)))
+
+  # compute numerators for each observation
+  for(i in seq_len(n)){
+
+    if(is.infinite(q[i])){
+      log_p[i] <- if(q[i] < 0) -Inf else 0
+      next
+    }
+
+    # find which interval q[i] falls into
+    s <- 1
+    temp_p <- numeric(0)
+
+    # accumulate probabilities up to cutpoints
+    while(s <= n_cuts && q[i] > crit_x[s]){
+      temp_p_add <- cdf_cuts[i, s] - sum(temp_p)
+      temp_p_add <- max(temp_p_add, 0)  # ensure non-negative
+      temp_p <- c(temp_p, temp_p_add)
+      s <- s + 1
+    }
+
+    # add final piece
+    temp_p_add <- stats::pnorm(q[i], mean[i], sd[i]) - sum(temp_p)
+    temp_p_add <- max(temp_p_add, 0)
+    temp_p <- c(temp_p, temp_p_add)
+
+    # weight by omega values
+    log_p[i] <- log(sum(exp(log(temp_p) + log(omega[i, 1:length(temp_p)]))))
+  }
+
+  # subtract standardizing constant
+  return(log_p - log_denom_total)
+}
+.qwnorm_fast <- function(p, mean, sd, omega, crit_x){
+
+  n <- length(p)
+  q <- rep(0, n)
+
+  # vectorized bounds for optimization
+  lower_bounds <- mean - 6 * sd  # approximately -6 sigma
+  upper_bounds <- mean + 6 * sd  # approximately +6 sigma
+
+  # for each observation, use Brent's method for root finding
+  for(i in seq_len(n)){
+
+    if(p[i] <= 0){
+      q[i] <- -Inf
+    } else if(p[i] >= 1){
+      q[i] <- Inf
+    } else {
+
+      # objective function: F(x) - p = 0
+      obj_fun <- function(x){
+        exp(.pwnorm_fast(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x)) - p[i]
+      }
+
+      # use uniroot for fast root finding
+      tryCatch({
+        result <- stats::uniroot(obj_fun,
+                                 interval = c(lower_bounds[i], upper_bounds[i]),
+                                 tol = 1e-8)
+        q[i] <- result$root
+      }, error = function(e){
+        # fallback to wider search if initial bounds fail
+        result <- stats::uniroot(obj_fun,
+                                 interval = c(mean[i] - 10*sd[i], mean[i] + 10*sd[i]),
+                                 tol = 1e-6)
+        q[i] <- result$root
+      })
+    }
+  }
+
+  return(q)
 }
 
 # helper functions

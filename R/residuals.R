@@ -38,6 +38,11 @@ residuals.RoBMA <- function(object, conditional = FALSE, output_scale = NULL, pr
   # scale the residuals back to the outcome scale
   # (residuals are differences, must be scaled instead of transformed)
 
+  if(object[["add_info"]][["algorithm"]] != "ss")
+    stop("Predictions can only be computed for spike and slab models.")
+  if(inherits(object, "BiBMA") || inherits(object, "BiBMA.reg"))
+    stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
+
   # get the model fitting scale
   if (is.BiBMA(object)) {
     model_scale <- "logOR"
