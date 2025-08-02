@@ -145,3 +145,6 @@ legend("bottomright", col = c("black", rep("blue", 3)),
 }
 
 }
+\seealso{
+\code{\link[=true_effects]{true_effects()}}, \code{\link[=residuals.RoBMA]{residuals.RoBMA()}}
+}

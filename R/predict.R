@@ -106,6 +106,7 @@
 #' }
 #'
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+#' @seealso [true_effects()], [residuals.RoBMA()]
 #' @export
 predict.RoBMA <- function(object, newdata = NULL, type = "response",
                           conditional = FALSE, output_scale = NULL, probs = c(.025, .975),
@@ -154,7 +155,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       newdata.predictors <- do.call(cbind.data.frame, object$data[["predictors"]])
       newdata.outcome    <- object$data[["outcome"]]
     }else{
-      newdata.outcome <- object$data
+      newdata.outcome <- object[["data"]]
     }
 
   }else{
@@ -445,7 +446,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     parameters = names(outcome_samples),
     probs      = probs,
     title      = "Posterior predictions:",
-    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+    footnotes  = c(.scale_note_simple(object$add_info[["prior_scale"]], output_scale))
   )
 
   if(conditional){
@@ -454,7 +455,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       parameters = names(outcome_samples_conditional),
       probs      = probs,
       title      = "Conditional posterior predictions:",
-      footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+      footnotes  = c(.scale_note_simple(object$add_info[["prior_scale"]], output_scale))
     )
   }
 
@@ -463,7 +464,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     call       = object[["call"]],
     title      = .object_title(object),
     estimates  = estimates,
-    footnotes  = c(.scale_note(object$add_info[["prior_scale"]], output_scale))
+    footnotes  = c(.scale_note_simple(object$add_info[["prior_scale"]], output_scale))
   )
 
   if(conditional){

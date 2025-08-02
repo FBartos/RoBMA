@@ -603,3 +603,42 @@ test_that("R and JAGS density is consistent", {
 
 
 })
+
+### other ----
+
+test_that("Test re-sampling and inverse transformation fast version of weighted-normal distribution", {
+
+  # Test parameters
+  n        <- 5
+  mean_val <- c(0, 0.3, 0.6, 0.9, 1.2)
+  sd_val   <- rep(0.2, 5)
+  omega    <- matrix(c(0.3, 0.7, 1.0), byrow = TRUE, nrow = n, ncol = 3)
+  crit_x   <- c(0.2, 0.6)
+
+  # Generate samples using .rwnorm_predict_fast
+  samples_fast <- replicate(5000, .rwnorm_predict_fast(
+    mean   = mean_val,
+    sd     = sd_val,
+    omega  = omega,
+    crit_x = crit_x
+  ))
+
+  samples_fast2 <- replicate(5000, .rwnorm_predict_fast2(
+    mean   = mean_val,
+    sd     = sd_val,
+    omega  = omega,
+    crit_x = crit_x
+  ))
+
+  vdiffr::expect_doppelganger(paste0("plot_fast_rng"),        function(){
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]]))
+    par(mfrow = c(2,3))
+    for(i in 1:5){
+      common_breaks <- seq(min(c(samples_fast[i,], samples_fast2[i,])), max(c(samples_fast[i,], samples_fast2[i,])), length.out = 20)
+      common_breaks <- sort(unique(c(common_breaks, crit_x)))
+      hist(samples_fast[i,],  breaks = common_breaks)
+      hist(samples_fast2[i,], breaks = common_breaks, col = scales::alpha("orange", 10), add = TRUE)
+    }
+  })
+})

@@ -100,16 +100,16 @@ supplied as a vectors (\code{mean}, \code{sd}) or matrices (\code{steps},
 }
 \examples{
 # generate random samples from weighted normal distribution
-samples <- rwnorm(n = 10000, mean = 0.15, sd = 0.10, 
-                  steps = c(0.025, 0.5), omega = c(0.1, 0.5, 1), 
+samples <- rwnorm(n = 10000, mean = 0.15, sd = 0.10,
+                  steps = c(0.025, 0.5), omega = c(0.1, 0.5, 1),
                   type = "one.sided")
 # hist(samples)
 
 # compute density at specific values
-density_vals <- dwnorm(x = c(-2, 0, 2), mean = 0, sd = 1, 
+density_vals <- dwnorm(x = c(-2, 0, 2), mean = 0, sd = 1,
                        steps = c(0.05), omega = c(0.5, 1))
 
-# compute cumulative probabilities  
+# compute cumulative probabilities
 prob_vals <- pwnorm(q = c(-1, 0, 1), mean = 0, sd = 1,
                     steps = c(0.05), omega = c(0.5, 1))
 }

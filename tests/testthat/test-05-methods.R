@@ -573,7 +573,6 @@ test_that("Marginal summary functions work", {
   )
 })
 
-# test heterogeneity summary function
 test_that("Heterogeneity summary functions work", {
 
   # testing consistency across all model specifications
@@ -623,7 +622,6 @@ test_that("Heterogeneity summary functions work", {
 
 })
 
-# test effect size summary function
 test_that("Effect size summary functions work", {
 
   # testing for consistency among pooled vs adjusted for standard models
@@ -696,7 +694,6 @@ test_that("Effect size summary functions work", {
 
 })
 
-# test posterior extraction
 test_that("Posterior extraction works", {
 
   temp_summary <- summary(fits[["fit_15"]], conditional = TRUE)
@@ -725,7 +722,6 @@ test_that("Posterior extraction works", {
   expect_equal(mean(temp_samples), temp_summary$estimates_conditional["mu", "Mean"])
 })
 
-# test posterior extraction
 test_that("True effects summary", {
 
   expect_equal(
