@@ -726,7 +726,7 @@ test_that("Fast spike-and-slab output preformated distribution functions", {
   vdiffr::expect_doppelganger("pwnorm_fast_ss-1", function(){
     q_vals <- seq(-2, 3, 0.05)
     p_fast <- sapply(q_vals, function(q) {
-      exp(RoBMA:::.pwnorm_fast.ss(q, mean_val, sd_val, omega, crit_x))
+      RoBMA:::.pwnorm_fast.ss(q, mean_val, sd_val, omega, crit_x, lower.tail = TRUE, log.p = FALSE)
     })
     p_exported <- pwnorm(q_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
 
@@ -811,7 +811,7 @@ test_that("Fast spike-and-slab output preformated distribution functions", {
 
     # Fast.ss versions
     q_fast <- sapply(p_vals, function(p) RoBMA:::.qwnorm_fast.ss(p, mean_val, sd_val, omega, crit_x))
-    p_recovered_fast <- sapply(q_fast, function(q) exp(RoBMA:::.pwnorm_fast.ss(q, mean_val, sd_val, omega, crit_x)))
+    p_recovered_fast <- sapply(q_fast, function(q) RoBMA:::.pwnorm_fast.ss(q, mean_val, sd_val, omega, crit_x, lower.tail = TRUE, log.p = FALSE))
 
     # Exported versions
     q_exported <- qwnorm(p_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")

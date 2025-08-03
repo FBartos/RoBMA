@@ -571,7 +571,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # - .pwnorm_fast.ss: cumulative distribution function  
 # - .qwnorm_fast.ss: quantile function
 # - .get_weight_fast.ss: shared weight assignment helper function
-.dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = TRUE){
+.dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = FALSE){
 
   # compute density for normal component
   log_dens <- stats::dnorm(x, mean = mean, sd = sd, log = TRUE)
@@ -684,7 +684,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 # fast preformated p and q functions
-.pwnorm_fast.ss <- function(q, mean, sd, omega, crit_x){
+.pwnorm_fast.ss <- function(q, mean, sd, omega, crit_x, lower.tail = TRUE, log.p = FALSE){
 
   n     <- length(q)
   log_p <- rep(0, n)
@@ -744,8 +744,20 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     log_p[i] <- log(sum(exp(log(temp_p) + log(omega[i, 1:length(temp_p)]))))
   }
 
-  # subtract standardizing constant
-  return(log_p - log_denom_total)
+  # subtract standardizing constant to get log probability
+  log_prob <- log_p - log_denom_total
+  
+  # handle lower.tail
+  if(!lower.tail){
+    log_prob <- log(1 - exp(log_prob))
+  }
+  
+  # return log probability or probability
+  if(log.p){
+    return(log_prob)
+  } else {
+    return(exp(log_prob))
+  }
 }
 .qwnorm_fast.ss <- function(p, mean, sd, omega, crit_x){
 
@@ -767,7 +779,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
       # objective function: F(x) - p = 0
       obj_fun <- function(x){
-        exp(.pwnorm_fast.ss(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x)) - p[i]
+        .pwnorm_fast.ss(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x, lower.tail = TRUE, log.p = FALSE) - p[i]
       }
 
       # use uniroot for fast root finding

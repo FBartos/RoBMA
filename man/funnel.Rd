@@ -45,6 +45,10 @@ to adjust the line thickness, line type, line color, fill color,
 x-label, y-label, title, x-axis range, and y-axis range
 respectively.}
 }
+\value{
+\code{funnel} returns either \code{NULL} if \code{plot_type = "base"}
+or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+}
 \description{
 \code{funnel} creates a funnel plot for
 a \code{"RoBMA"} object.
