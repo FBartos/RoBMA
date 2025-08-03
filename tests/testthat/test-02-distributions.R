@@ -642,3 +642,210 @@ test_that("Test re-sampling and inverse transformation fast version of weighted-
     }
   })
 })
+
+### fast spike-and-slab weighted normal distributions ----
+
+test_that("Fast spike-and-slab output preformated distribution functions", {
+
+  # Test parameters (single row for visual checks)
+  mean_val <- 0.2
+  sd_val   <- 0.3
+  omega    <- matrix(c(0.1, 0.5, 1.0), nrow = 1, ncol = 3)
+  crit_x   <- c(0.4, 0.8)
+
+  # Visual check 1: .dwnorm_fast.ss density curve
+  vdiffr::expect_doppelganger("dwnorm_fast_ss-1", function(){
+    x_vals <- seq(-2, 3, 0.01)
+    y_vals <- sapply(x_vals, function(x) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_val, sd_val, omega, crit_x, log = FALSE)
+    })
+    # Compare with exported function
+    y_exported <- dwnorm(x_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
+
+    plot(x_vals, y_vals, type = "l", main = "dwnorm_fast.ss vs exported dwnorm",
+         xlab = "x", ylab = "density", col = "blue", lwd = 2)
+    lines(x_vals, y_exported, col = "red", lty = 2, lwd = 2)
+    abline(v = crit_x, col = "gray", lty = 3)
+    legend("topright", c("fast.ss", "exported"), col = c("blue", "red"), lty = c(1, 2))
+  })  # Visual check 2: .dwnorm_fast.ss vs normal (when omega = c(1,1,1))
+  omega_uniform <- matrix(c(1.0, 1.0, 1.0), nrow = 1, ncol = 3)
+  vdiffr::expect_doppelganger("dwnorm_fast_ss-2", function(){
+    x_vals <- seq(-2, 3, 0.01)
+    y_fast <- sapply(x_vals, function(x) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_val, sd_val, omega_uniform, crit_x, log = FALSE)
+    })
+    y_norm <- dnorm(x_vals, mean_val, sd_val)
+    plot(x_vals, y_fast, type = "l", col = "blue", main = "dwnorm_fast.ss vs normal (uniform weights)",
+         xlab = "x", ylab = "density")
+    lines(x_vals, y_norm, col = "red", lty = 2)
+    legend("topright", c("fast.ss", "normal"), col = c("blue", "red"), lty = c(1, 2))
+  })
+
+  # Visual check 3: .rwnorm_fast.ss histogram vs .dwnorm_fast.ss
+  set.seed(123)
+  vdiffr::expect_doppelganger("rwnorm_fast_ss-1", function(){
+    samples_fast <- replicate(5000, RoBMA:::.rwnorm_fast.ss(mean_val, sd_val, omega, crit_x))
+    samples_exported <- rwnorm(5000, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
+
+    common_range <- range(c(samples_fast, samples_exported))
+    common_breaks <- seq(common_range[1], common_range[2], length.out = 40)
+
+    hist(samples_fast, breaks = common_breaks, freq = FALSE, col = scales::alpha("blue", 0.6),
+         main = "rwnorm_fast.ss vs exported rwnorm", xlab = "x")
+    hist(samples_exported, breaks = common_breaks, freq = FALSE, col = scales::alpha("red", 0.6), add = TRUE)
+
+    # Add theoretical density
+    x_vals <- seq(common_range[1], common_range[2], 0.01)
+    y_vals <- sapply(x_vals, function(x) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_val, sd_val, omega, crit_x, log = FALSE)
+    })
+    lines(x_vals, y_vals, col = "black", lwd = 2)
+    abline(v = crit_x, col = "gray", lty = 3)
+    legend("topright", c("fast.ss", "exported", "theory"),
+           fill = c("blue", "red", NA), border = c("black", "black", NA),
+           lty = c(NA, NA, 1), col = c(NA, NA, "black"))
+  })
+
+  # Visual check 4: .rwnorm_fast.ss vs .rwnorm_fast.ss2 comparison
+  set.seed(123)
+  vdiffr::expect_doppelganger("rwnorm_fast_ss-2", function(){
+    samples1 <- replicate(2000, RoBMA:::.rwnorm_fast.ss(mean_val, sd_val, omega, crit_x))
+    samples2 <- replicate(2000, RoBMA:::.rwnorm_fast.ss2(mean_val, sd_val, omega, crit_x))
+
+    common_range <- range(c(samples1, samples2))
+    common_breaks <- seq(common_range[1], common_range[2], length.out = 30)
+
+    hist(samples1, breaks = common_breaks, freq = FALSE, col = scales::alpha("blue", 0.5),
+         main = "rwnorm_fast.ss vs rwnorm_fast.ss2", xlab = "x")
+    hist(samples2, breaks = common_breaks, freq = FALSE, col = scales::alpha("red", 0.5), add = TRUE)
+    legend("topright", c("fast.ss", "fast.ss2"), fill = c("blue", "red"))
+    abline(v = crit_x, col = "black", lty = 2)
+  })
+
+  # Visual check 5: .pwnorm_fast.ss cumulative distribution
+  vdiffr::expect_doppelganger("pwnorm_fast_ss-1", function(){
+    q_vals <- seq(-2, 3, 0.05)
+    p_fast <- sapply(q_vals, function(q) {
+      exp(RoBMA:::.pwnorm_fast.ss(q, mean_val, sd_val, omega, crit_x))
+    })
+    p_exported <- pwnorm(q_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
+
+    plot(q_vals, p_fast, type = "l", main = "pwnorm_fast.ss vs exported pwnorm",
+         xlab = "q", ylab = "P(X <= q)", col = "blue", lwd = 2)
+    lines(q_vals, p_exported, col = "red", lty = 2, lwd = 2)
+    abline(v = crit_x, col = "gray", lty = 3)
+    abline(h = c(0, 1), col = "gray", lty = 3)
+    legend("bottomright", c("fast.ss", "exported"), col = c("blue", "red"), lty = c(1, 2))
+  })
+
+  # Visual check 6: .qwnorm_fast.ss quantile function
+  vdiffr::expect_doppelganger("qwnorm_fast_ss-1", function(){
+    p_vals <- seq(0.01, 0.99, 0.01)
+    q_fast <- sapply(p_vals, function(p) {
+      RoBMA:::.qwnorm_fast.ss(p, mean_val, sd_val, omega, crit_x)
+    })
+    q_exported <- qwnorm(p_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
+
+    plot(p_vals, q_fast, type = "l", main = "qwnorm_fast.ss vs exported qwnorm",
+         xlab = "p", ylab = "quantile", col = "blue", lwd = 2)
+    lines(p_vals, q_exported, col = "red", lty = 2, lwd = 2)
+    abline(h = crit_x, col = "gray", lty = 3)
+    legend("topleft", c("fast.ss", "exported"), col = c("blue", "red"), lty = c(1, 2))
+  })
+
+  # Visual check 7: Different weight patterns effect on density
+  omega_low_high <- matrix(c(0.2, 0.5, 1.0), nrow = 1, ncol = 3)  # increasing weights
+  omega_high_low <- matrix(c(1.0, 0.5, 0.2), nrow = 1, ncol = 3)  # decreasing weights
+
+  vdiffr::expect_doppelganger("dwnorm_fast_ss-3", function(){
+    x_vals <- seq(-2, 3, 0.01)
+
+    # Fast.ss versions
+    y_fast_low_high <- sapply(x_vals, function(x) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_val, sd_val, omega_low_high, crit_x, log = FALSE)
+    })
+    y_fast_high_low <- sapply(x_vals, function(x) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_val, sd_val, omega_high_low, crit_x, log = FALSE)
+    })
+
+    # Exported versions for comparison
+    y_exp_low_high <- dwnorm(x_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega_low_high), type = "one.sided")
+    y_exp_high_low <- dwnorm(x_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega_high_low), type = "one.sided")
+
+    plot(x_vals, y_fast_low_high, type = "l", col = "blue", lwd = 2, main = "Weight patterns: fast.ss vs exported",
+         xlab = "x", ylab = "density")
+    lines(x_vals, y_fast_high_low, col = "blue", lwd = 2)
+    lines(x_vals, y_exp_low_high, col = "red", lty = 2, lwd = 1)
+    lines(x_vals, y_exp_high_low, col = "red", lty = 2, lwd = 1)
+    abline(v = crit_x, col = "gray", lty = 3)
+    legend("topright", c("low→high (fast.ss)", "high→low (fast.ss)", "low→high (exported)", "high→low (exported)"),
+           col = c("blue", "blue", "red", "red"), lty = c(1, 1, 2, 2), lwd = c(2, 2, 1, 1))
+  })
+
+  # Visual check 8: .rwnorm_true_fast.ss for hierarchical sampling
+  set.seed(123)
+  vdiffr::expect_doppelganger("rwnorm_true_fast_ss-1", function(){
+    tau_val <- 0.15
+    se_val  <- 0.25
+
+    true_effects <- replicate(3000, RoBMA:::.rwnorm_true_fast.ss(mean_val, tau_val, se_val, omega, crit_x))
+
+    hist(true_effects, freq = FALSE, breaks = 30,
+         main = "rwnorm_true_fast.ss (hierarchical sampling)",
+         xlab = "true effects")
+
+    # Overlay the prior distribution of true effects
+    x_vals <- seq(min(true_effects) - 0.5, max(true_effects) + 0.5, 0.01)
+    prior_dens <- dnorm(x_vals, mean_val, tau_val)
+    lines(x_vals, prior_dens, col = "blue", lwd = 2, lty = 2)
+
+    abline(v = crit_x, col = "red", lty = 2)
+    legend("topright", c("sampled true effects", "prior distribution"),
+           col = c("black", "blue"), lty = c(1, 2))
+  })
+
+  # Visual check 9: Consistency check - p and q functions are inverses
+  vdiffr::expect_doppelganger("pqwnorm_fast_ss-consistency", function(){
+    # Test if p and q are inverses for both fast.ss and exported
+    p_vals <- seq(0.05, 0.95, 0.05)
+
+    # Fast.ss versions
+    q_fast <- sapply(p_vals, function(p) RoBMA:::.qwnorm_fast.ss(p, mean_val, sd_val, omega, crit_x))
+    p_recovered_fast <- sapply(q_fast, function(q) exp(RoBMA:::.pwnorm_fast.ss(q, mean_val, sd_val, omega, crit_x)))
+
+    # Exported versions
+    q_exported <- qwnorm(p_vals, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
+    p_recovered_exported <- pwnorm(q_exported, mean_val, sd_val, crit_x = crit_x, omega = as.vector(omega), type = "one.sided")
+
+    plot(p_vals, p_recovered_fast, main = "P-Q consistency: fast.ss vs exported",
+         xlab = "original p", ylab = "recovered p",
+         xlim = c(0, 1), ylim = c(0, 1), pch = 16, col = "blue")
+    points(p_vals, p_recovered_exported, pch = 17, col = "red")
+    abline(a = 0, b = 1, col = "gray", lty = 2)
+    legend("bottomright", c("fast.ss", "exported", "perfect"),
+           pch = c(16, 17, NA), col = c("blue", "red", "gray"),
+           lty = c(NA, NA, 2))
+  })
+
+  # Visual check 10: Multiple critical values
+  crit_x_multi <- c(0.2, 0.6, 1.2)
+  omega_multi <- matrix(c(0.3, 0.6, 0.1, 1.0), nrow = 1, ncol = 4)
+
+  vdiffr::expect_doppelganger("dwnorm_fast_ss-multi", function(){
+    x_vals <- seq(-2, 3, 0.01)
+    y_fast <- sapply(x_vals, function(x) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_val, sd_val, omega_multi, crit_x_multi, log = FALSE)
+    })
+    y_exported <- dwnorm(x_vals, mean_val, sd_val, crit_x = crit_x_multi, omega = as.vector(omega_multi), type = "one.sided")
+
+    plot(x_vals, y_fast, type = "l", main = "Multiple critical values: fast.ss vs exported",
+         xlab = "x", ylab = "density", col = "blue", lwd = 2)
+    lines(x_vals, y_exported, col = "red", lty = 2, lwd = 2)
+    abline(v = crit_x_multi, col = "gray", lty = 3)
+
+    # Add weight labels
+    text(x = c(-1, 0.4, 0.9, 1.8), y = max(y_fast) * 0.8,
+         labels = paste("ω =", omega_multi[1,]), col = "darkgreen")
+    legend("topright", c("fast.ss", "exported"), col = c("blue", "red"), lty = c(1, 2), lwd = 2)
+  })
+})

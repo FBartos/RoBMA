@@ -542,8 +542,80 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 ### fast computation - spike-and-slab output ----
-# no input check, pre-formatted for working with vectors/matrices of posterior
-# matching dimensions for vectorization assumed
+# Fast weighted normal distribution functions optimized for spike-and-slab algorithms
+# 
+# Input assumptions:
+# - No input validation (all inputs assumed properly formatted and validated)
+# - Vectorized operations: matching dimensions assumed for mean/sd/x vectors and omega/crit_x matrices
+# - One-sided weight function: assumes publication selection based on one-sided criteria
+# 
+# Weight assignment logic (implemented in .get_weight_fast.ss):
+# - Uses reverse sequential checking: x >= crit_x[i] assigns omega[,i+1]
+# - Effective intervals: 
+#   * x < crit_x[1] → omega[,1]
+#   * crit_x[1] ≤ x < crit_x[2] → omega[,2]  
+#   * crit_x[2] ≤ x < crit_x[3] → omega[,3]
+#   * ...
+#   * x ≥ crit_x[last] → omega[,n_weights]
+#
+# Standardizing constant computation:
+# - Must match weight intervals exactly for proper density normalization
+# - Uses cumulative probability differences: P(interval) = P(X < upper) - P(X < lower)
+# - Ensures resulting density integrates to 1
+#
+# Family functions:
+# - .dwnorm_fast.ss: density function with proper normalization
+# - .rwnorm_fast.ss: random sampling with publication selection
+# - .rwnorm_true_fast.ss: random sampling of true effects (hierarchical)
+# - .rwnorm_fast.ss2: alternative sampling via inverse transform
+# - .pwnorm_fast.ss: cumulative distribution function  
+# - .qwnorm_fast.ss: quantile function
+# - .get_weight_fast.ss: shared weight assignment helper function
+.dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = TRUE){
+
+  # compute density for normal component
+  log_dens <- stats::dnorm(x, mean = mean, sd = sd, log = TRUE)
+
+  # find correct weight for each observation using helper function
+  w <- .get_weight_fast.ss(x, omega, crit_x)
+
+  # compute the numerator (normal density + log weight)
+  log_numerator <- log_dens + log(w)
+
+  # compute the standardizing constant (denominator)
+  # this must match the weight assignment logic in .get_weight_fast.ss
+  n_weights <- ncol(omega)
+  denoms <- matrix(0, nrow = length(x), ncol = n_weights)
+  
+  # interval 1: x < crit_x[1] gets omega[,1]
+  denoms[, 1] <- stats::pnorm(crit_x[1], mean, sd)
+  denoms[denoms[, 1] < 0, 1] <- 0  # numerical precision
+  
+  # middle intervals: crit_x[j-1] <= x < crit_x[j] gets omega[,j]
+  if(n_weights > 2){
+    for(j in 2:(n_weights - 1)){
+      denoms[, j] <- stats::pnorm(crit_x[j], mean, sd) - rowSums(denoms[, 1:(j-1), drop = FALSE])
+      denoms[denoms[, j] < 0, j] <- 0  # numerical precision
+    }
+  }
+  
+  # last interval: x >= crit_x[last] gets omega[,n_weights] 
+  denoms[, n_weights] <- 1 - rowSums(denoms[, 1:(n_weights-1), drop = FALSE])
+  denoms[denoms[, n_weights] < 0, n_weights] <- 0  # numerical precision
+  
+  # weight the denominators and compute log standardizing constant
+  log_denoms <- log(denoms) + log(omega)
+  log_std_const <- log(rowSums(exp(log_denoms)))
+  
+  # final log density = numerator - standardizing constant
+  log_lik <- log_numerator - log_std_const
+
+  if(log){
+    return(log_lik)
+  } else {
+    return(exp(log_lik))
+  }
+}
 .rwnorm_fast.ss      <- function(mean, sd, omega, crit_x, iter = 1){
 
   if(iter >= 50){
@@ -554,23 +626,15 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   # samples
   x <- stats::rnorm(length(mean), mean = mean, sd = sd)
 
-  # find correct weight
-  w <- rep(NA, length(mean))
-  for(i in rev(seq_along(crit_x))){
-    w[is.na(w) & x >= crit_x[i]] <- omega[is.na(w) & x >= crit_x[i], i + 1]
-  }
-  w[is.na(w) & x < crit_x[i]] <- omega[is.na(w) & x < crit_x[i], 1]
-
-  # deal with computer precision errors from JAGS
-  w[w > 1] <- 1
-  w[w < 0] <- 0
+  # find correct weight using helper function
+  w <- .get_weight_fast.ss(x, omega, crit_x)
 
   # assign publication status
   p <- stats::rbinom(length(mean), 1, prob = w) == 1
 
   # deal with possibility of sd = 0
   # (sampling never finishes, insert the mean value instead)
-  x[!p & sd < sqrt(.Machine$double.ep)] <- mean
+  x[!p & sd < sqrt(.Machine$double.ep)] <- mean[!p & sd < sqrt(.Machine$double.ep)]
   p[!p & sd < sqrt(.Machine$double.ep)] <- TRUE
 
   # re-sample the missing estimates
@@ -582,22 +646,16 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   return(x)
 }
+
+# special version to sample the true effects from sequential selection
 .rwnorm_true_fast.ss <- function(mean, tau, se, omega, crit_x){
 
   # samples
   xt <- stats::rnorm(length(mean), mean = mean, sd = tau)
   xo <- stats::rnorm(length(mean), mean = xt,   sd = se)
 
-  # find correct weight
-  w <- rep(NA, length(mean))
-  for(i in rev(seq_along(crit_x))){
-    w[is.na(w) & xo >= crit_x[i]] <- omega[is.na(w) & xo >= crit_x[i], i + 1]
-  }
-  w[is.na(w) & xo < crit_x[i]] <- omega[is.na(w) & xo < crit_x[i], 1]
-
-  # deal with computer precision errors from JAGS
-  w[w > 1] <- 1
-  w[w < 0] <- 0
+  # find correct weight using helper function
+  w <- .get_weight_fast.ss(xo, omega, crit_x)
 
   # assign publication status
   p <- stats::rbinom(length(mean), 1, prob = w) == 1
@@ -620,13 +678,13 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   u <- stats::runif(length(mean))
 
   # use fast quantile function
-  x <- .qwnorm_fast(u, mean, sd, omega, crit_x)
+  x <- .qwnorm_fast.ss(u, mean, sd, omega, crit_x)
 
   return(x)
 }
 
 # fast preformated p and q functions
-.pwnorm_fast <- function(q, mean, sd, omega, crit_x){
+.pwnorm_fast.ss <- function(q, mean, sd, omega, crit_x){
 
   n     <- length(q)
   log_p <- rep(0, n)
@@ -689,7 +747,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   # subtract standardizing constant
   return(log_p - log_denom_total)
 }
-.qwnorm_fast <- function(p, mean, sd, omega, crit_x){
+.qwnorm_fast.ss <- function(p, mean, sd, omega, crit_x){
 
   n <- length(p)
   q <- rep(0, n)
@@ -709,7 +767,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
       # objective function: F(x) - p = 0
       obj_fun <- function(x){
-        exp(.pwnorm_fast(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x)) - p[i]
+        exp(.pwnorm_fast.ss(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x)) - p[i]
       }
 
       # use uniroot for fast root finding
@@ -729,6 +787,21 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }
 
   return(q)
+}
+
+# helper function to get weights for spike-and-slab distribution
+.get_weight_fast.ss <- function(x, omega, crit_x) {
+  w <- rep(NA, length(x))
+  for(i in rev(seq_along(crit_x))){
+    w[is.na(w) & x >= crit_x[i]] <- omega[is.na(w) & x >= crit_x[i], i + 1]
+  }
+  w[is.na(w) & x < crit_x[1]] <- omega[is.na(w) & x < crit_x[1], 1]
+
+  # deal with computer precision errors from JAGS
+  w[w > 1] <- 1
+  w[w < 0] <- 0
+
+  return(w)
 }
 
 
