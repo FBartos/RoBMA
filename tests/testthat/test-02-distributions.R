@@ -88,11 +88,11 @@ test_that("Density function works", {
 
   # verify fast computation
   expect_equal(
-    RoBMA:::.dwnorm_fast(x1, mean1, sd1, omega1[1,], matrix(c(0.50, 1.50), nrow = 10, ncol = 2, byrow = TRUE), type = "one.sided", log = TRUE),
+    RoBMA:::.dwnorm_fast.bridge(x1, mean1, sd1, omega1[1,], matrix(c(0.50, 1.50), nrow = 10, ncol = 2, byrow = TRUE), type = "one.sided", log = TRUE),
     dwnorm(x1, mean1, sd1, crit_x = matrix(c(0.50, 1.50), nrow = 10, ncol = 2, byrow = TRUE), omega = omega1[1,], type = "one.sided", log = TRUE)
   )
   expect_equal(
-    RoBMA:::.dwnorm_fast(x1, mean1, sd1, omega1[1,], matrix(c(0.50, 1.50), nrow = 10, ncol = 2, byrow = TRUE), type = "two.sided", log = TRUE),
+    RoBMA:::.dwnorm_fast.bridge(x1, mean1, sd1, omega1[1,], matrix(c(0.50, 1.50), nrow = 10, ncol = 2, byrow = TRUE), type = "two.sided", log = TRUE),
     dwnorm(x1, mean1, sd1, crit_x = matrix(c(0.50, 1.50), nrow = 10, ncol = 2, byrow = TRUE), omega = omega1[1,], type = "two.sided", log = TRUE)
   )
 })
@@ -270,7 +270,7 @@ test_that("Density function works", {
       RoBMA:::.dwmnorm_fast(x = x[i,], mean = mu, sigma = sigma, omega = omega, crit_x = crit_x, type = "one.sided", log = TRUE)
     }),
     sapply(1:nrow(x), function(i){
-      sum(RoBMA:::.dwnorm_fast(x = x[i,], mean = mu, sd = sqrt(diag(sigma)), omega = omega, crit_x = t(crit_x), type = "one.sided", log = TRUE))
+      sum(RoBMA:::.dwnorm_fast.bridge(x = x[i,], mean = mu, sd = sqrt(diag(sigma)), omega = omega, crit_x = t(crit_x), type = "one.sided", log = TRUE))
     }),
     tolerance = 1e-4
   )
@@ -286,7 +286,7 @@ test_that("Density function works", {
       RoBMA:::.dwmnorm_fast(x = x[i,], mean = mu, sigma = sigma, omega = omega, crit_x = crit_x, type = "one.sided", log = TRUE)
     }),
     sapply(1:nrow(x), function(i){
-      sum(RoBMA:::.dwnorm_fast(x = x[i,], mean = mu, sd = sqrt(diag(sigma)), omega = omega, crit_x = t(crit_x), type = "one.sided", log = TRUE))
+      sum(RoBMA:::.dwnorm_fast.bridge(x = x[i,], mean = mu, sd = sqrt(diag(sigma)), omega = omega, crit_x = t(crit_x), type = "one.sided", log = TRUE))
     }),
     tolerance = 1e-4
   )
@@ -296,7 +296,7 @@ test_that("Density function works", {
       RoBMA:::.dwmnorm_fast(x = x[i,], mean = mu, sigma = sigma, omega = omega, crit_x = crit_x, type = "two.sided", log = TRUE)
     }),
     sapply(1:nrow(x), function(i){
-      sum(RoBMA:::.dwnorm_fast(x = x[i,], mean = mu, sd = sqrt(diag(sigma)), omega = omega, crit_x = t(crit_x), type = "two.sided", log = TRUE))
+      sum(RoBMA:::.dwnorm_fast.bridge(x = x[i,], mean = mu, sd = sqrt(diag(sigma)), omega = omega, crit_x = t(crit_x), type = "two.sided", log = TRUE))
     }),
     tolerance = 1e-4
   )
@@ -334,7 +334,7 @@ test_that("R and JAGS density is consistent", {
 
 
   expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:10, function(i){
-    RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
+    RoBMA:::.dwnorm_fast.bridge(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
   })), tolerance = 1e-3)
 
   # univariate (more complex)
@@ -365,7 +365,7 @@ test_that("R and JAGS density is consistent", {
 
 
   expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:10, function(i){
-    RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
+    RoBMA:::.dwnorm_fast.bridge(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "one.sided", log = TRUE)
   })), tolerance = 1e-3)
 
   # multivariate
@@ -436,7 +436,7 @@ test_that("R and JAGS density is consistent", {
 
 
   expect_equal(as.vector(fit[[1]][,"log_lik"]), unname(sapply(1:10, function(i){
-    RoBMA:::.dwnorm_fast(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "two.sided", log = TRUE)
+    RoBMA:::.dwnorm_fast.bridge(x = fit[[1]][i,"x"], mean = fit[[1]][i,"mu"], sd = fit[[1]][i,"sigma"], omega = fit[[1]][i,c("omega[1]", "omega[2]", "omega[3]")], crit_x = data$crit_x, type = "two.sided", log = TRUE)
   })), tolerance = 1e-3)
 
   # multivariate
@@ -615,15 +615,15 @@ test_that("Test re-sampling and inverse transformation fast version of weighted-
   omega    <- matrix(c(0.3, 0.7, 1.0), byrow = TRUE, nrow = n, ncol = 3)
   crit_x   <- c(0.2, 0.6)
 
-  # Generate samples using .rwnorm_predict_fast
-  samples_fast <- replicate(5000, .rwnorm_predict_fast(
+  # Generate samples using .rwnorm_fast.ss
+  samples_fast <- replicate(5000, .rwnorm_fast.ss(
     mean   = mean_val,
     sd     = sd_val,
     omega  = omega,
     crit_x = crit_x
   ))
 
-  samples_fast2 <- replicate(5000, .rwnorm_predict_fast2(
+  samples_fast2 <- replicate(5000, .rwnorm_fast.ss2(
     mean   = mean_val,
     sd     = sd_val,
     omega  = omega,

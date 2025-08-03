@@ -1325,17 +1325,17 @@
     if(is.null(priors[["omega"]])){
       log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) * data[["weight"]])
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
     }
   }else{
     if(is.null(priors[["omega"]])){
       log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
     }
   }
 
@@ -1410,9 +1410,9 @@
     if(is.null(priors[["omega"]])){
       log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
     }
   }
 

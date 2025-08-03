@@ -588,7 +588,7 @@ funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
       # sample selection models
       if(any(weightfunction_indicator)){
 
-        outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
+        outcome_samples[weightfunction_indicator,i] <- .rwnorm_fast.ss(
           mean   = mu_samples[weightfunction_indicator],
           sd     = sqrt(tau_samples[weightfunction_indicator]^2 + se_sequence[i]^2),
           omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],

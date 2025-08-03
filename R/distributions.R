@@ -423,12 +423,69 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     control = list(factr = 1e-12))$par)
 }
 
+# helper checking functions
+.Xwnorm_check_input <- function(mean, sd, omega, steps, crit_x, type){
+
+  BayesTools::check_real(mean, "mean", check_length = FALSE)
+  BayesTools::check_real(sd, "sd", lower = 0, check_length = FALSE)
+  BayesTools::check_real(as.vector(omega), "omega", lower = 0, upper = 1, check_length = FALSE)
+  BayesTools::check_real(as.vector(steps), "steps", allow_NULL = !is.null(crit_x), lower = 0, upper = 1, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_char(type, "type", allow_values = c("two.sided", "one.sided"))
+  BayesTools::check_real(as.vector(crit_x), "crit_x", allow_NULL = !is.null(steps), lower = if(type == "two.sided") 0 else -Inf, check_length = FALSE)
+
+  return()
+}
+.Xwnorm_get_crit_x  <- function(steps, crit_x, mean, sd, type){
+
+  if(!is.null(steps) & !is.null(crit_x))
+    stop("Either 'steps' or 'crit_x' need to be specified.", call. = FALSE)
+
+
+  if(!is.null(crit_x)){
+
+    # use steps directly
+    if(!is.matrix(crit_x)){
+      crit_x <- matrix(crit_x, ncol = length(crit_x), nrow = length(mean), byrow = TRUE)
+    }
+
+
+  }else if(!is.null(steps)){
+
+    # obtain critical values based on steps
+    if(!is.matrix(steps)){
+      steps <- matrix(steps, ncol = length(steps), nrow = length(mean), byrow = TRUE)
+    }
+
+    # reverse order of the steps
+    steps <- steps[,ncol(steps):1, drop = FALSE]
+
+    crit_z <- matrix(ncol = 0, nrow = length(mean))
+
+    for(i in 1:ncol(steps)){
+      if(type == "one.sided"){
+        crit_z <- cbind(crit_z, stats::qnorm(steps[,i],   lower.tail = FALSE))
+      }else if(type == "two.sided"){
+        crit_z <- cbind(crit_z, stats::qnorm(steps[,i]/2, lower.tail = FALSE))
+      }
+    }
+
+    crit_x <- crit_z * matrix(sd, ncol = ncol(crit_z), nrow = nrow(crit_z))
+  }
+
+  # check that the steps are increasing
+  if(!all(sapply(1:nrow(crit_x), function(i) all(crit_x[i,] == cummax(crit_x[i,])))))
+    stop("'steps'/'crit_x' argument must be inreasing.", call. = FALSE)
+
+  return(crit_x)
+}
+
+
+### fast computation - bridge-sampling ----
 # Fast density computation for weighted normal distribution (optimized for bridge sampling):
 # Purpose: Efficient computation without input validation 
 # Pre-formatted inputs assumed (matrices, no error checking)
 # LLM Note: This is the performance-critical version used in bridge sampling
-.dwnorm_fast <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
-
+.dwnorm_fast.bridge <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
 
   if(type == "two.sided"){
 
@@ -484,12 +541,14 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }
 }
 
-# fast computation - no input check, pre-formatted for posterior predictive
-.rwnorm_predict_fast      <- function(mean, sd, omega, crit_x, iter = 1){
+### fast computation - spike-and-slab output ----
+# no input check, pre-formatted for working with vectors/matrices of posterior
+# matching dimensions for vectorization assumed
+.rwnorm_fast.ss      <- function(mean, sd, omega, crit_x, iter = 1){
 
   if(iter >= 50){
     # avoid getting stuck in an infinite recursion
-    return(.rwnorm_predict_fast2(mean, sd, omega, crit_x))
+    return(.rwnorm_fast.ss2(mean, sd, omega, crit_x))
   }
 
   # samples
@@ -518,12 +577,12 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   x[!p] <- NA
 
   if(any(!p)){
-    x[!p] <- .rwnorm_predict_fast(mean[!p], sd[!p], omega[!p,,drop=FALSE], crit_x, iter = iter + 1)
+    x[!p] <- .rwnorm_fast.ss(mean[!p], sd[!p], omega[!p,,drop=FALSE], crit_x, iter = iter + 1)
   }
 
   return(x)
 }
-.rwnorm_predict_true_fast <- function(mean, tau, se, omega, crit_x){
+.rwnorm_true_fast.ss <- function(mean, tau, se, omega, crit_x){
 
   # samples
   xt <- stats::rnorm(length(mean), mean = mean, sd = tau)
@@ -547,15 +606,15 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   xt[!p] <- NA
 
   if(any(!p)){
-    xt[!p] <- .rwnorm_predict_true_fast(mean[!p], tau[!p], se, omega[!p,,drop=FALSE], crit_x)
+    xt[!p] <- .rwnorm_true_fast.ss(mean[!p], tau[!p], se, omega[!p,,drop=FALSE], crit_x)
   }
 
   return(xt)
 }
 
 # alternative version using inverse probability transform
-# (helps when .rwnorm_predict_fast gets stuck)
-.rwnorm_predict_fast2  <- function(mean, sd, omega, crit_x){
+# (helps when .rwnorm_fast.ss gets stuck)
+.rwnorm_fast.ss2  <- function(mean, sd, omega, crit_x){
 
   # generate uniform random numbers
   u <- stats::runif(length(mean))
@@ -670,62 +729,6 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }
 
   return(q)
-}
-
-# helper functions
-.Xwnorm_check_input <- function(mean, sd, omega, steps, crit_x, type){
-
-  BayesTools::check_real(mean, "mean", check_length = FALSE)
-  BayesTools::check_real(sd, "sd", lower = 0, check_length = FALSE)
-  BayesTools::check_real(as.vector(omega), "omega", lower = 0, upper = 1, check_length = FALSE)
-  BayesTools::check_real(as.vector(steps), "steps", allow_NULL = !is.null(crit_x), lower = 0, upper = 1, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_char(type, "type", allow_values = c("two.sided", "one.sided"))
-  BayesTools::check_real(as.vector(crit_x), "crit_x", allow_NULL = !is.null(steps), lower = if(type == "two.sided") 0 else -Inf, check_length = FALSE)
-
-  return()
-}
-.Xwnorm_get_crit_x  <- function(steps, crit_x, mean, sd, type){
-
-  if(!is.null(steps) & !is.null(crit_x))
-    stop("Either 'steps' or 'crit_x' need to be specified.", call. = FALSE)
-
-
-  if(!is.null(crit_x)){
-
-    # use steps directly
-    if(!is.matrix(crit_x)){
-      crit_x <- matrix(crit_x, ncol = length(crit_x), nrow = length(mean), byrow = TRUE)
-    }
-
-
-  }else if(!is.null(steps)){
-
-    # obtain critical values based on steps
-    if(!is.matrix(steps)){
-      steps <- matrix(steps, ncol = length(steps), nrow = length(mean), byrow = TRUE)
-    }
-
-    # reverse order of the steps
-    steps <- steps[,ncol(steps):1, drop = FALSE]
-
-    crit_z <- matrix(ncol = 0, nrow = length(mean))
-
-    for(i in 1:ncol(steps)){
-      if(type == "one.sided"){
-        crit_z <- cbind(crit_z, stats::qnorm(steps[,i],   lower.tail = FALSE))
-      }else if(type == "two.sided"){
-        crit_z <- cbind(crit_z, stats::qnorm(steps[,i]/2, lower.tail = FALSE))
-      }
-    }
-
-    crit_x <- crit_z * matrix(sd, ncol = ncol(crit_z), nrow = nrow(crit_z))
-  }
-
-  # check that the steps are increasing
-  if(!all(sapply(1:nrow(crit_x), function(i) all(crit_x[i,] == cummax(crit_x[i,])))))
-    stop("'steps'/'crit_x' argument must be inreasing.", call. = FALSE)
-
-  return(crit_x)
 }
 
 
