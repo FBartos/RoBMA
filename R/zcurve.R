@@ -40,7 +40,7 @@ as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples =
   }
 
   # store new z-curve objects
-  x[["coefficients"]] <- c("ERR" = mean(ERR), "EDR" = mean(EDR))
+  x[["coefficients"]] <- c("EDR" = mean(EDR))
   x[["zcurve"]]       <- list(
     estimates = list(
       EDR = EDR
@@ -88,7 +88,6 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
   )
 
   estimates <- cbind.data.frame(
-    "ERR"           = object$zcurve$estimates[["ERR"]],
     "EDR"           = object$zcurve$estimates[["EDR"]],
     "Soric FDR"     = .get_Soric_FDR(object$zcurve$estimates[["EDR"]], stats::pnorm(object$zcurve$data[["significance_level"]], lower.tail = FALSE) * 2),
     "File Drawer R" = .get_file_drawer_R(object$zcurve$estimates[["EDR"]]),
@@ -108,7 +107,6 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
   if(conditional){
 
     estimates_conditional <- cbind.data.frame(
-      "ERR"           = object$zcurve$estimates_conditional[["ERR"]],
       "EDR"           = object$zcurve$estimates_conditional[["EDR"]],
       "Soric FDR"     = .get_Soric_FDR(object$zcurve$estimates_conditional[["EDR"]], stats::pnorm(object$zcurve$data[["significance_level"]], lower.tail = FALSE) * 2),
       "File Drawer R" = .get_file_drawer_R(object$zcurve$estimates_conditional[["EDR"]]),
@@ -527,12 +525,14 @@ print.zcurve_RoBMA <- function(x, ...){
       outcome_lower     <- rep(NA, nrow(mu_samples))
       outcome_higher    <- rep(NA, nrow(mu_samples))
       outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
+      outcome_constant  <- rep(NA, nrow(mu_samples))
 
       for(j in 1:nrow(mu_samples)){
         # create containers for temporal samples from the posterior distribution
-        temp_lower   <- rep(NA, ncol(mu_samples))
-        temp_higher  <- rep(NA, ncol(mu_samples))
-        temp_densities  <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
+        temp_lower     <- rep(NA, ncol(mu_samples))
+        temp_higher    <- rep(NA, ncol(mu_samples))
+        temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
+        temp_constant  <- rep(NA, ncol(mu_samples))
 
         for(i in seq_len(ncol(mu_samples))){
 
@@ -541,6 +541,7 @@ print.zcurve_RoBMA <- function(x, ...){
             temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
             temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
             temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
+            temp_constant[i,]  <- 1
           }
 
           # sample selection models
@@ -559,14 +560,17 @@ print.zcurve_RoBMA <- function(x, ...){
               omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
               crit_x     = fit_data$crit_y[, i, drop=FALSE],
               lower.tail = FALSE)
-            temp_densities[i,] <- .dwnorm_fast.ss(
+            temp_out <- .dwnorm_fast.ss(
               x      = z_sequence * newdata.outcome[i,"se"],
               mean   = mu_samples[j,i],
               sd     = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
               omega  = matrix(posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
                               nrow = length(z_sequence), ncol = length(grep("omega", colnames(posterior_samples))), byrow = TRUE),
-              crit_x = fit_data$crit_y[, i, drop=FALSE]
-            ) * newdata.outcome[i,"se"]
+              crit_x = fit_data$crit_y[, i, drop=FALSE],
+              attach_constant = TRUE
+            )
+            temp_densities[i,] <- temp_out * newdata.outcome[i,"se"]
+            temp_constant[i,]  <- attr(temp_out, "constant")
             # the density needs to be transformed due to the support change
           }
 
@@ -576,6 +580,7 @@ print.zcurve_RoBMA <- function(x, ...){
         outcome_lower[j]      <- mean(temp_lower)
         outcome_higher[j]     <- mean(temp_higher)
         outcome_densities[j,] <- colMeans(temp_densities)
+        outcome_constant[j]   <- mean(temp_constant)
       }
     }
   }
@@ -586,7 +591,8 @@ print.zcurve_RoBMA <- function(x, ...){
     return(list(
       lower     = outcome_lower,
       higher    = outcome_higher,
-      densities = outcome_densities
+      densities = outcome_densities,
+      constant  = outcome_constant
     ))
   }
 }

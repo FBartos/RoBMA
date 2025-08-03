@@ -543,17 +543,17 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
 ### fast computation - spike-and-slab output ----
 # Fast weighted normal distribution functions optimized for spike-and-slab algorithms
-# 
+#
 # Input assumptions:
 # - No input validation (all inputs assumed properly formatted and validated)
 # - Vectorized operations: matching dimensions assumed for mean/sd/x vectors and omega/crit_x matrices
 # - One-sided weight function: assumes publication selection based on one-sided criteria
-# 
+#
 # Weight assignment logic (implemented in .get_weight_fast.ss):
 # - Uses reverse sequential checking: x >= crit_x[i] assigns omega[,i+1]
-# - Effective intervals: 
+# - Effective intervals:
 #   * x < crit_x[1] → omega[,1]
-#   * crit_x[1] ≤ x < crit_x[2] → omega[,2]  
+#   * crit_x[1] ≤ x < crit_x[2] → omega[,2]
 #   * crit_x[2] ≤ x < crit_x[3] → omega[,3]
 #   * ...
 #   * x ≥ crit_x[last] → omega[,n_weights]
@@ -568,10 +568,10 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # - .rwnorm_fast.ss: random sampling with publication selection
 # - .rwnorm_true_fast.ss: random sampling of true effects (hierarchical)
 # - .rwnorm_fast.ss2: alternative sampling via inverse transform
-# - .pwnorm_fast.ss: cumulative distribution function  
+# - .pwnorm_fast.ss: cumulative distribution function
 # - .qwnorm_fast.ss: quantile function
 # - .get_weight_fast.ss: shared weight assignment helper function
-.dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = FALSE){
+.dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = FALSE, attach_constant = FALSE){
 
   # compute density for normal component
   log_dens <- stats::dnorm(x, mean = mean, sd = sd, log = TRUE)
@@ -586,11 +586,11 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   # this must match the weight assignment logic in .get_weight_fast.ss
   n_weights <- ncol(omega)
   denoms <- matrix(0, nrow = length(x), ncol = n_weights)
-  
+
   # interval 1: x < crit_x[1] gets omega[,1]
   denoms[, 1] <- stats::pnorm(crit_x[1], mean, sd)
   denoms[denoms[, 1] < 0, 1] <- 0  # numerical precision
-  
+
   # middle intervals: crit_x[j-1] <= x < crit_x[j] gets omega[,j]
   if(n_weights > 2){
     for(j in 2:(n_weights - 1)){
@@ -598,17 +598,29 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
       denoms[denoms[, j] < 0, j] <- 0  # numerical precision
     }
   }
-  
-  # last interval: x >= crit_x[last] gets omega[,n_weights] 
+
+  # last interval: x >= crit_x[last] gets omega[,n_weights]
   denoms[, n_weights] <- 1 - rowSums(denoms[, 1:(n_weights-1), drop = FALSE])
   denoms[denoms[, n_weights] < 0, n_weights] <- 0  # numerical precision
-  
+
   # weight the denominators and compute log standardizing constant
   log_denoms <- log(denoms) + log(omega)
   log_std_const <- log(rowSums(exp(log_denoms)))
-  
+
   # final log density = numerator - standardizing constant
   log_lik <- log_numerator - log_std_const
+
+  # allow output that includes the standardizing constant
+  if(attach_constant){
+    if(log){
+      attr(log_lik, "constant") <- log_std_const
+      return(log_lik)
+    }else{
+      lik <- exp(log_lik)
+      attr(lik, "constant") <- exp(log_std_const)
+      return(lik)
+    }
+  }
 
   if(log){
     return(log_lik)
@@ -746,12 +758,12 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   # subtract standardizing constant to get log probability
   log_prob <- log_p - log_denom_total
-  
+
   # handle lower.tail
   if(!lower.tail){
     log_prob <- log(1 - exp(log_prob))
   }
-  
+
   # return log probability or probability
   if(log.p){
     return(log_prob)

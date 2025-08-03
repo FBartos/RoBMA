@@ -7,11 +7,10 @@
 \method{plot}{zcurve_RoBMA}(
   x,
   conditional = FALSE,
+  plot_type = "base",
   probs = c(0.025, 0.975),
   max_samples = 500,
-  z_min = -6,
-  z_max = 6,
-  z_step = 0.1
+  z_sequence = seq(-6, 6, 0.2)
 )
 }
 \arguments{
@@ -22,6 +21,10 @@ plotted. Defaults to \code{FALSE} which plots the model-averaged
 estimates. Note that both \code{"weightfunction"} and
 \code{"PET-PEESE"} are always ignoring the other type of
 publication bias adjustment.}
+
+\item{plot_type}{whether to use a base plot \code{"base"}
+or ggplot2 \code{"ggplot"} for plotting. Defaults to
+\code{"base"}.}
 }
 \value{
 \code{plot.zcurve_RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
