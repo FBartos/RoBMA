@@ -146,40 +146,190 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
 #' @description \code{plot.zcurve_RoBMA} creates a z-curve figure for a
 #' zcurve_RoBMA object.
 #'
+#' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
+#' @inheritParams summary.RoBMA
+#' @param z_sequence Sequence determining the plotting range and binning of z-values. Defaults to \code{seq(-6, 6, 0.2)}.
+#' @param plot_fit Whether the model fit should be included in the figure. Defaults to \code{TRUE}.
+#' @param plot_extrapolation Whether the model extrapolation should be included in the figure. Defaults to \code{TRUE}.
+#' @param plot_CI Whether the credible intervals should be included in the figure. Defaults to \code{TRUE}.
 #'
 #' @return \code{plot.zcurve_RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
 #' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 #'
 #' @seealso [as_zcurve()]
 #' @export
-plot.zcurve_RoBMA <- function(x, conditional = FALSE,  plot_type = "base",
+plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
                               probs = c(.025, .975), max_samples = 500,
-                              z_sequence = seq(-6, 6, 0.2)){
+                              z_sequence = seq(-6, 6, 0.2),
+                              plot_fit = TRUE, plot_extrapolation = TRUE, plot_CI = TRUE, ...){
 
   # plots the z-curve object
   # most functions are based on the zcurve package
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(conditional, "conditional")
-  BayesTools::check_real(z_min, "z_min", upper = z_max)
-  BayesTools::check_real(z_max, "z_max", lower = z_min)
-  BayesTools::check_real(z_step, "z_step", lower = 0)
   BayesTools::check_int(max_samples, "max_samples", lower = 10)
+  BayesTools::check_bool(plot_fit, "plot_fit")
+  BayesTools::check_bool(plot_extrapolation, "plot_extrapolation")
+  BayesTools::check_bool(plot_CI, "plot_CI")
 
   # extract the data
-  z  <- x$zcurve$data[["z"]]
+  dots <- list()
+  z    <- x$zcurve$data[["z"]]
+  z_in_range <- z > min(z_sequence) & z < max(z_sequence)
 
   # create z-curve histogram data
-  z_hist <- hist(z, breaks = z_sequence, plot = FALSE)
+  z_hist <- graphics::hist(z[z_in_range], breaks = z_sequence, plot = FALSE)
+
+  # adjust histogram for values outside of plotting range
+  z_hist$density <- z_hist$density * mean(z_in_range)
 
   # compute the expected density under the RoBMA model
-  z_densities <- .as_zcurve_compute(x, z_sequence = z_sequence, max_samples = max_samples,
-                                    conditional = conditional, incorporate_publication_bias = TRUE)
+  z_densities_fit           <- .as_zcurve_compute(x, z_sequence = z_sequence, max_samples = max_samples,
+                                        conditional = conditional, incorporate_publication_bias = TRUE)
+  z_densities_extrapolation <- .as_zcurve_compute(x, z_sequence = z_sequence, max_samples = max_samples,
+                                        conditional = conditional, incorporate_publication_bias = FALSE)
+  z_densities_extrapolation_adjusted <- z_densities_extrapolation$densities / z_densities_fit$constant
 
-  plot(z_hist, freq = FALSE, las = 1)
-  lines(z_sequence, colMeans(z_densities$densities), lwd = 2, col = "blue")
+  # create plotting objects
+  df_hist <- data.frame(
+    x       = z_hist$mids,
+    density = z_hist$density,
+    breaks  = diff(z_hist$breaks)
+  )
+  df_fit <- data.frame(
+    x     = z_sequence,
+    y     = colMeans(z_densities_fit$densities),
+    y_lCI = apply(z_densities_fit$densities, 2, stats::quantile, probs = 0.025),
+    y_uCI = apply(z_densities_fit$densities, 2, stats::quantile, probs = 0.975)
+  )
+  df_extrapolation <- data.frame(
+    x     = z_sequence,
+    y     = colMeans(z_densities_extrapolation_adjusted),
+    y_lCI = apply(z_densities_extrapolation_adjusted, 2, stats::quantile, probs = 0.025),
+    y_uCI = apply(z_densities_extrapolation_adjusted, 2, stats::quantile, probs = 0.975)
+  )
 
-  return()
+  # allow data return for JASP
+  if(isTRUE(dots[["as_data"]])){
+    return(list(
+      hist          = df_hist,
+      fit           = df_fit,
+      extrapolation = df_extrapolation
+    ))
+  }
+
+
+  if(plot_type == "ggplot"){
+
+    # Initialize ggplot with histogram as density
+    out <- ggplot2::ggplot() +
+      ggplot2::geom_col(
+        ggplot2::aes(
+          x = df_hist$x,
+          y = df_hist$density),
+        fill  = NA,
+        color = "black",
+        width = df_hist$breaks
+      ) +
+      ggplot2::labs(x = "z", y = "Density")
+
+    # Add extrapolation fit
+    if(plot_extrapolation){
+      if(plot_CI){
+        out <- out + ggplot2::geom_ribbon(
+          ggplot2::aes(
+            x    = df_extrapolation$x,
+            ymin = df_extrapolation$y_lCI,
+            ymax = df_extrapolation$y_uCI),
+          fill = scales::alpha("blue", 0.2)
+        )
+      }
+      out <- out + ggplot2::geom_line(
+        ggplot2::aes(
+          x = df_extrapolation$x,
+          y = df_extrapolation$y),
+        color     = "blue",
+        linewidth = 1
+      )
+    }
+
+    # Add extrapolated region
+    if(plot_fit){
+      if(plot_CI){
+        out <- out + ggplot2::geom_ribbon(
+          ggplot2::aes(
+            x    = df_fit$x,
+            ymin = df_fit$y_lCI,
+            ymax = df_fit$y_uCI),
+          fill = scales::alpha("gray40", 0.4)
+        )
+      }
+      out <- out + ggplot2::geom_line(
+        ggplot2::aes(
+          x = df_fit$x,
+          y = df_fit$y),
+        color     = "gray40",
+        linewidth = 1,
+        linetype  = 2
+      )
+    }
+
+  }else if(plot_type == "base"){
+
+    if(!is.null(is.null(dots[["ylim"]]))){
+      ylim <- dots[["ylim"]]
+    }else{
+      ylim <- c(0, max(z_hist$density))
+      if(plot_fit){
+        if(plot_CI){
+          ylim <- range(c(ylim, df_extrapolation$y_uCI))
+        }else{
+          ylim <- range(c(ylim, df_extrapolation$y))
+        }
+      }
+      if(plot_extrapolation){
+        if(plot_CI){
+          ylim <- range(c(ylim, df_fit$y_uCI))
+        }else{
+          ylim <- range(c(ylim, df_fit$y))
+        }
+      }
+    }
+
+
+    graphics::plot(z_hist, freq = FALSE, las = 1, density = 0, angle = 0,
+                   border = "black", xlab = "z", main = "", ylim = ylim)
+
+    if(plot_extrapolation){
+      if(plot_CI){
+        graphics::polygon(
+          c(df_extrapolation$x, rev(df_extrapolation$x)),
+          c(df_extrapolation$y_lCI, rev(df_extrapolation$y_uCI)),
+          border = NA, col = scales::alpha("blue", .20))
+      }
+      graphics::lines(df_extrapolation$x, df_extrapolation$y, lwd = 2, col = "blue")
+    }
+
+    if(plot_fit){
+      if(plot_CI){
+        graphics::polygon(
+          c(df_fit$x, rev(df_fit$x)),
+          c(df_fit$y_lCI, rev(df_fit$y_uCI)),
+          border = NA, col = scales::alpha("gray40", .40))
+      }
+      graphics::lines(df_fit$x, df_fit$y, lwd = 2, col = "gray40", lty = 2)
+    }
+
+  }
+
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible())
+  }else if(plot_type == "ggplot"){
+    return(out)
+  }
 }
 
 .plot_zcurve_range <- function(z, z_min, z_max, z_step){
@@ -398,28 +548,32 @@ print.zcurve_RoBMA <- function(x, ...){
     }else if(!is.null(z_sequence)){
 
       # compute the density ad specified support
-      outcome_lower     <- rep(NA, nrow(mu_samples))
-      outcome_higher    <- rep(NA, nrow(mu_samples))
+      # outcome_lower     <- rep(NA, nrow(mu_samples))
+      # outcome_higher    <- rep(NA, nrow(mu_samples))
       outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
+      outcome_constant  <- rep(NA, nrow(mu_samples))
 
       for(j in 1:nrow(mu_samples)){
         # create containers for temporal samples from the posterior distribution
-        temp_lower   <- rep(NA, ncol(mu_samples))
-        temp_higher  <- rep(NA, ncol(mu_samples))
-        temp_densities  <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
+        # temp_lower     <- rep(NA, ncol(mu_samples))
+        # temp_higher    <- rep(NA, ncol(mu_samples))
+        temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
+        temp_constant  <- rep(NA, ncol(mu_samples))
 
         # compute the densities and threshold for each observation
         for(i in seq_len(ncol(mu_samples))){
-          temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
-          temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
+          # temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
+          # temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
           temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
+          temp_constant[i]   <- 1
           # the density needs to be transformed due to the support change
         }
 
         # store the results
-        outcome_lower[j]      <- mean(temp_lower)
-        outcome_higher[j]     <- mean(temp_higher)
+        # outcome_lower[j]      <- mean(temp_lower)
+        # outcome_higher[j]     <- mean(temp_higher)
         outcome_densities[j,] <- colMeans(temp_densities)
+        outcome_constant[j]   <- mean(temp_constant)
       }
     }
 
@@ -522,15 +676,15 @@ print.zcurve_RoBMA <- function(x, ...){
     }else if(!is.null(z_sequence)){
 
       # compute the density ad specified support
-      outcome_lower     <- rep(NA, nrow(mu_samples))
-      outcome_higher    <- rep(NA, nrow(mu_samples))
+      # outcome_lower     <- rep(NA, nrow(mu_samples))
+      # outcome_higher    <- rep(NA, nrow(mu_samples))
       outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
       outcome_constant  <- rep(NA, nrow(mu_samples))
 
       for(j in 1:nrow(mu_samples)){
         # create containers for temporal samples from the posterior distribution
-        temp_lower     <- rep(NA, ncol(mu_samples))
-        temp_higher    <- rep(NA, ncol(mu_samples))
+        # temp_lower     <- rep(NA, ncol(mu_samples))
+        # temp_higher    <- rep(NA, ncol(mu_samples))
         temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
         temp_constant  <- rep(NA, ncol(mu_samples))
 
@@ -538,28 +692,28 @@ print.zcurve_RoBMA <- function(x, ...){
 
           # sample normal models/PET/PEESE
           if(!weightfunction_indicator[j]){
-            temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
-            temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
+            # temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
+            # temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
             temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
-            temp_constant[i,]  <- 1
+            temp_constant[i]   <- 1
           }
 
           # sample selection models
           if(weightfunction_indicator[j]){
-            temp_lower[i]  <- .pwnorm_fast.ss(
-              q          = z_sequence[1] * newdata.outcome[i,"se"],
-              mean       = mu_samples[j,i],
-              sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
-              omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x     = fit_data$crit_y[, i, drop=FALSE],
-              lower.tail = TRUE)
-            temp_higher[i] <- .pwnorm_fast.ss(
-              q          = z_sequence[length(z_sequence)] * newdata.outcome[i,"se"],
-              mean       = mu_samples[j,i],
-              sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
-              omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x     = fit_data$crit_y[, i, drop=FALSE],
-              lower.tail = FALSE)
+            # temp_lower[i]  <- .pwnorm_fast.ss(
+            #   q          = z_sequence[1] * newdata.outcome[i,"se"],
+            #   mean       = mu_samples[j,i],
+            #   sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
+            #   omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
+            #   crit_x     = fit_data$crit_y[, i, drop=FALSE],
+            #   lower.tail = TRUE)
+            # temp_higher[i] <- .pwnorm_fast.ss(
+            #   q          = z_sequence[length(z_sequence)] * newdata.outcome[i,"se"],
+            #   mean       = mu_samples[j,i],
+            #   sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
+            #   omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
+            #   crit_x     = fit_data$crit_y[, i, drop=FALSE],
+            #   lower.tail = FALSE)
             temp_out <- .dwnorm_fast.ss(
               x      = z_sequence * newdata.outcome[i,"se"],
               mean   = mu_samples[j,i],
@@ -570,15 +724,15 @@ print.zcurve_RoBMA <- function(x, ...){
               attach_constant = TRUE
             )
             temp_densities[i,] <- temp_out * newdata.outcome[i,"se"]
-            temp_constant[i,]  <- attr(temp_out, "constant")
+            temp_constant[i]   <- attr(temp_out, "constant")[1]
             # the density needs to be transformed due to the support change
           }
 
         }
 
         # store the results
-        outcome_lower[j]      <- mean(temp_lower)
-        outcome_higher[j]     <- mean(temp_higher)
+#        outcome_lower[j]      <- mean(temp_lower)
+#        outcome_higher[j]     <- mean(temp_higher)
         outcome_densities[j,] <- colMeans(temp_densities)
         outcome_constant[j]   <- mean(temp_constant)
       }
@@ -589,8 +743,8 @@ print.zcurve_RoBMA <- function(x, ...){
     return(outcome_thresholds)
   }else if(!is.null(z_sequence)){
     return(list(
-      lower     = outcome_lower,
-      higher    = outcome_higher,
+#      lower     = outcome_lower,
+#      higher    = outcome_higher,
       densities = outcome_densities,
       constant  = outcome_constant
     ))

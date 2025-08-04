@@ -10,11 +10,15 @@
   plot_type = "base",
   probs = c(0.025, 0.975),
   max_samples = 500,
-  z_sequence = seq(-6, 6, 0.2)
+  z_sequence = seq(-6, 6, 0.2),
+  plot_fit = TRUE,
+  plot_extrapolation = TRUE,
+  plot_CI = TRUE,
+  ...
 )
 }
 \arguments{
-\item{x}{a fitted RoBMA object}
+\item{x}{A RoBMA object}
 
 \item{conditional}{whether conditional estimates should be
 plotted. Defaults to \code{FALSE} which plots the model-averaged
@@ -25,6 +29,28 @@ publication bias adjustment.}
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \code{"base"}.}
+
+\item{probs}{quantiles of the posterior samples to be displayed.
+Defaults to \code{c(.025, .975)}}
+
+\item{max_samples}{Maximum number of samples from the posterior distribution
+that will be used for estimating z-curve estimates.}
+
+\item{z_sequence}{Sequence determining the plotting range and binning of z-values. Defaults to \code{seq(-6, 6, 0.2)}.}
+
+\item{plot_fit}{Whether the model fit should be included in the figure. Defaults to \code{TRUE}.}
+
+\item{plot_extrapolation}{Whether the model extrapolation should be included in the figure. Defaults to \code{TRUE}.}
+
+\item{plot_CI}{Whether the credible intervals should be included in the figure. Defaults to \code{TRUE}.}
+
+\item{...}{list of additional graphical arguments
+to be passed to the plotting function. Supported arguments
+are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
+\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+to adjust the line thickness, line type, line color, fill color,
+x-label, y-label, title, x-axis range, and y-axis range
+respectively.}
 }
 \value{
 \code{plot.zcurve_RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
