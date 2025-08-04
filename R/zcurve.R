@@ -56,7 +56,9 @@ as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples =
     )
   )
 
-  class(x) <- "zcurve_RoBMA"
+  # add class
+  class(x) <- c("zcurve_RoBMA", class(x))
+
   return(x)
 }
 
