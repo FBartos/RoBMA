@@ -658,14 +658,14 @@ print.zcurve_RoBMA <- function(x, ...){
               mean       = mu_samples[j,i],
               sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
               omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x     = fit_data$crit_y[, i, drop=FALSE],
+              crit_x     = fit_data$crit_y[, i],
               lower.tail = FALSE
             ) + .pwnorm_fast.ss(
               q          = - z_threshold * newdata.outcome[i,"se"],
               mean       = mu_samples[j,i],
               sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
               omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x     = fit_data$crit_y[, i, drop=FALSE],
+              crit_x     = fit_data$crit_y[, i],
               lower.tail = TRUE
             )
           }
@@ -722,7 +722,7 @@ print.zcurve_RoBMA <- function(x, ...){
               sd     = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
               omega  = matrix(posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
                               nrow = length(z_sequence), ncol = length(grep("omega", colnames(posterior_samples))), byrow = TRUE),
-              crit_x = fit_data$crit_y[, i, drop=FALSE],
+              crit_x = fit_data$crit_y[, i],
               attach_constant = TRUE
             )
             temp_densities[i,] <- temp_out * newdata.outcome[i,"se"]

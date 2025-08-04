@@ -547,6 +547,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # Input assumptions:
 # - No input validation (all inputs assumed properly formatted and validated)
 # - Vectorized operations: matching dimensions assumed for mean/sd/x vectors and omega/crit_x matrices
+# - All arguments but crit_x must be a vector/matricies of the same-length
 # - One-sided weight function: assumes publication selection based on one-sided criteria
 #
 # Weight assignment logic (implemented in .get_weight_fast.ss):
@@ -776,6 +777,14 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   n <- length(p)
   q <- rep(0, n)
 
+  # deal with potentially zero sds
+  is_zero_sd <- sd < sqrt(.Machine$double.eps)
+  if(any(is_zero_sd)){
+    q[is_zero_sd]  <- mean
+    q[!is_zero_sd] <- .qwnorm_fast.ss(p[!is_zero_sd], mean[!is_zero_sd], sd[!is_zero_sd], omega[!is_zero_sd,,drop=FALSE], crit_x)
+    return(q)
+  }
+
   # vectorized bounds for optimization
   lower_bounds <- mean - 6 * sd  # approximately -6 sigma
   upper_bounds <- mean + 6 * sd  # approximately +6 sigma
@@ -791,7 +800,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
       # objective function: F(x) - p = 0
       obj_fun <- function(x){
-        .pwnorm_fast.ss(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x, lower.tail = TRUE, log.p = FALSE) - p[i]
+        .pwnorm_fast.ss(x, mean[i], sd[i], omega[i,,drop=FALSE], crit_x, lower.tail = TRUE, log.p = FALSE) - p[i]
       }
 
       # use uniroot for fast root finding

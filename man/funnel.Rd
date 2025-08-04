@@ -11,6 +11,7 @@ funnel(
   output_scale = NULL,
   incorporate_heterogeneity = TRUE,
   incorporate_publication_bias = TRUE,
+  max_samples = 500,
   ...
 )
 }
@@ -36,6 +37,10 @@ into the sampling distribution. Defaults to \code{TRUE}.}
 
 \item{incorporate_publication_bias}{Whether publication bias should be incorporated
 into the sampling distribution. Defaults to \code{TRUE}.}
+
+\item{max_samples}{Maximum number of samples from the posterior distribution
+that will be used for estimating the funnel plot under publication bias.
+Defaults to \code{500}.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments
