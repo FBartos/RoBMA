@@ -26,10 +26,8 @@ as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples =
 
   # compute the main estimates and CIs
   # plotting densities are generated only if figures are requested
-  EDR <- .as_zcurve_compute(x, z_threshold = significance_level, z_sequence = NULL, max_samples = max_samples,
-                            conditional = FALSE, incorporate_publication_bias = FALSE)
-  EDR_conditional <- try(.as_zcurve_compute(x, z_threshold = significance_level, z_sequence = NULL, max_samples = max_samples,
-                                        conditional = TRUE, incorporate_publication_bias = FALSE))
+  EDR             <- .zcurve_EDR(x, z_threshold = significance_level,max_samples = max_samples, conditional = FALSE)
+  EDR_conditional <- try(.zcurve_EDR(x, z_threshold = significance_level,max_samples = max_samples, conditional = TRUE))
 
 
   # compute data summaries
@@ -187,11 +185,8 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   z_hist$density <- z_hist$density * mean(z_in_range)
 
   # compute the expected density under the RoBMA model
-  z_densities_fit           <- .as_zcurve_compute(x, z_sequence = z_sequence, max_samples = max_samples,
-                                        conditional = conditional, incorporate_publication_bias = TRUE)
-  z_densities_extrapolation <- .as_zcurve_compute(x, z_sequence = z_sequence, max_samples = max_samples,
-                                        conditional = conditional, incorporate_publication_bias = FALSE)
-  z_densities_extrapolation_adjusted <- z_densities_extrapolation$densities / z_densities_fit$constant
+  z_densities_fit           <- .zcurve_densities(x, z_sequence = z_sequence, max_samples = max_samples, conditional = conditional, extrapolate = FALSE)
+  z_densities_extrapolation <- .zcurve_densities(x, z_sequence = z_sequence, max_samples = max_samples, conditional = conditional, extrapolate = TRUE)
 
   # create plotting objects
   df_hist <- data.frame(
@@ -201,15 +196,15 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   )
   df_fit <- data.frame(
     x     = z_sequence,
-    y     = colMeans(z_densities_fit$densities),
-    y_lCI = apply(z_densities_fit$densities, 2, stats::quantile, probs = 0.025),
-    y_uCI = apply(z_densities_fit$densities, 2, stats::quantile, probs = 0.975)
+    y     = colMeans(z_densities_fit),
+    y_lCI = apply(z_densities_fit, 2, stats::quantile, probs = 0.025),
+    y_uCI = apply(z_densities_fit, 2, stats::quantile, probs = 0.975)
   )
   df_extrapolation <- data.frame(
     x     = z_sequence,
-    y     = colMeans(z_densities_extrapolation_adjusted),
-    y_lCI = apply(z_densities_extrapolation_adjusted, 2, stats::quantile, probs = 0.025),
-    y_uCI = apply(z_densities_extrapolation_adjusted, 2, stats::quantile, probs = 0.975)
+    y     = colMeans(z_densities_extrapolation),
+    y_lCI = apply(z_densities_extrapolation, 2, stats::quantile, probs = 0.025),
+    y_uCI = apply(z_densities_extrapolation, 2, stats::quantile, probs = 0.975)
   )
 
   # allow data return for JASP
@@ -418,8 +413,7 @@ print.zcurve_RoBMA <- function(x, ...){
 }
 
 
-.as_zcurve_compute <- function(x, z_threshold = NULL, z_sequence = NULL, max_samples = 1000,
-                               conditional = FALSE, incorporate_publication_bias = TRUE){
+.zcurve_EDR       <- function(x, z_threshold, max_samples = 1000, conditional = FALSE){
 
   # get the model fitting scale
   if (is.BiBMA(x)) {
@@ -497,9 +491,120 @@ print.zcurve_RoBMA <- function(x, ...){
       stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
   }
 
-  # add PET/PEESE adjustment
+  # predicting responses without selection models does not require incorporating the between-study random-effects
+  # (the marginalized and non-marginalized parameterization are equivalent)
+  tau_samples <- posterior_samples[,"tau"]
+  tau_samples <- .scale(tau_samples, x$add_info[["output_scale"]], model_scale)
+
+  # compute the proportion of estimates larger than threshold under the population parameters
+  outcome_thresholds <- rep(NA, nrow(mu_samples))
+
+  for(j in 1:nrow(mu_samples)){
+    # create containers for temporal samples from the posterior distribution
+    temp_thresholds <- rep(NA, ncol(mu_samples))
+
+    # compute the densities and threshold for each observation
+    for(i in seq_len(ncol(mu_samples))){
+      temp_thresholds[i] <-
+        stats::pnorm(z_threshold * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE) +
+        stats::pnorm(-z_threshold * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
+    }
+
+    # store the results
+    outcome_thresholds[j] <- mean(temp_thresholds)
+  }
+
+  return(outcome_thresholds)
+}
+.zcurve_densities <- function(x, z_sequence, max_samples = 1000, conditional = FALSE, extrapolate = FALSE){
+
+  # two modes of the function
+  # extrapolate = FALSE: produces z-density of the fitted model as is == fit assessment
+  #                      - requires incoporating publication bias indicies (i.e., PET, PEESE, weighted likelihoods)
+  # extrapolate = TRUE: produces z-density of the expected unbiased distribution
+  #                     - assummes that selection and SE dependent bias would not come into play
+  #                     - whereever weighted likelihoods are involved, they need to be inverse-weighted to extrapolate to missing estimates
+
+  # get the model fitting scale
+  if (is.BiBMA(x)) {
+    model_scale <- "logOR"
+  } else {
+    model_scale <- x$add_info[["effect_measure"]]
+  }
+
+  # extract posterior samples (and obtain conditional indicator)
+  posterior_samples <- suppressWarnings(coda::as.mcmc(x[["model"]][["fit"]]))
+  priors            <- x[["priors"]]
+
+  # subset the samples to speed up the computation
+  if(conditional){
+    # if conditional output is to be provided, condition first and then subset
+    # otherwise there might be no conditional samples left
+
+    # select the indicator
+    if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+      mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+      mu_is_null   <- attr(x[["model"]]$priors$terms[["intercept"]], "components") == "null"
+    }else{
+      mu_indicator <- posterior_samples[,"mu_indicator"]
+      mu_is_null   <- attr(x[["model"]]$priors$mu, "components") == "null"
+    }
+    mu_indicator <- mu_indicator %in% which(!mu_is_null)
+
+    selected_samples_ind <- unique(round(seq(from = 1, to = sum(mu_indicator), length.out = max_samples)))
+    selected_samples_ind <- seq_len(nrow(posterior_samples))[mu_indicator][selected_samples_ind]
+    n_samples            <- length(selected_samples_ind)
+    posterior_samples    <- posterior_samples[selected_samples_ind,,drop=FALSE]
+
+  }else{
+
+    selected_samples_ind <- unique(round(seq(from = 1, to = nrow(posterior_samples), length.out = max_samples)))
+    n_samples            <- length(selected_samples_ind)
+    posterior_samples    <- posterior_samples[selected_samples_ind,,drop=FALSE]
+  }
+
+  # dispatch between meta-regression / meta-analysis input
+  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+    newdata.predictors <- do.call(cbind.data.frame, x$data[["predictors"]])
+    newdata.outcome    <- x$data[["outcome"]]
+  }else{
+    newdata.outcome <- x[["data"]]
+  }
+
+  # obtain the (study-specific) mu estimate
+  # meta-regression and meta-analysis separately
+  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+
+    mu_samples  <- t(BayesTools::JAGS_evaluate_formula(
+      fit         = x$model$fit,
+      formula     = x$formula,
+      parameter   = "mu",
+      data        = newdata.predictors,
+      prior_list  = attr(x$model$fit, "prior_list")
+    ))[selected_samples_ind,,drop=FALSE]
+
+  }else{
+
+    mu_samples   <- matrix(posterior_samples[,"mu"], ncol = nrow(newdata.outcome), nrow = n_samples)
+
+  }
+
+  # transform the samples to the model fitting scale (the data are at the model fitting scale)
+  mu_samples  <- .scale(mu_samples,  x$add_info[["output_scale"]], model_scale)
+
+  # add conditional warnings
+  if(conditional){
+    if(sum(mu_indicator) < 100)
+      warning(gettextf("There is only a very small number of posterior samples (%1s) assuming presence of the effect. The resulting estimates are not reliable.",
+                       sum(mu_indicator)), call. = FALSE, immediate. = TRUE)
+    if(sum(mu_indicator) <= 2)
+      stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
+  }
+
+  # extract the list of priors
   priors_bias  <- priors[["bias"]]
-  if(incorporate_publication_bias){
+  if(!extrapolate){
+    # add PET/PEESE adjustment
     if(any(sapply(priors_bias, is.prior.PET))){
       PET_samples <- posterior_samples[,"PET"]
       # PET is scale invariant (no-scaling needed)
@@ -519,64 +624,37 @@ print.zcurve_RoBMA <- function(x, ...){
     }
   }
 
-  if(!incorporate_publication_bias || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg") || (length(priors$bias) == 1 && is.prior.none(priors$bias[[1]]))){
+
+  if(inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg") || (length(priors[["bias"]]) == 1 && is.prior.none(priors[["bias"]][[1]]))){
 
     # predicting responses without selection models does not require incorporating the between-study random-effects
     # (the marginalized and non-marginalized parameterization are equivalent)
     tau_samples <- posterior_samples[,"tau"]
     tau_samples <- .scale(tau_samples, x$add_info[["output_scale"]], model_scale)
 
-    # create containers for the resulting thresholds / densities
-    if(!is.null(z_threshold)){
+    # compute the density ad specified support
+    # outcome_lower     <- rep(NA, nrow(mu_samples))
+    # outcome_higher    <- rep(NA, nrow(mu_samples))
+    outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
 
-      # compute the proportion larger than threshold
-      outcome_thresholds <- rep(NA, nrow(mu_samples))
+    for(j in 1:nrow(mu_samples)){
+      # create containers for temporal samples from the posterior distribution
+      # temp_lower     <- rep(NA, ncol(mu_samples))
+      # temp_higher    <- rep(NA, ncol(mu_samples))
+      temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
 
-      for(j in 1:nrow(mu_samples)){
-        # create containers for temporal samples from the posterior distribution
-        temp_thresholds <- rep(NA, ncol(mu_samples))
-
-        # compute the densities and threshold for each observation
-        for(i in seq_len(ncol(mu_samples))){
-          temp_thresholds[i] <-
-            stats::pnorm(z_threshold * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE) +
-            stats::pnorm(-z_threshold * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
-        }
-
-        # store the results
-        outcome_thresholds[j] <- mean(temp_thresholds)
+      # compute the densities and threshold for each observation
+      for(i in seq_len(ncol(mu_samples))){
+        # temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
+        # temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
+        temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
+        # the density needs to be transformed due to the support change
       }
 
-    }else if(!is.null(z_sequence)){
-
-      # compute the density ad specified support
-      # outcome_lower     <- rep(NA, nrow(mu_samples))
-      # outcome_higher    <- rep(NA, nrow(mu_samples))
-      outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
-      outcome_constant  <- rep(NA, nrow(mu_samples))
-
-      for(j in 1:nrow(mu_samples)){
-        # create containers for temporal samples from the posterior distribution
-        # temp_lower     <- rep(NA, ncol(mu_samples))
-        # temp_higher    <- rep(NA, ncol(mu_samples))
-        temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
-        temp_constant  <- rep(NA, ncol(mu_samples))
-
-        # compute the densities and threshold for each observation
-        for(i in seq_len(ncol(mu_samples))){
-          # temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
-          # temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
-          temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
-          temp_constant[i]   <- 1
-          # the density needs to be transformed due to the support change
-        }
-
-        # store the results
-        # outcome_lower[j]      <- mean(temp_lower)
-        # outcome_higher[j]     <- mean(temp_higher)
-        outcome_densities[j,] <- colMeans(temp_densities)
-        outcome_constant[j]   <- mean(temp_constant)
-      }
+      # store the results
+      # outcome_lower[j]      <- mean(temp_lower)
+      # outcome_higher[j]     <- mean(temp_higher)
+      outcome_densities[j,] <- colMeans(temp_densities)
     }
 
   }else{
@@ -626,96 +704,62 @@ print.zcurve_RoBMA <- function(x, ...){
 
     }
 
-    outcome_samples <- matrix(NA, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
-
     # selection models are sampled separately for increased efficiency
     bias_indicator           <- posterior_samples[,"bias_indicator"]
     weightfunction_indicator <- bias_indicator %in% which(sapply(priors[["bias"]], is.prior.weightfunction))
 
-    # create containers for the resulting thresholds / densities
-    if(!is.null(z_threshold)){
+    # compute the density add specified support
+    # outcome_lower     <- rep(NA, nrow(mu_samples))
+    # outcome_higher    <- rep(NA, nrow(mu_samples))
+    outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
 
-      # create containers for the resulting thresholds / densities
-      outcome_thresholds <- rep(NA, nrow(mu_samples))
+    for(j in 1:nrow(mu_samples)){
+      # create containers for temporal samples from the posterior distribution
+      # temp_lower     <- rep(NA, ncol(mu_samples))
+      # temp_higher    <- rep(NA, ncol(mu_samples))
+      temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
 
-      for(j in 1:nrow(mu_samples)){
-        # create containers for temporal samples from the posterior distribution
-        temp_thresholds <- rep(NA, ncol(mu_samples))
+      for(i in seq_len(ncol(mu_samples))){
 
-        for(i in seq_len(ncol(mu_samples))){
-
-          # sample normal models/PET/PEESE
-          if(!weightfunction_indicator[j]){
-            temp_thresholds[i] <-
-              stats::pnorm(z_threshold * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE) +
-              stats::pnorm(-z_threshold * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
-          }
-
-          # sample selection models
-          if(weightfunction_indicator[j]){
-            temp_thresholds[i] <- .pwnorm_fast.ss(
-              q          = z_threshold * newdata.outcome[i,"se"],
-              mean       = mu_samples[j,i],
-              sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
-              omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x     = fit_data$crit_y[, i],
-              lower.tail = FALSE
-            ) + .pwnorm_fast.ss(
-              q          = - z_threshold * newdata.outcome[i,"se"],
-              mean       = mu_samples[j,i],
-              sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
-              omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x     = fit_data$crit_y[, i],
-              lower.tail = TRUE
-            )
-          }
+        # sample normal models/PET/PEESE
+        if(!weightfunction_indicator[j]){
+          # temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
+          # temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
+          temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
         }
 
-        # store the results
-        outcome_thresholds[j] <- mean(temp_thresholds)
-      }
+        # sample selection models
+        if(weightfunction_indicator[j]){
+          # # if including probability > & < than plotting range, those would also need to be re-standardized
+          # temp_lower[i]  <- .pwnorm_fast.ss(
+          #   q          = z_sequence[1] * newdata.outcome[i,"se"],
+          #   mean       = mu_samples[j,i],
+          #   sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
+          #   omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
+          #   crit_x     = fit_data$crit_y[, i, drop=FALSE],
+          #   lower.tail = TRUE)
+          # temp_higher[i] <- .pwnorm_fast.ss(
+          #   q          = z_sequence[length(z_sequence)] * newdata.outcome[i,"se"],
+          #   mean       = mu_samples[j,i],
+          #   sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
+          #   omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
+          #   crit_x     = fit_data$crit_y[, i, drop=FALSE],
+          #   lower.tail = FALSE)
 
-    }else if(!is.null(z_sequence)){
 
-      # compute the density ad specified support
-      # outcome_lower     <- rep(NA, nrow(mu_samples))
-      # outcome_higher    <- rep(NA, nrow(mu_samples))
-      outcome_densities <- matrix(NA, nrow = nrow(mu_samples), ncol = length(z_sequence))
-      outcome_constant  <- rep(NA, nrow(mu_samples))
-
-      for(j in 1:nrow(mu_samples)){
-        # create containers for temporal samples from the posterior distribution
-        # temp_lower     <- rep(NA, ncol(mu_samples))
-        # temp_higher    <- rep(NA, ncol(mu_samples))
-        temp_densities <- matrix(NA, nrow = ncol(mu_samples), ncol = length(z_sequence))
-        temp_constant  <- rep(NA, ncol(mu_samples))
-
-        for(i in seq_len(ncol(mu_samples))){
-
-          # sample normal models/PET/PEESE
-          if(!weightfunction_indicator[j]){
-            # temp_lower[i]      <- stats::pnorm(z_sequence[1]                  * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = TRUE)
-            # temp_higher[i]     <- stats::pnorm(z_sequence[length(z_sequence)] * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2), lower.tail = FALSE)
-            temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"]
-            temp_constant[i]   <- 1
-          }
-
-          # sample selection models
-          if(weightfunction_indicator[j]){
-            # temp_lower[i]  <- .pwnorm_fast.ss(
-            #   q          = z_sequence[1] * newdata.outcome[i,"se"],
-            #   mean       = mu_samples[j,i],
-            #   sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
-            #   omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-            #   crit_x     = fit_data$crit_y[, i, drop=FALSE],
-            #   lower.tail = TRUE)
-            # temp_higher[i] <- .pwnorm_fast.ss(
-            #   q          = z_sequence[length(z_sequence)] * newdata.outcome[i,"se"],
-            #   mean       = mu_samples[j,i],
-            #   sd         = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
-            #   omega      = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
-            #   crit_x     = fit_data$crit_y[, i, drop=FALSE],
-            #   lower.tail = FALSE)
+          # the density needs to be transformed due to the support change
+          # (+ extrapolation by removing standardizing constant in case of selection models)
+          if(extrapolate){
+            temp_consts <- .dwnorm_fast.ss(
+              x      = 0,
+              mean   = mu_samples[j,i],
+              sd     = sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2),
+              omega  = posterior_samples[j, grep("omega", colnames(posterior_samples)),drop = FALSE],
+              crit_x = fit_data$crit_y[, i],
+              attach_constant = TRUE
+            )
+            temp_densities[i,] <- stats::dnorm(z_sequence * newdata.outcome[i,"se"], mu_samples[j,i], sqrt(tau_samples[j]^2 + newdata.outcome[i,"se"]^2)) * newdata.outcome[i,"se"] / attr(temp_consts, "constant")
+          }else{
             temp_out <- .dwnorm_fast.ss(
               x      = z_sequence * newdata.outcome[i,"se"],
               mean   = mu_samples[j,i],
@@ -726,29 +770,17 @@ print.zcurve_RoBMA <- function(x, ...){
               attach_constant = TRUE
             )
             temp_densities[i,] <- temp_out * newdata.outcome[i,"se"]
-            temp_constant[i]   <- attr(temp_out, "constant")[1]
-            # the density needs to be transformed due to the support change
           }
 
         }
-
-        # store the results
-#        outcome_lower[j]      <- mean(temp_lower)
-#        outcome_higher[j]     <- mean(temp_higher)
-        outcome_densities[j,] <- colMeans(temp_densities)
-        outcome_constant[j]   <- mean(temp_constant)
       }
+
+      # store the results
+      # outcome_lower[j]      <- mean(temp_lower)
+      # outcome_higher[j]     <- mean(temp_higher)
+      outcome_densities[j,] <- colMeans(temp_densities)
     }
   }
 
-  if(!is.null(z_threshold)){
-    return(outcome_thresholds)
-  }else if(!is.null(z_sequence)){
-    return(list(
-#      lower     = outcome_lower,
-#      higher    = outcome_higher,
-      densities = outcome_densities,
-      constant  = outcome_constant
-    ))
-  }
+  return(outcome_densities)
 }
