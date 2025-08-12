@@ -114,9 +114,9 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
   # some options checked inside BayesTools table directly
   BayesTools::check_char(type, "type", allow_values = c("response", "terms", "effect"))
-  if((is.RoBMA.reg(object) || is.NoBMA.reg(object) || is.BiBMA.reg(object)) && !(is.null(newdata) || is.data.frame(newdata)))
+  if(.is_regression(object) && !(is.null(newdata) || is.data.frame(newdata)))
     stop("The 'newdata' argument must be a data frame or NULL when performing prediction for meta-regression models.", call. = FALSE)
-  if(!(is.RoBMA.reg(object) || is.NoBMA.reg(object) || is.BiBMA.reg(object)) && !(is.null(newdata) || is.list(newdata)))
+  if(!.is_regression(object) && !(is.null(newdata) || is.list(newdata)))
     stop("The 'newdata' argument must be a list or NULL when performing prediction for meta-analytic models.", call. = FALSE)
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_char(output_scale, "output_scale", allow_NULL = TRUE)

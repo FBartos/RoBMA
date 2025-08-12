@@ -103,12 +103,12 @@ diagnostics <- function(fit, parameter, type, plot_type = "base", show_models = 
     parameter_samples <- parameter
   }else if(parameter == "mu"){
     parameter         <- parameter
-    parameter_samples <- if(is.RoBMA.reg(fit)) "mu_intercept" else "mu"
-  }else if(is.RoBMA.reg(fit) && parameter %in% fit$add_info[["predictors"]]){
+    parameter_samples <- if(.is_regression(fit)) "mu_intercept" else "mu"
+  }else if(.is_regression(fit) && parameter %in% fit$add_info[["predictors"]]){
     parameter         <- parameter
     parameter_samples <- .BayesTools_parameter_name(parameter)
   }else{
-    if(is.RoBMA.reg(fit)){
+    if(.is_regression(fit)){
       stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE') or any of the specified predictors: ", paste0("'", fit$add_info[["predictors"]], "'", collapse = ", "), ". See '?plot.RoBMA' for more details."))
     }else{
       stop(paste0("The passed parameter does not correspond to any of main model parameter ('mu', 'tau', 'omega', 'PET', 'PEESE'). See '?plot.RoBMA' for more details."))

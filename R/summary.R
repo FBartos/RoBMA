@@ -181,7 +181,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     }
 
     # add meta-regression summaries
-    if(is.RoBMA.reg(object)){
+    if(.is_regression(object)){
 
       # rename the inference components
       for(i in seq_along(object$RoBMA[["inference_predictors"]])){
@@ -201,7 +201,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       if(!is.null(object$RoBMA[["posteriors_predictors"]])){
 
         # Transform samples if raw coefficients are requested
-        if (!standardized_coefficients && is.RoBMA.reg(object)){
+        if (!standardized_coefficients && .is_regression(object)){
           object$RoBMA[["posteriors_predictors"]] <- .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors"]], attr(object$data$predictors, "variables_info"))
         }
 
@@ -232,7 +232,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
         }else{
 
           # Transform samples if raw coefficients are requested
-          if (!standardized_coefficients && is.RoBMA.reg(object)){
+          if (!standardized_coefficients && .is_regression(object)){
             object$RoBMA[["posteriors_predictors_conditional"]] <- .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors_conditional"]], attr(object$data$predictors, "variables_info"))
           }
 
@@ -458,7 +458,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
     }
 
     # add meta-regression summaries
-    if(is.RoBMA.reg(object)){
+    if(.is_regression(object)){
 
       if(!is.null(object$RoBMA[["inference_predictors"]])){
         output$components_predictors <- BayesTools:::update.BayesTools_table(
@@ -472,7 +472,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
       if(!is.null(object$RoBMA[["posteriors_predictors"]])){
 
         # Transform samples if raw coefficients are requested
-        if (!standardized_coefficients && is.RoBMA.reg(object)){
+        if (!standardized_coefficients && .is_regression(object)){
           object$RoBMA[["posteriors_predictors"]] <- .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors"]], attr(object$data$predictors, "variables_info"))
         }
 
@@ -502,7 +502,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
         }else{
 
           # Transform samples if raw coefficients are requested
-          if (!standardized_coefficients && is.RoBMA.reg(object)){
+          if (!standardized_coefficients && .is_regression(object)){
             object$RoBMA[["posteriors_predictors_conditional"]] <- .unstandardize_posterior_samples(object$RoBMA[["posteriors_predictors_conditional"]], attr(object$data$predictors, "variables_info"))
           }
 

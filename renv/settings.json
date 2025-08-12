@@ -15,5 +15,10 @@
   "vcs.ignore.cellar": true,
   "vcs.ignore.library": true,
   "vcs.ignore.local": true,
-  "vcs.manage.ignores": true
+  "vcs.manage.ignores": true,
+ "r.rterm.windows": "C:\\Users\\fbart\\.local\\bin\\radian.exe",
+ "r.rterm.option": ["--no-save", "--no-restore"],
+ "r.alwaysUseActiveTerminal": false,
+ "r.bracketedPaste": true,
+ "r.sessionWatcher": true
 }

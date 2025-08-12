@@ -284,7 +284,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     samples_mu <- x[["RoBMA"]][["posteriors"]][["mu"]]
   }
 
-  if(is.RoBMA.reg(x)){
+  if(.is_regression(x)){
     data <- x[["data"]][["outcome"]]
   }else{
     data <- x[["data"]]
@@ -553,7 +553,7 @@ funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
       mu_samples <- rep(mean(mu_samples[["estimate"]]), nrow(posterior_samples))
     }
 
-    if(is.RoBMA.reg(x) || is.NoBMA.reg(x) || is.BiBMA.reg(x))
+    if(.is_regression(x))
       message("The sampling distribution is generated at the pooled effect size estimate. The resulting funnel plot only approximates the sampling distribution.")
 
     # borrowing code from the predict function (sampling outcomes under selection)
@@ -827,7 +827,7 @@ plot_models <- function(x, parameter = "mu", conditional = FALSE, output_scale =
 
 
   ### prepare input
-  if(is.RoBMA.reg(x) && parameter == "mu"){
+  if(.is_regression(x) && parameter == "mu"){
 
     if(conditional){
 

@@ -19,7 +19,7 @@ marginal_summary <- function(object, conditional = FALSE,
   # apply version changes to RoBMA object
   object <- .update_object(object)
 
-  if(!is.RoBMA.reg(object))
+  if(!.is_regression(object))
     stop("'marginal_summary' function is available only for RoBMA regression models")
   if(sum(.get_model_convergence(object)) == 0)
     stop("There is no converged model in the ensemble.")
@@ -149,7 +149,7 @@ marginal_plot  <- function(x, parameter, conditional = FALSE, plot_type = "base"
   x <- .update_object(x)
 
   # check whether plotting is possible
-  if(!is.RoBMA.reg(x))
+  if(!.is_regression(x))
     stop("'marginal_plot' function is available only for RoBMA regression models")
   if(sum(.get_model_convergence(x)) == 0)
     stop("There is no converged model in the ensemble.")
