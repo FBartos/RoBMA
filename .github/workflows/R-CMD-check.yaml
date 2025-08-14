@@ -76,6 +76,9 @@ jobs:
           echo "JAGS_ROOT=$(brew --prefix jags)" >> $GITHUB_ENV
           echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$(brew --prefix jags)/lib/pkgconfig" >> $GITHUB_ENV
+          # Create symlink for legacy library path
+          sudo mkdir -p /usr/local/lib
+          sudo ln -sf $(brew --prefix jags)/lib/libjags.4.dylib /usr/local/lib/libjags.4.dylib
 
       # Create Symlink for jags-terminal (if necessary)
       - name: Create Symlink for jags-terminal (macOS)
@@ -108,7 +111,7 @@ jobs:
             build_args  = c("--no-build-vignettes"),
             error_on    = "warning",
             check_dir   = "check")
-        shell: Rscript {0}"
+        shell: Rscript {0}
 
       - name: Check
         if: runner.os == 'Windows'
