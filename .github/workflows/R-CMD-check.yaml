@@ -65,27 +65,7 @@ jobs:
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew update
           brew install jags
-
-      # Find and Set JAGS Paths
-      - name: Set Environment Variables (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          JAGS_BIN=$(brew --prefix jags)/bin
-          echo "JAGS_ROOT=$(brew --prefix jags)" >> $GITHUB_ENV
-          echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=$(brew --prefix jags)/lib/pkgconfig" >> $GITHUB_ENV
-          # Create symlink for legacy library path
-          sudo mkdir -p /usr/local/lib
-          sudo ln -sf $(brew --prefix jags)/lib/libjags.4.dylib /usr/local/lib/libjags.4.dylib
-
-      # Create Symlink for jags-terminal (if necessary)
-      - name: Create Symlink for jags-terminal (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          sudo mkdir -p $(brew --prefix)/libexec
-          sudo ln -s $(brew --prefix jags)/bin/jags $(brew --prefix)/libexec/jags-terminal
 
       # Set up renv
       - name: Setup renv
