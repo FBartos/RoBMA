@@ -66,6 +66,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install jags
+          # Set environment variable for library path
+          echo "DYLD_LIBRARY_PATH=$(brew --prefix jags)/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
 
       # Set up renv
       - name: Setup renv
