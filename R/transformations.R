@@ -155,6 +155,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     }
   }
 
+  # Key data validation checks before transformation pipeline
   if(any(rowSums(!is.na(data[,c("d", "r", "z", "logOR", "OR", "y")])) > 1))
     stop("Only one effect size measure per study can be supplied.")
 
@@ -170,8 +171,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   if(any(rowSums(!is.na(data[,c("t", "se", "v", "n", "lCI")])) < 1))
     stop("At least one variability measure per study must be supplied.")
 
-
-  ### store the original effect size measure
+  # Track original effect size measure for each study (needed for back-transformation)
   original_measure[!is.na(data[,"d"])]     <- "d"
   original_measure[!is.na(data[,"r"])]     <- "r"
   original_measure[!is.na(data[,"z"])]     <- "z"
@@ -184,17 +184,20 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   if(!(sum(original_measure == "none") == 0 | sum(original_measure == "none") == nrow(data)))
     stop("Standardized and general effect sizes cannot be combined.")
 
-  # transform variance to standard errors
+  # Begin data preparation pipeline:
+  
+  # 1. Convert variance to standard errors where missing
   data[is.na(data[,"se"]),"se"] <- sqrt(data[is.na(data[,"se"]),"v"])
 
-  # add study names if missing
+  # 2. Generate study names if missing
   if(all(is.na(data[,"study_names"]))){
     data[,"study_names"] <- paste0("Study ", 1:nrow(data))
   }
 
-  # remove indicators from independent studies
+  # 3. Process study dependencies for multilevel modeling
+  # Remove study_ids for studies that appear only once (independent studies)
   data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
-  # assign factor levels
+  # Convert remaining study_ids to consecutive integers for JAGS
   data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
 
   # add weights if missing
@@ -305,12 +308,17 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"t"] <-
     data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"logOR"] / data[is.na(data[,"t"]) & !.row_NA(data[,c("logOR", "se")]),"se"]
 
-  # transform effect sizes and standard errors to the required metric
+  # Final step: Transform all effect sizes and standard errors to common metric
+  # This is the core transformation that enables meta-analysis across different effect size types
+  # Each case handles: 1) effect size transformation, 2) standard error transformation, 3) CI computation
+  
   if(transformation == "d"){
+    # Transform all effect sizes to Cohen's d (standardized mean difference)
     data[is.na(data[,"d"]) & !is.na(data[,"r"]),    "d"] <-     r2d(data[is.na(data[,"d"]) & !is.na(data[,"r"]),        "r"])
     data[is.na(data[,"d"]) & !is.na(data[,"z"]),    "d"] <-     z2d(data[is.na(data[,"d"]) & !is.na(data[,"z"]),        "z"])
     data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"d"] <- logOR2d(data[is.na(data[,"d"]) & !is.na(data[,"logOR"]),"logOR"])
 
+    # Transform corresponding standard errors using delta method
     data[!is.na(data[,"se"]) & !is.na(data[,"r"]),    "se"] <-     se_r2se_d(
       data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "se"],
       data[!is.na(data[,"se"]) & !is.na(data[,"r"]),        "r"])
@@ -320,15 +328,18 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),"se"] <- se_logOR2se_d(
       data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"])
 
-    # add CI for export
+    # Compute confidence intervals on Cohen's d scale (via Fisher's z for variance stability)
     data[,"lCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.025) * se_d2se_z(data[,"se"], data[,"d"]))
     data[,"uCI"] <- z2d(d2z(data[,"d"]) + stats::qnorm(0.975) * se_d2se_z(data[,"se"], data[,"d"]))
 
   }else if(transformation == "z"){
+    # Transform all effect sizes to Fisher's z (variance-stabilizing transformation)
+    # Preferred transformation for meta-analysis due to normality and variance stability
     data[is.na(data[,"z"]) & !is.na(data[,"d"]),    "z"] <-     d2z(data[is.na(data[,"z"]) & !is.na(data[,"d"]),        "d"])
     data[is.na(data[,"z"]) & !is.na(data[,"r"]),    "z"] <-     r2z(data[is.na(data[,"z"]) & !is.na(data[,"r"]),        "r"])
     data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"z"] <- logOR2z(data[is.na(data[,"z"]) & !is.na(data[,"logOR"]),"logOR"])
 
+    # Transform standard errors to Fisher's z scale
     data[!is.na(data[,"se"]) & !is.na(data[,"d"]),    "se"] <-     se_d2se_z(
       data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "se"],
       data[!is.na(data[,"se"]) & !is.na(data[,"d"]),        "d"])
@@ -339,7 +350,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]),    "se"],
       data[!is.na(data[,"se"]) & !is.na(data[,"logOR"]), "logOR"])
 
-    # add CI for export
+    # Confidence intervals are straightforward on Fisher's z scale (normal distribution)
     data[,"lCI"] <- data[,"z"] + stats::qnorm(0.025) * data[,"se"]
     data[,"uCI"] <- data[,"z"] + stats::qnorm(0.975) * data[,"se"]
 
@@ -423,9 +434,24 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 }
 
+# Internal function for processing binomial/frequency data input:
+# Purpose: Handles 2x2 contingency table data (x1/n1 vs x2/n2) for binary outcomes
+# Process:
+# - validates that all frequency inputs (x1, x2, n1, n2) are provided
+# - ensures events don't exceed sample sizes (x1 <= n1, x2 <= n2)
+# - applies zero-cell correction when return_all=TRUE to avoid log(0) in OR calculations
+# - delegates to combine_data() for effect size transformations
+# 
+# Parameters:
+# x1, x2: number of events in groups 1 and 2
+# n1, n2: total sample sizes in groups 1 and 2
+# transformation: target effect size ("logOR" for log odds ratio)
+# return_all: if TRUE, applies zero-cell correction and calls combine_data()
+#
+# Returns: data.BiBMA object with frequency data, or transformed effect sizes via combine_data()
 .combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
 
-  # settings & input  check
+  # Input validation for binomial data
   BayesTools::check_char(transformation, "transformation")
   BayesTools::check_bool(return_all, "return_all")
   BayesTools::check_int(x1[!is.na(x1)], "x1", allow_NULL = TRUE, check_length = FALSE, lower = 0)
@@ -499,12 +525,16 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
 
   if(return_all){
-    # zero cell correction
+    # Apply zero-cell correction to avoid log(0) in odds ratio calculations
+    # Adds 0.5 to events and 1 to sample sizes when any cell contains 0
     data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] <- data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] + 1
     data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] <- data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] + 0.5
+    
+    # Calculate log odds ratio and standard error from corrected frequencies
     logOR    <- log( (data$x1/(data$n1 - data$x1)) / (data$x2/(data$n2 - data$x2)) )
     logORse  <- sqrt( 1/data$x1 + 1/data$x2 + 1/(data$n1 - data$x1) + 1/(data$n2 - data$x2) )
 
+    # Delegate to standard combine_data() for further transformations
     return(combine_data(logOR = logOR, se = logORse, study_names = study_names, study_ids = study_ids, weight = weight,
                         transformation = .transformation_invar(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]]), estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]], return_all = return_all))
   }
@@ -517,6 +547,28 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
   return(data)
 }
+
+# Internal function for processing regression formula and predictors:
+# Purpose: Parses model formula and prepares predictor data for meta-regression
+# Process:
+# - removes response variable from formula (outcome handled separately)
+# - creates model frame with proper factor/character handling
+# - validates predictors for missing values and intercept requirement
+# - standardizes continuous predictors if requested
+# - creates predictor metadata for scaling information
+# 
+# Key behaviors:
+# - Characters automatically converted to factors
+# - Intercept is mandatory (cannot be omitted)
+# - Continuous predictors can be standardized (mean=0, sd=1)
+# - Scaling warnings issued if predictors not standardized
+# - Reserved words checked to avoid conflicts
+#
+# Returns: list with predictor data and metadata attributes:
+# - variables: first-order terms only
+# - terms: all terms including interactions  
+# - terms_type: data types (numeric, factor)
+# - variables_info: scaling information for each predictor
 .combine_data_add_terms <- function(formula, data_predictors, standardize_predictors){
 
   if(!is.language(formula))
@@ -525,9 +577,12 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("'data' must be an object of type data.frame.")
   BayesTools::check_bool(standardize_predictors, "standardize_predictors")
 
+  # Remove response variable from formula if present (outcome handled separately)
   if(attr(stats::terms(formula), "response") == 1){
     formula[2] <- NULL
   }
+
+  # Create model frame from right-hand side of formula
 
   rhs             <- formula[c(1,2)]
   model_frame     <- stats::model.frame(rhs, data = data_predictors, na.action = stats::na.pass)
@@ -540,7 +595,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   if(attr(attr(model_frame, "terms"),"intercept") == 0)
     stop("Intercept cannot be ommited from the model (you can set the coefficient to zero via 'priors_effect'). ")
 
-  # change characters into factors
+  # Convert character variables to factors for proper model handling
+  # Note: This ensures consistent treatment of categorical predictors
   for(i in seq_along(attr(attr(model_frame, "terms"), "dataClasses"))){
     if(attr(attr(model_frame, "terms"), "dataClasses")[[i]] == "character"){
       model_frame[,names(attr(attr(model_frame, "terms"), "dataClasses"))[i]] <-
@@ -549,24 +605,29 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     }
   }
 
-
+  # Extract predictor data and create metadata structure
   model_frame     <- as.list(model_frame)
   if(length(model_frame) == 0){
     data_predictors <- list()
   }else{
     data_predictors <- model_frame[1:length(model_frame)]
   }
+  
+  # Create metadata attributes:
+  # variables: only first-order terms (no interactions)
+  # terms: all terms including interactions
+  # terms_type: data class for each term (numeric, factor)
   attr(data_predictors, "variables")  <- attr(attr(model_frame, "terms"), "term.labels")[attr(attr(model_frame, "terms"), "order") == 1]
   attr(data_predictors, "terms")      <- attr(attr(model_frame, "terms"), "term.labels")
   attr(data_predictors, "terms_type") <- attr(attr(model_frame, "terms"), "dataClasses")
 
-
-  # add additional information about the predictors
+  # Process each predictor for scaling and create detailed metadata
   data_predictors_info <- list()
   to_warn              <- NULL
   for(i in seq_along(data_predictors)){
     if(attr(data_predictors, "terms_type")[i] == "numeric"){
-
+      
+      # Store original scaling information before potential standardization
       data_predictors_info[[names(data_predictors)[i]]] <- list(
         type = "continuous",
         mean = mean(data_predictors[[names(data_predictors)[i]]]),
@@ -574,24 +635,28 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       )
 
       if(standardize_predictors){
+        # Apply standardization: (x - mean) / sd
         data_predictors[[names(data_predictors)[i]]] <- .pred_scale(data_predictors[[names(data_predictors)[i]]], data_predictors_info[[names(data_predictors)[i]]])
       }else if(RoBMA.get_option("check_scaling") && (abs(mean(data_predictors[[names(data_predictors)[i]]])) > 0.01 | abs(1 - stats::sd(data_predictors[[names(data_predictors)[i]]])) > 0.01)){
+        # Check if predictor is approximately standardized and warn if not
         to_warn <- c(to_warn, names(data_predictors)[i])
       }
 
     }else if(attr(data_predictors, "terms_type")[i] == "factor"){
-
+      
+      # Store factor level information for proper contrast handling
       data_predictors_info[[names(data_predictors)[i]]] <- list(
         type    = "factor",
-        default = levels(data_predictors[[names(data_predictors)[i]]])[1],
-        levels  = levels(data_predictors[[names(data_predictors)[i]]])
+        default = levels(data_predictors[[names(data_predictors)[i]]])[1], # Reference level
+        levels  = levels(data_predictors[[names(data_predictors)[i]]])      # All levels
       )
 
     }
   }
+  # Attach scaling/factor metadata to predictor data
   attr(data_predictors, "variables_info") <- data_predictors_info
 
-  # throw warnings and errors
+  # Issue warnings for unscaled predictors (can affect prior specification)
   if(length(to_warn) > 0){
     scaling_warning <- paste0("The continuous predictors ", paste0("'", to_warn, "'", collapse = ", "), " are not scaled. Note that extra care need to be taken when specifying prior distributions for unscaled predictors.")
     warning(scaling_warning, immediate. = TRUE, call. = FALSE)
@@ -599,7 +664,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     attr(output, "warnings") <- scaling_warning
   }
 
-  # check for reserved words
+  # Validate that no reserved words are used as predictor names
+  # Reserved words can conflict with internal JAGS parameter names
   if(any(attr(data_predictors, "terms") %in% .reserved_words()))
     stop(paste0("The following variable names are internally reserved keywords and cannot be used: ",
                 paste0(" '", attr(data_predictors, "terms")[attr(data_predictors, "terms") %in% .reserved_words()], "' ", collapse = ", ")))
@@ -627,7 +693,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("The 'study_names' must be of a column name in `data` or a vector of the same length as the data.")
   }
 
-  ### deal with the effect sizes
+  # Extract effect size data and predictors from combined data.frame
+  # Process outcome variables through standard combine_data() pipeline
   data_outcome <- combine_data(
     d      = if("d"      %in%  colnames(data)) data[,"d"],
     r      = if("r"      %in%  colnames(data)) data[,"r"],
@@ -646,13 +713,16 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     transformation = transformation,
     return_all     = FALSE)
 
-  ### obtain the predictors part
+  # Extract predictor variables (exclude all effect size/variance columns)
   data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
+  
+  # Process predictors through formula parsing and standardization
   data_predictors <- .combine_data_add_terms(formula, data_predictors, standardize_predictors)
 
+  # Return structured list with separate outcome and predictor components
   output <- list(
-    outcome    = data_outcome,
-    predictors = data_predictors
+    outcome    = data_outcome,    # Processed effect sizes and standard errors
+    predictors = data_predictors  # Processed and potentially standardized predictors
   )
 
   return(output)
@@ -700,6 +770,9 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   return(output)
 }
 
+# Simple predictor scaling utilities:
+# .pred_scale: standardizes predictor using stored mean and sd: (x - mean) / sd  
+# .pred_unscale: reverses standardization: x * sd + mean
 .pred_scale   <- function(x, predictor_info){
   (x - predictor_info[["mean"]]) / predictor_info[["sd"]]
 }
@@ -707,10 +780,27 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   x * predictor_info[["sd"]] + predictor_info[["mean"]]
 }
 
+# Internal function to transform posterior samples between effect size scales:
+# Purpose: Converts posterior distributions when changing between d, r, z, logOR, etc.
+# 
+# Key transformations:
+# - mu (effect size): transformed using appropriate conversion functions
+# - tau (heterogeneity): scaled but relationship preserved  
+# - PEESE: inverse scaling (PEESE coefficient relates to original scale variance)
+# - predictor effects: transformed to maintain interpretation on new scale
+#
+# Parameters:
+# current_scale: the scale posteriors are currently on (e.g., "z")
+# output_scale: the desired output scale (e.g., "d") 
+#
+# This enables users to obtain results on any supported effect size scale
+# regardless of the scale used for model fitting
 .transform_posterior       <- function(object, current_scale, output_scale){
 
+  # Transform main posteriors and conditional posteriors
   for(type in c("posteriors", "posteriors_conditional")){
 
+    # Transform effect size parameter (mu)
     if(!is.null(object$RoBMA[[type]][["mu"]])){
       object$RoBMA[[type]][["mu"]] <- .transform_mu(
         object$RoBMA[[type]][["mu"]],
@@ -719,6 +809,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       )
     }
 
+    # Transform heterogeneity parameter (tau) - preserves relative scaling
     if(!is.null(object$RoBMA[[type]][["tau"]])){
       object$RoBMA[[type]][["tau"]] <- .scale(
         object$RoBMA[[type]][["tau"]],
@@ -727,20 +818,24 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       )
     }
 
+    # Transform PEESE coefficient - inverse relationship to effect size scale
+    # PEESE models publication bias as function of squared standard error
+    # Coefficient must be scaled inversely to maintain same bias detection
     if(!is.null(object$RoBMA[[type]][["PEESE"]])){
-      # the transformation for PEESE is inverse
       object$RoBMA[[type]][["PEESE"]] <- .scale(
         object$RoBMA[[type]][["PEESE"]],
-        output_scale,
+        output_scale,     # Note: reversed scaling for PEESE
         current_scale
       )
     }
   }
 
+  # Transform regression predictor effects
   for(type in c("posteriors_predictors", "posteriors_predictors_conditional")){
 
     for(i in seq_along(object$RoBMA[[type]])){
 
+      # Handle factor predictors (multiple contrast levels)
       if(inherits(object$RoBMA[[type]][[i]], "mixed_posteriors.factor")){
         for(j in 1:ncol(object$RoBMA[[type]][[i]])){
           object$RoBMA[[type]][[i]][,j] <- .transform_mu(
@@ -1108,51 +1203,81 @@ se_z2se_logOR <- function(se_z, z){
 }
 
 
-# sample size based on effect sizes and test statistics
+# Internal functions for inferring missing statistical information:
+# Purpose: Recover sample sizes, test statistics, and effect sizes when some are missing
+#
+# Sample size from effect size and test statistic:
+# These use the relationship between effect size, test statistic, and sample size
+# to solve for the missing component. Based on statistical theory for each effect size type.
+
+# Sample size calculations (.n_*t functions):
 .n_rt <- function(r, t){
+  # For correlation: n = (t²/r² - 1) + 2, rearranged algebraically
   (r^2 * -(t^2) + 2 * r^2 + t^2 ) / r^2
 }
 .n_dt <- function(d, t){
+  # For Cohen's d: t = d*sqrt(n)/2, so n = 4*t²/d²
   4*t^2/d^2
 }
 .n_zt <- function(z, t){
+  # For Fisher's z: uses existing function n_z with transformed input
   n_z(z/t)
 }
-# test statistics based on effect sizes and sample sizes
+
+# Test statistic calculations (.t_*n functions):
 .t_rn <- function(r, n){
+  # t-test for correlation: t = r*sqrt((n-2)/(1-r²))
   r * sqrt((n - 2)/(1 - r^2))
 }
 .t_dn <- function(d, n){
+  # t-test for Cohen's d: t = d*sqrt(n)/2
   d * sqrt(n)/2
 }
 .t_zn <- function(z, n){
+  # z-test for Fisher's z: t = z/SE(z)
   z/se_z(n)
 }
-# effect sizes based on test statistics and sample sizes
+
+# Effect size calculations (.*_tn functions):
 .r_tn <- function(t, n){
+  # Correlation from t and n: r = t/sqrt(n + t² - 2)
   t / sqrt(n + t^2 - 2)
 }
 .d_tn <- function(t, n){
+  # Cohen's d from t and n: d = 2*t/sqrt(n)
   2 * t / sqrt(n)
 }
 .z_tn <- function(t, n){
+  # Fisher's z from t and n: z = t*SE(z) = t/sqrt(n-3)
   t * se_z(n)
 }
-# cutoffs based on effect sizes, standard errors, and t-statistics
-# 'c_z' and 'c_logOR' do not require the effect sizes - keeping them for consistency when creating calls to the functions automatically
+
+# Cutoff value calculations (effect sizes at cutoff point):
+# Purpose: Calculate critical effect size values that would produce a given t-statistic
+# Used for publication bias modeling to determine selection boundaries
+# LLM Note: These functions compute what effect size would be observed at the selection cutoff
+
 .c_r     <- function(r, se, t){
+  # Critical correlation at cutoff: uses observed n to calculate cutoff r value
   .r_tn(t, n_r(r, se))
 }
 .c_d     <- function(d, se, t){
+  # Critical Cohen's d at cutoff: uses observed n to calculate cutoff d value
   .d_tn(t, n_d(d, se))
 }
 .c_z     <- function(z, se, t){
+  # Critical Fisher's z at cutoff: simple multiplication (z = t*SE)
   t * se
 }
 .c_logOR <- function(logOR, se, t){
+  # Critical log odds ratio at cutoff: simple multiplication (logOR = t*SE)
   t * se
 }
 
+# Main cutoff calculation function for publication bias modeling:
+# Purpose: Calculate critical effect size values given t-statistic thresholds
+# Process: 1) Get cutoff function for effect size type, 2) Apply to all studies
+# LLM Note: This is central to weight function models for publication bias
 .get_cutoffs <- function(y, se, prior, original_measure, effect_measure){
 
   crit_y <- matrix(ncol = length(prior$parameters$steps), nrow = length(y))
@@ -1212,6 +1337,16 @@ se_z2se_logOR <- function(se_z, z){
 }
 
 
+# Internal function to convert user-friendly transformation names to internal codes:
+# Purpose: Maps user input like "fishers_z" to internal variable names like "z"
+# 
+# Parameter 'estimation': 
+# - TRUE: restricts to transformations valid for model estimation (excludes "OR")
+# - FALSE: allows all transformations including "OR" for output display
+#
+# Mapping:
+# "fishers_z" -> "z", "cohens_d" -> "d", "r" -> "r", 
+# "logOR" -> "logOR", "OR" -> "OR", "none" -> "y"
 .transformation_var    <- function(name, estimation = TRUE){
 
   if(estimation && !name %in% c("fishers_z", "cohens_d", "r", "logOR", "none"))
@@ -1229,6 +1364,10 @@ se_z2se_logOR <- function(se_z, z){
     "none"      = "y"
   ))
 }
+
+# Inverse transformation: converts internal codes back to user-friendly names
+# Purpose: Maps internal variable names like "z" back to user input like "fishers_z"
+# Used for consistent output labeling and validation
 .transformation_invar  <- function(name, estimation = TRUE){
 
   if(estimation && !name %in% c("z", "d", "r", "logOR", "y"))
@@ -1439,14 +1578,33 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
 
 
 
-#### helper functions ####
-# helper functions
+#### Helper functions for data validation and manipulation ####
+
+# Simple utility to check for rows with any missing values in a data.frame
+# Returns logical vector indicating which rows contain at least one NA
 .row_NA <- function(data){
   if(!is.data.frame(data))
     stop("data must be a data.frame")
   apply(data, 1, anyNA)
 }
 
+# Internal function to reverse predictor standardization for posterior samples:
+# Purpose: Converts standardized regression coefficients back to original scale
+# 
+# Process for continuous predictors:
+# Posterior sample unstandardization for regression predictors:
+# Purpose: Transform posterior samples from standardized scale back to original predictor scale
+# Process: Reverse the standardization applied during model fitting
+#
+# Continuous predictors standardization reversal:
+# 1. Divide coefficient by original SD to get raw slope effect
+# 2. Adjust intercept by removing mean-centering effect: β₀ - β₁*(μ/σ)
+# 
+# Factor predictors: no transformation needed (already on original scale)
+# 
+# This ensures posterior samples reflect effects on the original predictor scale
+# rather than the standardized scale used during model fitting
+# LLM Note: Essential for interpreting regression results in original units
 .unstandardize_posterior_samples <- function(samples, variables_info) {
 
   # Only apply transformation if we have predictors
@@ -1457,27 +1615,29 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
   # Make a copy of the samples to avoid modifying the original
   transformed_samples <- samples
 
-  # Get intercept parameter name
+  # Get intercept parameter name using BayesTools convention
   intercept_param <- .BayesTools_parameter_name("intercept")
 
-  # Apply transformation for continuous predictors and intercept
+  # Apply reverse standardization for continuous predictors
   for (predictor_name in names(variables_info)) {
     if (variables_info[[predictor_name]][["type"]] == "continuous") {
-      # Get the parameter name
+      # Get the parameter name using BayesTools naming convention
       param_name <- .BayesTools_parameter_name(predictor_name)
 
-      # Apply transformation
+      # Apply transformation to get coefficient on original scale
       predictor_info <- variables_info[[predictor_name]]
 
       # Transform continuous predictor: divide by standard deviation to get raw coefficient
       transformed_samples[[param_name]] <- transformed_samples[[param_name]] / predictor_info[["sd"]]
 
-      # Transform intercept: subtract mean-centered effect
+      # Transform intercept: subtract mean-centered effect to get raw intercept
+      # This accounts for the fact that standardized predictors have mean=0
       if (intercept_param %in% names(transformed_samples)) {
         adjustment <- mean(samples[[param_name]]) * (predictor_info[["mean"]] / predictor_info[["sd"]])
         transformed_samples[[intercept_param]] <- transformed_samples[[intercept_param]] - adjustment
       }
     }
+    # Factor predictors: no transformation needed (already on interpretable scale)
   }
 
   return(transformed_samples)

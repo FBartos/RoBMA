@@ -2,9 +2,8 @@
 % Please edit documentation in R/check-input-and-settings.R
 \name{RoBMA_control}
 \alias{RoBMA_control}
-\alias{set_autofit_control,}
-\alias{set_convergence_checks}
 \alias{set_autofit_control}
+\alias{set_convergence_checks}
 \title{Control MCMC fitting process}
 \usage{
 set_autofit_control(
@@ -55,7 +54,8 @@ Defaults to \code{1000}.}
 \item{restarts}{number of times new initial values should be generated in case a
 model fails to initialize. Defaults to \code{10}.}
 
-\item{max_extend}{number of times after which the automatic fitting function is stopped.}
+\item{max_extend}{number of times after which the automatic fitting function is stopped.
+Defaults to \code{10}.}
 
 \item{remove_failed}{whether models not satisfying the convergence checks should
 be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.}
@@ -69,10 +69,40 @@ in the case of non-convergence. Defaults to \code{TRUE}.}
 and \code{set_convergence_checks} returns a list of convergence checks settings.
 }
 \description{
-Controls settings for the autofit
-process of the MCMC JAGS sampler (specifies termination
-criteria), and values for the convergence checks.
+\code{set_autofit_control} and \code{set_convergence_checks} control settings for the
+autofit process of the MCMC JAGS sampler and specify termination criteria and convergence checks.
+}
+\details{
+\code{set_autofit_control} controls the automatic model fitting process, determining when to
+stop iterating based on convergence criteria. \code{set_convergence_checks} sets thresholds
+for determining whether a model has converged adequately.
+
+The autofit control manages computational resources by setting maximum time limits and
+determining how many additional samples to draw if convergence criteria are not met.
+The convergence checks determine the quality standards that fitted models must meet.
+}
+\examples{
+# Set custom autofit control with shorter time limit
+autofit_ctrl <- set_autofit_control(
+  max_time = list(time = 30, unit = "mins"),
+  sample_extend = 2000
+)
+
+# Set custom convergence checks with stricter criteria
+conv_checks <- set_convergence_checks(
+  max_Rhat = 1.01,
+  min_ESS = 1000
+)
+
+\dontrun{
+# Use in RoBMA function
+fit <- RoBMA(d = c(0.5, 0.3, 0.1), 
+             se = c(0.2, 0.15, 0.1),
+             autofit_control = autofit_ctrl,
+             convergence_checks = conv_checks)
+}
+
 }
 \seealso{
-\link{RoBMA}, \link{update.RoBMA}
+\code{\link[=RoBMA]{RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}
 }

@@ -1,10 +1,29 @@
+# Internal function to balance component probabilities when models fail to converge:
+# Purpose: Redistributes prior weights from failed models to successful models with same structure
+#
+# Process:
+# 1. Identifies converged vs failed models  
+# 2. Characterizes each model by its component structure (effect, heterogeneity, bias, etc.)
+# 3. For each failed model, finds converged models with identical component structure
+# 4. Redistributes failed model's prior weight proportionally among matched converged models
+# 5. Ensures balanced representation of component hypotheses despite convergence failures
+#
+# Key concepts:
+# - Component structure: which components (effect, bias, etc.) are null vs alternative
+# - Prior weight balancing: maintains intended relative hypothesis weights
+# - Regression terms: handled separately if present (predictors_test)
+# - Fallback: if no matching converged model exists, weight is lost (affects inference)
+#
+# This prevents convergence failures from biasing results toward particular hypotheses
+# This function is available only for bridge sampling algorithm (no ballancing is possible for spike-and-slab)
 .balance_component_probability   <- function(object){
 
   converged <- .get_model_convergence(object)
   if(all(!converged))
     stop("All models included in the ensemble failed to converge.")
 
-  # assess the main component type
+  # Characterize each model by its component hypothesis structure
+  # TRUE = alternative hypothesis, FALSE = null hypothesis for each component
   component_types <- cbind.data.frame(
     effect         = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "effect")),
     heterogeneity  = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "heterogeneity")),
@@ -12,22 +31,25 @@
     baseline       = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "baseline")),
     hierarchical   = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "hierarchical"))
   )
-  # add regressions if neccessary
+  
+  # Add regression predictor tests if present
   if(!is.null(object$add_info[["predictors_test"]])){
     for(predictor_test in object$add_info[["predictors_test"]]){
       component_types[[predictor_test]] <- sapply(object[["models"]], function(model) predictor_test %in% model[["terms_test"]])
     }
   }
-  # extract the prior odds set by user
+  
+  # Extract original prior weights set by user
   prior_weights  <- sapply(object[["models"]], function(model) model[["prior_weights_set"]])
 
-  # check whether there is a comparable model for each non-converged models
+  # Redistribute weights from each failed model to converged models with same structure
   for(i in seq_along(object[["models"]])[!converged]){
 
+    # Find converged models with identical component structure
     temp_same_structure <- sapply(seq_along(object$models)[converged], function(j) all(component_types[j,] == component_types[i,]))
     temp_same_structure <- seq_along(object$models)[converged][temp_same_structure]
 
-    # if yes, transfer the prior odds
+    # Redistribute the failed model's prior weight proportionally
     if(length(temp_same_structure) >= 1){
 
       prior_weights[temp_same_structure] <- prior_weights[temp_same_structure] + prior_weights[i] / length(temp_same_structure)
@@ -60,20 +82,40 @@
   return(object)
 
 }
+
+# Internal function to perform Bayesian model averaging across ensemble:
+# Purpose: Combines posterior distributions from all converged models using marginal likelihoods
+#
+# Process:
+# 1. Filters to converged models with non-zero prior weights
+# 2. Characterizes models by component and parameter types  
+# 3. Computes posterior model probabilities using marginal likelihoods
+# 4. Performs model averaging for each parameter/component
+# 5. Computes inclusion Bayes factors and posterior probabilities
+# 6. Handles special cases (PET-PEESE combinations, regression terms)
+#
+# Key concepts:
+# - Model averaging: weighted combination of posteriors using posterior model probabilities
+# - Inclusion BF: evidence for component being included vs excluded
+# - Component classification: effect, heterogeneity, bias, hierarchical, baseline
+# - Parameter types: weight functions, PET, PEESE for publication bias
+#
+# Returns: List with averaged posteriors, inclusion BFs, and model probabilities
+# .as_ensemble_inference is used for spike-and-slab algorithm (mimics output of .ensemble_inference for bridge sampling)
 .ensemble_inference     <- function(object){
 
-  # use only converged models with prior weights > 0 for inference about parameters
+  # Filter to converged models with positive prior weights for inference
   prior_weights <- sapply(object[["models"]], function(model) model[["prior_weights"]])
   models        <- object[["models"]][.get_model_convergence(object) & prior_weights > 0]
 
-  # obtain the component type
+  # Characterize models by component hypothesis types (null vs alternative)
   effect         <- sapply(models, function(model)!.is_component_null(model[["priors"]], "effect"))
   heterogeneity  <- sapply(models, function(model)!.is_component_null(model[["priors"]], "heterogeneity"))
   bias           <- sapply(models, function(model)!.is_component_null(model[["priors"]], "bias"))
   hierarchical   <- sapply(models, function(model)!.is_component_null(model[["priors"]], "hierarchical"))
   baseline       <- sapply(models, function(model)!.is_component_null(model[["priors"]], "baseline"))
 
-  # obtain the parameter types
+  # Characterize models by publication bias parameter types
   weightfunctions <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.weightfunction)))
   PET             <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PET)))
   PEESE           <- sapply(models, function(model)any(sapply(model[["priors"]], is.prior.PEESE)))

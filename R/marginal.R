@@ -96,13 +96,14 @@ marginal_summary <- function(object, conditional = FALSE,
 
 #' @title Prints marginal_summary object for RoBMA method
 #'
-#' @param x a summary of a RoBMA object
-#' @param ... additional arguments
+#' @description Prints a marginal summary object created by \code{marginal_summary}.
 #'
+#' @param x a marginal_summary.RoBMA object
+#' @param ... additional arguments
 #'
 #' @return \code{print.marginal_summary.RoBMA} invisibly returns the print statement.
 #'
-#' @seealso [RoBMA()]
+#' @seealso [marginal_summary()], [RoBMA()]
 #' @export
 print.marginal_summary.RoBMA <- function(x, ...){
 
@@ -211,7 +212,10 @@ marginal_plot  <- function(x, parameter, conditional = FALSE, plot_type = "base"
   }
 }
 
-
+# Internal function for setting plotting parameters:
+# Purpose: Configure color and line type defaults for marginal plots
+# Handles both single-level and multi-level prior visualization
+# Uses colorblind-friendly Okabe-Ito palette for multiple priors
 .set_dots_prior_marginal <- function(dots_prior, n_levels){
 
   if(is.null(dots_prior)){

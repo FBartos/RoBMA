@@ -22,11 +22,41 @@ is.BiBMA(x)
 is.BiBMA.reg(x)
 }
 \arguments{
-\item{x}{an object to test}
+\item{x}{object to be tested}
 }
 \value{
 returns a boolean.
+
+\code{TRUE} if the object inherits from the specified class, \code{FALSE} otherwise.
 }
 \description{
-Reports whether x is a RoBMA object
+Functions to test whether an object is of a specific RoBMA class.
+}
+\details{
+These functions test whether an object inherits from specific RoBMA classes:
+\itemize{
+\item \code{is.RoBMA}: Tests for \code{"RoBMA"} class (Robust Bayesian Meta-Analysis)
+\item \code{is.RoBMA.reg}: Tests for \code{"RoBMA.reg"} class (RoBMA with meta-regression)
+\item \code{is.NoBMA}: Tests for \code{"NoBMA"} class (Normal-normal Bayesian Meta-Analysis)
+\item \code{is.NoBMA.reg}: Tests for \code{"NoBMA.reg"} class (NoBMA with meta-regression)
+\item \code{is.BiBMA}: Tests for \code{"BiBMA"} class (Binomial-normal Bayesian Meta-Analysis)
+\item \code{is.BiBMA.reg}: Tests for \code{"BiBMA.reg"} class (BiBMA with meta-regression)
+}
+}
+\examples{
+\dontrun{
+# Example with Anderson et al. 2010 data
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n)
+is.RoBMA(fit)        # TRUE
+is.BiBMA(fit)        # FALSE
+
+# Example with regression
+fit_reg <- RoBMA.reg(r ~ 1, data = Anderson2010)
+is.RoBMA.reg(fit_reg)  # TRUE
+is.RoBMA(fit_reg)      # TRUE (inherits from RoBMA)
+}
+
+}
+\seealso{
+\code{\link[=RoBMA]{RoBMA()}}, \code{\link[=RoBMA.reg]{RoBMA.reg()}}, \code{\link[=NoBMA]{NoBMA()}}, \code{\link[=BiBMA]{BiBMA()}}
 }

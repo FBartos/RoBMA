@@ -1,4 +1,22 @@
-# the main functions
+# Internal function for fitting individual RoBMA models using MCMC:
+# Purpose: Handles MCMC sampling and marginal likelihood computation for a single model
+#
+# Process:
+# 1. Extracts model specifications (priors, control settings)
+# 2. Checks if model is constant (no sampling needed)
+# 3. Handles regression vs simple models differently
+# 4. Generates JAGS model syntax based on model type
+# 5. Fits model using MCMC (runjags/JAGS)
+# 6. Computes marginal likelihood via bridge sampling
+# 7. Performs convergence diagnostics
+# 8. Handles errors/warnings and retry logic
+#
+# Key model types:
+# - Simple vs regression models (different data structures)
+# - Multivariate vs univariate (different JAGS syntax)
+# - Constant models (skip MCMC, use analytical solutions)
+#
+# Returns: Updated model object with fit results, marginal likelihood, convergence status
 .fit_RoBMA_model       <- function(object, i, extend = FALSE){
 
   model              <- object[["models"]][[i]]
@@ -15,22 +33,25 @@
     cat(paste0("\nFitting model [", i, "]\n"))
   }
 
-  # don't sample the complete null model
+  # Skip MCMC for constant models (all priors are point/none)
+  # These models have analytical solutions
   if(!.is_model_constant(priors)){
 
+    # Handle multivariate models with special data ordering
     if(.is_model_multivariate(model)){
       object[["data"]] <- .order_data.mv(object[["data"]], .is_model_regression(model))
     }
 
-
-    # deal with regression vs basic models
+    # Prepare data and priors based on model type
     if(.is_model_regression(model)){
+      # Regression models: separate outcome and predictor components
       data_outcome       <- object[["data"]][["outcome"]]
-      fit_priors         <- priors[names(priors) != "terms"]
+      fit_priors         <- priors[names(priors) != "terms"]  # Exclude regression terms from main priors
       formula_list       <- .generate_model_formula_list(object[["formula"]])
       formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
       formula_prior_list <- .generate_model_formula_prior_list(priors)
     }else if(inherits(model, "RoBMA.model")){
+      # Simple models: direct data usage
       data_outcome       <- object[["data"]]
       fit_priors         <- priors
       formula_list       <- NULL
@@ -38,9 +59,9 @@
       formula_prior_list <- NULL
     }
 
-    # deal with multivariate vs univariate models
+    # Generate JAGS model syntax based on model type
     if(.is_model_multivariate(model)){
-      # generate the model syntax
+      # multivariate models syntax for dependent effect sizes
       model_syntax <- .generate_model_syntax.mv(
         priors           = fit_priors,
         effect_direction = add_info[["effect_direction"]],
@@ -59,7 +80,7 @@
       )
 
     }else{
-      # generate the model syntax
+      # univariate model syntax for independent effect sizes
       model_syntax <- .generate_model_syntax(
         priors           = fit_priors,
         effect_direction = add_info[["effect_direction"]],
@@ -1447,42 +1468,69 @@
   return(log_lik)
 }
 
-# additional tools
+# Internal function to determine optimal model fitting order:
+# Purpose: Prioritizes more difficult models first to optimize computational efficiency
+#
+# Heuristic scoring system (higher difficulty = fit later):
+# - Non-null effect models: +1 difficulty
+# - Random effects (heterogeneity): +3 difficulty
+# - Regression factor predictors: +1.5 per factor
+# - Regression continuous predictors: +1 per predictor
+# - PET bias models: +1 difficulty
+# - PEESE bias models: +1 difficulty
+# - Weight function (selection) models: +5 difficulty (most complex)
+#
+# Rationale:
+# - Simple models fit faster and may reveal convergence issues early
+# - Weight function models are most computationally demanding
+# - Failed simple models suggest data/prior issues before investing in complex models
+# - Success with simple models can inform priors for complex models
+#
+# Returns: Vector of model indices ordered by increasing complexity (fit simple first)
 .fitting_priority       <- function(models){
 
-  # model fitting difficulty using the following heuristic:
-  # selection models > random effects | PET/PEESE > non-null models
+  # Calculate model fitting difficulty using heuristic scoring
   fitting_difficulty <- sapply(models, function(model){
 
     difficulty <- 0
 
-    if(inherits(model, "RoBMA.model") | inherits(model, "BiBMA.model")){
-      if(is.prior.simple(model$priors[["mu"]])){
-        difficulty <- difficulty + 1
-      }
-    }else if(.is_model_regression(model) | inherits(model, "BiBMA.reg.model")){
+    # Score based on effect priors (simple models vs regression)
+    if(.is_model_regression(model)){
+      # Regression models: score based on number and type of predictors
       difficulty <-  difficulty + sum(sapply(model$priors[["terms"]], function(prior){
         if(is.prior.point(prior)){
-          return(0)
+          return(0)      # Fixed effects: no additional complexity
         }else if(is.prior.factor(prior)){
-          return(1.5)
+          return(1.5)    # Factor predictors: more complex than continuous
         }else if(is.prior.simple(prior)){
-          return(1)
+          return(1)      # Continuous predictors: standard complexity
         }
       }))
+    }else if(inherits(model, "RoBMA.model") | inherits(model, "BiBMA.model")){
+      # Simple models: check if effect is non-null
+      if(is.prior.simple(model$priors[["mu"]])){
+        difficulty <- difficulty + 1  # Non-null effect adds complexity
+      }
     }
+
+    # Score heterogeneity models (random effects)
     if(is.prior.simple(model$priors[["tau"]])){
-      difficulty <- difficulty + 3
+      difficulty <- difficulty + 3  # Random effects models are more complex
     }
-    if(is.null(model$priors[["PET"]])){
-      difficulty <- difficulty + 1
-    }else if(is.null(model$priors[["PEESE"]])){
-      difficulty <- difficulty + 1
-    }else if(is.null(model$priors[["omega"]])){
-      difficulty <- difficulty + 5
+
+    # Score publication bias models (most complex last)
+    if(!is.null(model$priors[["omega"]])){
+      difficulty <- difficulty + 5  # Weight function models: highest complexity
+    }else if(!is.null(model$priors[["PET"]])){
+      difficulty <- difficulty + 1  # PET models: moderate complexity
+    }else if(!is.null(model$priors[["PEESE"]])){
+      difficulty <- difficulty + 1  # PEESE models: moderate complexity
     }
+
+    return(difficulty)
   })
 
+  # Return indices ordered by complexity (more difficult models first)
   return(order(fitting_difficulty, decreasing = TRUE))
 }
 .runjags_summary_list   <- function(fit, priors, prior_scale, warnings, remove_parameters = NULL, measures = c("d", "r", "z", "logOR", "OR"), transformations_only = FALSE){

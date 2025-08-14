@@ -1,14 +1,34 @@
-### functions for creating model objects
+# Internal function for validating and organizing priors into standard structure:
+# Purpose: Handles both custom user priors and precanned model specifications
+# 
+# Process:
+# 1. Checks if model_type specifies a precanned model (psma, pp, 2w)
+# 2. If precanned: overrides user priors with predefined specifications
+# 3. If custom: validates and organizes user-provided priors by component
+# 4. Returns structured prior list for model fitting
+#
+# Precanned model types:
+# - "psma": Publication bias-sensitive meta-analysis (weight functions + PET/PEESE)
+# - "pp": PET-PEESE only models for publication bias detection  
+# - "2w": Two-step weight function models for publication bias
+#
+# Each precanned model has specific prior specifications for effect, heterogeneity,
+# and bias components, developed based on meta-analytic best practices
+#
+# Returns: List with effect, heterogeneity, bias, hierarchical component priors
 .check_and_list_priors       <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, prior_scale){
 
-  # format the model-type (in RoBMA.reg, the add_info check is run only after .check_and_list_priors)
+  # Validate and format model type specification
   model_type <- .check_and_set_model_type(model_type, prior_scale)
 
   if(!is.null(model_type) & length(model_type == 1)){
-    # precanned models
+    # Handle precanned model specifications with predefined prior distributions
     if(model_type == "psma"){
+      # Publication bias-sensitive meta-analysis: comprehensive bias modeling
       priors_effect         <- prior(distribution = "normal",    parameters = list(mean = 0,  sd = 1))
       priors_heterogeneity  <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
+      
+      # Comprehensive publication bias prior suite: weight functions + regression methods
       priors_bias           <- list(
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
@@ -25,6 +45,7 @@
       priors_bias_null          <- prior_none()
       priors_hierarchical_null  <- NULL
     }else if(model_type == "pp"){
+      # PET-PEESE models: focus on regression-based bias detection
       priors_effect          <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
       priors_heterogeneity   <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
       priors_bias            <- list(
@@ -37,6 +58,7 @@
       priors_bias_null           <- prior_none()
       priors_hierarchical_null   <- NULL
     }else if(model_type == "2w"){
+      # Two-step weight function models: simpler weight function approach
       priors_effect              <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
       priors_heterogeneity       <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
       priors_bias                <- list(
@@ -53,6 +75,8 @@
     }
   }
 
+  # Organize priors by component using validation helper functions
+  # Each component gets both null (H0) and alternative (H1) prior specifications
   priors     <- list()
   priors$effect         <- .check_and_list_component_priors(priors_effect_null,          priors_effect,         "effect")
   priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")

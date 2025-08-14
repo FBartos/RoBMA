@@ -7,7 +7,7 @@
 \method{print}{marginal_summary.RoBMA}(x, ...)
 }
 \arguments{
-\item{x}{a summary of a RoBMA object}
+\item{x}{a marginal_summary.RoBMA object}
 
 \item{...}{additional arguments}
 }
@@ -15,8 +15,8 @@
 \code{print.marginal_summary.RoBMA} invisibly returns the print statement.
 }
 \description{
-Prints marginal_summary object for RoBMA method
+Prints a marginal summary object created by \code{marginal_summary}.
 }
 \seealso{
-\code{\link[=RoBMA]{RoBMA()}}
+\code{\link[=marginal_summary]{marginal_summary()}}, \code{\link[=RoBMA]{RoBMA()}}
 }

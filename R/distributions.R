@@ -291,7 +291,15 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   return(x)
 }
 
-# helper functions
+# Internal helper functions for weight function normal distribution:
+# Purpose: Core computational functions for exported distribution functions.
+# These functions are accessible to users wishing to simulate / estimated weighted densities, but they are not used internally.
+# (faster vectorized non-input checked functions are used internally) 
+# These implement the weighted normal distribution where different regions have different selection probabilities
+
+# Cumulative distribution function (CDF) for weighted normal:
+# Calculates P(X ≤ q) for a normal distribution with selection weights
+# Process: Integrates normal density with weight function over appropriate regions
 .pwnorm <- function(q, mean, sd, omega, crit_x, type, lower.tail){
 
   p  <- rep(NA, length(q))
@@ -401,6 +409,9 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   return(p)
 }
+# Quantile function (inverse CDF) for weighted normal:
+# Finds x such that P(X ≤ x) = p for the weighted normal distribution
+# Uses numerical optimization to invert the CDF function
 .qwnorm <- function(p, mean, sd, omega, crit_x, type, lower.tail){
   return(stats::optim(
     par = 0,
@@ -412,7 +423,10 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     control = list(factr = 1e-12))$par)
 }
 
-# fast computation - no input check, pre-formatted for bridge-sampling
+# Fast density computation for weighted normal distribution (optimized for bridge sampling):
+# Purpose: Efficient computation without input validation 
+# Pre-formatted inputs assumed (matrices, no error checking)
+# LLM Note: This is the performance-critical version used in bridge sampling
 .dwnorm_fast <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
 
 
