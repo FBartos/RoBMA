@@ -26,8 +26,8 @@ as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples =
 
   # compute the main estimates and CIs
   # plotting densities are generated only if figures are requested
-  EDR             <- .zcurve_EDR(x, z_threshold = significance_level,max_samples = max_samples, conditional = FALSE)
-  EDR_conditional <- try(.zcurve_EDR(x, z_threshold = significance_level,max_samples = max_samples, conditional = TRUE))
+  EDR             <- .zcurve_EDR(x, z_threshold = significance_level, max_samples = max_samples, conditional = FALSE)
+  EDR_conditional <- try(.zcurve_EDR(x, z_threshold = significance_level, max_samples = max_samples, conditional = TRUE))
 
 
   # compute data summaries
@@ -274,7 +274,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 
   }else if(plot_type == "base"){
 
-    if(!is.null(is.null(dots[["ylim"]]))){
+    if(!is.null(dots[["ylim"]])){
       ylim <- dots[["ylim"]]
     }else{
       ylim <- c(0, max(z_hist$density))

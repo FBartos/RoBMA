@@ -294,7 +294,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # Internal helper functions for weight function normal distribution:
 # Purpose: Core computational functions for exported distribution functions.
 # These functions are accessible to users wishing to simulate / estimated weighted densities, but they are not used internally.
-# (faster vectorized non-input checked functions are used internally) 
+# (faster vectorized non-input checked functions are used internally)
 # These implement the weighted normal distribution where different regions have different selection probabilities
 
 # Cumulative distribution function (CDF) for weighted normal:
@@ -482,7 +482,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
 ### fast computation - bridge-sampling ----
 # Fast density computation for weighted normal distribution (optimized for bridge sampling):
-# Purpose: Efficient computation without input validation 
+# Purpose: Efficient computation without input validation
 # Pre-formatted inputs assumed (matrices, no error checking)
 # LLM Note: This is the performance-critical version used in bridge sampling
 .dwnorm_fast.bridge <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
@@ -647,8 +647,9 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   # deal with possibility of sd = 0
   # (sampling never finishes, insert the mean value instead)
-  x[!p & sd < sqrt(.Machine$double.ep)] <- mean[!p & sd < sqrt(.Machine$double.ep)]
-  p[!p & sd < sqrt(.Machine$double.ep)] <- TRUE
+  idx <- !p & sd < sqrt(.Machine$double.ep)
+  x[idx] <- mean[idx]
+  p[idx] <- TRUE
 
   # re-sample the missing estimates
   x[!p] <- NA
@@ -825,6 +826,8 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # helper function to get weights for spike-and-slab distribution
 .get_weight_fast.ss <- function(x, omega, crit_x) {
   w <- rep(NA, length(x))
+  # Iterate over crit_x in reverse order so that for each x, the weight corresponding to the highest threshold exceeded is assigned first.
+  # This prevents overwriting weights for lower thresholds and ensures correct assignment.
   for(i in rev(seq_along(crit_x))){
     w[is.na(w) & x >= crit_x[i]] <- omega[is.na(w) & x >= crit_x[i], i + 1]
   }

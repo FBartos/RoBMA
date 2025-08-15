@@ -667,7 +667,9 @@ test_that("Fast spike-and-slab output preformated distribution functions", {
     lines(x_vals, y_exported, col = "red", lty = 2, lwd = 2)
     abline(v = crit_x, col = "gray", lty = 3)
     legend("topright", c("fast.ss", "exported"), col = c("blue", "red"), lty = c(1, 2))
-  })  # Visual check 2: .dwnorm_fast.ss vs normal (when omega = c(1,1,1))
+  })
+
+  # Visual check 2: .dwnorm_fast.ss vs normal (when omega = c(1,1,1))
   omega_uniform <- matrix(c(1.0, 1.0, 1.0), nrow = 1, ncol = 3)
   vdiffr::expect_doppelganger("dwnorm_fast_ss-2", function(){
     x_vals <- seq(-2, 3, 0.01)
