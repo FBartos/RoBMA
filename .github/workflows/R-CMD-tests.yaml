@@ -59,28 +59,27 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
-      # Install JAGS on macOS
+      # Install JAGS on macOS and ensure rjags can find its modules
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
           brew update
           brew install jags
 
-      # Find and Set JAGS Paths
-      - name: Set Environment Variables (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          JAGS_BIN=$(brew --prefix jags)/bin
-          echo "JAGS_ROOT=$(brew --prefix jags)" >> $GITHUB_ENV
-          echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=$(brew --prefix jags)/lib/pkgconfig" >> $GITHUB_ENV
+          jags_prefix=$(brew --prefix jags)
 
-      # Create Symlink for jags-terminal (if necessary)
-      - name: Create Symlink for jags-terminal (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          sudo mkdir -p $(brew --prefix)/libexec
-          sudo ln -s $(brew --prefix jags)/bin/jags $(brew --prefix)/libexec/jags-terminal
+          # Export variables for configure and runtime
+          echo "JAGS_PREFIX=${jags_prefix}" >> $GITHUB_ENV
+          echo "JAGS_LIBDIR=${jags_prefix}/lib" >> $GITHUB_ENV
+          echo "PATH=${jags_prefix}/bin:$PATH" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=${jags_prefix}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+
+          # Provide a stable location for JAGS modules that rjags may expect
+          sudo mkdir -p /usr/local/lib
+          sudo ln -sfn "${jags_prefix}/lib/JAGS" /usr/local/lib/JAGS
+
+          # Pre-install rjags so tests can load it later
+          Rscript -e "install.packages('rjags', configure.args=c('--with-jags-prefix=${jags_prefix}'), repos='https://cloud.r-project.org')"
 
       # Set up renv
       - name: Setup renv
