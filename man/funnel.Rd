@@ -11,6 +11,7 @@ funnel(
   output_scale = NULL,
   incorporate_heterogeneity = TRUE,
   incorporate_publication_bias = TRUE,
+  max_samples = 500,
   ...
 )
 }
@@ -37,6 +38,10 @@ into the sampling distribution. Defaults to \code{TRUE}.}
 \item{incorporate_publication_bias}{Whether publication bias should be incorporated
 into the sampling distribution. Defaults to \code{TRUE}.}
 
+\item{max_samples}{Maximum number of samples from the posterior distribution
+that will be used for estimating the funnel plot under publication bias.
+Defaults to \code{500}.}
+
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments
 are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
@@ -44,6 +49,10 @@ are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
 to adjust the line thickness, line type, line color, fill color,
 x-label, y-label, title, x-axis range, and y-axis range
 respectively.}
+}
+\value{
+\code{funnel} returns either \code{NULL} if \code{plot_type = "base"}
+or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
 \code{funnel} creates a funnel plot for

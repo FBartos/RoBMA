@@ -360,9 +360,9 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
             )
           }
 
-          # sample selection models (.rwnorm_predict_true_fast returns the implied random effects for given selection)
+          # sample selection models (.rwnorm_true_fast.ss returns the implied random effects for given selection)
           if(any(weightfunction_indicator)){
-            outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_true_fast(
+            outcome_samples[weightfunction_indicator,i] <- .rwnorm_true_fast.ss(
               mean   = mu_samples[weightfunction_indicator,i],
               tau    = tau_samples[weightfunction_indicator],
               se     = newdata.outcome[i,"se"],
@@ -387,7 +387,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
           # sample selection models
           if(any(weightfunction_indicator)){
-            outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
+            outcome_samples[weightfunction_indicator,i] <- .rwnorm_fast.ss(
               mean   = mu_samples[weightfunction_indicator,i],
               sd     = sqrt(tau_samples[weightfunction_indicator]^2 + newdata.outcome[i,"se"]^2),
               omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
