@@ -61,13 +61,31 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
 
-      # Install JAGS on macOS
+      # Install JAGS on macOS and ensure rjags can find its modules
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
+          # Install JAGS via Homebrew
+          brew update
           brew install jags
-          # Set environment variable for library path
-          echo "DYLD_LIBRARY_PATH=$(brew --prefix jags)/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+
+          # Locate the Homebrew installation prefix for jags
+          jags_prefix=$(brew --prefix jags)
+
+          # Export useful variables for rjags configure and runtime
+          echo "JAGS_PREFIX=${jags_prefix}" >> $GITHUB_ENV
+          echo "JAGS_LIBDIR=${jags_prefix}/lib" >> $GITHUB_ENV
+          echo "PATH=${jags_prefix}/bin:$PATH" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=${jags_prefix}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+
+          # Create a stable path that rjags might expect (/usr/local/lib/JAGS/modules-*)
+          # and point it to the Homebrew-installed JAGS modules so load.module() works.
+          sudo mkdir -p /usr/local/lib
+          sudo ln -sfn "${jags_prefix}/lib/JAGS" /usr/local/lib/JAGS
+
+          # Pre-install rjags with the detected prefix so configure can find JAGS.
+          # This follows the rjags installation advice: pass --with-jags-prefix when needed.
+          Rscript -e "install.packages('rjags', configure.args=c('--with-jags-prefix=${jags_prefix}'), repos='https://cloud.r-project.org')"
 
       # Set up renv
       - name: Setup renv
