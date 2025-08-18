@@ -151,7 +151,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     # - when predicting effects/outcomes for multilevel outcomes, use estimated gamma levels
 
     # dispatch between meta-regression / meta-analysis input
-    if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+    if(.is_regression(object)){
       newdata.predictors <- do.call(cbind.data.frame, object$data[["predictors"]])
       newdata.outcome    <- object$data[["outcome"]]
     }else{
@@ -165,7 +165,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     # - when predicting effects/outcomes for multilevel outcomes, average across possible tau_within levels via sampling
 
     # dispatch between meta-regression / meta-analysis input
-    if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+    if(.is_regression(object)){
 
       RoBMA.options(check_scaling = FALSE)
       newdata <- .combine_data.reg(
@@ -208,7 +208,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
   # obtain the (study-specific) mu estimate
   # meta-regression and meta-analysis separately
-  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+  if(.is_regression(object)){
 
     mu_samples  <- t(BayesTools::JAGS_evaluate_formula(
       fit         = object$model$fit,
