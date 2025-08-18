@@ -231,6 +231,14 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
   # transform the samples to the model fitting scale (the data are at the model fitting scale)
   mu_samples  <- .scale(mu_samples,  object$add_info[["output_scale"]], model_scale)
 
+  # adjust effect samples and data to match original observed data direction
+  # (to undo fitting adjustment for one-sided weightfunction)
+  # the residuals need to be flipped back before being returned
+  if(!is.null(object$add_info[["effect_direction"]]) && object$add_info[["effect_direction"]] == "negative"){
+    newdata.outcome[,"y"] <- -newdata.outcome[,"y"]
+    mu_samples            <- -mu_samples
+  }
+
   # add conditional warnings
   if(conditional){
     if(sum(mu_indicator %in% which(!mu_is_null)) < 100)
@@ -405,6 +413,10 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     outcome_samples <- mu_samples
   }
 
+  # flip outcome samples back to the original direction
+  if(!is.null(object$add_info[["effect_direction"]]) && object$add_info[["effect_direction"]] == "negative"){
+    outcome_samples <- -outcome_samples
+  }
 
   # select conditional estimates
   if(conditional){

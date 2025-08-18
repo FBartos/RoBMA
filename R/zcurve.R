@@ -482,6 +482,13 @@ print.zcurve_RoBMA <- function(x, ...){
   # transform the samples to the model fitting scale (the data are at the model fitting scale)
   mu_samples  <- .scale(mu_samples,  x$add_info[["output_scale"]], model_scale)
 
+  # adjust effect samples and data to match original observed data direction
+  # (to undo fitting adjustment for one-sided weightfunction)
+  if(!is.null(x$add_info[["effect_direction"]]) && x$add_info[["effect_direction"]] == "negative"){
+    mu_samples            <- -mu_samples
+    newdata.outcome[,"y"] <- -newdata.outcome[,"y"] # (this one is never used but we flipp it as well for consistency)
+  }
+
   # add conditional warnings
   if(conditional){
     if(sum(mu_indicator) < 100)
@@ -601,6 +608,14 @@ print.zcurve_RoBMA <- function(x, ...){
       stop("Less or equal to 2 posterior samples assuming presence of the effects. The estimates could not be computed.")
   }
 
+  # adjust effect samples and data to match original observed data direction
+  # (to undo fitting adjustment for one-sided weightfunction)
+  if(!is.null(x$add_info[["effect_direction"]]) && x$add_info[["effect_direction"]] == "negative"){
+    newdata.outcome[,"y"] <- -newdata.outcome[,"y"]
+    z_sequence            <- -z_sequence
+    mu_samples            <- -mu_samples
+  }
+
   # extract the list of priors
   priors_bias  <- priors[["bias"]]
   if(!extrapolate){
@@ -623,7 +638,6 @@ print.zcurve_RoBMA <- function(x, ...){
       mu_samples[,i] <- mu_samples[,i] + PET_samples * newdata.outcome[i,"se"] + PEESE_samples * newdata.outcome[i,"se"]^2
     }
   }
-
 
   if(inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg") || (length(priors[["bias"]]) == 1 && is.prior.none(priors[["bias"]][[1]]))){
 
