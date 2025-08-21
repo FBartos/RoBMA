@@ -63,7 +63,7 @@ residuals.RoBMA <- function(object, conditional = FALSE, output_scale = NULL, pr
                          incorporate_publication_bias = TRUE, as_samples = TRUE)
 
   # get the data: dispatch between meta-regression / meta-analysis input
-  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+  if(.is_regression(object)){
     data <- object$data[["outcome"]]
   }else{
     data <- object[["data"]]
