@@ -174,7 +174,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   BayesTools::check_bool(plot_CI, "plot_CI")
 
   # extract the data
-  dots <- list()
+  dots <- list(...)
   z    <- x$zcurve$data[["z"]]
   z_in_range <- z > min(z_sequence) & z < max(z_sequence)
 
