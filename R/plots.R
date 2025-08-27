@@ -479,6 +479,15 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' @return \code{funnel} returns either \code{NULL} if \code{plot_type = "base"}
 #' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 #'
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+#'              study_names = Anderson2010$labels, algorithm = "ss")
+#'
+#' funnel(fit)
+#' }
+#'
 #' @export
 funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL,
                    incorporate_heterogeneity = TRUE, incorporate_publication_bias = TRUE, max_samples = 500,

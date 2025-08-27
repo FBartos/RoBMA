@@ -2,7 +2,7 @@
 % Please edit documentation in R/zcurve.R
 \name{plot.zcurve_RoBMA}
 \alias{plot.zcurve_RoBMA}
-\title{Plots fitted zcurve_RoBMA object}
+\title{Create Z-Curve Meta-Analytic Plot}
 \usage{
 \method{plot}{zcurve_RoBMA}(
   x,
@@ -10,15 +10,21 @@
   plot_type = "base",
   probs = c(0.025, 0.975),
   max_samples = 500,
-  z_sequence = seq(-6, 6, 0.2),
   plot_fit = TRUE,
   plot_extrapolation = TRUE,
   plot_CI = TRUE,
+  plot_thresholds = TRUE,
+  from = -6,
+  to = 6,
+  by.hist = 0.5,
+  length.out.hist = NULL,
+  by.lines = 0.05,
+  length.out.lines = NULL,
   ...
 )
 }
 \arguments{
-\item{x}{A RoBMA object}
+\item{x}{A zcurve_RoBMA object to be plotted.}
 
 \item{conditional}{whether conditional estimates should be
 plotted. Defaults to \code{FALSE} which plots the model-averaged
@@ -33,33 +39,48 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .975)}}
 
-\item{max_samples}{Maximum number of samples from the posterior distribution
-that will be used for estimating z-curve estimates.}
+\item{max_samples}{Maximum number of posterior samples to use for plotting credible intervals. Defaults to 500.}
 
-\item{z_sequence}{Sequence determining the plotting range and binning of z-values. Defaults to \code{seq(-6, 6, 0.2)}.}
+\item{plot_fit}{Should the model fit be included in the plot? Defaults to TRUE.}
 
-\item{plot_fit}{Whether the model fit should be included in the figure. Defaults to \code{TRUE}.}
+\item{plot_extrapolation}{Should model extrapolation be included in the plot? Defaults to TRUE.}
 
-\item{plot_extrapolation}{Whether the model extrapolation should be included in the figure. Defaults to \code{TRUE}.}
+\item{plot_CI}{Should credible intervals be included in the plot? Defaults to TRUE.}
 
-\item{plot_CI}{Whether the credible intervals should be included in the figure. Defaults to \code{TRUE}.}
+\item{plot_thresholds}{Should significance thresholds be displayed in the plot? Defaults to TRUE.}
 
-\item{...}{list of additional graphical arguments
-to be passed to the plotting function. Supported arguments
-are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
-\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
-to adjust the line thickness, line type, line color, fill color,
-x-label, y-label, title, x-axis range, and y-axis range
-respectively.}
+\item{from}{Lower bound of the z-value range for plotting. Defaults to -6.}
+
+\item{to}{Upper bound of the z-value range for plotting. Defaults to 6.}
+
+\item{by.hist}{Bin width for the histogram of observed z-values. Defaults to 0.05.}
+
+\item{length.out.hist}{Number of bins for the histogram. If NULL, determined by by.hist. Defaults to NULL.}
+
+\item{by.lines}{Step size for plotting model fit and extrapolation lines. Defaults to 0.05.}
+
+\item{length.out.lines}{Number of points for plotting lines. If NULL, determined by by.lines. Defaults to NULL.}
+
+\item{...}{Additional arguments passed to the underlying plotting functions.}
 }
 \value{
-\code{plot.zcurve_RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
-or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.
 }
 \description{
-\code{plot.zcurve_RoBMA} creates a z-curve figure for a
-zcurve_RoBMA object.
+Plots a fitted \code{zcurve_RoBMA} object, visualizing the z-curve, model fit, extrapolation, and credible intervals.
+}
+\examples{
+\dontrun{
+# using the example data from Anderson et al. 2010 and fitting the default model
+# (note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+             study_names = Anderson2010$labels, algorithm = "ss")
+
+zcurve_fit <- as_zcurve(fit)
+plot(zcurve_fit)
+}
+
 }
 \seealso{
-\code{\link[=as_zcurve]{as_zcurve()}}
+\code{\link[=as_zcurve]{as_zcurve()}}, \code{\link[=lines.zcurve_RoBMA]{lines.zcurve_RoBMA()}}, \code{\link[=hist.zcurve_RoBMA]{hist.zcurve_RoBMA()}}
 }

@@ -24,3 +24,15 @@ z-curve object that can be further summarized and plotted.
 Only available for normal-normal models estimated using the spike-and-slab
 algorithm (i.e., \code{algorithm = "ss"}).
 }
+\examples{
+\dontrun{
+# using the example data from Anderson et al. 2010 and fitting the default model
+# (note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+             study_names = Anderson2010$labels, algorithm = "ss")
+
+zcurve_fit <- as_zcurve(fit)
+summary(zcurve_fit)
+}
+
+}

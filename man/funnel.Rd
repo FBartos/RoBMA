@@ -74,3 +74,14 @@ to visualize in the usual funnel plot style anyway?.
 The sampling distribution is drawn under the mean effect size and heterogeneity
 estimates (the uncertainty about those values is not incorporated into the figure).
 }
+\examples{
+\dontrun{
+# using the example data from Anderson et al. 2010 and fitting the default model
+# (note that the model can take a while to fit)
+fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+             study_names = Anderson2010$labels, algorithm = "ss")
+
+funnel(fit)
+}
+
+}

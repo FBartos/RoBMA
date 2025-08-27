@@ -14,6 +14,16 @@
 #'
 #' @return \code{as_zcurve} returns a list of tables of class 'zcurve_RoBMA'.
 #'
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+#'              study_names = Anderson2010$labels, algorithm = "ss")
+#'
+#' zcurve_fit <- as_zcurve(fit)
+#' summary(zcurve_fit)
+#' }
+#'
 #' @export
 as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples = 1000){
 
@@ -138,43 +148,201 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
   return(output)
 }
 
-
-#' @title Plots fitted zcurve_RoBMA object
+#' @title Create Z-Curve Meta-Analytic Plot
 #'
-#' @description \code{plot.zcurve_RoBMA} creates a z-curve figure for a
-#' zcurve_RoBMA object.
+#' @description
+#' Plots a fitted \code{zcurve_RoBMA} object, visualizing the z-curve, model fit, extrapolation, and credible intervals.
 #'
+#'
+#' @param x A zcurve_RoBMA object to be plotted.
+#' @param max_samples Maximum number of posterior samples to use for plotting credible intervals. Defaults to 500.
+#' @param plot_fit Should the model fit be included in the plot? Defaults to TRUE.
+#' @param plot_extrapolation Should model extrapolation be included in the plot? Defaults to TRUE.
+#' @param plot_CI Should credible intervals be included in the plot? Defaults to TRUE.
+#' @param plot_thresholds Should significance thresholds be displayed in the plot? Defaults to TRUE.
+#' @param from Lower bound of the z-value range for plotting. Defaults to -6.
+#' @param to Upper bound of the z-value range for plotting. Defaults to 6.
+#' @param by.hist Bin width for the histogram of observed z-values. Defaults to 0.05.
+#' @param length.out.hist Number of bins for the histogram. If NULL, determined by by.hist. Defaults to NULL.
+#' @param by.lines Step size for plotting model fit and extrapolation lines. Defaults to 0.05.
+#' @param length.out.lines Number of points for plotting lines. If NULL, determined by by.lines. Defaults to NULL.
+#' @param ... Additional arguments passed to the underlying plotting functions.
 #' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
 #' @inheritParams summary.RoBMA
-#' @param z_sequence Sequence determining the plotting range and binning of z-values. Defaults to \code{seq(-6, 6, 0.2)}.
-#' @param plot_fit Whether the model fit should be included in the figure. Defaults to \code{TRUE}.
-#' @param plot_extrapolation Whether the model extrapolation should be included in the figure. Defaults to \code{TRUE}.
-#' @param plot_CI Whether the credible intervals should be included in the figure. Defaults to \code{TRUE}.
 #'
-#' @return \code{plot.zcurve_RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
-#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#' @return
+#' Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.
 #'
-#' @seealso [as_zcurve()]
+#' @seealso [as_zcurve()], [lines.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
+#'
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+#'              study_names = Anderson2010$labels, algorithm = "ss")
+#'
+#' zcurve_fit <- as_zcurve(fit)
+#' plot(zcurve_fit)
+#' }
+#'
 #' @export
 plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
                               probs = c(.025, .975), max_samples = 500,
-                              z_sequence = seq(-6, 6, 0.2),
-                              plot_fit = TRUE, plot_extrapolation = TRUE, plot_CI = TRUE, ...){
+                              plot_fit = TRUE, plot_extrapolation = TRUE, plot_CI = TRUE, plot_thresholds = TRUE,
+                              from = -6, to = 6, by.hist = 0.5, length.out.hist = NULL, by.lines = 0.05, length.out.lines = NULL, ...){
 
   # plots the z-curve object
   # most functions are based on the zcurve package
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_real(from, "from", allow_NULL = TRUE)
+  BayesTools::check_real(to, "to", allow_NULL = TRUE)
+  BayesTools::check_real(by.hist, "by.hist", allow_NULL = TRUE)
+  BayesTools::check_real(length.out.hist, "length.out.hist", allow_NULL = TRUE)
+  BayesTools::check_real(by.lines, "by.lines", allow_NULL = TRUE)
+  BayesTools::check_real(length.out.lines, "length.out.lines", allow_NULL = TRUE)
   BayesTools::check_int(max_samples, "max_samples", lower = 10)
-  BayesTools::check_bool(plot_fit, "plot_fit")
+  BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(plot_extrapolation, "plot_extrapolation")
   BayesTools::check_bool(plot_CI, "plot_CI")
+  BayesTools::check_bool(plot_thresholds, "plot_thresholds")
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
+
+  # construct the plot
+  # get the line values first so we can set-up ylim of the histogram
+  ymax <- 0
+  if(plot_fit){
+    lines_fit <- lines.zcurve_RoBMA(x, conditional = conditional, plot_type = plot_type,
+                                    probs = probs, max_samples = max_samples,
+                                    extrapolate = FALSE, plot_CI = plot_CI,
+                                    from = from, to = to, by = by.lines, length.out = length.out.lines, as_data = TRUE)
+    ymax <- max(c(ymax, lines_fit$y, if(plot_CI) lines_fit$y_uCI))
+  }
+  if(plot_extrapolation){
+    lines_extrapolation <- lines.zcurve_RoBMA(x, conditional = conditional, plot_type = plot_type,
+                                              probs = probs, max_samples = max_samples,
+                                              extrapolate = TRUE, plot_CI = plot_CI,
+                                              from = from, to = to, by = by.lines, length.out = length.out.lines, as_data = TRUE)
+    ymax <- max(c(ymax, lines_extrapolation$y, if(plot_CI) lines_extrapolation$y_uCI))
+  }
+
+
+  plot <- hist.zcurve_RoBMA(x, plot_type = plot_type, from = from, to = to, by = by.hist, length.out = length.out.hist,
+                            ylim = if(ymax != 0) c(0, ymax) else NULL, plot_thresholds = plot_thresholds)
+
+  # add plot lines
+  if(plot_fit){
+    if(plot_type == "base"){
+      if(plot_CI){
+        graphics::polygon(
+          c(lines_fit$x,     rev(lines_fit$x)),
+          c(lines_fit$y_lCI, rev(lines_fit$y_uCI)),
+          border = NA, col = scales::alpha("black", 0.40))
+      }
+      graphics::lines(lines_fit$x, lines_fit$y, lwd = 2, col = "black", lty = 1)
+    }else if(plot_type == "ggplot"){
+      if(plot_CI){
+        plot <- plot + ggplot2::geom_ribbon(
+          ggplot2::aes(
+            x    = lines_fit$x,
+            ymin = lines_fit$y_lCI,
+            ymax = lines_fit$y_uCI),
+          fill = scales::alpha("black", 0.40)
+        )
+      }
+      plot <- plot + ggplot2::geom_line(
+        ggplot2::aes(
+          x = lines_fit$x,
+          y = lines_fit$y),
+        color     = "black",
+        linewidth = 1,
+        linetype  = 1
+      )
+    }
+  }
+
+  # add extrapolation lines
+  if(plot_extrapolation){
+    if(plot_type == "base"){
+      if(plot_CI){
+        graphics::polygon(
+          c(lines_extrapolation$x,     rev(lines_extrapolation$x)),
+          c(lines_extrapolation$y_lCI, rev(lines_extrapolation$y_uCI)),
+          border = NA, col = scales::alpha("blue", 0.40))
+      }
+      graphics::lines(lines_extrapolation$x, lines_extrapolation$y, lwd = 2, col = "blue", lty = 1)
+    }else if(plot_type == "ggplot"){
+      if(plot_CI){
+        plot <- plot + ggplot2::geom_ribbon(
+          ggplot2::aes(
+            x    = lines_extrapolation$x,
+            ymin = lines_extrapolation$y_lCI,
+            ymax = lines_extrapolation$y_uCI),
+          fill = scales::alpha("blue", 0.40)
+        )
+      }
+      plot <- plot + ggplot2::geom_line(
+        ggplot2::aes(
+          x = lines_extrapolation$x,
+          y = lines_extrapolation$y),
+        color     = "blue",
+        linewidth = 1,
+        linetype  = 1
+      )
+    }
+  }
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible())
+  }else if(plot_type == "ggplot"){
+    return(plot)
+  }
+}
+
+#' @title Create Histogram of Z-Statistics
+#'
+#' @description
+#' Plots a histogram of observed z-values for a fitted \code{zcurve_RoBMA} object, with options to customize the plotting range, bin width, and display of significance thresholds.
+#'
+#' @param x A \code{zcurve_RoBMA} object containing the fitted model.
+#' @param by Numeric value specifying the bin width for the histogram. Defaults to 0.25.
+#' @param length.out Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.
+#' @param plot_thresholds Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.
+#' @param ... Additional arguments passed to the underlying plotting functions.
+#' @inheritParams as_zcurve
+#' @inheritParams plot.RoBMA
+#' @inheritParams summary.RoBMA
+#' @inheritParams plot.zcurve_RoBMA
+#'
+#' @return
+#' Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.
+#'
+#' @seealso [as_zcurve()], [plot.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
+#'
+#' @export
+hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.25, length.out = NULL, plot_thresholds = TRUE, ...){
+
+  # most functions are based on the zcurve package
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_real(from, "from", allow_NULL = TRUE)
+  BayesTools::check_real(to, "to", allow_NULL = TRUE)
+  BayesTools::check_real(by, "by", allow_NULL = TRUE)
+  BayesTools::check_real(length.out, "length.out", allow_NULL = TRUE)
+  BayesTools::check_bool(plot_thresholds, "plot_thresholds")
 
   # extract the data
   dots <- list(...)
   z    <- x$zcurve$data[["z"]]
-  z_in_range <- z > min(z_sequence) & z < max(z_sequence)
+
+  # specify plotting range
+  z_sequence <- .zcurve_bins(priors = x[["priors"]], from = from, to = to, by = by, length.out = length.out, type = "hist")
+  z_in_range <- z >= min(z_sequence) & z <= max(z_sequence)
+
+  # compute the number of z-statistics outside of the plotting range
+  if(sum(!z_in_range) > 0){
+    message(sprintf("%1$i z-statistics are out of the plotting range", sum(!z_in_range)))
+  }
 
   # create z-curve histogram data
   z_hist <- graphics::hist(z[z_in_range], breaks = z_sequence, plot = FALSE)
@@ -182,42 +350,31 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   # adjust histogram for values outside of plotting range
   z_hist$density <- z_hist$density * mean(z_in_range)
 
-  # compute the expected density under the RoBMA model
-  z_densities_fit           <- .zcurve_fun(x, z_sequence = z_sequence, max_samples = max_samples, conditional = conditional, extrapolate = FALSE)
-  z_densities_extrapolation <- .zcurve_fun(x, z_sequence = z_sequence, max_samples = max_samples, conditional = conditional, extrapolate = TRUE)
-
   # create plotting objects
   df_hist <- data.frame(
     x       = z_hist$mids,
     density = z_hist$density,
     breaks  = diff(z_hist$breaks)
   )
-  df_fit <- data.frame(
-    x     = z_sequence,
-    y     = colMeans(z_densities_fit),
-    y_lCI = apply(z_densities_fit, 2, stats::quantile, probs = 0.025),
-    y_uCI = apply(z_densities_fit, 2, stats::quantile, probs = 0.975)
-  )
-  df_extrapolation <- data.frame(
-    x     = z_sequence,
-    y     = colMeans(z_densities_extrapolation),
-    y_lCI = apply(z_densities_extrapolation, 2, stats::quantile, probs = 0.025),
-    y_uCI = apply(z_densities_extrapolation, 2, stats::quantile, probs = 0.975)
-  )
 
-  # allow data return for JASP
+  # return the plotting object if requested
   if(isTRUE(dots[["as_data"]])){
-    return(list(
-      hist          = df_hist,
-      fit           = df_fit,
-      extrapolation = df_extrapolation
-    ))
+    return(df_hist)
   }
 
+  # create the plot otherwise
+  if(!is.null(dots[["ylim"]])){
+    ylim <- range(dots[["ylim"]], max(z_hist$density))
+  }else{
+    ylim <- c(0, max(z_hist$density))
+  }
+  if(!is.null(dots[["xlab"]])){
+    xlab <- dots[["xlab"]]
+  }else{
+    xlab <- "Z-Statistic"
+  }
 
   if(plot_type == "ggplot"){
-
-    # Initialize ggplot with histogram as density
     out <- ggplot2::ggplot() +
       ggplot2::geom_col(
         ggplot2::aes(
@@ -227,97 +384,22 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
         color = "black",
         width = df_hist$breaks
       ) +
-      ggplot2::labs(x = "z", y = "Density")
-
-    # Add extrapolation fit
-    if(plot_extrapolation){
-      if(plot_CI){
-        out <- out + ggplot2::geom_ribbon(
-          ggplot2::aes(
-            x    = df_extrapolation$x,
-            ymin = df_extrapolation$y_lCI,
-            ymax = df_extrapolation$y_uCI),
-          fill = scales::alpha("blue", 0.2)
-        )
-      }
-      out <- out + ggplot2::geom_line(
-        ggplot2::aes(
-          x = df_extrapolation$x,
-          y = df_extrapolation$y),
-        color     = "blue",
-        linewidth = 1
-      )
-    }
-
-    # Add extrapolated region
-    if(plot_fit){
-      if(plot_CI){
-        out <- out + ggplot2::geom_ribbon(
-          ggplot2::aes(
-            x    = df_fit$x,
-            ymin = df_fit$y_lCI,
-            ymax = df_fit$y_uCI),
-          fill = scales::alpha("gray40", 0.4)
-        )
-      }
-      out <- out + ggplot2::geom_line(
-        ggplot2::aes(
-          x = df_fit$x,
-          y = df_fit$y),
-        color     = "gray40",
-        linewidth = 1,
-        linetype  = 2
-      )
-    }
-
-  }else if(plot_type == "base"){
-
-    if(!is.null(dots[["ylim"]])){
-      ylim <- dots[["ylim"]]
-    }else{
-      ylim <- c(0, max(z_hist$density))
-      if(plot_fit){
-        if(plot_CI){
-          ylim <- range(c(ylim, df_extrapolation$y_uCI))
-        }else{
-          ylim <- range(c(ylim, df_extrapolation$y))
-        }
-      }
-      if(plot_extrapolation){
-        if(plot_CI){
-          ylim <- range(c(ylim, df_fit$y_uCI))
-        }else{
-          ylim <- range(c(ylim, df_fit$y))
-        }
-      }
-    }
-
-
+      ggplot2::labs(x = xlab, y = "Density")
+  } else {
     graphics::plot(z_hist, freq = FALSE, las = 1, density = 0, angle = 0,
-                   border = "black", xlab = "z", main = "", ylim = ylim)
-
-    if(plot_extrapolation){
-      if(plot_CI){
-        graphics::polygon(
-          c(df_extrapolation$x, rev(df_extrapolation$x)),
-          c(df_extrapolation$y_lCI, rev(df_extrapolation$y_uCI)),
-          border = NA, col = scales::alpha("blue", .20))
-      }
-      graphics::lines(df_extrapolation$x, df_extrapolation$y, lwd = 2, col = "blue")
-    }
-
-    if(plot_fit){
-      if(plot_CI){
-        graphics::polygon(
-          c(df_fit$x, rev(df_fit$x)),
-          c(df_fit$y_lCI, rev(df_fit$y_uCI)),
-          border = NA, col = scales::alpha("gray40", .40))
-      }
-      graphics::lines(df_fit$x, df_fit$y, lwd = 2, col = "gray40", lty = 2)
-    }
-
+                   border = "black", xlab = xlab, main = "", ylim = ylim)
   }
 
+  if(plot_thresholds){
+    tresholds <- .zcurve_threshold(x[["priors"]])
+    if(length(tresholds) > 0){
+      if(plot_type == "base"){
+        graphics::abline(v = tresholds, col = "red", lty = 3)
+      }else if(plot_type == "ggplot"){
+        out <- out + ggplot2::geom_vline(xintercept = tresholds, color = "red", linetype = "dashed")
+      }
+    }
+  }
 
   # return the plots
   if(plot_type == "base"){
@@ -327,29 +409,196 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   }
 }
 
-.plot_zcurve_range <- function(z, z_min, z_max, z_step){
+#' @title Add Lines With Posterior Predictive Distribution of Z-Statistics
+#'
+#' @description
+#' Adds lines to a plot of a fitted zcurve_RoBMA object. This function is typically used to overlay additional information or model fits on an existing plot.
+#'
+#' @param extrapolate Logical indicating whether to extrapolate values beyond the observed data range.
+#' @param by Numeric value specifying the increment for the sequence.
+#' @param length.out Optional integer specifying the desired length of the output sequence.
+#' @param col Color of the plotted line.
+#' @inheritParams as_zcurve
+#' @inheritParams plot.RoBMA
+#' @inheritParams summary.RoBMA
+#' @inheritParams plot.zcurve_RoBMA
+#'
+#' @seealso [as_zcurve()], [plot.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
+#'
+#' @export
+lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
+                               probs = c(.025, .975), max_samples = 500,
+                               extrapolate = FALSE, plot_CI = TRUE,
+                               from = -6, to = 6, by = 0.05, length.out = NULL, col = if(extrapolate) "blue" else "black", ...){
 
-  z_seq <- seq(from = z_min, to = z_max, by = z_step)
+  # most functions are based on the zcurve package
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_real(from, "from", allow_NULL = TRUE)
+  BayesTools::check_real(to, "to", allow_NULL = TRUE)
+  BayesTools::check_real(by, "by", allow_NULL = TRUE)
+  BayesTools::check_real(length.out, "length.out", allow_NULL = TRUE)
+  BayesTools::check_int(max_samples, "max_samples", lower = 10)
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_bool(extrapolate, "extrapolate")
+  BayesTools::check_bool(plot_CI, "plot_CI")
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
 
-  # include all thresholds larger then min(z)
-  if(min(z) > z_min){
-    is_larger <- min(which(z_seq > min(z)))
-    if(is_larger > 1){
-      z_seq <- z_seq[(is_larger-1):length(z_seq)]
-    }
+  # extract the data
+  dots <- list(...)
+  z    <- x$zcurve$data[["z"]]
+
+  # specify plotting range
+  z_sequence <- .zcurve_bins(priors = x[["priors"]], from = from, to = to, by = by, length.out = length.out, type = "dens")
+
+  # create z-curve histogram data
+  z_density <- .zcurve_fun(x, z_sequence = z_sequence, max_samples = max_samples, conditional = conditional, extrapolate = extrapolate)
+
+  # create plotting objects
+  df_density <- data.frame(
+    x     = z_sequence,
+    y     = colMeans(z_density),
+    y_lCI = apply(z_density, 2, stats::quantile, probs = probs[1]),
+    y_uCI = apply(z_density, 2, stats::quantile, probs = probs[2])
+  )
+
+  # return the plotting object if requested
+  if(isTRUE(dots[["as_data"]])){
+    return(df_density)
   }
 
-  # include all thresholds smaller then max(z)
-  if(max(z) < z_max){
-    is_lower <- max(which(z_seq < max(z)))
-    if(is_lower < length(z_seq)){
-      z_seq <- z_seq[1:(is_lower+1)]
-    }
+  # create the plot otherwise
+  if(!is.null(dots[["lwd"]])){
+    lwd <- dots[["lwd"]]
+  }else{
+    lwd <- 1
+  }
+  if(!is.null(dots[["lty"]])){
+    lty <- dots[["lty"]]
+  }else{
+    lty <- 1
+  }
+  if(!is.null(dots[["alpha"]])){
+    alpha <- dots[["alpha"]]
+  }else{
+    alpha <- 0.4
   }
 
-  return(z_seq)
+  if(plot_type == "ggplot"){
+    out <- list()
+    if(plot_CI){
+      out[[1]] <- ggplot2::geom_ribbon(
+        ggplot2::aes(
+          x    = df_density$x,
+          ymin = df_density$y_lCI,
+          ymax = df_density$y_uCI),
+        fill = scales::alpha(col, alpha)
+      )
+    }
+    out[[length(out) + 1]] <- ggplot2::geom_line(
+      ggplot2::aes(
+        x = df_density$x,
+        y = df_density$y),
+      color     = col,
+      linewidth = lwd,
+      linetype  = lty
+    )
+  }else{
+    if(plot_CI){
+      graphics::polygon(
+        c(df_density$x,     rev(df_density$x)),
+        c(df_density$y_lCI, rev(df_density$y_uCI)),
+        border = NA, col = scales::alpha(col, alpha))
+    }
+    graphics::lines(df_density$x, df_density$y, lwd = lwd, col = col, lty = lty)
+  }
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible())
+  }else if(plot_type == "ggplot"){
+    return(out)
+  }
 }
 
+
+
+.zcurve_bins      <- function(priors, from, to, by, length.out, type = "hist"){
+
+  if(is.null(length.out)){
+    bins <- seq(from = from, to = to, by = by)
+  }else{
+    bins <- seq(from = from, to = to, length.out = length.out)
+  }
+
+  priors_bias <- priors[["bias"]]
+
+  # return simple binning in case of no bias
+  if(is.null(priors_bias)){
+    return(bins)
+  }
+
+  # obtain tresholds from the specified priors
+  z_bounds <- .zcurve_threshold(priors)
+
+  # return simple binning in case of no weightfunctions
+  if(length(z_bounds) == 0){
+    return(bins)
+  }
+
+  # retain bounds within the plotting range
+  z_bounds <- z_bounds[z_bounds > from & z_bounds < to]
+
+  if(type == "hist"){
+    # for histogram, shift the specified bin boundaries to the closest z-treshold
+    for(i in seq_along(z_bounds)){
+
+      # get index of the first larger sequence
+      i_larger <- which(bins > z_bounds[i])[1]
+
+      # if there is none skip
+      if(is.na(i_larger))
+        next
+
+      # get index of the closer one from below
+      i_lower  <- i_larger - 1
+
+      # replace the closer sequence with the boundary
+      if(bins[i_larger] - z_bounds[i] < z_bounds[i] - bins[i_lower]){
+        bins[i_larger] <- z_bounds[i]
+      }else{
+        bins[i_lower]  <- z_bounds[i]
+      }
+    }
+  }else if(type == "dens"){
+    # for density, extend the specified support at the threshold
+    bins <- sort(unique(c(bins, z_bounds)))
+  }
+
+  return(bins)
+}
+.zcurve_threshold <- function(priors){
+
+  priors_bias <- priors[["bias"]]
+
+  # return simple binning in case of no bias
+  if(is.null(priors_bias)){
+    return()
+  }
+
+  priors_weightfunctions <- priors_bias[sapply(priors_bias, is.prior.weightfunction)]
+
+  # return simple binning in case of no weightfunctions
+  if(length(priors_weightfunctions) == 0){
+    return()
+  }
+
+  # obtain tresholds from the specified priors
+  p_bounds <- BayesTools::weightfunctions_mapping(priors_weightfunctions, cuts_only = TRUE)
+  z_bounds <- stats::qnorm(rev(p_bounds), 0, 1, lower.tail = FALSE)
+  z_bounds <- z_bounds[!is.infinite(z_bounds)]
+
+  return(z_bounds)
+}
 
 #' @title Prints summary object for zcurve_RoBMA method
 #'
