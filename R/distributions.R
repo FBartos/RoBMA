@@ -825,13 +825,11 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
 # helper function to get weights for spike-and-slab distribution
 .get_weight_fast.ss <- function(x, omega, crit_x) {
-  w <- rep(NA, length(x))
-  # Iterate over crit_x in reverse order so that for each x, the weight corresponding to the highest threshold exceeded is assigned first.
-  # This prevents overwriting weights for lower thresholds and ensures correct assignment.
-  for(i in rev(seq_along(crit_x))){
-    w[is.na(w) & x >= crit_x[i]] <- omega[is.na(w) & x >= crit_x[i], i + 1]
-  }
-  w[is.na(w) & x < crit_x[1]] <- omega[is.na(w) & x < crit_x[1], 1]
+  # Use findInterval to determine which interval each x falls into
+  # findInterval returns 0 for x < crit_x[1], 1 for crit_x[1] <= x < crit_x[2], ..., length(crit_x) for x >= crit_x[length(crit_x)]
+  idx <- findInterval(x, crit_x, left.open = FALSE, rightmost.closed = TRUE) + 1
+  # idx is in 1:(length(crit_x)+1), corresponding to columns 1:(length(crit_x)+1) in omega
+  w <- omega[cbind(seq_along(x), idx)]
 
   # deal with computer precision errors from JAGS
   w[w > 1] <- 1
