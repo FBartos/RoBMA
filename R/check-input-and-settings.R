@@ -1089,11 +1089,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   warnings <- NULL
 
-  if(!is.null(object$data[["outcome"]])){
-    data <- object$data[["outcome"]]
-  }else{
-    data <- object[["data"]]
-  }
+  data <- .get_outcome_data(object)
 
   # check whether majority of effect sizes are in expected direction. throw warning if not.
   if(any(sapply(object$priors[["bias"]], function(p) p[["distribution"]]) == "one.sided") |

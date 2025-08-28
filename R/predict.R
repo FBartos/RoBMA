@@ -153,10 +153,8 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
     # dispatch between meta-regression / meta-analysis input
     if(.is_regression(object)){
       newdata.predictors <- do.call(cbind.data.frame, object$data[["predictors"]])
-      newdata.outcome    <- object$data[["outcome"]]
-    }else{
-      newdata.outcome <- object[["data"]]
     }
+    newdata.outcome <- .get_outcome_data(object)
 
   }else{
 

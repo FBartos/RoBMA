@@ -41,11 +41,7 @@ as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples =
 
 
   # compute data summaries
-  if(.is_regression(x)){
-    outcome_data <- x$data[["outcome"]]
-  }else{
-    outcome_data <- x[["data"]]
-  }
+  outcome_data <- .get_outcome_data(x)
 
   # store new z-curve objects
   x[["coefficients"]] <- c("EDR" = mean(out[["EDR"]]))
@@ -682,7 +678,7 @@ print.zcurve_RoBMA <- function(x, ...){
     # otherwise there might be no conditional samples left
 
     # select the indicator
-    if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+    if(.is_regression(x)){
       mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
       mu_is_null   <- attr(x[["model"]]$priors$terms[["intercept"]], "components") == "null"
     }else{
@@ -704,16 +700,14 @@ print.zcurve_RoBMA <- function(x, ...){
   }
 
   # dispatch between meta-regression / meta-analysis input
-  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+  if(.is_regression(x)){
     newdata.predictors <- do.call(cbind.data.frame, x$data[["predictors"]])
-    newdata.outcome    <- x$data[["outcome"]]
-  }else{
-    newdata.outcome <- x[["data"]]
   }
+  newdata.outcome <- .get_outcome_data(x)
 
   # obtain the (study-specific) mu estimate
   # meta-regression and meta-analysis separately
-  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+  if(.is_regression(x)){
 
     mu_samples  <- t(BayesTools::JAGS_evaluate_formula(
       fit         = x$model$fit,
