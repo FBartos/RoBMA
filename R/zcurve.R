@@ -41,7 +41,7 @@ as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples =
 
 
   # compute data summaries
-  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+  if(.is_regression(x)){
     outcome_data <- x$data[["outcome"]]
   }else{
     outcome_data <- x[["data"]]
