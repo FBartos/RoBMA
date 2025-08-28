@@ -53,7 +53,7 @@ Defaults to \code{c(.025, .975)}}
 
 \item{to}{Upper bound of the z-value range for plotting. Defaults to 6.}
 
-\item{by.hist}{Bin width for the histogram of observed z-values. Defaults to 0.05.}
+\item{by.hist}{Bin width for the histogram of observed z-values. Defaults to 0.5.}
 
 \item{length.out.hist}{Number of bins for the histogram. If NULL, determined by by.hist. Defaults to NULL.}
 

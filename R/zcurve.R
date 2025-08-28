@@ -162,7 +162,7 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
 #' @param plot_thresholds Should significance thresholds be displayed in the plot? Defaults to TRUE.
 #' @param from Lower bound of the z-value range for plotting. Defaults to -6.
 #' @param to Upper bound of the z-value range for plotting. Defaults to 6.
-#' @param by.hist Bin width for the histogram of observed z-values. Defaults to 0.05.
+#' @param by.hist Bin width for the histogram of observed z-values. Defaults to 0.5.
 #' @param length.out.hist Number of bins for the histogram. If NULL, determined by by.hist. Defaults to NULL.
 #' @param by.lines Step size for plotting model fit and extrapolation lines. Defaults to 0.05.
 #' @param length.out.lines Number of points for plotting lines. If NULL, determined by by.lines. Defaults to NULL.
@@ -306,7 +306,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' Plots a histogram of observed z-values for a fitted \code{zcurve_RoBMA} object, with options to customize the plotting range, bin width, and display of significance thresholds.
 #'
 #' @param x A \code{zcurve_RoBMA} object containing the fitted model.
-#' @param by Numeric value specifying the bin width for the histogram. Defaults to 0.25.
+#' @param by Numeric value specifying the bin width for the histogram. Defaults to 0.5.
 #' @param length.out Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.
 #' @param plot_thresholds Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.
 #' @param ... Additional arguments passed to the underlying plotting functions.
@@ -321,7 +321,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @seealso [as_zcurve()], [plot.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
 #'
 #' @export
-hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.25, length.out = NULL, plot_thresholds = TRUE, ...){
+hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, plot_thresholds = TRUE, ...){
 
   # most functions are based on the zcurve package
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))

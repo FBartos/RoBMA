@@ -9,7 +9,7 @@
   plot_type = "base",
   from = -6,
   to = 6,
-  by = 0.25,
+  by = 0.5,
   length.out = NULL,
   plot_thresholds = TRUE,
   ...
@@ -26,7 +26,7 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 
 \item{to}{Upper bound of the z-value range for plotting. Defaults to 6.}
 
-\item{by}{Numeric value specifying the bin width for the histogram. Defaults to 0.25.}
+\item{by}{Numeric value specifying the bin width for the histogram. Defaults to 0.5.}
 
 \item{length.out}{Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.}
 

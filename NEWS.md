@@ -1,4 +1,4 @@
-## version 3.5.2
+## version 3.6
 ### Features
 - `funnel()` plot to visualize residuals vs the expected sampling distribution for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
 - `residuals()` method for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
