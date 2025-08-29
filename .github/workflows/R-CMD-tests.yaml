@@ -7,7 +7,7 @@ on:
     branches: [main, master, pre-release]
 
 jobs:
-  build:
+  test:
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
@@ -21,6 +21,46 @@ jobs:
         uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.config.r }}
+
+      # Cache R packages
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-r-${{ matrix.config.r }}-${{ hashFiles('**/DESCRIPTION') }}
+          restore-keys: |
+            ${{ runner.os }}-r-${{ matrix.config.r }}-
+            ${{ runner.os }}-r-
+
+      # Cache system dependencies
+      - name: Cache system dependencies
+        if: runner.os == 'Linux'
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/R-CMD-tests.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
+      # Cache JAGS installation (Windows)
+      - name: Cache JAGS (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: C:\Program Files\JAGS
+          key: ${{ runner.os }}-jags-4.3.1
+          restore-keys: |
+            ${{ runner.os }}-jags-
+
+      # Cache JAGS installation (macOS)
+      - name: Cache JAGS (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v3
+        with:
+          path: /opt/homebrew
+          key: ${{ runner.os }}-jags-${{ hashFiles('.github/workflows/R-CMD-tests.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-jags-
 
       # Install JAGS and system dependencies on Linux
       - name: Install System Dependencies (Linux)
@@ -46,9 +86,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          curl -o jags-installer.exe -L https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/JAGS-4.3.1.exe/download
-          jags-installer.exe /S
-          del jags-installer.exe
+          if not exist "C:\Program Files\JAGS\JAGS-4.3.1\bin\jags-terminal.exe" (
+            echo "JAGS not found in cache, downloading and installing..."
+            curl -o jags-installer.exe -L https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/JAGS-4.3.1.exe/download
+            jags-installer.exe /S
+            del jags-installer.exe
+          ) else (
+            echo "JAGS found in cache, skipping installation"
+          )
 
       # Set JAGS environment variables on Windows
       - name: Set JAGS environment variables (Windows)
@@ -63,8 +108,13 @@ jobs:
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew update
-          brew install jags
+          if ! command -v jags &> /dev/null; then
+            echo "JAGS not found in cache, installing via brew..."
+            brew update
+            brew install jags
+          else
+            echo "JAGS found in cache, skipping installation"
+          fi
 
           jags_prefix=$(brew --prefix jags)
 
@@ -88,7 +138,19 @@ jobs:
       # Install the package
       - name: Install devtools and the RoBMA Package
         run: |
-          install.packages(c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc'))
+          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          
+          # Check if packages are already installed before installing
+          required_packages <- c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc')
+          missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
+          
+          if (length(missing_packages) > 0) {
+            cat("Installing missing packages:", paste(missing_packages, collapse = ", "), "\n")
+            install.packages(missing_packages)
+          } else {
+            cat("All required packages are already installed\n")
+          }
+          
           devtools::install()
         shell: Rscript {0}
 
