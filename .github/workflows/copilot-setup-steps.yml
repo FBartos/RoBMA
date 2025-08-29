@@ -25,6 +25,25 @@ jobs:
         with:
           r-version: 'release'
 
+      # Cache R packages
+      - name: Cache R packages
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-r-release-${{ hashFiles('**/DESCRIPTION') }}
+          restore-keys: |
+            ${{ runner.os }}-r-release-
+            ${{ runner.os }}-r-
+
+      # Cache system dependencies
+      - name: Cache system dependencies
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/copilot-setup-steps.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       # Install system dependencies matching R-CMD-tests workflow
       - name: Install system dependencies
         run: |
@@ -50,10 +69,21 @@ jobs:
       # Install packages matching R-CMD-tests workflow
       - name: Install R packages
         run: |
-          # Core packages from R-CMD-tests
-          install.packages(c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc'))
-          # Additional development packages
-          install.packages(c('roxygen2', 'pkgdown', 'rcmdcheck', 'rjags', 'runjags', 'BayesTools', 'coda', 'bridgesampling', 'mvtnorm', 'extraDistr', 'ggplot2', 'scales', 'checkmate'))
+          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          
+          # Check if packages are already installed before installing
+          core_packages <- c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc')
+          dev_packages <- c('roxygen2', 'pkgdown', 'rcmdcheck', 'rjags', 'runjags', 'BayesTools', 'coda', 'bridgesampling', 'mvtnorm', 'extraDistr', 'ggplot2', 'scales', 'checkmate')
+          all_packages <- c(core_packages, dev_packages)
+          
+          missing_packages <- all_packages[!sapply(all_packages, requireNamespace, quietly = TRUE)]
+          
+          if (length(missing_packages) > 0) {
+            cat("Installing missing packages:", paste(missing_packages, collapse = ", "), "\n")
+            install.packages(missing_packages)
+          } else {
+            cat("All required packages are already installed\n")
+          }
         shell: Rscript {0}
 
       # Install the RoBMA package
