@@ -284,11 +284,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     samples_mu <- x[["RoBMA"]][["posteriors"]][["mu"]]
   }
 
-  if(.is_regression(x)){
-    data <- x[["data"]][["outcome"]]
-  }else{
-    data <- x[["data"]]
-  }
+  data <- .get_outcome_data(x)
 
 
   ### manage transformations
@@ -460,6 +456,9 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' into the sampling distribution. Defaults to \code{TRUE}.
 #' @param incorporate_publication_bias Whether publication bias should be incorporated
 #' into the sampling distribution. Defaults to \code{TRUE}.
+#' @param max_samples Maximum number of samples from the posterior distribution
+#' that will be used for estimating the funnel plot under publication bias.
+#' Defaults to \code{500}.
 #'
 #' @details
 #' The \code{funnel} function differs from the corresponding
@@ -473,9 +472,22 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' The sampling distribution is drawn under the mean effect size and heterogeneity
 #' estimates (the uncertainty about those values is not incorporated into the figure).
 #'
+#' @return \code{funnel} returns either \code{NULL} if \code{plot_type = "base"}
+#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#'
+#' @examples \dontrun{
+#' # using the example data from Anderson et al. 2010 and fitting the default model
+#' # (note that the model can take a while to fit)
+#' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
+#'              study_names = Anderson2010$labels, algorithm = "ss")
+#'
+#' funnel(fit)
+#' }
+#'
 #' @export
 funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL,
-                   incorporate_heterogeneity = TRUE, incorporate_publication_bias = TRUE, ...){
+                   incorporate_heterogeneity = TRUE, incorporate_publication_bias = TRUE, max_samples = 500,
+                   ...){
 
   # obtain residuals on the model scale
   # data are already on the model scale
@@ -488,6 +500,7 @@ funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   if(inherits(x, "BiBMA") || inherits(x, "BiBMA.reg"))
     stop("The true effects can only be computed for normal-normal (NoBMA / RoBMA) models.")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_int(max_samples, "max_samples", lower = 10)
 
   # get the model fitting scale
   if (is.BiBMA(x)) {
@@ -510,7 +523,7 @@ funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   res <- sapply(res, mean)
 
   # obtain the standard errors: dispatch between meta-regression / meta-analysis input
-  if(inherits(x, "RoBMA.reg") || inherits(x, "NoBMA.reg") || inherits(x, "BiBMA.reg")){
+  if(.is_regression(x)){
     se <- x$data[["outcome"]][["se"]]
   }else{
     se <- x[["data"]][["se"]]
@@ -525,80 +538,159 @@ funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
   posterior_samples <- suppressWarnings(coda::as.mcmc(x[["model"]][["fit"]]))
   priors            <- x[["priors"]]
 
-  # include the heterogeneity estimate
-  if(incorporate_heterogeneity){
-    tau_samples <- posterior_samples[,"tau"]
-    tau_samples <- .scale(tau_samples, x$add_info[["output_scale"]], model_scale)
-  }else{
-    tau_samples <- rep(0, nrow(posterior_samples))
-  }
-
   # check whether any publication bias adjustment is present
   priors             <- x[["priors"]]
   any_weightfunction <- !is.null(priors[["bias"]]) && any(sapply(priors[["bias"]], is.prior.weightfunction))
 
   if(!incorporate_publication_bias || !any_weightfunction){
     # compute contours (based on metafor::funnel.rma)
+
+    # include the heterogeneity estimate
+    if(incorporate_heterogeneity){
+      tau_samples <- posterior_samples[,"tau"]
+      tau_samples <- .scale(tau_samples, x$add_info[["output_scale"]], model_scale)
+    }else{
+      tau_samples <- rep(0, nrow(posterior_samples))
+    }
+
     # use the normal likelihood for generating the sampling distribution funnel
-    ci_left  <- sapply(se_sequence, function(se) stats::qnorm(0.025) * mean(sqrt(se^2 + tau_samples^2)))
-    ci_right <- sapply(se_sequence, function(se) stats::qnorm(0.975) * mean(sqrt(se^2 + tau_samples^2)))
+    ci_left  <- sapply(se_sequence, function(se) stats::qnorm(0.025, mean = 0, sd = mean(sqrt(se^2 + tau_samples^2))))
+    ci_right <- sapply(se_sequence, function(se) stats::qnorm(0.975, mean = 0, sd = mean(sqrt(se^2 + tau_samples^2))))
+
   }else{
-    # simulate data from the fitted model to obtain the sampling distribution funnel
+
+    # average quantile function across the samples from the fitted model to obtain the sampling distribution funnel
 
     # use the pooled effect for the location
-    mu_samples <- pooled_effect(x, conditional = conditional, output_scale = .transformation_invar(model_scale), as_samples = TRUE)
+    mu_samples <- pooled_effect(x, conditional = FALSE, output_scale = .transformation_invar(model_scale), as_samples = TRUE)[["estimate"]]
+
     if(conditional){
-      mu_samples <- rep(mean(mu_samples[["estimate_conditional"]]), nrow(posterior_samples))
+      # if conditional output is to be provided, condition first and then subset
+      # otherwise there might be no conditional samples left
+
+      # select the indicator
+      if(.is_regression(x)){
+        mu_indicator <- posterior_samples[,"mu_intercept_indicator"]
+        mu_is_null   <- attr(x[["model"]]$priors$terms[["intercept"]], "components") == "null"
+      }else{
+        mu_indicator <- posterior_samples[,"mu_indicator"]
+        mu_is_null   <- attr(x[["model"]]$priors$mu, "components") == "null"
+      }
+      mu_indicator <- mu_indicator %in% which(!mu_is_null)
+
+      selected_samples_ind <- unique(round(seq(from = 1, to = sum(mu_indicator), length.out = max_samples)))
+      selected_samples_ind <- seq_len(nrow(posterior_samples))[mu_indicator][selected_samples_ind]
+      n_samples            <- length(selected_samples_ind)
+      mu_samples           <- mu_samples[selected_samples_ind]
+      posterior_samples    <- posterior_samples[selected_samples_ind,,drop=FALSE]
+
     }else{
-      mu_samples <- rep(mean(mu_samples[["estimate"]]), nrow(posterior_samples))
+
+      selected_samples_ind <- unique(round(seq(from = 1, to = nrow(posterior_samples), length.out = max_samples)))
+      n_samples            <- length(selected_samples_ind)
+      mu_samples           <- mu_samples[selected_samples_ind]
+      posterior_samples    <- posterior_samples[selected_samples_ind,,drop=FALSE]
     }
 
     if(.is_regression(x))
       message("The sampling distribution is generated at the pooled effect size estimate. The resulting funnel plot only approximates the sampling distribution.")
 
-    # borrowing code from the predict function (sampling outcomes under selection)
-    outcome_samples <- matrix(NA, nrow = length(mu_samples), ncol = length(se_sequence))
+    # compute quantiles under samples from adjusted/unadjusted models
+    # similar to the predict/zcurve functions
+    # required for study ids / crit_x values in selection models
+    steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
+    steps  <- rev(steps)[c(-1, -length(steps))]
+
+    # include the heterogeneity estimate
+    if(incorporate_heterogeneity){
+
+      # predicting response requires incorporating the between-study random effects if selection models are present
+      # (we use approximate selection likelihood which samples the true study effects instead of marginalizing them)
+      if(.is_multivariate(x)){
+
+        tau_samples <- posterior_samples[,"tau"]
+        rho_samples <- posterior_samples[,"rho"]
+        # deal with computer precision errors from JAGS
+        rho_samples[rho_samples>1] <- 1
+        rho_samples[rho_samples<0] <- 0
+        # tau_within  = tau * sqrt(rho)
+        # tau_between = tau * sqrt(1-rho)
+        tau_within_samples  <- tau_samples * sqrt(rho_samples)
+        tau_between_samples <- tau_samples * sqrt(1-rho_samples)
+
+        tau_between_samples <- .scale(tau_between_samples, x$add_info[["output_scale"]], model_scale)
+        tau_within_samples  <- .scale(tau_within_samples,  x$add_info[["output_scale"]], model_scale)
+
+        # incorporate within study heterogeneity into the predictor
+        # either estimated for prediction on the same data or integrated over for new data
+        mu_samples <- mu_samples + stats::rnorm(n_samples) * tau_within_samples
+
+        # tau_between samples work as tau for the final sampling step
+        tau_samples <- tau_between_samples
+
+      }else{
+
+        tau_samples  <- posterior_samples[,"tau"]
+        tau_samples  <- .scale(tau_samples,  x$add_info[["output_scale"]], model_scale)
+
+      }
+    }else{
+
+      tau_samples <- rep(0, n_samples)
+
+    }
 
     # selection models are sampled separately for increased efficiency
     bias_indicator           <- posterior_samples[,"bias_indicator"]
     weightfunction_indicator <- bias_indicator %in% which(sapply(priors[["bias"]], is.prior.weightfunction))
 
-    # create the weightfunction mapping for effect size thresholds
-    steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
-    steps  <- rev(steps)[c(-1, -length(steps))]
-    crit_y <- .get_cutoffs(
-      y     = rep(mean(mu_samples), length(se_sequence)),
-      se    = se_sequence,
-      prior = list(distribution = "one.sided", parameters = list(steps = steps)),
-      original_measure = rep(model_scale, length(se_sequence)),
-      effect_measure   = model_scale
-    )
+    # compute the quantiles at specific ses
+    ci_left  <- rep(NA, length(se_sequence))
+    ci_right <- rep(NA, length(se_sequence))
 
-    for(i in seq_len(length(se_sequence))){
+    for(j in 1:length(se_sequence)){
+
+      crit_y <- .get_cutoffs(
+        y     = mu_samples,
+        se    = rep(se_sequence[j], n_samples),
+        prior = list(distribution = "one.sided", parameters = list(steps = steps)),
+        original_measure = rep(model_scale, n_samples),
+        effect_measure   = model_scale
+      )
+
+      # create containers for temporal samples from the posterior distribution
+      temp_lower     <- rep(NA, n_samples)
+      temp_higher    <- rep(NA, n_samples)
 
       # sample normal models/PET/PEESE
       if(any(!weightfunction_indicator)){
-        outcome_samples[!weightfunction_indicator,i] <- stats::rnorm(
-          n    = sum(!weightfunction_indicator),
-          mean = mu_samples[!weightfunction_indicator],
-          sd   = sqrt(tau_samples[!weightfunction_indicator]^2 + se_sequence[i]^2)
-        )
+        temp_lower[!weightfunction_indicator]  <- stats::qnorm(0.025, mu_samples[!weightfunction_indicator], sqrt(tau_samples[!weightfunction_indicator]^2 + se_sequence[j]^2)) - mu_samples[!weightfunction_indicator]
+        temp_higher[!weightfunction_indicator] <- stats::qnorm(0.975, mu_samples[!weightfunction_indicator], sqrt(tau_samples[!weightfunction_indicator]^2 + se_sequence[j]^2)) - mu_samples[!weightfunction_indicator]
       }
 
       # sample selection models
       if(any(weightfunction_indicator)){
-
-        outcome_samples[weightfunction_indicator,i] <- .rwnorm_predict_fast(
-          mean   = mu_samples[weightfunction_indicator],
-          sd     = sqrt(tau_samples[weightfunction_indicator]^2 + se_sequence[i]^2),
-          omega  = posterior_samples[weightfunction_indicator, grep("omega", colnames(posterior_samples)),drop = FALSE],
-          crit_x = crit_y[i,]
-        )
+        for(i in seq_len(n_samples)[weightfunction_indicator]){
+          # .qwnorm_fast.ss is not vectorized in crit_x
+          temp_lower[i] <- .qwnorm_fast.ss(
+            p          = 0.025,
+            mean       = mu_samples[i],
+            sd         = sqrt(tau_samples[i]^2 + se_sequence[j]^2),
+            omega      = posterior_samples[i, grep("omega", colnames(posterior_samples)),drop = FALSE],
+            crit_x     = crit_y[i,]) - mu_samples[i]
+          temp_higher[i] <- .qwnorm_fast.ss(
+            p          = 0.975,
+            mean       = mu_samples[i],
+            sd         = sqrt(tau_samples[i]^2 + se_sequence[j]^2),
+            omega      = posterior_samples[i, grep("omega", colnames(posterior_samples)),drop = FALSE],
+            crit_x     = crit_y[i,]) - mu_samples[i]
+        }
       }
-    }
 
-    ci_left  <- apply(outcome_samples, 2, stats::quantile, probs = 0.025)
-    ci_right <- apply(outcome_samples, 2, stats::quantile, probs = 0.975)
+      # store the results
+      ci_left[j]  <- mean(temp_lower)
+      ci_right[j] <- mean(temp_higher)
+    }
 
   }
 

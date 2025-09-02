@@ -511,6 +511,13 @@ check_RoBMA_convergence <- function(fit){
 .is_regression   <- function(object){
   return(!is.null(object[["formula"]]))
 }
+.get_outcome_data <- function(object){
+  if(.is_regression(object)){
+    return(object$data[["outcome"]])
+  }else{
+    return(object[["data"]])
+  }
+}
 
 # parameter naming functions
 .BayesTools_parameter_name    <- function(parameter){

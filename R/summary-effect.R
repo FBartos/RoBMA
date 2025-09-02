@@ -82,7 +82,7 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 
   ### compute pooled/adjusted effect
   # dispatch between adjusted / non-adjusted models
-  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+  if(.is_regression(object)){
 
     # create design matrix for evaluating predictors
     if(type == "pooled") {
@@ -273,7 +273,7 @@ true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs
 
   # obtain the (study-specific) mu estimate
   # meta-regression and meta-analysis separately
-  if(inherits(object, "RoBMA.reg") || inherits(object, "NoBMA.reg") || inherits(object, "BiBMA.reg")){
+  if(.is_regression(object)){
 
     mu_samples  <- BayesTools::JAGS_evaluate_formula(
       fit         = object$model$fit,

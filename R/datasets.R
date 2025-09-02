@@ -109,3 +109,76 @@
 #' @references
 #' \insertAllCited{}
 "Andrews2021"
+
+#' @title 70 effect sizes from a meta-analysis of ChatGPT's impact on student learning
+#' by \insertCite{wang2025effect;textual}{RoBMA}
+#'
+#' @description The data set contains Hedges' g effect sizes, standard errors,
+#' sample sizes for experimental and control groups, and various study characteristics
+#' including grade level, type of course, duration, learning model, role of ChatGPT,
+#' and area of ChatGPT application. The meta-analysis examined the effect of ChatGPT
+#' on students' learning performance, learning perception, and higher-order thinking
+#' \insertCite{wang2025effect}{RoBMA}.
+#'
+#' @format A data.frame with 12 columns and 70 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Wang2025"
+
+#' @title 55 effect sizes from Many Labs 2 replication studies of
+#' \insertCite{tversky1981framing;textual}{RoBMA} framing effects
+#'
+#' @description The data set contains standardized mean differences (y) and standard errors (se)
+#' from 55 replication studies of the framing effect originally described by
+#' \insertCite{tversky1981framing;textual}{RoBMA}. These studies were part of the
+#' Many Labs 2 project examining variation in replicability across samples and settings
+#' \insertCite{klein2018many;textual}{RoBMA}.
+#'
+#' @format A data.frame with 2 columns and 55 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"ManyLabs16"
+
+#' @title 37 studies from a meta-analysis of social comparison as a behavior change technique
+#' by \insertCite{hoppen2025meta;textual}{RoBMA}
+#'
+#' @description The data set contains Cohen's d effect sizes, variances, and study
+#' characteristics including outcome type, feedback level, social comparison type,
+#' number of sessions, sample type, sample size, and country. The meta-analysis
+#' examined social comparison as a behavior change technique across the behavioral
+#' sciences \insertCite{hoppen2025meta}{RoBMA}.
+#'
+#' @format A data.frame with 9 columns and 37 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Hoppen2025"
+
+#' @title 582 effect sizes examining the ease-of-retrieval effect
+#' from a meta-analysis by \insertCite{weingarten2018does;textual}{RoBMA}
+#'
+#' @description The data set contains correlation coefficients between the manipulation
+#' and outcome variable (r_xy), sample sizes (N), and various study characteristics
+#' including publication status, country (USA vs. other), number of few and many
+#' examples requested, whether memory the trial targeted episodic memory, paradigm type (standard vs. other),
+#' dataset type (proximal vs. distal), and mediation variables (r_xm, r_my).
+#' The meta-analysis examined whether subjective ease mediates the ease-of-retrieval effect,
+#' where participants list either few or many examples and then make judgments
+#' \insertCite{weingarten2018does}{RoBMA}. 
+#'
+#' @format A data.frame with 12 columns and 582 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Weingarten2018"
+

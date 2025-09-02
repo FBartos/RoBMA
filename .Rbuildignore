@@ -16,6 +16,7 @@ tests/testthat/test-07-diagnostics.R
 tests/testthat/test-08-transformations.R
 tests/testthat/test-09-predictions.R
 tests/testthat/test-10-validation.R
+tests/testthat/test-11-zcurve.R
 ^..Rcheck
 ^.*\.o
 ^docs$

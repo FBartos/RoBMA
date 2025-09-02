@@ -23,3 +23,4 @@ src/Makevars
 models/MetaRegression/*
 .RData
 Rplots.pdf
+.RData

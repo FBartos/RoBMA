@@ -27,3 +27,5 @@ import functions from the BayesTools package. The purpose of the BayesTools pack
 generic functionality that is not meta-analysis specific and that can be reused across different packages.
 
 If a new generic functionality is needed, make note that such a feature should be implemented in BayesTools directly.
+
+When you need to use R console, call radian.
