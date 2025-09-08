@@ -139,7 +139,7 @@ class(fit_RoBMA_ManyLabs16) <- class(fit_RoBMA_ManyLabs16)[!class(fit_RoBMA_Many
 
 ## Introduction
 
-**This vignette accompanies the "Z-Curve Publication Bias Diagnostics for Meta-Analysis" manuscript [@bartos2025zcurve]. The manuscript provides the theoretical foundation and detailed methodology for z-curve diagnostics, while this vignette demonstrates their practical implementation using the RoBMA R package [@RoBMA].**
+**This vignette accompanies the "Z-Curve Plot: A Visual Diagnostic for Publication Bias in Meta-Analysis" manuscript [@bartos2025zcurve]. The manuscript provides the theoretical foundation and detailed methodology for z-curve diagnostics, while this vignette demonstrates their practical implementation using the RoBMA R package [@RoBMA].**
 
 Z-curve plots provide a visual assessment of meta-analytic model fit specifically aimed at detecting misfit due to publication bias [@bartos2025zcurve]. 
 The methodology overlays model-implied posterior predictive distributions of z-statistics on the observed distribution of z-statistics [@gabry2019visualization], 
