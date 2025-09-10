@@ -879,7 +879,10 @@
   effect_measure   <- attr(data, "effect_measure")
 
   fit_data <- list()
-  # change the effect size direction (important for one-sided selection and PET/PEESE)
+
+  # selection models always use positive direction of the effect (due to one-sided weightfunctions)
+  # as such, the effect size direction needs to be flipped if the effect is assumed to be negative
+  # (the parameter is flipped in the `.generate_model_syntax_ss()' function)
   if(effect_direction == "negative"){
     fit_data$y <- - data[,"y"]
   }else{
@@ -1224,8 +1227,11 @@
     tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
   }
 
-  # deal with mu as a vector or scalar based on whether it is regression or not
+  # selection models always use positive direction of the effect (due to one-sided weightfunctions)
+  # as such, the effect size direction needs to be flipped if the effect is assumed to be negative
+  # (as the data are flipped in the `.fit_data_ss()' function)
   if(regression){
+    # deal with mu as a vector or scalar based on whether it is regression or not
     eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed[i]", "mu_transformed[i]")
   }else{
     eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
@@ -1325,17 +1331,17 @@
     if(is.null(priors[["omega"]])){
       log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE) * data[["weight"]])
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE) * data[["weight"]])
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE) * data[["weight"]])
     }
   }else{
     if(is.null(priors[["omega"]])){
       log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
     }
   }
 
@@ -1410,9 +1416,9 @@
     if(is.null(priors[["omega"]])){
       log_lik <- log_lik + sum(stats::dnorm(data[["y"]], mean = eff, sd = pop_sd, log = TRUE))
     }else if(priors[["omega"]]$distribution == "one.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "one.sided", log = TRUE))
     }else if(priors[["omega"]]$distribution == "two.sided"){
-      log_lik <- log_lik + sum(.dwnorm_fast(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
+      log_lik <- log_lik + sum(.dwnorm_fast.bridge(data[["y"]], mean = eff, sd = pop_sd, omega = omega, crit_x = t(data[["crit_y"]]), type = "two.sided", log = TRUE))
     }
   }
 

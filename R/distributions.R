@@ -294,7 +294,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # Internal helper functions for weight function normal distribution:
 # Purpose: Core computational functions for exported distribution functions.
 # These functions are accessible to users wishing to simulate / estimated weighted densities, but they are not used internally.
-# (faster vectorized non-input checked functions are used internally) 
+# (faster vectorized non-input checked functions are used internally)
 # These implement the weighted normal distribution where different regions have different selection probabilities
 
 # Cumulative distribution function (CDF) for weighted normal:
@@ -423,12 +423,69 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     control = list(factr = 1e-12))$par)
 }
 
+# helper checking functions
+.Xwnorm_check_input <- function(mean, sd, omega, steps, crit_x, type){
+
+  BayesTools::check_real(mean, "mean", check_length = FALSE)
+  BayesTools::check_real(sd, "sd", lower = 0, check_length = FALSE)
+  BayesTools::check_real(as.vector(omega), "omega", lower = 0, upper = 1, check_length = FALSE)
+  BayesTools::check_real(as.vector(steps), "steps", allow_NULL = !is.null(crit_x), lower = 0, upper = 1, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_char(type, "type", allow_values = c("two.sided", "one.sided"))
+  BayesTools::check_real(as.vector(crit_x), "crit_x", allow_NULL = !is.null(steps), lower = if(type == "two.sided") 0 else -Inf, check_length = FALSE)
+
+  return()
+}
+.Xwnorm_get_crit_x  <- function(steps, crit_x, mean, sd, type){
+
+  if(!is.null(steps) & !is.null(crit_x))
+    stop("Either 'steps' or 'crit_x' need to be specified.", call. = FALSE)
+
+
+  if(!is.null(crit_x)){
+
+    # use steps directly
+    if(!is.matrix(crit_x)){
+      crit_x <- matrix(crit_x, ncol = length(crit_x), nrow = length(mean), byrow = TRUE)
+    }
+
+
+  }else if(!is.null(steps)){
+
+    # obtain critical values based on steps
+    if(!is.matrix(steps)){
+      steps <- matrix(steps, ncol = length(steps), nrow = length(mean), byrow = TRUE)
+    }
+
+    # reverse order of the steps
+    steps <- steps[,ncol(steps):1, drop = FALSE]
+
+    crit_z <- matrix(ncol = 0, nrow = length(mean))
+
+    for(i in 1:ncol(steps)){
+      if(type == "one.sided"){
+        crit_z <- cbind(crit_z, stats::qnorm(steps[,i],   lower.tail = FALSE))
+      }else if(type == "two.sided"){
+        crit_z <- cbind(crit_z, stats::qnorm(steps[,i]/2, lower.tail = FALSE))
+      }
+    }
+
+    crit_x <- crit_z * matrix(sd, ncol = ncol(crit_z), nrow = nrow(crit_z))
+  }
+
+  # check that the steps are increasing
+  if(!all(sapply(1:nrow(crit_x), function(i) all(crit_x[i,] == cummax(crit_x[i,])))))
+    stop("'steps'/'crit_x' argument must be inreasing.", call. = FALSE)
+
+  return(crit_x)
+}
+
+
+### fast computation - bridge-sampling ----
 # Fast density computation for weighted normal distribution (optimized for bridge sampling):
-# Purpose: Efficient computation without input validation 
+# Purpose: Efficient computation without input validation
 # Pre-formatted inputs assumed (matrices, no error checking)
 # LLM Note: This is the performance-critical version used in bridge sampling
-.dwnorm_fast <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
-
+.dwnorm_fast.bridge <- function(x, mean, sd, omega, crit_x, type = "two.sided", log = TRUE){
 
   if(type == "two.sided"){
 
@@ -484,61 +541,135 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   }
 }
 
-# fast computation - no input check, pre-formatted for posterior predictive
-.rwnorm_predict_fast      <- function(mean, sd, omega, crit_x, iter = 1){
+### fast computation - spike-and-slab output ----
+# Fast weighted normal distribution functions optimized for spike-and-slab algorithms
+#
+# Input assumptions:
+# - No input validation (all inputs assumed properly formatted and validated)
+# - Vectorized operations: matching dimensions assumed for mean/sd/x vectors and omega/crit_x matrices
+# - All arguments but crit_x must be a vector/matricies of the same-length
+# - One-sided weight function: assumes publication selection based on one-sided criteria
+#
+# Weight assignment logic (implemented in .get_weight_fast.ss):
+# - Uses reverse sequential checking: x >= crit_x[i] assigns omega[,i+1]
+# - Effective intervals:
+#   * x < crit_x[1] → omega[,1]
+#   * crit_x[1] ≤ x < crit_x[2] → omega[,2]
+#   * crit_x[2] ≤ x < crit_x[3] → omega[,3]
+#   * ...
+#   * x ≥ crit_x[last] → omega[,n_weights]
+#
+# Standardizing constant computation:
+# - Must match weight intervals exactly for proper density normalization
+# - Uses cumulative probability differences: P(interval) = P(X < upper) - P(X < lower)
+# - Ensures resulting density integrates to 1
+#
+# Family functions:
+# - .dwnorm_fast.ss: density function with proper normalization
+# - .rwnorm_fast.ss: random sampling with publication selection
+# - .rwnorm_true_fast.ss: random sampling of true effects (hierarchical)
+# - .rwnorm_fast.ss2: alternative sampling via inverse transform
+# - .pwnorm_fast.ss: cumulative distribution function
+# - .qwnorm_fast.ss: quantile function
+# - .get_weight_fast.ss: shared weight assignment helper function
+.dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = FALSE, attach_constant = FALSE){
+
+  # compute density for normal component
+  log_dens <- stats::dnorm(x, mean = mean, sd = sd, log = TRUE)
+
+  # find correct weight for each observation using helper function
+  w <- .get_weight_fast.ss(x, omega, crit_x)
+
+  # compute the numerator (normal density + log weight)
+  log_numerator <- log_dens + log(w)
+
+  # compute the standardizing constant (denominator)
+  # this must match the weight assignment logic in .get_weight_fast.ss
+  n_weights <- ncol(omega)
+  denoms <- matrix(0, nrow = length(x), ncol = n_weights)
+
+  # interval 1: x < crit_x[1] gets omega[,1]
+  denoms[, 1] <- stats::pnorm(crit_x[1], mean, sd)
+  denoms[denoms[, 1] < 0, 1] <- 0  # numerical precision
+
+  # middle intervals: crit_x[j-1] <= x < crit_x[j] gets omega[,j]
+  if(n_weights > 2){
+    for(j in 2:(n_weights - 1)){
+      denoms[, j] <- stats::pnorm(crit_x[j], mean, sd) - rowSums(denoms[, 1:(j-1), drop = FALSE])
+      denoms[denoms[, j] < 0, j] <- 0  # numerical precision
+    }
+  }
+
+  # last interval: x >= crit_x[last] gets omega[,n_weights]
+  denoms[, n_weights] <- 1 - rowSums(denoms[, 1:(n_weights-1), drop = FALSE])
+  denoms[denoms[, n_weights] < 0, n_weights] <- 0  # numerical precision
+
+  # weight the denominators and compute log standardizing constant
+  log_denoms <- log(denoms) + log(omega)
+  log_std_const <- log(rowSums(exp(log_denoms)))
+
+  # final log density = numerator - standardizing constant
+  log_lik <- log_numerator - log_std_const
+
+  # allow output that includes the standardizing constant
+  if(attach_constant){
+    if(log){
+      attr(log_lik, "constant") <- log_std_const
+      return(log_lik)
+    }else{
+      lik <- exp(log_lik)
+      attr(lik, "constant") <- exp(log_std_const)
+      return(lik)
+    }
+  }
+
+  if(log){
+    return(log_lik)
+  } else {
+    return(exp(log_lik))
+  }
+}
+.rwnorm_fast.ss      <- function(mean, sd, omega, crit_x, iter = 1){
 
   if(iter >= 50){
     # avoid getting stuck in an infinite recursion
-    return(.rwnorm_predict_fast2(mean, sd, omega, crit_x))
+    return(.rwnorm_fast.ss2(mean, sd, omega, crit_x))
   }
 
   # samples
   x <- stats::rnorm(length(mean), mean = mean, sd = sd)
 
-  # find correct weight
-  w <- rep(NA, length(mean))
-  for(i in rev(seq_along(crit_x))){
-    w[is.na(w) & x >= crit_x[i]] <- omega[is.na(w) & x >= crit_x[i], i + 1]
-  }
-  w[is.na(w) & x < crit_x[i]] <- omega[is.na(w) & x < crit_x[i], 1]
-
-  # deal with computer precision errors from JAGS
-  w[w > 1] <- 1
-  w[w < 0] <- 0
+  # find correct weight using helper function
+  w <- .get_weight_fast.ss(x, omega, crit_x)
 
   # assign publication status
   p <- stats::rbinom(length(mean), 1, prob = w) == 1
 
   # deal with possibility of sd = 0
   # (sampling never finishes, insert the mean value instead)
-  x[!p & sd < sqrt(.Machine$double.ep)] <- mean
-  p[!p & sd < sqrt(.Machine$double.ep)] <- TRUE
+  idx <- !p & sd < sqrt(.Machine$double.ep)
+  x[idx] <- mean[idx]
+  p[idx] <- TRUE
 
   # re-sample the missing estimates
   x[!p] <- NA
 
   if(any(!p)){
-    x[!p] <- .rwnorm_predict_fast(mean[!p], sd[!p], omega[!p,,drop=FALSE], crit_x, iter = iter + 1)
+    x[!p] <- .rwnorm_fast.ss(mean[!p], sd[!p], omega[!p,,drop=FALSE], crit_x, iter = iter + 1)
   }
 
   return(x)
 }
-.rwnorm_predict_true_fast <- function(mean, tau, se, omega, crit_x){
+
+# special version to sample the true effects from sequential selection
+.rwnorm_true_fast.ss <- function(mean, tau, se, omega, crit_x){
 
   # samples
   xt <- stats::rnorm(length(mean), mean = mean, sd = tau)
   xo <- stats::rnorm(length(mean), mean = xt,   sd = se)
 
-  # find correct weight
-  w <- rep(NA, length(mean))
-  for(i in rev(seq_along(crit_x))){
-    w[is.na(w) & xo >= crit_x[i]] <- omega[is.na(w) & xo >= crit_x[i], i + 1]
-  }
-  w[is.na(w) & xo < crit_x[i]] <- omega[is.na(w) & xo < crit_x[i], 1]
-
-  # deal with computer precision errors from JAGS
-  w[w > 1] <- 1
-  w[w < 0] <- 0
+  # find correct weight using helper function
+  w <- .get_weight_fast.ss(xo, omega, crit_x)
 
   # assign publication status
   p <- stats::rbinom(length(mean), 1, prob = w) == 1
@@ -547,27 +678,27 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   xt[!p] <- NA
 
   if(any(!p)){
-    xt[!p] <- .rwnorm_predict_true_fast(mean[!p], tau[!p], se, omega[!p,,drop=FALSE], crit_x)
+    xt[!p] <- .rwnorm_true_fast.ss(mean[!p], tau[!p], se, omega[!p,,drop=FALSE], crit_x)
   }
 
   return(xt)
 }
 
 # alternative version using inverse probability transform
-# (helps when .rwnorm_predict_fast gets stuck)
-.rwnorm_predict_fast2  <- function(mean, sd, omega, crit_x){
+# (helps when .rwnorm_fast.ss gets stuck)
+.rwnorm_fast.ss2  <- function(mean, sd, omega, crit_x){
 
   # generate uniform random numbers
   u <- stats::runif(length(mean))
 
   # use fast quantile function
-  x <- .qwnorm_fast(u, mean, sd, omega, crit_x)
+  x <- .qwnorm_fast.ss(u, mean, sd, omega, crit_x)
 
   return(x)
 }
 
 # fast preformated p and q functions
-.pwnorm_fast <- function(q, mean, sd, omega, crit_x){
+.pwnorm_fast.ss <- function(q, mean, sd, omega, crit_x, lower.tail = TRUE, log.p = FALSE){
 
   n     <- length(q)
   log_p <- rep(0, n)
@@ -627,13 +758,33 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     log_p[i] <- log(sum(exp(log(temp_p) + log(omega[i, 1:length(temp_p)]))))
   }
 
-  # subtract standardizing constant
-  return(log_p - log_denom_total)
+  # subtract standardizing constant to get log probability
+  log_prob <- log_p - log_denom_total
+
+  # handle lower.tail
+  if(!lower.tail){
+    log_prob <- log(1 - exp(log_prob))
+  }
+
+  # return log probability or probability
+  if(log.p){
+    return(log_prob)
+  } else {
+    return(exp(log_prob))
+  }
 }
-.qwnorm_fast <- function(p, mean, sd, omega, crit_x){
+.qwnorm_fast.ss <- function(p, mean, sd, omega, crit_x){
 
   n <- length(p)
   q <- rep(0, n)
+
+  # deal with potentially zero sds
+  is_zero_sd <- sd < sqrt(.Machine$double.eps)
+  if(any(is_zero_sd)){
+    q[is_zero_sd]  <- mean
+    q[!is_zero_sd] <- .qwnorm_fast.ss(p[!is_zero_sd], mean[!is_zero_sd], sd[!is_zero_sd], omega[!is_zero_sd,,drop=FALSE], crit_x)
+    return(q)
+  }
 
   # vectorized bounds for optimization
   lower_bounds <- mean - 6 * sd  # approximately -6 sigma
@@ -650,7 +801,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
       # objective function: F(x) - p = 0
       obj_fun <- function(x){
-        exp(.pwnorm_fast(x, mean[i], sd[i], matrix(omega[i,], nrow = 1), crit_x)) - p[i]
+        .pwnorm_fast.ss(x, mean[i], sd[i], omega[i,,drop=FALSE], crit_x, lower.tail = TRUE, log.p = FALSE) - p[i]
       }
 
       # use uniroot for fast root finding
@@ -672,60 +823,19 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   return(q)
 }
 
-# helper functions
-.Xwnorm_check_input <- function(mean, sd, omega, steps, crit_x, type){
+# helper function to get weights for spike-and-slab distribution
+.get_weight_fast.ss <- function(x, omega, crit_x) {
+  # Use findInterval to determine which interval each x falls into
+  # findInterval returns 0 for x < crit_x[1], 1 for crit_x[1] <= x < crit_x[2], ..., length(crit_x) for x >= crit_x[length(crit_x)]
+  idx <- findInterval(x, crit_x, left.open = FALSE, rightmost.closed = TRUE) + 1
+  # idx is in 1:(length(crit_x)+1), corresponding to columns 1:(length(crit_x)+1) in omega
+  w <- omega[cbind(seq_along(x), idx)]
 
-  BayesTools::check_real(mean, "mean", check_length = FALSE)
-  BayesTools::check_real(sd, "sd", lower = 0, check_length = FALSE)
-  BayesTools::check_real(as.vector(omega), "omega", lower = 0, upper = 1, check_length = FALSE)
-  BayesTools::check_real(as.vector(steps), "steps", allow_NULL = !is.null(crit_x), lower = 0, upper = 1, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_char(type, "type", allow_values = c("two.sided", "one.sided"))
-  BayesTools::check_real(as.vector(crit_x), "crit_x", allow_NULL = !is.null(steps), lower = if(type == "two.sided") 0 else -Inf, check_length = FALSE)
+  # deal with computer precision errors from JAGS
+  w[w > 1] <- 1
+  w[w < 0] <- 0
 
-  return()
-}
-.Xwnorm_get_crit_x  <- function(steps, crit_x, mean, sd, type){
-
-  if(!is.null(steps) & !is.null(crit_x))
-    stop("Either 'steps' or 'crit_x' need to be specified.", call. = FALSE)
-
-
-  if(!is.null(crit_x)){
-
-    # use steps directly
-    if(!is.matrix(crit_x)){
-      crit_x <- matrix(crit_x, ncol = length(crit_x), nrow = length(mean), byrow = TRUE)
-    }
-
-
-  }else if(!is.null(steps)){
-
-    # obtain critical values based on steps
-    if(!is.matrix(steps)){
-      steps <- matrix(steps, ncol = length(steps), nrow = length(mean), byrow = TRUE)
-    }
-
-    # reverse order of the steps
-    steps <- steps[,ncol(steps):1, drop = FALSE]
-
-    crit_z <- matrix(ncol = 0, nrow = length(mean))
-
-    for(i in 1:ncol(steps)){
-      if(type == "one.sided"){
-        crit_z <- cbind(crit_z, stats::qnorm(steps[,i],   lower.tail = FALSE))
-      }else if(type == "two.sided"){
-        crit_z <- cbind(crit_z, stats::qnorm(steps[,i]/2, lower.tail = FALSE))
-      }
-    }
-
-    crit_x <- crit_z * matrix(sd, ncol = ncol(crit_z), nrow = nrow(crit_z))
-  }
-
-  # check that the steps are increasing
-  if(!all(sapply(1:nrow(crit_x), function(i) all(crit_x[i,] == cummax(crit_x[i,])))))
-    stop("'steps'/'crit_x' argument must be inreasing.", call. = FALSE)
-
-  return(crit_x)
+  return(w)
 }
 
 

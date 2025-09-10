@@ -17,8 +17,6 @@ print.RoBMA <- function(x, ...){
 
 
 
-
-
 #' @title Summarize fitted RoBMA object
 #'
 #' @description \code{summary.RoBMA} creates summary tables for a

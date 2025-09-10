@@ -20,19 +20,28 @@ either the presence or absence of effect, heterogeneity, and publication
 bias) and uses Bayesian model averaging to combine them. The ensemble
 uses Bayes factors to test for the presence of absence of the individual
 components (e.g., effect vs. no effect) and model-averages parameter
-estimates based on posterior model probabilities. The user can define a
-wide range prior distributions for the effect size, heterogeneity,
-publication bias components (including selection, PET, and PEESE style
-models), and moderators. The package provides convenient functions for
-summary, visualizations, and fit diagnostics. The package is designed to
-be user-friendly and provides a wide range of customization options. The
-package is also integrated into the JASP software (JASP Team, 2020) and
-can be used via the graphical user interface.
+estimates based on posterior model probabilities. The package includes
+more complex models such as meta-regression and multilevel
+meta-analysis. The user can define a wide range prior distributions for
+the effect size, heterogeneity, publication bias components (including
+selection, PET, and PEESE style models), and moderators. The package
+provides convenient functions for summary, visualizations, and fit
+diagnostics. The package is designed to be user-friendly and provides a
+wide range of customization options. The package is also integrated into
+the JASP software (JASP Team, 2020) and can be used via the graphical
+user interface.
 
-See our manuscripts that for technical details and examples:
+See our manuscripts for technical details and examples:
 
-- Bartoš et al. (2025) (<https://doi.org/10.1037/met0000737>) extends
-  RoBMA-PSMA into meta-regression
+- Bartoš & Schimmack (2025)
+  (<https://doi.org/10.48550/arXiv.2509.07171>) introduces meta-analytic
+  z-curve plots for assessing model fit with respect to publication bias
+- Bartoš, Maier, & Wagenmakers (2025)
+  (<https://doi.org/10.31234/osf.io/9tgp2_v1>) extends RoBMA-PSMA into
+  multilevel meta-analysis
+- Bartoš, Maier, Stanley, et al. (2025)
+  (<https://doi.org/10.1037/met0000737>) extends RoBMA-PSMA into
+  meta-regression
 - Bartoš, Otte, et al. (2023)
   (<https://doi.org/10.48550/arXiv.2306.11468>) outlines binomial-normal
   Bayesian model-averaged meta-analysis for binary outcomes (+ develops
@@ -70,6 +79,8 @@ package:
   ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
 - [Fast Robust Bayesian Meta-Analysis via Spike and Slab
   Algorithm](https://fbartos.github.io/RoBMA/articles/FastRoBMA.html)
+- [Z-Curve Publication Bias
+  Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html)
 
 ## Updates
 
@@ -95,8 +106,11 @@ with the corresponding projects.)
 
 The 3.0 version brings several features to the package:
 
+- multilevel models via the `study_ids` argument
 - meta-regression models via the `RoBMA.reg()` function
 - binomial-normal meta-analytic models via the `BiBMA()` function
+- residual funnel plots via the `funnel()` function and meta-analytic
+  z-curve plots via the `as_zcurve()` and `plot()` functions
 - publication bias unadjusted models via the `NoBMA()` and `NoBMA.reg()`
   functions (wrappers around `RoBMA()` and `RoBMA.reg()`)
 - marginal summaries and plots of the regression models via the
@@ -398,6 +412,14 @@ presence of publication bias. *Psychological Methods*.
 
 </div>
 
+<div id="ref-bartos2025robust" class="csl-entry">
+
+Bartoš, F., Maier, M., & Wagenmakers, E.-J. (2025). *Robust Bayesian
+multilevel meta-analysis: Adjusting for publication bias in the presence
+of dependent effect sizes*. <https://doi.org/10.31234/osf.io/9tgp2_v1>
+
+</div>
+
 <div id="ref-bartos2021no" class="csl-entry">
 
 Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., & Stanley,
@@ -413,6 +435,14 @@ Bartoš, F., Otte, W. M., Gronau, Q. F., Timmers, B., Ly, A., &
 Wagenmakers, E.-J. (2023). *Empirical prior distributions for Bayesian
 meta-analyses of binary and time-to-event outcomes*.
 <https://doi.org/10.48550/arXiv.2306.11468>
+
+</div>
+
+<div id="ref-bartos2025zcurve" class="csl-entry">
+
+Bartoš, F., & Schimmack, U. (2025). Z-curve plot: A visual diagnostic
+for publication bias in meta-analysis. In *arXiv*.
+<https://doi.org/10.48550/arXiv.2509.07171>
 
 </div>
 
