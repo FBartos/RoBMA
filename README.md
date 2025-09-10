@@ -31,9 +31,10 @@ wide range of customization options. The package is also integrated into
 the JASP software (JASP Team, 2020) and can be used via the graphical
 user interface.
 
-See our manuscripts that for technical details and examples:
+See our manuscripts for technical details and examples:
 
-- Bartoš & Schimmack (2025) (in preparation) introduces meta-analytic
+- Bartoš & Schimmack (2025)
+  (<https://doi.org/10.48550/arXiv.2509.07171>) introduces meta-analytic
   z-curve plots for assessing model fit with respect to publication bias
 - Bartoš, Maier, & Wagenmakers (2025)
   (<https://doi.org/10.31234/osf.io/9tgp2_v1>) extends RoBMA-PSMA into
@@ -79,7 +80,7 @@ package:
 - [Fast Robust Bayesian Meta-Analysis via Spike and Slab
   Algorithm](https://fbartos.github.io/RoBMA/articles/FastRoBMA.html)
 - [Z-Curve Publication Bias
-  Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurvePlot.html)
+  Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html)
 
 ## Updates
 
@@ -415,8 +416,7 @@ presence of publication bias. *Psychological Methods*.
 
 Bartoš, F., Maier, M., & Wagenmakers, E.-J. (2025). *Robust Bayesian
 multilevel meta-analysis: Adjusting for publication bias in the presence
-of dependent effect sizes*. OSF.
-<https://doi.org/10.31234/osf.io/9tgp2_v1>
+of dependent effect sizes*. <https://doi.org/10.31234/osf.io/9tgp2_v1>
 
 </div>
 
@@ -440,8 +440,9 @@ meta-analyses of binary and time-to-event outcomes*.
 
 <div id="ref-bartos2025zcurve" class="csl-entry">
 
-Bartoš, F., & Schimmack, U. (2025). [Z-curve publication bias
-diagnostics for meta-analysis](). *arXiv*.
+Bartoš, F., & Schimmack, U. (2025). Z-curve plot: A visual diagnostic
+for publication bias in meta-analysis. In *arXiv*.
+<https://doi.org/10.48550/arXiv.2509.07171>
 
 </div>
 

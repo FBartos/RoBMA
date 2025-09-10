@@ -4,7 +4,11 @@
 #' This function transforms the estimated RoBMA model into a
 #' z-curve object that can be further summarized and plotted.
 #' Only available for normal-normal models estimated using the spike-and-slab
-#' algorithm (i.e., \code{algorithm = "ss"}).
+#' algorithm (i.e., \code{algorithm = "ss"}). See
+#' \insertCite{bartos2025zcurve;textual}{RoBMA} and
+#' \href{../doc/ZCurveDiagnostics.html}{\code{vignette("ZCurveDiagnostics", package = "RoBMA")}}
+#' for more detail.
+#'
 #'
 #' @param x A RoBMA object
 #' @param significance_level Significance level used for computation of z-curve

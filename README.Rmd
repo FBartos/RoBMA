@@ -36,9 +36,9 @@ fit <- readRDS(file = "models/README/Bem2011.RDS")
 
 This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The package includes more complex models such as meta-regression and multilevel meta-analysis. The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. The package is also integrated into the JASP software [@jasp14] and can be used via the graphical user interface.
 
-See our manuscripts that for technical details and examples:
+See our manuscripts for technical details and examples:
 
- - @bartos2025zcurve (in preparation) introduces meta-analytic z-curve plots for assessing model fit with respect to publication bias
+ - @bartos2025zcurve (https://doi.org/10.48550/arXiv.2509.07171) introduces meta-analytic z-curve plots for assessing model fit with respect to publication bias
  - @bartos2025robust (https://doi.org/10.31234/osf.io/9tgp2_v1) extends RoBMA-PSMA into multilevel meta-analysis 
  - @bartos2023robust (https://doi.org/10.1037/met0000737) extends RoBMA-PSMA into meta-regression 
  - @bartos2023empirical (https://doi.org/10.48550/arXiv.2306.11468) outlines binomial-normal Bayesian model-averaged meta-analysis for binary outcomes (+ develops informed prior distributions for log OR, log RR, RD, and log HR in medical settings, also see @bartos2021bayesian for informed prior distributions for Cohen's d, based on the Cochrane Database of Systematic Reviews) 
@@ -57,7 +57,7 @@ We also prepared multiple vignettes that illustrate functionality of the package
  - [Informed Bayesian model-averaged meta-analysis with binary outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
  - [Fitting custom meta-analytic ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
  - [Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm](https://fbartos.github.io/RoBMA/articles/FastRoBMA.html)
- - [Z-Curve Publication Bias Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurvePlot.html)
+ - [Z-Curve Publication Bias Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html)
 
 
 ## Updates
