@@ -9,6 +9,7 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/MetaRegression.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/Tutorial.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/authors.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/copilot-instructions.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/index.html</loc></url>
@@ -16,6 +17,7 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/adjusted_effect.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Anderson2010.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Andrews2021.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/as_zcurve.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Bem2011.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/BiBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/BiBMA.reg.html</loc></url>
@@ -30,16 +32,21 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/extract_posterior.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/forest.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/funnel.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/hist.zcurve_RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Hoppen2025.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/index.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/interpret.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/is.RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Kroupova2021.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/lines.zcurve_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Lui2015.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/ManyLabs16.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/marginal_plot.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/marginal_summary.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/NoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/NoBMA.reg.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/plot.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/plot.zcurve_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/plot_models.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/pooled_effect.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Poulsen2006.html</loc></url>
@@ -47,6 +54,8 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/print.marginal_summary.RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/print.RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/print.summary.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/print.summary.zcurve_RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/print.zcurve_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/prior.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_factor.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/prior_informed.html</loc></url>
@@ -65,11 +74,14 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/set_default_priors.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/standard_errors.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/summary.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/summary.zcurve_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/true_effects.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/update.BiBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/update.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Wang2025.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/weighted_multivariate_normal.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/weighted_normal.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Weingarten2018.html</loc></url>
 </urlset>
 

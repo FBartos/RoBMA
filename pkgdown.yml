@@ -10,7 +10,8 @@ articles:
   MetaRegression: MetaRegression.html
   ReproducingBMA: ReproducingBMA.html
   Tutorial: Tutorial.html
-last_built: 2025-08-14T13:59Z
+  ZCurveDiagnostics: ZCurveDiagnostics.html
+last_built: 2025-09-10T09:19Z
 urls:
   reference: https://https://fbartos.github.io/RoBMA/reference
   article: https://https://fbartos.github.io/RoBMA/articles
