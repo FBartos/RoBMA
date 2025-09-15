@@ -127,6 +127,7 @@ RoBMA.reg <- function(
     priors_bias_null           = set_default_priors("bias",          null = TRUE),
     priors_hierarchical        = set_default_priors("hierarchical"),
     priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
+    priors_maive               = if(!is.null(data[["maive_n"]])) set_default_priors("maive"),
 
     prior_covariates       = set_default_priors("covariates", rescale = rescale_priors),
     prior_covariates_null  = set_default_priors("covariates", null = TRUE),
@@ -171,6 +172,7 @@ RoBMA.reg <- function(
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_bias_null = priors_bias_null, priors_bias = priors_bias,
     priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
+    priors_maive = priors_maive,
     prior_covariates_null = prior_covariates_null, prior_covariates = prior_covariates,
     prior_factors_null = prior_factors_null, prior_factors = prior_factors)
 

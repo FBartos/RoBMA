@@ -63,6 +63,9 @@ studies being independent.}
 \item{weight}{specifies likelihood weights of the individual estimates.
 Notes that this is an untested experimental feature.}
 
+\item{maive_n}{an optional argument for specifying the sample size for
+MAIVE publication bias adjustment}
+
 \item{data}{a data frame with column names corresponding to the
 variable names used to supply data individually}
 

@@ -90,6 +90,9 @@ referencing to the columns.}
 \item{weight}{specifies likelihood weights of the individual estimates.
 Notes that this is an untested experimental feature.}
 
+\item{maive_n}{an optional argument for specifying the sample size for
+MAIVE publication bias adjustment}
+
 \item{transformation}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to
 \code{"fishers_z"}. We highly recommend using \code{"fishers_z"}
@@ -144,6 +147,11 @@ Note that this is an experimental feature and see News for more details. Default
 
 \item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
 (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
+
+\item{priors_maive}{list of prior distributions (\code{"intercept"}, \code{"slope"}, \code{"sigma"}) for
+specifying the MAIVE publication bias adjustment. Note that MAIVE is applied only if both the
+\code{maive_n} and the \code{priors_maive} arguments are specified. Note that the default prior distributions
+are not fine-tuned for any-specific settings and will require problem-by-problem setup.}
 
 \item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
 which results in estimating individual models using JAGS and computing the marginal likelihood using bridge

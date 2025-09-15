@@ -23,6 +23,8 @@
 #' @param study_ids an optional argument specifying dependency between the
 #' studies (for using a multilevel model). Defaults to \code{NULL} for
 #' studies being independent.
+#' @param maive_n an optional argument for specifying the sample size for
+#' MAIVE publication bias adjustment
 #' @param data a data frame with column names corresponding to the
 #' variable names used to supply data individually
 #' @param transformation transformation to be applied to the supplied

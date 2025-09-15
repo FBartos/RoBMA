@@ -73,6 +73,10 @@
 #' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
 #' @param priors_hierarchical_null list of prior distributions for the correlation of random effects
 #' (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.
+#' @param priors_maive list of prior distributions (\code{"intercept"}, \code{"slope"}, \code{"sigma"}) for
+#' specifying the MAIVE publication bias adjustment. Note that MAIVE is applied only if both the
+#' \code{maive_n} and the \code{priors_maive} arguments are specified. Note that the default prior distributions
+#' are not fine-tuned for any-specific settings and will require problem-by-problem setup.
 #' @param algorithm a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
 #' which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
 #' sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the

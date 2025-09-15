@@ -25,6 +25,7 @@ RoBMA.reg(
   priors_bias_null = set_default_priors("bias", null = TRUE),
   priors_hierarchical = set_default_priors("hierarchical"),
   priors_hierarchical_null = set_default_priors("hierarchical", null = TRUE),
+  priors_maive = if (!is.null(data[["maive_n"]])) set_default_priors("maive"),
   prior_covariates = set_default_priors("covariates", rescale = rescale_priors),
   prior_covariates_null = set_default_priors("covariates", null = TRUE),
   prior_factors = set_default_priors("factors", rescale = rescale_priors),
@@ -178,6 +179,11 @@ Note that this is an experimental feature and see News for more details. Default
 
 \item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
 (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
+
+\item{priors_maive}{list of prior distributions (\code{"intercept"}, \code{"slope"}, \code{"sigma"}) for
+specifying the MAIVE publication bias adjustment. Note that MAIVE is applied only if both the
+\code{maive_n} and the \code{priors_maive} arguments are specified. Note that the default prior distributions
+are not fine-tuned for any-specific settings and will require problem-by-problem setup.}
 
 \item{prior_covariates}{a prior distributions for the regression parameter
 of continuous covariates on the effect size under the alternative hypothesis
