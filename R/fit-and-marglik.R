@@ -930,8 +930,8 @@
   }
 
   if(maive){
-    fit_data$maive_log_se <- log(fit_data$se)
-    fit_data$maive_log_n  <- log(fit_data$maive_n)
+    fit_data$log_se <- log(fit_data$se)
+    fit_data$log_n  <- log(data$maive_n)
   }
 
   return(fit_data)
@@ -1222,6 +1222,14 @@
     eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed[i]", "mu_transformed[i]")
   }else{
     eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+  }
+
+  # add maive computation
+  if(maive){
+    model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
+    model_syntax <- paste0(model_syntax, "  maive_log_se[i] = maive_intercept + maive_slope * log_n[i]\n")
+    model_syntax <- paste0(model_syntax, "  log_se[i]       ~ dnorm(maive_log_se[i] , 1/pow(maive_sigma))\n")
+    model_syntax <- paste0(model_syntax, "}")
   }
 
   ### model

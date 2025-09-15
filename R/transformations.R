@@ -241,7 +241,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       attr(output, "original_measure") <- original_measure
       attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
       attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
-      attr(output, "maive")            <- all(!is.na(data[,"maive"]))
+      attr(output, "maive")            <- all(!is.na(data[,"maive_n"]))
       class(output) <- c(class(output), "data.RoBMA")
 
       return(output)
@@ -434,7 +434,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     attr(output, "original_measure") <- original_measure
     attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
     attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
-    attr(output, "maive")            <- all(!is.na(data[,"maive"]))
+    attr(output, "maive")            <- all(!is.na(maive_n))
     class(output) <- c(class(output), "data.RoBMA")
 
     if(anyNA(data[,"se"]) | anyNA(data[,"se"])){

@@ -457,12 +457,8 @@
 
   if(!all(sapply(priors_maive, is.prior)))
     stop(paste0("Argument priors_maive does not contain valid prior distributions. The prior distributions need to be passed as a list of objects specified using 'prior()' function. See '?prior' for more information." ))
-  if(length(priors_maive) != 2)
+  if(length(priors_maive) != 3 && all(names(priors_maive) %in% c("intercept", "slope", "sigma")))
     stop("priors_maive must contain only two prior distributions")
-  if(is.null(priors_maive[["intercept"]]))
-    stop("Prior distribution for the 'intercept' needs to be specified for maive priors.")
-  if(is.null(priors_maive[["slope"]]))
-    stop("Prior distribution for the 'slope' needs to be specified for maive priors.")
 
   return(priors_maive)
 }
@@ -737,14 +733,19 @@
   }
 
   # place maive priors
-  model$priors$maive <- priors[["maive"]]
+  if(!is.null(priors_maive)){
+    model$priors$maive_intercept <- priors_maive[["intercept"]]
+    model$priors$maive_slope     <- priors_maive[["slope"]]
+    model$priors$maive_sigma     <- priors_maive[["sigma"]]
+  }
+
 
   class(model) <- "RoBMA.model_ss"
 
   attr(model, "multivariate")  <- multivariate && !is.null(model$priors$rho)
   attr(model, "weighted")      <- weighted
   attr(model, "weighted_type") <- attr(weighted, "type")
-  attr(model, "maive")         <- !is.null(model$priors$maive)
+  attr(model, "maive")         <- !is.null(priors_maive)
 
   return(model)
 }

@@ -42,7 +42,7 @@ NoBMA <- function(
   priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
   priors_hierarchical        = set_default_priors("hierarchical"),
   priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
-  priors_maive               = set_default_priors("maive"),
+  priors_maive               = if(!is.null(maive_n)) set_default_priors("maive"),
 
   # MCMC fitting settings
   algorithm = "bridge", chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,

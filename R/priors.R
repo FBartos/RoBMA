@@ -166,7 +166,7 @@ contr.independent <- BayesTools::contr.independent
 #' @export
 set_default_priors <- function(parameter, null = FALSE, rescale = 1){
 
-  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "bias", "hierarchical", "covariates", "factors"))
+  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "bias", "hierarchical", "covariates", "factors", "maive"))
   BayesTools::check_bool(null, "null")
   BayesTools::check_real(rescale, "rescale", lower = 0)
 
@@ -200,7 +200,8 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
       factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25 * rescale), contrast = "meandif"),
       maive         = list(
         "intercept" = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale)),
-        "scale"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale))
+        "slope"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale)),
+        "sigma"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale), truncation = list(lower = 0))
       )
     ))
   }
