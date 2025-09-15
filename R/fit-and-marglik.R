@@ -337,7 +337,8 @@
     effect_measure   = add_info[["effect_measure"]],
     weighted         = attr(model, "weighted"),
     regression       = .is_model_regression(model),
-    multivariate     = .is_model_multivariate(model)
+    multivariate     = .is_model_multivariate(model),
+    maive            = .is_model_maive(model)
   )
 
   # remove unnecessary objects from data to mitigate warnings
@@ -348,7 +349,8 @@
     prior_scale      = add_info[["prior_scale"]],
     weighted         = attr(model, "weighted"),
     weighted_type    = attr(model, "weighted_type"),
-    multivariate     = .is_model_multivariate(model)
+    multivariate     = .is_model_multivariate(model),
+    maive            = .is_model_maive(model)
   )
 
   # fit the model
@@ -872,7 +874,7 @@
 
   return(fit_data)
 }
-.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate){
+.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate, maive){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -925,6 +927,11 @@
     # rewritting ids as previous formating used NAs for unique ones
     data[,"study_ids"][is.na(data[,"study_ids"])] <- (max(data[,"study_ids"], na.rm = TRUE) + 1):(max(data[,"study_ids"], na.rm = TRUE) + sum(is.na(data[,"study_ids"])))
     fit_data$study_ids <- data[,"study_ids"]
+  }
+
+  if(maive){
+    fit_data$maive_log_se <- log(fit_data$se)
+    fit_data$maive_log_n  <- log(fit_data$maive_n)
   }
 
   return(fit_data)
@@ -1160,7 +1167,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate){
+.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate, maive){
 
   ### extract prior information
   if(is.prior.mixture(priors[["bias"]])){
@@ -1221,11 +1228,20 @@
   model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
 
   # marginalized random effects and the effect size
-  if(multivariate){
-    tau2 <- "( pow(se[i],2) + pow(tau_between_transformed,2) )"
+  if(maive){
+    if(multivariate){
+      tau2 <- "( pow(exp(maive_log_se[i]),2) + pow(tau_between_transformed,2) )"
+    }else{
+      tau2 <- "( pow(exp(maive_log_se[i]),2) + pow(tau_transformed,2) )"
+    }
   }else{
-    tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
+    if(multivariate){
+      tau2 <- "( pow(se[i],2) + pow(tau_between_transformed,2) )"
+    }else{
+      tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
+    }
   }
+
 
   # selection models always use positive direction of the effect (due to one-sided weightfunctions)
   # as such, the effect size direction needs to be flipped if the effect is assumed to be negative
@@ -1647,6 +1663,9 @@
 }
 .is_model_multivariate  <- function(model){
   return(attr(model, "multivariate"))
+}
+.is_model_maive         <- function(model){
+  return(attr(model, "maive"))
 }
 
 .generate_model_formula_list       <- function(formula){

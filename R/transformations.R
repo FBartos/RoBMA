@@ -68,24 +68,25 @@
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
 combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
-                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
+                          study_names = NULL, study_ids = NULL, weight = NULL, maive_n = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
 
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
   BayesTools::check_bool(return_all, "return_all")
-  BayesTools::check_real(d[!is.na(d)],           "d",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(r[!is.na(r)],           "r",      allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
-  BayesTools::check_real(z[!is.na(z)],           "z",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(logOR[!is.na(logOR)],   "logOR",  allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(OR[!is.na(OR)],         "OR",     allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
-  BayesTools::check_real(t[!is.na(t)],           "t",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(y[!is.na(y)],           "y",      allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(se[!is.na(se)],         "se",     allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(v[!is.na(v)],           "v",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_int( n[!is.na(n)],           "n",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_real(lCI[!is.na(lCI)],       "lCI",    allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(uCI[!is.na(uCI)],       "uCI",    allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(d[!is.na(d)],            "d",       allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(r[!is.na(r)],            "r",       allow_NULL = TRUE, check_length = FALSE, lower = -1, upper = 1, allow_bound = FALSE)
+  BayesTools::check_real(z[!is.na(z)],            "z",       allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(logOR[!is.na(logOR)],    "logOR",   allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(OR[!is.na(OR)],          "OR",      allow_NULL = TRUE, check_length = FALSE, allow_bound = FALSE)
+  BayesTools::check_real(t[!is.na(t)],            "t",       allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(y[!is.na(y)],            "y",       allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(se[!is.na(se)],          "se",      allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(v[!is.na(v)],            "v",       allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_int( n[!is.na(n)],            "n",       allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_real(lCI[!is.na(lCI)],        "lCI",     allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(uCI[!is.na(uCI)],        "uCI",     allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_real(weight[!is.na(weight)],  "weight",  allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
+  BayesTools::check_int(maive_n[!is.na(maive_n)], "maive_n", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
   BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
 
   dots <- list(...)
@@ -99,7 +100,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     original_measure <- NULL
   }
 
-  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
+  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight", "maive_n")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -108,7 +109,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight, maive_n = maive_n)))
   }
 
   if(is.null(original_measure)){
@@ -124,7 +125,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 
   ### into numeric
-  for(var in c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight")){
+  for(var in c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight", "maive_n")){
     data[,var] <- as.numeric(as.character(data[,var]))
   }
 
@@ -134,7 +135,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     se = rep(NA, nrow(data)),
     study_names = rep(NA, nrow(data)),
     study_ids   = rep(NA, nrow(data)),
-    weight      = rep(NA, nrow(data))
+    weight      = rep(NA, nrow(data)),
+    maive_n     = rep(NA, nrow(data))
   )
 
   ### check for sufficient input
@@ -185,7 +187,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("Standardized and general effect sizes cannot be combined.")
 
   # Begin data preparation pipeline:
-  
+
   # 1. Convert variance to standard errors where missing
   data[is.na(data[,"se"]),"se"] <- sqrt(data[is.na(data[,"se"]),"v"])
 
@@ -203,6 +205,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   # add weights if missing
   if(all(is.na(data[,"weight"]))){
     data[,"weight"] <- NA
+  }
+
+  # add maive_n if missing
+  if(all(is.na(data[,"maive_n"]))){
+    data[,"maive_n"] <- NA
   }
 
   ### deal with general 'unstandardized' input
@@ -229,10 +236,12 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       output$study_names <- data[,"study_names"]
       output$study_ids   <- data[,"study_ids"]
       output$weight      <- data[,"weight"]
+      output$maive_n     <- data[,"maive_n"]
       attr(output, "effect_measure")   <- transformation
       attr(output, "original_measure") <- original_measure
       attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
       attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
+      attr(output, "maive")            <- all(!is.na(data[,"maive"]))
       class(output) <- c(class(output), "data.RoBMA")
 
       return(output)
@@ -311,7 +320,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   # Final step: Transform all effect sizes and standard errors to common metric
   # This is the core transformation that enables meta-analysis across different effect size types
   # Each case handles: 1) effect size transformation, 2) standard error transformation, 3) CI computation
-  
+
   if(transformation == "d"){
     # Transform all effect sizes to Cohen's d (standardized mean difference)
     data[is.na(data[,"d"]) & !is.na(data[,"r"]),    "d"] <-     r2d(data[is.na(data[,"d"]) & !is.na(data[,"r"]),        "r"])
@@ -420,10 +429,12 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     output$study_names <- data[,"study_names"]
     output$study_ids   <- data[,"study_ids"]
     output$weight      <- data[,"weight"]
+    output$maive_n     <- data[,"maive_n"]
     attr(output, "effect_measure")   <- transformation
     attr(output, "original_measure") <- original_measure
     attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
     attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
+    attr(output, "maive")            <- all(!is.na(data[,"maive"]))
     class(output) <- c(class(output), "data.RoBMA")
 
     if(anyNA(data[,"se"]) | anyNA(data[,"se"])){
@@ -441,7 +452,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 # - ensures events don't exceed sample sizes (x1 <= n1, x2 <= n2)
 # - applies zero-cell correction when return_all=TRUE to avoid log(0) in OR calculations
 # - delegates to combine_data() for effect size transformations
-# 
+#
 # Parameters:
 # x1, x2: number of events in groups 1 and 2
 # n1, n2: total sample sizes in groups 1 and 2
@@ -529,7 +540,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     # Adds 0.5 to events and 1 to sample sizes when any cell contains 0
     data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] <- data[data$x1 == 0 | data$x2 == 0, c("n1", "n2")] + 1
     data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] <- data[data$x1 == 0 | data$x2 == 0, c("x1", "x2")] + 0.5
-    
+
     # Calculate log odds ratio and standard error from corrected frequencies
     logOR    <- log( (data$x1/(data$n1 - data$x1)) / (data$x2/(data$n2 - data$x2)) )
     logORse  <- sqrt( 1/data$x1 + 1/data$x2 + 1/(data$n1 - data$x1) + 1/(data$n2 - data$x2) )
@@ -556,7 +567,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 # - validates predictors for missing values and intercept requirement
 # - standardizes continuous predictors if requested
 # - creates predictor metadata for scaling information
-# 
+#
 # Key behaviors:
 # - Characters automatically converted to factors
 # - Intercept is mandatory (cannot be omitted)
@@ -566,7 +577,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 #
 # Returns: list with predictor data and metadata attributes:
 # - variables: first-order terms only
-# - terms: all terms including interactions  
+# - terms: all terms including interactions
 # - terms_type: data types (numeric, factor)
 # - variables_info: scaling information for each predictor
 .combine_data_add_terms <- function(formula, data_predictors, standardize_predictors){
@@ -612,7 +623,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }else{
     data_predictors <- model_frame[1:length(model_frame)]
   }
-  
+
   # Create metadata attributes:
   # variables: only first-order terms (no interactions)
   # terms: all terms including interactions
@@ -626,7 +637,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   to_warn              <- NULL
   for(i in seq_along(data_predictors)){
     if(attr(data_predictors, "terms_type")[i] == "numeric"){
-      
+
       # Store original scaling information before potential standardization
       data_predictors_info[[names(data_predictors)[i]]] <- list(
         type = "continuous",
@@ -643,7 +654,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       }
 
     }else if(attr(data_predictors, "terms_type")[i] == "factor"){
-      
+
       # Store factor level information for proper contrast handling
       data_predictors_info[[names(data_predictors)[i]]] <- list(
         type    = "factor",
@@ -715,7 +726,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
   # Extract predictor variables (exclude all effect size/variance columns)
   data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
-  
+
   # Process predictors through formula parsing and standardization
   data_predictors <- .combine_data_add_terms(formula, data_predictors, standardize_predictors)
 
@@ -771,7 +782,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 }
 
 # Simple predictor scaling utilities:
-# .pred_scale: standardizes predictor using stored mean and sd: (x - mean) / sd  
+# .pred_scale: standardizes predictor using stored mean and sd: (x - mean) / sd
 # .pred_unscale: reverses standardization: x * sd + mean
 .pred_scale   <- function(x, predictor_info){
   (x - predictor_info[["mean"]]) / predictor_info[["sd"]]
@@ -782,16 +793,16 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
 # Internal function to transform posterior samples between effect size scales:
 # Purpose: Converts posterior distributions when changing between d, r, z, logOR, etc.
-# 
+#
 # Key transformations:
 # - mu (effect size): transformed using appropriate conversion functions
-# - tau (heterogeneity): scaled but relationship preserved  
+# - tau (heterogeneity): scaled but relationship preserved
 # - PEESE: inverse scaling (PEESE coefficient relates to original scale variance)
 # - predictor effects: transformed to maintain interpretation on new scale
 #
 # Parameters:
 # current_scale: the scale posteriors are currently on (e.g., "z")
-# output_scale: the desired output scale (e.g., "d") 
+# output_scale: the desired output scale (e.g., "d")
 #
 # This enables users to obtain results on any supported effect size scale
 # regardless of the scale used for model fitting
@@ -1339,13 +1350,13 @@ se_z2se_logOR <- function(se_z, z){
 
 # Internal function to convert user-friendly transformation names to internal codes:
 # Purpose: Maps user input like "fishers_z" to internal variable names like "z"
-# 
-# Parameter 'estimation': 
+#
+# Parameter 'estimation':
 # - TRUE: restricts to transformations valid for model estimation (excludes "OR")
 # - FALSE: allows all transformations including "OR" for output display
 #
 # Mapping:
-# "fishers_z" -> "z", "cohens_d" -> "d", "r" -> "r", 
+# "fishers_z" -> "z", "cohens_d" -> "d", "r" -> "r",
 # "logOR" -> "logOR", "OR" -> "OR", "none" -> "y"
 .transformation_var    <- function(name, estimation = TRUE){
 
@@ -1590,7 +1601,7 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
 
 # Internal function to reverse predictor standardization for posterior samples:
 # Purpose: Converts standardized regression coefficients back to original scale
-# 
+#
 # Process for continuous predictors:
 # Posterior sample unstandardization for regression predictors:
 # Purpose: Transform posterior samples from standardized scale back to original predictor scale
@@ -1599,9 +1610,9 @@ scale_OR2logOR <- function(OR) .scale_OR2logOR$fun(OR)
 # Continuous predictors standardization reversal:
 # 1. Divide coefficient by original SD to get raw slope effect
 # 2. Adjust intercept by removing mean-centering effect: β₀ - β₁*(μ/σ)
-# 
+#
 # Factor predictors: no transformation needed (already on original scale)
-# 
+#
 # This ensures posterior samples reflect effects on the original predictor scale
 # rather than the standardized scale used during model fitting
 # LLM Note: Essential for interpreting regression results in original units

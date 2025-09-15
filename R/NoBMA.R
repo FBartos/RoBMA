@@ -30,7 +30,7 @@ NoBMA <- function(
     # data specification
   d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
   se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
-  data = NULL, weight = NULL,
+  data = NULL, weight = NULL, maive_n = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
 
@@ -42,6 +42,7 @@ NoBMA <- function(
   priors_heterogeneity_null  = set_default_priors("heterogeneity", null = TRUE),
   priors_hierarchical        = set_default_priors("hierarchical"),
   priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
+  priors_maive               = set_default_priors("maive"),
 
   # MCMC fitting settings
   algorithm = "bridge", chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,
@@ -55,7 +56,7 @@ NoBMA <- function(
     # data specification
     d = d, r = r, logOR = logOR, OR = OR, z = z, y = y,
     se = se, v = v, n = n, lCI = lCI, uCI = uCI, t = t, study_names = study_names, study_ids = study_ids,
-    data = data,
+    data = data, weight = weight, maive_n = maive_n,
     transformation   = transformation,
     prior_scale      = prior_scale,
     effect_direction = "positive", # THIS IS PRESET
@@ -70,6 +71,7 @@ NoBMA <- function(
     priors_bias_null           = prior_none(),  # THIS IS PRESET
     priors_hierarchical        = priors_hierarchical,
     priors_hierarchical_null   = priors_hierarchical_null,
+    priors_maive               = priors_maive,
 
     # MCMC fitting settings
     algorithm = algorithm, chains = chains, sample = sample, burnin = burnin, adapt = adapt, thin = thin, parallel = parallel,

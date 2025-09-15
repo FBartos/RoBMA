@@ -233,7 +233,7 @@ RoBMA <- function(
     object$data <- data
   }else{
     object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
-                                study_names = study_names, study_ids = study_ids, weight = weight, data = data, transformation = transformation)
+                                study_names = study_names, study_ids = study_ids, weight = weight, maive_n = maive_n, data = data, transformation = transformation)
   }
 
   # switch between multivariate and weighted models
@@ -272,6 +272,7 @@ RoBMA <- function(
     priors_heterogeneity_null = priors_heterogeneity_null, priors_heterogeneity = priors_heterogeneity,
     priors_bias_null = priors_bias_null, priors_bias = priors_bias,
     priors_hierarchical_null = priors_hierarchical_null, priors_hierarchical = priors_hierarchical,
+    priors_maive = priors_maive,
     prior_scale = object$add_info[["prior_scale"]])
   if(algorithm == "bridge"){
     object$models <- .make_models(object[["priors"]], .is_multivariate(object), .is_weighted(object))

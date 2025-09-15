@@ -1,6 +1,6 @@
 # Internal function for validating and organizing priors into standard structure:
 # Purpose: Handles both custom user priors and precanned model specifications
-# 
+#
 # Process:
 # 1. Checks if model_type specifies a precanned model (psma, pp, 2w)
 # 2. If precanned: overrides user priors with predefined specifications
@@ -9,14 +9,20 @@
 #
 # Precanned model types:
 # - "psma": Publication bias-sensitive meta-analysis (weight functions + PET/PEESE)
-# - "pp": PET-PEESE only models for publication bias detection  
+# - "pp": PET-PEESE only models for publication bias detection
 # - "2w": Two-step weight function models for publication bias
 #
 # Each precanned model has specific prior specifications for effect, heterogeneity,
 # and bias components, developed based on meta-analytic best practices
 #
 # Returns: List with effect, heterogeneity, bias, hierarchical component priors
-.check_and_list_priors       <- function(model_type, priors_effect_null, priors_effect, priors_heterogeneity_null, priors_heterogeneity, priors_bias_null, priors_bias, priors_hierarchical_null, priors_hierarchical, prior_scale){
+.check_and_list_priors       <- function(model_type,
+                                         priors_effect_null, priors_effect,
+                                         priors_heterogeneity_null, priors_heterogeneity,
+                                         priors_bias_null, priors_bias,
+                                         priors_hierarchical_null, priors_hierarchical,
+                                         priors_maive,
+                                         prior_scale){
 
   # Validate and format model type specification
   model_type <- .check_and_set_model_type(model_type, prior_scale)
@@ -27,7 +33,7 @@
       # Publication bias-sensitive meta-analysis: comprehensive bias modeling
       priors_effect         <- prior(distribution = "normal",    parameters = list(mean = 0,  sd = 1))
       priors_heterogeneity  <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
-      
+
       # Comprehensive publication bias prior suite: weight functions + regression methods
       priors_bias           <- list(
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
@@ -70,6 +76,23 @@
       priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
       priors_bias_null           <- prior_none()
       priors_hierarchical_null   <- NULL
+    }else if(model_type == "6w"){
+      # Two-step weight function models: simpler weight function approach
+      priors_effect              <- prior(distribution = "normal",    parameters = list(mean = 0, sd = 1))
+      priors_heterogeneity       <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
+      priors_bias                <- list(
+        prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
+        prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/6),
+        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
+        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/6),
+        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/6),
+        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/6)
+      )
+      priors_hierarchical        <- NULL
+      priors_effect_null         <- prior(distribution = "point", parameters = list(location = 0))
+      priors_heterogeneity_null  <- prior(distribution = "point", parameters = list(location = 0))
+      priors_bias_null           <- prior_none()
+      priors_hierarchical_null   <- NULL
     }else{
       stop("Unknown 'model_type'.")
     }
@@ -82,6 +105,7 @@
   priors$heterogeneity  <- .check_and_list_component_priors(priors_heterogeneity_null,   priors_heterogeneity,  "heterogeneity")
   priors$bias           <- .check_and_list_component_priors(priors_bias_null,            priors_bias,           "bias")
   priors$hierarchical   <- .check_and_list_component_priors(priors_hierarchical_null,    priors_hierarchical,   "hierarchical")
+  priors$maive          <- .check_and_list_component_priors_maive(priors_maive)
 
   return(priors)
 }
@@ -212,6 +236,7 @@
                                             priors_heterogeneity_null, priors_heterogeneity,
                                             priors_bias_null, priors_bias,
                                             priors_hierarchical_null, priors_hierarchical,
+                                            priors_maive,
                                             prior_covariates_null, prior_covariates,
                                             prior_factors_null, prior_factors){
 
@@ -225,6 +250,7 @@
     priors_bias               = priors_bias,
     priors_hierarchical_null  = priors_hierarchical_null,
     priors_hierarchical       = priors_hierarchical,
+    priors_maive              = priors_maive,
     prior_scale               = prior_scale
   )
   priors_terms <- .check_and_list_priors_terms(
@@ -281,7 +307,7 @@
   return(priors_main)
 }
 
-.check_and_list_component_priors  <- function(priors_null, priors_alt, component){
+.check_and_list_component_priors       <- function(priors_null, priors_alt, component){
 
   # check that at least one prior is specified (either null or alternative)
   if(component != "hierarchical" && (is.null(priors_null) & is.null(priors_alt)))
@@ -424,8 +450,27 @@
 
   return(priors)
 }
+.check_and_list_component_priors_maive <- function(priors_maive){
+
+  if(is.null(priors_maive))
+    return()
+
+  if(!all(sapply(priors_maive, is.prior)))
+    stop(paste0("Argument priors_maive does not contain valid prior distributions. The prior distributions need to be passed as a list of objects specified using 'prior()' function. See '?prior' for more information." ))
+  if(length(priors_maive) != 2)
+    stop("priors_maive must contain only two prior distributions")
+  if(is.null(priors_maive[["intercept"]]))
+    stop("Prior distribution for the 'intercept' needs to be specified for maive priors.")
+  if(is.null(priors_maive[["slope"]]))
+    stop("Prior distribution for the 'slope' needs to be specified for maive priors.")
+
+  return(priors_maive)
+}
 
 .make_models        <- function(priors, multivariate, weighted){
+
+  if(!is.null(priors[["maive"]]))
+    stop("maive priors are enabled only for models fitted with `algorithm == 'ss'`")
 
   # create models according to the set priors
   models <- NULL
@@ -661,6 +706,7 @@
   priors_heterogeneity <- priors[["heterogeneity"]]
   priors_bias          <- priors[["bias"]]
   priors_hierarchical  <- priors[["hierarchical"]]
+  priors_maive         <- priors[["maive"]]
 
   model <- list(priors = list())
 
@@ -690,11 +736,15 @@
     attr(model$priors$gamma, "levels") <- K
   }
 
+  # place maive priors
+  model$priors$maive <- priors[["maive"]]
+
   class(model) <- "RoBMA.model_ss"
 
   attr(model, "multivariate")  <- multivariate && !is.null(model$priors$rho)
   attr(model, "weighted")      <- weighted
   attr(model, "weighted_type") <- attr(weighted, "type")
+  attr(model, "maive")         <- !is.null(model$priors$maive)
 
   return(model)
 }
@@ -707,6 +757,7 @@
   attr(model, "multivariate")  <- attr(model_base, "multivariate")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+  attr(model, "maive")         <- attr(model_base, "maive")
 
   return(model)
 }
