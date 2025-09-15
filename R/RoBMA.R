@@ -197,8 +197,9 @@
 RoBMA <- function(
   # data specification
   d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
-  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
-  data = NULL, weight = NULL,
+  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL,
+  study_names = NULL, study_ids = NULL,
+  data = NULL, weight = NULL, maive_n = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
   effect_direction = "positive",
@@ -214,6 +215,7 @@ RoBMA <- function(
   priors_bias_null           = set_default_priors("bias",          null = TRUE),
   priors_hierarchical        = set_default_priors("hierarchical"),
   priors_hierarchical_null   = set_default_priors("hierarchical", null = TRUE),
+  priors_maive               = set_default_priors("maive"),
 
   # MCMC fitting settings
   algorithm = "bridge", chains = 3, sample = 5000, burnin = 2000, adapt = 500, thin = 1, parallel = FALSE,

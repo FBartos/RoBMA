@@ -197,7 +197,11 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
         ),
       hierarchical  = prior("beta", parameters = list(alpha = 1, beta = 1)),
       covariates    = prior("normal", parameters = list(mean = 0, sd = 0.25 * rescale)),
-      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25 * rescale), contrast = "meandif")
+      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25 * rescale), contrast = "meandif"),
+      maive         = list(
+        "intercept" = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale)),
+        "scale"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale))
+      )
     ))
   }
 }
