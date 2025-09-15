@@ -932,6 +932,10 @@
   if(maive){
     fit_data$log_se <- log(fit_data$se)
     fit_data$log_n  <- log(data$maive_n)
+    # remove se from the data if only maive model (without pub bias is specified)
+    if(is.prior.none(priors[["bias"]])){
+      fit_data$se <- NULL
+    }
   }
 
   return(fit_data)
@@ -1228,7 +1232,7 @@
   if(maive){
     model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
     model_syntax <- paste0(model_syntax, "  maive_log_se[i] = maive_intercept + maive_slope * log_n[i]\n")
-    model_syntax <- paste0(model_syntax, "  log_se[i]       ~ dnorm(maive_log_se[i] , 1/pow(maive_sigma))\n")
+    model_syntax <- paste0(model_syntax, "  log_se[i]       ~ dnorm(maive_log_se[i], 1/pow(maive_sigma, 2))\n")
     model_syntax <- paste0(model_syntax, "}")
   }
 

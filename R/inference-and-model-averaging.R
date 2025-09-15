@@ -2,7 +2,7 @@
 # Purpose: Redistributes prior weights from failed models to successful models with same structure
 #
 # Process:
-# 1. Identifies converged vs failed models  
+# 1. Identifies converged vs failed models
 # 2. Characterizes each model by its component structure (effect, heterogeneity, bias, etc.)
 # 3. For each failed model, finds converged models with identical component structure
 # 4. Redistributes failed model's prior weight proportionally among matched converged models
@@ -31,14 +31,14 @@
     baseline       = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "baseline")),
     hierarchical   = sapply(object[["models"]], function(model) !.is_component_null(model[["priors"]], "hierarchical"))
   )
-  
+
   # Add regression predictor tests if present
   if(!is.null(object$add_info[["predictors_test"]])){
     for(predictor_test in object$add_info[["predictors_test"]]){
       component_types[[predictor_test]] <- sapply(object[["models"]], function(model) predictor_test %in% model[["terms_test"]])
     }
   }
-  
+
   # Extract original prior weights set by user
   prior_weights  <- sapply(object[["models"]], function(model) model[["prior_weights_set"]])
 
@@ -88,7 +88,7 @@
 #
 # Process:
 # 1. Filters to converged models with non-zero prior weights
-# 2. Characterizes models by component and parameter types  
+# 2. Characterizes models by component and parameter types
 # 3. Computes posterior model probabilities using marginal likelihoods
 # 4. Performs model averaging for each parameter/component
 # 5. Computes inclusion Bayes factors and posterior probabilities
@@ -451,6 +451,9 @@
     parameters  <- c(parameters,  "baseline")
     conditional <- c(conditional, "baseline" = "baseline")
   }
+  if(.is_model_maive(model)){
+    parameters  <- c(parameters,  "maive_intercept",  "maive_slope",  "maive_sigma")
+  }
 
   # deal with meta-regression
   if(.is_model_regression(model)){
@@ -515,6 +518,15 @@
   if(any(names(posteriors_conditional) == "mu_intercept")){
     attr(posteriors_conditional[["mu_intercept"]], "parameter")                    <- "mu"
     names(posteriors_conditional)[names(posteriors_conditional) == "mu_intercept"] <- "mu"
+  }
+  # rename maive parameters
+  if(.is_model_maive(model)){
+    attr(posteriors[["maive_intercept"]], "parameter")        <- "maive[intercept]"
+    names(posteriors)[names(posteriors) == "maive_intercept"] <- "maive[intercept]"
+    attr(posteriors[["maive_slope"]], "parameter")            <- "maive[slope]"
+    names(posteriors)[names(posteriors) == "maive_slope"]     <- "maive[slope]"
+    attr(posteriors[["maive_sigma"]], "parameter")            <- "maive[sigma]"
+    names(posteriors)[names(posteriors) == "maive_sigma"]     <- "maive[sigma]"
   }
 
   ### model-averaged posteriors for predictors
