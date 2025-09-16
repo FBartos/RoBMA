@@ -874,7 +874,7 @@
 
   return(fit_data)
 }
-.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate, maive){
+.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate, maive = FALSE){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
