@@ -144,7 +144,7 @@ check_setup()
 # check setup with custom priors
 check_setup(
   priors_effect = prior("normal", list(mean = 0, sd = 0.5)),
-  priors_heterogeneity = prior("invgamma", list(shape = 2, scale = 0.3)),  
+  priors_heterogeneity = prior("invgamma", list(shape = 2, scale = 0.3)),
   models = TRUE
 )
 

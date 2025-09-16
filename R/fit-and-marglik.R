@@ -338,7 +338,8 @@
     weighted         = attr(model, "weighted"),
     regression       = .is_model_regression(model),
     multivariate     = .is_model_multivariate(model),
-    maive            = .is_model_maive(model)
+    maive            = .is_model_maive(model),
+    maive_type       = attr(model, "maive_type")
   )
 
   # remove unnecessary objects from data to mitigate warnings
@@ -350,7 +351,8 @@
     weighted         = attr(model, "weighted"),
     weighted_type    = attr(model, "weighted_type"),
     multivariate     = .is_model_multivariate(model),
-    maive            = .is_model_maive(model)
+    maive            = .is_model_maive(model),
+    maive_type       = attr(model, "maive_type")
   )
 
   # fit the model
@@ -874,7 +876,7 @@
 
   return(fit_data)
 }
-.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate, maive = FALSE){
+.fit_data_ss              <- function(data, priors, effect_direction, prior_scale, weighted, weighted_type, multivariate, maive = FALSE, maive_type = NULL){
 
   # unlist the data.frame
   original_measure <- attr(data, "original_measure")
@@ -930,8 +932,21 @@
   }
 
   if(maive){
-    fit_data$log_se <- log(fit_data$se)
-    fit_data$log_n  <- log(data$maive_n)
+    if(maive_type == "loglog"){
+      fit_data$log_se <- log(fit_data$se)
+      fit_data$log_n  <- log(data$maive_n)
+      fit_data$mean_log_se  <- mean(log(fit_data$se))
+      fit_data$mean_log_n   <- mean(log(data$maive_n))
+      fit_data$scale_log_se <- sd(log(fit_data$se))
+      fit_data$scale_log_n  <- sd(log(data$maive_n))
+    }else if(maive_type == "lin"){
+      fit_data$v      <- fit_data$se^2
+      fit_data$inv_n  <- 1/data$maive_n
+      fit_data$mean_v       <- mean(fit_data$se^2)
+      fit_data$mean_inv_n   <- mean(1/data$maive_n)
+      fit_data$scale_v      <- sd(fit_data$se^2)
+      fit_data$scale_inv_n  <- sd(1/data$maive_n)
+    }
     # remove se from the data if only maive model (without pub bias is specified)
     if(is.prior.none(priors[["bias"]])){
       fit_data$se <- NULL
@@ -1171,7 +1186,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate, maive){
+.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate, maive, maive_type){
 
   ### extract prior information
   if(is.prior.mixture(priors[["bias"]])){
@@ -1230,10 +1245,18 @@
 
   # add maive computation
   if(maive){
-    model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
-    model_syntax <- paste0(model_syntax, "  maive_log_se[i] = maive_intercept + maive_slope * log_n[i]\n")
-    model_syntax <- paste0(model_syntax, "  log_se[i]       ~ dnorm(maive_log_se[i], 1/pow(maive_sigma, 2))\n")
-    model_syntax <- paste0(model_syntax, "}")
+    if(maive_type == "loglog"){
+      model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
+      model_syntax <- paste0(model_syntax, "  maive_log_se[i] = (maive_intercept + mean_log_se) + maive_slope * (log_n[i] - mean_log_n) / scale_log_n  \n")
+      model_syntax <- paste0(model_syntax, "  log_se[i]       ~ dnorm(maive_log_se[i], 1/pow(maive_sigma * scale_log_se, 2))\n")
+      model_syntax <- paste0(model_syntax, "}")
+    }else if(maive_type == "lin"){
+      model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
+      # TODO: but must be positive!
+      model_syntax <- paste0(model_syntax, "  maive_v[i] = (maive_intercept + mean_v) + maive_slope * (inv_n[i] - mean_inv_n) / scale_inv_n  \n")
+      model_syntax <- paste0(model_syntax, "  v[i]       ~ dnorm(maive_v[i], 1/pow(maive_sigma * scale_v, 2))T(0,)\n")
+      model_syntax <- paste0(model_syntax, "}")
+    }
   }
 
   ### model
@@ -1241,17 +1264,18 @@
 
   # marginalized random effects and the effect size
   if(maive){
-    if(multivariate){
-      tau2 <- "( pow(exp(maive_log_se[i]),2) + pow(tau_between_transformed,2) )"
-    }else{
-      tau2 <- "( pow(exp(maive_log_se[i]),2) + pow(tau_transformed,2) )"
+    if(maive_type == "loglog"){
+      v_var <- "exp(2*maive_log_se[i])"
+    }else if(maive_type == "lin"){
+      v_var <- "maive_v[i]"
     }
   }else{
-    if(multivariate){
-      tau2 <- "( pow(se[i],2) + pow(tau_between_transformed,2) )"
-    }else{
-      tau2 <- "( pow(se[i],2) + pow(tau_transformed,2) )"
-    }
+    v_var <- "pow(se[i], 2)"
+  }
+  if(multivariate){
+    tau2 <- paste0("(", v_var, " + pow(tau_between_transformed,2) )")
+  }else{
+    tau2 <- paste0("(", v_var, " + pow(tau_transformed,2) )")
   }
 
 

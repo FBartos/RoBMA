@@ -490,6 +490,7 @@ update.RoBMA <- function(object, refit_failed = TRUE, extend_all = FALSE,
       priors_heterogeneity_null = prior_heterogeneity_null, priors_heterogeneity = prior_heterogeneity,
       priors_bias_null          = prior_bias_null,          priors_bias          = prior_bias,
       priors_hierarchical_null  = prior_hierarchical_null,  priors_hierarchical  = prior_hierarchical,
+      priors_maive              = NULL,
       prior_scale = object$add_info[["prior_scale"]])
 
     object$models[length(object$models) + 1]  <- list(.make_models(new_priors, .is_multivariate(object), .is_weighted(object))[[1]])

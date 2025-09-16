@@ -455,10 +455,31 @@
   if(is.null(priors_maive))
     return()
 
+  if(length(priors_maive) == 1 && is.character(priors_maive)){
+    model <- priors_maive
+    priors_maive <- list(
+      "intercept" = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1)),
+      "slope"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1)),
+      "sigma"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1), truncation = list(lower = 0))
+    )
+  }else{
+    if(is.null(priors_maive[["model"]])){
+      model <- "loglog"
+    }else{
+      model <- priors_maive[["model"]]
+      priors_maive[["model"]] <- NULL
+    }
+  }
+
   if(!all(sapply(priors_maive, is.prior)))
     stop(paste0("Argument priors_maive does not contain valid prior distributions. The prior distributions need to be passed as a list of objects specified using 'prior()' function. See '?prior' for more information." ))
   if(length(priors_maive) != 3 && all(names(priors_maive) %in% c("intercept", "slope", "sigma")))
     stop("priors_maive must contain only two prior distributions")
+
+  if(!model %in% c("loglog", "lin"))
+    stop("maive model must be either 'loglog' or 'lin'")
+
+  attr(priors_maive, "model") <- model
 
   return(priors_maive)
 }
@@ -746,6 +767,7 @@
   attr(model, "weighted")      <- weighted
   attr(model, "weighted_type") <- attr(weighted, "type")
   attr(model, "maive")         <- !is.null(priors_maive)
+  attr(model, "maive_type")    <- attr(priors_maive, "model")
 
   return(model)
 }
@@ -759,6 +781,7 @@
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
   attr(model, "maive")         <- attr(model_base, "maive")
+  attr(model, "maive_type")    <- attr(model_base, "maive_type")
 
   return(model)
 }
@@ -819,6 +842,7 @@
   attr(model, "random")        <- any_is_random
   attr(model, "weighted")      <- weighted
   attr(model, "weighted_type") <- attr(weighted, "type")
+  attr(model, "maive")         <- FALSE
 
   return(model)
 }
@@ -832,6 +856,7 @@
   attr(model, "random")        <- attr(model_base, "random")
   attr(model, "weighted")      <- attr(model_base, "weighted")
   attr(model, "weighted_type") <- attr(model_base, "weighted_type")
+  attr(model, "maive")         <- FALSE
 
   return(model)
 }

@@ -201,7 +201,8 @@ set_default_priors <- function(parameter, null = FALSE, rescale = 1){
       maive         = list(
         "intercept" = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale)),
         "slope"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale)),
-        "sigma"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale), truncation = list(lower = 0))
+        "sigma"     = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale), truncation = list(lower = 0)),
+        "model"     = "loglog"
       )
     ))
   }
