@@ -56,7 +56,7 @@ NoBMA <- function(
     # data specification
     d = d, r = r, logOR = logOR, OR = OR, z = z, y = y,
     se = se, v = v, n = n, lCI = lCI, uCI = uCI, t = t, study_names = study_names, study_ids = study_ids,
-    data = data, weight = weight, maive_n = maive_n,
+    data = data, weight = weight, maive_n = maive_n, no_bias_subset = NULL,
     transformation   = transformation,
     prior_scale      = prior_scale,
     effect_direction = "positive", # THIS IS PRESET

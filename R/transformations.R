@@ -25,6 +25,9 @@
 #' studies being independent.
 #' @param maive_n an optional argument for specifying the sample size for
 #' MAIVE publication bias adjustment
+#' @param no_bias_subset an optional argument for specifying a logical indicator
+#' describing whether studies were subject to publication bias (if \code{FALSE}, the
+#' the subset is estimated via a normal likelihood without publication bias adjustment)
 #' @param data a data frame with column names corresponding to the
 #' variable names used to supply data individually
 #' @param transformation transformation to be applied to the supplied
@@ -70,7 +73,7 @@
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
 combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
-                          study_names = NULL, study_ids = NULL, weight = NULL, maive_n = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
+                          study_names = NULL, study_ids = NULL, weight = NULL, maive_n = NULL, no_bias_subset = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
 
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
@@ -89,7 +92,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   BayesTools::check_real(uCI[!is.na(uCI)],        "uCI",     allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(weight[!is.na(weight)],  "weight",  allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
   BayesTools::check_int(maive_n[!is.na(maive_n)], "maive_n", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
-  BayesTools::check_char(study_names[!is.na(study_names)], "study_names", allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_bool(no_bias_subset[!is.na(no_bias_subset)], "no_bias_subset", allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_char(study_names[!is.na(study_names)],       "study_names",    allow_NULL = TRUE, check_length = FALSE)
 
   dots <- list(...)
   transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
@@ -102,7 +106,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     original_measure <- NULL
   }
 
-  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight", "maive_n")
+  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight", "maive_n", "no_bias_subset")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -111,7 +115,8 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight, maive_n = maive_n)))
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
+                                           study_names = study_names, study_ids = study_ids, weight = weight, maive_n = maive_n, no_bias_subset = no_bias_subset)))
   }
 
   if(is.null(original_measure)){
@@ -130,15 +135,20 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   for(var in c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "weight", "maive_n")){
     data[,var] <- as.numeric(as.character(data[,var]))
   }
+  ### into logical
+  for(var in c("no_bias_subset")){
+    data[,var] <- as.logical(data[,var])
+  }
 
   ### create holder of the output
   output <- data.frame(
     y  = rep(NA, nrow(data)),
     se = rep(NA, nrow(data)),
-    study_names = rep(NA, nrow(data)),
-    study_ids   = rep(NA, nrow(data)),
-    weight      = rep(NA, nrow(data)),
-    maive_n     = rep(NA, nrow(data))
+    study_names    = rep(NA, nrow(data)),
+    study_ids      = rep(NA, nrow(data)),
+    weight         = rep(NA, nrow(data)),
+    maive_n        = rep(NA, nrow(data)),
+    no_bias_subset = rep(FALSE, nrow(data))
   )
 
   ### check for sufficient input
@@ -214,6 +224,14 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     data[,"maive_n"] <- NA
   }
 
+  # add no_bias_subset if missing
+  if(all(is.na(data[,"no_bias_subset"]))){
+    data[,"no_bias_subset"] <- FALSE
+  }
+
+  if(all(data[,"no_bias_subset"]))
+    stop("'RoBMA' should not be used with only a subset of non-biased studies (all 'no_bias_subset' = TRUE). Use 'NoBMA' instead.")
+
   ### deal with general 'unstandardized' input
   if(!anyNA(data[,"y"])){
 
@@ -235,15 +253,17 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     }else{
       output$y  <- data[,"y"]
       output$se <- data[,"se"]
-      output$study_names <- data[,"study_names"]
-      output$study_ids   <- data[,"study_ids"]
-      output$weight      <- data[,"weight"]
-      output$maive_n     <- data[,"maive_n"]
+      output$study_names    <- data[,"study_names"]
+      output$study_ids      <- data[,"study_ids"]
+      output$weight         <- data[,"weight"]
+      output$maive_n        <- data[,"maive_n"]
+      output$no_bias_subset <- data[,"no_bias_subset"]
       attr(output, "effect_measure")   <- transformation
       attr(output, "original_measure") <- original_measure
       attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
       attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
       attr(output, "maive")            <- all(!is.na(data[,"maive_n"]))
+      attr(output, "no_bias_subset")   <- any(data[,"no_bias_subset"])
       class(output) <- c(class(output), "data.RoBMA")
 
       return(output)
@@ -426,17 +446,19 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   if(return_all){
     return(data)
   }else{
-    output$y           <- data[,transformation]
-    output$se          <- data[,"se"]
-    output$study_names <- data[,"study_names"]
-    output$study_ids   <- data[,"study_ids"]
-    output$weight      <- data[,"weight"]
-    output$maive_n     <- data[,"maive_n"]
+    output$y              <- data[,transformation]
+    output$se             <- data[,"se"]
+    output$study_names    <- data[,"study_names"]
+    output$study_ids      <- data[,"study_ids"]
+    output$weight         <- data[,"weight"]
+    output$maive_n        <- data[,"maive_n"]
+    output$no_bias_subset <- data[,"no_bias_subset"]
     attr(output, "effect_measure")   <- transformation
     attr(output, "original_measure") <- original_measure
     attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
     attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
     attr(output, "maive")            <- all(!is.na(maive_n))
+    attr(output, "no_bias_subset")   <- any(data[,"no_bias_subset"])
     class(output) <- c(class(output), "data.RoBMA")
 
     if(anyNA(data[,"se"]) | anyNA(data[,"se"])){
@@ -722,13 +744,14 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     uCI     = if("uCI"     %in%  colnames(data)) data[,"uCI"],
     weight  = if("weight"  %in%  colnames(data)) data[,"weight"],
     maive_n = if("maive_n" %in%  colnames(data)) data[,"maive_n"],
+    no_bias_subset = if("no_bias_subset" %in%  colnames(data)) data[,"no_bias_subset"],
     study_names    = study_names,
     study_ids      = study_ids,
     transformation = transformation,
     return_all     = FALSE)
 
   # Extract predictor variables (exclude all effect size/variance columns)
-  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight"), drop = FALSE]
+  data_predictors <- data[,!colnames(data) %in% c("d", "r", "z", "logOR", "t", "y", "se", "v", "n", "lCI", "uCI", "weight", "maive_n", "no_bias_subset"), drop = FALSE]
 
   # Process predictors through formula parsing and standardization
   data_predictors <- .combine_data_add_terms(formula, data_predictors, standardize_predictors)

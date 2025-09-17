@@ -203,7 +203,7 @@ RoBMA <- function(
   d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
   se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL,
   study_names = NULL, study_ids = NULL,
-  data = NULL, weight = NULL, maive_n = NULL,
+  data = NULL, weight = NULL, maive_n = NULL, no_bias_subset = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
   effect_direction = "positive",
@@ -237,7 +237,7 @@ RoBMA <- function(
     object$data <- data
   }else{
     object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
-                                study_names = study_names, study_ids = study_ids, weight = weight, maive_n = maive_n, data = data, transformation = transformation)
+                                study_names = study_names, study_ids = study_ids, weight = weight, maive_n = maive_n, no_bias_subset = no_bias_subset, data = data, transformation = transformation)
   }
 
   # switch between multivariate and weighted models

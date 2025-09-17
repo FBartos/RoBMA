@@ -339,7 +339,8 @@
     regression       = .is_model_regression(model),
     multivariate     = .is_model_multivariate(model),
     maive            = .is_model_maive(model),
-    maive_type       = attr(model, "maive_type")
+    maive_type       = attr(model, "maive_type"),
+    no_bias_subset   = attr(data_outcome, "no_bias_subset")
   )
 
   # remove unnecessary objects from data to mitigate warnings
@@ -953,6 +954,11 @@
     }
   }
 
+  if(!is.null(data[["no_bias_subset"]]) && any(data[["no_bias_subset"]])){
+    fit_data$no_bias_subset <- which(data[["no_bias_subset"]])
+    fit_data$bias_subset    <- which(!data[["no_bias_subset"]])
+  }
+
   return(fit_data)
 }
 .order_data.mv            <- function(data, regression){
@@ -1186,7 +1192,7 @@
 
   return(model_syntax)
 }
-.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate, maive, maive_type){
+.generate_model_syntax_ss <- function(priors, effect_direction, prior_scale, effect_measure, weighted, regression, multivariate, maive, maive_type, no_bias_subset){
 
   ### extract prior information
   if(is.prior.mixture(priors[["bias"]])){
@@ -1243,24 +1249,20 @@
     eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
   }
 
-  # add maive computation
+  ### model (under bias) ----
+  model_syntax <- paste0(model_syntax, "\nfor(i in ", if(no_bias_subset) "bias_subset" else "1:K" , "){\n")
+
+  # add MAIVE standard error computation
   if(maive){
     if(maive_type == "loglog"){
-      model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
       model_syntax <- paste0(model_syntax, "  maive_log_se[i] = (maive_intercept + mean_log_se) + maive_slope * (log_n[i] - mean_log_n) / scale_log_n  \n")
       model_syntax <- paste0(model_syntax, "  log_se[i]       ~ dnorm(maive_log_se[i], 1/pow(maive_sigma * scale_log_se, 2))\n")
-      model_syntax <- paste0(model_syntax, "}")
     }else if(maive_type == "lin"){
-      model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
       # TODO: but must be positive!
       model_syntax <- paste0(model_syntax, "  maive_v[i] = (maive_intercept + mean_v) + maive_slope * (inv_n[i] - mean_inv_n) / scale_inv_n  \n")
       model_syntax <- paste0(model_syntax, "  v[i]       ~ dnorm(maive_v[i], 1/pow(maive_sigma * scale_v, 2))T(0,)\n")
-      model_syntax <- paste0(model_syntax, "}")
     }
   }
-
-  ### model
-  model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
 
   # marginalized random effects and the effect size
   if(maive){
@@ -1317,6 +1319,50 @@
   }
 
   model_syntax <- paste0(model_syntax, "}\n")
+
+  ### model (under no bias) ----
+  if(no_bias_subset){
+    model_syntax <- paste0(model_syntax, "\nfor(i in no_bias_subset){\n")
+
+    # no need for MAIVE standard error computation
+
+    # marginalized random effects and the effect size
+    v_var <- "pow(se[i], 2)"
+    if(multivariate){
+      tau2 <- paste0("(", v_var, " + pow(tau_between_transformed,2) )")
+    }else{
+      tau2 <- paste0("(", v_var, " + pow(tau_transformed,2) )")
+    }
+
+    # selection models always use positive direction of the effect (due to one-sided weightfunctions)
+    # as such, the effect size direction needs to be flipped if the effect is assumed to be negative
+    # (as the data are flipped in the `.fit_data_ss()' function)
+    # - the flipping is needed for the consistency with bias_subset studies
+    if(regression){
+      # deal with mu as a vector or scalar based on whether it is regression or not
+      eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed[i]", "mu_transformed[i]")
+    }else{
+      eff <- ifelse(effect_direction == "negative", "-1 * mu_transformed", "mu_transformed")
+    }
+
+    # no need for PET/PEESE
+
+    # add hierarchical
+    if(multivariate){
+      eff <- paste0(eff, " + gamma[study_ids[i]] * tau_within_transformed")
+    }
+
+    # no need for weightfunctions - always use normal likelihood
+    if(weighted){
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dwnorm(", eff, ",", "1/", tau2, ", weight[i])\n")
+    }else{
+      model_syntax <- paste0(model_syntax, "  y[i] ~ dnorm(",  eff, ",", "1/", tau2, ")\n")
+    }
+
+    model_syntax <- paste0(model_syntax, "}\n")
+
+  }
+
   model_syntax <- paste0(model_syntax, "}")
 
   return(model_syntax)

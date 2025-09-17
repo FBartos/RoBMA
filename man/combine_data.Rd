@@ -21,6 +21,7 @@ combine_data(
   study_ids = NULL,
   weight = NULL,
   maive_n = NULL,
+  no_bias_subset = NULL,
   data = NULL,
   transformation = "fishers_z",
   return_all = FALSE,
@@ -65,6 +66,10 @@ Notes that this is an untested experimental feature.}
 
 \item{maive_n}{an optional argument for specifying the sample size for
 MAIVE publication bias adjustment}
+
+\item{no_bias_subset}{an optional argument for specifying a logical indicator
+describing whether studies were subject to publication bias (if \code{FALSE}, the
+the subset is estimated via a normal likelihood without publication bias adjustment)}
 
 \item{data}{a data frame with column names corresponding to the
 variable names used to supply data individually}

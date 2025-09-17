@@ -22,6 +22,7 @@ RoBMA(
   data = NULL,
   weight = NULL,
   maive_n = NULL,
+  no_bias_subset = NULL,
   transformation = if (is.null(y)) "fishers_z" else "none",
   prior_scale = if (is.null(y)) "cohens_d" else "none",
   effect_direction = "positive",
@@ -95,6 +96,10 @@ Notes that this is an untested experimental feature.}
 
 \item{maive_n}{an optional argument for specifying the sample size for
 MAIVE publication bias adjustment}
+
+\item{no_bias_subset}{an optional argument for specifying a logical indicator
+describing whether studies were subject to publication bias (if \code{FALSE}, the
+the subset is estimated via a normal likelihood without publication bias adjustment)}
 
 \item{transformation}{transformation to be applied to the supplied
 effect sizes before fitting the individual models. Defaults to

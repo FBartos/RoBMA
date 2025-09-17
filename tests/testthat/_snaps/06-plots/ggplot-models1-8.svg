@@ -18,26 +18,26 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
-<rect x='0.00' y='0.00' width='720.00' height='576.00' style='stroke-width: 1.07; stroke: #FFFFFF; fill: #FFFFFF;' />
+<rect x='0.000000000000064' y='0.00' width='720.00' height='576.00' style='stroke-width: 1.07; stroke: #FFFFFF; fill: #FFFFFF;' />
 </g>
 <defs>
-  <clipPath id='cpNzQuOTl8NjIzLjk3fDIyLjc4fDU0NC42MA=='>
-    <rect x='74.99' y='22.78' width='548.98' height='521.82' />
+  <clipPath id='cpNzIuMjV8NjI2LjcxfDIyLjc4fDU0NC42MA=='>
+    <rect x='72.25' y='22.78' width='554.46' height='521.82' />
   </clipPath>
 </defs>
-<g clip-path='url(#cpNzQuOTl8NjIzLjk3fDIyLjc4fDU0NC42MA==)'>
-<rect x='74.99' y='22.78' width='548.98' height='521.82' style='stroke-width: 1.07; stroke: none; fill: #EBEBEB;' />
-<polyline points='74.99,520.89 623.97,520.89 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polyline points='74.99,283.69 623.97,283.69 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polyline points='74.99,46.50 623.97,46.50 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
+<g clip-path='url(#cpNzIuMjV8NjI2LjcxfDIyLjc4fDU0NC42MA==)'>
+<rect x='72.25' y='22.78' width='554.46' height='521.82' style='stroke-width: 1.07; stroke: none; fill: #EBEBEB;' />
+<polyline points='72.25,520.89 626.71,520.89 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
+<polyline points='72.25,283.69 626.71,283.69 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
+<polyline points='72.25,46.50 626.71,46.50 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
 <polyline points='349.48,544.60 349.48,22.78 ' style='stroke-width: 0.53; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polyline points='74.99,402.29 623.97,402.29 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polyline points='74.99,165.10 623.97,165.10 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polyline points='99.94,544.60 99.94,22.78 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polyline points='599.02,544.60 599.02,22.78 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
-<polygon points='593.83,170.29 604.21,170.29 604.21,159.90 593.83,159.90 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
-<polygon points='599.02,402.29 599.02,372.64 599.02,402.29 599.02,431.94 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #000000;' />
-<polyline points='599.02,520.89 599.02,46.50 ' style='stroke-width: 1.07; stroke-dasharray: 1.42,4.27; stroke-linecap: butt;' />
+<polyline points='72.25,402.29 626.71,402.29 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
+<polyline points='72.25,165.10 626.71,165.10 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
+<polyline points='97.45,544.60 97.45,22.78 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
+<polyline points='601.51,544.60 601.51,22.78 ' style='stroke-width: 1.07; stroke: #FFFFFF; stroke-linecap: butt;' />
+<polygon points='596.32,170.29 606.70,170.29 606.70,159.90 596.32,159.90 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
+<polygon points='601.51,402.29 601.51,372.64 601.51,402.29 601.51,431.94 ' style='stroke-width: 1.07; stroke: none; stroke-linecap: butt; fill: #000000;' />
+<polyline points='601.51,520.89 601.51,46.50 ' style='stroke-width: 1.07; stroke-dasharray: 1.42,4.27; stroke-linecap: butt;' />
 </g>
 <g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
 <text x='5.48' y='405.32' style='font-size: 8.80px; font-family: sans;' textLength='64.58px' lengthAdjust='spacingAndGlyphs'>Model-Averaged</text>
@@ -45,13 +45,13 @@
 <text x='714.52' y='405.32' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='63.61px' lengthAdjust='spacingAndGlyphs'>0.00 [0.00, 0.00]</text>
 <text x='714.52' y='168.13' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='63.61px' lengthAdjust='spacingAndGlyphs'>0.00 [0.00, 0.00]</text>
 <text x='714.52' y='138.48' text-anchor='end' style='font-size: 8.80px; font-family: sans;' textLength='85.62px' lengthAdjust='spacingAndGlyphs'>BF = Inf [1.00 -&gt; 1.00]</text>
-<polyline points='99.94,547.34 99.94,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<polyline points='599.02,547.34 599.02,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
-<text x='99.94' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='7.82px' lengthAdjust='spacingAndGlyphs'>-1</text>
-<text x='599.02' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='4.89px' lengthAdjust='spacingAndGlyphs'>0</text>
+<polyline points='97.45,547.34 97.45,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<polyline points='601.51,547.34 601.51,544.60 ' style='stroke-width: 1.07; stroke: #333333; stroke-linecap: butt;' />
+<text x='97.45' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='7.82px' lengthAdjust='spacingAndGlyphs'>-1</text>
+<text x='601.51' y='555.59' text-anchor='middle' style='font-size: 8.80px; fill: #4D4D4D; font-family: sans;' textLength='4.89px' lengthAdjust='spacingAndGlyphs'>0</text>
 <text x='325.04' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='40.02px' lengthAdjust='spacingAndGlyphs'>Cohen's</text>
 <text x='365.06' y='568.13' style='font-size: 11.00px; font-family: sans;' textLength='2.75px' lengthAdjust='spacingAndGlyphs'> </text>
 <text x='367.81' y='568.13' style='font-size: 11.00px; font-style: italic; font-family: sans;' textLength='6.12px' lengthAdjust='spacingAndGlyphs'>d</text>
-<text x='74.99' y='14.56' style='font-size: 13.20px; font-family: sans;' textLength='107.89px' lengthAdjust='spacingAndGlyphs'>ggplot_models1_8</text>
+<text x='72.25' y='14.56' style='font-size: 13.20px; font-family: sans;' textLength='107.89px' lengthAdjust='spacingAndGlyphs'>ggplot_models1_8</text>
 </g>
 </svg>
