@@ -1,3 +1,10 @@
+## version 3.7
+### Features
+- `maive_n` argument to instrument the standard errors via a regression of sample sizes
+- `no_bias_subset` argument to fit a publication bias unadjusted sub-model to set of studies that are not a subject to publication bias (e.g., RRR)
+TODO: fix the lin parameterization of maive
+TODO: extend funnel plot and z-curve plot to deal with no_bias_subset
+
 ## version 3.6
 ### Features
 - `funnel()` plot to visualize residuals vs the expected sampling distribution for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
