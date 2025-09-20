@@ -4,6 +4,7 @@
 - `no_bias_subset` argument to fit a publication bias unadjusted sub-model to set of studies that are not a subject to publication bias (e.g., RRR)
 TODO: fix the lin parameterization of maive
 TODO: extend funnel plot and z-curve plot to deal with no_bias_subset
+TODO: priors_maive does not work with NoBMA reg
 
 ## version 3.6
 ### Features
