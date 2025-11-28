@@ -2,6 +2,7 @@
 #include "distributions/DWT1.h"
 #include "distributions/DWT2.h"
 #include "distributions/DWN1.h"
+#include "distributions/DWN1hierarchical.h"
 #include "distributions/DWN2.h"
 #include "distributions/DWN.h"
 #include "distributions/DWWN1.h"
@@ -43,6 +44,7 @@ namespace jags {
       insert(new DWT1);
       insert(new DWT2);
       insert(new DWN1);
+      insert(new DWN1hierarchical);
       insert(new DWN2);
       insert(new DWN);
       insert(new DWWN1);

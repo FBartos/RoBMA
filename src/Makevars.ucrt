@@ -73,7 +73,7 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 ###############
 
 OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
- 		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
+ 		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  distributions/DWN1hierarchical.o \
 		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
 		  distributions/DWB.o \
 		  distributions/DWNMIX.o distributions/DWWNMIX.o \
