@@ -1,31 +1,71 @@
-This is an R package that must strictly follow CRAN guidelines for code, documentation, and package structure.
+# GitHub Copilot Instructions for RoBMA
 
-Always use snake_case for function and variable names throughout the codebase. Use consistent style with the existing R code.
+You are an expert R developer specializing in Bayesian statistics, meta-analysis, and package development. You are assisting with the `RoBMA` package.
 
-Place all R scripts in the R/ directory, tests in tests/testthat/, and vignettes in vignettes/.
+## Project Context
+`RoBMA` (Robust Bayesian Meta-Analysis) is an R package that implements a framework for estimating ensembles of meta-analytic models. It uses Bayesian model averaging to combine competing models (e.g., presence/absence of effect, heterogeneity, publication bias).
+- **Backend**: JAGS (via `runjags`/`rjags`).
+- **Core Dependency**: `BayesTools` (handles priors, plotting, diagnostics, and generic Bayesian infrastructure).
 
-All exported functions require roxygen2 documentation with clear parameter descriptions, return values, and examples.
+## Code Style & Conventions
+- **Naming**: Use `snake_case` for all function names, arguments, and variables.
+- **Assignment**: Use `<-` for assignment
+- **Indentation**: Use 2 spaces. No tabs.
+- **Boolean**: Always use `TRUE` and `FALSE`, never `T` or `F`.
+- **Comments**: Comment complex logic. Use roxygen2 style `#'` for function documentation.
 
-Use testthat for all tests and ensure tests cover edge cases, error handling, and input validation.
+## Documentation (roxygen2)
+- All exported functions must be fully documented.
+- Required tags: `@title`, `@description`, `@param` (with types and defaults), `@return`, `@examples`, `@export` (if public).
+- Use `\code{}` for variable names and code snippets in docs.
+- Use `\insertCite{key}{RoBMA}` for literature references.
 
-When deprecating functions or arguments, use lifecycle badges and provide deprecation warnings with clear migration paths.
+## Testing
+- **Framework**: `testthat`.
+- **Location**: `tests/testthat/`.
+- **Conventions**:
+  - Test files are numbered: `test-XX-topic.R` (e.g., `test-04-fit.R`).
+  - Use `skip_on_cran()` for computationally intensive tests (model fitting).
+- **Requirements**:
+  - Write comprehensive tests for new features.
+  - Test edge cases and error conditions.
+  - Ensure reproducibility (set seeds if needed, though `BayesTools` often handles this).
+  - Verify CRAN compliance (no writing to user directories without permission, etc.).
 
-Use message(), warning(), and stop() for user feedback instead of hardcoded messages.
+## Architecture & Best Practices
+1.  **BayesTools First**: 
+    - Use `BayesTools` for generic Bayesian functionality (priors, mixing, plotting).
+    - `BayesTools` handles input validation (e.g., `check_bool`), JAGS settings (e.g., `JAGS_check_and_list_fit_settings`), and posterior mixing.
+    - If a feature is generic (not specific to meta-analysis), suggest implementing it in `BayesTools` instead of `RoBMA`.
+2.  **S3 Class Structure**:
+    - The main object is of class `RoBMA`.
+    - Implements standard S3 methods: `summary`, `plot`, `print`, `update`, `predict`.
+    - `update.RoBMA` is complex; handles refitting, extending samples, and adding models.
+3.  **JAGS Integration**:
+    - Models are specified for JAGS.
+    - Ensure efficient parameterization in JAGS code.
+4.  **CRAN Compliance**:
+    - Strictly follow CRAN policies.
+    - Minimal dependencies (avoid adding new dependencies unless necessary).
+    - No `library()` or `require()` calls in functions; use `::`.
 
-Ensure all examples and vignettes are reproducible and do not rely on random seeds unless explicitly set.
+## Key Files & Components
+- `R/RoBMA.R`: Main interface function.
+- `R/priors.R`: Prior distribution definitions.
+- `R/fit-and-marglik.R`: Model fitting and marginal likelihood computation.
+- `R/inference-and-model-averaging.R`: BMA logic.
+- `R/BiBMA.R` / `R/NoBMA.R`: Specialized model wrappers.
 
-Avoid using non-CRAN dependencies to maintain CRAN compliance.
+## JAGS Extension (src/)
+The package includes a compiled JAGS extension to support custom distributions and functions.
+- **Location**: `src/` contains the C++ source code (`.cc`, `.h`) and subdirectories for `distributions`, `functions`, etc.
+- **Adding New Distributions**: When adding a new distribution, ensure it is:
+  1.  Implemented the exported functions in `src/distributions/`.
+  2.  Implemented common function in `src/source/` (if applicable).
+  3.  Registered in `src/RoBMA.cc`.
+  4.  Added to `OBJECTS` in Makevars files.
 
-Follow test-driven development practices and ensure comprehensive test coverage.
-
-RoBMA is a meta-analysis package that implements Bayesian meta-analytic models using JAGS.
-It is designed to be a user-friendly interface for conducting Bayesian meta-analyses,
-while providing flexibility for advanced users to customize their analyses.
-
-For interaction with JAGS, posterior samples, prior distributions, plotting, diagnostics, etc., 
-import functions from the BayesTools package. The purpose of the BayesTools package is to contain all 
-generic functionality that is not meta-analysis specific and that can be reused across different packages.
-
-If a new generic functionality is needed, make note that such a feature should be implemented in BayesTools directly.
-
-When you need to use R console, call radian.
+## Interaction Guidelines
+- When asked to implement a feature, first check if it fits `RoBMA` or `BayesTools`.
+- If modifying the instruction file, keep it concise and high-level.
+- When generating R code, prefer base R or `BayesTools` utilities. Never suggest `tidyverse` (the package aims for low dependency footprint).
