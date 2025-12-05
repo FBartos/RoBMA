@@ -11,6 +11,7 @@
   to = 6,
   by = 0.5,
   length.out = NULL,
+  add = FALSE,
   plot_thresholds = TRUE,
   ...
 )
@@ -29,6 +30,8 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \item{by}{Numeric value specifying the bin width for the histogram. Defaults to 0.5.}
 
 \item{length.out}{Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.}
+
+\item{add}{Logical; if TRUE, adds histogram bars to an existing plot without creating a new canvas. Only applies to base R graphics. Defaults to FALSE.}
 
 \item{plot_thresholds}{Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.}
 

@@ -346,6 +346,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @param x A \code{zcurve_RoBMA} object containing the fitted model.
 #' @param by Numeric value specifying the bin width for the histogram. Defaults to 0.5.
 #' @param length.out Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.
+#' @param add Logical; if TRUE, adds histogram bars to an existing plot without creating a new canvas. Only applies to base R graphics. Defaults to FALSE.
 #' @param plot_thresholds Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.
 #' @param ... Additional graphical parameters for the histogram.
 #' For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
@@ -361,7 +362,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @seealso [as_zcurve()], [plot.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
 #'
 #' @export
-hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, plot_thresholds = TRUE, ...){
+hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, add = FALSE, plot_thresholds = TRUE, ...){
 
   # most functions are based on the zcurve package
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -369,6 +370,7 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
   BayesTools::check_real(to, "to", allow_NULL = TRUE)
   BayesTools::check_real(by, "by", allow_NULL = TRUE)
   BayesTools::check_real(length.out, "length.out", allow_NULL = TRUE)
+  BayesTools::check_bool(add, "add")
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
 
   # extract the data
@@ -430,7 +432,13 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
       ) +
       ggplot2::labs(x = xlab, y = "Density")
   } else {
-    graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col, xlab = xlab, main = "", ylim = ylim)
+    if(add){
+      graphics::rect(xleft = df_hist$x - df_hist$breaks/2, xright = df_hist$x + df_hist$breaks/2,
+                     ybottom = 0, ytop = df_hist$density,
+                     border = dots_hist$border, col = dots_hist$col)
+    }else{
+      graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col, xlab = xlab, main = "", ylim = ylim)
+    }
   }
 
   if(plot_thresholds){
