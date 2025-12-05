@@ -32,7 +32,9 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 
 \item{plot_thresholds}{Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.}
 
-\item{...}{Additional arguments passed to the underlying plotting functions.}
+\item{...}{Additional graphical parameters for the histogram.
+For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
+For ggplot2: \code{color}, \code{fill}, \code{alpha}.}
 }
 \value{
 Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.

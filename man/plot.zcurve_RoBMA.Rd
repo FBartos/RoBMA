@@ -20,6 +20,8 @@
   length.out.hist = NULL,
   by.lines = 0.05,
   length.out.lines = NULL,
+  dots_hist = NULL,
+  dots_extrapolation = NULL,
   ...
 )
 }
@@ -61,7 +63,21 @@ Defaults to \code{c(.025, .975)}}
 
 \item{length.out.lines}{Number of points for plotting lines. If NULL, determined by by.lines. Defaults to NULL.}
 
-\item{...}{Additional arguments passed to the underlying plotting functions.}
+\item{dots_hist}{List of additional graphical parameters for the histogram.
+For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
+For ggplot2: \code{color}, \code{fill}, \code{alpha}.}
+
+\item{dots_extrapolation}{List of additional graphical parameters for the extrapolation line/ribbon.
+For base R lines: \code{lwd}, \code{col}, \code{lty}.
+For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
+For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+For ggplot2 ribbon: \code{fill}, \code{alpha}.}
+
+\item{...}{Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA).
+For base R lines: \code{lwd}, \code{col}, \code{lty}.
+For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
+For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+For ggplot2 ribbon: \code{fill}, \code{alpha}.}
 }
 \value{
 Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.
