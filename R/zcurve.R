@@ -174,6 +174,9 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
 #' For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
 #' For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
 #' For ggplot2 ribbon: \code{fill}, \code{alpha}.
+#' @param dots_thresholds List of additional graphical parameters for the threshold lines.
+#' For base R: \code{col}, \code{lty}, \code{lwd}.
+#' For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.
 #' @param ... Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA).
 #' For base R lines: \code{lwd}, \code{col}, \code{lty}.
 #' For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
@@ -203,7 +206,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
                               probs = c(.025, .975), max_samples = 500,
                               plot_fit = TRUE, plot_extrapolation = TRUE, plot_CI = TRUE, plot_thresholds = TRUE,
                               from = -6, to = 6, by.hist = 0.5, length.out.hist = NULL, by.lines = 0.05, length.out.lines = NULL,
-                              dots_hist = NULL, dots_extrapolation = NULL, ...){
+                              dots_hist = NULL, dots_extrapolation = NULL, dots_thresholds = NULL, ...){
 
   # plots the z-curve object
   # most functions are based on the zcurve package
@@ -255,7 +258,8 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 
   plot <- do.call(hist.zcurve_RoBMA, c(
     list(x = x, plot_type = plot_type, from = from, to = to, by = by.hist, length.out = length.out.hist,
-         ylim = if(ymax != 0) c(0, ymax) else NULL, plot_thresholds = plot_thresholds),
+         ylim = if(ymax != 0) c(0, ymax) else NULL, plot_thresholds = plot_thresholds,
+         dots_thresholds = dots_thresholds),
     dots_hist
   ))
 
@@ -348,6 +352,9 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @param length.out Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.
 #' @param add Logical; if TRUE, adds histogram bars to an existing plot without creating a new canvas. Only applies to base R graphics. Defaults to FALSE.
 #' @param plot_thresholds Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.
+#' @param dots_thresholds List of additional graphical parameters for the threshold lines.
+#' For base R: \code{col}, \code{lty}, \code{lwd}.
+#' For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.
 #' @param ... Additional graphical parameters for the histogram.
 #' For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
 #' For ggplot2: \code{color}, \code{fill}, \code{alpha}.
@@ -362,7 +369,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @seealso [as_zcurve()], [plot.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
 #'
 #' @export
-hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, add = FALSE, plot_thresholds = TRUE, ...){
+hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, add = FALSE, plot_thresholds = TRUE, dots_thresholds = NULL, ...){
 
   # most functions are based on the zcurve package
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -444,10 +451,13 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
   if(plot_thresholds){
     tresholds <- .zcurve_threshold(x[["priors"]])
     if(length(tresholds) > 0){
+      dots_thresholds <- if(!is.null(dots_thresholds)) dots_thresholds else list()
+      dots_thresholds <- .get_dots_thresholds_zcurve(dots_thresholds, plot_type = plot_type)
+      
       if(plot_type == "base"){
-        graphics::abline(v = tresholds, col = "red", lty = 3)
+        graphics::abline(v = tresholds, col = dots_thresholds$col, lty = dots_thresholds$lty, lwd = dots_thresholds$lwd)
       }else if(plot_type == "ggplot"){
-        out <- out + ggplot2::geom_vline(xintercept = tresholds, color = "red", linetype = "dashed")
+        out <- out + ggplot2::geom_vline(xintercept = tresholds, color = dots_thresholds$color, linetype = dots_thresholds$linetype, linewidth = dots_thresholds$linewidth)
       }
     }
   }
@@ -609,6 +619,28 @@ lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   }
 
   return(line_dots)
+}
+
+.get_dots_thresholds_zcurve <- function(dots, plot_type = "base"){
+  # extract threshold line-specific plotting arguments with defaults
+
+  if(plot_type == "base"){
+    # base R line arguments for abline
+    threshold_dots <- list(
+      col = if(!is.null(dots[["col"]])) dots[["col"]] else "red",
+      lty = if(!is.null(dots[["lty"]])) dots[["lty"]] else 3,
+      lwd = if(!is.null(dots[["lwd"]])) dots[["lwd"]] else 1
+    )
+  }else if(plot_type == "ggplot"){
+    # ggplot2 geom_vline arguments
+    threshold_dots <- list(
+      color     = if(!is.null(dots[["color"]])) dots[["color"]] else if(!is.null(dots[["col"]])) dots[["col"]] else "red",
+      linetype  = if(!is.null(dots[["linetype"]])) dots[["linetype"]] else if(!is.null(dots[["lty"]])) dots[["lty"]] else "dashed",
+      linewidth = if(!is.null(dots[["linewidth"]])) dots[["linewidth"]] else if(!is.null(dots[["lwd"]])) dots[["lwd"]] else 0.5
+    )
+  }
+
+  return(threshold_dots)
 }
 
 

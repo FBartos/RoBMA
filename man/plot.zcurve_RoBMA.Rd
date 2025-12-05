@@ -22,6 +22,7 @@
   length.out.lines = NULL,
   dots_hist = NULL,
   dots_extrapolation = NULL,
+  dots_thresholds = NULL,
   ...
 )
 }
@@ -72,6 +73,10 @@ For base R lines: \code{lwd}, \code{col}, \code{lty}.
 For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
 For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
 For ggplot2 ribbon: \code{fill}, \code{alpha}.}
+
+\item{dots_thresholds}{List of additional graphical parameters for the threshold lines.
+For base R: \code{col}, \code{lty}, \code{lwd}.
+For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.}
 
 \item{...}{Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA).
 For base R lines: \code{lwd}, \code{col}, \code{lty}.

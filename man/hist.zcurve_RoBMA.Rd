@@ -13,6 +13,7 @@
   length.out = NULL,
   add = FALSE,
   plot_thresholds = TRUE,
+  dots_thresholds = NULL,
   ...
 )
 }
@@ -34,6 +35,10 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \item{add}{Logical; if TRUE, adds histogram bars to an existing plot without creating a new canvas. Only applies to base R graphics. Defaults to FALSE.}
 
 \item{plot_thresholds}{Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.}
+
+\item{dots_thresholds}{List of additional graphical parameters for the threshold lines.
+For base R: \code{col}, \code{lty}, \code{lwd}.
+For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.}
 
 \item{...}{Additional graphical parameters for the histogram.
 For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
