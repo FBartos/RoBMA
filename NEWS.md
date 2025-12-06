@@ -1,5 +1,6 @@
 ## version 3.6.1
 ### Features
+- `summary()` function now provides publication bias model type summary (`type = "models"`) for models fitted using `algorithm = "ss"`
 - improves control over `plot.zcurve_RoBMA` (i.e., specifying col, border, etc for the individual elements)
 
 ## version 3.6

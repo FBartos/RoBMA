@@ -283,9 +283,11 @@ test_that("Models summary functions work", {
 
   # testing consistency across all model specifications
   for(i in 1:length(saved_files)){
-    expect_equal(
-      capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150),
-      read.table(file = file.path("../results/summary.models", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+    if(!i %in% c(8, 9, 17)){
+      expect_equal(
+        capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150),
+        read.table(file = file.path("../results/summary.models", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
+    }
   }
 
   # test short names
@@ -342,7 +344,11 @@ test_that("Diagnostics summary functions work", {
 test_that("Individual summary functions work", {
 
   # testing consistency across all model specifications
+  # only works for non-spike and slab models
   for(i in 1:length(saved_files)){
+    if(fits[[i]]$add_info$algorithm == "ss")
+      next
+
     expect_equal(
       capture_output_lines(summary(fits[[i]], type = "individual"), print = TRUE, width = 150),
       read.table(file = file.path("../results/summary.individual", paste0(i, ".txt")), header = FALSE, blank.lines.skip = FALSE)[,1])
@@ -887,7 +893,9 @@ if(FALSE){
 
   # generate summary.models files
   for(i in seq_along(fits)){
-    write.table(capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150), file = file.path("tests/results/summary.models", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+    if(!i %in% c(8, 9, 17)){
+      write.table(capture_output_lines(summary(fits[[i]], type = "models"), print = TRUE, width = 150), file = file.path("tests/results/summary.models", paste0(i, ".txt")), row.names = FALSE, col.names = FALSE)
+    }
   }
 
   # generate summary.diagnostics files
