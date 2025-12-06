@@ -78,11 +78,16 @@ For ggplot2 ribbon: \code{fill}, \code{alpha}.}
 For base R: \code{col}, \code{lty}, \code{lwd}.
 For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.}
 
-\item{...}{Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA).
+\item{...}{Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA),
+as well as basic plotting arguments.
 For base R lines: \code{lwd}, \code{col}, \code{lty}.
 For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
 For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
-For ggplot2 ribbon: \code{fill}, \code{alpha}.}
+For ggplot2 ribbon: \code{fill}, \code{alpha}.
+Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+\code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+\code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+\code{yaxt} (y-axis type, default: "s").}
 }
 \value{
 Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.

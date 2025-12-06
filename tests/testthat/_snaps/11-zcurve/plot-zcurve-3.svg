@@ -53,18 +53,18 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
-<polygon points='82.40,486.13 131.07,486.13 131.07,486.13 82.40,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='131.07,486.13 179.73,486.13 179.73,486.13 131.07,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='179.73,486.13 228.40,486.13 228.40,486.13 179.73,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='228.40,486.13 294.35,486.13 294.35,443.55 228.40,443.55 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='294.35,486.13 325.73,486.13 325.73,486.13 294.35,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='325.73,486.13 374.40,486.13 374.40,370.71 325.73,370.71 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='374.40,486.13 423.07,486.13 423.07,486.13 374.40,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='423.07,486.13 469.78,486.13 469.78,486.13 423.07,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='469.78,486.13 520.40,486.13 520.40,486.13 469.78,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='520.40,486.13 569.07,486.13 569.07,486.13 520.40,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='569.07,486.13 617.73,486.13 617.73,486.13 569.07,486.13 ' style='stroke-width: 0.75; fill: none;' />
-<polygon points='617.73,486.13 666.40,486.13 666.40,486.13 617.73,486.13 ' style='stroke-width: 0.75; fill: none;' />
+<rect x='82.40' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='131.07' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='179.73' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='228.40' y='443.55' width='65.95' height='42.59' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='294.35' y='486.13' width='31.38' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='325.73' y='370.71' width='48.67' height='115.42' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='374.40' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='423.07' y='486.13' width='46.72' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='469.78' y='486.13' width='50.62' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='520.40' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='569.07' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
+<rect x='617.73' y='486.13' width='48.67' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
 <line x1='279.02' y1='502.56' x2='279.02' y2='59.04' style='stroke-width: 0.75; stroke: #FF0000; stroke-dasharray: 1.00,3.00;' />
 <line x1='294.35' y1='502.56' x2='294.35' y2='59.04' style='stroke-width: 0.75; stroke: #FF0000; stroke-dasharray: 1.00,3.00;' />
 <line x1='374.40' y1='502.56' x2='374.40' y2='59.04' style='stroke-width: 0.75; stroke: #FF0000; stroke-dasharray: 1.00,3.00;' />

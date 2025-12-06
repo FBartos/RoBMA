@@ -99,6 +99,7 @@ assign("check_scaling",   TRUE,                                       envir = Ro
     "3.5.0" = c("0.2.19", "999.999.999"),
     "3.5.1" = c("0.2.19", "999.999.999"),
     "3.6.0" = c("0.2.19", "999.999.999"),
+    "3.6.1" = c("0.2.19", "999.999.999"),
     stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
   )
 

@@ -40,9 +40,13 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 For base R: \code{col}, \code{lty}, \code{lwd}.
 For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.}
 
-\item{...}{Additional graphical parameters for the histogram.
-For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
-For ggplot2: \code{color}, \code{fill}, \code{alpha}.}
+\item{...}{Additional graphical parameters for the histogram and basic plotting arguments.
+For base R histogram: \code{border}, \code{col}, \code{density}, \code{angle}.
+For ggplot2 histogram: \code{color}, \code{fill}, \code{alpha}.
+Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+\code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+\code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+\code{yaxt} (y-axis type, default: "s").}
 }
 \value{
 Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.

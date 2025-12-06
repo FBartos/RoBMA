@@ -177,11 +177,16 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
 #' @param dots_thresholds List of additional graphical parameters for the threshold lines.
 #' For base R: \code{col}, \code{lty}, \code{lwd}.
 #' For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.
-#' @param ... Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA).
+#' @param ... Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA),
+#' as well as basic plotting arguments.
 #' For base R lines: \code{lwd}, \code{col}, \code{lty}.
 #' For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
 #' For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
 #' For ggplot2 ribbon: \code{fill}, \code{alpha}.
+#' Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+#' \code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+#' \code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+#' \code{yaxt} (y-axis type, default: "s").
 #' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
 #' @inheritParams summary.RoBMA
@@ -243,25 +248,25 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   }
   if(plot_extrapolation){
     # prepare extrapolation dots with default blue color
-    dots_extrap <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
+    dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
     lines_extrapolation <- do.call(lines.zcurve_RoBMA, c(
       list(x = x, conditional = conditional, plot_type = plot_type,
            probs = probs, max_samples = max_samples,
            extrapolate = TRUE, plot_CI = plot_CI,
            from = from, to = to, by = by.lines, length.out = length.out.lines,
            as_data = TRUE),
-      dots_extrap
+      dots_extrapolation
     ))
     ymax <- max(c(ymax, lines_extrapolation$y, if(plot_CI) lines_extrapolation$y_uCI))
   }
 
 
-  plot <- do.call(hist.zcurve_RoBMA, c(
-    list(x = x, plot_type = plot_type, from = from, to = to, by = by.hist, length.out = length.out.hist,
-         ylim = if(ymax != 0) c(0, ymax) else NULL, plot_thresholds = plot_thresholds,
-         dots_thresholds = dots_thresholds),
-    dots_hist
-  ))
+  plot <- hist.zcurve_RoBMA(
+    x = x, plot_type = plot_type, from = from, to = to, by = by.hist, length.out = length.out.hist,
+    plot_thresholds = plot_thresholds, dots_thresholds = dots_thresholds,
+    ylim = if(ymax != 0) c(0, ymax) else NULL,
+    dots_hist = dots_hist, dots_all = dots
+  )
 
   # add plot lines
   if(plot_fit){
@@ -355,9 +360,13 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @param dots_thresholds List of additional graphical parameters for the threshold lines.
 #' For base R: \code{col}, \code{lty}, \code{lwd}.
 #' For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.
-#' @param ... Additional graphical parameters for the histogram.
-#' For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
-#' For ggplot2: \code{color}, \code{fill}, \code{alpha}.
+#' @param ... Additional graphical parameters for the histogram and basic plotting arguments.
+#' For base R histogram: \code{border}, \code{col}, \code{density}, \code{angle}.
+#' For ggplot2 histogram: \code{color}, \code{fill}, \code{alpha}.
+#' Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+#' \code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+#' \code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+#' \code{yaxt} (y-axis type, default: "s").
 #' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
 #' @inheritParams summary.RoBMA
@@ -382,6 +391,17 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
 
   # extract the data
   dots <- list(...)
+  
+  # extract special parameters if provided (from plot.zcurve_RoBMA)
+  dots_hist <- dots[["dots_hist"]]
+  dots_all  <- dots[["dots_all"]]
+  dots[["dots_hist"]] <- NULL
+  dots[["dots_all"]]  <- NULL
+  
+  # merge dots_all if provided (from plot.zcurve_RoBMA)
+  if(!is.null(dots_all)){
+    dots <- c(dots, dots_all[!names(dots_all) %in% names(dots)])
+  }
   z    <- x$zcurve$data[["z"]]
 
   # specify plotting range
@@ -412,20 +432,13 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
   }
 
   # get histogram-specific graphical parameters
-  dots_hist <- .get_dots_hist_zcurve(dots, plot_type = plot_type)
+  # merge dots_hist into dots (dots_hist takes precedence)
+  if(!is.null(dots_hist)){
+    dots <- c(dots_hist, dots[!names(dots) %in% names(dots_hist)])
+  }
+  dots_hist <- .get_dots_hist_zcurve(dots, plot_type = plot_type, max_density = max(z_hist$density))
 
   # create the plot otherwise
-  if(!is.null(dots[["ylim"]])){
-    ylim <- range(dots[["ylim"]], max(z_hist$density))
-  }else{
-    ylim <- c(0, max(z_hist$density))
-  }
-  if(!is.null(dots[["xlab"]])){
-    xlab <- dots[["xlab"]]
-  }else{
-    xlab <- "Z-Statistic"
-  }
-
   if(plot_type == "ggplot"){
     out <- ggplot2::ggplot() +
       ggplot2::geom_col(
@@ -437,14 +450,17 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
         alpha = dots_hist$alpha,
         width = df_hist$breaks
       ) +
-      ggplot2::labs(x = xlab, y = "Density")
+      ggplot2::labs(x = dots_hist$xlab, y = dots_hist$ylab) +
+      ggplot2::ggtitle(dots_hist$main)
   } else {
     if(add){
       graphics::rect(xleft = df_hist$x - df_hist$breaks/2, xright = df_hist$x + df_hist$breaks/2,
                      ybottom = 0, ytop = df_hist$density,
                      border = dots_hist$border, col = dots_hist$col)
     }else{
-      graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col, xlab = xlab, main = "", ylim = ylim)
+      graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col, 
+                     xlab = dots_hist$xlab, ylab = dots_hist$ylab, main = dots_hist$main, 
+                     ylim = dots_hist$ylim, xaxt = dots_hist$xaxt, yaxt = dots_hist$yaxt)
     }
   }
 
@@ -576,21 +592,40 @@ lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 
 
 
-.get_dots_hist_zcurve <- function(dots, plot_type = "base"){
+.get_dots_hist_zcurve <- function(dots, plot_type = "base", max_density = NULL){
   # extract histogram-specific plotting arguments with defaults
+  # (dots should already contain merged dots_hist if applicable)
 
   if(plot_type == "base"){
+    # compute default ylim
+    if(!is.null(dots[["ylim"]]) && !is.null(max_density)){
+      ylim <- range(dots[["ylim"]], max_density)
+    }else if(!is.null(max_density)){
+      ylim <- c(0, max_density)
+    }else{
+      ylim <- NULL
+    }
+    
     # base R histogram arguments
     hist_dots <- list(
       border  = if(!is.null(dots[["border"]]))  dots[["border"]]  else "gray60",
-      col     = if(!is.null(dots[["col"]]))     dots[["col"]]     else NA
+      col     = if(!is.null(dots[["col"]]))     dots[["col"]]     else NA,
+      xlab    = if(!is.null(dots[["xlab"]]))    dots[["xlab"]]    else "Z-Statistic",
+      ylab    = if(!is.null(dots[["ylab"]]))    dots[["ylab"]]    else "Density",
+      main    = if(!is.null(dots[["main"]]))    dots[["main"]]    else "",
+      ylim    = ylim,
+      xaxt    = if(!is.null(dots[["xaxt"]]))    dots[["xaxt"]]    else "s",
+      yaxt    = if(!is.null(dots[["yaxt"]]))    dots[["yaxt"]]    else "s"
     )
   }else if(plot_type == "ggplot"){
     # ggplot2 geom_col arguments
     hist_dots <- list(
       color = if(!is.null(dots[["color"]])) dots[["color"]] else if(!is.null(dots[["col"]])) dots[["col"]] else "gray60",
       fill  = if(!is.null(dots[["fill"]]))  dots[["fill"]]  else NA,
-      alpha = if(!is.null(dots[["alpha"]])) dots[["alpha"]] else 1
+      alpha = if(!is.null(dots[["alpha"]])) dots[["alpha"]] else 1,
+      xlab  = if(!is.null(dots[["xlab"]]))  dots[["xlab"]]  else "Z-Statistic",
+      ylab  = if(!is.null(dots[["ylab"]]))  dots[["ylab"]]  else "Density",
+      main  = if(!is.null(dots[["main"]]))  dots[["main"]]  else ""
     )
   }
 
