@@ -144,7 +144,7 @@ jobs:
           options(repos = c(CRAN = "https://cloud.r-project.org"))
 
           # Check if packages are already installed before installing
-          required_packages <- c('devtools', 'rcmdcheck', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc')
+          required_packages <- c('devtools', 'rcmdcheck', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc', 'cli')
           missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
 
           if (length(missing_packages) > 0) {
