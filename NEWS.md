@@ -1,6 +1,6 @@
 ## version 3.6.1
 ### Features
-- `Explanation` vignette that helps navigating users trough the vignettes
+- `Explanation` vignette that helps navigate users through the vignettes
 - two vignettes demonstrating robust Bayesian meta-analysis and meta-regressions
 - `summary()` function now provides publication bias model type summary (`type = "models"`) for models fitted using `algorithm = "ss"`
 - improves control over `plot.zcurve_RoBMA` (i.e., specifying col, border, etc for the individual elements)
