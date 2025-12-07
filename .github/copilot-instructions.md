@@ -114,6 +114,8 @@ devtools::check()              # Full package check
 - `Tutorial.Rmd`: Main introduction to RoBMA-PSMA
 - `ReproducingBMA.Rmd`: Classic Bayesian model-averaged meta-analysis
 - `MetaRegression.Rmd`: `RoBMA.reg()` with moderators
+- `HierarchicalRoBMA.Rmd`: Multilevel RoBMA
+- `HierarchicalRoBMARegression.Rmd`: Multilevel RoBMA with moderators
 - `HierarchicalBMA.Rmd`: Multilevel models via `study_ids`
 - `MedicineBMA.Rmd`, `MedicineBiBMA.Rmd`: Informed priors for medical meta-analysis
 - `CustomEnsembles.Rmd`: Advanced ensemble customization

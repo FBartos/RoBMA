@@ -22,6 +22,12 @@ This vignette demonstrates how to perform a classic Bayesian model-averaged meta
 ### [Robust Bayesian Model-Averaged Meta-Regression](MetaRegression.html)
 Learn how to incorporate moderators into your meta-analysis using `RoBMA.reg()`. This vignette explains how to fit meta-regression models to account for heterogeneity explained by study-level covariates.
 
+### [Multilevel Robust Bayesian Meta-Analysis](MultilevelRoBMA.html)
+This vignette demonstrates how to perform multilevel meta-analysis to account for dependent effect sizes (e.g., multiple estimates from the same study). It uses the spike-and-slab algorithm (`algorithm = "ss"`) to efficiently estimate models with within-study and between-study heterogeneity while adjusting for publication bias.
+
+### [Multilevel Robust Bayesian Model-Averaged Meta-Regression](MultilevelRoBMARegression.html)
+This vignette demonstrates how to perform multilevel meta-regression. In addition, it illustrates how to rescale default prior distributions to work with non-standardized effect sizes.
+
 ### [Z-Curve Publication Bias Diagnostics](ZCurveDiagnostics.html)
 This vignette details the use of meta-analytic z-curves for diagnosing publication bias. It explains how to interpret z-curve plots and statistics provided by the package.
 

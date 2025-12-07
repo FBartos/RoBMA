@@ -1,0 +1,208 @@
+---
+title: "Multilevel Robust Bayesian Meta-Analysis"
+author: "František Bartoš"
+date: "2025"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+vignette: >
+  %\VignetteIndexEntry{Multilevel Robust Bayesian Meta-Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+is_check <- ("CheckExEnv" %in% search()) ||
+              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
+              !file.exists("../models/MultilevelRoBMA/fit_Johnides2025.RDS")
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = !is_check,
+  dev       = "png")
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+```{r include = FALSE}
+library(RoBMA)
+fit        <- readRDS(file = "../models/MultilevelRoBMA/fit_Johnides2025.RDS")
+fit_simple <- readRDS(file = "../models/MultilevelRoBMA/fit_Johnides2025_single.RDS")
+```
+
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+data("Johnides2025", package = "RoBMA")
+
+fit <- RoBMA(
+  d         = Johnides2025$d, 
+  se        = Johnides2025$se, 
+  study_ids = Johnides2025$study, 
+  algorithm = "ss",
+  adapt     = 5000, 
+  burnin    = 5000, 
+  sample    = 10000, 
+  parallel  = TRUE, 
+  seed      = 1, 
+  autofit   = FALSE
+)
+saveRDS(fit, file = "../models/MultilevelRoBMA/fit_Johnides2025.RDS", compress = "xz")
+
+fit_simple <- RoBMA(
+  d         = Johnides2025$d, 
+  se        = Johnides2025$se, 
+  algorithm = "ss",
+  adapt     = 5000, 
+  burnin    = 5000, 
+  sample    = 10000, 
+  parallel  = TRUE, 
+  seed      = 1, 
+  autofit   = FALSE
+)
+saveRDS(fit_simple, file = "../models/MultilevelRoBMA/fit_Johnides2025_single.RDS", compress = "xz")
+```
+
+**This vignette accompanies the manuscript [Robust Bayesian Multilevel Meta-Analysis: Adjusting for Publication Bias in the Presence of Dependent Effect Sizes](https://doi.org/10.31234/osf.io/9tgp2_v1) preprinted at *PsyArXiv* [@bartos2025robust].**
+
+This vignette reproduces the first example from the manuscript. For multilevel meta-regression with moderators see [Multilevel Robust Bayesian Model-Averaged Meta-Regression](MultilevelRoBMARegression.html).
+
+Multilevel Robust Bayesian Meta-Analysis (RoBMA) extends the standard RoBMA framework to datasets containing multiple effect sizes from the same studies. We demonstrate the method using data from @johnides2025secondary, who meta-analyzed 412 effect sizes from 128 studies investigating secondary benefits of family-based treatments for childhood disorders.
+
+### When to Use Multilevel RoBMA
+
+Multilevel RoBMA is appropriate for dataset that contain multiple effect sizes from the same studies. The multilevel approach explicitly models the clustering structure through the `study_ids` argument, which:
+
+ - accounts for dependencies among effect sizes from the same study,
+ - partitions heterogeneity into within-study and between-study components,
+ - while simultaneously adjusting for publication bias at the study level (corresponding to selective reporting).
+
+### Loading the Data
+
+We load the package and examine the dataset structure.
+```{r}
+library(RoBMA)
+data("Johnides2025", package = "RoBMA")
+```
+
+The dataset contains effect sizes (`d`), standard errors (`se`), and study identifiers (`study`).
+
+```{r}
+head(Johnides2025)
+```
+
+Multiple rows share the same study name, indicating that these effect sizes come from the same study. 
+For example, the first five effect sizes are from "Price et al. (2012)" and might be more similar to each other than to effect sizes from other studies.
+
+### Fitting the Multilevel Model
+
+The `study_ids` argument specifies which effect sizes belong together. We use `algorithm = "ss"` (spike-and-slab), which is faster for complex models and neccessary for estimating multilevel selection models.
+The `"ss"` algorithm estimates the models and parameters simultaneously, therefore we increase MCMC adaptation, iteration, and sampling to obtain more reliable estimates
+(we disable automatic convergence checking with `autofit = FALSE` to speed up the fitting process here).
+
+```{r, eval = FALSE}
+fit <- RoBMA(
+  d         = Johnides2025$d, 
+  se        = Johnides2025$se, 
+  study_ids = Johnides2025$study, 
+  algorithm = "ss",
+  adapt     = 5000, 
+  burnin    = 5000, 
+  sample    = 10000, 
+  parallel  = TRUE, 
+  seed      = 1, 
+  autofit   = FALSE
+)
+```
+
+*Note: This model takes 10-15 minutes with parallel processing enabled. Without parallel processing, expect over an hour.*
+
+### Interpreting the Results
+
+The `summary()` output contains two main sections.
+
+```{r}
+summary(fit)
+```
+
+#### Components Summary
+
+This table shows Bayes factors testing the presence of effect, heterogeneity, and publication bias. Each row displays the prior probability, posterior probability after observing the data, and the inclusion Bayes factor comparing models with versus without that component.
+
+In our example, the inclusion BF for the effect is 0.927, indicating weak evidence against an effect. The inclusion BF for heterogeneity and publication bias are reported as `Inf`, i.e., beyond the numerical precision of the `ss` algorithm (> 10⁶), indicating extreme evidence for both components.
+
+We also notice warning about effective sample size (ESS) below the set target. The difference is however not substantial and we can safely ignore it. 
+
+#### Model-Averaged Estimates
+
+This section provides meta-analytic estimates averaged across all models, weighted by their posterior probabilities. The average effect size is `mu`, overall heterogeneity is `tau`, and the heterogeneity allocation parameter `rho`.
+The heterogeneity allocation parameter `rho` indicates the proportion of heterogeneity within versus between studies: `rho = 0` means all heterogeneity is between studies, `rho = 1` means all is within studies, and `rho = 0.5` means equal split.
+The remaining parameters summarize the weight function and PET/PEESE regression for publication bias.
+
+In our example, we find small effect size (*d* = 0.050, 95% CI [0.000, 0.173]), substantial heterogeneity (τ = 0.40, 95% CI [0.348, 0.458]), and nearly balanced heterogeneity allocation (ρ = 0.461, 95% CI [0.306, 0.603]). The large heterogeneity combined with the small pooled effect suggests substantial variation in true effects. This distribution of true effect sizes can be obtain by the `summary_heterogeneity()` function:
+
+```{r}
+summary_heterogeneity(fit)
+```
+
+The wide prediction interval (*d* = -0.752 to 0.845) quantifies the degree of this heterogeneity: some studies may show benefits while others show harm.
+
+### Model Types Summary
+
+To understand which publication bias mechanisms the data support, we examine the posterior distribution across model types:
+
+```{r}
+summary(fit, type = "models")
+```
+
+Most (all) posterior probability is allocated to selection models (weight functions). The publication bias adjustment therefore reflects selective reporting rather than small study effects (PET/PEESE regression), specifically, one-sided selection operating on marginally significant $p$-values and direction of the effect.
+
+### Visualizing the Weight Function
+
+The weight function shows how publication probability varies across *p*-value ranges:
+
+```{r, fig.width = 6, fig.height = 4}
+plot(fit, parameter = "weightfunction", rescale_x = TRUE)
+```
+
+The plot displays one-sided *p*-value cutoffs (x-axis) against relative publication probability (y-axis), averaged across weight function specifications. A flat line at 1.0 indicates no publication bias; values below 1.0 indicate suppression. 
+
+In our example, we notice a small drop in the relative publication probability at cutoff corresponding to p = 0.05 (one-sided, i.e., 0.10 two-sided: selection on marginally significant $p$-values) and a much sharper drop corresponding to the direction of the effect (p = 0.50).
+
+
+### Comparison with Single-Level RoBMA
+
+To understand the importance of accounting for nested structure, we compare our results with a standard single-level RoBMA that ignores dependencies among effect sizes from the same study.
+
+```{r, eval = FALSE}
+fit_simple <- RoBMA(
+  d         = Johnides2025$d, 
+  se        = Johnides2025$se, 
+  algorithm = "ss",
+  adapt     = 5000, 
+  burnin    = 5000, 
+  sample    = 10000, 
+  parallel  = TRUE, 
+  seed      = 1, 
+  autofit   = FALSE
+)
+```
+
+```{r}
+summary(fit_simple)
+```
+
+The single-level model differs by:
+
+ - omitting `study_ids`: it treats all effect sizes as independent,
+ - estimating only one heterogeneity parameter: it cannot distinguish within-study from between-study variation,
+ - potentially biased inference: ignoring dependencies can lead to overconfident conclusions.
+
+For the Johnides et al. data, the single-level RoBMA finds strong evidence for the absence of an effect, while the multilevel model provides only weak evidence against it. 
+Properly accounting for data structure leads to more conservative and appropriate inferences.
+
+
+### References

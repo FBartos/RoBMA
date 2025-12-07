@@ -1,0 +1,161 @@
+---
+title: "Multilevel Robust Bayesian Model-Averaged Meta-Regression"
+author: "František Bartoš"
+date: "2025"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+vignette: >
+  %\VignetteIndexEntry{Multilevel Robust Bayesian Model-Averaged Meta-Regression}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+is_check <- ("CheckExEnv" %in% search()) ||
+              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
+              !file.exists("../models/MultilevelRoBMARegression/zfit_Havrankova2025.RDS")
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = !is_check,
+  dev       = "png")
+if(.Platform$OS.type == "windows"){
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+```{r include = FALSE}
+library(RoBMA)
+zfit_reg <- readRDS(file = "../models/MultilevelRoBMARegression/zfit_Havrankova2025.RDS")
+fit_reg  <- zfit_reg
+class(fit_reg) <- class(fit_reg)[!class(fit_reg) %in% "zcurve_RoBMA"]
+```
+
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+data("Havrankova2025", package = "RoBMA")
+
+# Prior scaling
+fit_fe        <- metafor::rma(yi = y, sei = se, data = Havrankova2025, method = "FE")
+unti_scale    <- fit_fe$se * sqrt(sum(Havrankova2025$N))
+prior_scale   <- unti_scale * 0.5
+
+df_reg  <- data.frame(
+  y               = Havrankova2025$y,
+  se              = Havrankova2025$se, 
+  facing_customer = Havrankova2025$facing_customer, 
+  study_id        = Havrankova2025$study_id
+)
+
+fit_reg <- RoBMA.reg(
+  ~ facing_customer, 
+  study_ids      = df_reg$study_id,
+  data           = df_reg, 
+  rescale_priors = prior_scale,
+  prior_scale = "none", transformation = "none",
+  algorithm = "ss", sample = 20000, burnin = 10000, adapt = 10000, 
+  thin = 5, parallel = TRUE, autofit = FALSE, seed = 1)
+)
+
+zfit_reg    <- as_zcurve(fit_reg)
+saveRDS(zfit_reg, file = "../models/MultilevelRoBMARegression/zfit_Havrankova2025.RDS", compress = "xz")
+```
+
+**This vignette accompanies the manuscript [Robust Bayesian Multilevel Meta-Analysis: Adjusting for Publication Bias in the Presence of Dependent Effect Sizes](https://doi.org/10.31234/osf.io/9tgp2_v1) preprinted at *PsyArXiv* [@bartos2025robust].**
+
+This vignette reproduces the second example from the manuscript, re-analyzing data from @havrankova2025beauty on the relationship between beauty and professional success (1,159 effect sizes from 67 studies). 
+We investigate whether the effect depends on the type of customer contact ("no", "some", or "direct"). 
+For the first example describing a publication bias-adjusted multilevel meta-analysis see [Multilevel Robust Bayesian Meta-Analysis](MultilevelRoBMA.html).
+
+### Rescaling Priors for Non-Standardized Effect Sizes
+
+The effect sizes in this dataset are not standardized (percent increase in earnings with one-standard deviation increase in beauty). 
+Therefore, we must rescale the default prior distributions to avoid specifying overly narrow or wide priors. 
+Overly narrow priors would make it difficult to find evidence for the effect (as both models would predict effects very close to zero--their predictions would overlap substantially), 
+while overly wide priors would bias the results towards the null hypothesis (as alternative models would predict unrealistically large effects--their predictions would never be supported by the data).
+
+We rescale the priors by matching the default prior scale to the unit information scale of the data [@rover2021weakly; @mulder2024bayesian]. 
+The unit information scale can be approximated by the standard error of a fixed-effect model multiplied by the square root of the total sample size. 
+Since the default prior for standardized mean differences has a standard deviation of one (corresponding to half the unit information), we multiply the unit information scale by 0.5. 
+
+```{r}
+library(RoBMA)
+data("Havrankova2025", package = "RoBMA")
+
+fit_fe        <- metafor::rma(yi = y, sei = se, data = Havrankova2025, method = "FE")
+unti_scale    <- fit_fe$se * sqrt(sum(Havrankova2025$N))
+prior_scale   <- unti_scale * 0.5
+```
+
+The resulting `prior_scale`, in our example approximately 26, can be used in the `rescale_priors` argument in the fitting functions of the `RoBMA` package,
+
+```{r, eval = FALSE}
+df_reg  <- data.frame(
+  y               = Havrankova2025$y,
+  se              = Havrankova2025$se, 
+  facing_customer = Havrankova2025$facing_customer, 
+  study_id        = Havrankova2025$study_id
+)
+
+fit_reg <- RoBMA.reg(
+  ~ facing_customer, 
+  study_ids      = df_reg$study_id,
+  data           = df_reg, 
+  rescale_priors = prior_scale,
+  prior_scale    = "none", transformation = "none",
+  algorithm = "ss", sample = 20000, burnin = 10000, adapt = 10000, 
+  thin = 5, parallel = TRUE, autofit = FALSE, seed = 1)
+)
+```
+
+where we first specify the input `data.frame` (with `y` and `se` denoting the effect size and standard error inputs) and `prior_scale = "none"` and `transformation = "none"` arguments disable prior distributions for standardized effect sizes. 
+We also notably increase the number of adaptation, burn-in, and sampling iterations to ensure convergence of the more complex model (and use the `algorithm = "ss"` options since the bridge-sampling algorithm is unfeasible for multilevel models).
+
+*Note that the meta-regression model can take more than an hour to run with parallel processing enabled.*
+
+### Interpreting the Results
+
+The `summary` and `marginal_summary` functions provide the overall model estimates and the estimated marginal means.
+
+```{r}
+summary(fit_reg)
+```
+
+Using the rescaled prior distributions, the multilevel RoBMA meta-regression finds extreme evidence for the presence of the average effect, moderation by the degree of consumer contact, between-study heterogeneity, and publication bias (all BFs > 10^6). 
+The model-averaged average effect estimate of mu = 3.0, 95% CI [1.9, 4.2], is accompanied by considerable overall heterogeneity tau = 4.5, 95% CI [3.9, 5.3], 
+and within-cluster allocation close to 1, rho = 0.82, 95% CI [0.75, 0.88], indicating a high degree of similarity of estimates from the same study.
+
+The summary function also warns us about a large R-hat. Inspection of the parameter-specific MCMC diagnostics via `summary(fit_reg, type = "diagnostics")` shows that while some R-hats are inflated, most parameters were sampled to an acceptable level. The main source of issue seems to be the moderator coefficients `facing_customer`. We visually assess the chains `diagnostics_trace(fit_reg, "facing_customer")` but do not notice substantial issues.
+
+The average effect is moderated by the degree of consumer contact, to examine the effect at each level of the moderator we can use the `marginal_summary()` function.
+
+```{r}
+marginal_summary(fit_reg)
+```
+
+The estimated marginal means at each level of the moderator reveals moderate evidence for the absence of the effect for no consumer contact jobs mu = 0.9, 95% CI [-0.5, 2.5], BF10 = 0.11, 
+and extreme evidence for jobs with some consumer contact mu = 4.1, 95% CI [2.6, 5.5], BF10 > 10^6 and jobs with direct consumer contact mu = 4.1, 95% CI [2.7, 5.5], BF10 > 10^6.
+
+### Visual Fit Assessment
+
+We can visualize evalate the model fit using the meta-analytic z-curve plot [@bartos2025zcurve] (also see [Z-Curve Publication Bias Diagnostics](ZCurveDiagnostics.html) vignette for more details).
+The z-curve plot shows the distribution of the observed $z$-statistics (computed as the effect size / standard error), with dotted red horizontal lines highlighting the typical steps on which publication bias operates 
+($z = \pm 1.65$ and $z = \pm 1.96$ corresponding to statistically significant and marginally significant $p$-values, and $z = 0$ corresponding to the selection of the direction of the effect).
+
+```{r, eval = FALSE}
+zfit_reg <- as_zcurve(fit_reg)
+```
+```{r, fig.width = 6, fig.height = 4}
+par(mar = c(4,4,0,0))
+plot(zfit_reg, by.hist = 0.25, plot_extrapolation = FALSE, from = -4, to = 8)
+```
+
+We can notice clear discontinuities corresponding to the selection on the direction of the effect and marginal significance. 
+The posterior predictive density from the multilevel RoBMA meta-regression indicates that the RoBMA meta-regression model approximates the observed data reasonably well, 
+capturing the discontinuities and the proportion of statistically significant results. This reassures us that the model provides a good fit to the data while adjusting for publication bias.
+
+### References
