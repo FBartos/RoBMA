@@ -62,22 +62,18 @@ jobs:
             libcairo2-dev \
             jags
 
-      # Set up renv to match the R-CMD-tests workflow
-      - name: Setup renv
-        uses: r-lib/actions/setup-renv@v2
-
       # Install packages matching R-CMD-tests workflow
       - name: Install R packages
         run: |
           options(repos = c(CRAN = "https://cloud.r-project.org"))
-          
+
           # Check if packages are already installed before installing
           core_packages <- c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc')
           dev_packages <- c('roxygen2', 'pkgdown', 'rcmdcheck', 'rjags', 'runjags', 'BayesTools', 'coda', 'bridgesampling', 'mvtnorm', 'extraDistr', 'ggplot2', 'scales', 'checkmate')
           all_packages <- c(core_packages, dev_packages)
-          
+
           missing_packages <- all_packages[!sapply(all_packages, requireNamespace, quietly = TRUE)]
-          
+
           if (length(missing_packages) > 0) {
             cat("Installing missing packages:", paste(missing_packages, collapse = ", "), "\n")
             install.packages(missing_packages)
@@ -100,7 +96,7 @@ jobs:
       - name: Test JAGS R interface
         run: |
           cat('R version:', R.version.string, '\n')
-          
+
           # Test rjags connection
           if (require(rjags, quietly = TRUE)) {
             cat('rjags loaded successfully\n')
@@ -128,7 +124,7 @@ jobs:
             # Load example data
             data("Anderson2010", package = "RoBMA")
             cat('Example data loaded successfully\n')
-            
+
             # Test basic package loading
             library(RoBMA)
             cat('RoBMA package loaded successfully\n')

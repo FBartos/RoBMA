@@ -137,26 +137,23 @@ jobs:
           # This follows the rjags installation advice: pass --with-jags-prefix when needed.
           Rscript -e "install.packages('rjags', configure.args=c('--with-jags-prefix=${jags_prefix}'), repos='https://cloud.r-project.org')"
 
-      # Set up renv
-      - name: Setup renv
-        uses: r-lib/actions/setup-renv@v2
 
       # Install the package
       - name: Install devtools and the RoBMA Package
         run: |
           options(repos = c(CRAN = "https://cloud.r-project.org"))
-          
+
           # Check if packages are already installed before installing
           required_packages <- c('devtools', 'rcmdcheck', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc')
           missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
-          
+
           if (length(missing_packages) > 0) {
             cat("Installing missing packages:", paste(missing_packages, collapse = ", "), "\n")
             install.packages(missing_packages)
           } else {
             cat("All required packages are already installed\n")
           }
-          
+
           devtools::install()
         shell: Rscript {0}
 
