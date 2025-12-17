@@ -172,7 +172,7 @@
 #' dataset type (proximal vs. distal), and mediation variables (r_xm, r_my).
 #' The meta-analysis examined whether subjective ease mediates the ease-of-retrieval effect,
 #' where participants list either few or many examples and then make judgments
-#' \insertCite{weingarten2018does}{RoBMA}. 
+#' \insertCite{weingarten2018does}{RoBMA}.
 #'
 #' @format A data.frame with 12 columns and 582 observations.
 #'
@@ -182,3 +182,36 @@
 #' \insertAllCited{}
 "Weingarten2018"
 
+
+#' @title 412 effect sizes from a meta-analysis of secondary benefits of family-based treatments
+#' by \insertCite{johnides2025secondary;textual}{RoBMA}
+#'
+#' @description The data set contains Cohen's d effect sizes, standard errors, and study labels
+#' from a meta-analysis investigating the extent to which family-based treatments for children
+#' with mental health, physical health, and developmental disorders provide secondary benefits
+#' to the children's siblings and caregivers \insertCite{johnides2025secondary}{RoBMA}.
+#'
+#' @format A data.frame with 3 columns and 412 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Johnides2025"
+
+
+#' @title 1159 effect sizes from a meta-analysis of beauty and professional success
+#' by \insertCite{havrankova2025beauty;textual}{RoBMA}
+#'
+#' @description The data set contains effect sizes (percent increase in earnings), standard errors,
+#' study identifiers, sample sizes, and the type of customer contact (no, some, or direct).
+#' The meta-analysis examined the relationship between perceived beauty and professional success
+#' \insertCite{havrankova2025beauty}{RoBMA}.
+#'
+#' @format A data.frame with 5 columns and 1159 observations.
+#'
+#' @return a data.frame.
+#'
+#' @references
+#' \insertAllCited{}
+"Havrankova2025"

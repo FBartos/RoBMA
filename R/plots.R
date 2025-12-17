@@ -382,13 +382,13 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
     plot <- ggplot2::ggplot()
 
     # add the studies
-    plot <- plot +ggplot2::geom_errorbarh(
+    plot <- plot +ggplot2::geom_errorbar(
       mapping = ggplot2::aes(
         xmin   = data$lCI,
         xmax   = data$uCI,
         y      = data$x),
       color   = "black",
-      height  = .25)
+      width   = .25)
     plot <- plot +ggplot2::geom_point(
       mapping = ggplot2::aes(
         x = data$y,

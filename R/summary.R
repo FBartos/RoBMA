@@ -523,7 +523,7 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
     return(output)
 
-  }else{
+  }else if(substr(type,1,1) == "d"){
 
     # transform the estimates if needed
     if(object$add_info[["output_scale"]] != output_scale){
@@ -574,6 +574,76 @@ summary.RoBMA       <- function(object, type = "ensemble", conditional = FALSE,
 
     return(output)
 
+  }else if(substr(type,1,1) == "m"){
+
+    # obtain priors
+    priors     <- object[["model"]][["priors"]]
+    bias       <- if(!is.null(priors[["bias"]])) !.is.prior_null(priors[["bias"]])
+
+    if(all(!bias))
+      stop("'model summary' is available only for models with publication bias adjustment components")
+
+    # determine prior type
+    weightfunctions <- sapply(priors[["bias"]], is.prior.weightfunction)
+    PET_PEESE       <- sapply(priors[["bias"]], function(x) is.prior.PET(x) | is.prior.PEESE(x))
+    no_bias         <- !(weightfunctions | PET_PEESE)
+
+    ### overall bias type summary
+    # a bit of an abuse of `runjags_inference_table` by overwriting the prior attributes
+    model <- object[["model"]]
+    attr(model[["fit"]], "prior_list")[names(attr(model[["fit"]], "prior_list")) != "bias"] <- NULL
+    attr(attr(model[["fit"]], "prior_list")[["bias"]], "components")[PET_PEESE]       <- "PET-PEESE"
+    attr(attr(model[["fit"]], "prior_list")[["bias"]], "components")[weightfunctions] <- "Weight functions"
+    attr(attr(model[["fit"]], "prior_list")[["bias"]], "components")[no_bias]         <- "None"
+
+    summary <- BayesTools::runjags_inference_table(model[["fit"]], formula_prefix = FALSE)
+    attr(summary, "parameters") <- gsub("bias [", "", attr(summary, "parameters"), fixed = TRUE)
+    attr(summary, "parameters") <- gsub("]", "", attr(summary, "parameters"), fixed = TRUE)
+    rownames(summary) <- attr(summary, "parameters")
+
+    ### specific bias type summary
+    # a bit of an abuse of `runjags_inference_table` by overwriting the prior attributes
+    model <- object[["model"]]
+    attr(model[["fit"]], "prior_list")[names(attr(model[["fit"]], "prior_list")) != "bias"] <- NULL
+    components_text <- sapply(priors[["bias"]], print, silent = TRUE)
+    components_text <- sub(" ~.*$", "", components_text)
+    components_text <- gsub("omega", "Weight function", components_text)
+    attr(attr(model[["fit"]], "prior_list")[["bias"]], "components") <- components_text
+
+    components <- BayesTools::runjags_inference_table(model[["fit"]], formula_prefix = FALSE)
+    attr(components, "parameters") <- gsub("bias [", "", attr(components, "parameters"), fixed = TRUE)
+    attr(components, "parameters") <- substr(attr(components, "parameters"), 1, nchar(attr(components, "parameters")) - 1)
+    rownames(components) <- attr(components, "parameters")
+
+
+    summary <- BayesTools:::update.BayesTools_table(
+      summary,
+      title      = "Publication bias adjustment summary:",
+      BF01       = BF01,
+      logBF      = logBF
+    )
+
+    components <- BayesTools:::update.BayesTools_table(
+      components,
+      title      = "Publication bias adjustment models summary:",
+      BF01       = BF01,
+      logBF      = logBF
+    )
+
+    # create the output object
+    output <- list(
+      call        = object[["call"]],
+      title       = .object_title(object),
+      summary     = summary,
+      components  = components
+    )
+
+    class(output) <- "summary.RoBMA"
+    attr(output, "type") <- "models"
+
+    return(output)
+  }else{
+    stop(paste0("Unknown summary type: '", type, "'."))
   }
 }
 
@@ -609,8 +679,12 @@ print.summary.RoBMA <- function(x, ...){
 
   }else if(attr(x, "type") == "models"){
 
-    cat("\n")
-    print(x[["summary"]])
+    for(type in c("summary", "components")){
+      if(!is.null(x[[type]])){
+        cat("\n")
+        print(x[[type]])
+      }
+    }
 
     return(invisible())
 
@@ -651,7 +725,7 @@ print.summary.RoBMA <- function(x, ...){
 #'
 #' @param x object to be tested
 #'
-#' @details 
+#' @details
 #' These functions test whether an object inherits from specific RoBMA classes:
 #' \itemize{
 #'   \item \code{is.RoBMA}: Tests for \code{"RoBMA"} class (Robust Bayesian Meta-Analysis)
@@ -670,7 +744,7 @@ print.summary.RoBMA <- function(x, ...){
 #' fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n)
 #' is.RoBMA(fit)        # TRUE
 #' is.BiBMA(fit)        # FALSE
-#' 
+#'
 #' # Example with regression
 #' fit_reg <- RoBMA.reg(r ~ 1, data = Anderson2010)
 #' is.RoBMA.reg(fit_reg)  # TRUE

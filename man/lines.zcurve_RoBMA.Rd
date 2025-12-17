@@ -53,13 +53,11 @@ that will be used for estimating z-curve estimates.}
 
 \item{col}{Color of the plotted line.}
 
-\item{...}{list of additional graphical arguments
-to be passed to the plotting function. Supported arguments
-are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
-\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
-to adjust the line thickness, line type, line color, fill color,
-x-label, y-label, title, x-axis range, and y-axis range
-respectively.}
+\item{...}{Additional graphical parameters for the line and CI ribbon.
+For base R lines: \code{lwd}, \code{col}, \code{lty}.
+For base R ribbon: \code{alpha} (alpha transparency for the ribbon).
+For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+For ggplot2 ribbon: \code{alpha}.}
 }
 \description{
 Adds lines to a plot of a fitted zcurve_RoBMA object. This function is typically used to overlay additional information or model fits on an existing plot.

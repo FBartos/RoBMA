@@ -27,7 +27,7 @@ provides convenient functions for summary, visualizations, and fit
 diagnostics. The package is designed to be user-friendly and provides a
 wide range of customization options. The package is also integrated into
 the JASP software (JASP Team, 2020) and can be used via the graphical
-user interface.
+user interface (see Bartoš & Wagenmakers (2025)).
 
 See our manuscripts for technical details and examples:
 
@@ -58,7 +58,9 @@ See our manuscripts for technical details and examples:
   JASP (JASP Team, 2020)
 
 We also prepared multiple vignettes that illustrate functionality of the
-package:
+package. See the [Guide to RoBMA
+Vignettes](https://fbartos.github.io/RoBMA/articles/Explanation.html)
+for an overview or explore them directly:
 
 - [Tutorial: Adjusting for publication bias in JASP and R - Selection
   models, PET-PEESE, and Robust Bayesian
@@ -67,6 +69,10 @@ package:
   (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
 - [Robust Bayesian model-averaged
   meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
+- [Multilevel Robust Bayesian
+  Meta-Analysis](https://fbartos.github.io/RoBMA/articles/MultilevelRoBMA.html)
+- [Multilevel Robust Bayesian Model-Averaged
+  Meta-Regression](https://fbartos.github.io/RoBMA/articles/MultilevelRoBMARegression.html)
 - [Hierarchical Bayesian model-averaged
   meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
 - [Informed Bayesian model-averaged meta-analysis in
@@ -393,8 +399,8 @@ medicine. *Statistics in Medicine*, *40*(30), 6743–6761.
 
 <div id="ref-bartos2020adjusting" class="csl-entry">
 
-Bartoš, F., Maier, Maximilian, Quintana, D. S., & Wagenmakers, E.-J.
-(2022). Adjusting for publication bias in JASP and R — Selection models,
+Bartoš, F., Maier, M., Quintana, D. S., & Wagenmakers, E.-J. (2022).
+Adjusting for publication bias in JASP and R — Selection models,
 PET-PEESE, and robust Bayesian meta-analysis. *Advances in Methods and
 Practices in Psychological Science*, *5*(3), 1–19.
 <https://doi.org/10.1177/25152459221109259>
@@ -441,6 +447,13 @@ meta-analyses of binary and time-to-event outcomes*.
 Bartoš, F., & Schimmack, U. (2025). Z-curve plot: A visual diagnostic
 for publication bias in meta-analysis. In *arXiv*.
 <https://doi.org/10.48550/arXiv.2509.07171>
+
+</div>
+
+<div id="ref-bartos2025bayesian" class="csl-entry">
+
+Bartoš, F., & Wagenmakers, E.-J. (2025). *Meta-analysis with JASP, Part
+II: Bayesian approaches*. <https://doi.org/10.48550/arXiv.2509.09850>
 
 </div>
 

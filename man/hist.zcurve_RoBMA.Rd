@@ -11,7 +11,9 @@
   to = 6,
   by = 0.5,
   length.out = NULL,
+  add = FALSE,
   plot_thresholds = TRUE,
+  dots_thresholds = NULL,
   ...
 )
 }
@@ -30,9 +32,21 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 
 \item{length.out}{Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.}
 
+\item{add}{Logical; if TRUE, adds histogram bars to an existing plot without creating a new canvas. Only applies to base R graphics. Defaults to FALSE.}
+
 \item{plot_thresholds}{Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.}
 
-\item{...}{Additional arguments passed to the underlying plotting functions.}
+\item{dots_thresholds}{List of additional graphical parameters for the threshold lines.
+For base R: \code{col}, \code{lty}, \code{lwd}.
+For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.}
+
+\item{...}{Additional graphical parameters for the histogram and basic plotting arguments.
+For base R histogram: \code{border}, \code{col}, \code{density}, \code{angle}.
+For ggplot2 histogram: \code{color}, \code{fill}, \code{alpha}.
+Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+\code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+\code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+\code{yaxt} (y-axis type, default: "s").}
 }
 \value{
 Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.

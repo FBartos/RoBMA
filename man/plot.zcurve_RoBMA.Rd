@@ -20,6 +20,9 @@
   length.out.hist = NULL,
   by.lines = 0.05,
   length.out.lines = NULL,
+  dots_hist = NULL,
+  dots_extrapolation = NULL,
+  dots_thresholds = NULL,
   ...
 )
 }
@@ -61,7 +64,30 @@ Defaults to \code{c(.025, .975)}}
 
 \item{length.out.lines}{Number of points for plotting lines. If NULL, determined by by.lines. Defaults to NULL.}
 
-\item{...}{Additional arguments passed to the underlying plotting functions.}
+\item{dots_hist}{List of additional graphical parameters for the histogram.
+For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
+For ggplot2: \code{color}, \code{fill}, \code{alpha}.}
+
+\item{dots_extrapolation}{List of additional graphical parameters for the extrapolation line/ribbon.
+For base R lines: \code{lwd}, \code{col}, \code{lty}.
+For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
+For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+For ggplot2 ribbon: \code{fill}, \code{alpha}.}
+
+\item{dots_thresholds}{List of additional graphical parameters for the threshold lines.
+For base R: \code{col}, \code{lty}, \code{lwd}.
+For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.}
+
+\item{...}{Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA),
+as well as basic plotting arguments.
+For base R lines: \code{lwd}, \code{col}, \code{lty}.
+For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
+For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+For ggplot2 ribbon: \code{fill}, \code{alpha}.
+Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+\code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+\code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+\code{yaxt} (y-axis type, default: "s").}
 }
 \value{
 Returns \code{NULL} if \code{plot_type = "base"}, or a \code{ggplot2} object if \code{plot_type = "ggplot2"}.

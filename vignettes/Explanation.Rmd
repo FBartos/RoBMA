@@ -1,0 +1,51 @@
+---
+title: "Guide to RoBMA Vignettes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ Guide to RoBMA Vignettes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The `RoBMA` package provides a comprehensive set of vignettes to help users navigate different aspects of Robust Bayesian Meta-Analysis. This guide outlines the available vignettes and their specific focus to help you find the relevant information for your analysis.
+
+## Introductory Vignettes
+
+### [Tutorial: Adjusting for Publication Bias in JASP and R](Tutorial.html)
+This is the main introduction to the RoBMA framework. It covers the basics of adjusting for publication bias using selection models, PET-PEESE, and Robust Bayesian Meta-Analysis. It is the recommended starting point for new users.
+
+### [Reproducing Bayesian Model-Averaged Meta-Analysis](ReproducingBMA.html)
+This vignette demonstrates how to perform a classic Bayesian model-averaged meta-analysis. It focuses on reproducing standard BMA results and understanding the core components of the method.
+
+## Advanced Modeling Features
+
+### [Robust Bayesian Model-Averaged Meta-Regression](MetaRegression.html)
+Learn how to incorporate moderators into your meta-analysis using `RoBMA.reg()`. This vignette explains how to fit meta-regression models to account for heterogeneity explained by study-level covariates.
+
+### [Multilevel Robust Bayesian Meta-Analysis](MultilevelRoBMA.html)
+This vignette demonstrates how to perform multilevel meta-analysis to account for dependent effect sizes (e.g., multiple estimates from the same study). It uses the spike-and-slab algorithm (`algorithm = "ss"`) to efficiently estimate models with within-study and between-study heterogeneity while adjusting for publication bias.
+
+### [Multilevel Robust Bayesian Model-Averaged Meta-Regression](MultilevelRoBMARegression.html)
+This vignette demonstrates how to perform multilevel meta-regression. In addition, it illustrates how to rescale default prior distributions to work with non-standardized effect sizes.
+
+### [Z-Curve Publication Bias Diagnostics](ZCurveDiagnostics.html)
+This vignette details the use of meta-analytic z-curves for diagnosing publication bias. It explains how to interpret z-curve plots and statistics provided by the package.
+
+## Specialized Applications
+
+### [Informed Bayesian Model-Averaged Meta-Analysis in Medicine](MedicineBMA.html)
+This vignette focuses on applying RoBMA in medical contexts. It discusses the use of informed priors tailored for medical research questions and continuous outcomes.
+
+### [Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes](MedicineBiBMA.html)
+Similar to the Medicine BMA vignette, but specifically for binary outcomes. It covers the `BiBMA` models (Binomial-Normal) and appropriate prior settings for medical meta-analysis with binary data.
+
+## Customization and Performance
+
+### [Fitting Custom Meta-Analytic Ensembles](CustomEnsembles.html)
+For advanced users who need to go beyond the default model ensembles. This vignette demonstrates how to customize the ensemble of models, including specifying custom priors and model combinations.
+
+### [Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm](FastRoBMA.html)
+For computationally intensive problems or quick approximations, the "spike-and-slab" algorithm (`algorithm = "ss"`) can be used. This vignette explains how to use this faster alternative to the default bridge sampling approach.
+
+### [Hierarchical Bayesian Model-Averaged Meta-Analysis](HierarchicalBMA.html)
+This vignette introduces multilevel models. It shows how to handle dependencies in the data (e.g., multiple effect sizes from the same study) using the `study_ids` argument to specify a hierarchical structure. Note that this vignette relies on multivariate parameterization that is relevant only for the bridge sampling algorithm. However, it is still helpful for describing the parameterization.

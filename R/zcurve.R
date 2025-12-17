@@ -166,7 +166,27 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
 #' @param length.out.hist Number of bins for the histogram. If NULL, determined by by.hist. Defaults to NULL.
 #' @param by.lines Step size for plotting model fit and extrapolation lines. Defaults to 0.05.
 #' @param length.out.lines Number of points for plotting lines. If NULL, determined by by.lines. Defaults to NULL.
-#' @param ... Additional arguments passed to the underlying plotting functions.
+#' @param dots_hist List of additional graphical parameters for the histogram.
+#' For base R: \code{border}, \code{col}, \code{density}, \code{angle}.
+#' For ggplot2: \code{color}, \code{fill}, \code{alpha}.
+#' @param dots_extrapolation List of additional graphical parameters for the extrapolation line/ribbon.
+#' For base R lines: \code{lwd}, \code{col}, \code{lty}.
+#' For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
+#' For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+#' For ggplot2 ribbon: \code{fill}, \code{alpha}.
+#' @param dots_thresholds List of additional graphical parameters for the threshold lines.
+#' For base R: \code{col}, \code{lty}, \code{lwd}.
+#' For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.
+#' @param ... Additional graphical arguments for the main fit line and ribbon (passed to lines.zcurve_RoBMA),
+#' as well as basic plotting arguments.
+#' For base R lines: \code{lwd}, \code{col}, \code{lty}.
+#' For base R ribbon: \code{col} (will be alpha-blended), \code{border}.
+#' For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+#' For ggplot2 ribbon: \code{fill}, \code{alpha}.
+#' Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+#' \code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+#' \code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+#' \code{yaxt} (y-axis type, default: "s").
 #' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
 #' @inheritParams summary.RoBMA
@@ -190,7 +210,8 @@ summary.zcurve_RoBMA <- function(object, conditional = FALSE, probs = c(.025, .9
 plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
                               probs = c(.025, .975), max_samples = 500,
                               plot_fit = TRUE, plot_extrapolation = TRUE, plot_CI = TRUE, plot_thresholds = TRUE,
-                              from = -6, to = 6, by.hist = 0.5, length.out.hist = NULL, by.lines = 0.05, length.out.lines = NULL, ...){
+                              from = -6, to = 6, by.hist = 0.5, length.out.hist = NULL, by.lines = 0.05, length.out.lines = NULL,
+                              dots_hist = NULL, dots_extrapolation = NULL, dots_thresholds = NULL, ...){
 
   # plots the z-curve object
   # most functions are based on the zcurve package
@@ -208,38 +229,58 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
 
+  # extract dots for main fit line
+  dots <- list(...)
+
   # construct the plot
   # get the line values first so we can set-up ylim of the histogram
   ymax <- 0
   if(plot_fit){
-    lines_fit <- lines.zcurve_RoBMA(x, conditional = conditional, plot_type = plot_type,
-                                    probs = probs, max_samples = max_samples,
-                                    extrapolate = FALSE, plot_CI = plot_CI,
-                                    from = from, to = to, by = by.lines, length.out = length.out.lines, as_data = TRUE)
+    lines_fit <- do.call(lines.zcurve_RoBMA, c(
+      list(x = x, conditional = conditional, plot_type = plot_type,
+           probs = probs, max_samples = max_samples,
+           extrapolate = FALSE, plot_CI = plot_CI,
+           from = from, to = to, by = by.lines, length.out = length.out.lines,
+           as_data = TRUE),
+      dots
+    ))
     ymax <- max(c(ymax, lines_fit$y, if(plot_CI) lines_fit$y_uCI))
   }
   if(plot_extrapolation){
-    lines_extrapolation <- lines.zcurve_RoBMA(x, conditional = conditional, plot_type = plot_type,
-                                              probs = probs, max_samples = max_samples,
-                                              extrapolate = TRUE, plot_CI = plot_CI,
-                                              from = from, to = to, by = by.lines, length.out = length.out.lines, as_data = TRUE)
+    # prepare extrapolation dots with default blue color
+    dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
+    lines_extrapolation <- do.call(lines.zcurve_RoBMA, c(
+      list(x = x, conditional = conditional, plot_type = plot_type,
+           probs = probs, max_samples = max_samples,
+           extrapolate = TRUE, plot_CI = plot_CI,
+           from = from, to = to, by = by.lines, length.out = length.out.lines,
+           as_data = TRUE),
+      dots_extrapolation
+    ))
     ymax <- max(c(ymax, lines_extrapolation$y, if(plot_CI) lines_extrapolation$y_uCI))
   }
 
 
-  plot <- hist.zcurve_RoBMA(x, plot_type = plot_type, from = from, to = to, by = by.hist, length.out = length.out.hist,
-                            ylim = if(ymax != 0) c(0, ymax) else NULL, plot_thresholds = plot_thresholds)
+  plot <- hist.zcurve_RoBMA(
+    x = x, plot_type = plot_type, from = from, to = to, by = by.hist, length.out = length.out.hist,
+    plot_thresholds = plot_thresholds, dots_thresholds = dots_thresholds,
+    ylim = if(ymax != 0) c(0, ymax) else NULL,
+    dots_hist = dots_hist, dots_all = dots
+  )
 
   # add plot lines
   if(plot_fit){
+    dots_fit_lines <- .get_dots_lines_zcurve(dots, plot_type = plot_type)
+
     if(plot_type == "base"){
       if(plot_CI){
         graphics::polygon(
           c(lines_fit$x,     rev(lines_fit$x)),
           c(lines_fit$y_lCI, rev(lines_fit$y_uCI)),
-          border = NA, col = scales::alpha("black", 0.40))
+          border = NA,
+          col    = scales::alpha(dots_fit_lines$col, dots_fit_lines$alpha))
       }
-      graphics::lines(lines_fit$x, lines_fit$y, lwd = 2, col = "black", lty = 1)
+      graphics::lines(lines_fit$x, lines_fit$y, lwd = dots_fit_lines$lwd, col = dots_fit_lines$col, lty = dots_fit_lines$lty)
     }else if(plot_type == "ggplot"){
       if(plot_CI){
         plot <- plot + ggplot2::geom_ribbon(
@@ -247,30 +288,35 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
             x    = lines_fit$x,
             ymin = lines_fit$y_lCI,
             ymax = lines_fit$y_uCI),
-          fill = scales::alpha("black", 0.40)
+          fill  = dots_fit_lines$color,
+          alpha = dots_fit_lines$alpha
         )
       }
       plot <- plot + ggplot2::geom_line(
         ggplot2::aes(
           x = lines_fit$x,
           y = lines_fit$y),
-        color     = "black",
-        linewidth = 1,
-        linetype  = 1
+        color     = dots_fit_lines$color,
+        linewidth = dots_fit_lines$linewidth,
+        linetype  = dots_fit_lines$linetype
       )
     }
   }
 
   # add extrapolation lines
   if(plot_extrapolation){
+    dots_extrapolation       <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
+    dots_extrapolation_lines <- .get_dots_lines_zcurve(dots_extrapolation, plot_type = plot_type, col = "blue", alpha = 0.40)
+
     if(plot_type == "base"){
       if(plot_CI){
         graphics::polygon(
           c(lines_extrapolation$x,     rev(lines_extrapolation$x)),
           c(lines_extrapolation$y_lCI, rev(lines_extrapolation$y_uCI)),
-          border = NA, col = scales::alpha("blue", 0.40))
+          border = NA,
+          col    = scales::alpha(dots_extrapolation_lines$col, dots_extrapolation_lines$alpha))
       }
-      graphics::lines(lines_extrapolation$x, lines_extrapolation$y, lwd = 2, col = "blue", lty = 1)
+      graphics::lines(lines_extrapolation$x, lines_extrapolation$y, lwd = dots_extrapolation_lines$lwd, col = dots_extrapolation_lines$col, lty = dots_extrapolation_lines$lty)
     }else if(plot_type == "ggplot"){
       if(plot_CI){
         plot <- plot + ggplot2::geom_ribbon(
@@ -278,16 +324,17 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
             x    = lines_extrapolation$x,
             ymin = lines_extrapolation$y_lCI,
             ymax = lines_extrapolation$y_uCI),
-          fill = scales::alpha("blue", 0.40)
+          fill  = dots_extrapolation_lines$color,
+          alpha = dots_extrapolation_lines$alpha
         )
       }
       plot <- plot + ggplot2::geom_line(
         ggplot2::aes(
           x = lines_extrapolation$x,
           y = lines_extrapolation$y),
-        color     = "blue",
-        linewidth = 1,
-        linetype  = 1
+        color     = dots_extrapolation_lines$color,
+        linewidth = dots_extrapolation_lines$linewidth,
+        linetype  = dots_extrapolation_lines$linetype
       )
     }
   }
@@ -308,8 +355,18 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @param x A \code{zcurve_RoBMA} object containing the fitted model.
 #' @param by Numeric value specifying the bin width for the histogram. Defaults to 0.5.
 #' @param length.out Optional integer specifying the number of bins. If NULL, determined by \code{by}. Defaults to NULL.
+#' @param add Logical; if TRUE, adds histogram bars to an existing plot without creating a new canvas. Only applies to base R graphics. Defaults to FALSE.
 #' @param plot_thresholds Logical; should significance thresholds be displayed on the plot? Defaults to TRUE.
-#' @param ... Additional arguments passed to the underlying plotting functions.
+#' @param dots_thresholds List of additional graphical parameters for the threshold lines.
+#' For base R: \code{col}, \code{lty}, \code{lwd}.
+#' For ggplot2: \code{color}, \code{linetype}, \code{linewidth}.
+#' @param ... Additional graphical parameters for the histogram and basic plotting arguments.
+#' For base R histogram: \code{border}, \code{col}, \code{density}, \code{angle}.
+#' For ggplot2 histogram: \code{color}, \code{fill}, \code{alpha}.
+#' Basic plotting arguments (both base R and ggplot2): \code{xlab} (x-axis label, default: "Z-Statistic"),
+#' \code{ylab} (y-axis label, default: "Density"), \code{main} (plot title, default: ""),
+#' \code{ylim} (y-axis limits). For base R only: \code{xaxt} (x-axis type, default: "s"),
+#' \code{yaxt} (y-axis type, default: "s").
 #' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
 #' @inheritParams summary.RoBMA
@@ -321,7 +378,7 @@ plot.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
 #' @seealso [as_zcurve()], [plot.zcurve_RoBMA()], [hist.zcurve_RoBMA()]
 #'
 #' @export
-hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, plot_thresholds = TRUE, ...){
+hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.5, length.out = NULL, add = FALSE, plot_thresholds = TRUE, dots_thresholds = NULL, ...){
 
   # most functions are based on the zcurve package
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -329,10 +386,22 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
   BayesTools::check_real(to, "to", allow_NULL = TRUE)
   BayesTools::check_real(by, "by", allow_NULL = TRUE)
   BayesTools::check_real(length.out, "length.out", allow_NULL = TRUE)
+  BayesTools::check_bool(add, "add")
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
 
   # extract the data
   dots <- list(...)
+  
+  # extract special parameters if provided (from plot.zcurve_RoBMA)
+  dots_hist <- dots[["dots_hist"]]
+  dots_all  <- dots[["dots_all"]]
+  dots[["dots_hist"]] <- NULL
+  dots[["dots_all"]]  <- NULL
+  
+  # merge dots_all if provided (from plot.zcurve_RoBMA)
+  if(!is.null(dots_all)){
+    dots <- c(dots, dots_all[!names(dots_all) %in% names(dots)])
+  }
   z    <- x$zcurve$data[["z"]]
 
   # specify plotting range
@@ -362,41 +431,49 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
     return(df_hist)
   }
 
-  # create the plot otherwise
-  if(!is.null(dots[["ylim"]])){
-    ylim <- range(dots[["ylim"]], max(z_hist$density))
-  }else{
-    ylim <- c(0, max(z_hist$density))
+  # get histogram-specific graphical parameters
+  # merge dots_hist into dots (dots_hist takes precedence)
+  if(!is.null(dots_hist)){
+    dots <- c(dots_hist, dots[!names(dots) %in% names(dots_hist)])
   }
-  if(!is.null(dots[["xlab"]])){
-    xlab <- dots[["xlab"]]
-  }else{
-    xlab <- "Z-Statistic"
-  }
+  dots_hist <- .get_dots_hist_zcurve(dots, plot_type = plot_type, max_density = max(z_hist$density))
 
+  # create the plot otherwise
   if(plot_type == "ggplot"){
     out <- ggplot2::ggplot() +
       ggplot2::geom_col(
         ggplot2::aes(
           x = df_hist$x,
           y = df_hist$density),
-        fill  = NA,
-        color = "black",
+        fill  = dots_hist$fill,
+        color = dots_hist$color,
+        alpha = dots_hist$alpha,
         width = df_hist$breaks
       ) +
-      ggplot2::labs(x = xlab, y = "Density")
+      ggplot2::labs(x = dots_hist$xlab, y = dots_hist$ylab) +
+      ggplot2::ggtitle(dots_hist$main)
   } else {
-    graphics::plot(z_hist, freq = FALSE, las = 1, density = 0, angle = 0,
-                   border = "black", xlab = xlab, main = "", ylim = ylim)
+    if(add){
+      graphics::rect(xleft = df_hist$x - df_hist$breaks/2, xright = df_hist$x + df_hist$breaks/2,
+                     ybottom = 0, ytop = df_hist$density,
+                     border = dots_hist$border, col = dots_hist$col)
+    }else{
+      graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col, 
+                     xlab = dots_hist$xlab, ylab = dots_hist$ylab, main = dots_hist$main, 
+                     ylim = dots_hist$ylim, xaxt = dots_hist$xaxt, yaxt = dots_hist$yaxt)
+    }
   }
 
   if(plot_thresholds){
     tresholds <- .zcurve_threshold(x[["priors"]])
     if(length(tresholds) > 0){
+      dots_thresholds <- if(!is.null(dots_thresholds)) dots_thresholds else list()
+      dots_thresholds <- .get_dots_thresholds_zcurve(dots_thresholds, plot_type = plot_type)
+      
       if(plot_type == "base"){
-        graphics::abline(v = tresholds, col = "red", lty = 3)
+        graphics::abline(v = tresholds, col = dots_thresholds$col, lty = dots_thresholds$lty, lwd = dots_thresholds$lwd)
       }else if(plot_type == "ggplot"){
-        out <- out + ggplot2::geom_vline(xintercept = tresholds, color = "red", linetype = "dashed")
+        out <- out + ggplot2::geom_vline(xintercept = tresholds, color = dots_thresholds$color, linetype = dots_thresholds$linetype, linewidth = dots_thresholds$linewidth)
       }
     }
   }
@@ -418,6 +495,11 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
 #' @param by Numeric value specifying the increment for the sequence.
 #' @param length.out Optional integer specifying the desired length of the output sequence.
 #' @param col Color of the plotted line.
+#' @param ... Additional graphical parameters for the line and CI ribbon.
+#' For base R lines: \code{lwd}, \code{col}, \code{lty}.
+#' For base R ribbon: \code{alpha} (alpha transparency for the ribbon).
+#' For ggplot2 lines: \code{linewidth}, \code{color}, \code{linetype}.
+#' For ggplot2 ribbon: \code{alpha}.
 #' @inheritParams as_zcurve
 #' @inheritParams plot.RoBMA
 #' @inheritParams summary.RoBMA
@@ -466,22 +548,8 @@ lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
     return(df_density)
   }
 
-  # create the plot otherwise
-  if(!is.null(dots[["lwd"]])){
-    lwd <- dots[["lwd"]]
-  }else{
-    lwd <- 1
-  }
-  if(!is.null(dots[["lty"]])){
-    lty <- dots[["lty"]]
-  }else{
-    lty <- 1
-  }
-  if(!is.null(dots[["alpha"]])){
-    alpha <- dots[["alpha"]]
-  }else{
-    alpha <- 0.4
-  }
+  # get line-specific graphical parameters
+  dots_lines <- .get_dots_lines_zcurve(dots, plot_type = plot_type, col = col)
 
   if(plot_type == "ggplot"){
     out <- list()
@@ -491,25 +559,27 @@ lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
           x    = df_density$x,
           ymin = df_density$y_lCI,
           ymax = df_density$y_uCI),
-        fill = scales::alpha(col, alpha)
+        fill  = dots_lines$color,
+        alpha = dots_lines$alpha
       )
     }
     out[[length(out) + 1]] <- ggplot2::geom_line(
       ggplot2::aes(
         x = df_density$x,
         y = df_density$y),
-      color     = col,
-      linewidth = lwd,
-      linetype  = lty
+      color     = dots_lines$color,
+      linewidth = dots_lines$linewidth,
+      linetype  = dots_lines$linetype
     )
   }else{
     if(plot_CI){
       graphics::polygon(
         c(df_density$x,     rev(df_density$x)),
         c(df_density$y_lCI, rev(df_density$y_uCI)),
-        border = NA, col = scales::alpha(col, alpha))
+        border = NA,
+        col    = scales::alpha(dots_lines$col, dots_lines$alpha))
     }
-    graphics::lines(df_density$x, df_density$y, lwd = lwd, col = col, lty = lty)
+    graphics::lines(df_density$x, df_density$y, lwd = dots_lines$lwd, col = dots_lines$col, lty = dots_lines$lty)
   }
 
   # return the plots
@@ -518,6 +588,94 @@ lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
   }else if(plot_type == "ggplot"){
     return(out)
   }
+}
+
+
+
+.get_dots_hist_zcurve <- function(dots, plot_type = "base", max_density = NULL){
+  # extract histogram-specific plotting arguments with defaults
+  # (dots should already contain merged dots_hist if applicable)
+
+  if(plot_type == "base"){
+    # compute default ylim
+    if(!is.null(dots[["ylim"]]) && !is.null(max_density)){
+      ylim <- range(dots[["ylim"]], max_density)
+    }else if(!is.null(max_density)){
+      ylim <- c(0, max_density)
+    }else{
+      ylim <- NULL
+    }
+    
+    # base R histogram arguments
+    hist_dots <- list(
+      border  = if(!is.null(dots[["border"]]))  dots[["border"]]  else "gray60",
+      col     = if(!is.null(dots[["col"]]))     dots[["col"]]     else NA,
+      xlab    = if(!is.null(dots[["xlab"]]))    dots[["xlab"]]    else "Z-Statistic",
+      ylab    = if(!is.null(dots[["ylab"]]))    dots[["ylab"]]    else "Density",
+      main    = if(!is.null(dots[["main"]]))    dots[["main"]]    else "",
+      ylim    = ylim,
+      xaxt    = if(!is.null(dots[["xaxt"]]))    dots[["xaxt"]]    else "s",
+      yaxt    = if(!is.null(dots[["yaxt"]]))    dots[["yaxt"]]    else "s"
+    )
+  }else if(plot_type == "ggplot"){
+    # ggplot2 geom_col arguments
+    hist_dots <- list(
+      color = if(!is.null(dots[["color"]])) dots[["color"]] else if(!is.null(dots[["col"]])) dots[["col"]] else "gray60",
+      fill  = if(!is.null(dots[["fill"]]))  dots[["fill"]]  else NA,
+      alpha = if(!is.null(dots[["alpha"]])) dots[["alpha"]] else 1,
+      xlab  = if(!is.null(dots[["xlab"]]))  dots[["xlab"]]  else "Z-Statistic",
+      ylab  = if(!is.null(dots[["ylab"]]))  dots[["ylab"]]  else "Density",
+      main  = if(!is.null(dots[["main"]]))  dots[["main"]]  else ""
+    )
+  }
+
+  return(hist_dots)
+}
+
+.get_dots_lines_zcurve <- function(dots, plot_type = "base", col = "black", alpha = 0.40){
+  # extract line-specific plotting arguments with defaults
+
+  if(plot_type == "base"){
+    # base R line arguments
+    line_dots <- list(
+      lwd   = if(!is.null(dots[["lwd"]])) dots[["lwd"]] else 2,
+      col   = if(!is.null(dots[["col"]])) dots[["col"]] else col,
+      lty   = if(!is.null(dots[["lty"]])) dots[["lty"]] else 1,
+      alpha = if(!is.null(dots[["alpha"]])) dots[["alpha"]] else alpha
+    )
+  }else if(plot_type == "ggplot"){
+    # ggplot2 geom_line arguments
+    line_dots <- list(
+      linewidth = if(!is.null(dots[["linewidth"]])) dots[["linewidth"]] else if(!is.null(dots[["lwd"]])) dots[["lwd"]] else 1,
+      color     = if(!is.null(dots[["color"]])) dots[["color"]] else if(!is.null(dots[["col"]])) dots[["col"]] else col,
+      linetype  = if(!is.null(dots[["linetype"]])) dots[["linetype"]] else if(!is.null(dots[["lty"]])) dots[["lty"]] else 1,
+      alpha     = if(!is.null(dots[["alpha"]])) dots[["alpha"]] else alpha
+    )
+  }
+
+  return(line_dots)
+}
+
+.get_dots_thresholds_zcurve <- function(dots, plot_type = "base"){
+  # extract threshold line-specific plotting arguments with defaults
+
+  if(plot_type == "base"){
+    # base R line arguments for abline
+    threshold_dots <- list(
+      col = if(!is.null(dots[["col"]])) dots[["col"]] else "red",
+      lty = if(!is.null(dots[["lty"]])) dots[["lty"]] else 3,
+      lwd = if(!is.null(dots[["lwd"]])) dots[["lwd"]] else 1
+    )
+  }else if(plot_type == "ggplot"){
+    # ggplot2 geom_vline arguments
+    threshold_dots <- list(
+      color     = if(!is.null(dots[["color"]])) dots[["color"]] else if(!is.null(dots[["col"]])) dots[["col"]] else "red",
+      linetype  = if(!is.null(dots[["linetype"]])) dots[["linetype"]] else if(!is.null(dots[["lty"]])) dots[["lty"]] else "dashed",
+      linewidth = if(!is.null(dots[["linewidth"]])) dots[["linewidth"]] else if(!is.null(dots[["lwd"]])) dots[["lwd"]] else 0.5
+    )
+  }
+
+  return(threshold_dots)
 }
 
 
