@@ -1,12 +1,15 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://https://fbartos.github.io/RoBMA/404.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/Explanation.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/FastRoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/index.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/MedicineBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/MetaRegression.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/MultilevelRoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/articles/MultilevelRoBMARegression.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/Tutorial.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html</loc></url>
@@ -32,11 +35,13 @@
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/extract_posterior.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/forest.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/funnel.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Havrankova2025.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/hist.zcurve_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Hoppen2025.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/index.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/interpret.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/is.RoBMA.html</loc></url>
+<url><loc>https://https://fbartos.github.io/RoBMA/reference/Johnides2025.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Kroupova2021.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/lines.zcurve_RoBMA.html</loc></url>
 <url><loc>https://https://fbartos.github.io/RoBMA/reference/Lui2015.html</loc></url>

@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -34,11 +34,14 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/Explanation.html">Guide to RoBMA Vignettes</a></li>
     <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
     <li><a class="dropdown-item" href="../articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/MultilevelRoBMA.html">Multilevel Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/MultilevelRoBMARegression.html">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
     <li><a class="dropdown-item" href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/ZCurveDiagnostics.html">Z-Curve Publication Bias Diagnostics</a></li>
@@ -68,9 +71,9 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-09-10</h4>
+            <h4 data-toc-skip class="date">2025-12-17</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.6.0/vignettes/MedicineBMA.Rmd" class="external-link"><code>vignettes/MedicineBMA.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/MedicineBMA.Rmd" class="external-link"><code>vignettes/MedicineBMA.Rmd</code></a></small>
       <div class="d-none name"><code>MedicineBMA.Rmd</code></div>
     </div>
 
@@ -213,7 +216,7 @@ visualizing the results. Here, we visualize the prior (grey) and
 posterior (black) distribution for the mean parameter.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_mu_BMA-1.png" width="75%" style="display: block; margin: auto;"></p>
+<p><img src="MedicineBMA_files/figure-html/fig_mu_BMA-1.png" class="r-plt" width="75%" style="display: block; margin: auto;"></p>
 <p>By default, the function plots the model-averaged estimates across
 all models; the arrows represent the probability of a spike, and the
 lines represent the posterior density under models assuming non-zero
@@ -225,7 +228,7 @@ function).</p>
 <code>conditional = TRUE</code> argument,</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_mu_BMA_cond-1.png" width="75%" style="display: block; margin: auto;">
+<p><img src="MedicineBMA_files/figure-html/fig_mu_BMA_cond-1.png" class="r-plt" width="75%" style="display: block; margin: auto;">
 which displays only the model-averaged posterior distribution of the
 effect size parameter for models assuming the presence of the
 effect.</p>
@@ -252,7 +255,7 @@ posterior distributions weighted by the posterior model
 probabilities.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_models.html">plot_models</a></span><span class="op">(</span><span class="va">fit_BMA</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_models-1.png" width="75%" style="display: block; margin: auto;">
+<p><img src="MedicineBMA_files/figure-html/fig_models-1.png" class="r-plt" width="75%" style="display: block; margin: auto;">
 We see that the posterior model probability of the first two models
 decreased to essentially zero (when rounding to two decimals),
 completely omitting their estimates from the figure. Furthermore, the
@@ -268,7 +271,7 @@ within one figure. It can be requested by using the
 model-averaged effect size estimate at the bottom.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_forest-1.png" width="75%" style="display: block; margin: auto;"></p>
+<p><img src="MedicineBMA_files/figure-html/fig_forest-1.png" class="r-plt" width="75%" style="display: block; margin: auto;"></p>
 <p>For more options provided by the plotting function, see its
 documentation by using <code>?plot.RoBMA()</code>,
 <code>?plot_models()</code>, and <code>?forest()</code>.</p>
@@ -413,7 +416,7 @@ visualized in the prior and posterior conditional effect size estimate
 plot.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="MedicineBMA_files/figure-html/fig_mu_RoBMA_cond-1.png" width="75%" style="display: block; margin: auto;"></p>
+<p><img src="MedicineBMA_files/figure-html/fig_mu_RoBMA_cond-1.png" class="r-plt" width="75%" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level3">
 <h3 id="footnotes">Footnotes<a class="anchor" aria-label="anchor" href="#footnotes"></a>
@@ -444,11 +447,11 @@ medicine. <em>Statistics in Medicine</em>, <em>40</em>(30), 6743–6761.
 <a href="https://doi.org/10.1002/sim.9170" class="external-link">https://doi.org/10.1002/sim.9170</a>
 </div>
 <div id="ref-bartos2020adjusting" class="csl-entry">
-Bartoš, F., Maier, Maximilian, Quintana, D. S., &amp; Wagenmakers, E.-J.
-(2022). Adjusting for publication bias in <span>JASP</span> and
-<span>R</span> — <span>S</span>election models, <span>PET-PEESE</span>,
-and robust <span>B</span>ayesian meta-analysis. <em>Advances in Methods
-and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link">https://doi.org/10.1177/25152459221109259</a>
+Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (2022).
+Adjusting for publication bias in <span>JASP</span> and <span>R</span> —
+<span>S</span>election models, <span>PET-PEESE</span>, and robust
+<span>B</span>ayesian meta-analysis. <em>Advances in Methods and
+Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link">https://doi.org/10.1177/25152459221109259</a>
 </div>
 <div id="ref-bartos2021no" class="csl-entry">
 Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp;
@@ -509,7 +512,7 @@ estimating effect size in the presence of publication bias.
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>

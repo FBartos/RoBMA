@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -19,11 +19,14 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/Explanation.html">Guide to RoBMA Vignettes</a></li>
     <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
     <li><a class="dropdown-item" href="../articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/MultilevelRoBMA.html">Multilevel Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/MultilevelRoBMARegression.html">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
     <li><a class="dropdown-item" href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/ZCurveDiagnostics.html">Z-Curve Publication Bias Diagnostics</a></li>
@@ -48,8 +51,7 @@
 
 
 
-
-    </div><div class="section level2">
+      <dl></dl></div><div class="section level2">
 
 
 
@@ -60,403 +62,484 @@
 
         </dt>
         <dd>Compute adjusted effect size</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Anderson2010.html">Anderson2010</a></code>
 
         </dt>
         <dd>27 experimental studies from Anderson et al. (2010) that meet the best practice criteria</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Andrews2021.html">Andrews2021</a></code>
 
         </dt>
         <dd>36 estimates of the effect of household chaos on child executive functions with the mean age and assessment type covariates from a meta-analysis by Andrews et al. (2021)</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="as_zcurve.html">as_zcurve()</a></code>
 
         </dt>
         <dd>Transform RoBMA object into z-curve</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Bem2011.html">Bem2011</a></code>
 
         </dt>
         <dd>9 experimental studies from Bem (2011) as described in Bem et al. (2011)</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="BiBMA.html">BiBMA()</a></code>
 
         </dt>
         <dd>Estimate a Bayesian Model-Averaged Meta-Analysis of Binomial Data</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="BiBMA.reg.html">BiBMA.reg()</a></code>
 
         </dt>
         <dd>Estimate a Robust Bayesian Meta-Analysis Meta-Regression</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="check_RoBMA.html">check_RoBMA()</a></code> <code><a href="check_RoBMA.html">check_RoBMA_convergence()</a></code>
 
         </dt>
         <dd>Check fitted RoBMA object for errors and warnings</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="check_setup.BiBMA.html">check_setup.BiBMA()</a></code>
 
         </dt>
         <dd>Prints summary of <code>"BiBMA.reg"</code> ensemble implied by the specified priors and formula</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="check_setup.html">check_setup()</a></code> <code><a href="check_setup.html">check_setup.RoBMA()</a></code>
 
         </dt>
         <dd>Prints summary of <code>"RoBMA"</code> ensemble implied by the specified priors</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="check_setup.reg.html">check_setup.reg()</a></code> <code><a href="check_setup.reg.html">check_setup.RoBMA.reg()</a></code>
 
         </dt>
         <dd>Prints summary of <code>"RoBMA.reg"</code> ensemble implied by the specified priors and formula</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="combine_data.html">combine_data()</a></code>
 
         </dt>
         <dd>Combines different effect sizes into a common metric</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="contr.BayesTools.html">contr.orthonormal()</a></code> <code><a href="contr.BayesTools.html">contr.meandif()</a></code> <code><a href="contr.BayesTools.html">contr.independent()</a></code>
 
         </dt>
         <dd>BayesTools Contrast Matrices</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="diagnostics.html">diagnostics()</a></code> <code><a href="diagnostics.html">diagnostics_autocorrelation()</a></code> <code><a href="diagnostics.html">diagnostics_trace()</a></code> <code><a href="diagnostics.html">diagnostics_density()</a></code>
 
         </dt>
         <dd>Checks a fitted RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="effect_sizes.html">d2r()</a></code> <code><a href="effect_sizes.html">d2z()</a></code> <code><a href="effect_sizes.html">d2logOR()</a></code> <code><a href="effect_sizes.html">d2OR()</a></code> <code><a href="effect_sizes.html">r2d()</a></code> <code><a href="effect_sizes.html">r2z()</a></code> <code><a href="effect_sizes.html">r2logOR()</a></code> <code><a href="effect_sizes.html">r2OR()</a></code> <code><a href="effect_sizes.html">z2r()</a></code> <code><a href="effect_sizes.html">z2d()</a></code> <code><a href="effect_sizes.html">z2logOR()</a></code> <code><a href="effect_sizes.html">z2OR()</a></code> <code><a href="effect_sizes.html">logOR2r()</a></code> <code><a href="effect_sizes.html">logOR2z()</a></code> <code><a href="effect_sizes.html">logOR2d()</a></code> <code><a href="effect_sizes.html">logOR2OR()</a></code> <code><a href="effect_sizes.html">OR2r()</a></code> <code><a href="effect_sizes.html">OR2z()</a></code> <code><a href="effect_sizes.html">OR2logOR()</a></code> <code><a href="effect_sizes.html">OR2d()</a></code>
 
         </dt>
         <dd>Effect size transformations</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="extract_posterior.html">extract_posterior()</a></code>
 
         </dt>
         <dd>Extract Posterior Samples from a RoBMA Model</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="forest.html">forest()</a></code>
 
         </dt>
         <dd>Forest plot for a RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="funnel.html">funnel()</a></code>
 
         </dt>
         <dd>Funnel plot for a RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
+
+          <code><a href="Havrankova2025.html">Havrankova2025</a></code>
+
+        </dt>
+        <dd>1159 effect sizes from a meta-analysis of beauty and professional success by Havránková et al. (2025)</dd>
+
+        <dt>
 
           <code><a href="hist.zcurve_RoBMA.html">hist(<i>&lt;zcurve_RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Create Histogram of Z-Statistics</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Hoppen2025.html">Hoppen2025</a></code>
 
         </dt>
         <dd>37 studies from a meta-analysis of social comparison as a behavior change technique by Hoppen et al. (2025)</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="interpret.html">interpret()</a></code>
 
         </dt>
         <dd>Interprets results of a RoBMA model.</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="is.RoBMA.html">is.RoBMA()</a></code> <code><a href="is.RoBMA.html">is.RoBMA.reg()</a></code> <code><a href="is.RoBMA.html">is.NoBMA()</a></code> <code><a href="is.RoBMA.html">is.NoBMA.reg()</a></code> <code><a href="is.RoBMA.html">is.BiBMA()</a></code> <code><a href="is.RoBMA.html">is.BiBMA.reg()</a></code>
 
         </dt>
         <dd>Reports whether x is a RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
+
+          <code><a href="Johnides2025.html">Johnides2025</a></code>
+
+        </dt>
+        <dd>412 effect sizes from a meta-analysis of secondary benefits of family-based treatments by Johnides et al. (2025)</dd>
+
+        <dt>
 
           <code><a href="Kroupova2021.html">Kroupova2021</a></code>
 
         </dt>
         <dd>881 estimates from 69 studies of a relationship between employment and educational outcomes collected by Kroupova et al. (2021)</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="lines.zcurve_RoBMA.html">lines(<i>&lt;zcurve_RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Add Lines With Posterior Predictive Distribution of Z-Statistics</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Lui2015.html">Lui2015</a></code>
 
         </dt>
         <dd>18 studies of a relationship between acculturation mismatch and intergenerational cultural conflict collected by Lui (2015)</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="ManyLabs16.html">ManyLabs16</a></code>
 
         </dt>
         <dd>55 effect sizes from Many Labs 2 replication studies of Tversky and Kahneman (1981) framing effects</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="marginal_plot.html">marginal_plot()</a></code>
 
         </dt>
         <dd>Plots marginal estimates of a fitted RoBMA regression object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="marginal_summary.html">marginal_summary()</a></code>
 
         </dt>
         <dd>Summarize marginal estimates of a fitted RoBMA regression object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="NoBMA.html">NoBMA()</a></code>
 
         </dt>
         <dd>Estimate a Bayesian Model-Averaged Meta-Analysis</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="NoBMA.reg.html">NoBMA.reg()</a></code>
 
         </dt>
         <dd>Estimate a Bayesian Model-Averaged Meta-Regression</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="plot.RoBMA.html">plot(<i>&lt;RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Plots a fitted RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="plot.zcurve_RoBMA.html">plot(<i>&lt;zcurve_RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Create Z-Curve Meta-Analytic Plot</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="plot_models.html">plot_models()</a></code>
 
         </dt>
         <dd>Models plot for a RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="pooled_effect.html">pooled_effect()</a></code>
 
         </dt>
         <dd>Compute pooled effect size</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Poulsen2006.html">Poulsen2006</a></code>
 
         </dt>
         <dd>5 studies with a tactile outcome assessment from Poulsen et al. (2006) of the effect of potassium-containing toothpaste on dentine hypersensitivity</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="predict.RoBMA.html">predict(<i>&lt;RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Predict method for Robust Bayesian Meta-Analysis Fits</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="print.marginal_summary.RoBMA.html">print(<i>&lt;marginal_summary.RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Prints marginal_summary object for RoBMA method</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="print.RoBMA.html">print(<i>&lt;RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Prints a fitted RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="print.summary.RoBMA.html">print(<i>&lt;summary.RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Prints summary object for RoBMA method</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="print.summary.zcurve_RoBMA.html">print(<i>&lt;summary.zcurve_RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Prints summary object for zcurve_RoBMA method</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="print.zcurve_RoBMA.html">print(<i>&lt;zcurve_RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Prints a fitted zcurve_RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior.html">prior()</a></code>
 
         </dt>
         <dd>Creates a prior distribution</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior_factor.html">prior_factor()</a></code>
 
         </dt>
         <dd>Creates a prior distribution for factors</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior_informed.html">prior_informed()</a></code>
 
         </dt>
         <dd>Creates an informed prior distribution based on research</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior_none.html">prior_none()</a></code>
 
         </dt>
         <dd>Creates a prior distribution</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior_PEESE.html">prior_PEESE()</a></code>
 
         </dt>
         <dd>Creates a prior distribution for PET or PEESE models</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior_PET.html">prior_PET()</a></code>
 
         </dt>
         <dd>Creates a prior distribution for PET or PEESE models</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="prior_weightfunction.html">prior_weightfunction()</a></code>
 
         </dt>
         <dd>Creates a prior distribution for a weight function</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="residuals.RoBMA.html">residuals(<i>&lt;RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Extract method for Robust Bayesian Meta-Analysis Fits</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="RoBMA-package.html">RoBMA-package</a></code> <code><a href="RoBMA-package.html">RoBMA_package</a></code> <code><a href="RoBMA-package.html">RoBMA.package</a></code>
 
         </dt>
         <dd>RoBMA: Robust Bayesian meta-analysis</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="RoBMA.html">RoBMA()</a></code>
 
         </dt>
         <dd>Estimate a Robust Bayesian Meta-Analysis</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="RoBMA.reg.html">RoBMA.reg()</a></code>
 
         </dt>
         <dd>Estimate a Robust Bayesian Meta-Analysis Meta-Regression</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="RoBMA_control.html">set_autofit_control()</a></code> <code><a href="RoBMA_control.html">set_convergence_checks()</a></code>
 
         </dt>
         <dd>Control MCMC fitting process</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="RoBMA_options.html">RoBMA.options()</a></code> <code><a href="RoBMA_options.html">RoBMA.get_option()</a></code>
 
         </dt>
         <dd>Options for the RoBMA package</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="sample_sizes.html">se_d()</a></code> <code><a href="sample_sizes.html">n_d()</a></code> <code><a href="sample_sizes.html">se_r()</a></code> <code><a href="sample_sizes.html">n_r()</a></code> <code><a href="sample_sizes.html">se_z()</a></code> <code><a href="sample_sizes.html">n_z()</a></code>
 
         </dt>
         <dd>Sample sizes to standard errors calculations</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="set_default_binomial_priors.html">set_default_binomial_priors()</a></code>
 
         </dt>
         <dd>Set default prior distributions for binomial meta-analytic models</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="set_default_priors.html">set_default_priors()</a></code>
 
         </dt>
         <dd>Set default prior distributions</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="standard_errors.html">se_d2se_logOR()</a></code> <code><a href="standard_errors.html">se_d2se_r()</a></code> <code><a href="standard_errors.html">se_r2se_d()</a></code> <code><a href="standard_errors.html">se_logOR2se_d()</a></code> <code><a href="standard_errors.html">se_d2se_z()</a></code> <code><a href="standard_errors.html">se_r2se_z()</a></code> <code><a href="standard_errors.html">se_r2se_logOR()</a></code> <code><a href="standard_errors.html">se_logOR2se_r()</a></code> <code><a href="standard_errors.html">se_logOR2se_z()</a></code> <code><a href="standard_errors.html">se_z2se_d()</a></code> <code><a href="standard_errors.html">se_z2se_r()</a></code> <code><a href="standard_errors.html">se_z2se_logOR()</a></code>
 
         </dt>
         <dd>Standard errors transformations</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="summary.RoBMA.html">summary(<i>&lt;RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Summarize fitted RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="summary.zcurve_RoBMA.html">summary(<i>&lt;zcurve_RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Summarize fitted zcurve_RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="summary_heterogeneity.html">summary_heterogeneity()</a></code>
 
         </dt>
         <dd>Summarizes heterogeneity of a RoBMA model</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="true_effects.html">true_effects()</a></code>
 
         </dt>
         <dd>Compute estimated true effect sizes</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="update.BiBMA.html">update(<i>&lt;BiBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Updates a fitted BiBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="update.RoBMA.html">update(<i>&lt;RoBMA&gt;</i>)</a></code>
 
         </dt>
         <dd>Updates a fitted RoBMA object</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Wang2025.html">Wang2025</a></code>
 
         </dt>
         <dd>70 effect sizes from a meta-analysis of ChatGPT's impact on student learning by Wang and Fan (2025)</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="weighted_multivariate_normal.html">weighted_multivariate_normal</a></code>
 
         </dt>
         <dd>Weighted multivariate normal distribution</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="weighted_normal.html">dwnorm()</a></code> <code><a href="weighted_normal.html">pwnorm()</a></code> <code><a href="weighted_normal.html">qwnorm()</a></code> <code><a href="weighted_normal.html">rwnorm()</a></code>
 
         </dt>
         <dd>Weighted normal distribution</dd>
-      </dl><dl><dt>
+
+        <dt>
 
           <code><a href="Weingarten2018.html">Weingarten2018</a></code>
 
@@ -471,7 +554,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer></div>

@@ -1,17 +1,20 @@
 pandoc: 3.1.11
-pkgdown: 2.1.3
+pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
   CustomEnsembles: CustomEnsembles.html
+  Explanation: Explanation.html
   FastRoBMA: FastRoBMA.html
   HierarchicalBMA: HierarchicalBMA.html
   MedicineBiBMA: MedicineBiBMA.html
   MedicineBMA: MedicineBMA.html
   MetaRegression: MetaRegression.html
+  MultilevelRoBMA: MultilevelRoBMA.html
+  MultilevelRoBMARegression: MultilevelRoBMARegression.html
   ReproducingBMA: ReproducingBMA.html
   Tutorial: Tutorial.html
   ZCurveDiagnostics: ZCurveDiagnostics.html
-last_built: 2025-09-10T15:06Z
+last_built: 2025-12-17T21:35Z
 urls:
   reference: https://https://fbartos.github.io/RoBMA/reference
   article: https://https://fbartos.github.io/RoBMA/articles

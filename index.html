@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -36,11 +36,14 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="articles/Explanation.html">Guide to RoBMA Vignettes</a></li>
     <li><a class="dropdown-item" href="articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
     <li><a class="dropdown-item" href="articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="articles/MultilevelRoBMA.html">Multilevel Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="articles/MultilevelRoBMARegression.html">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
     <li><a class="dropdown-item" href="articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="articles/ZCurveDiagnostics.html">Z-Curve Publication Bias Diagnostics</a></li>
@@ -70,7 +73,7 @@
 <div class="section level1">
 <h1 id="robust-bayesian-meta-analysis-robma">Robust Bayesian Meta-Analysis (RoBMA)<a class="anchor" aria-label="anchor" href="#robust-bayesian-meta-analysis-robma"></a>
 </h1>
-<p>This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The package includes more complex models such as meta-regression and multilevel meta-analysis. The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. The package is also integrated into the JASP software (JASP Team, 2020) and can be used via the graphical user interface.</p>
+<p>This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The package includes more complex models such as meta-regression and multilevel meta-analysis. The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. The package is also integrated into the JASP software (JASP Team, 2020) and can be used via the graphical user interface (see Bartoš &amp; Wagenmakers (2025)).</p>
 <p>See our manuscripts for technical details and examples:</p>
 <ul>
 <li>Bartoš &amp; Schimmack (2025) (<a href="https://doi.org/10.48550/arXiv.2509.07171" class="external-link uri">https://doi.org/10.48550/arXiv.2509.07171</a>) introduces meta-analytic z-curve plots for assessing model fit with respect to publication bias</li>
@@ -81,11 +84,13 @@
 <li>Maier et al. (2023) (<a href="https://doi.org/10.1037/met0000405" class="external-link uri">https://doi.org/10.1037/met0000405</a>) introduces the RoBMA framework and the original version of the method,</li>
 <li>Bartoš et al. (2022) (<a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>) provides an accessible tutorial on the method including the implementation in the the user-friendly graphical user interface of JASP (JASP Team, 2020)</li>
 </ul>
-<p>We also prepared multiple vignettes that illustrate functionality of the package:</p>
+<p>We also prepared multiple vignettes that illustrate functionality of the package. See the <a href="https://fbartos.github.io/RoBMA/articles/Explanation.html" class="external-link">Guide to RoBMA Vignettes</a> for an overview or explore them directly:</p>
 <ul>
 <li><a href="https://fbartos.github.io/RoBMA/articles/Tutorial.html" class="external-link">Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html" class="external-link">Reproducing Bayesian model-averaged meta-analysis (BMA)</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/MetaRegression.html" class="external-link">Robust Bayesian model-averaged meta-regression</a></li>
+<li><a href="https://fbartos.github.io/RoBMA/articles/MultilevelRoBMA.html" class="external-link">Multilevel Robust Bayesian Meta-Analysis</a></li>
+<li><a href="https://fbartos.github.io/RoBMA/articles/MultilevelRoBMARegression.html" class="external-link">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html" class="external-link">Hierarchical Bayesian model-averaged meta-analysis</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/MedicineBMA.html" class="external-link">Informed Bayesian model-averaged meta-analysis in medicine</a></li>
 <li><a href="https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html" class="external-link">Informed Bayesian model-averaged meta-analysis with binary outcomes</a></li>
@@ -263,7 +268,7 @@
 Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp; Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in medicine. <em>Statistics in Medicine</em>, <em>40</em>(30), 6743–6761. <a href="https://doi.org/10.1002/sim.9170" class="external-link uri">https://doi.org/10.1002/sim.9170</a>
 </div>
 <div id="ref-bartos2020adjusting" class="csl-entry">
-Bartoš, F., Maier, Maximilian, Quintana, D. S., &amp; Wagenmakers, E.-J. (2022). Adjusting for publication bias in JASP and R — Selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>
+Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (2022). Adjusting for publication bias in JASP and R — Selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>
 </div>
 <div id="ref-bartos2023robust" class="csl-entry">
 Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2025). Robust Bayesian meta-regression: Model-averaged moderation analysis in the presence of publication bias. <em>Psychological Methods</em>. <a href="https://doi.org/10.1037/met0000737" class="external-link uri">https://doi.org/10.1037/met0000737</a>
@@ -279,6 +284,9 @@ Bartoš, F., Otte, W. M., Gronau, Q. F., Timmers, B., Ly, A., &amp; Wagenmakers,
 </div>
 <div id="ref-bartos2025zcurve" class="csl-entry">
 Bartoš, F., &amp; Schimmack, U. (2025). Z-curve plot: A visual diagnostic for publication bias in meta-analysis. In <em>arXiv</em>. <a href="https://doi.org/10.48550/arXiv.2509.07171" class="external-link uri">https://doi.org/10.48550/arXiv.2509.07171</a>
+</div>
+<div id="ref-bartos2025bayesian" class="csl-entry">
+Bartoš, F., &amp; Wagenmakers, E.-J. (2025). <em>Meta-analysis with JASP, Part II: Bayesian approaches</em>. <a href="https://doi.org/10.48550/arXiv.2509.09850" class="external-link uri">https://doi.org/10.48550/arXiv.2509.09850</a>
 </div>
 <div id="ref-bem2011feeling" class="csl-entry">
 Bem, D. J. (2011). Feeling the future: Experimental evidence for anomalous retroactive influences on cognition and affect. <em>Journal of Personality and Social Psychology</em>, <em>100</em>(3), 407–425. <a href="https://doi.org/10.1037/a0021524" class="external-link uri">https://doi.org/10.1037/a0021524</a>
@@ -351,7 +359,7 @@ Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2023). Robust Bayesian meta-an
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>

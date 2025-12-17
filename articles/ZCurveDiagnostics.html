@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -34,11 +34,14 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
+    <li><a class="dropdown-item" href="../articles/Explanation.html">Guide to RoBMA Vignettes</a></li>
     <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
     <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
     <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
     <li><a class="dropdown-item" href="../articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/MultilevelRoBMA.html">Multilevel Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/MultilevelRoBMARegression.html">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
     <li><a class="dropdown-item" href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/ZCurveDiagnostics.html">Z-Curve Publication Bias Diagnostics</a></li>
@@ -68,9 +71,9 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">2025-09-10</h4>
+            <h4 data-toc-skip class="date">2025-12-17</h4>
       
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.6.0/vignettes/ZCurveDiagnostics.Rmd" class="external-link"><code>vignettes/ZCurveDiagnostics.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/ZCurveDiagnostics.Rmd" class="external-link"><code>vignettes/ZCurveDiagnostics.Rmd</code></a></small>
       <div class="d-none name"><code>ZCurveDiagnostics.Rmd</code></div>
     </div>
 
@@ -331,7 +334,7 @@ distributions <span class="citation">(Gabry et al., 2019)</span>:</p>
 <span>       col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"black"</span>, <span class="st">"blue"</span><span class="op">)</span>, </span>
 <span>       lty <span class="op">=</span> <span class="fl">2</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-8-1.png" alt="Ease-of-Retrieval Effect: Model Fit Assessment" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-8-1.png" class="r-plt" alt="Ease-of-Retrieval Effect: Model Fit Assessment" width="672"><p class="caption">
 Ease-of-Retrieval Effect: Model Fit Assessment
 </p>
 </div>
@@ -365,7 +368,7 @@ default <code>plot_extrapolation = TRUE</code> argument).</p>
 <code class="sourceCode R"><span><span class="co"># Plot extrapolation to pre-publication bias</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_Weingarten2018</span>, from <span class="op">=</span> <span class="op">-</span><span class="fl">3</span>, to <span class="op">=</span> <span class="fl">6</span>, by.hist <span class="op">=</span> <span class="fl">0.25</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-9-1.png" alt="Ease-of-Retrieval Effect: Extrapolation Analysis" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-9-1.png" class="r-plt" alt="Ease-of-Retrieval Effect: Extrapolation Analysis" width="672"><p class="caption">
 Ease-of-Retrieval Effect: Extrapolation Analysis
 </p>
 </div>
@@ -551,34 +554,42 @@ we find extreme evidence for the presence of publication bias (BF_bias =
 <span>       col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"black"</span>, <span class="st">"blue"</span><span class="op">)</span>, </span>
 <span>       lty <span class="op">=</span> <span class="fl">2</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-16-1.png" alt="Social Comparison: Model Fit Assessment" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-16-1.png" class="r-plt" alt="Social Comparison: Model Fit Assessment" width="672"><p class="caption">
 Social Comparison: Model Fit Assessment
 </p>
 </div>
-<pre><code>   lty = 2, lwd = 2)</code></pre>
-<pre><code>
-#### Results
-
-The z-curve plot highlights the clear evidence of publication bias in this dataset. 
-We can observe pronounced discontinuities in the observed distribution (gray bars) at critical thresholds; 
-particularly at the transition to marginal significance (z ≈ 1.64) and at zero (indicating selection against negative results).
-
-The random-effects model (black dashed line) fails to capture these patterns, systematically overestimating the number of negative and non-significant results. 
-In contrast, RoBMA (blue dashed line) successfully models both discontinuities, providing a markedly better fit to the observed data. 
-This visual assessment aligns with the statistical evidence: RoBMA yields extreme evidence for publication bias and suggests that the unadjusted pooled effect is misleading.
-
-#### Extrapolation to Pre-Publication Bias
-
-The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias. 
-This is achieved by either setting `extrapolate = TRUE` in the `lines()` functions, or calling the `plot()` function (with the default `plot_extrapolation = TRUE` argument).
-
-
-``` r
-# Plot extrapolation to pre-publication bias
-plot(zcurve_RoBMA_Hoppen2025)
-#&gt; 2 z-statistics are out of the plotting range</code></pre>
+</div>
+<div class="section level4">
+<h4 id="results">Results<a class="anchor" aria-label="anchor" href="#results"></a>
+</h4>
+<p>The z-curve plot highlights the clear evidence of publication bias in
+this dataset. We can observe pronounced discontinuities in the observed
+distribution (gray bars) at critical thresholds; particularly at the
+transition to marginal significance (z ≈ 1.64) and at zero (indicating
+selection against negative results).</p>
+<p>The random-effects model (black dashed line) fails to capture these
+patterns, systematically overestimating the number of negative and
+non-significant results. In contrast, RoBMA (blue dashed line)
+successfully models both discontinuities, providing a markedly better
+fit to the observed data. This visual assessment aligns with the
+statistical evidence: RoBMA yields extreme evidence for publication bias
+and suggests that the unadjusted pooled effect is misleading.</p>
+</div>
+<div class="section level4">
+<h4 id="extrapolation-to-pre-publication-bias-1">Extrapolation to Pre-Publication Bias<a class="anchor" aria-label="anchor" href="#extrapolation-to-pre-publication-bias-1"></a>
+</h4>
+<p>The package also allows us to extrapolate what the distribution of
+z-statistics might have looked like in the absence of publication bias.
+This is achieved by either setting <code>extrapolate = TRUE</code> in
+the <code><a href="https://rdrr.io/r/graphics/lines.html" class="external-link">lines()</a></code> functions, or calling the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>
+function (with the default <code>plot_extrapolation = TRUE</code>
+argument).</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Plot extrapolation to pre-publication bias</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_Hoppen2025</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 2 z-statistics are out of the plotting range</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-17-1.png" alt="Social Comparison: Extrapolation Analysis" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-17-1.png" class="r-plt" alt="Social Comparison: Extrapolation Analysis" width="672"><p class="caption">
 Social Comparison: Extrapolation Analysis
 </p>
 </div>
@@ -595,7 +606,7 @@ estimated effect size and number of missing studies.</p>
 </h4>
 <p>This discrepancy can be summarized with the additional statistics
 provided by the <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> function.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Extract z-curve summary metrics</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_Hoppen2025</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
@@ -635,7 +646,7 @@ grades.</p>
 <h4 id="data-preparation-and-model-fitting">Data Preparation and Model Fitting<a class="anchor" aria-label="anchor" href="#data-preparation-and-model-fitting"></a>
 </h4>
 <p>We follow the same procedure as in the previous example:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load the ChatGPT dataset</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Wang2025"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span></span>
 <span><span class="co"># Select learning performance studies</span></span>
@@ -662,7 +673,7 @@ grades.</p>
 <span><span class="co">#&gt; 4         Intelligent tutor   Assessment and evaluation 0.2384262</span></span>
 <span><span class="co">#&gt; 5 Intelligent learning tool                    Tutoring 0.4326770</span></span>
 <span><span class="co">#&gt; 6 Intelligent learning tool                       Mixed 0.2794517</span></span></code></pre></div>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Fit models</span></span>
 <span><span class="va">fit_RE_Wang2025</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/NoBMA.html">NoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Wang2025</span><span class="op">$</span><span class="va">g</span>, se <span class="op">=</span> <span class="va">Wang2025</span><span class="op">$</span><span class="va">se</span>, </span>
 <span>                         priors_effect_null <span class="op">=</span> <span class="cn">NULL</span>, priors_heterogeneity_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -679,7 +690,7 @@ grades.</p>
 <div class="section level4">
 <h4 id="z-curve-analysis">Z-Curve Analysis<a class="anchor" aria-label="anchor" href="#z-curve-analysis"></a>
 </h4>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Assess model fit</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_Wang2025</span>, from <span class="op">=</span> <span class="op">-</span><span class="fl">2</span>, to <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 3 z-statistics are out of the plotting range</span></span>
@@ -690,13 +701,13 @@ grades.</p>
 <span>       col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"black"</span>, <span class="st">"blue"</span><span class="op">)</span>, </span>
 <span>       lty <span class="op">=</span> <span class="fl">2</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-21-1.png" alt="ChatGPT: Model Fit Assessment" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-21-1.png" class="r-plt" alt="ChatGPT: Model Fit Assessment" width="672"><p class="caption">
 ChatGPT: Model Fit Assessment
 </p>
 </div>
 </div>
 <div class="section level4">
-<h4 id="results">Results<a class="anchor" aria-label="anchor" href="#results"></a>
+<h4 id="results-1">Results<a class="anchor" aria-label="anchor" href="#results-1"></a>
 </h4>
 <p>The z-curve plot for the ChatGPT data shows a different pattern than
 the extreme publication bias observed in the social comparison example.
@@ -714,16 +725,16 @@ about the best model and provides a more complete account of the data
 patterns.</p>
 </div>
 <div class="section level4">
-<h4 id="extrapolation-to-pre-publication-bias-1">Extrapolation to Pre-Publication Bias<a class="anchor" aria-label="anchor" href="#extrapolation-to-pre-publication-bias-1"></a>
+<h4 id="extrapolation-to-pre-publication-bias-2">Extrapolation to Pre-Publication Bias<a class="anchor" aria-label="anchor" href="#extrapolation-to-pre-publication-bias-2"></a>
 </h4>
 <p>We can examine the extrapolation to assess the impact of publication
 bias:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Examine extrapolation</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_Wang2025</span>, from <span class="op">=</span> <span class="op">-</span><span class="fl">2</span>, to <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 3 z-statistics are out of the plotting range</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-22-1.png" alt="ChatGPT: Extrapolation Analysis" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-22-1.png" class="r-plt" alt="ChatGPT: Extrapolation Analysis" width="672"><p class="caption">
 ChatGPT: Extrapolation Analysis
 </p>
 </div>
@@ -737,7 +748,7 @@ bias in this literature.</p>
 </h4>
 <p>To quantify these visual patterns, we examine the model
 summaries:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RE_Wang2025</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
 <span><span class="co">#&gt; RoBMA(d = d, r = r, logOR = logOR, OR = OR, z = z, y = y, se = se, </span></span>
@@ -808,7 +819,7 @@ evidence for the effect becomes weak (BF_effect = 2).</p>
 </h4>
 <p>This moderate publication bias pattern is reflected in the summary
 statistics,</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Extract z-curve summary metrics for ChatGPT data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_Wang2025</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
@@ -841,7 +852,7 @@ preferences.</p>
 <div class="section level4">
 <h4 id="data-analysis-and-model-fitting">Data Analysis and Model Fitting<a class="anchor" aria-label="anchor" href="#data-analysis-and-model-fitting"></a>
 </h4>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load the Many Labs 2 framing effect data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"ManyLabs16"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">ManyLabs16</span><span class="op">)</span></span>
@@ -852,7 +863,7 @@ preferences.</p>
 <span><span class="co">#&gt; 4 0.5125227 0.2012544</span></span>
 <span><span class="co">#&gt; 5 0.4573484 0.1505897</span></span>
 <span><span class="co">#&gt; 6 0.6846411 0.1870689</span></span></code></pre></div>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Fit models and create z-curve objects</span></span>
 <span><span class="va">fit_RE_ManyLabs16</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/NoBMA.html">NoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">ManyLabs16</span><span class="op">$</span><span class="va">y</span>, se <span class="op">=</span> <span class="va">ManyLabs16</span><span class="op">$</span><span class="va">se</span>, </span>
 <span>                           priors_effect_null <span class="op">=</span> <span class="cn">NULL</span>, priors_heterogeneity_null <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -868,7 +879,7 @@ preferences.</p>
 <div class="section level4">
 <h4 id="z-curve-assessment">Z-Curve Assessment<a class="anchor" aria-label="anchor" href="#z-curve-assessment"></a>
 </h4>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Assess model fit - should show good agreement</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_ManyLabs16</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 2 z-statistics are out of the plotting range</span></span>
@@ -879,13 +890,13 @@ preferences.</p>
 <span>       col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"black"</span>, <span class="st">"blue"</span><span class="op">)</span>, </span>
 <span>       lty <span class="op">=</span> <span class="fl">2</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-27-1.png" alt="Framing Effects: Model Fit Assessment" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-27-1.png" class="r-plt" alt="Framing Effects: Model Fit Assessment" width="672"><p class="caption">
 Framing Effects: Model Fit Assessment
 </p>
 </div>
 </div>
 <div class="section level4">
-<h4 id="results-1">Results<a class="anchor" aria-label="anchor" href="#results-1"></a>
+<h4 id="results-2">Results<a class="anchor" aria-label="anchor" href="#results-2"></a>
 </h4>
 <p>The z-curve plot for the Many Labs 2 framing effects demonstrates
 what we expect to see in the absence of publication bias. The observed
@@ -902,16 +913,16 @@ appropriately penalizes unnecessary model complexity when simpler models
 explain the data equally well.</p>
 </div>
 <div class="section level4">
-<h4 id="extrapolation-to-pre-publication-bias-2">Extrapolation to Pre-Publication Bias<a class="anchor" aria-label="anchor" href="#extrapolation-to-pre-publication-bias-2"></a>
+<h4 id="extrapolation-to-pre-publication-bias-3">Extrapolation to Pre-Publication Bias<a class="anchor" aria-label="anchor" href="#extrapolation-to-pre-publication-bias-3"></a>
 </h4>
 <p>We can examine whether there would be any difference in the absence
 of publication bias:</p>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Extrapolation should show minimal change</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_ManyLabs16</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 2 z-statistics are out of the plotting range</span></span></code></pre></div>
 <div class="figure">
-<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-28-1.png" alt="Framing Effects: Extrapolation Analysis" width="672"><p class="caption">
+<img src="ZCurveDiagnostics_files/figure-html/unnamed-chunk-28-1.png" class="r-plt" alt="Framing Effects: Extrapolation Analysis" width="672"><p class="caption">
 Framing Effects: Extrapolation Analysis
 </p>
 </div>
@@ -925,7 +936,7 @@ traditional meta-analytic approaches are fully justified.</p>
 <h4 id="model-results-summary-3">Model Results Summary<a class="anchor" aria-label="anchor" href="#model-results-summary-3"></a>
 </h4>
 <p>The quantitative results confirm the visual impression:</p>
-<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RE_ManyLabs16</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_RoBMA_ManyLabs16</span><span class="op">)</span></span></code></pre></div>
 <p>Both models yield virtually identical effect size estimate of d =
@@ -941,7 +952,7 @@ necessary and unnecessary model complexity.</p>
 <p>The absence of publication bias is reflected in the publication bias
 assessment statistics — a moderate EDR matching the ODR and no missing
 studies.</p>
-<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Extract z-curve summary metrics for Many Labs 2 data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">zcurve_RoBMA_ManyLabs16</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Call:</span></span>
@@ -1075,7 +1086,7 @@ ease-of-retrieval effect? <span>A</span> meta-analysis.
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>

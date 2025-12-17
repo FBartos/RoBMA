@@ -1,0 +1,94 @@
+# Prints summary of `"BiBMA.reg"` ensemble implied by the specified priors and formula
+
+`check_setup` prints summary of `"RoBMA.reg"` ensemble implied by the
+specified prior distributions. It is useful for checking the ensemble
+configuration prior to fitting all of the models.
+
+## Usage
+
+``` r
+check_setup.BiBMA(
+  priors_effect = prior(distribution = "student", parameters = list(location = 0, scale =
+    0.58, df = 4)),
+  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1.77,
+    scale = 0.55)),
+  priors_effect_null = prior(distribution = "point", parameters = list(location = 0)),
+  priors_heterogeneity_null = prior(distribution = "point", parameters = list(location =
+    0)),
+  priors_baseline = NULL,
+  priors_baseline_null = prior_factor("beta", parameters = list(alpha = 1, beta = 1),
+    contrast = "independent"),
+  models = FALSE,
+  silent = FALSE,
+  ...
+)
+```
+
+## Arguments
+
+- priors_effect:
+
+  list of prior distributions for the effect size (`mu`) parameter that
+  will be treated as belonging to the alternative hypothesis. Defaults
+  to
+  `prior(distribution = "student", parameters = list(location = 0, scale = 0.58, df = 4))`,
+  based on logOR meta-analytic estimates from the Cochrane Database of
+  Systematic Reviews (Bartoš et al. 2023) .
+
+- priors_heterogeneity:
+
+  list of prior distributions for the heterogeneity `tau` parameter that
+  will be treated as belonging to the alternative hypothesis. Defaults
+  to
+  `prior(distribution = "invgamma", parameters = list(shape = 1.77, scale = 0.55))`
+  that is based on heterogeneities of logOR estimates from the Cochrane
+  Database of Systematic Reviews (Bartoš et al. 2023) .
+
+- priors_effect_null:
+
+  list of prior distributions for the effect size (`mu`) parameter that
+  will be treated as belonging to the null hypothesis. Defaults to a
+  point null hypotheses at zero,
+  `prior(distribution = "point", parameters = list(location = 0))`.
+
+- priors_heterogeneity_null:
+
+  list of prior distributions for the heterogeneity `tau` parameter that
+  will be treated as belonging to the null hypothesis. Defaults to a
+  point null hypotheses at zero (a fixed effect meta-analytic models),
+  `prior(distribution = "point", parameters = list(location = 0))`.
+
+- priors_baseline:
+
+  prior distributions for the alternative hypothesis about intercepts
+  (`pi`) of each study. Defaults to `NULL`.
+
+- priors_baseline_null:
+
+  prior distributions for the null hypothesis about intercepts (`pi`)
+  for each study. Defaults to an independent uniform prior distribution
+  for each intercept
+  `prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")`.
+
+- models:
+
+  should the models' details be printed.
+
+- silent:
+
+  whether all print messages regarding the fitting process should be
+  suppressed. Defaults to `TRUE`. Note that `parallel = TRUE` also
+  suppresses all messages.
+
+- ...:
+
+  additional arguments.
+
+## Value
+
+`check_setup.reg` invisibly returns list of summary tables.
+
+## See also
+
+[`check_setup()`](reference/check_setup.md)
+[`BiBMA()`](reference/BiBMA.md)
