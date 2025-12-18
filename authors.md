@@ -22,7 +22,7 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/FBartos/RoBMA/blob/master/inst/CITATION)
+[`inst/CITATION`](https://github.com/FBartos/RoBMA/blob/v3.6.1/inst/CITATION)
 
 Bartoš F, Maier M (2020). “RoBMA: An R Package for Robust Bayesian
 Meta-Analyses.” R package version 3.6.1,

@@ -2,6 +2,8 @@
 
 ## version 3.6.1
 
+CRAN release: 2025-12-17
+
 ### Features
 
 - `Explanation` vignette that helps navigate users through the vignettes
