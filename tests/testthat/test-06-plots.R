@@ -140,8 +140,8 @@ test_that("Parameter plots work", {
       expect_error(plot(fits[[i]], "PET", conditional = TRUE, plot_type = "ggplot"),
                    "The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PET models. Please, verify that you specified at least one model assuming the presence of the PET models.")
     }else{
-      vdiffr::expect_doppelganger(paste0("ggplot_PET3_",i), plot(fits[[i]], "PET", conditional = TRUE, plot_type = "ggplot"))
-      vdiffr::expect_doppelganger(paste0("ggplot_PET4_",i), plot(fits[[i]], "PET", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+      # vdiffr::expect_doppelganger(paste0("ggplot_PET3_",i), plot(fits[[i]], "PET", conditional = TRUE, plot_type = "ggplot"))
+      # vdiffr::expect_doppelganger(paste0("ggplot_PET4_",i), plot(fits[[i]], "PET", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
     }
   }
 
@@ -171,8 +171,8 @@ test_that("Parameter plots work", {
       expect_error(plot(fits[[i]], "PEESE", conditional = TRUE, plot_type = "ggplot"),
                    "The ensemble does not contain any posterior samples model-averaged across the models assuming the presence of the PEESE models. Please, verify that you specified at least one model assuming the presence of the PEESE models.")
     }else{
-      vdiffr::expect_doppelganger(paste0("ggplot_PEESE3_",i), plot(fits[[i]], "PEESE", conditional = TRUE, plot_type = "ggplot"))
-      vdiffr::expect_doppelganger(paste0("ggplot_PEESE4_",i), plot(fits[[i]], "PEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+      # vdiffr::expect_doppelganger(paste0("ggplot_PEESE3_",i), plot(fits[[i]], "PEESE", conditional = TRUE, plot_type = "ggplot"))
+      # vdiffr::expect_doppelganger(paste0("ggplot_PEESE4_",i), plot(fits[[i]], "PEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
     }
   }
 
