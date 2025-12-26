@@ -1,7 +1,7 @@
 #' @title Bayesian Random-Effects Meta-Analysis
-#' 
-#' @description 
-#' 
+#'
+#' @description
+#'
 #'
 #' @details
 #' ## Prior distributions
@@ -59,7 +59,7 @@
 #' sample sizes (`ni`) and standard errors (`sei`) following Equation 6 in
 #' \insertCite{rover2021weakly;textual}{RoBMA}. The estimated `UISD` is then used to
 #' scale the default prior distributions as described in section (1).
-#' 
+#'
 #' Note that the known `UISD` for standardized effect size measures (section (1)) is
 #' used if available, even when `ni` is provided.
 #'
@@ -71,9 +71,9 @@
 #' prior distributions for different subsets; see [estimate_unit_information_sd()]).
 #' The specified `prior_unit_information_sd` is then used to scale the default prior
 #' distributions as described in section (1).
-#' 
+#'
 #' Note that the manually specified `prior_unit_information_sd` takes precedence over
-#' the estimated `UISD` from `ni` (section (2)) and the known `UISD` from `measure` 
+#' the estimated `UISD` from `ni` (section (2)) and the known `UISD` from `measure`
 #' (section (1)).
 #'
 #' ### (4) Specifying informed empirical prior distributions
@@ -158,7 +158,7 @@ brma.uni <- function(
   object$convergence_checks <- .check_and_list_convergence_checks(convergence_checks)
 
   ## check and store the data
-  object$data <- .check_and_list_data(.call  = object$call, .envir = parent.frame())
+  object$data <- .check_and_list_data(.call = object$call, .envir = parent.frame())
   if (isTRUE(dots[["only_data"]]))
     return(object[["data"]])
 
@@ -195,7 +195,143 @@ brma.uni <- function(
 
 # -----
 
-.fit.brma <- function(object) {
+.fit.brma <- function(object, extend = FALSE) {
+
+  fit_control        <- object[["fit_control"]]
+  autofit_control    <- object[["autofit_control"]]
+  convergence_checks <- object[["convergence_checks"]]
+  data               <- object[["data"]]
+  priors             <- object[["priors"]]
+
+  errors   <- NULL
+  warnings <- NULL
+
+  # deal with regression vs basic models
+  if(.is_model_regression(model)){
+    data_outcome       <- object[["data"]][["outcome"]]
+    fit_priors         <- priors[names(priors) != "terms"]
+    formula_list       <- .generate_model_formula_list(object[["formula"]])
+    formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
+    formula_prior_list <- .generate_model_formula_prior_list(priors)
+  }else{
+    data_outcome       <- object[["data"]]
+    fit_priors         <- priors
+    formula_list       <- NULL
+    formula_data_list  <- NULL
+    formula_prior_list <- NULL
+  }
+
+  # generate the model syntax
+  model_syntax <- .generate_model_syntax_ss(
+    priors           = priors,
+    effect_direction = add_info[["effect_direction"]],
+    prior_scale      = add_info[["prior_scale"]],
+    effect_measure   = add_info[["effect_measure"]],
+    weighted         = attr(model, "weighted"),
+    regression       = .is_model_regression(model),
+    multivariate     = .is_model_multivariate(model)
+  )
+
+  # remove unnecessary objects from data to mitigate warnings
+  fit_data     <- .fit_data_ss(
+    data             = data_outcome,
+    priors           = priors,
+    effect_direction = add_info[["effect_direction"]],
+    prior_scale      = add_info[["prior_scale"]],
+    weighted         = attr(model, "weighted"),
+    weighted_type    = attr(model, "weighted_type"),
+    multivariate     = .is_model_multivariate(model)
+  )
+
+  # fit the model
+  if(!extend || length(model[["fit"]]) == 0){
+
+    fit <- BayesTools::JAGS_fit(
+      model_syntax          = model_syntax,
+      data                  = fit_data,
+      prior_list            = fit_priors,
+      formula_list          = formula_list,
+      formula_data_list     = formula_data_list,
+      formula_prior_list    = formula_prior_list,
+      chains                = fit_control[["chains"]],
+      adapt                 = fit_control[["adapt"]],
+      burnin                = fit_control[["burnin"]],
+      sample                = fit_control[["sample"]],
+      thin                  = fit_control[["thin"]],
+      autofit               = fit_control[["autofit"]],
+      autofit_control       = autofit_control,
+      parallel              = fit_control[["parallel"]],
+      cores                 = fit_control[["cores"]],
+      silent                = fit_control[["silent"]],
+      seed                  = fit_control[["seed"]],
+      required_packages     = "RoBMA",
+      is_JASP               = dots[["is_JASP"]],
+      is_JASP_prefix        = dots[["is_JASP_prefix"]]
+    )
+
+  }else{
+
+    fit <- BayesTools::JAGS_extend(
+      fit                = model[["fit"]],
+      autofit_control    = autofit_control,
+      parallel           = fit_control[["parallel"]],
+      cores              = fit_control[["cores"]],
+      silent             = fit_control[["silent"]],
+      seed               = fit_control[["seed"]]
+    )
+
+  }
+
+
+  # assess the model fit and deal with errors
+  if(inherits(fit, "error")){
+
+    if(grepl("Unknown function", fit$message))
+      stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
+
+    fit                     <- list()
+    attr(fit, "prior_list") <- fit_priors
+
+    converged      <- FALSE
+    has_posterior  <- FALSE
+    errors         <- c(errors, fit$message)
+
+    # deal with failed models
+    marglik        <- list()
+    marglik$logml  <- NA
+    class(marglik) <- "bridge"
+
+  }else{
+
+    has_posterior <- TRUE
+    check_fit     <- BayesTools::JAGS_check_convergence(
+      fit          = fit,
+      prior_list   = attr(fit, "prior_list"),
+      max_Rhat     = convergence_checks[["max_Rhat"]],
+      min_ESS      = convergence_checks[["min_ESS"]],
+      max_error    = convergence_checks[["max_error"]],
+      max_SD_error = convergence_checks[["max_SD_error"]]
+    )
+    warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
+    if(convergence_checks[["remove_failed"]] && !check_fit){
+      converged <- FALSE
+    }else{
+      converged <- TRUE
+    }
+
+  }
+
+
+  # add results
+  model$fit           <- fit
+  model$errors        <- errors
+  model$warnings      <- warnings
+  model$converged     <- converged
+  model$has_posterior <- has_posterior
+  model$output_scale  <- add_info[["prior_scale"]]
+  model$prior_scale   <- add_info[["prior_scale"]]
+
+  return(model)
 
 }
 
