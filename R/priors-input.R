@@ -1,0 +1,525 @@
+# verify that the the measure is available
+.check_measure <- function(measure) {
+
+  BayesTools::check_char(measure, "measure", allow_values = c("SMD", "ZCOR", "RR", "OR", "HR", "RD", "GEN"))
+
+  return()
+}
+
+
+### prior scale functions
+.get_unit_information_sd <- function(data, measure) {
+
+  if (measure %in% c("SMD", "ZCOR", "RR", "OR", "HR")) {
+    # use the pre-specified UISD for known effect sizes
+    prior_unit_information_sd <- .get_unit_information_sd.known(measure)
+
+  } else {
+    # compute sd based on the sample sizes for the general effect sizes
+    if (all(is.na(data[["outcome"]][["ni"]]))){
+      stop("Sample size 'ni' or unit information sd 'unit_information_sd' must be specified to set-up prior distributions without known UISD.", call. = FALSE)
+    }
+    prior_unit_information_sd <- .get_unit_information_sd.compute(sei = data[["outcome"]][["sei"]], ni = data[["outcome"]][["ni"]])
+
+  }
+
+  return(prior_unit_information_sd)
+}
+
+# returns the sd of unit information
+# based on Chapter 2.4 in Spiegelhalter, Abrams, and Myles 2004 and Chapter 1 in Grieve 2022
+# as reported in Table 2 of Pawel, S., & Held, L. (2025). Closed-form power and sample size calculations for Bayes factors. The American Statistician 9(3), 330-344, 10.1080/00031305.2025.2467919
+.get_unit_information_sd.known <- function(measure) {
+
+  BayesTools::check_char(measure, "measure", allow_values = c("SMD", "ZCOR", "RR", "OR", "HR"), allow_NA = FALSE)
+
+  return(switch(
+    measure,
+    "SMD"  = sqrt(2),
+    "ZCOR" = 1,
+    "RR"   = sqrt(4),
+    "OR"   = sqrt(4),
+    "HR"   = sqrt(4)
+  ))
+}
+
+# computes the unit information based on data
+# based on Eq. 6 of Röver, C., Bender, R., Dias, S., Schmid, C. H., Schmidli, H., Sturtz, S., ... & Friede, T. (2021). On weakly informative prior distributions for the heterogeneity parameter in Bayesian random‐effects meta‐analysis. Research Synthesis Methods, 12(4), 448-474. 10.1002/jrsm.1475
+.get_unit_information_sd.compute <- function(sei, ni) {
+
+  UISD <- sqrt(sum(ni) / sum(sei^(-2)))
+
+  return(UISD)
+}
+
+
+#' @title Estimate Unit Information Standard Deviation
+#'
+#' @description Estimates the unit information standard deviation (UISD) from
+#' sample sizes and standard errors. The UISD is used to scale weakly informative
+#' prior distributions for meta-analytic parameters.
+#'
+#' @param sei a numeric vector of standard errors for each study.
+#' @param ni a numeric vector of sample sizes for each study (must have the same
+#' length as `sei`).
+#'
+#' @details
+#' The unit information standard deviation is computed following Equation 6 in
+#' \insertCite{rover2021weakly;textual}{RoBMA}:
+#' \deqn{\text{UISD} = \sqrt{\frac{\sum n_i}{\sum \text{se}_i^{-2}}}}
+#' where \eqn{n_i} is the sample size and \eqn{\text{se}_i} is the standard error
+#' for each study.
+#'
+#' This function is useful when you want to compute the UISD once and pass it
+#' to multiple analyses via the `prior_unit_information_sd` argument in
+#' [brma.uni()] or related functions. This ensures consistent prior scaling
+#' across analyses performed on different subsets of the same data.
+#'
+#' @references
+#' \insertAllCited{}
+#'
+#' @return Returns a single numeric value representing the estimated unit
+#' information standard deviation.
+#'
+#' @examples
+#' # Example with simulated data
+#' sei <- c(0.2, 0.3, 0.25, 0.15)
+#' ni  <- c(50, 30, 40, 80)
+#' estimate_unit_information_sd(sei = sei, ni = ni)
+#'
+#' @export
+estimate_unit_information_sd <- function(sei, ni) {
+
+  BayesTools::check_real(sei, "sei", lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = FALSE)
+  BayesTools::check_real(ni,  "ni",  lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = length(sei))
+
+  return(.get_unit_information_sd.compute(sei = sei, ni = ni))
+}
+
+
+### required priors function
+.get_required_priors.brma <- function(data) {
+
+  ### check for the presence of different components
+  out <- list(
+    effect                   = TRUE,
+    heterogeneity            = TRUE,
+    heterogeneity_allocation = !all(is.na(data[["outcome"]][["study_ids"]])),
+    mods                     = !is.null(data[["mods"]]),
+    scale                    = !is.null(data[["scale"]])
+  )
+
+  return(out)
+}
+
+
+### assign prior distributions
+.assign_prior.simple <- function(
+    prior, parameter, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors) {
+
+
+  ### always use the user-specified prior if possible
+  if (!missing(prior)) {
+
+    # apply rescaling if specified
+    prior <- .rescale_prior_object(prior, rescale_priors)
+
+    # check the specified prior distribution
+    switch(
+      parameter,
+      "effect"        = .check_prior.effect(prior),
+      "heterogeneity" = .check_prior.heterogeneity(prior)
+    )
+
+    return(prior)
+  }
+
+  ### use informed prior distributions if specified
+  if (!missing(prior_informed_field)) {
+
+    if (prior_informed_field == "medicine") {
+
+      # input translation for BayesTools::prior_informed
+      if (missing(prior_informed_subfield)) {
+        prior_name <- "Cochrane"
+      } else {
+        prior_name <- prior_informed_subfield
+      }
+
+      type <- switch(
+        tolower(measure),
+        "smd"   = "smd",
+        "or"    = "logOR",
+        "rr"    = "logRR",
+        "rd"    = "RD",
+        "hr"    = "logHR"
+      )
+
+      # simple informed priors from BayesTools package
+      prior <- BayesTools::prior_informed(prior_name, parameter = parameter, type = type)
+    }
+
+    # apply rescaling if specified
+    prior <- .rescale_prior_object(prior, rescale_priors)
+    return(prior)
+  }
+
+  ### use prior_unit_information_sd otherwise
+  if (missing(prior_unit_information_sd)) {
+    # if not passed directly, obtain from data
+    prior_unit_information_sd <- .get_unit_information_sd(data = data, measure = measure)
+  }
+
+  # get the prior standard deviation based on unit information
+  prior_sd <- switch(
+    parameter,
+    "effect"        = prior_unit_information_sd * RoBMA.get_option("default_UISD.effect"),
+    "heterogeneity" = prior_unit_information_sd * RoBMA.get_option("default_UISD.heterogeneity")
+  )
+
+  # create to corresponding prior
+  prior <- switch(
+    parameter,
+    "effect"        = BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd)),
+    "heterogeneity" = BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd), truncation = list(0, Inf))
+  )
+
+  # apply rescaling if specified
+  prior <- .rescale_prior_object(prior, rescale_priors)
+
+  return(prior)
+}
+.assign_prior.heterogeneity_allocation <- function(prior) {
+
+  # use default settings if prior distribution is not specified
+  if (missing(prior)) {
+    prior <- BayesTools::prior("beta", parameters = list("alpha" = 1, "beta" = 1))
+    return(prior)
+  }
+
+  # check the user specified prior distribution
+  .check_prior.heterogeneity_allocation(prior)
+
+  return(prior)
+}
+.assign_prior_list.terms   <- function(
+    prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors,
+    set_contrast_factor_predictors) {
+
+
+  ### check the user-specified priors
+  if (!missing(prior_list)) {
+    # check the priors and apply rescaling if specified
+    for (i in seq_along(prior_list)) {
+      .check_prior.term(prior_list[[i]])
+      prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
+    }
+  } else {
+    # create an empty placeholder instead
+    prior_list <- list()
+  }
+
+  ### add intercept (parsed previously)
+  if (!is.null(prior_intercept)) {
+    prior_list[["intercept"]] <- prior_intercept
+  } else {
+    prior_list[["intercept"]] <- BayesTools::prior("spike", parameters = list(0))
+  }
+
+  ### add default priors for remaining terms if left unspecified
+  # the assignment of missing priors is performed within BayesTools::JAGS_formula
+  # (it's easier to check and fill in the formula on assignment when it's being parsed)
+
+  # use informed prior distributions if specified
+  # otherwise relly on unit information based priors
+  if (!missing(prior_informed_field)) {
+
+    if (prior_informed_field == "medicine") {
+
+      # input translation for BayesTools::prior_informed
+      if (missing(prior_informed_subfield)) {
+        prior_name <- "Cochrane"
+      } else {
+        prior_name <- prior_informed_subfield
+      }
+
+      type <- switch(
+        tolower(measure),
+        "smd"   = "smd",
+        "or"    = "logOR",
+        "rr"    = "logRR",
+        "rd"    = "RD",
+        "hr"    = "logHR"
+      )
+
+      if (parameter == "mods") {
+        # treat moderators by scaling them according to 1/2 of the effect
+        default_prior_continuous <- BayesTools::prior_informed(prior_name, parameter = "effect", type = type)
+        default_prior_continuous <- .rescale_prior_object(default_prior_continuous, RoBMA.get_option("default_informed_priors.mods"))
+      } else if (parameter == "scale") {
+        # scale parameters use the default scaling (no informed priors exist)
+        default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = .rescale_prior_object(prior, RoBMA.get_option("default_informed_priors.scale"))))
+      }
+
+      # transform the continuous prior distributions into prior distributions for factors
+      if (set_contrast_factor_predictors == "treatment") {
+        default_prior_factor <- BayesTools::prior_factor(
+          distribution = default_prior_continuous[["distribution"]],
+          parameters   = default_prior_continuous[["parameters"]],
+          contrast     = "treatment"
+        )
+      } else {
+        default_prior_factor <- BayesTools::prior_factor(
+          distribution = paste0("m", default_prior_continuous[["distribution"]]),
+          parameters   = default_prior_continuous[["parameters"]],
+          contrast     = set_contrast_factor_predictors
+        )
+      }
+
+    }
+
+  } else {
+
+    ### use prior_unit_information_sd otherwise
+    if (missing(prior_unit_information_sd)) {
+      # if not passed directly, obtain from data
+      prior_unit_information_sd <- .get_unit_information_sd(data = data, measure = measure)
+    }
+
+    # get the prior standard deviation based on unit information
+    prior_sd <- switch(
+      parameter,
+      "mods"          = prior_unit_information_sd * RoBMA.get_option("default_UISD.mods"),
+      "scale"         = RoBMA.get_option("default_UISD.scale") # moderators for scale do not depend on UISD (multiplicative)
+    )
+
+    default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd))
+    if (set_contrast_factor_predictors == "treatment") {
+      default_prior_factor <- BayesTools::prior_factor(
+        distribution = "normal",
+        parameters   = list("mean" = 0, "sd" = prior_sd),
+        contrast     = "treatment"
+      )
+    } else {
+      default_prior_factor <- BayesTools::prior_factor(
+        distribution = "mnormal",
+        parameters   = list("mean" = 0, "sd" = prior_sd),
+        contrast     = set_contrast_factor_predictors
+      )
+    }
+  }
+
+  # apply rescaling if specified
+  default_prior_continuous <- .rescale_prior_object(default_prior_continuous, rescale_priors)
+  default_prior_factor     <- .rescale_prior_object(default_prior_factor, rescale_priors)
+
+  # list the priors into the default positions
+  prior_list[["__default_continuous"]] <- default_prior_continuous
+  prior_list[["__default_factor"]]     <- default_prior_factor
+
+  ### use BayesTools::JAGS_formula to obtain the assigned list of priors
+  prior_list <- BayesTools::JAGS_formula(
+    parameter  = parameter,
+    data       = data[[parameter]],
+    formula    = attr(data[[parameter]], "formula"),
+    prior_list = prior_list
+  )[["prior_list"]]
+  names(prior_list) <- BayesTools::format_parameter_names(
+    parameters         = names(prior_list),
+    formula_parameters = parameter,
+    formula_prefix     = FALSE
+  )
+
+  return(prior_list)
+}
+
+### check specified prior distributions whether they follow basic requirements
+.check_prior.effect                   <- function(prior) {
+
+  # check object type
+  if (!BayesTools::is.prior(prior))
+    stop("The 'prior_effect' argument must be a prior distribution.", call. = FALSE)
+  if (!(BayesTools::is.prior.simple(prior) || !BayesTools::is.prior.point(prior)))
+    stop("The 'prior_effect' argument must be a either a simple or point prior distribution.", call. = FALSE)
+
+  return()
+}
+.check_prior.heterogeneity            <- function(prior) {
+
+  # check object type
+  if (!BayesTools::is.prior(prior))
+    stop("The 'prior_heterogeneity' argument must be a prior distribution.", call. = FALSE)
+  if (!(BayesTools::is.prior.simple(prior) || !BayesTools::is.prior.point(prior)))
+    stop("The 'prior_heterogeneity' argument must be a either a simple or point prior distribution.", call. = FALSE)
+
+  # check range restriction
+  if (prior[["truncation"]][["lower"]] < 0) {
+    warning("Lower truncation point for 'prior_heterogeneity' prior distribution must be at least 0. The prior distribution was modified.",
+            immediate. = TRUE, call. = FALSE)
+    prior[["truncation"]][["lower"]] <- 0
+  }
+
+  return()
+}
+.check_prior.heterogeneity_allocation <- function(prior) {
+
+  # check object type
+  if (!BayesTools::is.prior(prior))
+    stop("The 'prior_heterogeneity_allocation' argument must be a prior distribution.", call. = FALSE)
+  if (!(BayesTools::is.prior.simple(prior) || !BayesTools::is.prior.point(prior)))
+    stop("The 'prior_heterogeneity_allocation' argument must be a either a simple or point prior distribution.", call. = FALSE)
+
+  # check range restriction
+  if (prior[["truncation"]][["lower"]] < 0) {
+    warning("Lower truncation point for 'prior_heterogeneity_allocation' prior distribution must be at least 0. The prior distribution was modified.",
+            immediate. = TRUE, call. = FALSE)
+    prior[["truncation"]][["lower"]] <- 0
+  }
+
+  if (prior[["truncation"]][["upper"]] > 1) {
+    warning("Upper truncation point for 'prior_heterogeneity_allocation' prior distribution must be at most 1. The prior distribution was modified.",
+            immediate. = TRUE, call. = FALSE)
+    prior[["truncation"]][["upper"]] <- 1
+  }
+
+  return()
+}
+.check_prior.term                     <- function(prior) {
+
+  # check object type
+  if (!BayesTools::is.prior(prior))
+    stop("The 'prior_mods' / 'prior_scale' arguments must be a prior distribution.", call. = FALSE)
+  if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior) || BayesTools::is.prior.factor(prior)))
+    stop("The 'prior_mods' / 'prior_scale' arguments for predictors must be a either a simple, factor, or point prior distribution.", call. = FALSE)
+
+  return()
+}
+.check_prior_specification_conflict   <- function(prior_unit_information_sd, prior_informed_field) {
+
+  # check that both UISD and informed priors are not specified simultaneously
+  if (!missing(prior_unit_information_sd) && !missing(prior_informed_field)) {
+    stop(paste0(
+      "Both 'prior_unit_information_sd' and 'prior_informed_field' were specified. ",
+      "These arguments are mutually exclusive: 'prior_unit_information_sd' is used to scale default priors, ",
+      "while 'prior_informed_field' uses pre-specified informed prior distributions that do not rely on UISD scaling."
+    ), call. = FALSE)
+  }
+
+  return()
+}
+
+# priors rescaling function
+.rescale_prior_object <- function(prior, rescale_priors) {
+  # re-scaling prior distributions
+
+  # no need if re-scaling is not specified
+  if (missing(rescale_priors))
+    return(prior)
+
+  # no need for point / no prior distributions
+  if (is.prior.point(prior) || is.prior.none(prior))
+    return(prior)
+
+  # only specific prior distributions can be rescaled
+  # (UPGRADE: once BayesTools incorporates direct scaling, extend to all kinds of priors)
+  can_be_rescaled <- c("normal", "mnormal", "cauchy", "mcauchy", "t", "mt", "invgamma")
+  if (!is.element(prior[["distribution"]], can_be_rescaled))
+    stop(sprintf(
+      paste0("The '%1$s' prior distribution cannot be rescaled using the 'rescale_priors' argument. ",
+             "Only one of the following distributions can be rescaled: %2$s"),
+      prior[["distribution"]],
+      paste0("'", can_be_rescaled, "'", sep = ", ")
+    ), call. = FALSE)
+
+  if (prior[["distribution"]] %in% c("normal", "mnormal")) {
+    prior[["parameters"]][["sd"]] <- prior[["parameters"]][["sd"]] * rescale_priors
+  } else if (prior[["distribution"]] %in% c("cauchy", "mcauchy", "t", "mt", "invgamma")) {
+    prior[["parameters"]][["scale"]] <- prior[["parameters"]][["scale"]] * rescale_priors
+  }
+
+  return(prior)
+}
+
+### prior specification functions
+.check_and_list_priors.brma <- function(
+    prior_effect, prior_heterogeneity,
+    prior_mods, prior_scale,
+    prior_heterogeneity_allocation,
+    standardize_continuous_predictors,
+    set_contrast_factor_predictors,
+    rescale_priors,
+    prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield,
+    data = object[["data"]], measure = measure) {
+
+  ### Check input
+  .check_measure(measure)
+  BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
+  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c(
+    "treatment", "meandif", "orthonormal"), allow_NA = FALSE)
+  if (!missing(rescale_priors))
+    BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
+  if (!missing(prior_unit_information_sd))
+    BayesTools::check_real(prior_unit_information_sd, "prior_unit_information_sd", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
+  if (!missing(prior_informed_field))
+    BayesTools::check_char(prior_informed_field, "prior_informed_field", allow_values = c("medicine"), allow_NA = FALSE)
+  if (!missing(prior_informed_subfield))
+    BayesTools::check_char(prior_informed_subfield, "prior_informed_subfield", allow_NA = FALSE)
+  .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
+
+
+  ### Determine which prior distributions are required
+  required_priors <- .get_required_priors.brma(data)
+
+  ### set prior distributions
+  prior_outcome <- list()
+  if (required_priors[["effect"]]) {
+    prior_outcome[["mu"]] <- .assign_prior.simple(
+      prior = prior_effect, parameter = "effect", measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    )
+  }
+  if (required_priors[["heterogeneity"]]) {
+    prior_outcome[["tau"]] <- .assign_prior.simple(
+      prior = prior_heterogeneity, parameter = "heterogeneity", measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    )
+  }
+  if (required_priors[["heterogeneity_allocation"]]) {
+    prior_outcome[["rho"]] <- .assign_prior.heterogeneity_allocation(prior = prior_heterogeneity_allocation)
+  }
+
+  if (required_priors[["mods"]]) {
+    prior_mods <- .assign_prior_list.terms(
+      prior_list = prior_mods, prior_intercept = prior_outcome[["mu"]], parameter = "mods",
+      measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors, set_contrast_factor_predictors = set_contrast_factor_predictors)
+    prior_outcome[["mu"]] <- NULL # the prior is forwarded through "mods" to the intercept
+  } else {
+    prior_mods <- NULL
+  }
+
+  if (required_priors[["scale"]]) {
+    prior_scale <- .assign_prior_list.terms(
+      prior_list = prior_scale, prior_intercept = prior_outcome[["tau"]], parameter = "scale",
+      measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors, set_contrast_factor_predictors = set_contrast_factor_predictors)
+    prior_outcome[["tau"]] <- NULL # the prior is forwarded through "scale" to the intercept
+  } else {
+    prior_scale <- NULL
+  }
+
+  return(list(
+    outcome = prior_outcome,
+    mods    = prior_mods,
+    scale   = prior_scale
+  ))
+}

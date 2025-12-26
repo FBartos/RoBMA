@@ -84,8 +84,7 @@
 #   - outcome: data.frame with yi, sei, ni, study_ids, slab, weights
 #   - mods: moderator information
 #   - scale: scale information
-.check_and_list_data <- function(
-    .call, .envir) {
+.check_and_list_data <- function(.call, .envir) {
 
   ### Extract variables using NSE (non-standard evaluation)
   # .call is the match.call() from the parent function (e.g., brma.uni)
