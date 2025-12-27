@@ -535,7 +535,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     logORse  <- sqrt( 1/data$x1 + 1/data$x2 + 1/(data$n1 - data$x1) + 1/(data$n2 - data$x2) )
 
     # Delegate to standard combine_data() for further transformations
-    return(combine_data(logOR = logOR, se = logORse, study_names = study_names, study_ids = study_ids, weight = weight,
+    return(combine_data(logOR = logOR, se = logORse, study_names = if(length(data$study_names)==nrow(data)) data$study_names else study_names, study_ids = study_ids, weight = weight,
                         transformation = .transformation_invar(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]]), estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]], return_all = return_all))
   }
 
