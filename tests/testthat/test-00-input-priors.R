@@ -28,7 +28,7 @@ test_that("Default priors scale correctly with known UISD for each measure", {
     result <- brma.uni(
       yi = effect, sei = std_err, data = test_data,
       measure = measure, only_priors = TRUE
-    )
+    )[["priors"]]
 
     expected_effect_sd <- measures_uisd[[measure]] * RoBMA.get_option("default_UISD.effect")
     expected_het_sd    <- measures_uisd[[measure]] * RoBMA.get_option("default_UISD.heterogeneity")
@@ -49,7 +49,7 @@ test_that("UISD is estimated from sample sizes for GEN measure", {
   result <- brma.uni(
     yi = effect, sei = std_err, ni = n, data = test_data,
     measure = "GEN", only_priors = TRUE
-  )
+  )[["priors"]]
 
   expected_uisd <- estimate_unit_information_sd(sei = test_data$std_err, ni = test_data$n)
   expected_effect_sd <- expected_uisd * RoBMA.get_option("default_UISD.effect")
@@ -94,13 +94,13 @@ test_that("Manual prior_unit_information_sd is used and overrides known UISD", {
   result_gen <- brma.uni(
     yi = effect, sei = std_err, ni = n, data = test_data,
     measure = "GEN", prior_unit_information_sd = custom_uisd, only_priors = TRUE
-  )
+  )[["priors"]]
 
   # Should override SMD's known UISD
   result_smd <- brma.uni(
     yi = effect, sei = std_err, ni = n, data = test_data,
     measure = "SMD", prior_unit_information_sd = custom_uisd, only_priors = TRUE
-  )
+  )[["priors"]]
 
   expected_sd <- custom_uisd * RoBMA.get_option("default_UISD.effect")
   expect_equal(result_gen$outcome$mu$parameters$sd, expected_sd)
@@ -152,13 +152,13 @@ test_that("rescale_priors correctly scales prior distributions", {
 
   skip_on_cran()
 
-  result_base <- brma.uni(yi = effect, sei = std_err, data = test_data, measure = "SMD", only_priors = TRUE)
+  result_base <- brma.uni(yi = effect, sei = std_err, data = test_data, measure = "SMD", only_priors = TRUE)[["priors"]]
 
   for (scale_factor in c(0.5, 2)) {
     result_rescaled <- brma.uni(
       yi = effect, sei = std_err, data = test_data,
       measure = "SMD", rescale_priors = scale_factor, only_priors = TRUE
-    )
+    )[["priors"]]
     expect_equal(result_rescaled$outcome$mu$parameters$sd, result_base$outcome$mu$parameters$sd * scale_factor)
     expect_equal(result_rescaled$outcome$tau$parameters$sd, result_base$outcome$tau$parameters$sd * scale_factor)
   }
@@ -184,7 +184,7 @@ test_that("Custom prior_effect and prior_heterogeneity work with rescaling", {
     yi = effect, sei = std_err, data = test_data,
     prior_effect = custom_effect, prior_heterogeneity = custom_het,
     only_priors = TRUE
-  )
+  )[["priors"]]
 
   expect_equal(result$outcome$mu$parameters$sd, 0.5)
   expect_equal(result$outcome$tau$parameters$sd, 0.3)
@@ -193,7 +193,7 @@ test_that("Custom prior_effect and prior_heterogeneity work with rescaling", {
   result_rescaled <- brma.uni(
     yi = effect, sei = std_err, data = test_data,
     prior_effect = custom_effect, prior_heterogeneity = custom_het, rescale_priors = 2, only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_rescaled$outcome$mu$parameters$sd,  0.5 * 2)
   expect_equal(result_rescaled$outcome$tau$parameters$sd, 0.3 * 2)
 })
@@ -205,18 +205,18 @@ test_that("Different prior distribution types work", {
 
   # Spike prior
   spike <- BayesTools::prior("spike", parameters = list(location = 0))
-  result_spike <- brma.uni(yi = effect, sei = std_err, data = test_data, prior_effect = spike, measure = "OR", only_priors = TRUE)
+  result_spike <- brma.uni(yi = effect, sei = std_err, data = test_data, prior_effect = spike, measure = "OR", only_priors = TRUE)[["priors"]]
   expect_true(BayesTools::is.prior.point(result_spike$outcome$mu))
 
   # t/Cauchy prior (rescalable via scale parameter)
   cauchy <- BayesTools::prior("cauchy", parameters = list(location = 0, scale = 0.707))
-  result_cauchy <- brma.uni(yi = effect, sei = std_err, data = test_data, prior_effect = cauchy, measure = "RR", only_priors = TRUE)
+  result_cauchy <- brma.uni(yi = effect, sei = std_err, data = test_data, prior_effect = cauchy, measure = "RR", only_priors = TRUE)[["priors"]]
   expect_equal(result_cauchy$outcome$mu$distribution, "t")
 
   result_cauchy_rescaled <- brma.uni(
     yi = effect, sei = std_err, data = test_data,
     prior_effect = cauchy, rescale_priors = 2, measure = "HR", only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_cauchy_rescaled$outcome$mu$parameters$scale, 0.707 * 2)
 })
 
@@ -233,7 +233,7 @@ test_that("Informed priors work for medicine field with rescaling", {
   result <- brma.uni(
     yi = effect, sei = std_err, data = test_data,
     measure = "OR", prior_informed_field = "medicine", only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result$outcome$mu, BayesTools::prior_informed(
     name = "cochrane", parameter = "effect", type = "logOR"))
   expect_equal(result$outcome$tau, BayesTools::prior_informed(
@@ -244,7 +244,7 @@ test_that("Informed priors work for medicine field with rescaling", {
     yi = effect, sei = std_err, data = test_data,
     measure = "SMD", prior_informed_field = "medicine", prior_informed_subfield = "neonatal",
     only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_subfield$outcome$mu, BayesTools::prior_informed(
     name = "neonatal", parameter = "effect", type = "smd"))
   expect_equal(result_subfield$outcome$tau, BayesTools::prior_informed(
@@ -254,11 +254,11 @@ test_that("Informed priors work for medicine field with rescaling", {
   result_base <- brma.uni(
     yi = effect, sei = std_err, data = test_data,
     measure = "SMD", prior_informed_field = "medicine", only_priors = TRUE
-  )
+  )[["priors"]]
   result_rescaled <- brma.uni(
     yi = effect, sei = std_err, data = test_data,
     measure = "SMD", prior_informed_field = "medicine", rescale_priors = 2, only_priors = TRUE
-  )
+  )[["priors"]]
 
   scale_param <- if ("sd" %in% names(result_base$outcome$mu$parameters)) "sd" else "scale"
   expect_equal(
@@ -301,7 +301,7 @@ test_that("Heterogeneity allocation prior works correctly", {
   result <- brma.uni(
     yi = effect, sei = std_err, study_ids = cluster, data = test_data,
     measure = "SMD", only_priors = TRUE
-  )
+  )[["priors"]]
   expect_true("rho" %in% names(result$outcome))
   expect_equal(result$outcome$rho$distribution, "beta")
   expect_equal(result$outcome$rho$parameters$alpha, 1)
@@ -312,7 +312,7 @@ test_that("Heterogeneity allocation prior works correctly", {
   result_custom <- brma.uni(
     yi = effect, sei = std_err, study_ids = cluster, data = test_data,
     prior_heterogeneity_allocation = custom_prior, measure = "OR", only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_custom$outcome$rho$parameters$alpha, 2)
 
   # No rho when study_ids not specified
@@ -332,7 +332,7 @@ test_that("Moderator priors are assigned correctly", {
   result <- brma.uni(
     yi = effect, sei = std_err, mods = ~ mod_cont + mod_factor,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )
+  )[["priors"]]
 
   expect_true(!is.null(result$mods))
   expect_true("intercept" %in% names(result$mods))
@@ -343,7 +343,7 @@ test_that("Moderator priors are assigned correctly", {
   result_custom <- brma.uni(
     yi = effect, sei = std_err, mods = ~ mod_cont, data = test_data,
     prior_effect = custom_prior, measure = "SMD", only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_custom$mods$intercept$parameters$sd, 0.8)
 
   # Moderator priors scale with UISD
@@ -355,7 +355,7 @@ test_that("Moderator priors are assigned correctly", {
   result_mod <- brma.uni(
     yi = effect, sei = std_err, mods = ~ mod_cont, data = test_data,
     prior_mods = custom_mod, measure = "SMD", only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_mod$mods$mod_cont$parameters$sd, 0.3)
 })
 
@@ -367,7 +367,7 @@ test_that("Scale priors are assigned correctly", {
   result <- brma.uni(
     yi = effect, sei = std_err, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )
+  )[["priors"]]
 
   expect_true(!is.null(result$scale))
   expect_true("intercept" %in% names(result$scale))
@@ -378,12 +378,12 @@ test_that("Scale priors are assigned correctly", {
   result_custom <- brma.uni(
     yi = effect, sei = std_err, scale = ~ scale_var, data = test_data,
     prior_heterogeneity = custom_prior, prior_unit_information_sd = 10, only_priors = TRUE
-  )
+  )[["priors"]]
   expect_equal(result_custom$scale$intercept$parameters$sd, 0.5)
 
   # Scale priors use fixed UISD (not measure-dependent)
-  result_smd  <- brma.uni(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "SMD",  only_priors = TRUE)
-  result_zcor <- brma.uni(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "ZCOR", only_priors = TRUE)
+  result_smd  <- brma.uni(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "SMD",  only_priors = TRUE)[["priors"]]
+  result_zcor <- brma.uni(yi = effect, sei = std_err, scale = ~ scale_var, data = test_data, measure = "ZCOR", only_priors = TRUE)[["priors"]]
 
   if (!is.null(result_smd$scale$scale_var) && !is.null(result_zcor$scale$scale_var)) {
     expect_equal(result_smd$scale$scale_var$parameters$sd, result_zcor$scale$scale_var$parameters$sd)
@@ -398,7 +398,7 @@ test_that("Both mods and scale priors work together", {
   result <- brma.uni(
     yi = effect, sei = std_err, mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )
+  )[["priors"]]
 
   expect_true(!is.null(result$mods))
   expect_true(!is.null(result$scale))
@@ -410,7 +410,7 @@ test_that("Both mods and scale priors work together", {
 
 
 # ============================================================================
-# Tests for contrast and standardization settings
+# Tests for contrast
 # ============================================================================
 
 test_that("set_contrast_factor_predictors options work", {
@@ -421,7 +421,7 @@ test_that("set_contrast_factor_predictors options work", {
     result <- brma.uni(
       yi = effect, sei = std_err, mods = ~ mod_factor, data = test_data,
       measure = "SMD", set_contrast_factor_predictors = contrast, only_priors = TRUE
-    )
+    )[["priors"]]
     expect_true(any(grepl(contrast, class(result$mods[["mod_factor"]]))))
   }
 
@@ -433,29 +433,3 @@ test_that("set_contrast_factor_predictors options work", {
     regexp = "set_contrast_factor_predictors"
   )
 })
-
-
-test_that("standardize_continuous_predictors validates input", {
-
-  skip("TODO: this option needs to be still implemented")
-  skip_on_cran()
-
-  # Valid values
-  for (val in c(TRUE, FALSE)) {
-    result <- brma.uni(
-      yi = effect, sei = std_err, mods = ~ mod_cont, data = test_data,
-      standardize_continuous_predictors = val, only_priors = TRUE
-    )
-    expect_true(!is.null(result$mods))
-  }
-
-  # Invalid value
-  expect_error(
-    brma.uni(
-      yi = effect, sei = std_err, mods = ~ mod_cont, data = test_data,
-      standardize_continuous_predictors = "yes", only_priors = TRUE
-    ),
-    regexp = "standardize_continuous_predictors"
-  )
-})
-

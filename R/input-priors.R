@@ -1,3 +1,5 @@
+### RoBMA 4.0.0
+
 # verify that the the measure is available
 .check_measure <- function(measure) {
 
@@ -447,7 +449,6 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior_effect, prior_heterogeneity,
     prior_mods, prior_scale,
     prior_heterogeneity_allocation,
-    standardize_continuous_predictors,
     set_contrast_factor_predictors,
     rescale_priors,
     prior_unit_information_sd,
@@ -456,7 +457,6 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   ### Check input
   .check_measure(measure)
-  BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
   BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c(
     "treatment", "meandif", "orthonormal"), allow_NA = FALSE)
   if (!missing(rescale_priors))

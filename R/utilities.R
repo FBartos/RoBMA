@@ -75,61 +75,6 @@ assign("default_informed_priors.mods",  1/2,  envir = RoBMA.private)
 assign("default_informed_priors.scale", 1/4,  envir = RoBMA.private)
 
 
-# check proper BayesTools package version
-.check_BayesTools <- function(){
-
-  RoBMA.version      <- try(utils::packageVersion("RoBMA"))
-  BayesTools.version <- try(utils::packageVersion("BayesTools"))
-
-  if(inherits(RoBMA.version, "try-error") | inherits(BayesTools.version, "try-error")){
-    return(invisible(FALSE))
-  }
-
-  if(is.null(RoBMA.version) | is.null(BayesTools.version)){
-    return(invisible(FALSE))
-  }
-
-  BayesTools_required <- switch(
-    paste0(RoBMA.version, collapse = "."),
-    "2.1.1" = c("0.1.3",  "0.1.3"),
-    "2.1.2" = c("0.1.3",  "0.1.3"),
-    "2.2.0" = c("0.1.3",  "0.1.3"),
-    "2.2.1" = c("0.2.3",  "999.999.999"),
-    "2.2.2" = c("0.2.3",  "999.999.999"),
-    "2.2.3" = c("0.2.3",  "999.999.999"),
-    "2.3.0" = c("0.2.3",  "999.999.999"),
-    "2.3.1" = c("0.2.3",  "999.999.999"),
-    "2.3.2" = c("0.2.3",  "999.999.999"),
-    "3.0.0" = c("0.2.14", "999.999.999"),
-    "3.0.1" = c("0.2.14", "999.999.999"),
-    "3.1.0" = c("0.2.16", "999.999.999"),
-    "3.2.0" = c("0.2.17", "999.999.999"),
-    "3.2.1" = c("0.2.17", "999.999.999"),
-    "3.3.0" = c("0.2.18", "999.999.999"),
-    "3.4.0" = c("0.2.18", "999.999.999"),
-    "3.5.0" = c("0.2.19", "999.999.999"),
-    "3.5.1" = c("0.2.19", "999.999.999"),
-    "3.6.0" = c("0.2.19", "999.999.999"),
-    "3.6.1" = c("0.2.19", "999.999.999"),
-    stop("New RoBMA version needs to be defined in '.check_BayesTools' function!")
-  )
-
-  min_OK <- package_version(BayesTools_required[1]) <= BayesTools.version
-  max_OK <- package_version(BayesTools_required[2]) >= BayesTools.version
-
-  if(min_OK && max_OK){
-    return(invisible(TRUE))
-  }else{
-    warning(sprintf(
-      "RoBMA version %1$s requires BayesTools version higher or equal %2$s and lower or equal %3$s.",
-      paste0(RoBMA.version, collapse = "."),
-      BayesTools_required[1],
-      BayesTools_required[2]
-    ), call.= FALSE)
-    return(invisible(FALSE))
-  }
-}
-
 # check and fix number of threads (sometimes bugs out during installation)
 .check_max_cores <- function(){
   if(RoBMA.private$max_cores > parallel::detectCores(logical = TRUE) - 1){

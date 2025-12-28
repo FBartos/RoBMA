@@ -22,7 +22,7 @@ test_that("Input works with direct vectors", {
     yi  = c(0.10, 0.25, 0.15),
     sei = c(0.20, 0.24, 0.22),
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_type(result, "list")
   expect_true("outcome" %in% names(result))
@@ -42,7 +42,7 @@ test_that("Input works with unquoted column names from data", {
     vi   = variance,
     data = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
@@ -61,7 +61,7 @@ test_that("Input works with quoted string column names from data", {
     sei  = "std_err",
     data = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
@@ -84,7 +84,7 @@ test_that("Input works with mixed specification styles", {
     weights = external_weights,  # direct vector from environment
     data    = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
@@ -107,12 +107,12 @@ test_that("Input works with optional arguments", {
     study_ids = cluster,
     data      = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
   expect_equal(result$outcome$slab, test_data$study)
-  expect_equal(result$outcome$study_ids, test_data$cluster)
+  expect_equal(result$outcome$study_ids, as.numeric(as.factor(test_data$cluster)))
   expect_equal(result$outcome$ni, test_data$n)
 })
 
@@ -126,7 +126,7 @@ test_that("Input converts vi to sei correctly", {
     vi   = variance,
     data = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expected_sei <- sqrt(test_data$variance)
   expect_equal(result$outcome$sei, expected_sei, tolerance = 1e-10)
@@ -141,7 +141,7 @@ test_that("Input generates default slab when not provided", {
     yi  = c(0.1, 0.2, 0.3),
     sei = c(0.1, 0.1, 0.1),
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(result$outcome$slab, c("Study 1", "Study 2", "Study 3"))
 })
@@ -158,7 +158,7 @@ test_that("Input handles subset argument correctly", {
     subset = c(TRUE, FALSE, TRUE, FALSE, TRUE),
     data   = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(nrow(result_logical$outcome), 3)
   expect_equal(result_logical$outcome$yi, test_data$effect[c(1, 3, 5)])
@@ -170,7 +170,7 @@ test_that("Input handles subset argument correctly", {
     subset = c(1, 3, 5),
     data   = test_data,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(nrow(result_numeric$outcome), 3)
   expect_equal(result_numeric$outcome$yi, test_data$effect[c(1, 3, 5)])
@@ -250,7 +250,7 @@ test_that("Input handles variables from calling environment", {
     sei  = my_std_errs,
     slab = my_labels,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(result$outcome$yi, my_effects)
   expect_equal(result$outcome$sei, my_std_errs)
@@ -273,7 +273,7 @@ test_that("Input works when called from within a function with direct column ref
       sei  = std_err,
       data = data,
       only_data = TRUE
-    )
+    )[["data"]]
   }
 
   # This tests that NSE works correctly when brma.uni is called from another function
@@ -312,7 +312,7 @@ test_that("Mods works with formula using column names from data", {
     mods = ~ mod_cont + mod_factor,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_type(result, "list")
   expect_true(!is.null(result$mods))
@@ -347,7 +347,7 @@ test_that("Mods works with formula using vectors from environment", {
     mods = ~ env_mod1 + env_mod2,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -376,7 +376,7 @@ test_that("Mods preserves factor levels and numeric types", {
     mods = ~ mod_cont + mod_factor,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   # Check numeric is preserved
   expect_type(result$mods$mod_cont, "double")
@@ -405,7 +405,7 @@ test_that("Mods applies subset correctly", {
     subset = c(TRUE, FALSE, TRUE, FALSE, TRUE),
     data   = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(nrow(result$mods), 3)
   expect_equal(result$mods$mod_cont, test_data_mods$mod_cont[c(1, 3, 5)])
@@ -431,7 +431,7 @@ test_that("Mods applies numeric subset correctly", {
     subset = c(2, 4),
     data   = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(nrow(result$mods), 2)
   expect_equal(result$mods$mod_cont, test_data_mods$mod_cont[c(2, 4)])
@@ -453,7 +453,7 @@ test_that("Scale works with formula using column names from data", {
     scale = ~ scale_var,
     data  = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$scale))
   expect_true(is.data.frame(result$scale))
@@ -479,7 +479,7 @@ test_that("Both mods and scale can be specified together", {
     scale = ~ scale_var,
     data  = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_true(!is.null(result$scale))
@@ -528,7 +528,7 @@ test_that("Mods works with matrix input", {
     mods = mod_matrix,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_true(is.data.frame(result$mods))
@@ -557,7 +557,7 @@ test_that("Mods works with data.frame input", {
     mods = mod_df,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_true(is.data.frame(result$mods))
@@ -588,7 +588,7 @@ test_that("Mods formula attribute can be evaluated in clean environment", {
       mods = ~ temp_var,
       data = test_data_mods,
       only_data = TRUE
-    )
+    )[["data"]]
 
     # Check formula attribute
     expect_equal(
@@ -614,7 +614,7 @@ test_that("Mods handles formula with LHS (with warning)", {
       mods = effect ~ mod_cont,  # LHS should be ignored
       data = test_data_mods,
       only_data = TRUE
-    ),
+    )[["data"]],
     regexp = "left-hand side|LHS"
   )
 
@@ -640,7 +640,7 @@ test_that("Scale applies subset correctly", {
     subset = c(1, 3, 5),
     data   = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_equal(nrow(result$scale), 3)
   expect_equal(result$scale$scale_var, test_data_mods$scale_var[c(1, 3, 5)])
@@ -657,7 +657,7 @@ test_that("Mods works with inline transformations in formula", {
     mods = ~ I(mod_cont - 2) + I(mod_cont^2),
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -683,7 +683,7 @@ test_that("Mods works with interaction terms in formula", {
     mods = ~ mod_cont * mod_factor,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -709,7 +709,7 @@ test_that("Mods auto-converts character to factor", {
     mods = ~ mod_char,  # mod_char is character in test_data_mods
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   # model.frame should convert character to factor
@@ -727,7 +727,7 @@ test_that("Mods works with data$column syntax", {
     sei  = test_data_mods$std_err,
     mods = ~ test_data_mods$mod_cont,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -748,7 +748,7 @@ test_that("NULL mods and scale return NULL", {
     sei  = std_err,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_null(result$mods)
   expect_null(result$scale)
@@ -767,7 +767,7 @@ test_that("yi ~ mods formula syntax works with single moderator", {
     sei  = std_err,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -793,7 +793,7 @@ test_that("yi ~ mods formula syntax works with multiple moderators", {
     sei  = std_err,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -821,7 +821,7 @@ test_that("yi ~ 0 + mods formula syntax removes intercept but keeps original var
     sei  = std_err,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -849,7 +849,7 @@ test_that("yi ~ mods formula syntax works with interactions", {
     sei  = std_err,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 5)
@@ -874,7 +874,7 @@ test_that("yi ~ mods formula syntax applies subset correctly", {
     subset = c(1, 3, 5),
     data   = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   expect_true(!is.null(result$mods))
   expect_equal(nrow(result$mods), 3)
@@ -914,7 +914,7 @@ test_that("yi ~ mods formula returns equivalent results to mods = ~", {
     sei  = std_err,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   result2 <- brma.uni(
     yi   = effect,
@@ -922,7 +922,7 @@ test_that("yi ~ mods formula returns equivalent results to mods = ~", {
     mods = ~ mod_cont + mod_factor,
     data = test_data_mods,
     only_data = TRUE
-  )
+  )[["data"]]
 
   # Both should have the same yi values
   expect_equal(result1$outcome$yi, result2$outcome$yi)
@@ -939,4 +939,38 @@ test_that("yi ~ mods formula returns equivalent results to mods = ~", {
   # Both should have same formula attribute
   expect_equal(paste0(as.character(attr(result1$mods, "formula")), collapse = " "), "~ mod_cont + mod_factor")
   expect_equal(paste0(as.character(attr(result2$mods, "formula")), collapse = " "), "~ mod_cont + mod_factor")
+})
+
+
+test_that("Input works with metafor::escalc output", {
+
+  skip_on_cran()
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  # Load BCG vaccine data and compute log risk ratios
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(measure = "RR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg)
+
+  # Test that brma.uni can handle escalc output (yi and vi have special attributes)
+  result <- brma.uni(
+    yi      = yi,
+    vi      = vi,
+    data    = dat,
+    measure = "RR",
+    only_data = TRUE
+  )[["data"]]
+
+  expect_type(result, "list")
+  expect_true("outcome" %in% names(result))
+  expect_equal(nrow(result$outcome), nrow(dat))
+
+  # Check that yi values are correctly extracted (as plain numeric, no attributes)
+
+  expect_equal(result$outcome$yi, as.vector(dat$yi))
+  expect_null(attributes(result$outcome$yi))
+
+  # Check that sei is computed from vi
+  expect_equal(result$outcome$sei, sqrt(as.vector(dat$vi)), tolerance = 1e-10)
+  expect_null(attributes(result$outcome$sei))
 })

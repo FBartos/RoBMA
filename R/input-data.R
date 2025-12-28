@@ -1,3 +1,5 @@
+### RoBMA 4.0.0
+
 # Internal helper function to extract a variable from a data frame or environment
 # Supports three input formats:
 #   1. Direct vector: yi = c(0.1, 0.2, 0.3)
@@ -43,12 +45,18 @@
       out <- data[[out]]
     }
 
+    # Strip attributes (e.g., from metafor::escalc output) from atomic vectors only
+    # Do not strip from formulas, data.frames, lists, or other complex objects
+    if (is.atomic(out) && !inherits(out, "formula")) {
+      out <- as.vector(out)
+    }
+
     return(out)
   }
 
   # If direct evaluation failed, check if it's a string referring to a column
   if (is.character(mf_x) && length(mf_x) == 1 && !is.null(data) && is.data.frame(data) && mf_x %in% names(data)) {
-    return(data[[mf_x]])
+    return(as.vector(data[[mf_x]]))
   }
 
   # If still not found, report error
@@ -240,6 +248,12 @@
     weights   = if (!is.null(weights))   weights   else rep(NA, k),
     stringsAsFactors = FALSE
   )
+
+  ### Clean outcome input
+  # make sure that study ids can be used as indexes in fitting
+  if (!is.null(study_ids)) {
+    data_outcome[["study_ids"]] <- as.numeric(as.factor(data_outcome[["study_ids"]]))
+  }
 
 
   ### Handle mods (moderator variables)

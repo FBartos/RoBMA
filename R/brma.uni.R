@@ -1,3 +1,6 @@
+### RoBMA 4.0.0
+
+
 #' @title Bayesian Random-Effects Meta-Analysis
 #'
 #' @description
@@ -143,196 +146,69 @@ brma.uni <- function(
 
     # additional settings
     seed = NULL, silent = TRUE, ...
-
     ){
 
   ### create the output object
   time.start   <- proc.time()
   dots         <- list(...)
-  object       <- NULL
-  object$call  <- match.call()
+  object       <- .createObject(
+    dots = dots, class = "brma.uni",
+    # MCMC and fitting settings
+    chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,
+    autofit = autofit, parallel = parallel, silent = silent, seed = seed,
+    autofit_control = autofit_control, convergence_checks = convergence_checks,
+    # additional options
+    standardize_continuous_predictors = standardize_continuous_predictors
+  )
 
-  ### check and store MCMC settings
-  object$fit_control        <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
-  object$autofit_control    <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = autofit_control)
-  object$convergence_checks <- .check_and_list_convergence_checks(convergence_checks)
-
-  ## check and store the data
-  object$data <- .check_and_list_data(.call = object$call, .envir = parent.frame())
+  ### check and store the data
+  object$data <- .check_and_list_data(.call = match.call(), .envir = parent.frame())
   if (isTRUE(dots[["only_data"]]))
-    return(object[["data"]])
+    return(object)
 
-  ## check and store priors
+  ### check and store priors
   object$priors <- .check_and_list_priors.brma(
     prior_effect = prior_effect, prior_heterogeneity = prior_heterogeneity,
     prior_mods = prior_mods, prior_scale = prior_scale,
     prior_heterogeneity_allocation = prior_heterogeneity_allocation,
-    standardize_continuous_predictors = standardize_continuous_predictors,
     set_contrast_factor_predictors    = set_contrast_factor_predictors,
     rescale_priors                    = rescale_priors,
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], measure = measure
-  )
+    data = object[["data"]], measure = measure)
   if (isTRUE(dots[["only_priors"]]))
-    return(object[["priors"]])
+    return(object)
 
-  ## fit the model
-  object$fit <- .fit.brma(object)
+  ### fit the model
+  object$fit <- .fit(object)
 
+  ### store simple summary & coefficients
+  object$summary       <- summary(object)
+  object$coefficients  <- coefficients(object)
 
-
-  object <- list(
-    info      = info
-  )
-
-
+  return(object)
 }
 
+#' @export
+summary.brma.uni <- function(object, ...) {
 
-
-
-# -----
-
-.fit.brma <- function(object, extend = FALSE) {
-
-  fit_control        <- object[["fit_control"]]
-  autofit_control    <- object[["autofit_control"]]
-  convergence_checks <- object[["convergence_checks"]]
-  data               <- object[["data"]]
-  priors             <- object[["priors"]]
-
-  errors   <- NULL
-  warnings <- NULL
-
-  # deal with regression vs basic models
-  if(.is_model_regression(model)){
-    data_outcome       <- object[["data"]][["outcome"]]
-    fit_priors         <- priors[names(priors) != "terms"]
-    formula_list       <- .generate_model_formula_list(object[["formula"]])
-    formula_data_list  <- .generate_model_formula_data_list(object[["data"]])
-    formula_prior_list <- .generate_model_formula_prior_list(priors)
-  }else{
-    data_outcome       <- object[["data"]]
-    fit_priors         <- priors
-    formula_list       <- NULL
-    formula_data_list  <- NULL
-    formula_prior_list <- NULL
-  }
-
-  # generate the model syntax
-  model_syntax <- .generate_model_syntax_ss(
-    priors           = priors,
-    effect_direction = add_info[["effect_direction"]],
-    prior_scale      = add_info[["prior_scale"]],
-    effect_measure   = add_info[["effect_measure"]],
-    weighted         = attr(model, "weighted"),
-    regression       = .is_model_regression(model),
-    multivariate     = .is_model_multivariate(model)
+  estimates <- BayesTools::JAGS_estimates_table(
+    fit               = object[["fit"]],
+    transform_factors = TRUE
   )
 
-  # remove unnecessary objects from data to mitigate warnings
-  fit_data     <- .fit_data_ss(
-    data             = data_outcome,
-    priors           = priors,
-    effect_direction = add_info[["effect_direction"]],
-    prior_scale      = add_info[["prior_scale"]],
-    weighted         = attr(model, "weighted"),
-    weighted_type    = attr(model, "weighted_type"),
-    multivariate     = .is_model_multivariate(model)
-  )
-
-  # fit the model
-  if(!extend || length(model[["fit"]]) == 0){
-
-    fit <- BayesTools::JAGS_fit(
-      model_syntax          = model_syntax,
-      data                  = fit_data,
-      prior_list            = fit_priors,
-      formula_list          = formula_list,
-      formula_data_list     = formula_data_list,
-      formula_prior_list    = formula_prior_list,
-      chains                = fit_control[["chains"]],
-      adapt                 = fit_control[["adapt"]],
-      burnin                = fit_control[["burnin"]],
-      sample                = fit_control[["sample"]],
-      thin                  = fit_control[["thin"]],
-      autofit               = fit_control[["autofit"]],
-      autofit_control       = autofit_control,
-      parallel              = fit_control[["parallel"]],
-      cores                 = fit_control[["cores"]],
-      silent                = fit_control[["silent"]],
-      seed                  = fit_control[["seed"]],
-      required_packages     = "RoBMA",
-      is_JASP               = dots[["is_JASP"]],
-      is_JASP_prefix        = dots[["is_JASP_prefix"]]
-    )
-
-  }else{
-
-    fit <- BayesTools::JAGS_extend(
-      fit                = model[["fit"]],
-      autofit_control    = autofit_control,
-      parallel           = fit_control[["parallel"]],
-      cores              = fit_control[["cores"]],
-      silent             = fit_control[["silent"]],
-      seed               = fit_control[["seed"]]
-    )
-
-  }
-
-
-  # assess the model fit and deal with errors
-  if(inherits(fit, "error")){
-
-    if(grepl("Unknown function", fit$message))
-      stop("The RoBMA module could not be loaded. Check whether the RoBMA package was installed correctly and whether 'RoBMA::RoBMA.private$module_location' contains path to the RoBMA JAGS module.")
-
-    fit                     <- list()
-    attr(fit, "prior_list") <- fit_priors
-
-    converged      <- FALSE
-    has_posterior  <- FALSE
-    errors         <- c(errors, fit$message)
-
-    # deal with failed models
-    marglik        <- list()
-    marglik$logml  <- NA
-    class(marglik) <- "bridge"
-
-  }else{
-
-    has_posterior <- TRUE
-    check_fit     <- BayesTools::JAGS_check_convergence(
-      fit          = fit,
-      prior_list   = attr(fit, "prior_list"),
-      max_Rhat     = convergence_checks[["max_Rhat"]],
-      min_ESS      = convergence_checks[["min_ESS"]],
-      max_error    = convergence_checks[["max_error"]],
-      max_SD_error = convergence_checks[["max_SD_error"]]
-    )
-    warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
-    if(convergence_checks[["remove_failed"]] && !check_fit){
-      converged <- FALSE
-    }else{
-      converged <- TRUE
-    }
-
-  }
-
-
-  # add results
-  model$fit           <- fit
-  model$errors        <- errors
-  model$warnings      <- warnings
-  model$converged     <- converged
-  model$has_posterior <- has_posterior
-  model$output_scale  <- add_info[["prior_scale"]]
-  model$prior_scale   <- add_info[["prior_scale"]]
-
-  return(model)
-
+  return(estimates)
 }
+#' @export
+coefficients.brma.uni <- function(object, ...) {
 
-# -----
+  estimates            <- object[["summary"]][,"Mean"]
+  colnames(estimates)  <- rownames(object[["summary"]])
+
+  return(estimates)
+}
+#' @export
+print.brma.uni <- function(x, ...) {
+  return(x[["summary"]])
+}

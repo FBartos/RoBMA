@@ -77,8 +77,10 @@ are set as follows:\tabular{ll}{
 effect size:               \tab Normal(0, \eqn{\frac{1}{2}} \code{UISD})  \cr
 heterogeneity:             \tab Normal+(0, \eqn{\frac{1}{4}} \code{UISD}) \cr
 effect moderation:         \tab Normal(0, \eqn{\frac{1}{4}} \code{UISD})  \cr
-heterogeneity moderation:  \tab Normal(0, \eqn{\frac{1}{4}}) (multiplicative---independent of \code{UISD})
+heterogeneity moderation:  \tab Normal(0, \eqn{\frac{1}{4}})
 }
+The heterogeneity moderation parameters are multiplicative, as such they are independent of \code{UISD}.
+
 The default fraction of the \code{UISD} can be changed via \code{RoBMA.options()} using one of
 the following arguments: \code{"default_UISD.effect"}, \code{"default_UISD.heterogeneity"},
 \code{"default_UISD.mods"}, \code{"default_UISD.scale"}.
@@ -102,6 +104,9 @@ standardized effect size without known \code{UISD}, the \code{UISD} can be estim
 sample sizes (\code{ni}) and standard errors (\code{sei}) following Equation 6 in
 \insertCite{rover2021weakly;textual}{RoBMA}. The estimated \code{UISD} is then used to
 scale the default prior distributions as described in section (1).
+
+Note that the known \code{UISD} for standardized effect size measures (section (1)) is
+used if available, even when \code{ni} is provided.
 }
 
 \subsection{(3) Manually setting unit information standard deviation}{
@@ -113,6 +118,10 @@ a priori or when multiple analyses are to be performed on subsets of the same da
 prior distributions for different subsets; see \code{\link[=estimate_unit_information_sd]{estimate_unit_information_sd()}}).
 The specified \code{prior_unit_information_sd} is then used to scale the default prior
 distributions as described in section (1).
+
+Note that the manually specified \code{prior_unit_information_sd} takes precedence over
+the estimated \code{UISD} from \code{ni} (section (2)) and the known \code{UISD} from \code{measure}
+(section (1)).
 }
 
 \subsection{(4) Specifying informed empirical prior distributions}{
@@ -164,4 +173,7 @@ TODO: explain \code{standardize_continuous_predictors} and \code{set_contrast_fa
 }
 
 }
+}
+\references{
+\insertAllCited{}
 }
