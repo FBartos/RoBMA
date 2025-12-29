@@ -210,6 +210,13 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior_informed_field, prior_informed_subfield, rescale_priors,
     set_contrast_factor_predictors) {
 
+  ### for scale regression, the intercept cannot be spike(0) since it's used as log(intercept)
+  # in exp( log(intercept) + sum(beta_i * x_i) )
+  if (parameter == "scale") {
+    if (BayesTools::is.prior.point(prior_intercept) && mean(prior_intercept) == 0) {
+      stop("Intercept prior distribution for scale regression cannot be set to 0 since the model is parameterized as tau = exp( log(intercept) + sum(beta_i * x_i) ).", call. = FALSE)
+    }
+  }
 
   ### check the user-specified priors
   if (!missing(prior_list)) {
@@ -501,7 +508,7 @@ estimate_unit_information_sd <- function(sei, ni) {
       measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors, set_contrast_factor_predictors = set_contrast_factor_predictors)
-    prior_outcome[["mu"]] <- NULL # the prior is forwarded through "mods" to the intercept
+
   } else {
     prior_mods <- NULL
   }
@@ -512,7 +519,7 @@ estimate_unit_information_sd <- function(sei, ni) {
       measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors, set_contrast_factor_predictors = set_contrast_factor_predictors)
-    prior_outcome[["tau"]] <- NULL # the prior is forwarded through "scale" to the intercept
+    prior_outcome[["tau"]] <- NULL # the prior is forwarded through "scale" to the log(intercept)
   } else {
     prior_scale <- NULL
   }

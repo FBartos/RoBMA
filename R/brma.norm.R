@@ -123,9 +123,9 @@
 #' \insertAllCited{}
 #'
 #' @export
-brma.uni <- function(
+brma <- brma.norm <- function(
     # input specification
-    yi, vi, sei, ni, weights,
+    yi, vi, sei, weights, ni,
     mods, scale, study_ids,
     data, slab, subset,
     measure = "GEN",
@@ -152,7 +152,7 @@ brma.uni <- function(
   time.start   <- proc.time()
   dots         <- list(...)
   object       <- .createObject(
-    dots = dots, class = "brma.uni",
+    dots = dots, class = "brma.norm",
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,
     autofit = autofit, parallel = parallel, silent = silent, seed = seed,
@@ -162,7 +162,7 @@ brma.uni <- function(
   )
 
   ### check and store the data
-  object$data <- .check_and_list_data(.call = match.call(), .envir = parent.frame())
+  object$data <- .check_and_list_data(.call = match.call(), .envir = parent.frame(), class = "norm")
   if (isTRUE(dots[["only_data"]]))
     return(object)
 
@@ -191,24 +191,34 @@ brma.uni <- function(
 }
 
 #' @export
-summary.brma.uni <- function(object, ...) {
+summary.brma.norm <- function(object, ...) {
 
+  # provide a simple summary
   estimates <- BayesTools::JAGS_estimates_table(
     fit               = object[["fit"]],
-    transform_factors = TRUE
+    transform_factors = TRUE,
+    transform_scaled  = TRUE
   )
+
+  # fix naming of tau_intercept for scale models
+  if (.is_scale(object)) {
+    rownames(estimates)[grepl("tau_intercept", rownames(estimates))] <- "(tau) intercept"
+  }
 
   return(estimates)
 }
+
 #' @export
-coefficients.brma.uni <- function(object, ...) {
+coefficients.brma.norm <- function(object, ...) {
 
   estimates            <- object[["summary"]][,"Mean"]
   colnames(estimates)  <- rownames(object[["summary"]])
 
   return(estimates)
 }
+
 #' @export
-print.brma.uni <- function(x, ...) {
-  return(x[["summary"]])
+print.brma.norm <- function(x, ...) {
+
+  print(x[["summary"]])
 }

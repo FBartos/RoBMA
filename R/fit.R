@@ -1,7 +1,7 @@
 ### RoBMA 4.0.0
 
 # Fitting functions -----
-.create_fit_priors <- function(priors) {
+.create_fit_priors <- function(data, priors) {
   return(priors[["outcome"]])
 }
 .create_fit_data   <- function(data, priors) {
@@ -20,12 +20,12 @@
   }
 
   # add study_ids for 3lvl models
-  if (.is_priors_multilevel(priors)) {
+  if (.is_data_multilevel(data)) {
     fit_data[["study_ids"]] <- data[["outcome"]][["study_ids"]]
   }
 
   # add weights for weighted models
-  if (.is_data_weighted(data)) {
+  if (.is_data_weights(data)) {
     fit_data[["weights"]] <- data[["outcome"]][["study_ids"]]
   }
 
@@ -35,7 +35,25 @@
   return(fit_data)
 }
 .create_fit_formula_list       <- function(data, parameter) {
-  return(attr(data[[parameter]], "formula"))
+
+  formula <- attr(data[[parameter]], "formula")
+
+  # for scale regression - modify formula for exponential parameterization
+  # (required for the exponential parameterization trick in BayesTools::JAGS_fit)
+  if (parameter == "scale") {
+
+    # check whether the intercept was removed from the formula
+    # if so, warn the user and replace it with log(1) (intercepts cannot be omitted from scale models)
+    if (attr(terms(formula), "intercept") == 0) {
+      warning("Intercept cannot be omitted from scale models (the regression estimates a multiplicative constant for the intercept). The intercept removal term has been ignored.", call. = FALSE)
+      formula <- .replace_intercept_with_log1(formula)
+    } else {
+      # add log(1) term (adds log of the intercept parameter prior)
+      formula <- update(formula, . ~ . - 1 + log(1))
+    }
+  }
+
+  return(formula)
 }
 .create_fit_formula_data_list  <- function(data, parameter) {
   return(data[[parameter]])
@@ -46,10 +64,10 @@
 .create_model_syntax           <- function(data, priors) {
 
   ### extract structural information about the model
-  is_mods           <- .is_priors_mods(priors)
-  is_scale          <- .is_priors_scale(priors)
-  is_multilevel     <- .is_priors_multilevel(priors)
-  is_weighted       <- .is_data_weighted(data)
+  is_mods           <- .is_data_mods(data)
+  is_scale          <- .is_data_scale(data)
+  is_multilevel     <- .is_data_multilevel(data)
+  is_weights        <- .is_data_weights(data)
   is_PET            <- .is_priors_PET(priors)
   is_PEESE          <- .is_priors_PEESE(priors)
   is_weightfunction <- .is_priors_weightfunction(priors)
@@ -67,8 +85,18 @@
   # - PEESE          (is_PEESE)
   # - weightfunction (is_weightfunction)
 
+  ### prepare multilevel heterogeneity parameter (non-regression = defined outside of the for loop)
+  # for multilevel: specify heterogeneity allocation
+  # tau_within  - within-study variance (estimate-level variance)
+  # tau_between - between-study variance (study-level variance)
+  if (is_multilevel & !is_scale) {
+    model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(rho)\n")
+    model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(1-rho)\n")
+    tau_estimate <- "tau_within"
+  }
+
   ### enter the main block
-  model_syntax <- paste0(model_syntax, "\nfor(i in 1:K){\n")
+  model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
 
   ### prepare effect size parameter
   # flip effect size direction (needed for selection models, PET, and PEESE models)
@@ -91,21 +119,22 @@
   }
 
 
-  ### prepare heterogeneity parameter
+  ### prepare heterogeneity parameter (regression)
+  # in the case of a regression: the scale model is specified on multiplicative scale:
+  # tau = intercept * exp(sum(beta_i * x_i))
+  # the model uses a trick to separately pass the tau_intercept and multiply it with
+  # tau_exp scale regression with zero intercept
+  if (is_scale) {
+    model_syntax <- paste0(model_syntax, "  tau[i] = tau_intercept * exp(tau_exp[i])\n")
+  }
   # for multilevel: specify heterogeneity allocation & dispatch estimate-specific/common parameter
   # tau_within  - within-study variance (estimate-level variance)
   # tau_between - between-study variance (study-level variance)
   # for rest: dispatch estimate-specific/common parameter
-  if (is_multilevel) {
-    if (is_scale) {
-      model_syntax <- paste0(model_syntax, "tau_within[i]  = tau[i] * sqrt(rho)\n")
-      model_syntax <- paste0(model_syntax, "tau_between[i] = tau[i] * sqrt(1-rho)\n")
-      tau_estimate <- "tau_within[i]"
-    } else {
-      model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(rho)\n")
-      model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(1-rho)\n")
-      tau_estimate <- "tau_within"
-    }
+  if (is_multilevel && is_scale) {
+    model_syntax <- paste0(model_syntax, "  tau_within[i]  = tau[i] * sqrt(rho)\n")
+    model_syntax <- paste0(model_syntax, "  tau_between[i] = tau[i] * sqrt(1-rho)\n")
+    tau_estimate <- "tau_within[i]"
   } else {
     if (is_scale) {
       tau_estimate <- "tau[i]"
@@ -121,7 +150,7 @@
   # separate likelihoods for selection models ans simple models
   # subversion for weighted/unweighted likelihoods
   if (is_weightfunction) {
-    if (is_weighted) {
+    if (is_weights) {
       model_syntax <- paste0(
         model_syntax, "  yi[i] ~ dwwnorm_mix(", mu_estimate, ",", "sqrt", tau2_estimate,
         ", crit_y[,i], omega, crit_y_mapping[,bias_indicator], crit_y_mapping_max[bias_indicator], weight[i])\n")
@@ -131,7 +160,7 @@
         ", crit_y[,i], omega, crit_y_mapping[,bias_indicator], crit_y_mapping_max[bias_indicator])\n")
     }
   } else {
-    if (is_weighted) {
+    if (is_weights) {
       model_syntax <- paste0(model_syntax, "  yi[i] ~ dwnorm(", mu_estimate, ",", "1/", tau2_estimate, ", weight[i])\n")
     } else {
       model_syntax <- paste0(model_syntax, "  yi[i] ~ dnorm(",  mu_estimate, ",", "1/", tau2_estimate, ")\n")
@@ -162,7 +191,7 @@
   fit_formula_scale_list  <- list()
 
   ### create model base
-  fit_priors <- .create_fit_priors(priors = priors)
+  fit_priors <- .create_fit_priors(data = data, priors = priors)
   fit_data   <- .create_fit_data(data = data, priors = priors)
 
   ### add effect regressions
@@ -175,10 +204,10 @@
 
   ### add heterogeneity regressions
   if (!is.null(priors[["scale"]])) {
-    fit_formula_list[["tau"]]       <- .create_fit_formula_list(data = data, parameter = "scale")
-    fit_formula_data_list[["tau"]]  <- .create_fit_formula_data_list(data = data, parameter = "scale")
-    fit_formula_prior_list[["tau"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "scale")
-    fit_formula_scale_list[["tau"]] <- object[["standardize_continuous_predictors"]]
+    fit_formula_list[["tau_exp"]]       <- .create_fit_formula_list(data = data, parameter = "scale")
+    fit_formula_data_list[["tau_exp"]]  <- .create_fit_formula_data_list(data = data, parameter = "scale")
+    fit_formula_prior_list[["tau_exp"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "scale")
+    fit_formula_scale_list[["tau_exp"]] <- object[["standardize_continuous_predictors"]]
   }
 
   ### generate the model syntax
@@ -265,6 +294,40 @@
 
 
 # Helper functions -----
+.replace_intercept_with_log1 <- function(formula) {
+
+  # converts formula with -1 or 0 (no intercept) back to formula with log(1)
+  # by removing the -1 or 0 term and adding log(1)
+  formula_str <- paste(deparse(formula), collapse = " ")
+
+  # Remove various forms of -1, + -1, 0, or + 0
+  formula_str <- gsub("\\s*\\+\\s*\\-\\s*1", "", formula_str)    # handles "+ - 1"
+  formula_str <- gsub("\\s*\\-\\s*1\\s*", "", formula_str)        # handles "- 1"
+  formula_str <- gsub("\\s*\\+\\s*0\\s*", "", formula_str)        # handles "+ 0"
+
+  # Handle 0 at the start (e.g., "~ 0 + x")
+  formula_str <- gsub("~\\s*0\\s*\\+\\s*", "~ ", formula_str)
+
+  # Handle 0 alone (e.g., "~ 0")
+  formula_str <- gsub("~\\s*0\\s*$", "~", formula_str)
+
+  # Handle case where formula becomes empty (just "~")
+  if (grepl("^\\s*~\\s*$", formula_str)) {
+    formula_str <- "~ log(1)"
+  } else {
+    # Clean up any trailing + before adding log(1)
+    formula_str <- gsub("\\+\\s*$", "", formula_str)
+    # Add log(1) to the formula
+    formula_str <- paste0(formula_str, " + log(1)")
+  }
+
+  # Clean up any double spaces
+  formula_str <- gsub("\\s{2,}", " ", formula_str)
+  formula_str <- trimws(formula_str)
+
+  return(stats::as.formula(formula_str))
+}
+
 .is_priors_PET            <- function(priors) {
 
   if (is.null(priors[["bias"]]))
@@ -295,23 +358,23 @@
 
   return(is.prior.weightfunction(priors[["bias"]]))
 }
-.is_priors_multilevel     <- function(priors) {
-  return(!is.null(priors[["outcome"]][["rho"]]))
+.is_data_multilevel       <- function(data) {
+  return(attr(data, "study_ids"))
 }
-.is_priors_mods           <- function(priors) {
-  return(!is.null(priors[["mods"]]))
+.is_data_mods             <- function(data) {
+  return(attr(data, "mods"))
 }
-.is_priors_scale          <- function(priors) {
-  return(!is.null(priors[["scale"]]))
+.is_data_scale            <- function(data) {
+  return(attr(data, "scale"))
 }
-.is_data_weighted         <- function(data) {
-  return(!all(is.na(data[["outcome"]][["weights"]])))
+.is_data_weights          <- function(data) {
+  return(attr(data, "weights"))
 }
 
 .is_PET            <- function(object) .is_priors_PET(object[["priors"]])
 .is_PEESE          <- function(object) .is_priors_PEESE(object[["priors"]])
 .is_weightfunction <- function(object) .is_priors_weightfunction(object[["priors"]])
-.is_multilevel     <- function(object) .is_priors_multilevel(object[["priors"]])
-.is_mods           <- function(object) .is_priors_mods(object[["priors"]])
-.is_scale          <- function(object) .is_priors_scale(object[["priors"]])
-.is_weighted       <- function(object) .is_data_weighted(object[["data"]])
+.is_multilevel     <- function(object) .is_data_multilevel(object[["data"]])
+.is_mods           <- function(object) .is_data_mods(object[["data"]])
+.is_scale          <- function(object) .is_data_scale(object[["data"]])
+.is_weights        <- function(object) .is_data_weights(object[["data"]])
