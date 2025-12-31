@@ -127,12 +127,14 @@
 # @param .envir The environment where the calling function was invoked (required for NSE)
 # @param class The model class: "norm" for normal likelihood (yi, sei) or
 #              "glmm" for generalized linear mixed models (ai, bi, ci, di, etc.)
+# @param measure The effect size measure (used for "glmm" class to determine
+#                outcome type: "OR" for binomial, "IRR" for Poisson)
 #
 # @return A list with components:
 #   - outcome: data.frame with outcome variables (columns depend on class)
 #   - mods: moderator information (data.frame or NULL)
 #   - scale: scale information (data.frame or NULL)
-.check_and_list_data <- function(.call, .envir, class = "norm") {
+.check_and_list_data <- function(.call, .envir, class = "norm", measure = NULL) {
 
   ### Extract the data argument first - other variables may reference columns within it
   data <- .get_variable(.call, NULL, .envir, "data", allow_NULL = TRUE)
@@ -141,8 +143,11 @@
   outcome_result <- switch(
     class,
     "norm" = .check_and_list_data.outcome.norm(.call, data, .envir),
-    "glmm" = .check_and_list_data.outcome.glmm(.call, data, .envir),
-    stop(paste0("Unknown class '", class, "' for .check_and_list_data"), call. = FALSE)
+    "glmm" = switch(
+      measure,
+      "OR"  = .check_and_list_data.outcome.bin(.call, data, .envir),
+      "IRR" = .check_and_list_data.outcome.pois(.call, data, .envir)
+    )
   )
 
   data_outcome       <- outcome_result$data_outcome
@@ -153,6 +158,7 @@
   slab_provided      <- outcome_result$slab_provided
   study_ids_provided <- outcome_result$study_ids_provided
   na_check_cols      <- outcome_result$na_check_cols
+  outcome_type       <- outcome_result$outcome_type
 
   ### Step 2: Extract moderator variables (mods and scale)
   if (!is.null(mods_from_yi)) {
@@ -247,13 +253,14 @@
   )
 
   class(data_list) <- "RoBMA_data"
-  attr(data_list, "n_dropped") <- n_dropped
-  attr(data_list, "k_final")   <- k_final
-  attr(data_list, "mods")      <- !is.null(data_mods)
-  attr(data_list, "scale")     <- !is.null(data_scale)
-  attr(data_list, "weights")   <- weights_provided
-  attr(data_list, "slab")      <- slab_provided
-  attr(data_list, "study_ids") <- study_ids_provided
+  attr(data_list, "outcome_type") <- outcome_type
+  attr(data_list, "n_dropped")    <- n_dropped
+  attr(data_list, "k_final")      <- k_final
+  attr(data_list, "mods")         <- !is.null(data_mods)
+  attr(data_list, "scale")        <- !is.null(data_scale)
+  attr(data_list, "weights")      <- weights_provided
+  attr(data_list, "slab")         <- slab_provided
+  attr(data_list, "study_ids")    <- study_ids_provided
   return(data_list)
 }
 
@@ -372,27 +379,28 @@
     weights_provided   = optional$weights_provided,
     slab_provided      = optional$slab_provided,
     study_ids_provided = optional$study_ids_provided,
-    na_check_cols      = c("yi", "sei")  # Only check these columns for NAs
+    na_check_cols      = c("yi", "sei"),  # Only check these columns for NAs
+    outcome_type       = "norm"
   ))
 }
 
 
-# Internal function to extract and validate outcome variables for GLMM models
-# Handles ai, bi, ci, di, n1i, n2i, weights, study_ids, slab
+# Internal function to extract and validate outcome variables for binomial GLMM models
+# Handles ai, bi, ci, di, n1i, n2i, weights, study_ids, slab (for measure = "OR")
 #
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
 # @param .envir The enclosing environment
 #
 # @return A list with:
-#   - data_outcome: data.frame with ai, bi, n1i, n2i, study_ids, slab, weights
+#   - data_outcome: data.frame with ai, ci, n1i, n2i, study_ids, slab, weights
 #   - k: number of observations
 #   - mods_from_yi: NULL (GLMM does not support formula syntax for outcome)
 #   - formula_yi: NULL
 #   - slab_provided: logical, whether slab was provided by user
 #   - study_ids_provided: logical, whether study_ids was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
-.check_and_list_data.outcome.glmm <- function(.call, data, .envir) {
+.check_and_list_data.outcome.bin <- function(.call, data, .envir) {
 
   # Extract cell counts for 2x2 tables
   ai  <- .get_variable(.call, data, .envir, "ai",  allow_NULL = TRUE)
@@ -455,7 +463,7 @@
   ### Construct output data frame
   data_outcome <- data.frame(
     ai        = ai,
-    bi        = bi,
+    ci        = ci,
     n1i       = n1i,
     n2i       = n2i,
     study_ids = if (!is.null(optional$study_ids)) optional$study_ids else rep(NA_character_, k),
@@ -472,7 +480,81 @@
     weights_provided   = optional$weights_provided,
     slab_provided      = optional$slab_provided,
     study_ids_provided = optional$study_ids_provided,
-    na_check_cols      = c("ai", "bi", "n1i", "n2i")  # Check cell counts for NAs
+    na_check_cols      = c("ai", "ci", "n1i", "n2i"),  # Check cell counts for NAs
+    outcome_type       = "bin"
+  ))
+}
+
+
+# Internal function to extract and validate outcome variables for Poisson GLMM models
+# Handles x1i, x2i, t1i, t2i, weights, study_ids, slab (for measure = "IRR")
+#
+# @param .call Matched call from the calling function
+# @param data The data frame (can be NULL)
+# @param .envir The enclosing environment
+#
+# @return A list with:
+#   - data_outcome: data.frame with x1i, x2i, t1i, t2i, study_ids, slab, weights
+#   - k: number of observations
+#   - mods_from_yi: NULL (GLMM does not support formula syntax for outcome)
+#   - formula_yi: NULL
+#   - slab_provided: logical, whether slab was provided by user
+#   - study_ids_provided: logical, whether study_ids was provided by user
+#   - na_check_cols: character vector of column names to check for NAs
+.check_and_list_data.outcome.pois <- function(.call, data, .envir) {
+
+  # Extract event counts and person-time for Poisson models
+  x1i <- .get_variable(.call, data, .envir, "x1i", allow_NULL = TRUE)
+  x2i <- .get_variable(.call, data, .envir, "x2i", allow_NULL = TRUE)
+  t1i <- .get_variable(.call, data, .envir, "t1i", allow_NULL = TRUE)
+  t2i <- .get_variable(.call, data, .envir, "t2i", allow_NULL = TRUE)
+
+  ### Validate that all required variables are provided
+  if (is.null(x1i) || is.null(x2i) || is.null(t1i) || is.null(t2i)) {
+    stop("For Poisson models (measure = 'IRR'), all of 'x1i', 'x2i', 't1i', and 't2i' must be provided.", call. = FALSE)
+  }
+
+  # Determine k from x1i
+  k <- length(x1i)
+
+  ### Validate inputs
+  # x1i: event counts in treatment group
+  BayesTools::check_int(x1i, "x1i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
+
+  # x2i: event counts in control group
+  BayesTools::check_int(x2i, "x2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
+
+  # t1i: person-time in treatment group (must be positive)
+  BayesTools::check_real(t1i, "t1i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+
+  # t2i: person-time in control group (must be positive)
+  BayesTools::check_real(t2i, "t2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+
+  # Extract and validate common optional variables (weights, study_ids, slab)
+  optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "x1i")
+
+  ### Construct output data frame
+  data_outcome <- data.frame(
+    x1i       = x1i,
+    x2i       = x2i,
+    t1i       = t1i,
+    t2i       = t2i,
+    study_ids = if (!is.null(optional$study_ids)) optional$study_ids else rep(NA_character_, k),
+    slab      = if (!is.null(optional$slab))      optional$slab      else rep(NA_character_, k),
+    weights   = if (!is.null(optional$weights))   optional$weights   else rep(NA, k),
+    stringsAsFactors = FALSE
+  )
+
+  return(list(
+    data_outcome       = data_outcome,
+    k                  = k,
+    mods_from_yi       = NULL,  # GLMM does not support formula syntax
+    formula_yi         = NULL,
+    weights_provided   = optional$weights_provided,
+    slab_provided      = optional$slab_provided,
+    study_ids_provided = optional$study_ids_provided,
+    na_check_cols      = c("x1i", "x2i", "t1i", "t2i"),  # Check Poisson data for NAs
+    outcome_type       = "pois"
   ))
 }
 

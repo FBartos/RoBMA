@@ -51,7 +51,7 @@
 
 
   ### add class
-  class(object) <- class
+  class(object) <- c("brma", class)
 
   return(object)
 }

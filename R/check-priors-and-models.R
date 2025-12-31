@@ -1,6 +1,6 @@
 # Internal function for validating and organizing priors into standard structure:
 # Purpose: Handles both custom user priors and precanned model specifications
-# 
+#
 # Process:
 # 1. Checks if model_type specifies a precanned model (psma, pp, 2w)
 # 2. If precanned: overrides user priors with predefined specifications
@@ -9,7 +9,7 @@
 #
 # Precanned model types:
 # - "psma": Publication bias-sensitive meta-analysis (weight functions + PET/PEESE)
-# - "pp": PET-PEESE only models for publication bias detection  
+# - "pp": PET-PEESE only models for publication bias detection
 # - "2w": Two-step weight function models for publication bias
 #
 # Each precanned model has specific prior specifications for effect, heterogeneity,
@@ -27,7 +27,7 @@
       # Publication bias-sensitive meta-analysis: comprehensive bias modeling
       priors_effect         <- prior(distribution = "normal",    parameters = list(mean = 0,  sd = 1))
       priors_heterogeneity  <- prior(distribution = "invgamma",  parameters = list(shape = 1, scale = .15))
-      
+
       # Comprehensive publication bias prior suite: weight functions + regression methods
       priors_bias           <- list(
         prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
@@ -444,7 +444,7 @@
                 prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]] * hierarchical[["prior_weights"]],
                 multivariate        = multivariate,
                 weighted            = weighted
-            )))
+              )))
           }
         }else{
           models <- c(
@@ -457,7 +457,7 @@
               prior_weights       = effect[["prior_weights"]] * heterogeneity[["prior_weights"]] * bias[["prior_weights"]],
               multivariate        = multivariate,
               weighted            = weighted
-          )))
+            )))
         }
       }
     }

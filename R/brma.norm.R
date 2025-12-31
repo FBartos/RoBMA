@@ -191,13 +191,19 @@ brma <- brma.norm <- function(
 }
 
 #' @export
-summary.brma.norm <- function(object, ...) {
+summary.brma <- function(object, ...) {
 
   # provide a simple summary
   estimates <- BayesTools::JAGS_estimates_table(
     fit               = object[["fit"]],
     transform_factors = TRUE,
-    transform_scaled  = TRUE
+    transform_scaled  = TRUE,
+    remove_parameters = c(
+      "theta", # remove random-effects (estimate-level)
+      "gamma", # remove random-effects (study-level)
+      "pi",    # remove baserate for OR models
+      "phi"    # remove lograte for IRR models
+    )
   )
 
   # fix naming of tau_intercept for scale models
@@ -209,7 +215,7 @@ summary.brma.norm <- function(object, ...) {
 }
 
 #' @export
-coefficients.brma.norm <- function(object, ...) {
+coefficients.brma <- function(object, ...) {
 
   estimates            <- object[["summary"]][,"Mean"]
   colnames(estimates)  <- rownames(object[["summary"]])
@@ -218,7 +224,7 @@ coefficients.brma.norm <- function(object, ...) {
 }
 
 #' @export
-print.brma.norm <- function(x, ...) {
+print.brma <- function(x, ...) {
 
   print(x[["summary"]])
 }
