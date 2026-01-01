@@ -2,7 +2,7 @@
 % Please edit documentation in R/brma.norm.R
 \name{brma}
 \alias{brma}
-\title{Bayesian Random-Effects Meta-Analysis}
+\title{Bayesian Meta-Analysis}
 \usage{
 brma(
   yi,
@@ -38,12 +38,13 @@ brma(
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
   seed = NULL,
-  silent = TRUE,
+  silent,
   ...
 )
 }
 \description{
-Bayesian Random-Effects Meta-Analysis
+Function for fitting random-effects, meta-regression, multilevel,
+and location-scale meta-analytic models.
 }
 \details{
 \subsection{Prior distributions}{
@@ -77,7 +78,7 @@ are set as follows:\tabular{ll}{
 effect size:               \tab Normal(0, \eqn{\frac{1}{2}} \code{UISD})  \cr
 heterogeneity:             \tab Normal+(0, \eqn{\frac{1}{4}} \code{UISD}) \cr
 effect moderation:         \tab Normal(0, \eqn{\frac{1}{4}} \code{UISD})  \cr
-heterogeneity moderation:  \tab Normal(0, \eqn{\frac{1}{4}})
+heterogeneity moderation:  \tab Normal(0, \eqn{\frac{1}{2}})
 }
 The heterogeneity moderation parameters are multiplicative, as such they are independent of \code{UISD}.
 
@@ -91,7 +92,8 @@ The known \code{UISD} for standardized effect size measures (\code{measure}) are
 \code{"ZCOR"}:  \tab \eqn{1}        \cr
 \code{"RR"}:    \tab \eqn{\sqrt{4}} \cr
 \code{"OR"}:    \tab \eqn{\sqrt{4}} \cr
-\code{"HR"}:    \tab \eqn{\sqrt{4}}
+\code{"HR"}:    \tab \eqn{\sqrt{4}} \cr
+\code{"IRR"}:   \tab \eqn{\sqrt{4}}
 }
 See Chapter 2.4 in \insertCite{spiegelhalter2004bayesian;textual}{RoBMA} and
 Chapter 1 in \insertCite{grieve2022hybrid;textual}{RoBMA}.

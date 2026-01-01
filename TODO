@@ -1,0 +1,7 @@
+brma.norm, brma.glmm
+- prediction
+- (residual) funnel plot
+- zcurve plot
+- (other common diagnostic plots)
+- heterogeneity summary
+- effect summary

@@ -17,17 +17,20 @@
 # @param seed Random seed
 # @param autofit_control Autofit control settings
 # @param convergence_checks Convergence check settings
-# @param standardize_continuous_predictors Whether to standardize continuous predictors
 #
 # @return A list containing fit_control, autofit_control, convergence_checks
 .createObject <- function(
     dots, class,
     chains, adapt, burnin, sample, thin,
     autofit, parallel, silent, seed,
-    autofit_control, convergence_checks,
-    standardize_continuous_predictors) {
+    autofit_control, convergence_checks) {
 
   object       <- NULL
+
+  ### input global settings if unspecified
+  if (missing(silent)) {
+    silent <- RoBMA.get_option("silent")
+  }
 
   ### check and store MCMC settings
   object$fit_control <- BayesTools::JAGS_check_and_list_fit_settings(
@@ -38,10 +41,6 @@
   object$autofit_control    <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = autofit_control)
   object$convergence_checks <- .check_and_list_convergence_checks(convergence_checks = convergence_checks)
 
-  ### dealt with additional settings
-  # automatic scaling of continuous predictors: used directly in BayesTools::JAGS_fit
-  BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
-  object$standardize_continuous_predictors <- standardize_continuous_predictors
 
   ### include JASP indicators for progress bars
   if (!is.null(dots[["is_JASP"]])) {
@@ -51,7 +50,36 @@
 
 
   ### add class
-  class(object) <- c("brma", class)
+  class(object) <- class
 
   return(object)
+}
+
+
+### object tools options
+# add simple summary and model coefficients to the object
+# (this differ from more customizable user facing summary function)
+.object_summary      <- function(object) {
+
+  # provide a simple summary
+  estimates <- BayesTools::JAGS_estimates_table(
+    fit               = object[["fit"]],
+    transform_factors = TRUE,
+    transform_scaled  = TRUE,
+    remove_parameters = c(
+      "theta", # remove random-effects (estimate-level)
+      "gamma", # remove random-effects (study-level)
+      "pi",    # remove baserate for OR models
+      "phi"    # remove lograte for IRR models
+    )
+  )
+
+  return(estimates)
+}
+.object_coefficients <- function(object) {
+
+  estimates        <- object[["summary"]][,"Mean"]
+  names(estimates) <- rownames(object[["summary"]])
+
+  return(estimates)
 }

@@ -1,7 +1,9 @@
 context("Model fitting for brma.glmm")
 
-### Uses examples from the metafor package
+# Load common test helpers
+source(testthat::test_path("common-functions.R"))
 
+### Uses examples from the metafor package
 test_that("Test against metafor::rma.glmm", {
 
   skip_on_cran()
@@ -11,6 +13,7 @@ test_that("Test against metafor::rma.glmm", {
   ### fit simple meta-analytic model to difference in two proportions
   data(dat.bcg, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, model = "UM.FS")
+  save_fit(fit_mods.brma, "bcg_meta-regression")
 
   # using RoBMA package
   fit_simple.brma <- brma.glmm(ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, measure = "OR", seed = 1)
@@ -21,6 +24,7 @@ test_that("Test against metafor::rma.glmm", {
   ### fit simple meta-analytic model to difference in two rations
   data(dat.nielweise2008, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "IRR", x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i, data = dat.nielweise2008, model = "UM.FS")
+  save_fit(fit_mods.brma, "bcg_meta-regression")
 
   fit_simple.brma <- brma.glmm(x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i, data = dat.nielweise2008, measure = "IRR", seed = 1)
   expect_equal(fit_simple.metafor$beta[[1]],  fit_simple.brma$summary["mu","Mean"],  tolerance = 0.05)

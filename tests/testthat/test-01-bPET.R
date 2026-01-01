@@ -1,0 +1,26 @@
+context("Model fitting for bPET")
+
+# Load common test helpers
+source(testthat::test_path("common-functions.R"))
+
+### Uses examples from the metafor package
+test_that("Test against metafor::rma.uni with mods = ~ sei ", {
+
+  skip_on_cran()
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  ### fit simple meta-analytic model to difference in two proportions
+  data(dat.lehmann2018, package = "metadat")
+  fit_PET.metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat.lehmann2018)
+
+  # using RoBMA package
+  fit.bPET <- bPET(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1)
+  save_fit(fit.bPET, "dat.lehmann2018-PET")
+
+  expect_equal(fit_PET.metafor$beta[[1]],   fit.bPET$summary["mu","Mean"],  tolerance = 0.05)
+  expect_equal(sqrt(fit_PET.metafor$tau2),  fit.bPET$summary["tau","Mean"], tolerance = 0.05)
+  expect_equal(fit_PET.metafor$beta[[2]],   fit.bPET$summary["PET","Mean"], tolerance = 0.15) # the PET prior regularizes the estimate a bit
+})
+
+

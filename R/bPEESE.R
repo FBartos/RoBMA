@@ -1,35 +1,25 @@
 ### RoBMA 4.0.0
-#' @title Bayesian Generalized Meta-Analysis
+#' @title Bayesian Precision-Effect Estimate with Standard Errors (PEESE) Model
 #'
 #' @description Function for fitting random-effects, meta-regression, multilevel,
-#' and location-scale meta-analytic models directly to either binary or count data.
-#'
-#' @details
-#' Model for odds ratios (`measure = "OR"`) corresponds to Model 4 described in
-#' \insertCite{jackson2018comparison;textual}{RoBMA}.
-#' `prior_baserate` defines the estimate-specific prior distribution on the base-rate
-#' probability
-#'
-#' Model for incidence rate ratios (`measure = "IRR"`) corresponds to
-#' \insertCite{bagos2009mixed;textual}{RoBMA}.
-#' `prior_baserate` defines the estimate-specific prior distribution on the log-rate
-#' probability. If unspecified, an unit information prior is based on the data.
+#' and location-scale meta-analytic PEESE models.
 #'
 #' @export
-brma.glmm <- function(
-  # input specification
-  ai, bi, ci, di, n1i, n2i, x1i, x2i, t1i, t2i, weights,
+bPEESE <- function(
+    # input specification
+  yi, vi, sei, weights, ni,
   mods, scale, study_ids,
   data, slab, subset,
-  measure = "OR",
+  measure = "GEN",
 
   # prior specification
   prior_effect, prior_heterogeneity, prior_mods, prior_scale,
-  prior_heterogeneity_allocation, prior_baserate, prior_lograte,
+  prior_heterogeneity_allocation, prior_bias,
   standardize_continuous_predictors = TRUE,
   set_contrast_factor_predictors = "treatment",
   prior_unit_information_sd, rescale_priors = 1,
   prior_informed_field, prior_informed_subfield,
+  effect_direction,
 
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
@@ -39,13 +29,13 @@ brma.glmm <- function(
 
   # additional settings
   seed = NULL, silent, ...
-){
+) {
 
   ### create the output object
   time.start   <- proc.time()
   dots         <- list(...)
   object       <- .createObject(
-    dots = dots, class = c("brma.glmm", "brma"),
+    dots = dots, class = c("bPEESE", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,
     autofit = autofit, parallel = parallel, silent = silent, seed = seed,
@@ -54,9 +44,10 @@ brma.glmm <- function(
 
   ### check and store the data
   object$data <- .check_and_list_data(
-    .call = match.call(), .envir = parent.frame(), class = "glmm",
+    .call = match.call(), .envir = parent.frame(), class = "norm",
     set_contrast_factor_predictors = set_contrast_factor_predictors,
-    measure = measure, standardize_continuous_predictors = standardize_continuous_predictors)
+    standardize_continuous_predictors = standardize_continuous_predictors,
+    effect_direction = effect_direction)
   if (isTRUE(dots[["only_data"]]))
     return(object)
 
@@ -65,12 +56,13 @@ brma.glmm <- function(
     prior_effect = prior_effect, prior_heterogeneity = prior_heterogeneity,
     prior_mods = prior_mods, prior_scale = prior_scale,
     prior_heterogeneity_allocation = prior_heterogeneity_allocation,
-    prior_baserate = prior_baserate, prior_lograte = prior_lograte,
+    prior_bias = prior_bias,
     rescale_priors                    = rescale_priors,
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], measure = measure)
+    data = object[["data"]], measure = measure,
+    bias_type = "PEESE")
   if (isTRUE(dots[["only_priors"]]))
     return(object)
 
@@ -82,5 +74,4 @@ brma.glmm <- function(
   object$coefficients  <- .object_coefficients(object)
 
   return(object)
-
 }

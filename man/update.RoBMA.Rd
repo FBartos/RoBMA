@@ -79,8 +79,6 @@ Defaults to \code{NULL}.}
 \item{prior_hierarchical_null}{prior distribution for the correlation of random effects
 (\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
-\item{study_names}{an optional argument with the names of the studies}
-
 \item{chains}{a number of chains of the MCMC algorithm.}
 
 \item{adapt}{a number of adaptation iterations of the MCMC algorithm.

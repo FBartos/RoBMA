@@ -129,12 +129,15 @@
 #              "glmm" for generalized linear mixed models (ai, bi, ci, di, etc.)
 # @param measure The effect size measure (used for "glmm" class to determine
 #                outcome type: "OR" for binomial, "IRR" for Poisson)
+# @param standardize_continuous_predictors Whether to standardize continuous predictors
 #
 # @return A list with components:
 #   - outcome: data.frame with outcome variables (columns depend on class)
 #   - mods: moderator information (data.frame or NULL)
 #   - scale: scale information (data.frame or NULL)
-.check_and_list_data <- function(.call, .envir, class = "norm", measure = NULL) {
+.check_and_list_data <- function(.call, .envir, class = "norm", measure,
+                                 set_contrast_factor_predictors, standardize_continuous_predictors,
+                                 effect_direction = "positive") {
 
   ### Extract the data argument first - other variables may reference columns within it
   data <- .get_variable(.call, NULL, .envir, "data", allow_NULL = TRUE)
@@ -142,7 +145,7 @@
   ### Step 1: Extract and validate outcome variables (dispatch based on class)
   outcome_result <- switch(
     class,
-    "norm" = .check_and_list_data.outcome.norm(.call, data, .envir),
+    "norm" = .check_and_list_data.outcome.norm(.call, data, .envir, effect_direction),
     "glmm" = switch(
       measure,
       "OR"  = .check_and_list_data.outcome.bin(.call, data, .envir),
@@ -159,6 +162,7 @@
   study_ids_provided <- outcome_result$study_ids_provided
   na_check_cols      <- outcome_result$na_check_cols
   outcome_type       <- outcome_result$outcome_type
+  effect_direction   <- outcome_result$effect_direction
 
   ### Step 2: Extract moderator variables (mods and scale)
   if (!is.null(mods_from_yi)) {
@@ -246,6 +250,10 @@
     data_outcome[["study_ids"]] <- as.numeric(as.factor(data_outcome[["study_ids"]]))
   }
 
+  ### Check additional data related input
+  BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
+  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
+
   data_list <- list(
     outcome = data_outcome,
     mods    = data_mods,
@@ -253,14 +261,17 @@
   )
 
   class(data_list) <- "RoBMA_data"
-  attr(data_list, "outcome_type") <- outcome_type
-  attr(data_list, "n_dropped")    <- n_dropped
-  attr(data_list, "k_final")      <- k_final
-  attr(data_list, "mods")         <- !is.null(data_mods)
-  attr(data_list, "scale")        <- !is.null(data_scale)
-  attr(data_list, "weights")      <- weights_provided
-  attr(data_list, "slab")         <- slab_provided
-  attr(data_list, "study_ids")    <- study_ids_provided
+  attr(data_list, "outcome_type")                       <- outcome_type
+  attr(data_list, "n_dropped")                          <- n_dropped
+  attr(data_list, "k_final")                            <- k_final
+  attr(data_list, "mods")                               <- !is.null(data_mods)
+  attr(data_list, "scale")                              <- !is.null(data_scale)
+  attr(data_list, "weights")                            <- weights_provided
+  attr(data_list, "slab")                               <- slab_provided
+  attr(data_list, "study_ids")                          <- study_ids_provided
+  attr(data_list, "standardize_continuous_predictors")  <- standardize_continuous_predictors
+  attr(data_list, "set_contrast_factor_predictors")     <- set_contrast_factor_predictors
+  attr(data_list, "effect_direction")                   <- effect_direction
   return(data_list)
 }
 
@@ -280,7 +291,7 @@
 #   - slab_provided: logical, whether slab was provided by user
 #   - study_ids_provided: logical, whether study_ids was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
-.check_and_list_data.outcome.norm <- function(.call, data, .envir) {
+.check_and_list_data.outcome.norm <- function(.call, data, .envir, effect_direction) {
 
   # Extract yi (may be a formula like yi ~ mod1 + mod2)
   yi <- .get_variable(.call, data, .envir, "yi", allow_NULL = FALSE)
@@ -371,6 +382,15 @@
     stringsAsFactors = FALSE
   )
 
+  ### Evaluate effect_direction
+  if (missing(effect_direction)) {
+    effect_direction <- "positive"
+  }
+  BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative", "detect"))
+  if (effect_direction == "detect") {
+    effect_direction <- if (median(data_outcome$yi, na.rm = TRUE) >= 0) "positive" else "negative"
+  }
+
   return(list(
     data_outcome       = data_outcome,
     k                  = k,
@@ -380,6 +400,7 @@
     slab_provided      = optional$slab_provided,
     study_ids_provided = optional$study_ids_provided,
     na_check_cols      = c("yi", "sei"),  # Only check these columns for NAs
+    effect_direction   = effect_direction,
     outcome_type       = "norm"
   ))
 }
@@ -481,6 +502,7 @@
     slab_provided      = optional$slab_provided,
     study_ids_provided = optional$study_ids_provided,
     na_check_cols      = c("ai", "ci", "n1i", "n2i"),  # Check cell counts for NAs
+    effect_direction   = "positive", # Non-consequential, for consistency with .norm
     outcome_type       = "bin"
   ))
 }
@@ -554,6 +576,7 @@
     slab_provided      = optional$slab_provided,
     study_ids_provided = optional$study_ids_provided,
     na_check_cols      = c("x1i", "x2i", "t1i", "t2i"),  # Check Poisson data for NAs
+    effect_direction   = "positive", # Non-consequential, for consistency with .norm
     outcome_type       = "pois"
   ))
 }

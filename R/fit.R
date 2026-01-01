@@ -3,23 +3,26 @@
 # Fitting functions -----
 .create_fit_priors <- function(data, priors) {
 
+  # extract the common prior list
+  prior_list <- priors[["outcome"]]
+
   # add levels to the baseline prior for outcomes
   if (.data_outcome_type(data) == "bin") {
     # encode number of levels for the baserate and random-effects prior
-    attr(priors[["outcome"]][["pi"]], "levels")    <- nrow(data[["outcome"]])
-    attr(priors[["outcome"]][["theta"]], "levels") <- nrow(data[["outcome"]])
+    attr(prior_list[["pi"]], "levels")    <- nrow(data[["outcome"]])
+    attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
   } else if (.data_outcome_type(data) == "pois") {
     # encode number of levels for the baserate and random-effects prior
-    attr(priors[["outcome"]][["phi"]], "levels")   <- nrow(data[["outcome"]])
-    attr(priors[["outcome"]][["theta"]], "levels") <- nrow(data[["outcome"]])
+    attr(prior_list[["phi"]], "levels")   <- nrow(data[["outcome"]])
+    attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
   }
 
   if (.is_data_multilevel(data)) {
     # encode number of levels for the random-effects prior
-    attr(priors[["outcome"]][["gamma"]], "levels") <- length(unique(data[["study_ids"]]))
+    attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["study_ids"]]))
   }
 
-  return(priors[["outcome"]])
+  return(prior_list)
 }
 .create_fit_data   <- function(data, priors) {
 
@@ -33,10 +36,49 @@
 
     # flip effect size direction (needed for selection models, PET, and PEESE models)
     # (done for everything for consistency)
-    effect_direction  <- "positive" # TODO: forward from models with publication bias
+    effect_direction  <- .data_effect_direction(data)
     if (effect_direction == "negative") {
       fit_data[["yi"]] <- -1 * fit_data[["yi"]]
     }
+
+    # add publication bias weights mapping for selection models
+    if (.is_priors_weightfunction(priors)) {
+
+      # extract publication bias priors
+      priors_bias <- priors[["outcome"]][["bias"]]
+
+      # in the case of RoBMA, the prior is formated as prior_mixture (list of priors) while selection models, PET, and PEESE use a single prior
+      # as such standardize them to always behave like a list
+      if (!BayesTools::is.prior.mixture(priors_bias)) {
+        priors_bias <- list(priors_bias)
+        # all fitting is standardized to dwnorm_mix function
+        # if only a simple prior is defined, we need to insert bias_indicator manually
+        fit_data$bias_indicator <- 1
+      }
+
+      # create the weightfunction mapping for effect size thresholds
+      steps   <- BayesTools::weightfunctions_mapping(priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
+      steps   <- rev(steps)[c(-1, -length(steps))]
+      crit_yi <- .create_yi_cutoffs(fit_data[["yi"]], fit_data[["sei"]], list(distribution = "one.sided", parameters = list(steps = steps)))
+
+      # create the weightfunction mapping to weights (transform all weight functions to one-sided)
+      crit_yi_mapping     <- matrix(0, nrow = length(priors_bias), ncol = ncol(crit_yi))
+      crit_yi_mapping_max <- rep(0, length(priors_bias))
+      for (i in seq_along(priors_bias)) {
+        if (BayesTools::is.prior.weightfunction(priors_bias[[i]])) {
+          ### the following subsetting allows us "merge" steps with equal weights due to the construction
+          # specify indexes of the relevant steps
+          this_steps <- .get_one_sided_cuts(priors_bias[[i]])
+          crit_yi_mapping[i,1:length(this_steps)] <- which(steps %in% this_steps)
+          crit_yi_mapping_max[i] <- length(this_steps)
+        }
+      }
+
+      fit_data$crit_yi             <- t(crit_yi)
+      fit_data$crit_yi_mapping     <- t(crit_yi_mapping)
+      fit_data$crit_yi_mapping_max <- crit_yi_mapping_max
+    }
+
   } else if (.data_outcome_type(data) == "bin") {
     # always include ai, ci, n1i, and n2i
     fit_data <- list(
@@ -110,8 +152,8 @@
   is_PET            <- .is_priors_PET(priors)
   is_PEESE          <- .is_priors_PEESE(priors)
   is_weightfunction <- .is_priors_weightfunction(priors)
-  effect_direction  <- "positive" # TODO: forward from models with publication bias
   outcome_type      <- .data_outcome_type(data)
+  effect_direction  <- .data_effect_direction(data)
 
   ### create the model syntax
   model_syntax <- "model{\n"
@@ -130,9 +172,8 @@
   # tau_within  - within-study variance (estimate-level variance)
   # tau_between - between-study variance (study-level variance)
   if (is_multilevel & !is_scale) {
-    model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(rho)\n")
-    model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(1-rho)\n")
-    tau_estimate <- "tau_within"
+    model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(1-rho)\n")
+    model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(rho)\n")
   }
 
   ### enter the main block
@@ -171,10 +212,15 @@
   # tau_within  - within-study variance (estimate-level variance)
   # tau_between - between-study variance (study-level variance)
   # for rest: dispatch estimate-specific/common parameter
-  if (is_multilevel && is_scale) {
-    model_syntax <- paste0(model_syntax, "  tau_within[i]  = tau[i] * sqrt(rho)\n")
-    model_syntax <- paste0(model_syntax, "  tau_between[i] = tau[i] * sqrt(1-rho)\n")
-    tau_estimate <- "tau_within[i]"
+  if (is_multilevel) {
+    if (is_scale) {
+      model_syntax <- paste0(model_syntax, "  tau_within[i]  = tau[i] * sqrt(1-rho)\n")
+      model_syntax <- paste0(model_syntax, "  tau_between[i] = tau[i] * sqrt(rho)\n")
+      tau_estimate <- "tau_within[i]"
+    } else {
+      # the variance allocation performed outside of the loop
+      tau_estimate <- "tau_within"
+    }
   } else {
     if (is_scale) {
       tau_estimate <- "tau[i]"
@@ -196,11 +242,11 @@
       if (is_weights) {
         model_syntax <- paste0(
           model_syntax, "  yi[i] ~ dwwnorm_mix(", mu_estimate, ",", "sqrt", tau2_estimate,
-          ", crit_y[,i], omega, crit_y_mapping[,bias_indicator], crit_y_mapping_max[bias_indicator], weight[i])\n")
+          ", crit_yi[,i], omega, crit_yi_mapping[,bias_indicator], crit_yi_mapping_max[bias_indicator], weight[i])\n")
       } else {
         model_syntax <- paste0(
           model_syntax, "  yi[i] ~ dwnorm_mix(", mu_estimate, ",", "sqrt", tau2_estimate,
-          ", crit_y[,i], omega, crit_y_mapping[,bias_indicator], crit_y_mapping_max[bias_indicator])\n")
+          ", crit_yi[,i], omega, crit_yi_mapping[,bias_indicator], crit_yi_mapping_max[bias_indicator])\n")
       }
     } else {
       if (is_weights) {
@@ -290,7 +336,7 @@
     fit_formula_list[["mu"]]       <- .create_fit_formula_list(data = data, parameter = "mods")
     fit_formula_data_list[["mu"]]  <- .create_fit_formula_data_list(data = data, parameter = "mods")
     fit_formula_prior_list[["mu"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "mods")
-    fit_formula_scale_list[["mu"]] <- object[["standardize_continuous_predictors"]]
+    fit_formula_scale_list[["mu"]] <- .data_standardize_continuous_predictors(data)
   }
 
   ### add heterogeneity regressions
@@ -298,7 +344,7 @@
     fit_formula_list[["log_tau"]]       <- .create_fit_formula_list(data = data, parameter = "scale")
     fit_formula_data_list[["log_tau"]]  <- .create_fit_formula_data_list(data = data, parameter = "scale")
     fit_formula_prior_list[["log_tau"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "scale")
-    fit_formula_scale_list[["log_tau"]] <- object[["standardize_continuous_predictors"]]
+    fit_formula_scale_list[["log_tau"]] <- .data_standardize_continuous_predictors(data)
   }
 
   ### generate the model syntax
@@ -385,35 +431,58 @@
 
 
 # Helper functions -----
+.create_yi_cutoffs <- function(yi, sei, prior) {
+
+  # get a matrix of test-statistics for the critical values
+  crit_zi <- matrix(ncol = 0, nrow = length(yi))
+
+  # compute the thresholds
+  for(step in prior$parameters$steps){
+    if(prior$distribution == "one.sided"){
+      crit_zi <- cbind(crit_zi, stats::qnorm(step,   lower.tail = FALSE))
+    }else if(prior$distribution == "two.sided"){
+      crit_zi <- cbind(crit_zi, stats::qnorm(step/2, lower.tail = FALSE))
+    }
+  }
+
+  # transform the thresholds back to effect sizes
+  crit_yi <- crit_zi * matrix(sei, ncol = ncol(crit_zi), nrow = nrow(crit_zi))
+
+  return(crit_yi)
+}
+
 .is_priors_PET            <- function(priors) {
 
-  if (is.null(priors[["bias"]]))
+  if (is.null(priors[["outcome"]][["bias"]]))
     return(FALSE)
 
-  if (is.prior.mixture(priors[["bias"]]))
-    return(any(sapply(priors[["bias"]], is.prior.PET)))
+  if (is.prior.mixture(priors[["outcome"]][["bias"]]))
+    return(any(sapply(priors[["outcome"]][["bias"]], is.prior.PET)))
 
-  return(is.prior.PET(priors[["bias"]]))
+  return(is.prior.PET(priors[["outcome"]][["bias"]]))
 }
 .is_priors_PEESE          <- function(priors) {
 
-  if (is.null(priors[["bias"]]))
+  if (is.null(priors[["outcome"]][["bias"]]))
     return(FALSE)
 
-  if (is.prior.mixture(priors[["bias"]]))
-    return(any(sapply(priors[["bias"]], is.prior.PEESE)))
+  if (is.prior.mixture(priors[["outcome"]][["bias"]]))
+    return(any(sapply(priors[["outcome"]][["bias"]], is.prior.PEESE)))
 
-  return(is.prior.PEESE(priors[["bias"]]))
+  return(is.prior.PEESE(priors[["outcome"]][["bias"]]))
 }
 .is_priors_weightfunction <- function(priors) {
 
-  if (is.null(priors[["bias"]]))
+  if (is.null(priors[["outcome"]][["bias"]]))
     return(FALSE)
 
-  if (is.prior.mixture(priors[["bias"]]))
-    return(any(sapply(priors[["bias"]], is.prior.weightfunction)))
+  if (is.prior.mixture(priors[["outcome"]][["bias"]]))
+    return(any(sapply(priors[["outcome"]][["bias"]], is.prior.weightfunction)))
 
-  return(is.prior.weightfunction(priors[["bias"]]))
+  return(is.prior.weightfunction(priors[["outcome"]][["bias"]]))
+}
+.is_priors_bias           <- function(priors) {
+  return(.is_priors_PET(priors) || .is_priors_PEESE(priors) || .is_priors_weightfunction(priors))
 }
 .is_data_multilevel       <- function(data) {
   return(attr(data, "study_ids"))
@@ -430,12 +499,21 @@
 .data_outcome_type        <- function(data) {
   return(attr(data, "outcome_type"))
 }
+.data_effect_direction    <- function(data) {
+  return(attr(data, "effect_direction"))
+}
+.data_standardize_continuous_predictors <- function(data) {
+  return(attr(data, "standardize_continuous_predictors"))
+}
 
 .is_PET            <- function(object) .is_priors_PET(object[["priors"]])
 .is_PEESE          <- function(object) .is_priors_PEESE(object[["priors"]])
 .is_weightfunction <- function(object) .is_priors_weightfunction(object[["priors"]])
+.is_bias           <- function(object) .is_priors_bias(object[["priors"]])
 .is_multilevel     <- function(object) .is_data_multilevel(object[["data"]])
 .is_mods           <- function(object) .is_data_mods(object[["data"]])
 .is_scale          <- function(object) .is_data_scale(object[["data"]])
 .is_weights        <- function(object) .is_data_weights(object[["data"]])
 .outcome_type      <- function(object) .data_outcome_type(object[["data"]])
+.effect_direction  <- function(object) .data_effect_direction(object[["data"]])
+.standardize_continuous_predictors  <- function(object) .data_standardize_continuous_predictors(object[["data"]])

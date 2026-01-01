@@ -64,15 +64,23 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
 assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = RoBMA.private)
 assign("check_scaling",   TRUE,                                       envir = RoBMA.private)
 
+assign("silent", FALSE,  envir = RoBMA.private)
+
+
 ### default scaling of unit information prior for different parameters
 assign("default_UISD.effect",          1/2,  envir = RoBMA.private)
 assign("default_UISD.heterogeneity",   1/4,  envir = RoBMA.private)
 assign("default_UISD.mods",            1/4,  envir = RoBMA.private)
-assign("default_UISD.scale",           1/4,  envir = RoBMA.private)
+assign("default_UISD.scale",           1/2,  envir = RoBMA.private)
 
 ### default scaling of informed priors for moderators
 assign("default_informed_priors.mods",  1/2,  envir = RoBMA.private)
-assign("default_informed_priors.scale", 1/4,  envir = RoBMA.private)
+assign("default_informed_priors.scale", 1/2,  envir = RoBMA.private)
+
+### default setting for the publication bias priors
+assign("default_bias_weightfunction.alpha",  1,  envir = RoBMA.private)
+assign("default_bias_PET.scale",             1,  envir = RoBMA.private)
+assign("default_bias_PEESE.scale",           5,  envir = RoBMA.private)
 
 
 # check and fix number of threads (sometimes bugs out during installation)

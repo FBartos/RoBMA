@@ -125,6 +125,11 @@ estimate_unit_information_sd <- function(sei, ni) {
   ### always use the user-specified prior if possible
   if (!missing(prior)) {
 
+    # allow using FALSE/NULL arguments to set spike(0) prior distributions
+    if (is.null(prior) || isFALSE(prior)) {
+      return(BayesTools::prior("spike", parameters = list(0)))
+    }
+
     # apply rescaling if specified
     prior <- .rescale_prior_object(prior, rescale_priors)
 
@@ -240,10 +245,64 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   return(prior)
 }
+.assign_prior.bias                     <- function(prior, measure, data, prior_unit_information_sd, bias_type, steps) {
+
+  # assigns either a weight function or PET/PEESE model based on bias_type
+  # there is no scaling of the publication bias priors based on rescale_priors
+  # (only PEESE prior is rescaled to the match the UISD of the measure)
+
+  if (bias_type == "selmodel") {
+
+    # specify default settings / check the prior distribution
+    if (missing(prior) && missing(steps)) {
+      prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = c(0.025), "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), 2)))
+    } else if (missing(prior) && !missing(steps)) {
+      prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = steps, "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps + 1))))
+    } else if (!BayesTools::is.prior.weightfunction(prior)) {
+      stop("'prior_bias' must be a `prior_weightfunction` object", call. = FALSE)
+    }
+
+    return(prior)
+  }
+
+  if (bias_type == "PET") {
+
+    # specify default settings / check the prior distribution
+    if (missing(prior)) {
+      # PET prior is invariant to different effect size types
+      prior <- BayesTools::prior_PET("cauchy", parameters = list("location" = 0, "scale" = RoBMA.get_option("default_bias_PET.scale")), truncation = list(0, Inf))
+    } else if (!BayesTools::is.prior.PET(prior)) {
+      stop("'prior_bias' must be a `prior_PET` object", call. = FALSE)
+    }
+
+    return(prior)
+  }
+
+  if (bias_type == "PEESE") {
+
+    # specify default settings / check the prior distribution
+    if (missing(prior)) {
+      ### PEESE prior is inversely related to the specified effect size
+      # for SMD we use Cauchy with scale 1
+      # for other effect sizes, we re-scale by the corresponding UISD
+      UISD_SMD     <- .get_unit_information_sd(measure = "SMD")
+      UISD_measure <- .get_unit_information_sd(data = data, measure = measure)
+      UISD_ratio   <- UISD_SMD / UISD_measure
+      prior <- BayesTools::prior_PEESE("cauchy", parameters = list("location" = 0, "scale" = RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf))
+    } else if (!BayesTools::is.prior.PEESE(prior)) {
+      stop("'prior_bias' must be a `prior_PEESE` object", call. = FALSE)
+    }
+
+    return(prior)
+  }
+}
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield, rescale_priors,
-    set_contrast_factor_predictors) {
+    set_default_spike = FALSE) {
+
+  # set_default_spike argument is used when calling from .assign_prior_list.terms_mixture
+  # to set-up prior distributions under the null hypotheses
 
   ### for scale regression, the intercept cannot be spike(0) since it's used as log(intercept)
   # in exp( log(intercept) + sum(beta_i * x_i) )
@@ -265,20 +324,23 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior_list <- list()
   }
 
-  ### add intercept (parsed previously)
-  if (!is.null(prior_intercept)) {
-    prior_list <- c(list(intercept = prior_intercept), prior_list)
-  } else {
-    prior_list <- c(list(intercept = BayesTools::prior("spike", parameters = list(0))), prior_list)
-  }
+  ### add intercept to be beginning of the list (parsed previously)
+  prior_list <- c(list(intercept = prior_intercept), prior_list)
 
   ### add default priors for remaining terms if left unspecified
   # the assignment of missing priors is performed within BayesTools::JAGS_formula
   # (it's easier to check and fill in the formula on assignment when it's being parsed)
 
   # use informed prior distributions if specified
-  # otherwise relly on unit information based priors
-  if (!missing(prior_informed_field)) {
+  # otherwise rely on unit information based priors
+  if (set_default_spike) {
+
+    # set_default_spike argument is used when calling from .assign_prior_list.terms_mixture
+    # to set-up prior distributions under the null hypotheses
+    default_prior_continuous <- BayesTools::prior("spike", parameters = list(0))
+    default_prior_factor     <- BayesTools::prior_factor("spike", parameters = list(0), contrast = attr(data, "set_contrast_factor_predictors"))
+
+  } else if (!missing(prior_informed_field)) {
 
     if (prior_informed_field == "medicine") {
 
@@ -308,7 +370,7 @@ estimate_unit_information_sd <- function(sei, ni) {
       }
 
       # transform the continuous prior distributions into prior distributions for factors
-      if (set_contrast_factor_predictors == "treatment") {
+      if (attr(data, "set_contrast_factor_predictors") == "treatment") {
         default_prior_factor <- BayesTools::prior_factor(
           distribution = default_prior_continuous[["distribution"]],
           parameters   = default_prior_continuous[["parameters"]],
@@ -318,7 +380,7 @@ estimate_unit_information_sd <- function(sei, ni) {
         default_prior_factor <- BayesTools::prior_factor(
           distribution = paste0("m", default_prior_continuous[["distribution"]]),
           parameters   = default_prior_continuous[["parameters"]],
-          contrast     = set_contrast_factor_predictors
+          contrast     = attr(data, "set_contrast_factor_predictors")
         )
       }
 
@@ -340,7 +402,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     )
 
     default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd))
-    if (set_contrast_factor_predictors == "treatment") {
+    if (attr(data, "set_contrast_factor_predictors") == "treatment") {
       default_prior_factor <- BayesTools::prior_factor(
         distribution = "normal",
         parameters   = list("mean" = 0, "sd" = prior_sd),
@@ -350,7 +412,7 @@ estimate_unit_information_sd <- function(sei, ni) {
       default_prior_factor <- BayesTools::prior_factor(
         distribution = "mnormal",
         parameters   = list("mean" = 0, "sd" = prior_sd),
-        contrast     = set_contrast_factor_predictors
+        contrast     = attr(data, "set_contrast_factor_predictors")
       )
     }
   }
@@ -378,7 +440,219 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   return(prior_list)
 }
+### assign mixture prior distributions
+.assign_prior.simple_mixture                   <- function(
+    prior, prior_null, parameter, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors) {
 
+  ### check the alternative prior input
+  # prior can be either
+  # - unspecified (set default as in brma)
+  # - NULL/FALSE (omit prior distribution)
+  # - single prior distribution
+  # - list of prior distributions
+  # each of these prior distributions needs to satisfy the same properties as in brma
+  # if only a single distribution is specified, place it in a list for a simpler treatment
+  if (missing(prior) || BayesTools::is.prior(prior)) {
+    priors_alt <- list(.assign_prior.simple(
+      prior = prior, parameter = parameter, measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    ))
+  } else if (is.null(prior) || isFALSE(prior)) {
+    priors_alt <- list()
+  } else if (is.list(prior) && sapply(prior, BayesTools::is.prior)) {
+    priors_alt <- prior
+    for (i in seq_along(priors_alt)) {
+      priors_alt[[i]] <- .assign_prior.simple(
+        prior = priors_alt[[i]], parameter = parameter, measure = measure,
+        data = data, prior_unit_information_sd = prior_unit_information_sd,
+        prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+        rescale_priors = rescale_priors
+      )
+    }
+  } else {
+    stop(gettextf("The 'prior_%1$s' must be either prior distribution or a list of prior distirbutions.", parameter), call. = FALSE)
+  }
+
+  ### check the null prior input
+  # prior can be either
+  # - empty (set point prior as default)
+  # - NULL/FALSE (omit prior distribution)
+  # - single prior distribution
+  # - list of prior distributions
+  # each of these prior distributions needs to satisfy the same properties as in brma
+  # if only a single distribution is specified, place it in a list for a simpler treatment
+  if (missing(prior_null)) {
+    priors_null <- BayesTools::prior("spike", parameters = list(0))
+  } else if (is.null(prior_null) || isFALSE(prior_null)) {
+    priors_null <- list()
+  } else if (BayesTools::is.prior(prior_null)) {
+    priors_null <- list(.assign_prior.simple(
+      prior = prior_null, parameter = parameter, measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    ))
+  } else if (is.list(prior_null) && sapply(prior_null, BayesTools::is.prior)) {
+    priors_null <- prior_null
+    for (i in seq_along(priors_null)) {
+      priors_null[[i]] <- .assign_prior.simple(
+        prior = priors_null[[i]], parameter = parameter, measure = measure,
+        data = data, prior_unit_information_sd = prior_unit_information_sd,
+        prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+        rescale_priors = rescale_priors
+      )
+    }
+  } else {
+    stop(gettextf("The 'prior_%1$s_null' must be either prior distribution or a list of prior distirbutions.", parameter), call. = FALSE)
+  }
+
+  ### specify the corresponding mixture prior
+  prior <- BayesTools::prior_mixture(
+    prior_list = c(priors_null, priors_alt),
+    is_null    = c(rep(TRUE, length(priors_null)), rep(FALSE, length(priors_alt)))
+  )
+
+  return(prior)
+}
+.assign_prior.heterogeneity_allocation_mixture <- function(prior, prior_null) {
+
+  ### check the alternative prior input
+  # prior can be either
+  # - unspecified (set default as in brma)
+  # - NULL/FALSE (omit prior distribution)
+  # - single prior distribution
+  # - list of prior distributions
+  # each of these prior distributions needs to satisfy the same properties as in brma
+  # if only a single distribution is specified, place it in a list for a simpler treatment
+  if (missing(prior) || BayesTools::is.prior(prior)) {
+    priors_alt <- list(.assign_prior.heterogeneity_allocation(prior = prior))
+  } else if (is.null(prior) || isFALSE(prior)) {
+    priors_alt <- list()
+  } else if (is.list(prior) && sapply(prior, BayesTools::is.prior)) {
+    priors_alt <- prior
+    for (i in seq_along(priors_alt)) {
+      priors_alt[[i]] <- .assign_prior.heterogeneity_allocation(prior = priors_alt[[i]])
+    }
+  } else {
+    stop("The 'prior_heterogeneity_allocation' must be either prior distribution or a list of prior distirbutions.", call. = FALSE)
+  }
+
+  ### check the null prior input
+  # prior can be either
+  # - empty (omit prior as default)
+  # - NULL/FALSE (omit prior distribution)
+  # - single prior distribution
+  # - list of prior distributions
+  # each of these prior distributions needs to satisfy the same properties as in brma
+  # if only a single distribution is specified, place it in a list for a simpler treatment
+  if (missing(prior_null) || is.null(prior_null) || isFALSE(prior_null)) {
+    priors_null <- list()
+  } else if (BayesTools::is.prior(prior_null)) {
+    priors_null <- list(.assign_prior.heterogeneity_allocation(prior = prior_null))
+  } else if (is.list(prior_null) && sapply(prior_null, BayesTools::is.prior)) {
+    priors_null <- prior_null
+    for (i in seq_along(priors_null)) {
+      priors_null[[i]] <- .assign_prior.heterogeneity_allocation(prior = priors_null[[i]])
+    }
+  } else {
+    stop("The 'prior_heterogeneity_allocation_null' must be either prior distribution or a list of prior distirbutions.", call. = FALSE)
+  }
+
+  ### specify the corresponding mixture prior
+  prior <- BayesTools::prior_mixture(
+    prior_list = c(priors_null, priors_alt),
+    is_null    = c(rep(TRUE, length(priors_null)), rep(FALSE, length(priors_alt)))
+  )
+
+  return(prior)
+}
+.assign_prior_list.terms_mixture               <- function(
+    prior_list, prior_list_null, prior_intercept, parameter, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors) {
+
+  # in contrast to effect/heterogeneity prior list settings terms currently only allow a single prior for alternative
+  # and a single prior for the null hypothesis for each term
+
+  # one issue when re-using .assign_prior_list.terms is that we need to forward prior for the intercept which is
+  # an already parsed mixture prior - when merging mixture priors for terms, we ought to not duplicate the intercept
+
+  # we want to allow NULL/FALSE to omit prior distribution for a given component, .assign_prior_list.terms
+  # fills all missing prior distributions with default priors
+  # as such, we store names of parameters that should be omited and remove them manually
+  if (!missing(prior_list) && length(prior_list) > 0 && is.list(prior_list)) {
+    par_alt_omit <- names(prior_list)[sapply(prior_list, function(x) is.null(x) || isFALSE(x))]
+  } else {
+    par_alt_omit <- NULL
+  }
+  if (!missing(prior_list_null) && length(prior_list_null) > 0 && is.list(prior_list_null)) {
+    par_null_omit <- names(prior_list_null)[sapply(prior_list_null, function(x) is.null(x) || isFALSE(x))]
+  } else {
+    par_alt_omit <- NULL
+  }
+
+
+  if (parameter == "scale") {
+    # in the case of scale moderation, spike at zero prior (i.e., fixed-effect model) is not possible since the intercept
+    # is on a log scale
+    # go over the prior and remove any spike(0) priors & throw a warning
+    for (i in rev(seq_along(prior_intercept))) {
+      if (BayesTools::is.prior.point(prior_intercept[[i]]) && mean(prior_intercept[[i]]) == 0) {
+        prior_intercept[[i]] <- NULL
+        warning("Spike(0) prior distribution for between-study heterogeneity tau was removed since scale regression requires non-zero between-study heterogeneity.", immediate. = TRUE)
+      }
+    }
+  }
+
+  prior_list_alt <- .assign_prior_list.terms(
+    prior_list = prior_list, prior_intercept = prior_intercept, parameter = parameter,
+    measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors)
+
+  prior_list_null <- .assign_prior_list.terms(
+    prior_list = prior_list_null, prior_intercept = prior_intercept, parameter = parameter,
+    measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors)
+
+  ### initiate the list of prior mixtures with the intercept
+  prior_list <- list(intercept = prior_intercept)
+  for (par in names(prior_list_alt)) {
+
+    # skip the already assigned intercept
+    if (par == "intercept") {
+      next
+    }
+
+    # create temporal holder for the parameter
+    temp_prior_list  <- list()
+    temp_is_null     <- NULL
+
+    if (!par %in% par_null_omit) {
+      prior_list   <- c(prior_list, prior_list_null[[par]])
+      temp_is_null <- c(temp_is_null, TRUE)
+    }
+
+    if (!par %in% par_alt_omit) {
+      prior_list   <- c(prior_list, prior_list_alt[[par]])
+      temp_is_null <- c(temp_is_null, FALSE)
+    }
+
+    if (length(prior_list) == 0) {
+      stop(sprintf("At least one prior distribution needs to be defined for '%1$s' parameter in the '%2$s' model.", par, parameter))
+    }
+
+    prior_list[[par]] <- BayesTools::prior_mixture(
+      prior_list = prior_list,
+      is_null    = temp_is_null
+    )
+  }
+
+  return(prior_list)
+}
 ### check specified prior distributions whether they follow basic requirements
 .check_prior.effect                   <- function(prior) {
 
@@ -507,16 +781,16 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior_effect, prior_heterogeneity,
     prior_mods, prior_scale,
     prior_heterogeneity_allocation,
+    prior_bias = prior_bias,
     prior_baserate, prior_lograte,
-    set_contrast_factor_predictors,
     rescale_priors,
     prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield,
-    data = object[["data"]], measure = measure) {
+    data = object[["data"]], measure = measure,
+    bias_type, steps) {
 
   ### check input
   .check_measure(measure)
-  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
   if (!missing(rescale_priors))
     BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
   if (!missing(prior_unit_information_sd))
@@ -526,6 +800,8 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (!missing(prior_informed_subfield))
     BayesTools::check_char(prior_informed_subfield, "prior_informed_subfield", allow_NA = FALSE)
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
+  if (!missing(steps))
+    BayesTools::check_real(steps, "steps", lower = 0, upper = 1, allow_bound = FALSE, check_length = FALSE, allow_NA = FALSE)
 
   ### set prior distributions
   prior_outcome <- list()
@@ -536,12 +812,12 @@ estimate_unit_information_sd <- function(sei, ni) {
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors
     )
-    prior_outcome[["tau"]] <- .assign_prior.simple(
-      prior = prior_heterogeneity, parameter = "heterogeneity", measure = measure,
-      data = data, prior_unit_information_sd = prior_unit_information_sd,
-      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-      rescale_priors = rescale_priors
-    )
+  prior_outcome[["tau"]] <- .assign_prior.simple(
+    prior = prior_heterogeneity, parameter = "heterogeneity", measure = measure,
+    data = data, prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors
+  )
 
   # only for multilevel models
   if (.is_data_multilevel(data)) {
@@ -556,13 +832,19 @@ estimate_unit_information_sd <- function(sei, ni) {
     # (these are marginalized in the normal model)
     prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
-    # only for glmm models of IRR
-    if (.data_outcome_type(data) == "pois") {
-      prior_outcome[["phi"]] <- .assign_prior.lograte(prior = prior_lograte, data)
-      # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
-      # (these are marginalized in the normal model)
-      prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
-    }
+  # only for glmm models of IRR
+  if (.data_outcome_type(data) == "pois") {
+    prior_outcome[["phi"]] <- .assign_prior.lograte(prior = prior_lograte, data)
+    # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
+    # (these are marginalized in the normal model)
+    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+  }
+  # only for selection / PET / PEESE models
+  if (!missing(bias_type)) {
+    prior_outcome[["bias"]] <- .assign_prior.bias(
+      prior = prior_bias, measure = measure, data = data, prior_unit_information_sd = prior_unit_information_sd,
+      bias_type = bias_type, steps = steps)
+  }
 
 
   if (.is_data_mods(data)) {
@@ -570,7 +852,7 @@ estimate_unit_information_sd <- function(sei, ni) {
       prior_list = prior_mods, prior_intercept = prior_outcome[["mu"]], parameter = "mods",
       measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-      rescale_priors = rescale_priors, set_contrast_factor_predictors = set_contrast_factor_predictors)
+      rescale_priors = rescale_priors)
     prior_outcome[["mu"]] <- NULL # the prior is forwarded through "mods" to the intercept
   } else {
     prior_mods <- NULL
@@ -581,7 +863,100 @@ estimate_unit_information_sd <- function(sei, ni) {
       prior_list = prior_scale, prior_intercept = prior_outcome[["tau"]], parameter = "scale",
       measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-      rescale_priors = rescale_priors, set_contrast_factor_predictors = set_contrast_factor_predictors)
+      rescale_priors = rescale_priors)
+    prior_outcome[["tau"]] <- NULL # the prior is forwarded through "scale" to the log(intercept)
+  } else {
+    prior_scale <- NULL
+  }
+
+  return(list(
+    outcome  = prior_outcome,
+    mods     = prior_mods,
+    scale    = prior_scale
+  ))
+}
+
+
+.check_and_list_priors.RoBMA <- function(
+    prior_effect, prior_heterogeneity,
+    prior_mods, prior_scale,
+    prior_heterogeneity_allocation, prior_bias,
+    prior_effect_null, prior_heterogeneity_null,
+    prior_mods_null, prior_scale_null,
+    prior_heterogeneity_allocation_null, prior_bias_null,
+    prior_baserate, prior_lograte,
+    rescale_priors,
+    prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield,
+    data = object[["data"]], measure = measure) {
+
+  ### check input
+  .check_measure(measure)
+  if (!missing(rescale_priors))
+    BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
+  if (!missing(prior_unit_information_sd))
+    BayesTools::check_real(prior_unit_information_sd, "prior_unit_information_sd", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
+  if (!missing(prior_informed_field))
+    BayesTools::check_char(prior_informed_field, "prior_informed_field", allow_values = c("medicine"), allow_NA = FALSE)
+  if (!missing(prior_informed_subfield))
+    BayesTools::check_char(prior_informed_subfield, "prior_informed_subfield", allow_NA = FALSE)
+  .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
+
+  ### set prior distributions
+  prior_outcome <- list()
+
+  prior_outcome[["mu"]] <- .assign_prior.simple_mixture(
+    prior = prior_effect, prior_null = prior_effect_null, parameter = "effect", measure = measure,
+    data = data, prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors
+  )
+  prior_outcome[["tau"]] <- .assign_prior.simple_mixture(
+    prior = prior_heterogeneity, prior_null = prior_heterogeneity_null, parameter = "heterogeneity", measure = measure,
+    data = data, prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors
+  )
+
+  # only for multilevel models
+  if (.is_data_multilevel(data)) {
+    prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation_mixture(prior = prior_heterogeneity_allocation)
+    # gamma is an auxiliary parameter for non-centered random-effects parameterization (for study-level)
+    prior_outcome[["gamma"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+  }
+  # only for glmm models of OR
+  if (.data_outcome_type(data) == "bin") {
+    prior_outcome[["pi"]]    <- .assign_prior.baserate(prior = prior_baserate)
+    # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
+    # (these are marginalized in the normal model)
+    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+  }
+  # only for glmm models of IRR
+  if (.data_outcome_type(data) == "pois") {
+    prior_outcome[["phi"]] <- .assign_prior.lograte(prior = prior_lograte, data)
+    # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
+    # (these are marginalized in the normal model)
+    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+  }
+
+
+  if (.is_data_mods(data)) {
+    prior_mods <- .assign_prior_list.terms_mixture(
+      prior_list = prior_mods, prior_list_null = prior_mods_null, prior_intercept = prior_outcome[["mu"]], parameter = "mods",
+      measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors)
+    prior_outcome[["mu"]] <- NULL # the prior is forwarded through "mods" to the intercept
+  } else {
+    prior_mods <- NULL
+  }
+
+  if (.is_data_scale(data)) {
+    prior_scale <- .assign_prior_list.terms(
+      prior_list = prior_scale, prior_intercept = prior_outcome[["tau"]], parameter = "scale",
+      measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors)
     prior_outcome[["tau"]] <- NULL # the prior is forwarded through "scale" to the log(intercept)
   } else {
     prior_scale <- NULL

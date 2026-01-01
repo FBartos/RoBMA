@@ -5,80 +5,53 @@
 \title{Estimate a Robust Bayesian Meta-Analysis}
 \usage{
 RoBMA(
-  d = NULL,
-  r = NULL,
-  logOR = NULL,
-  OR = NULL,
-  z = NULL,
-  y = NULL,
-  se = NULL,
-  v = NULL,
-  n = NULL,
-  lCI = NULL,
-  uCI = NULL,
-  t = NULL,
-  study_names = NULL,
-  study_ids = NULL,
-  data = NULL,
-  weight = NULL,
-  transformation = if (is.null(y)) "fishers_z" else "none",
-  prior_scale = if (is.null(y)) "cohens_d" else "none",
-  effect_direction = "positive",
-  model_type = NULL,
+  yi,
+  vi,
+  sei,
+  weights,
+  ni,
+  mods,
+  scale,
+  study_ids,
+  data,
+  slab,
+  subset,
+  measure = "GEN",
+  effect_direction = "detect",
+  prior_effect,
+  prior_heterogeneity,
+  prior_mods,
+  prior_scale,
+  prior_heterogeneity_allocation,
+  prior_bias,
+  prior_effect_null,
+  prior_heterogeneity_null,
+  prior_mods_null,
+  prior_scale_null,
+  prior_heterogeneity_allocation_null,
+  prior_bias_null,
+  standardize_continuous_predictors = TRUE,
+  set_contrast_factor_predictors = "meandif",
+  prior_unit_information_sd,
   rescale_priors = 1,
-  priors_effect = set_default_priors("effect", rescale = rescale_priors),
-  priors_heterogeneity = set_default_priors("heterogeneity", rescale = rescale_priors),
-  priors_bias = set_default_priors("bias", rescale = rescale_priors),
-  priors_effect_null = set_default_priors("effect", null = TRUE),
-  priors_heterogeneity_null = set_default_priors("heterogeneity", null = TRUE),
-  priors_bias_null = set_default_priors("bias", null = TRUE),
-  priors_hierarchical = set_default_priors("hierarchical"),
-  priors_hierarchical_null = set_default_priors("hierarchical", null = TRUE),
-  algorithm = "bridge",
-  chains = 3,
+  prior_informed_field,
+  prior_informed_subfield,
+  model_type,
   sample = 5000,
   burnin = 2000,
   adapt = 500,
+  chains = 3,
   thin = 1,
   parallel = FALSE,
-  autofit = TRUE,
+  autofit = FALSE,
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
-  save = "all",
   seed = NULL,
   silent = TRUE,
   ...
 )
 }
 \arguments{
-\item{d}{a vector of effect sizes measured as Cohen's d / Hedges' g
-(standardized mean differences)}
-
-\item{r}{a vector of effect sizes measured as correlations}
-
-\item{logOR}{a vector of effect sizes measured as log odds ratios}
-
-\item{OR}{a vector of effect sizes measured as odds ratios}
-
-\item{z}{a vector of effect sizes measured as Fisher's z}
-
-\item{y}{a vector of unspecified effect sizes (note that effect size
-transformations are unavailable with this type of input)}
-
-\item{se}{a vector of standard errors of the effect sizes}
-
-\item{v}{a vector of variances of the effect sizes}
-
-\item{n}{a vector of overall sample sizes}
-
-\item{lCI}{a vector of lower bounds of confidence intervals}
-
-\item{uCI}{a vector of upper bounds of confidence intervals}
-
-\item{t}{a vector of t/z-statistics}
-
-\item{study_names}{an optional argument with the names of the studies}
-
 \item{study_ids}{an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
@@ -88,17 +61,10 @@ an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc..
 directly. I.e., RoBMA function does not allow passing a data.frame and
 referencing to the columns.}
 
-\item{weight}{specifies likelihood weights of the individual estimates.
-Notes that this is an untested experimental feature.}
-
-\item{transformation}{transformation to be applied to the supplied
-effect sizes before fitting the individual models. Defaults to
-\code{"fishers_z"}. We highly recommend using \code{"fishers_z"}
-transformation since it is the only variance stabilizing measure
-and does not bias PET and PEESE style models. The other options are
-\code{"cohens_d"}, correlation coefficient \code{"r"} and \code{"logOR"}.
-Supplying \code{"none"} will treat the effect sizes as unstandardized and
-refrain from any transformations.}
+\item{effect_direction}{the expected direction of the effect. Correctly specifying
+the expected direction of the effect is crucial for one-sided selection models,
+as they specify cut-offs using one-sided p-values. Defaults to \code{"positive"}
+(another option is \code{"negative"}).}
 
 \item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
 Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
@@ -107,10 +73,8 @@ the samples from prior distributions are internally transformed to match the
 \code{transformation} of the data. The \code{prior_scale} corresponds to
 the effect size scale of default output, but can be changed within the summary function.}
 
-\item{effect_direction}{the expected direction of the effect. Correctly specifying
-the expected direction of the effect is crucial for one-sided selection models,
-as they specify cut-offs using one-sided p-values. Defaults to \code{"positive"}
-(another option is \code{"negative"}).}
+\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
+factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
 
 \item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
 The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
@@ -119,8 +83,45 @@ settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
 \code{priors_bias_null}, and \code{priors_effect}. See details for more information
 about the different model types.}
 
-\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
-factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
+\item{sample}{a number of sampling iterations of the MCMC algorithm.
+Defaults to \code{5000}.}
+
+\item{burnin}{a number of burnin iterations of the MCMC algorithm.
+Defaults to \code{2000}.}
+
+\item{adapt}{a number of adaptation iterations of the MCMC algorithm.
+Defaults to \code{500}.}
+
+\item{chains}{a number of chains of the MCMC algorithm.}
+
+\item{thin}{a thinning of the chains of the MCMC algorithm. Defaults to
+\code{1}.}
+
+\item{parallel}{whether the individual models should be fitted in parallel.
+Defaults to \code{FALSE}. The implementation is not completely stable
+and might cause a connection error.}
+
+\item{autofit}{whether the model should be fitted until the convergence
+criteria (specified in \code{autofit_control}) are satisfied. Defaults to
+\code{TRUE}.}
+
+\item{autofit_control}{allows to pass autofit control settings with the
+\code{\link[=set_autofit_control]{set_autofit_control()}} function. See \code{?set_autofit_control} for
+options and default settings.}
+
+\item{convergence_checks}{automatic convergence checks to assess the fitted
+models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
+\code{?set_convergence_checks} for options and default settings.}
+
+\item{seed}{a seed to be set before model fitting, marginal likelihood
+computation, and posterior mixing for reproducibility of results. Defaults
+to \code{NULL} - no seed is set.}
+
+\item{silent}{whether all print messages regarding the fitting process
+should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
+also suppresses all messages.}
+
+\item{...}{additional arguments.}
 
 \item{priors_effect}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
@@ -182,51 +183,11 @@ sampling. An alternative is \code{"ss"} which uses spike and slab like parameter
 Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
 \code{adapt} iterations are needed for the \code{"ss"} algorithm.}
 
-\item{chains}{a number of chains of the MCMC algorithm.}
-
-\item{sample}{a number of sampling iterations of the MCMC algorithm.
-Defaults to \code{5000}.}
-
-\item{burnin}{a number of burnin iterations of the MCMC algorithm.
-Defaults to \code{2000}.}
-
-\item{adapt}{a number of adaptation iterations of the MCMC algorithm.
-Defaults to \code{500}.}
-
-\item{thin}{a thinning of the chains of the MCMC algorithm. Defaults to
-\code{1}.}
-
-\item{parallel}{whether the individual models should be fitted in parallel.
-Defaults to \code{FALSE}. The implementation is not completely stable
-and might cause a connection error.}
-
-\item{autofit}{whether the model should be fitted until the convergence
-criteria (specified in \code{autofit_control}) are satisfied. Defaults to
-\code{TRUE}.}
-
-\item{autofit_control}{allows to pass autofit control settings with the
-\code{\link[=set_autofit_control]{set_autofit_control()}} function. See \code{?set_autofit_control} for
-options and default settings.}
-
-\item{convergence_checks}{automatic convergence checks to assess the fitted
-models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
-\code{?set_convergence_checks} for options and default settings.}
-
 \item{save}{whether all models posterior distributions should be kept
 after obtaining a model-averaged result. Defaults to \code{"all"} which
 does not remove anything. Set to \code{"min"} to significantly reduce
 the size of final object, however, some model diagnostics and further
 manipulation with the object will not be possible.}
-
-\item{seed}{a seed to be set before model fitting, marginal likelihood
-computation, and posterior mixing for reproducibility of results. Defaults
-to \code{NULL} - no seed is set.}
-
-\item{silent}{whether all print messages regarding the fitting process
-should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
-also suppresses all messages.}
-
-\item{...}{additional arguments.}
 }
 \value{
 \code{RoBMA} returns an object of class 'RoBMA'.
