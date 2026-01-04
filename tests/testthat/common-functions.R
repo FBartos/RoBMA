@@ -109,7 +109,7 @@ load_fit     <- function(name) {
 load_marglik <- function(name) {
 
   # load model marglik
-  marglik <- try(readRDS(file = file.path(temp_marglik_dir, paste0(name, ".RDS"))))
+  marglik <- try(readRDS(file = file.path(temp_marglik_dir, paste0(name, ".RDS"))), silent = TRUE)
   if (inherits(marglik, "try-error")) {
     return(list())
   } else {
@@ -119,7 +119,7 @@ load_marglik <- function(name) {
 load_info    <- function(name) {
 
   # load model info
-  info <- try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))))
+  info <- try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))), silent = TRUE)
   if (inherits(info, "try-error")) {
     return(list())
   } else {

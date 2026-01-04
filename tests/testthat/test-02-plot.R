@@ -25,7 +25,7 @@ test_that("Prior and posterior distributions for model parameters", {
 
   # variance allocation
   for (name in names(fits)) {
-    if (RoBMA:::.is_multilevel(fits)) {
+    if (RoBMA:::.is_multilevel(fits[[name]])) {
       vdiffr::expect_doppelganger(paste0("base_pp_rho_", name), plot(fits[[name]], "rho", prior = TRUE))
       vdiffr::expect_doppelganger(paste0("ggplot_pp_rho_", name), plot(fits[[name]], "rho", prior = TRUE, plot_type = "ggplot"))
     }
@@ -33,7 +33,7 @@ test_that("Prior and posterior distributions for model parameters", {
 
   # effect regression
   for (name in names(fits)) {
-    if (RoBMA:::.is_mods(fits)) {
+    if (RoBMA:::.is_mods(fits[[name]])) {
       for (pars in info[[name]][["mods"]]) {
         vdiffr::expect_doppelganger(paste0("base_pp_mods_", pars, "_", name), plot(fits[[name]], parameter_mods = pars, prior = TRUE))
         vdiffr::expect_doppelganger(paste0("ggplot_pp_scale_", pars, "_",, name), plot(fits[[name]], parameter_mods = pars, prior = TRUE, plot_type = "ggplot"))
@@ -43,7 +43,7 @@ test_that("Prior and posterior distributions for model parameters", {
 
   # scale regression
   for (name in names(fits)) {
-    if (RoBMA:::.is_scale(fits)) {
+    if (RoBMA:::.is_scale(fits[[name]])) {
       for (pars in info[[name]][["scale"]]) {
         vdiffr::expect_doppelganger(paste0("base_pp_scale_", pars, "_", name), plot(fits[[name]], parameter_mods = pars, prior = TRUE))
         vdiffr::expect_doppelganger(paste0("ggplot_pp_scale_", pars, "_",, name), plot(fits[[name]], parameter_mods = pars, prior = TRUE, plot_type = "ggplot"))
