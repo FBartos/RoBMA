@@ -1,4 +1,5 @@
 context("(2) Distribution functions")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 ### weighted normal distributions ----

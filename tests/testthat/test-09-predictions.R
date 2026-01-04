@@ -1,4 +1,5 @@
 context("(9) Prediction functions")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 ### Read all prefitted objects

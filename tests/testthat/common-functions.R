@@ -6,22 +6,22 @@ if (!exists("GENERATE_REFERENCE_FILES")) {
 }
 
 # Get the directory where prefitted models are stored
-temp_fits_dir <- Sys.getenv("ROBMA_TEST_FITS_DIR")
-if (temp_fits_dir == "" || !dir.exists(temp_fits_dir)) {
-  temp_fits_dir <- file.path(tempdir(), "RoBMA_test_fits")
+test_files_dir <- Sys.getenv("ROBMA_TEST_FILES_DIR")
+if (test_files_dir == "" || !dir.exists(test_files_dir)) {
+  test_files_dir <- file.path(tempdir(), "RoBMA_test_files")
 }
 
 # Setup directory for saving fitted models
-temp_fits_dir <- file.path(tempdir(), "RoBMA_test_fits")
-if (!dir.exists(temp_fits_dir)) {
-  dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)
-}
+temp_fits_dir    <- file.path(test_files_dir, "fits")
+temp_marglik_dir <- file.path(test_files_dir, "margliks")
+temp_info_dir    <- file.path(test_files_dir, "info")
+if (!dir.exists(temp_fits_dir)) dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(temp_marglik_dir)) dir.create(temp_marglik_dir, showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(temp_info_dir)) dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Set environment variable so other test files can locate pre-fitted models
-Sys.setenv(ROBMA_TEST_FITS_DIR = temp_fits_dir)
+Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
 
-# NOTE: File-level skip_on_cran() was removed intentionally.
-# Each test file should manage its own skip conditions appropriately.
 # Use skip_if_no_fits() for tests that need pre-fitted models.
 
 # ============================================================================ #
@@ -74,8 +74,7 @@ test_reference_text <- function(text, filename, info_msg = NULL,
 
 # Skip if pre-fitted models are not available
 skip_if_no_fits <- function() {
-  model_registry_file <- file.path(temp_fits_dir, "model_registry.RDS")
-  if (!file.exists(model_registry_file)) {
+  if (length(list.files(temp_fits_dir)) == 0) {
     skip("Pre-fitted models not found. Run `test(filter = 'test-01')` first.")
   }
 }
@@ -84,14 +83,19 @@ skip_if_no_fits <- function() {
 # HELPER FUNCTIONS: Model Fit Saving / Loading
 # ============================================================================ #
 
-save_fit     <- function(fit, name, marglik = NULL) {
+save_fit     <- function(name, fit, marglik = NULL, info = NULL) {
 
   # Save model fit
   saveRDS(fit, file = file.path(temp_fits_dir, paste0(name, ".RDS")))
 
   # Save marglik if provided
   if (!is.null(marglik)) {
-    saveRDS(marglik, file = file.path(temp_fits_dir, paste0(name, "_marglik.RDS")))
+    saveRDS(marglik, file = file.path(temp_marglik_dir, paste0(name, ".RDS")))
+  }
+
+  # Save info if provided
+  if (!is.null(info)) {
+    saveRDS(info, file = file.path(temp_info_dir, paste0(name, ".RDS")))
   }
 
   return(invisible(TRUE))
@@ -105,13 +109,27 @@ load_fit     <- function(name) {
 load_marglik <- function(name) {
 
   # load model marglik
-  marglik <- readRDS(file = file.path(temp_fits_dir, paste0(name, "_marglik.RDS")))
-  return(marglik)
+  marglik <- try(readRDS(file = file.path(temp_marglik_dir, paste0(name, ".RDS"))))
+  if (inherits(marglik, "try-error")) {
+    return(list())
+  } else {
+    return(marglik)
+  }
 }
+load_info    <- function(name) {
+
+  # load model info
+  info <- try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))))
+  if (inherits(info, "try-error")) {
+    return(list())
+  } else {
+    return(info)
+  }
+}
+
 list_fits    <- function(name) {
 
   files <- list.files(temp_fits_dir)
-  files <- files[!grepl("_marglik.RDS", files)]
   files <- gsub(".RDS", "", files)
 
   return(files)

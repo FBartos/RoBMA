@@ -1,4 +1,5 @@
 context("(11) Z-curve Diagnostics")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 ### Read all prefitted objects

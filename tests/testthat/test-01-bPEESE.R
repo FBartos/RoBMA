@@ -16,7 +16,7 @@ test_that("Test against metafor::rma.uni with mods = ~ sei^2 ", {
 
   # using RoBMA package
   fit.bPEESE <- bPEESE(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1)
-  save_fit(fit.bPEESE, "dat.lehmann2018-PEESE")
+  save_fit("dat.lehmann2018-PEESE", fit.bPEESE)
 
   expect_equal(fit_PEESE.metafor$beta[[1]],   fit.bPEESE$summary["mu","Mean"],    tolerance = 0.05)
   expect_equal(sqrt(fit_PEESE.metafor$tau2),  fit.bPEESE$summary["tau","Mean"],   tolerance = 0.05)

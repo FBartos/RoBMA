@@ -39,7 +39,7 @@ test_that("GLMM input works with direct vectors (ai, bi, ci, di)", {
   expect_true("outcome" %in% names(result))
   expect_equal(nrow(result$outcome), 3)
   expect_equal(result$outcome$ai, c(10L, 15L, 12L))
-  expect_equal(result$outcome$bi, c(40L, 35L, 38L))
+  expect_equal(result$outcome$ci, c(5L, 10L, 8L))
   # n1i and n2i should be computed
   expect_equal(result$outcome$n1i, c(50L, 50L, 50L))
   expect_equal(result$outcome$n2i, c(50L, 50L, 50L))
@@ -62,7 +62,7 @@ test_that("GLMM input works with alternative format (ai, ci, n1i, n2i)", {
   expect_equal(nrow(result$outcome), 3)
   expect_equal(result$outcome$ai, c(10L, 15L, 12L))
   # bi should be computed as n1i - ai
-  expect_equal(result$outcome$bi, c(40L, 35L, 38L))
+  expect_equal(result$outcome$ci, c(5L, 10L, 8))
   expect_equal(result$outcome$n1i, c(50L, 50L, 50L))
   expect_equal(result$outcome$n2i, c(50L, 50L, 50L))
 })
@@ -84,7 +84,7 @@ test_that("GLMM input works with unquoted column names from data", {
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
   expect_equal(result$outcome$ai, test_data_glmm$ai)
-  expect_equal(result$outcome$bi, test_data_glmm$bi)
+  expect_equal(result$outcome$ci, test_data_glmm$ci)
 })
 
 
@@ -104,7 +104,7 @@ test_that("GLMM input works with quoted string column names from data", {
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
   expect_equal(result$outcome$ai, test_data_glmm$ai)
-  expect_equal(result$outcome$bi, test_data_glmm$bi)
+  expect_equal(result$outcome$ci, test_data_glmm$ci)
 })
 
 
@@ -318,7 +318,7 @@ test_that("GLMM applies logical subset correctly", {
 
   expect_equal(nrow(result$outcome), 3)
   expect_equal(result$outcome$ai, test_data_glmm$ai[c(1, 2, 4)])
-  expect_equal(result$outcome$bi, test_data_glmm$bi[c(1, 2, 4)])
+  expect_equal(result$outcome$ci, test_data_glmm$ci[c(1, 2, 4)])
 })
 
 

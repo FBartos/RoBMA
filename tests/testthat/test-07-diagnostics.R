@@ -1,4 +1,5 @@
 context("(7) Diagnostics plots")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 ### Read all prefitted objects

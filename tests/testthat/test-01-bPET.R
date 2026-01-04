@@ -16,7 +16,7 @@ test_that("Test against metafor::rma.uni with mods = ~ sei ", {
 
   # using RoBMA package
   fit.bPET <- bPET(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1)
-  save_fit(fit.bPET, "dat.lehmann2018-PET")
+  save_fit("dat.lehmann2018-PET", fit.bPET)
 
   expect_equal(fit_PET.metafor$beta[[1]],   fit.bPET$summary["mu","Mean"],  tolerance = 0.05)
   expect_equal(sqrt(fit_PET.metafor$tau2),  fit.bPET$summary["tau","Mean"], tolerance = 0.05)

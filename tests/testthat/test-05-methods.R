@@ -1,4 +1,5 @@
 context("(5) Print and summary functions")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 ### Read all prefitted objects

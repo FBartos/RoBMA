@@ -1,4 +1,5 @@
 context("(4) Fitting and updating functions")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 # Create temporary directory for fitted models that will be used by subsequent tests

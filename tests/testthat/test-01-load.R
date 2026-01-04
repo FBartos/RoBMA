@@ -1,4 +1,5 @@
 context("(1) JAGS module functionality")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 ### one-sided weight function

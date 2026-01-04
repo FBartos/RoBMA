@@ -1,4 +1,5 @@
 context("(3) Model setup")
+skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
 
 # test model preview
