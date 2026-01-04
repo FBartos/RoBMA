@@ -2,6 +2,7 @@ context("Model fitting for bPET")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+skip_refit_if_cached("bPET")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::rma.uni with mods = ~ sei ", {
@@ -15,7 +16,7 @@ test_that("Test against metafor::rma.uni with mods = ~ sei ", {
   fit_PET.metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat.lehmann2018)
 
   # using RoBMA package
-  fit.bPET <- bPET(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1)
+  fit.bPET <- bPET(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
   save_fit("dat.lehmann2018-PET", fit.bPET)
 
   expect_equal(fit_PET.metafor$beta[[1]],   fit.bPET$summary["mu","Mean"],  tolerance = 0.05)

@@ -13,20 +13,20 @@ test_that("Prior and posterior distributions for model parameters", {
 
   # effect
   for (name in names(fits)) {
-    vdiffr::expect_doppelganger(paste0("baseplot_pp_mu_", name), plot(fits[[name]], "mu", prior = TRUE))
+    vdiffr::expect_doppelganger(paste0("baseplot_pp_mu_", name), function() plot(fits[[name]], "mu", prior = TRUE))
     vdiffr::expect_doppelganger(paste0("ggplot_pp_mu_", name), plot(fits[[name]], "mu", prior = TRUE, plot_type = "ggplot"))
   }
 
   # heterogeneity
   for (name in names(fits)) {
-    vdiffr::expect_doppelganger(paste0("base_pp_tau_", name), plot(fits[[name]], "tau", prior = TRUE))
+    vdiffr::expect_doppelganger(paste0("base_pp_tau_", name), function() plot(fits[[name]], "tau", prior = TRUE))
     vdiffr::expect_doppelganger(paste0("ggplot_pp_tau_", name), plot(fits[[name]], "tau", prior = TRUE, plot_type = "ggplot"))
   }
 
   # variance allocation
   for (name in names(fits)) {
     if (RoBMA:::.is_multilevel(fits[[name]])) {
-      vdiffr::expect_doppelganger(paste0("base_pp_rho_", name), plot(fits[[name]], "rho", prior = TRUE))
+      vdiffr::expect_doppelganger(paste0("base_pp_rho_", name), function() plot(fits[[name]], "rho", prior = TRUE))
       vdiffr::expect_doppelganger(paste0("ggplot_pp_rho_", name), plot(fits[[name]], "rho", prior = TRUE, plot_type = "ggplot"))
     }
   }
@@ -35,7 +35,7 @@ test_that("Prior and posterior distributions for model parameters", {
   for (name in names(fits)) {
     if (RoBMA:::.is_mods(fits[[name]])) {
       for (pars in info[[name]][["mods"]]) {
-        vdiffr::expect_doppelganger(paste0("base_pp_mods_", pars, "_", name), plot(fits[[name]], parameter_mods = pars, prior = TRUE))
+        vdiffr::expect_doppelganger(paste0("base_pp_mods_", pars, "_", name), function() plot(fits[[name]], parameter_mods = pars, prior = TRUE))
         vdiffr::expect_doppelganger(paste0("ggplot_pp_scale_", pars, "_",, name), plot(fits[[name]], parameter_mods = pars, prior = TRUE, plot_type = "ggplot"))
       }
     }
@@ -45,13 +45,21 @@ test_that("Prior and posterior distributions for model parameters", {
   for (name in names(fits)) {
     if (RoBMA:::.is_scale(fits[[name]])) {
       for (pars in info[[name]][["scale"]]) {
-        vdiffr::expect_doppelganger(paste0("base_pp_scale_", pars, "_", name), plot(fits[[name]], parameter_mods = pars, prior = TRUE))
+        vdiffr::expect_doppelganger(paste0("base_pp_scale_", pars, "_", name), function() plot(fits[[name]], parameter_mods = pars, prior = TRUE))
         vdiffr::expect_doppelganger(paste0("ggplot_pp_scale_", pars, "_",, name), plot(fits[[name]], parameter_mods = pars, prior = TRUE, plot_type = "ggplot"))
       }
     }
   }
 
-  # test plot customization
-
-
+  # publication bias parameters
+  for (name in names(fits)) {
+    if (RoBMA:::.is_PET(fits[[name]])) {
+      vdiffr::expect_doppelganger(paste0("base_pp_PET_", name), function() plot(fits[[name]], parameter = "PET", prior = TRUE))
+      vdiffr::expect_doppelganger(paste0("ggplot_pp_PET_", name), plot(fits[[name]], parameter = "PET", prior = TRUE, plot_type = "ggplot"))
+    }
+  }
+  plot(fits[[name]], parameter = "PET", prior = TRUE)
 })
+
+
+# test plot customization

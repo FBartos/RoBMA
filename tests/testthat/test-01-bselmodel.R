@@ -2,6 +2,7 @@ context("Model fitting for bselmodel")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+skip_refit_if_cached("bselmodel")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::selmodel", {
@@ -16,7 +17,7 @@ test_that("Test against metafor::selmodel", {
   fit_selmodel.metafor <- metafor::selmodel(fit_rma.metafor, type = "stepfun", alternative = "greater", steps = .025)
 
   # using RoBMA package
-  fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1)
+  fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
   save_fit("dat.lehmann2018-3PSM", fit.bselmodel)
 
   expect_equal(fit_selmodel.metafor$beta[[1]],  fit.bselmodel$summary["mu","Mean"],  tolerance = 0.01)

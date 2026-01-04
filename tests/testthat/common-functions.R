@@ -15,9 +15,11 @@ if (test_files_dir == "" || !dir.exists(test_files_dir)) {
 temp_fits_dir    <- file.path(test_files_dir, "fits")
 temp_marglik_dir <- file.path(test_files_dir, "margliks")
 temp_info_dir    <- file.path(test_files_dir, "info")
-if (!dir.exists(temp_fits_dir)) dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)
+temp_temp_dir    <- file.path(test_files_dir, "temp")
+if (!dir.exists(temp_fits_dir))    dir.create(temp_fits_dir,    showWarnings = FALSE, recursive = TRUE)
 if (!dir.exists(temp_marglik_dir)) dir.create(temp_marglik_dir, showWarnings = FALSE, recursive = TRUE)
-if (!dir.exists(temp_info_dir)) dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(temp_info_dir))    dir.create(temp_info_dir,    showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(temp_temp_dir))    dir.create(temp_temp_dir,    showWarnings = FALSE, recursive = TRUE)
 
 # Set environment variable so other test files can locate pre-fitted models
 Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
@@ -79,6 +81,23 @@ skip_if_no_fits <- function() {
   }
 }
 
+# Skip model fitting if cached fits exist and ROBMA_TEST_SKIP_REFIT is TRUE
+skip_refit_if_cached <- function(name) {
+  # refitting settings
+  skip_refit <- Sys.getenv("ROBMA_TEST_SKIP_REFIT")
+  skip_refit <- skip_refit != "" && as.logical(skip_refit)
+
+  # fitted indicator
+  fitted_indicator <- file.exists(file.path(temp_temp_dir, paste0(name, ".txt")))
+
+  if (skip_refit && fitted_indicator) {
+    skip("Skipping model refitting: cached fits exist and ROBMA_TEST_SKIP_REFIT=TRUE.")
+  }
+
+  # tests are not going to be skipped -- add fits done indicator into `temp_temp_dir`
+  file.create(file.path(temp_temp_dir, paste0(name, ".txt")))
+}
+
 # ============================================================================ #
 # HELPER FUNCTIONS: Model Fit Saving / Loading
 # ============================================================================ #
@@ -119,7 +138,7 @@ load_marglik <- function(name) {
 load_info    <- function(name) {
 
   # load model info
-  info <- try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))), silent = TRUE)
+  info <- suppressWarnings(try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))), silent = TRUE))
   if (inherits(info, "try-error")) {
     return(list())
   } else {
@@ -129,8 +148,30 @@ load_info    <- function(name) {
 
 list_fits    <- function(name) {
 
-  files <- list.files(temp_fits_dir)
+  files <- suppressWarnings(list.files(temp_fits_dir))
   files <- gsub(".RDS", "", files)
 
   return(files)
+}
+
+clean_cached_fits <- function(name) {
+
+  if (!missing(name)) {
+    # remove only the specific `name`` fitted indicator files side-effects from `temp_temp_dir`
+    file.remove(file.path(temp_temp_dir, paste0(name, ".txt")))
+  } else {
+    # Remove all cached files from test directories
+    unlink(temp_fits_dir,    recursive = TRUE)
+    unlink(temp_marglik_dir, recursive = TRUE)
+    unlink(temp_info_dir,    recursive = TRUE)
+    unlink(temp_temp_dir,    recursive = TRUE)
+
+    # Recreate empty directories
+    dir.create(temp_fits_dir,    showWarnings = FALSE, recursive = TRUE)
+    dir.create(temp_marglik_dir, showWarnings = FALSE, recursive = TRUE)
+    dir.create(temp_info_dir,    showWarnings = FALSE, recursive = TRUE)
+    dir.create(temp_temp_dir,    showWarnings = FALSE, recursive = TRUE)
+  }
+
+  return(invisible(TRUE))
 }
