@@ -62,11 +62,12 @@ plot.brma  <- function(
     parameters = parameter
   )
 
+
   ### additional workaround formatting for BayesTools
   # TODO: this does not solve the issue
-  if (parameter %in% c("PET", "PEESE")) {
-    samples <- .clean_PET_PEESE_samples(samples, parameter)
-  }
+  # if (parameter %in% c("PET", "PEESE")) {
+  #   samples <- .clean_PET_PEESE_samples(samples, parameter)
+  # }
 
   ### set up plotting arguments
   n_levels   <- .get_samples_n_levels(samples, parameter)

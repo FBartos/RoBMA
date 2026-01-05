@@ -17,10 +17,26 @@
     attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
   }
 
+  # add study-level indicators
   if (.is_data_multilevel(data)) {
     # encode number of levels for the random-effects prior
     attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["study_ids"]]))
   }
+
+  ### deal with non-prior mixture distributions (bPET, bPEESE, and bselmodel)
+  # the prior name must match the output parameter for sample extraction in plots etc
+  if (.is_priors_bias(priors)) {
+    if (!BayesTools::is.prior.mixture(prior_list[["bias"]])) {
+      if (BayesTools::is.prior.weightfunction(prior_list[["bias"]])) {
+        names(prior_list)[names(prior_list) == "bias"] <- "omega"
+      } else if (BayesTools::is.prior.PET(prior_list[["bias"]])) {
+        names(prior_list)[names(prior_list) == "bias"] <- "PET"
+      } else if (BayesTools::is.prior.PEESE(prior_list[["bias"]])) {
+        names(prior_list)[names(prior_list) == "bias"] <- "PEESE"
+      }
+    }
+  }
+
 
   return(prior_list)
 }
@@ -428,7 +444,6 @@
 
   return(fit)
 }
-
 
 # Helper functions -----
 .create_yi_cutoffs <- function(yi, sei, prior) {
