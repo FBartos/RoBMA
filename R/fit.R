@@ -514,6 +514,9 @@
 .data_outcome_type        <- function(data) {
   return(attr(data, "outcome_type"))
 }
+.data_measure             <- function(data) {
+  return(attr(data, "measure"))
+}
 .data_effect_direction    <- function(data) {
   return(attr(data, "effect_direction"))
 }
@@ -530,5 +533,6 @@
 .is_scale          <- function(object) .is_data_scale(object[["data"]])
 .is_weights        <- function(object) .is_data_weights(object[["data"]])
 .outcome_type      <- function(object) .data_outcome_type(object[["data"]])
+.measure           <- function(object) .data_measure(object[["data"]])
 .effect_direction  <- function(object) .data_effect_direction(object[["data"]])
 .standardize_continuous_predictors  <- function(object) .data_standardize_continuous_predictors(object[["data"]])

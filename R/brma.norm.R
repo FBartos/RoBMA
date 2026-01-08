@@ -166,7 +166,8 @@ brma <- brma.norm <- function(
   object$data <- .check_and_list_data(
     .call = match.call(), .envir = parent.frame(), class = "norm",
     set_contrast_factor_predictors = set_contrast_factor_predictors,
-    standardize_continuous_predictors = standardize_continuous_predictors)
+    standardize_continuous_predictors = standardize_continuous_predictors,
+    measure = measure)
   if (isTRUE(dots[["only_data"]]))
     return(object)
 
@@ -179,7 +180,7 @@ brma <- brma.norm <- function(
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], measure = measure)
+    data = object[["data"]])
   if (isTRUE(dots[["only_priors"]]))
     return(object)
 

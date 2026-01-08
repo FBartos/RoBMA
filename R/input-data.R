@@ -139,6 +139,15 @@
                                  set_contrast_factor_predictors, standardize_continuous_predictors,
                                  effect_direction = "positive") {
 
+  # check additional input
+  .check_measure(measure)
+  BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
+  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
+  if (missing(effect_direction)) {
+    effect_direction <- "positive"
+  }
+  BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative", "detect"))
+
   ### Extract the data argument first - other variables may reference columns within it
   data <- .get_variable(.call, NULL, .envir, "data", allow_NULL = TRUE)
 
@@ -250,10 +259,7 @@
     data_outcome[["study_ids"]] <- as.numeric(as.factor(data_outcome[["study_ids"]]))
   }
 
-  ### Check additional data related input
-  BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
-  BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
-
+  ### Create output object
   data_list <- list(
     outcome = data_outcome,
     mods    = data_mods,
@@ -262,6 +268,7 @@
 
   class(data_list) <- "RoBMA_data"
   attr(data_list, "outcome_type")                       <- outcome_type
+  attr(data_list, "measure")                            <- measure
   attr(data_list, "n_dropped")                          <- n_dropped
   attr(data_list, "k_final")                            <- k_final
   attr(data_list, "mods")                               <- !is.null(data_mods)
@@ -383,10 +390,6 @@
   )
 
   ### Evaluate effect_direction
-  if (missing(effect_direction)) {
-    effect_direction <- "positive"
-  }
-  BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative", "detect"))
   if (effect_direction == "detect") {
     effect_direction <- if (median(data_outcome$yi, na.rm = TRUE) >= 0) "positive" else "negative"
   }
@@ -894,4 +897,139 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   }
 
   invisible(x)
+}
+
+
+# Internal helper function to prepare newdata for prediction
+# Reuses `.check_and_list_data` by constructing appropriate call and environment
+#
+# The newdata data.frame must always contain all variables used in the original model:
+# - Outcome variables (yi + sei/vi for norm; ai, ci, n1i, n2i for bin; x1i, x2i, t1i, t2i for pois)
+# - All moderator variables referenced in the mods formula (if regression)
+# - All scale predictor variables referenced in the scale formula (if present)
+#
+# @param object A fitted brma object
+# @param newdata A data.frame with new data for prediction (must contain all model variables)
+# @param type Prediction type: "terms", "effect", or "response"
+# @param incorporate_publication_bias Whether to incorporate publication bias
+#
+# @return A data list equivalent to `object[["data"]]` but for `newdata`
+.prepare_newdata <- function(object, newdata, type, incorporate_publication_bias) {
+
+ # extract settings from the original fitted object's data attributes
+  original_data <- object[["data"]]
+  set_contrast_factor_predictors    <- attr(original_data, "set_contrast_factor_predictors")
+  standardize_continuous_predictors <- attr(original_data, "standardize_continuous_predictors")
+  effect_direction                  <- .effect_direction(object)
+  outcome_type                      <- .outcome_type(object)
+
+  # determine whether this is a regression model (has formula/mods)
+  is_regression <- .is_regression(object)
+
+  # build the synthetic call expression
+  # start with the base call structure
+  call_args <- list(quote(.prepare_newdata_call))
+
+  # add data argument
+  call_args[["data"]] <- quote(data)
+
+  # add outcome arguments based on outcome_type
+  # newdata must always contain the required outcome columns
+  if (outcome_type == "norm") {
+    # require yi and either sei or vi
+    if (!"yi" %in% names(newdata)) {
+      stop("The 'newdata' must contain a 'yi' (effect size) column.", call. = FALSE)
+    }
+    call_args[["yi"]] <- quote(yi)
+
+    if ("sei" %in% names(newdata)) {
+      call_args[["sei"]] <- quote(sei)
+    } else if ("vi" %in% names(newdata)) {
+      call_args[["vi"]] <- quote(vi)
+    } else {
+      stop("The 'newdata' must contain either 'sei' (standard error) or 'vi' (variance) column.", call. = FALSE)
+    }
+  } else if (outcome_type == "bin") {
+    # require ai, ci, n1i, n2i for binomial models
+    missing_cols <- setdiff(c("ai", "ci", "n1i", "n2i"), names(newdata))
+    if (length(missing_cols) > 0) {
+      stop("The 'newdata' must contain columns: ", paste(missing_cols, collapse = ", "), ".", call. = FALSE)
+    }
+    call_args[["ai"]]  <- quote(ai)
+    call_args[["ci"]]  <- quote(ci)
+    call_args[["n1i"]] <- quote(n1i)
+    call_args[["n2i"]] <- quote(n2i)
+  } else if (outcome_type == "pois") {
+    # require x1i, x2i, t1i, t2i for Poisson models
+    missing_cols <- setdiff(c("x1i", "x2i", "t1i", "t2i"), names(newdata))
+    if (length(missing_cols) > 0) {
+      stop("The 'newdata' must contain columns: ", paste(missing_cols, collapse = ", "), ".", call. = FALSE)
+    }
+    call_args[["x1i"]] <- quote(x1i)
+    call_args[["x2i"]] <- quote(x2i)
+    call_args[["t1i"]] <- quote(t1i)
+    call_args[["t2i"]] <- quote(t2i)
+  }
+
+  # add mods formula if this is a regression model
+  if (.is_mods(object)) {
+    call_args[["mods"]] <- attr(original_data[["mods"]], "formula")
+  }
+
+  # add scale formula if present
+  if (.is_scale(object)) {
+    call_args[["scale"]] <- attr(original_data[["scale"]], "formula")
+  }
+
+  # construct the call object
+  .call <- as.call(call_args)
+
+  # pre-validate that all formula variables exist in newdata
+  # this prevents formulas from finding variables in parent environments
+  if (.is_mods(object)) {
+    mods_formula <- attr(original_data[["mods"]], "formula")
+    mods_vars    <- all.vars(mods_formula)
+    missing_mods <- setdiff(mods_vars, names(newdata))
+    if (length(missing_mods) > 0) {
+      stop("The 'newdata' must contain all moderator variables. Missing: ",
+           paste(missing_mods, collapse = ", "), ".", call. = FALSE)
+    }
+  }
+
+  if (.is_scale(object)) {
+    scale_formula <- attr(original_data[["scale"]], "formula")
+    scale_vars    <- all.vars(scale_formula)
+    missing_scale <- setdiff(scale_vars, names(newdata))
+    if (length(missing_scale) > 0) {
+      stop("The 'newdata' must contain all scale variables. Missing: ",
+           paste(missing_scale, collapse = ", "), ".", call. = FALSE)
+    }
+  }
+
+  # create environment with newdata as "data"
+  # use baseenv() as parent to prevent variable leakage from calling context
+  .envir           <- new.env(parent = baseenv())
+  .envir[["data"]] <- newdata
+
+  # determine class and measure for .check_and_list_data
+  measure    <- .measure(object)
+  data_class <- switch(
+    outcome_type,
+    "norm" = "norm",
+    "bin"  = "glmm",
+    "pois" = "glmm"
+  )
+
+  # call .check_and_list_data with extracted settings
+  new_data <- .check_and_list_data(
+    .call  = .call,
+    .envir = .envir,
+    class  = data_class,
+    measure = measure,
+    set_contrast_factor_predictors    = set_contrast_factor_predictors,
+    standardize_continuous_predictors = standardize_continuous_predictors,
+    effect_direction                  = effect_direction
+  )
+
+  return(new_data)
 }

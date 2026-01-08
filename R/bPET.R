@@ -47,7 +47,7 @@ bPET <- function(
     .call = match.call(), .envir = parent.frame(), class = "norm",
     set_contrast_factor_predictors = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
-    effect_direction = effect_direction)
+    effect_direction = effect_direction, measure = measure)
   if (isTRUE(dots[["only_data"]]))
     return(object)
 
@@ -61,8 +61,7 @@ bPET <- function(
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], measure = measure,
-    bias_type = "PET")
+    data = object[["data"]], bias_type = "PET")
   if (isTRUE(dots[["only_priors"]]))
     return(object)
 

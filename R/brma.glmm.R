@@ -70,7 +70,7 @@ brma.glmm <- function(
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], measure = measure)
+    data = object[["data"]])
   if (isTRUE(dots[["only_priors"]]))
     return(object)
 

@@ -780,17 +780,15 @@ estimate_unit_information_sd <- function(sei, ni) {
 .check_and_list_priors.brma <- function(
     prior_effect, prior_heterogeneity,
     prior_mods, prior_scale,
-    prior_heterogeneity_allocation,
-    prior_bias = prior_bias,
+    prior_heterogeneity_allocation, prior_bias,
     prior_baserate, prior_lograte,
     rescale_priors,
     prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield,
-    data = object[["data"]], measure = measure,
+    data, measure,
     bias_type, steps) {
 
   ### check input
-  .check_measure(measure)
   if (!missing(rescale_priors))
     BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
   if (!missing(prior_unit_information_sd))
@@ -804,6 +802,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     BayesTools::check_real(steps, "steps", lower = 0, upper = 1, allow_bound = FALSE, check_length = FALSE, allow_NA = FALSE)
 
   ### set prior distributions
+  measure       <- .data_measure(data)
   prior_outcome <- list()
 
   prior_outcome[["mu"]] <- .assign_prior.simple(
@@ -888,10 +887,9 @@ estimate_unit_information_sd <- function(sei, ni) {
     rescale_priors,
     prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield,
-    data = object[["data"]], measure = measure) {
+    data) {
 
   ### check input
-  .check_measure(measure)
   if (!missing(rescale_priors))
     BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
   if (!missing(prior_unit_information_sd))
@@ -903,6 +901,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
 
   ### set prior distributions
+  measure       <- .data_measure(data)
   prior_outcome <- list()
 
   prior_outcome[["mu"]] <- .assign_prior.simple_mixture(

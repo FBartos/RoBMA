@@ -18,7 +18,7 @@ test_that("Test against metafor::selmodel", {
 
   # using RoBMA package
   fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
-  save_fit("dat.lehmann2018-3PSM", fit.bselmodel)
+  save_fit("dat.lehmann2018-3PSM", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
 
   expect_equal(fit_selmodel.metafor$beta[[1]],  fit.bselmodel$summary["mu","Mean"],  tolerance = 0.01)
   expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau","Mean"], tolerance = 0.01)

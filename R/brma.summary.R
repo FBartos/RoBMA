@@ -33,6 +33,12 @@ summary.brma       <- function(
   is_bias       <- .is_bias(object)
   outcome_type  <- .outcome_type(object)
 
+  ### special cases handling
+  # deal with `only_data` fit
+  if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
+    return(object[["data"]])
+  }
+
   ### provide common estimates
   estimates_common <- BayesTools::JAGS_estimates_table(
     fit                = object[["fit"]],

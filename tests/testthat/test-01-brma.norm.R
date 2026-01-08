@@ -18,7 +18,7 @@ test_that("Test against metafor::rma.uni", {
 
   # using RoBMA package
   fit_simple.brma <- brma(yi = yi, vi = vi, data = dat, measure = "RR", seed = 1, silent = TRUE)
-  save_fit("bcg_meta-analysis", fit_simple.brma)
+  save_fit("bcg_meta-analysis", fit_simple.brma, info = list(metafor = fit_simple.brma))
   expect_equal(fit_simple.metafor$beta[[1]],  fit_simple.brma$summary["mu","Mean"],  tolerance = 0.05)
   expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau","Mean"], tolerance = 0.05)
 
@@ -28,7 +28,7 @@ test_that("Test against metafor::rma.uni", {
 
   # using RoBMA package
   fit_mods.brma <- brma(yi, vi, mods = ~ ablat + year, data = dat, measure = "RR", seed = 1, silent = TRUE)
-  save_fit("bcg_meta-regression", fit_mods.brma, info = list(mods = c("ablat", "year")))
+  save_fit("bcg_meta-regression", fit_mods.brma, info = list(mods = c("ablat", "year"), metafor = fit_mods.metafor))
 
   expect_equal(fit_mods.metafor$beta[[1]],  fit_mods.brma$summary["(mu) intercept","Mean"],    tolerance = 1.5)
   expect_equal(fit_mods.metafor$beta[[2]],  fit_mods.brma$summary["(mu) ablat","Mean"],        tolerance = 0.01)
@@ -61,7 +61,7 @@ test_that("Test against metafor::rma.ls", {
 
   # using RoBMA package (using wide priors for scale to remove shrinkage -- the likelihood is very wide)
   fit_scale.brma <- suppressWarnings(brma(yi, vi, mods = ~ meta + ni100, scale = ~ ni100, data = dat, measure = "SMD", seed = 1, silent = TRUE))
-  save_fit("bangertdrowns2004_location-scale", fit_scale.brma, info = list(mods = c("meta", "ni100"), scale = "ni100"))
+  save_fit("bangertdrowns2004_location-scale", fit_scale.brma, info = list(mods = c("meta", "ni100"), scale = "ni100", metafor = fit_scale.metafor))
 
   expect_equal(fit_scale.metafor$beta[[1]],  fit_scale.brma$summary["(mu) intercept","Mean"],  tolerance = 0.05)
   expect_equal(fit_scale.metafor$beta[[2]],  fit_scale.brma$summary["(mu) meta[1]","Mean"],    tolerance = 0.05)
@@ -85,7 +85,7 @@ test_that("Test against metafor::rma.mv (3lvl)", {
 
   # using RoBMA package
   fit_3lvl.brma <- brma(yi, vi, study_ids = district, data = dat.konstantopoulos2011, measure = "SMD", seed = 1, silent = TRUE)
-  save_fit("konstantopoulos2011_3lvl", fit_3lvl.brma)
+  save_fit("konstantopoulos2011_3lvl", fit_3lvl.brma, info = list(metafor = fit_3lvl.metafor))
 
   expect_equal(fit_3lvl.metafor$beta[[1]],  fit_3lvl.brma$summary["mu","Mean"],   tolerance = 0.01)
   expect_equal(sqrt(fit_3lvl.metafor$tau2), fit_3lvl.brma$summary["tau","Mean"],  tolerance = 0.01)

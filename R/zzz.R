@@ -37,7 +37,7 @@
 
 .onAttach <- function(libname, pkgname){
 
-  packageStartupMessage("RoBMA version 3.3 now features spike-and-slab style model-averaging via the \'algorithm = \"ss\"\' argument.\nSee \'vignette(\"FastRoBMA\", package = \"RoBMA\")' for more details (\'algorithm = \"ss\"\' argument will become the default setting in the future major release of the package).")
+  packageStartupMessage("Welcome to RoBMA 4.0")
 
 }
 

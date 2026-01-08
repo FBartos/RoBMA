@@ -207,7 +207,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
   # obtain the (study-specific) mu estimate
   # meta-regression and meta-analysis separately
   if(.is_regression(object)){
-
+    # TODO: here
     mu_samples  <- t(BayesTools::JAGS_evaluate_formula(
       fit         = object$model$fit,
       formula     = object$formula,
