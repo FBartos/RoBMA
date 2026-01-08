@@ -54,6 +54,7 @@ Suggests:
     parallel,
     metaBMA,
     metafor,
+    posterior,
     weightr,
     lme4,
     fixest,

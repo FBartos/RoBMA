@@ -1,3 +1,10 @@
+## version 4.0.0
+### Features
+- adds interface to the `posterior` package via the `as_draws` functions for all fitted models
+
+
+
+
 ## version 3.6.1
 ### Features
 - `Explanation` vignette that helps navigate users through the vignettes
