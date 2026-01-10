@@ -1,4 +1,4 @@
-context("Input handling for .prepare_newdata")
+context("Input handling for predict")
 
 # ============================================================================
 # Test data setup

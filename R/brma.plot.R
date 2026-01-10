@@ -62,13 +62,6 @@ plot.brma  <- function(
     parameters = parameter
   )
 
-
-  ### additional workaround formatting for BayesTools
-  # TODO: this does not solve the issue
-  # if (parameter %in% c("PET", "PEESE")) {
-  #   samples <- .clean_PET_PEESE_samples(samples, parameter)
-  # }
-
   ### set up plotting arguments
   n_levels   <- .get_samples_n_levels(samples, parameter)
   dots       <- .set_dots_plot(..., n_levels = n_levels)
@@ -84,6 +77,7 @@ plot.brma  <- function(
   args$n_samples                <- 10000
   args$force_samples            <- FALSE
   args$dots_prior               <- dots_prior
+  args$individual               <- TRUE
 
   # suppress messages about transformations
   plot <- suppressMessages(do.call(BayesTools::plot_posterior, args))
@@ -95,6 +89,90 @@ plot.brma  <- function(
     return(plot)
   }
 }
+
+
+#' @title Plots Weight Function of brma Object
+#'
+#' @description \code{plot.brma} visualizes posterior
+#' (and prior) weight function of a brma object.
+#'
+#' @param x a fitted RoBMA object
+#' @param plot_type whether to use a base plot \code{"base"}
+#' or ggplot2 \code{"ggplot"} for plotting. Defaults to
+#' \code{"base"}.
+#' @param prior whether prior distribution should be added to
+#' figure. Defaults to \code{FALSE}.
+#' @param dots_prior list of additional graphical arguments
+#' to be passed to the plotting function of the prior
+#' distribution. Supported arguments are \code{lwd},
+#' \code{lty}, \code{col}, and \code{col.fill}, to adjust
+#' the line thickness, line type, line color, and fill color
+#' of the prior distribution respectively.
+#' @param ... list of additional graphical arguments
+#' to be passed to the plotting function. Supported arguments
+#' are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
+#' \code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+#' to adjust the line thickness, line type, line color, fill color,
+#' x-label, y-label, title, x-axis range, and y-axis range
+#' respectively.
+#'
+#' @examples \dontrun{
+#' }
+#'
+#'
+#' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
+#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#'
+#' @seealso [RoBMA()]
+#' @export
+plot_weightfunction <- function(x, ...)  UseMethod("plot_weightfunction")
+
+#' @export
+#' @rdname plot_weightfunction
+plot_weightfunction.brma  <- function(
+    x, rescale_p_values = TRUE,
+    prior = FALSE, plot_type = "base", dots_prior = NULL, ...) {
+
+
+  ### check user input
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_bool(prior, "prior")
+  BayesTools::check_bool(rescale_p_values, "rescale_p_values")
+
+  ### obtain posterior samples in the plotting format
+  samples <- BayesTools::as_mixed_posteriors(
+    model      = x[["fit"]],
+    parameters = "omega"
+  )
+
+  ### set up plotting arguments
+  dots       <- .set_dots_plot(...)
+  dots_prior <- .set_dots_prior(dots_prior)
+
+  # prepare the argument call
+  args                          <- dots
+  args$samples                  <- samples
+  args$parameter                <- "weightfunction"
+  args$plot_type                <- plot_type
+  args$prior                    <- prior
+  args$n_points                 <- 1000
+  args$n_samples                <- 10000
+  args$force_samples            <- FALSE
+  args$dots_prior               <- dots_prior
+  args$individual               <- FALSE
+  args$rescale_x                <- rescale_p_values
+
+  # suppress messages about transformations
+  plot <- suppressMessages(do.call(BayesTools::plot_posterior, args))
+
+  # return the plots
+  if(plot_type == "base"){
+    return(invisible(plot))
+  }else if(plot_type == "ggplot"){
+    return(plot)
+  }
+}
+
 
 
 .clean_PET_PEESE_samples <- function(samples, parameter) {

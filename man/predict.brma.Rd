@@ -53,9 +53,6 @@ To obtain results corresponding to the metafor's predict function, use the
 \code{type = "terms"} to obtain the mean effect size estimate in its credible interval
 and \code{type = "effect"} to obtain the distribution of the true study effects (i.e.,
 prediction interval).
-
-The conditional estimate is calculated conditional on the presence of the effect
-(in meta-analysis) or the intercept (in meta-regression).
 }
 \examples{
 \dontrun{
