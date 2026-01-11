@@ -56,17 +56,31 @@ test_that("Prior and posterior distributions for model parameters", {
     if (RoBMA:::.is_PET(fits[[name]])) {
       vdiffr::expect_doppelganger(paste0("base_pp_PET_", name), function() plot(fits[[name]], parameter = "PET", prior = TRUE))
       vdiffr::expect_doppelganger(paste0("ggplot_pp_PET_", name), plot(fits[[name]], parameter = "PET", prior = TRUE, plot_type = "ggplot"))
+      # test complete PET-PEESE regression
+      vdiffr::expect_doppelganger(paste0("base_pp_PETPEESE_", name), function() plot_PETPEESE(fits[[name]], prior = TRUE))
+      vdiffr::expect_doppelganger(paste0("ggplot_pp_PETPEESE_", name), plot_PETPEESE(fits[[name]], prior = TRUE, plot_type = "ggplot"))
     }
     if (RoBMA:::.is_PEESE(fits[[name]])) {
       vdiffr::expect_doppelganger(paste0("base_pp_PEESE_", name), function() plot(fits[[name]], parameter = "PEESE", prior = TRUE))
       vdiffr::expect_doppelganger(paste0("ggplot_pp_PEESE_", name), plot(fits[[name]], parameter = "PEESE", prior = TRUE, plot_type = "ggplot"))
+      # test complete PET-PEESE regression
+      vdiffr::expect_doppelganger(paste0("base_pp_PETPEESE_", name), function() plot_PETPEESE(fits[[name]], prior = TRUE))
+      vdiffr::expect_doppelganger(paste0("ggplot_pp_PETPEESE_", name), plot_PETPEESE(fits[[name]], prior = TRUE, plot_type = "ggplot"))
     }
     if (RoBMA:::.is_weightfunction(fits[[name]])) {
-      # TODO
-      # vdiffr::expect_doppelganger(paste0("base_pp_omega_", name), function() plot(fits[[name]], parameter = "omega", prior = TRUE))
-      # vdiffr::expect_doppelganger(paste0("ggplot_pp_omega_", name), plot(fits[[name]], parameter = "omega", prior = TRUE, plot_type = "ggplot"))
-      # TODO
-      # vdiffr::expect_doppelganger(paste0("base_pp_weightfunction_", name), function() plot_weightfunction(fits[[name]], parameter = "omega", prior = TRUE))
+      vdiffr::expect_doppelganger(paste0("base_pp_omega_", name), function() {
+        oldpar <- graphics::par(no.readonly = TRUE)
+        on.exit(graphics::par(mar = oldpar[["mar"]]))
+        par(mar = c(4, 4, 1, 4), mfrow = c(1, 4))
+        plot(fits[[name]], parameter = "omega", prior = TRUE)
+      })
+      vdiffr::expect_doppelganger(paste0("ggplot_pp_omega_", name), function() {
+        temp <- plot(fits[[name]], parameter = "omega", prior = TRUE, plot_type = "ggplot")
+        gridExtra::grid.arrange(grobs = temp, nrow = 1)
+      })
+      # test complete weightfunction
+      vdiffr::expect_doppelganger(paste0("base_pp_weightfunction_", name), function() plot_weightfunction(fits[[name]], parameter = "omega", prior = TRUE))
+      vdiffr::expect_doppelganger(paste0("ggplot_pp_weightfunction_", name), plot_weightfunction(fits[[name]], parameter = "omega", prior = TRUE, plot_type = "ggplot"))
     }
   }
 

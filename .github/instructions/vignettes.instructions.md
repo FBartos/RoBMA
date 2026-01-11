@@ -1,4 +1,5 @@
 ---
+description: 'Vignette writing: Guidance for writting vignette documentation.'
 applyTo: "**/vignettes/*.Rmd"
 ---
 
