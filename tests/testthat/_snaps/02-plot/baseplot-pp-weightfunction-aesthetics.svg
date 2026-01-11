@@ -49,9 +49,9 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
-<polygon points='82.40,75.47 374.40,75.47 374.40,475.02 666.40,475.02 666.40,85.72 374.40,85.72 374.40,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #B3B3B3; fill-opacity: 0.30;' />
-<polyline points='82.40,75.47 374.40,75.47 374.40,281.14 666.40,281.14 ' style='stroke-width: 0.75; stroke: #999999;' />
-<polygon points='82.40,75.47 374.40,75.47 374.40,374.41 666.40,374.41 666.40,87.82 374.40,87.82 374.40,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #4D4D4D; fill-opacity: 0.30;' />
-<polyline points='82.40,75.47 374.40,75.47 374.40,229.81 666.40,229.81 ' style='stroke-width: 0.75;' />
+<polygon points='82.40,75.47 374.40,75.47 374.40,477.00 666.40,477.00 666.40,85.85 374.40,85.85 374.40,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #FF0000; fill-opacity: 0.20;' />
+<polyline points='82.40,75.47 374.40,75.47 374.40,280.60 666.40,280.60 ' style='stroke-width: 2.25; stroke: #FF0000;' />
+<polygon points='82.40,75.47 374.40,75.47 374.40,374.41 666.40,374.41 666.40,87.82 374.40,87.82 374.40,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #0000FF; fill-opacity: 0.20;' />
+<polyline points='82.40,75.47 374.40,75.47 374.40,229.81 666.40,229.81 ' style='stroke-width: 2.25; stroke: #0000FF; stroke-dasharray: 3.00,9.00;' />
 </g>
 </svg>

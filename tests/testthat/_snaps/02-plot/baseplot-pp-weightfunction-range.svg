@@ -24,10 +24,9 @@
 <text transform='translate(12.96,280.80) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='56.03px' lengthAdjust='spacingAndGlyphs'>Probability</text>
 <line x1='82.40' y1='502.56' x2='666.40' y2='502.56' style='stroke-width: 0.75;' />
 <line x1='82.40' y1='502.56' x2='82.40' y2='509.76' style='stroke-width: 0.75;' />
-<line x1='374.40' y1='502.56' x2='374.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='97.00' y1='502.56' x2='97.00' y2='509.76' style='stroke-width: 0.75;' />
 <line x1='666.40' y1='502.56' x2='666.40' y2='509.76' style='stroke-width: 0.75;' />
 <text x='82.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>0</text>
-<text x='374.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='30.03px' lengthAdjust='spacingAndGlyphs'>0.025</text>
 <text x='666.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>1</text>
 <line x1='59.04' y1='486.13' x2='59.04' y2='75.47' style='stroke-width: 0.75;' />
 <line x1='59.04' y1='486.13' x2='51.84' y2='486.13' style='stroke-width: 0.75;' />
@@ -49,9 +48,9 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
-<polygon points='82.40,75.47 374.40,75.47 374.40,475.02 666.40,475.02 666.40,85.72 374.40,85.72 374.40,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #B3B3B3; fill-opacity: 0.30;' />
-<polyline points='82.40,75.47 374.40,75.47 374.40,281.14 666.40,281.14 ' style='stroke-width: 0.75; stroke: #999999;' />
-<polygon points='82.40,75.47 374.40,75.47 374.40,374.41 666.40,374.41 666.40,87.82 374.40,87.82 374.40,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #4D4D4D; fill-opacity: 0.30;' />
-<polyline points='82.40,75.47 374.40,75.47 374.40,229.81 666.40,229.81 ' style='stroke-width: 0.75;' />
+<polygon points='82.40,75.47 97.00,75.47 97.00,476.32 666.40,476.32 666.40,85.75 97.00,85.75 97.00,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #B3B3B3; fill-opacity: 0.30;' />
+<polyline points='82.40,75.47 97.00,75.47 97.00,280.61 666.40,280.61 ' style='stroke-width: 0.75; stroke: #999999;' />
+<polygon points='82.40,75.47 97.00,75.47 97.00,374.41 666.40,374.41 666.40,87.82 97.00,87.82 97.00,75.47 82.40,75.47 ' style='stroke-width: 0.75; stroke: none; fill: #4D4D4D; fill-opacity: 0.30;' />
+<polyline points='82.40,75.47 97.00,75.47 97.00,229.81 666.40,229.81 ' style='stroke-width: 0.75;' />
 </g>
 </svg>
