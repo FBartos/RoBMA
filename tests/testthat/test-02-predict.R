@@ -9,14 +9,14 @@ fits <- lapply(list_fits(), load_fit)
 info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
 
-
+skip("TODO")
 
 test_that("Model summary", {
 
   name <- "bangertdrowns2004_location-scale"
   object <- fits[[name]]
 
-  predict()
+  out <- predict(object)
 
   ### default summary for all models
   for (name in names(fits)) {

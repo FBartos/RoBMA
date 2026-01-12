@@ -9,7 +9,7 @@
   newdata,
   type = "terms",
   probs = c(0.025, 0.975),
-  incorporate_publication_bias = TRUE,
+  bias_adjusted = TRUE,
   as_samples = FALSE,
   ...
 )
@@ -33,10 +33,9 @@ distribution of the true study effects at the given predictors levels
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .975)}}
 
-\item{incorporate_publication_bias}{whether sampling of new values should incorporate
-the estimated publication bias (note that selection models do not affect the mean paramater
-when \code{"terms"} (equal mean parameter under normal vs. weighted likelihood equals different
-expectation).}
+\item{bias_adjusted}{whether sampling of new values should adjust for publication bias
+(note that selection models do not affect the mean paramater when \code{"terms"}
+(equal mean parameter under normal vs. weighted likelihood equals different expectation).}
 
 \item{...}{additional arguments}
 }

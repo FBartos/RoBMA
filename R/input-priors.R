@@ -427,14 +427,14 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   ### use BayesTools::JAGS_formula to obtain the assigned list of priors
   prior_list <- BayesTools::JAGS_formula(
-    parameter  = parameter,
+    parameter  = switch (parameter, "mods" = "mu", "scale" = "log_tau"),
     data       = data[[parameter]],
     formula    = attr(data[[parameter]], "formula"),
     prior_list = prior_list
   )[["prior_list"]]
   names(prior_list) <- BayesTools::format_parameter_names(
     parameters         = names(prior_list),
-    formula_parameters = parameter,
+    formula_parameters = switch (parameter, "mods" = "mu", "scale" = "log_tau"),
     formula_prefix     = FALSE
   )
 
