@@ -81,12 +81,17 @@ predict.brma <- function(object, newdata,
   K                <- nrow(outcome_data)
 
   ### obtain mu and tau samples (following the same structure as the JAGS syntax created by .create_model_syntax)
-  # the JAGS model constructs mu_estimate as:
+  # JAGS constructs tau_estimate as:
+  # tau                                   (if not multilevel and not scale)
+  # tau = exp(log_tau)                    (if scale)
+  # tau_within = tau * sqrt(rho)          (if multilevel)
+  # tau_between = tau * sqrt(1-rho)
+  #
+  # JAGS constructs mu_estimate as:
   # mu +
   #  + gamma[study_ids[i]] * tau_between  (if multilevel)
   #  + PET * sei[i]                       (if PET & incorporate_publication_bias)
   #  + PEESE * sei[i]^2                   (if PEESE & incorporate_publication_bias)
-  #
   # - mu and gamma are flipped if effect_direction is "negative"
   #   (data are flipped in .create_fit_data; to keep PET and PEESE coefficients positive)
   # - multilevel effects are added later in case only terms are predicted (also require tau_between samples)

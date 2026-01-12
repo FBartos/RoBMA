@@ -10,9 +10,13 @@ info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
 
 
-predict()
 
 test_that("Model summary", {
+
+  name <- "bangertdrowns2004_location-scale"
+  object <- fits[[name]]
+
+  predict()
 
   ### default summary for all models
   for (name in names(fits)) {

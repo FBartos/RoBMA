@@ -5,3 +5,11 @@ brma.norm, brma.glmm
 - (other common diagnostic plots)
 - heterogeneity summary
 - effect summary
+
+
+
+plot_weightfunction
+Expand the function to use `show_data` argument. if TRUE, the function should show p-values as jitter on the x-axis
+- compute p-values by transformation of yi/sei
+- note that re-scale options spaces the cutpoints equally (not mapping to p-values directly)
+- note that two-sided only weightfunction with bselmodel use two sided p-values, other use one-sided p-values
