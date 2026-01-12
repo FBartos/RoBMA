@@ -73,88 +73,50 @@ predict.brma <- function(object, newdata,
 
   }
 
-  ### extract posterior samples (and obtain conditional indicator)
-  posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
+  ### extract priors and structural information about the model
   priors            <- object[["priors"]]
-
-  ### extract structural information about the model
   is_mods           <- .is_mods(object)
   is_multilevel     <- .is_multilevel(object)
+  is_scale          <- .is_scale(object)
   is_PET            <- .is_PET(object)
   is_PEESE          <- .is_PEESE(object)
   is_weightfunction <- .is_weightfunction(object)
   outcome_type      <- .outcome_type(object)
+  effect_direction  <- .effect_direction(object)
 
   ### extract outcome data and fit data for convenience
-  outcome_data     <- new_data[["outcome"]]
-  effect_direction <- .effect_direction(object)
-  fit_data         <- .create_fit_data(data = new_data, priors = priors)
+  outcome_data      <- new_data[["outcome"]]
+  fit_data          <- .create_fit_data(data = new_data, priors = priors)
 
   # outcome dimensions
   K  <- nrow(outcome_data)
-  S  <- nrow(posterior_samples)
 
-  ### obtain mu and tau samples (following the same structure as the JAGS syntax created by .create_model_syntax)
-  # JAGS constructs tau_estimate as:
-  # tau                                   (if not multilevel and not scale)
-  # tau = exp(log_tau)                    (if scale)
-  # tau_within = tau * sqrt(rho)          (if multilevel)
-  # tau_between = tau * sqrt(1-rho)
-  #
-  # JAGS constructs mu_estimate as:
-  # mu +
-  #  + gamma[study_ids[i]] * tau_between  (if multilevel)
-  #  + PET * sei[i]                       (if PET & incorporate_publication_bias)
-  #  + PEESE * sei[i]^2                   (if PEESE & incorporate_publication_bias)
-  # - mu and gamma are flipped if effect_direction is "negative"
-  #   (data are flipped in .create_fit_data; to keep PET and PEESE coefficients positive)
-  # - multilevel effects are added later in case only terms are predicted (also require tau_between samples)
-
-  ### obtain tau samples
-  if (.is_scale(object)) {
-
-    # from effect size regression for models with mods
-    log_tau_samples  <- t(BayesTools::JAGS_evaluate_formula(
-      fit         = object[["fit"]],
-      formula     = attr(object[["data"]][["scale"]], "formula"),
-      parameter   = "log_tau",
-      data        = new_data[["scale"]],
-      prior_list  = priors[["scale"]]
-    ))
-    tau_samples      <- exp(log_tau_samples)
-
-  } else {
-
-    # from the overall effect for the remaining models
-    tau_samples <- matrix(posterior_samples[,"tau"], ncol = K, nrow = S)
-
-  }
-
-  ### split tau samples into between (study-level) and within (estimate-level) components
-  if (is_multilevel) {
-    # multilevel models have explicit split into the components via rho
-    rho_samples <- posterior_samples[,"rho"]
-    # deal with computer precision errors from JAGS
-    rho_samples[rho_samples > 1] <- 1
-    rho_samples[rho_samples < 0] <- 0
-    # tau_within  = tau * sqrt(rho)
-    # tau_between = tau * sqrt(1-rho)
-    tau_within_samples  <- tau_samples * sqrt(rho_samples)
-    tau_between_samples <- tau_samples * sqrt(1 - rho_samples)
-  } else {
-    # simple random-effects model only model estimate-level heterogeneity
-    # (specify tau_between_samples for simplification of following code)
-    tau_within_samples  <- tau_samples
-    tau_between_samples <- matrix(0, ncol = K, nrow = S)
-  }
+  ### obtain tau samples using helper function
+  # returns list(tau_within, tau_between) - all S x K matrices
+  # see .evaluate.brma.tau() in brma.evaluate.R for details
+  tau_result          <- .evaluate.brma.tau(
+    fit           = object[["fit"]],
+    scale_data    = new_data[["scale"]],
+    scale_formula = if (is_scale) attr(object[["data"]][["scale"]], "formula") else NULL,
+    scale_priors  = priors[["scale"]],
+    is_scale      = is_scale,
+    is_multilevel = is_multilevel,
+    K             = K
+  )
+  tau_within_samples  <- tau_result[["tau_within"]]
+  tau_between_samples <- tau_result[["tau_between"]]
+  S                   <- nrow(tau_within_samples)  # number of posterior samples
 
   ### return only tau samples if type = "terms.scale" is selected
   if (type == "terms.scale") {
+    # reconstruct total tau from components: tau = sqrt(tau_within^2 + tau_between^2)
+    tau_samples <- sqrt(tau_within_samples^2 + tau_between_samples^2)
+
     # rename samples
     colnames(tau_samples) <- paste0("tau[", seq_len(K), "]")
 
     if (as_samples) {
-      return(mu_samples)
+      return(tau_samples)
     } else {
       outcome_table <- BayesTools::ensemble_estimates_table(
         samples    = asplit(tau_samples, 2),
@@ -171,43 +133,22 @@ predict.brma <- function(object, newdata,
     }
   }
 
-  ### get the base mu samples
-  if (is_mods) {
-    # from effect size regression for models with mods
-    mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit         = object[["fit"]],
-      formula     = attr(object[["data"]][["mods"]], "formula"),
-      parameter   = "mu",
-      data        = new_data[["mods"]],
-      prior_list  = priors[["mods"]]
-    ))
-  } else {
-    # from the overall effect for the remaining models
-    mu_samples <- matrix(posterior_samples[,"mu"], ncol = K, nrow = S)
-  }
-
-  ### apply effect direction flipping (to match JAGS model)
-  # JAGS uses: ifelse(effect_direction == "negative", "- mu", "mu")
-  # data are flipped within `.create_fit_data()`, so we flip mu samples to match
-  if (effect_direction == "negative") {
-    mu_samples <- - mu_samples
-  }
-
-  ### add PET adjustment (+ PET * sei[i])
-  if (is_PET && !bias_adjusted) {
-    PET_samples <- posterior_samples[,"PET"]
-    for (i in seq_len(K)) {
-      mu_samples[,i] <- mu_samples[,i] + PET_samples * outcome_data[["sei"]][i]
-    }
-  }
-
-  ### add PEESE adjustment (+ PEESE * sei[i]^2)
-  if (is_PEESE && !bias_adjusted) {
-    PEESE_samples <- posterior_samples[,"PEESE"]
-    for (i in seq_len(K)) {
-      mu_samples[,i] <- mu_samples[,i] + PEESE_samples * outcome_data[["sei"]][i]^2
-    }
-  }
+  ### get the base mu samples using helper function
+  # returns S x K matrix of location samples
+  # see .evaluate.brma.mu() in brma.evaluate.R for details
+  mu_samples <- .evaluate.brma.mu(
+    fit                           = object[["fit"]],
+    outcome_data                  = outcome_data,
+    mods_data                     = new_data[["mods"]],
+    mods_formula                  = if (is_mods) attr(object[["data"]][["mods"]], "formula") else NULL,
+    mods_priors                   = priors[["mods"]],
+    is_mods                       = is_mods,
+    is_PET                        = is_PET,
+    is_PEESE                      = is_PEESE,
+    effect_direction              = effect_direction,
+    incorporate_publication_bias  = bias_adjusted,
+    K                             = K
+  )
 
   ### return only mu samples if type = "terms" is selected
   # terms incorporate fixed effects only (i.e., random effects are not incorporated)
@@ -233,38 +174,31 @@ predict.brma <- function(object, newdata,
     }
   }
 
-  ### include 3-level (study-level) random-effects
-  # study-level effects are always sampled -- not marginalized
+  ### include 3-level (study-level) random-effects using helper function
+  # returns contribution matrix gamma[study_id] * tau_between for multilevel models
+  # see .evaluate.brma.study_effects() in brma.evaluate.R for details
   if (is_multilevel) {
-    if (same_data) {
-      # when same data are used we apply the existing random effects samples
-      gamma_samples <- posterior_samples[,paste0("gamma[", 1:max(fit_data[["study_ids"]]),"]")]
-      for (i in seq_len(K)) {
-        mu_samples[,i] <- mu_samples[,i] + ifelse(effect_direction == "negative", -1, 1) * gamma_samples[,fit_data[["study_ids"]][i]] * tau_between_samples[,i]
-      }
-    } else {
-      # when new data are used we marginalize over the distribution of random effects (they are scaled normal)
-      for (i in seq_len(K)) {
-        mu_samples[,i] <- mu_samples[,i] + ifelse(effect_direction == "negative", -1, 1) * stats::rnorm(S, 0, 1) * tau_between_samples[,i]
-      }
-    }
+    study_contribution <- .evaluate.brma.study_effects(
+      fit              = object[["fit"]],
+      tau_between      = tau_between_samples,
+      study_ids        = fit_data[["study_ids"]],
+      same_data        = same_data,
+      effect_direction = effect_direction
+    )
+    mu_samples <- mu_samples + study_contribution
   }
 
-  ### create true-effect prediction (i.e., the latent estimate-level random-effects)
+  ### create true-effect prediction using helper function
+  # computes empirical Bayes (BLUP) estimates of true study effects
+  # see .evaluate.brma.true_effects() in brma.evaluate.R for details
   if (type == "effect") {
-    # the estimate-level random-effects are always marginalized
-    # as such, we need to use empirical Bayes to obtain the true study effects
-    # (corresponds to BLUPs in metafor)
-    # (the selection weights cancel out and the same formula applies for all models)
 
-    effect_sizes    <- matrix(outcome_data[["yi"]],  ncol = K, nrow = S)
-    standard_errors <- matrix(outcome_data[["sei"]], ncol = K, nrow = S)
-
-    # get the shrinkage matrix
-    lambda <- tau_within_samples^2 / (tau_within_samples^2 + standard_errors^2)
-
-    # compute BLUPs
-    true_effects_samples <- lambda * effect_sizes + (1 - lambda) * mu_samples
+    true_effects_samples <- .evaluate.brma.true_effects(
+      mu_samples = mu_samples,
+      tau_within = tau_within_samples,
+      yi         = outcome_data[["yi"]],
+      sei        = outcome_data[["sei"]]
+    )
 
     # rename samples
     colnames(true_effects_samples) <- paste0("theta[", seq_len(K), "]")
@@ -294,129 +228,80 @@ predict.brma <- function(object, newdata,
     # different model types have different output structures
     if (is.element(outcome_type, c("bin", "pois"))) {
 
-      # the estimate-level estimates are not marginalized for GLMMs
-      # include the sampled random effects or marginalized over them for new data
-      if (same_data) {
-        # when same data are used we apply the existing random effects samples
-        # (no need to check direction -- GLMMs always set to positive)
-        for (i in seq_len(K)) {
-          mu_samples[,i] <- mu_samples[,i] + posterior_samples[[paste0("theta[",i,"]")]] * tau_within_samples[,i]
-        }
-      } else {
-        # when new data are used we marginalize over the distribution of random effects (they are scaled normal)
-        # (no need to check direction -- GLMMs always set to positive)
-        for (i in seq_len(K)) {
-          mu_samples[,i] <- mu_samples[,i] + stats::rnorm(S, 0, 1) * tau_within_samples[,i]
-        }
-      }
+      # the estimate-level effects are not marginalized for GLMMs
+      # include the sampled random effects or marginalize over them for new data
+      # see .evaluate.brma.theta.glmm() in brma.evaluate.R for details
+      theta_contribution <- .evaluate.brma.theta.glmm(
+        fit        = object[["fit"]],
+        tau_within = tau_within_samples,
+        same_data  = same_data,
+        K          = K
+      )
+      mu_samples <- mu_samples + theta_contribution
 
       if (outcome_type == "bin") {
 
-        ### incorporate with base-rate
-        logit_p1_samples <- matrix(NA, ncol = K, nrow = S)
-        logit_p2_samples <- matrix(NA, ncol = K, nrow = S)
+        ### incorporate with base-rate using helper function
+        # .evaluate.brma.baserate() returns S x K matrix of logit(pi) samples
+        logit_baserate <- .evaluate.brma.baserate(fit = object[["fit"]], K = K)
 
-        for (i in seq_len(K)) {
-          logit_p1_samples[,i] <- .logit(posterior_samples[[paste0("pi[", i, "]")]]) + 0.5 * mu_samples[,i]
-          logit_p2_samples[,i] <- .logit(posterior_samples[[paste0("pi[", i, "]")]]) - 0.5 * mu_samples[,i]
-        }
-
-        ### sample outcome (observed number of successes in each group)
-        outcome_samples_ai <- matrix(NA, ncol = K, nrow = S)
-        outcome_samples_ci <- matrix(NA, ncol = K, nrow = S)
-
-        for (i in seq_len(K)) {
-          outcome_samples_ai[,i] <- stats::rbinom(n = S, size = outcome_data[["n1i"]][i], prob = .inv_logit(logit_p1_samples[,i]))
-          outcome_samples_ci[,i] <- stats::rbinom(n = S, size = outcome_data[["n2i"]][i], prob = .inv_logit(logit_p2_samples[,i]))
-        }
-
-        # rename samples
-        colnames(outcome_samples_ai) <- paste0("ai[", seq_len(K), "]")
-        colnames(outcome_samples_ci) <- paste0("ci[", seq_len(K), "]")
-
-        # merge samples
-        outcome_samples <- matrix(NA, ncol = 2*K, nrow = S)
-        outcome_samples[,(seq_len(K)) * 2 - 1] <- outcome_samples_ai
-        outcome_samples[,(seq_len(K)) * 2    ] <- outcome_samples_ci
-        colnames(outcome_samples)[,(seq_len(K)) * 2 - 1] <- colnames(outcome_samples_ai)
-        colnames(outcome_samples)[,(seq_len(K)) * 2    ] <- colnames(outcome_samples_ci)
+        ### sample outcome using RNG helper
+        outcome_samples <- .outcome_rng.binom(
+          mu_samples     = mu_samples,
+          logit_baserate = logit_baserate,
+          n1i            = outcome_data[["n1i"]],
+          n2i            = outcome_data[["n2i"]]
+        )
 
       } else if (outcome_type == "pois") {
 
-        ### incorporate with log-rate
-        log_r1_samples <- matrix(NA, ncol = K, nrow = S)
-        log_r2_samples <- matrix(NA, ncol = K, nrow = S)
+        ### incorporate with log-rate using helper function
+        # .evaluate.brma.lograte() returns S x K matrix of log(phi) samples
+        log_phi <- .evaluate.brma.lograte(fit = object[["fit"]], K = K)
 
-        for (i in seq_len(K)) {
-          log_r1_samples[,i] <- posterior_samples[[paste0("phi[", i, "]")]] + 0.5 * mu_samples[,i] + log(outcome_data[["t1i"]][i])
-          log_r2_samples[,i] <- posterior_samples[[paste0("phi[", i, "]")]] - 0.5 * mu_samples[,i] + log(outcome_data[["t2i"]][i])
-        }
-
-        ### sample outcome (observed number of events in each group)
-        outcome_samples_x1i <- matrix(NA, ncol = K, nrow = S)
-        outcome_samples_x2i <- matrix(NA, ncol = K, nrow = S)
-
-        for (i in seq_len(K)) {
-          outcome_samples_x1i[,i] <- stats::rpois(n = S, lambda = exp(log_r1_samples[,i]))
-          outcome_samples_x2i[,i] <- stats::rpois(n = S, lambda = exp(log_r2_samples[,i]))
-        }
-
-        # rename samples
-        colnames(outcome_samples_x1i) <- paste0("x1i[", seq_len(K), "]")
-        colnames(outcome_samples_x2i) <- paste0("x2i[", seq_len(K), "]")
-
-        # merge samples
-        outcome_samples <- matrix(NA, ncol = 2*K, nrow = S)
-        outcome_samples[,(seq_len(K)) * 2 - 1] <- outcome_samples_x1i
-        outcome_samples[,(seq_len(K)) * 2    ] <- outcome_samples_x2i
-        colnames(outcome_samples)[,(seq_len(K)) * 2 - 1] <- colnames(outcome_samples_x1i)
-        colnames(outcome_samples)[,(seq_len(K)) * 2    ] <- colnames(outcome_samples_x2i)
+        ### sample outcome using RNG helper
+        outcome_samples <- .outcome_rng.pois(
+          mu_samples = mu_samples,
+          log_phi    = log_phi,
+          t1i        = outcome_data[["t1i"]],
+          t2i        = outcome_data[["t2i"]]
+        )
 
       }
 
 
     } else if (outcome_type == "norm") {
 
-      # outcome samples holder (observed effect sizes)
-      outcome_samples <- matrix(NA, ncol = K, nrow = S)
+      # normal outcome models dispatch between:
+      # - bias_adjusted = TRUE: sample from unweighted normal (as if no bias)
+      # - bias_adjusted = FALSE with weightfunction: sample from weighted normal
+      # - bias_adjusted = FALSE without weightfunction: sample from unweighted normal
 
-      # normal outcome models need to dispatch between
-      # normal and selection models
-      # (bias_adjusted results return the samples if no bias was present)
+      if (bias_adjusted || !is_weightfunction) {
 
-      if (bias_adjusted) {
-        # sample from the outcome distribution directly
-        # (i.e., as if publication bias did not exist)
-        for (i in seq_len(K)) {
-          outcome_samples[,i] <- stats::rnorm(
-            n    = S,
-            mean = mu_samples[,i],
-            sd   = sqrt(tau_within_samples[,i]^2 + outcome_data[["sei"]][i]^2)
-          )
-        }
+        # sample from unweighted normal distribution
+        # y[s,k] ~ N(mu[s,k], sqrt(tau_within[s,k]^2 + sei[k]^2))
+        outcome_samples <- .outcome_rng.norm(
+          mu_samples = mu_samples,
+          tau_within = tau_within_samples,
+          sei        = outcome_data[["sei"]]
+        )
 
       } else {
 
-        if (is_weightfunction) {
-          # sample from the weighted distribution for selection models
-          for (i in seq_len(K)) {
-            outcome_samples[,i] <- .rwnorm_fast.ss(
-              mean   = mu_samples[,i],
-              sd     = sqrt(tau_within_samples[,i]^2 + outcome_data[["se"]][i]^2),
-              omega  = posterior_samples[, grep("omega", colnames(posterior_samples)),drop = FALSE],
-              crit_x = fit_data$crit_yi[, i]
-            )
-          }
-        } else {
-          # sample from normal distirbution for remaining models
-          for (i in seq_len(K)) {
-            outcome_samples[,i] <- stats::rnorm(
-              n    = S,
-              mean = mu_samples[,i],
-              sd   = sqrt(tau_within_samples[,i]^2 + outcome_data[["sei"]][i]^2)
-            )
-          }
-        }
+        # sample from weighted normal distribution for selection models
+        # extract omega samples for weight function
+        posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
+        omega_samples     <- posterior_samples[, grep("omega", colnames(posterior_samples)), drop = FALSE]
+
+        outcome_samples <- .outcome_rng.wnorm(
+          mu_samples = mu_samples,
+          tau_within = tau_within_samples,
+          sei        = outcome_data[["sei"]],
+          omega      = omega_samples,
+          crit_yi    = fit_data$crit_yi
+        )
+
       }
 
       # rename samples
@@ -445,8 +330,8 @@ predict.brma <- function(object, newdata,
 
 
 #' @export
-summary.brma.predict <- function(x, ...) {
-  print(summary.brma.predict(x, ...))
+summary.brma.predict <- function(object, ...) {
+  print(object, ...)
 }
 
 #' @export
@@ -459,3 +344,219 @@ print.brma.predict <- function(x, ...) {
   return(invisible(x))
 }
 
+
+# ============================================================================ #
+# Outcome RNG Functions
+# ============================================================================ #
+#
+# These are prediction-specific RNG functions for sampling from the posterior
+# predictive distribution of observed effect sizes. They are kept separate from
+# the .evaluate.brma.* functions because they involve random number generation
+# and are specific to the prediction task.
+#
+# ============================================================================ #
+
+
+# ---------------------------------------------------------------------------- #
+# .outcome_rng.norm
+# ---------------------------------------------------------------------------- #
+#
+# Sample observed effect sizes from normal posterior predictive distribution.
+#
+# For normal outcome models, the observed effect y_i is:
+#   y_i ~ N(mu_i, tau_within^2 + se_i^2)
+#
+# This function samples from this distribution for each posterior sample.
+#
+# @param mu_samples       S x K matrix of location samples (with study effects if multilevel)
+# @param tau_within       S x K matrix of within-study heterogeneity samples
+# @param sei              numeric vector of length K; standard errors
+#
+# @return S x K matrix of sampled observed effect sizes
+#
+# ---------------------------------------------------------------------------- #
+.outcome_rng.norm <- function(mu_samples, tau_within, sei) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  # replicate sei across samples: matrix(sei, S, K, byrow = TRUE)
+  # each row contains the same se values
+  sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+
+  # compute total SD: sqrt(tau^2 + se^2)
+  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+
+  # sample from N(mu, total_sd) for each cell
+  # matrix(rnorm(S*K), S, K) * total_sd + mu is vectorized sampling
+  # equivalent: for each s,k: y[s,k] ~ N(mu[s,k], total_sd[s,k])
+  response_samples <- mu_samples + matrix(stats::rnorm(S * K), nrow = S, ncol = K) * total_sd
+
+  return(response_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .outcome_rng.wnorm
+# ---------------------------------------------------------------------------- #
+#
+# Sample observed effect sizes from weighted normal distribution (selection models).
+#
+# For selection models, the observed effect y_i follows a weighted normal:
+#   y_i ~ f(y) * omega(y) / Z
+# where f(y) is normal density and omega(y) is the selection weight function.
+#
+# This uses the fast spike-and-slab weighted normal sampler.
+#
+# @param mu_samples       S x K matrix of location samples
+# @param tau_within       S x K matrix of within-study heterogeneity samples
+# @param sei              numeric vector of length K; standard errors
+# @param omega            S x W matrix of omega (weight) samples
+# @param crit_yi          W x K matrix of critical values for each observation
+#
+# @return S x K matrix of sampled observed effect sizes from weighted distribution
+#
+# ---------------------------------------------------------------------------- #
+.outcome_rng.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  # pre-compute total SD for each observation
+  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+
+  # sample from weighted normal for each observation
+  # (loop is necessary due to .rwnorm_fast.ss interface)
+  response_samples <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    response_samples[, k] <- .rwnorm_fast.ss(
+      mean   = mu_samples[, k],
+      sd     = total_sd[, k],
+      omega  = omega,
+      crit_x = crit_yi[, k]
+    )
+  }
+
+  return(response_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .outcome_rng.binom
+# ---------------------------------------------------------------------------- #
+#
+# Sample observed counts from binomial posterior predictive distribution.
+#
+# For binomial outcome models (log-odds ratio), the observed counts are:
+#   ai ~ Binom(n1i, p1) where logit(p1) = logit(pi) + 0.5 * mu (treatment)
+#   ci ~ Binom(n2i, p2) where logit(p2) = logit(pi) - 0.5 * mu (control)
+#
+# The 0.5 factor arises from the log-OR parameterization where mu represents
+# the log-odds ratio between treatment and control groups.
+#
+# @param mu_samples       S x K matrix of log-odds ratio samples
+# @param logit_baserate   S x K matrix of logit(pi) base-rate samples
+# @param n1i              numeric vector of length K; treatment group sizes
+# @param n2i              numeric vector of length K; control group sizes
+#
+# @return S x (2*K) matrix with columns interleaved: ai[1], ci[1], ai[2], ci[2], ...
+#
+# ---------------------------------------------------------------------------- #
+.outcome_rng.binom <- function(mu_samples, logit_baserate, n1i, n2i) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  # compute logit probabilities for each group
+  # group 1: logit(p1) = logit(pi) + 0.5 * mu (treatment/exposed)
+  # group 2: logit(p2) = logit(pi) - 0.5 * mu (control/unexposed)
+  logit_p1 <- logit_baserate + 0.5 * mu_samples
+  logit_p2 <- logit_baserate - 0.5 * mu_samples
+
+  # sample from binomial for each group
+  outcome_samples_ai <- matrix(NA_integer_, nrow = S, ncol = K)
+  outcome_samples_ci <- matrix(NA_integer_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    outcome_samples_ai[, k] <- stats::rbinom(n = S, size = n1i[k], prob = .inv_logit(logit_p1[, k]))
+    outcome_samples_ci[, k] <- stats::rbinom(n = S, size = n2i[k], prob = .inv_logit(logit_p2[, k]))
+  }
+
+  # name columns
+  colnames(outcome_samples_ai) <- paste0("ai[", seq_len(K), "]")
+  colnames(outcome_samples_ci) <- paste0("ci[", seq_len(K), "]")
+
+  # merge samples with interleaved columns: ai[1], ci[1], ai[2], ci[2], ...
+  outcome_samples <- matrix(NA_integer_, nrow = S, ncol = 2 * K)
+  outcome_samples[, seq(1, 2 * K, by = 2)] <- outcome_samples_ai
+  outcome_samples[, seq(2, 2 * K, by = 2)] <- outcome_samples_ci
+  colnames(outcome_samples) <- as.vector(rbind(
+    colnames(outcome_samples_ai),
+    colnames(outcome_samples_ci)
+  ))
+
+  return(outcome_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .outcome_rng.pois
+# ---------------------------------------------------------------------------- #
+#
+# Sample observed counts from Poisson posterior predictive distribution.
+#
+# For Poisson outcome models (log incidence rate ratio), the observed counts are:
+#   x1i ~ Pois(t1i * exp(phi + 0.5 * mu))  (treatment/exposed)
+#   x2i ~ Pois(t2i * exp(phi - 0.5 * mu))  (control/unexposed)
+#
+# where phi is the log baseline rate and t1i, t2i are exposure times.
+#
+# @param mu_samples       S x K matrix of log incidence rate ratio samples
+# @param log_phi          S x K matrix of log baseline rate samples
+# @param t1i              numeric vector of length K; treatment exposure times
+# @param t2i              numeric vector of length K; control exposure times
+#
+# @return S x (2*K) matrix with columns interleaved: x1i[1], x2i[1], x1i[2], x2i[2], ...
+#
+# ---------------------------------------------------------------------------- #
+.outcome_rng.pois <- function(mu_samples, log_phi, t1i, t2i) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  # replicate exposure times to S x K matrices for vectorized ops
+  log_t1i <- matrix(log(t1i), nrow = S, ncol = K, byrow = TRUE)
+  log_t2i <- matrix(log(t2i), nrow = S, ncol = K, byrow = TRUE)
+
+  # compute log rates for each group
+  # group 1: log(lambda1) = phi + 0.5 * mu + log(t1i)
+  # group 2: log(lambda2) = phi - 0.5 * mu + log(t2i)
+  log_lambda1 <- log_phi + 0.5 * mu_samples + log_t1i
+  log_lambda2 <- log_phi - 0.5 * mu_samples + log_t2i
+
+  # sample from Poisson for each group
+  outcome_samples_x1i <- matrix(NA_integer_, nrow = S, ncol = K)
+  outcome_samples_x2i <- matrix(NA_integer_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    outcome_samples_x1i[, k] <- stats::rpois(n = S, lambda = exp(log_lambda1[, k]))
+    outcome_samples_x2i[, k] <- stats::rpois(n = S, lambda = exp(log_lambda2[, k]))
+  }
+
+  # name columns
+  colnames(outcome_samples_x1i) <- paste0("x1i[", seq_len(K), "]")
+  colnames(outcome_samples_x2i) <- paste0("x2i[", seq_len(K), "]")
+
+  # merge samples with interleaved columns: x1i[1], x2i[1], x1i[2], x2i[2], ...
+  outcome_samples <- matrix(NA_integer_, nrow = S, ncol = 2 * K)
+  outcome_samples[, seq(1, 2 * K, by = 2)] <- outcome_samples_x1i
+  outcome_samples[, seq(2, 2 * K, by = 2)] <- outcome_samples_x2i
+  colnames(outcome_samples) <- as.vector(rbind(
+    colnames(outcome_samples_x1i),
+    colnames(outcome_samples_x2i)
+  ))
+
+  return(outcome_samples)
+}
