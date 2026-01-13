@@ -25,4 +25,23 @@ test_that("Test against metafor::selmodel", {
   expect_equal(fit_selmodel.metafor$delta[2],   fit.bselmodel$summary["omega[0.025,1]","Mean"], tolerance = 0.10)
 })
 
+test_that("Test against metafor::selmodel (with negative effect sizes)", {
 
+  skip_on_cran()
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  ### fit simple meta-analytic model to difference in two proportions
+  data(dat.lehmann2018, package = "metadat")
+  dat.lehmann2018$yi   <- -  dat.lehmann2018$yi
+  fit_rma.metafor      <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
+  fit_selmodel.metafor <- metafor::selmodel(fit_rma.metafor, type = "stepfun", alternative = "less", steps = .025)
+
+  # using RoBMA package
+  fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
+  save_fit("dat.lehmann2018-3PSM_neg", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
+
+  expect_equal(fit_selmodel.metafor$beta[[1]],  fit.bselmodel$summary["mu","Mean"],  tolerance = 0.01)
+  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau","Mean"], tolerance = 0.01)
+  expect_equal(fit_selmodel.metafor$delta[2],   fit.bselmodel$summary["omega[0.025,1]","Mean"], tolerance = 0.10)
+})

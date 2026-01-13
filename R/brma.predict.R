@@ -366,13 +366,28 @@ predict.brma <- function(object, newdata = NULL,
         posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
         omega_samples     <- posterior_samples[, grep("omega", colnames(posterior_samples)), drop = FALSE]
 
+        # for weighted distributions, crit_yi is computed in "positive" space
+        # (yi flipped for negative effect direction in .create_fit_data)
+        # so we need to flip mu_samples to match, sample, then flip back
+        if (effect_direction == "negative") {
+          # flip mu to positive space for sampling
+          mu_samples_for_wnorm <- -mu_samples
+        } else {
+          mu_samples_for_wnorm <- mu_samples
+        }
+
         outcome_samples <- .outcome_rng.wnorm(
-          mu_samples = mu_samples,
+          mu_samples = mu_samples_for_wnorm,
           tau_within = tau_within_samples,
           sei        = outcome_data[["sei"]],
           omega      = omega_samples,
           crit_yi    = fit_data$crit_yi
         )
+
+        # flip samples back to original space
+        if (effect_direction == "negative") {
+          outcome_samples <- -outcome_samples
+        }
 
       }
 

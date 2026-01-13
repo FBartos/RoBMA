@@ -6,7 +6,7 @@
 \usage{
 \method{predict}{brma}(
   object,
-  newdata,
+  newdata = NULL,
   type = "terms",
   probs = c(0.025, 0.975),
   bias_adjusted = TRUE,

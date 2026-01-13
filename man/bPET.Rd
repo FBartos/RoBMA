@@ -29,7 +29,7 @@ bPET(
   rescale_priors = 1,
   prior_informed_field,
   prior_informed_subfield,
-  effect_direction,
+  effect_direction = "detect",
   sample = 5000,
   burnin = 2000,
   adapt = 500,

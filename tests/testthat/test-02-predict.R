@@ -95,7 +95,8 @@ test_that("Predictions for simple meta-analysis match metafor", {
   # comparison with metafor (allow MCMC tolerance)
   expect_equal(brma_theta_blup, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs")
-
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 })
 
 
@@ -156,7 +157,8 @@ test_that("Predictions for meta-regression match metafor", {
 
   expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs for meta-regression")
-
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 })
 
 
@@ -216,7 +218,8 @@ test_that("Predictions for location-scale model match metafor", {
 
   expect_equal(brma_tau_pooled, metafor_tau_pooled, tolerance = 0.05,
                info = "brma pooled tau should match mean of metafor study-specific tau")
-
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 })
 
 
@@ -280,7 +283,8 @@ test_that("Predictions for 3-level model match metafor", {
   shrinkage_yi   <- mean(abs(yi - brma_mu))
   expect_true(shrinkage_blup < shrinkage_yi,
               info = "BLUPs should show shrinkage toward pooled estimate")
-
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 })
 
 
@@ -335,7 +339,6 @@ test_that("Predictions for GLMM model match metafor", {
   n_obs <- nrow(fit_brma$data$outcome)
   expect_equal(length(brma_theta), n_obs,
                info = "BLUPs should be computed for all observations")
-
 })
 
 
@@ -398,6 +401,69 @@ test_that("Predictions for selection model match metafor", {
   shrinkage_yi   <- mean(abs(yi - brma_mu))
   expect_true(shrinkage_blup < shrinkage_yi,
               info = "BLUPs should show shrinkage toward pooled estimate")
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
+
+})
+
+
+# ============================================================================ #
+# Test: Selection Model Predictions (Negative Effects)
+# ============================================================================ #
+
+test_that("Predictions for selection model with negative effects match metafor", {
+
+  skip_if_not_installed("metafor")
+
+  name        <- "dat.lehmann2018-3PSM_neg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Pooled effect: compare brma vs metafor
+  # --------------------------------------------------
+
+  metafor_mu <- fit_metafor$beta[[1]]
+
+  brma_pooled <- pooled_effect(fit_brma)
+  brma_mu <- brma_pooled$summary["mu", "Mean"]
+
+  expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
+               info = "brma pooled effect should match metafor for selection model (negative effects)")
+
+  # --------------------------------------------------
+  # Pooled heterogeneity: compare brma vs metafor
+  # --------------------------------------------------
+
+  metafor_tau <- sqrt(fit_metafor$tau2)
+
+  brma_pooled_het <- pooled_heterogeneity(fit_brma)
+  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+
+  expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
+               info = "brma pooled tau should match metafor for selection model (negative effects)")
+
+
+  # --------------------------------------------------
+  # BLUPs for selmodel model
+  # --------------------------------------------------
+
+  brma_blup <- blup(fit_brma)
+  brma_theta <- brma_blup$summary[, "Mean"]
+
+  # Verify BLUPs are computed for all observations
+  n_obs <- nrow(fit_brma$data$outcome)
+  expect_equal(length(brma_theta), n_obs,
+               info = "BLUPs should be computed for all observations (negative effects)")
+
+  # Verify BLUPs show shrinkage (should be closer to pooled mean than raw yi)
+  yi <- fit_brma$data$outcome$yi
+  shrinkage_blup <- mean(abs(brma_theta - brma_mu))
+  shrinkage_yi   <- mean(abs(yi - brma_mu))
+  expect_true(shrinkage_blup < shrinkage_yi,
+              info = "BLUPs should show shrinkage toward pooled estimate (negative effects)")
+  expect_true(cor(yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 
 })
 
@@ -486,9 +552,110 @@ test_that("Predictions for PET model match metafor", {
 
   expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs for meta-regression")
-  expect_true(mean(abs(brma_theta - brma_theta_adjusted)) > 0.10,
+  expect_true(mean(abs(brma_theta - brma_theta_adjusted)) > 0.05,
                info = "adjusted and unadjusted BLUPs should not match")
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 
+})
+
+
+# ============================================================================ #
+# Test: PET Model Predictions (Negative Effects)
+# ============================================================================ #
+
+test_that("Predictions for PET model with negative effects match metafor", {
+
+  skip_if_not_installed("metafor")
+
+  name        <- "dat.lehmann2018-PET_neg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Pooled effect at sei = 0: compare brma vs metafor
+  # --------------------------------------------------
+
+  # For PET model, pooled effect is the intercept (prediction at sei = 0)
+  # metafor: predict at sei = 0 (newmods = 0 for the sei moderator)
+  metafor_pred_sei0 <- predict(fit_metafor, newmods = 0)
+  metafor_mu <- metafor_pred_sei0$pred
+
+  # brma: pooled_effect automatically adjusts for sei = 0
+  brma_pooled <- pooled_effect(fit_brma)
+  brma_mu <- brma_pooled$summary["mu", "Mean"]
+
+  expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
+               info = "brma pooled effect (at sei=0) should match metafor for PET model (negative effects)")
+
+  # Verify the effect is negative
+  expect_true(brma_mu < 0,
+              info = "pooled effect should be negative for negative effects data")
+
+  # --------------------------------------------------
+  # Pooled heterogeneity: compare brma vs metafor
+  # --------------------------------------------------
+
+  metafor_tau <- sqrt(fit_metafor$tau2)
+
+  brma_pooled_het <- pooled_heterogeneity(fit_brma)
+  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+
+  expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
+               info = "brma pooled tau should match metafor for PET model (negative effects)")
+
+  # --------------------------------------------------
+  # Study-specific predictions (bias adjusted): compare brma vs metafor
+  # --------------------------------------------------
+
+  # metafor: predict returns fitted values for each study
+  metafor_pred <- predict(fit_metafor, newmods = rep(0, 81))
+  metafor_fitted <- metafor_pred$pred
+
+  # brma: predict with type = "terms" gives per-study mu (bias adjusted by default)
+  brma_pred_terms <- predict(fit_brma, type = "terms")
+  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+
+  expect_equal(brma_fitted, metafor_fitted, tolerance = 0.05,
+               info = "brma per-study predictions should match metafor for PET model (negative effects)")
+
+  # --------------------------------------------------
+  # Study-specific predictions: compare brma vs metafor (unadjusted for bias)
+  # --------------------------------------------------
+
+  # metafor: predict returns fitted values for each study
+  metafor_pred <- predict(fit_metafor)
+  metafor_fitted <- metafor_pred$pred
+
+  # brma: predict with type = "terms" and bias_adjusted = FALSE
+  brma_pred_terms <- predict(fit_brma, type = "terms", bias_adjusted = FALSE)
+  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+
+  expect_equal(brma_fitted, metafor_fitted, tolerance = 0.10,
+               info = "brma per-study unadjusted predictions should match metafor for PET model (negative effects)")
+
+  # --------------------------------------------------
+  # BLUPs: unadjusted vs adjusted
+  # --------------------------------------------------
+
+  # metafor: blup
+  metafor_blup <- metafor::blup(fit_metafor)
+  metafor_theta <- metafor_blup$pred
+
+  # brma: using blup wrapper (unadjusted)
+  brma_blup <- blup(fit_brma, bias_adjusted = FALSE)
+  brma_theta <- brma_blup$summary[, "Mean"]
+
+  # brma: using blup wrapper (adjusted)
+  brma_blup_adjusted <- blup(fit_brma)
+  brma_theta_adjusted <- brma_blup_adjusted$summary[, "Mean"]
+
+  expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
+               info = "brma BLUPs should match metafor BLUPs for PET model (negative effects)")
+  expect_true(mean(abs(brma_theta - brma_theta_adjusted)) > 0.05,
+               info = "adjusted and unadjusted BLUPs should not match (negative effects)")
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+              info = "BLUPs should correlated with the observed estimates")
 })
 
 

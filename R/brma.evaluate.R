@@ -172,16 +172,20 @@
 
   }
 
-  ### apply effect direction flipping
-  # JAGS model uses: ifelse(effect_direction == "negative", "-mu", "mu")
-  # data are flipped in .create_fit_data(), so we flip mu samples to match
-  if (effect_direction == "negative") {
-    mu_samples <- -mu_samples
-  }
+  # NOTE: No effect direction flipping needed here!
+  # The JAGS model uses: ifelse(effect_direction == "negative", "-mu", "mu") in the likelihood
+  # This means mu in the posterior already represents the true effect in its original scale
+  # (e.g., if true effect is -0.13, mu ≈ -0.13 in the posterior)
+  # The data flip in .create_fit_data() is matched by -mu in the likelihood
 
   ### add PET adjustment when NOT incorporating publication bias adjustment
   # (i.e., when we want to show the biased predictions)
-  # PET model: E[y|se] = mu + PET * se
+  # PET model in JAGS: yi_flipped ~ N(-mu + PET * sei, tau) for negative effects
+  #                    yi ~ N(mu + PET * sei, tau) for positive effects
+  # To get biased effect in original scale:
+  #   - positive: E[yi] = mu + PET * sei
+  #   - negative: E[yi_original] = -E[yi_flipped] = -(-mu + PET * sei) = mu - PET * sei
+  # So the sign of PET adjustment depends on effect_direction
   if (is_PET && !bias_adjusted) {
 
     PET_samples <- posterior_samples[, "PET"]
@@ -189,20 +193,22 @@
 
     # vectorized: outer(PET_samples, sei_vec) creates S x K matrix
     # outer(a, b) computes a[i] * b[j] for all i,j pairs
-    # equivalent loop: for (k in 1:K) mu[,k] <- mu[,k] + PET * sei[k]
-    mu_samples <- mu_samples + outer(PET_samples, sei_vec)
+    # direction multiplier: +1 for positive, -1 for negative
+    direction <- ifelse(effect_direction == "negative", -1, 1)
+    mu_samples <- mu_samples + direction * outer(PET_samples, sei_vec)
 
   }
 
   ### add PEESE adjustment when NOT incorporating publication bias adjustment
-  # PEESE model: E[y|se] = mu + PEESE * se^2
+  # PEESE model: Same logic as PET but with sei^2
   if (is_PEESE && !bias_adjusted) {
 
     PEESE_samples <- posterior_samples[, "PEESE"]
     sei_sq_vec    <- outcome_data[["sei"]]^2
 
-    # vectorized outer product for PEESE adjustment
-    mu_samples <- mu_samples + outer(PEESE_samples, sei_sq_vec)
+    # direction multiplier: +1 for positive, -1 for negative
+    direction <- ifelse(effect_direction == "negative", -1, 1)
+    mu_samples <- mu_samples + direction * outer(PEESE_samples, sei_sq_vec)
 
   }
 
@@ -228,10 +234,10 @@
 # @param tau_between      S x K matrix of between-study heterogeneity samples
 # @param study_ids        integer vector of length K; study ID for each observation
 # @param same_data        logical; TRUE if predicting on original data (use fitted gamma)
-# @param effect_direction character; "positive" or "negative"
+# @param effect_direction character; "positive" or "negative" (currently unused but kept for interface)
 #
 # @return S x K matrix: contribution from study-level random effects
-#         (direction * gamma[study_ids[k]] * tau_between[,k])
+#         (gamma[study_ids[k]] * tau_between[,k])
 #         Can be added directly to mu samples.
 #
 # ---------------------------------------------------------------------------- #
@@ -241,8 +247,11 @@
   S <- nrow(tau_between)
   K <- ncol(tau_between)
 
-  # direction multiplier: gamma is flipped for negative effect direction
-  direction <- ifelse(effect_direction == "negative", -1, 1)
+  # NOTE: No direction flipping needed for study effects!
+  # The JAGS model uses: "-gamma*tau_between" for negative effects, "+gamma*tau_between" for positive
+  # But when converting to original scale:
+  # E[yi_original] = -E[yi_flipped] = -(-mu - gamma*tau_between) = mu + gamma*tau_between
+  # So the contribution to the original-scale effect is always +gamma*tau_between
 
   if (same_data) {
 
@@ -256,7 +265,7 @@
 
     # gamma_samples[, study_ids] reorders columns to match observations
     # this is S x K after reordering, element-wise multiply with tau_between
-    study_contribution <- direction * gamma_samples[, study_ids] * tau_between
+    study_contribution <- gamma_samples[, study_ids] * tau_between
 
   } else {
 
@@ -264,7 +273,7 @@
     # each observation is treated as from a new study (marginalize over gamma)
     # matrix(rnorm(S*K), S, K) generates S x K matrix of standard normals
     gamma_new          <- matrix(stats::rnorm(S * K), nrow = S, ncol = K)
-    study_contribution <- direction * gamma_new * tau_between
+    study_contribution <- gamma_new * tau_between
 
   }
 

@@ -19,7 +19,7 @@ bselmodel <- brma.norm <- function(
   set_contrast_factor_predictors = "treatment",
   prior_unit_information_sd, rescale_priors = 1,
   prior_informed_field, prior_informed_subfield,
-  effect_direction, steps,
+  effect_direction = "detect", steps,
 
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
