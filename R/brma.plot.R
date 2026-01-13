@@ -237,6 +237,51 @@ plot_PETPEESE.brma  <- function(
     parameters = c("mu", if (.is_PET(x)) "PET", if (.is_PEESE(x)) "PEESE")
   )
 
+  ### flip PET/PEESE samples for negative effects
+  # When effects are negative, data is flipped in JAGS (yi_flipped = -yi)
+  # PET model: yi_flipped ~ N(-mu + PET * sei, tau)
+  # To visualize correctly in original scale: E[yi] = mu - PET * sei
+  # So we need to negate PET/PEESE samples for visualization
+  effect_direction <- .effect_direction(x)
+  if (effect_direction == "negative") {
+    if (.is_PET(x)) {
+      # Negate samples
+      samples[["PET"]] <- -samples[["PET"]]
+      # Negate prior list if present (for prior visualization)
+      if (!is.null(attr(samples[["PET"]], "prior_list"))) {
+        prior_list <- attr(samples[["PET"]], "prior_list")
+        for (i in seq_along(prior_list)) {
+          # Add transformation attribute to negate the prior for visualization
+          if (!is.null(prior_list[[i]][["parameters"]])) {
+            # For location-scale priors (e.g., Cauchy), negate the location
+            if (!is.null(prior_list[[i]][["parameters"]][["location"]])) {
+              prior_list[[i]][["parameters"]][["location"]] <- -prior_list[[i]][["parameters"]][["location"]]
+            }
+          }
+        }
+        attr(samples[["PET"]], "prior_list") <- prior_list
+      }
+    }
+    if (.is_PEESE(x)) {
+      # Negate samples
+      samples[["PEESE"]] <- -samples[["PEESE"]]
+      # Negate prior list if present (for prior visualization)
+      if (!is.null(attr(samples[["PEESE"]], "prior_list"))) {
+        prior_list <- attr(samples[["PEESE"]], "prior_list")
+        for (i in seq_along(prior_list)) {
+          # Add transformation attribute to negate the prior for visualization
+          if (!is.null(prior_list[[i]][["parameters"]])) {
+            # For location-scale priors (e.g., Cauchy), negate the location
+            if (!is.null(prior_list[[i]][["parameters"]][["location"]])) {
+              prior_list[[i]][["parameters"]][["location"]] <- -prior_list[[i]][["parameters"]][["location"]]
+            }
+          }
+        }
+        attr(samples[["PEESE"]], "prior_list") <- prior_list
+      }
+    }
+  }
+
   ### set up plotting arguments
   dots       <- .set_dots_plot(...)
   dots_prior <- .set_dots_prior(dots_prior)
