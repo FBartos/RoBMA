@@ -258,6 +258,7 @@ plot_PETPEESE.brma  <- function(
   args$force_samples            <- FALSE
   args$dots_prior               <- dots_prior
   args$individual               <- FALSE
+  args$effect_direction         <- .effect_direction(x)
 
   # suppress messages about transformations
   plot <- suppressMessages(do.call(BayesTools::plot_posterior, args))

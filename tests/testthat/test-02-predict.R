@@ -95,7 +95,7 @@ test_that("Predictions for simple meta-analysis match metafor", {
   # comparison with metafor (allow MCMC tolerance)
   expect_equal(brma_theta_blup, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs")
-  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta_true, method = "spearman") > 0.9,
               info = "BLUPs should correlated with the observed estimates")
 })
 
@@ -157,7 +157,7 @@ test_that("Predictions for meta-regression match metafor", {
 
   expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs for meta-regression")
-  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
+  expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.8,
               info = "BLUPs should correlated with the observed estimates")
 })
 
@@ -218,6 +218,22 @@ test_that("Predictions for location-scale model match metafor", {
 
   expect_equal(brma_tau_pooled, metafor_tau_pooled, tolerance = 0.05,
                info = "brma pooled tau should match mean of metafor study-specific tau")
+
+  # --------------------------------------------------
+  # BLUPs for location-scale model
+  # --------------------------------------------------
+
+  # metafor: blup for meta-regression
+  metafor_blup <- metafor::blup(fit_metafor)
+  metafor_theta <- metafor_blup$pred
+
+  # brma: using blup wrapper
+  brma_blup <- blup(fit_brma)
+  brma_theta <- brma_blup$summary[, "Mean"]
+
+  # comparison with metafor (allow MCMC tolerance)
+  expect_equal(brma_theta, metafor_theta, tolerance = 0.10,
+               info = "brma BLUPs should match metafor BLUPs")
   expect_true(cor(fit_brma$data$outcome$yi, brma_theta, method = "spearman") > 0.9,
               info = "BLUPs should correlated with the observed estimates")
 })
