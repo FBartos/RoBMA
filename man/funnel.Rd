@@ -2,12 +2,12 @@
 % Please edit documentation in R/brma.plot.R, R/plots.R
 \name{funnel.brma}
 \alias{funnel.brma}
-\alias{funnel}
-\title{Funnel plot for a RoBMA object}
+\alias{funnel.RoBMA}
+\title{Funnel Plot for brma Object}
 \usage{
-funnel.brma(x, ...)
+\method{funnel}{brma}(x, incorporate_heterogeneity = TRUE, plot_type = "base", ...)
 
-funnel(
+\method{funnel}{RoBMA}(
   x,
   conditional = FALSE,
   plot_type = "base",
@@ -19,15 +19,16 @@ funnel(
 )
 }
 \arguments{
-\item{x}{a fitted RoBMA object}
+\item{x}{a fitted brma object}
 
-\item{...}{list of additional graphical arguments
-to be passed to the plotting function. Supported arguments
-are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
-\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
-to adjust the line thickness, line type, line color, fill color,
-x-label, y-label, title, x-axis range, and y-axis range
-respectively.}
+\item{incorporate_heterogeneity}{Whether heterogeneity should be incorporated
+into the sampling distribution. Defaults to \code{TRUE}.}
+
+\item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
+\code{"ggplot"} for plotting. Defaults to \code{"base"}.}
+
+\item{...}{additional graphical arguments passed to the plotting function.
+Supported arguments are \code{shape}, \code{size} for points.}
 
 \item{conditional}{whether conditional estimates should be
 plotted. Defaults to \code{FALSE} which plots the model-averaged
@@ -35,16 +36,9 @@ estimates. Note that both \code{"weightfunction"} and
 \code{"PET-PEESE"} are always ignoring the other type of
 publication bias adjustment.}
 
-\item{plot_type}{whether to use a base plot \code{"base"}
-or ggplot2 \code{"ggplot"} for plotting. Defaults to
-\code{"base"}.}
-
 \item{output_scale}{transform the effect sizes and the meta-analytic
 effect size estimate to a different scale. Defaults to \code{NULL}
 which returns the same scale as the model was estimated on.}
-
-\item{incorporate_heterogeneity}{Whether heterogeneity should be incorporated
-into the sampling distribution. Defaults to \code{TRUE}.}
 
 \item{incorporate_publication_bias}{Whether publication bias should be incorporated
 into the sampling distribution. Defaults to \code{TRUE}.}
@@ -54,11 +48,18 @@ that will be used for estimating the funnel plot under publication bias.
 Defaults to \code{500}.}
 }
 \value{
-\code{funnel} returns either \code{NULL} if \code{plot_type = "base"}
+\code{funnel.brma} returns \code{NULL} invisibly if \code{plot_type = "base"}
+or a ggplot object if \code{plot_type = "ggplot"}.
+
+\code{funnel.RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
 or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
-\code{funnel} creates a funnel plot for
+\code{funnel.brma} creates a funnel plot for a fitted brma object,
+displaying residuals against standard errors with the expected sampling
+distribution funnel.
+
+\code{funnel.RoBMA} creates a funnel plot for
 a \code{"RoBMA"} object.
 Only available for normal-normal models estimated using the spike-and-slab
 algorithm (i.e., \code{algorithm = "ss"}). This function uses several
@@ -66,6 +67,21 @@ simplifications to visualize the sampling distribution, see Details for
 more information.
 }
 \details{
+The funnel plot displays residuals (observed effect minus fitted value)
+on the x-axis and standard errors on the y-axis. The funnel region represents
+the expected 95\% confidence region for residuals under the null hypothesis
+of no residual bias.
+
+For meta-regression models, residuals account for moderator effects.
+
+When \code{incorporate_heterogeneity = TRUE}, the funnel boundaries are
+computed as:
+\deqn{CI = \pm 1.96 \times \sqrt{se^2 + \tau^2}}
+where \eqn{\tau} is the estimated between-study heterogeneity.
+
+For GLMM models, observed effect sizes are computed from the raw frequency
+data using formulas equivalent to \code{metafor::escalc}.
+
 The \code{funnel} function differs from the corresponding
 \link[metafor]{funnel} function in two regards; 1) The heterogeneity is
 by default incorporated into the model and 2) the sampling distribution
@@ -79,6 +95,20 @@ estimates (the uncertainty about those values is not incorporated into the figur
 }
 \examples{
 \dontrun{
+# fit a brma model
+fit <- brma(yi ~ 1, sei = sei, data = dat)
+
+# create funnel plot
+funnel(fit)
+
+# without heterogeneity
+funnel(fit, incorporate_heterogeneity = FALSE)
+
+# using ggplot2
+funnel(fit, plot_type = "ggplot")
+}
+
+\dontrun{
 # using the example data from Anderson et al. 2010 and fitting the default model
 # (note that the model can take a while to fit)
 fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
@@ -87,4 +117,7 @@ fit <- RoBMA(r = Anderson2010$r, n = Anderson2010$n,
 funnel(fit)
 }
 
+}
+\seealso{
+\code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

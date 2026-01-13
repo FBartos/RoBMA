@@ -1,0 +1,147 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' class='svglite' data-engine-version='2.0' width='720.00pt' height='576.00pt' viewBox='0 0 720.00 576.00'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA='>
+    <rect x='0.00' y='0.00' width='720.00' height='576.00' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw3MjAuMDB8MC4wMHw1NzYuMDA=)'>
+<text x='374.40' y='557.28' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='46.70px' lengthAdjust='spacingAndGlyphs'>Residual</text>
+<text transform='translate(12.96,280.80) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='78.71px' lengthAdjust='spacingAndGlyphs'>Standard Error</text>
+<line x1='82.40' y1='502.56' x2='666.40' y2='502.56' style='stroke-width: 0.75;' />
+<line x1='82.40' y1='502.56' x2='82.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='155.40' y1='502.56' x2='155.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='228.40' y1='502.56' x2='228.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='301.40' y1='502.56' x2='301.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='374.40' y1='502.56' x2='374.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='447.40' y1='502.56' x2='447.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='520.40' y1='502.56' x2='520.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='593.40' y1='502.56' x2='593.40' y2='509.76' style='stroke-width: 0.75;' />
+<line x1='666.40' y1='502.56' x2='666.40' y2='509.76' style='stroke-width: 0.75;' />
+<text x='82.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-2.0</text>
+<text x='155.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-1.5</text>
+<text x='228.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-1.0</text>
+<text x='301.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-0.5</text>
+<text x='374.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.0</text>
+<text x='447.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.5</text>
+<text x='520.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
+<text x='593.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.5</text>
+<text x='666.40' y='528.48' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>2.0</text>
+<line x1='59.04' y1='75.47' x2='59.04' y2='486.13' style='stroke-width: 0.75;' />
+<line x1='59.04' y1='75.47' x2='51.84' y2='75.47' style='stroke-width: 0.75;' />
+<line x1='59.04' y1='178.13' x2='51.84' y2='178.13' style='stroke-width: 0.75;' />
+<line x1='59.04' y1='280.80' x2='51.84' y2='280.80' style='stroke-width: 0.75;' />
+<line x1='59.04' y1='383.47' x2='51.84' y2='383.47' style='stroke-width: 0.75;' />
+<line x1='59.04' y1='486.13' x2='51.84' y2='486.13' style='stroke-width: 0.75;' />
+<text x='44.64' y='490.26' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.8</text>
+<text x='44.64' y='387.60' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.6</text>
+<text x='44.64' y='284.93' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.4</text>
+<text x='44.64' y='182.26' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.2</text>
+<text x='44.64' y='79.60' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.0</text>
+</g>
+<defs>
+  <clipPath id='cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng=='>
+    <rect x='59.04' y='59.04' width='630.72' height='443.52' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNTkuMDR8Njg5Ljc2fDU5LjA0fDUwMi41Ng==)'>
+<polygon points='82.40,75.47 666.40,75.47 666.40,486.13 82.40,486.13 ' style='stroke-width: 0.75; stroke: none; fill: #BEBEBE;' />
+<polygon points='130.50,486.13 141.21,465.60 151.84,445.07 162.40,424.53 172.85,404.00 183.19,383.47 193.40,362.93 203.45,342.40 213.32,321.87 222.96,301.33 232.33,280.80 241.38,260.27 250.03,239.73 258.20,219.20 265.78,198.67 272.63,178.13 278.60,157.60 283.51,137.07 287.19,116.53 289.47,96.00 290.24,75.47 458.56,75.47 459.33,96.00 461.61,116.53 465.29,137.07 470.20,157.60 476.17,178.13 483.02,198.67 490.60,219.20 498.77,239.73 507.42,260.27 516.47,280.80 525.84,301.33 535.48,321.87 545.35,342.40 555.40,362.93 565.61,383.47 575.95,404.00 586.40,424.53 596.96,445.07 607.59,465.60 618.30,486.13 ' style='stroke-width: 0.75; stroke: none; fill: #FFFFFF;' />
+<polyline points='374.40,75.47 374.40,486.13 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
+<polyline points='290.24,75.47 289.47,96.00 287.19,116.53 283.51,137.07 278.60,157.60 272.63,178.13 265.78,198.67 258.20,219.20 250.03,239.73 241.38,260.27 232.33,280.80 222.96,301.33 213.32,321.87 203.45,342.40 193.40,362.93 183.19,383.47 172.85,404.00 162.40,424.53 151.84,445.07 141.21,465.60 130.50,486.13 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
+<polyline points='458.56,75.47 459.33,96.00 461.61,116.53 465.29,137.07 470.20,157.60 476.17,178.13 483.02,198.67 490.60,219.20 498.77,239.73 507.42,260.27 516.47,280.80 525.84,301.33 535.48,321.87 545.35,342.40 555.40,362.93 565.61,383.47 575.95,404.00 586.40,424.53 596.96,445.07 607.59,465.60 618.30,486.13 ' style='stroke-width: 0.75; stroke-dasharray: 1.00,3.00;' />
+<circle cx='402.37' cy='189.15' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='412.25' cy='140.48' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='383.37' cy='121.14' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='633.43' cy='175.49' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='381.15' cy='153.75' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='380.68' cy='114.91' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='342.66' cy='116.89' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='347.01' cy='163.80' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='373.73' cy='108.66' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='368.30' cy='93.22' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='379.03' cy='103.18' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='368.17' cy='96.94' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='434.54' cy='201.53' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='385.95' cy='191.47' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='452.71' cy='226.62' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='382.34' cy='277.90' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='377.15' cy='222.65' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='410.72' cy='212.77' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='335.44' cy='165.95' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='419.02' cy='265.10' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='364.66' cy='151.75' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='577.71' cy='260.15' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='307.15' cy='270.20' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='382.34' cy='185.98' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='302.01' cy='195.74' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='399.59' cy='354.37' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='420.38' cy='259.31' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='495.62' cy='236.08' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='337.06' cy='170.92' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='445.76' cy='226.49' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='461.47' cy='186.42' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='421.98' cy='207.37' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='324.32' cy='229.24' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='365.21' cy='159.70' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='388.98' cy='177.57' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='473.07' cy='261.59' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='367.86' cy='199.15' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='304.70' cy='205.55' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='341.86' cy='141.36' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='400.38' cy='143.17' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='443.39' cy='217.16' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='415.58' cy='183.17' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='319.44' cy='177.96' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='362.84' cy='150.57' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='362.05' cy='196.53' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='444.03' cy='264.32' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='485.42' cy='310.88' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='450.76' cy='249.40' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='390.49' cy='161.44' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='361.99' cy='239.95' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='366.80' cy='201.40' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='351.70' cy='195.73' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='476.68' cy='299.04' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='284.98' cy='157.62' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='463.75' cy='263.30' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='473.86' cy='282.43' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='381.52' cy='208.31' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='438.28' cy='263.79' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='507.03' cy='274.66' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='356.14' cy='252.59' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='336.60' cy='165.60' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='397.76' cy='277.96' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='511.50' cy='288.14' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='246.68' cy='450.43' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='355.27' cy='276.81' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='302.35' cy='224.92' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='443.66' cy='255.97' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='367.97' cy='146.36' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='291.26' cy='201.38' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='338.36' cy='199.26' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='331.57' cy='208.20' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='314.25' cy='200.53' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='400.37' cy='176.67' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='357.73' cy='212.67' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='353.64' cy='266.53' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='334.64' cy='217.99' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='335.90' cy='175.35' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='333.71' cy='169.41' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='447.62' cy='237.94' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='376.83' cy='209.69' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+<circle cx='342.59' cy='209.39' r='2.70' style='stroke-width: 0.75; fill: #000000;' />
+</g>
+</svg>

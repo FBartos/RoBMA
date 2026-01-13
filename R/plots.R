@@ -444,7 +444,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 
 #' @title Funnel plot for a RoBMA object
 #'
-#' @description \code{funnel} creates a funnel plot for
+#' @description \code{funnel.RoBMA} creates a funnel plot for
 #' a \code{"RoBMA"} object.
 #' Only available for normal-normal models estimated using the spike-and-slab
 #' algorithm (i.e., \code{algorithm = "ss"}). This function uses several
@@ -472,7 +472,7 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' The sampling distribution is drawn under the mean effect size and heterogeneity
 #' estimates (the uncertainty about those values is not incorporated into the figure).
 #'
-#' @return \code{funnel} returns either \code{NULL} if \code{plot_type = "base"}
+#' @return \code{funnel.RoBMA} returns either \code{NULL} if \code{plot_type = "base"}
 #' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 #'
 #' @examples \dontrun{
@@ -484,8 +484,9 @@ forest <- function(x, conditional = FALSE, plot_type = "base", output_scale = NU
 #' funnel(fit)
 #' }
 #'
+#' @rdname funnel
 #' @export
-funnel <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL,
+funnel.RoBMA <- function(x, conditional = FALSE, plot_type = "base", output_scale = NULL,
                    incorporate_heterogeneity = TRUE, incorporate_publication_bias = TRUE, max_samples = 500,
                    ...){
 

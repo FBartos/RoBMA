@@ -148,10 +148,10 @@ test_that("Residuals for 3-level model match expected values", {
 
 
 # ============================================================================ #
-# Test: Selection Model Residuals
+# Test: Selection Model Residuals (Positive Effects)
 # ============================================================================ #
 
-test_that("Residuals for selection model are computed correctly", {
+test_that("Residuals for selection model (positive) are computed correctly", {
 
   skip_if_not_installed("metafor")
 
@@ -163,7 +163,7 @@ test_that("Residuals for selection model are computed correctly", {
   # Residuals computation
   # --------------------------------------------------
 
-  # metafor: residuals for multilevel model
+  # metafor: residuals for selection model
   metafor_resid <- residuals(fit_metafor)
 
   # brma: using residuals method
@@ -172,15 +172,44 @@ test_that("Residuals for selection model are computed correctly", {
 
   # comparison (allow MCMC tolerance)
   expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
-               info = "brma residuals should match metafor residuals for selection model")
+               info = "brma residuals should match metafor residuals for selection model (positive)")
 })
 
 
 # ============================================================================ #
-# Test: PET Model Residuals
+# Test: Selection Model Residuals (Negative Effects)
 # ============================================================================ #
 
-test_that("Residuals for PET model are computed correctly", {
+test_that("Residuals for selection model (negative) are computed correctly", {
+
+  skip_if_not_installed("metafor")
+
+  name        <- "dat.lehmann2018-3PSM_neg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Residuals computation
+  # --------------------------------------------------
+
+  # metafor: residuals for selection model (negative effects)
+  metafor_resid <- residuals(fit_metafor)
+
+  # brma: using residuals method
+  brma_resid <- residuals(fit_brma)
+  brma_resid_mean <- brma_resid$summary[, "Mean"]
+
+  # comparison (allow MCMC tolerance)
+  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+               info = "brma residuals should match metafor residuals for selection model (negative)")
+})
+
+
+# ============================================================================ #
+# Test: PET Model Residuals (Positive Effects)
+# ============================================================================ #
+
+test_that("Residuals for PET model (positive) are computed correctly", {
 
   skip_if_not_installed("metafor")
 
@@ -192,7 +221,7 @@ test_that("Residuals for PET model are computed correctly", {
   # Residuals computation
   # --------------------------------------------------
 
-  # metafor: residuals for multilevel model
+  # metafor: residuals for PET model
   metafor_resid <- residuals(fit_metafor)
 
   # brma: using residuals method
@@ -201,7 +230,36 @@ test_that("Residuals for PET model are computed correctly", {
 
   # comparison (allow MCMC tolerance)
   expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
-               info = "brma residuals should match metafor residuals for selection model")
+               info = "brma residuals should match metafor residuals for PET model (positive)")
+})
+
+
+# ============================================================================ #
+# Test: PET Model Residuals (Negative Effects)
+# ============================================================================ #
+
+test_that("Residuals for PET model (negative) are computed correctly", {
+
+  skip_if_not_installed("metafor")
+
+  name        <- "dat.lehmann2018-PET_neg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Residuals computation
+  # --------------------------------------------------
+
+  # metafor: residuals for PET model (negative effects)
+  metafor_resid <- residuals(fit_metafor)
+
+  # brma: using residuals method
+  brma_resid <- residuals(fit_brma)
+  brma_resid_mean <- brma_resid$summary[, "Mean"]
+
+  # comparison (allow MCMC tolerance)
+  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.10,
+               info = "brma residuals should match metafor residuals for PET model (negative)")
 })
 
 
