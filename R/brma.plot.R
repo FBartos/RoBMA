@@ -245,40 +245,10 @@ plot_PETPEESE.brma  <- function(
   effect_direction <- .effect_direction(x)
   if (effect_direction == "negative") {
     if (.is_PET(x)) {
-      # Negate samples
-      samples[["PET"]] <- -samples[["PET"]]
-      # Negate prior list if present (for prior visualization)
-      if (!is.null(attr(samples[["PET"]], "prior_list"))) {
-        prior_list <- attr(samples[["PET"]], "prior_list")
-        for (i in seq_along(prior_list)) {
-          # Add transformation attribute to negate the prior for visualization
-          if (!is.null(prior_list[[i]][["parameters"]])) {
-            # For location-scale priors (e.g., Cauchy), negate the location
-            if (!is.null(prior_list[[i]][["parameters"]][["location"]])) {
-              prior_list[[i]][["parameters"]][["location"]] <- -prior_list[[i]][["parameters"]][["location"]]
-            }
-          }
-        }
-        attr(samples[["PET"]], "prior_list") <- prior_list
-      }
+      samples[["PET"]] <- .negate_bias_samples(samples[["PET"]])
     }
     if (.is_PEESE(x)) {
-      # Negate samples
-      samples[["PEESE"]] <- -samples[["PEESE"]]
-      # Negate prior list if present (for prior visualization)
-      if (!is.null(attr(samples[["PEESE"]], "prior_list"))) {
-        prior_list <- attr(samples[["PEESE"]], "prior_list")
-        for (i in seq_along(prior_list)) {
-          # Add transformation attribute to negate the prior for visualization
-          if (!is.null(prior_list[[i]][["parameters"]])) {
-            # For location-scale priors (e.g., Cauchy), negate the location
-            if (!is.null(prior_list[[i]][["parameters"]][["location"]])) {
-              prior_list[[i]][["parameters"]][["location"]] <- -prior_list[[i]][["parameters"]][["location"]]
-            }
-          }
-        }
-        attr(samples[["PEESE"]], "prior_list") <- prior_list
-      }
+      samples[["PEESE"]] <- .negate_bias_samples(samples[["PEESE"]])
     }
   }
 
@@ -347,6 +317,28 @@ plot_PETPEESE.brma  <- function(
       attr(samples[["PEESE"]], "prior_list")[[i]] <- prior("point", parameter = list("location" = 0), prior_weights = attr(samples[["PEESE"]], "prior_list")[[i]][["prior_weights"]])
     }
   }
+  return(samples)
+}
+
+# Helper function to negate bias parameter samples for visualization
+.negate_bias_samples <- function(samples) {
+  # Negate the samples themselves
+  samples <- -samples
+  
+  # Negate prior list if present (for prior visualization)
+  if (!is.null(attr(samples, "prior_list"))) {
+    prior_list <- attr(samples, "prior_list")
+    for (i in seq_along(prior_list)) {
+      # For location-scale priors (e.g., Cauchy), negate the location
+      if (!is.null(prior_list[[i]][["parameters"]])) {
+        if (!is.null(prior_list[[i]][["parameters"]][["location"]])) {
+          prior_list[[i]][["parameters"]][["location"]] <- -prior_list[[i]][["parameters"]][["location"]]
+        }
+      }
+    }
+    attr(samples, "prior_list") <- prior_list
+  }
+  
   return(samples)
 }
 
