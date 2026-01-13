@@ -157,10 +157,10 @@ test_that("Funnel plots for brma models", {
       vdiffr::expect_doppelganger(paste0("ggplot_funnel_", name), funnel(fits[[name]], plot_type = "ggplot"))
 
       # test without publication bias
-      vdiffr::expect_doppelganger(paste0("base_funnel_no_pb_", name), function() funnel(fits[[name]], incorporate_publication_bias = FALSE))
+      vdiffr::expect_doppelganger(paste0("base_funnel_no_pb_", name), function() funnel(fits[[name]], bias_adjusted = FALSE))
 
       # test without heterogeneity
-      vdiffr::expect_doppelganger(paste0("base_funnel_no_het_", name), function() funnel(fits[[name]], incorporate_heterogeneity = FALSE))
+      vdiffr::expect_doppelganger(paste0("base_funnel_no_het_", name), function() funnel(fits[[name]], heterogeneity_adjusted = FALSE))
     }
   }
 
@@ -168,6 +168,42 @@ test_that("Funnel plots for brma models", {
   name <- "bcg_meta-analysis"
   vdiffr::expect_doppelganger("base_funnel_custom", function() funnel(fits[[name]], shape = 24, size = 1.5))
   vdiffr::expect_doppelganger("ggplot_funnel_custom", funnel(fits[[name]], plot_type = "ggplot", shape = 24, size = 3))
+
+})
+
+
+test_that("Residuals for brma models", {
+
+  skip_on_cran()
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  ### fit simple meta-analytic model
+  data(dat.bcg, package = "metadat")
+  dat                 <- metafor::escalc(measure="RR", ai=tpos, bi=tneg, ci=cpos, di=cneg, data=dat.bcg)
+  fit_simple.metafor  <- metafor::rma(yi = yi, vi = vi, data = dat, method = "REML")
+
+  # using RoBMA package
+  fit_simple.brma <- brma(yi = yi, vi = vi, data = dat, measure = "RR", seed = 1, silent = TRUE)
+
+  # test residuals against metafor
+  resid_brma    <- residuals(fit_simple.brma)
+  resid_metafor <- stats::residuals(fit_simple.metafor)
+
+  expect_equal(resid_metafor, resid_brma$summary[,"Mean"], tolerance = 0.05, ignore_attr = TRUE)
+
+
+  ### fit meta-regression
+  fit_mods.metafor <- metafor::rma(yi, vi, mods = ~ ablat + year, data = dat)
+
+  # using RoBMA package
+  fit_mods.brma <- brma(yi, vi, mods = ~ ablat + year, data = dat, measure = "RR", seed = 1, silent = TRUE)
+
+  # test residuals against metafor
+  resid_brma    <- residuals(fit_mods.brma)
+  resid_metafor <- stats::residuals(fit_mods.metafor)
+
+  expect_equal(resid_metafor, resid_brma$summary[,"Mean"], tolerance = 0.1, ignore_attr = TRUE)
 
 })
 

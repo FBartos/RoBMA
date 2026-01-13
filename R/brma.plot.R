@@ -404,9 +404,9 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
-#' @param incorporate_heterogeneity Whether heterogeneity should be incorporated
+#' @param heterogeneity_adjusted whether heterogeneity should be incorporated
 #' into the sampling distribution. Defaults to \code{TRUE}.
-#' @param incorporate_publication_bias Whether publication bias should be incorporated
+#' @param bias_adjusted whether publication bias should be incorporated
 #' into the sampling distribution. Defaults to \code{TRUE}.
 #' @param max_samples Maximum number of samples from the posterior distribution
 #' that will be used for estimating the funnel plot under publication bias.
@@ -435,10 +435,10 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' funnel(fit)
 #'
 #' # funnel plot without publication bias adjustment
-#' funnel(fit, incorporate_publication_bias = FALSE)
+#' funnel(fit, bias_adjusted = FALSE)
 #'
 #' # funnel plot without heterogeneity
-#' funnel(fit, incorporate_heterogeneity = FALSE)
+#' funnel(fit, heterogeneity_adjusted = FALSE)
 #'
 #' # ggplot2 version
 #' funnel(fit, plot_type = "ggplot")
@@ -448,15 +448,15 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' @rdname funnel
 funnel.brma <- function(x,
                         plot_type = "base",
-                        incorporate_heterogeneity = TRUE,
-                        incorporate_publication_bias = TRUE,
+                        heterogeneity_adjusted = TRUE,
+                        bias_adjusted = TRUE,
                         max_samples = 500,
                         ...) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  BayesTools::check_bool(incorporate_heterogeneity, "incorporate_heterogeneity")
-  BayesTools::check_bool(incorporate_publication_bias, "incorporate_publication_bias")
+  BayesTools::check_bool(heterogeneity_adjusted, "heterogeneity_adjusted")
+  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_int(max_samples, "max_samples", lower = 10)
 
   # check model type - only normal outcome models supported
@@ -471,31 +471,19 @@ funnel.brma <- function(x,
   is_weightfunction <- .is_weightfunction(x)
   effect_direction  <- .effect_direction(x)
 
-  ### compute residuals: observed yi - predicted mu (type="terms")
-  # predictions are on the original scale
-  res_samples <- predict.brma(
+  ### compute residuals using residuals.brma
+  # get residual samples (yi - predicted mu)
+  residuals_matrix <- residuals.brma(
     object        = x,
-    newdata       = NULL,
-    type          = "terms",
     bias_adjusted = TRUE,
-    as_samples    = TRUE,
-    quiet         = TRUE
+    as_samples    = TRUE
   )
-
-  # compute residuals for each observation: yi - mu_predicted
-  outcome_data <- x[["data"]][["outcome"]]
-  K            <- nrow(outcome_data)
-
-  # res_samples is S x K matrix, compute residuals
-  residuals_matrix <- matrix(NA_real_, nrow = nrow(res_samples), ncol = K)
-  for (k in seq_len(K)) {
-    residuals_matrix[, k] <- outcome_data$yi[k] - res_samples[, k]
-  }
 
   # use mean residuals for visualization
   res <- colMeans(residuals_matrix)
 
   # extract standard errors
+  outcome_data <- x[["data"]][["outcome"]]
   sei <- outcome_data$sei
 
   ### set up plotting range
@@ -507,11 +495,11 @@ funnel.brma <- function(x,
   priors            <- x[["priors"]]
 
   ### compute funnel boundaries
-  if (!incorporate_publication_bias || !is_weightfunction) {
+  if (!bias_adjusted || !is_weightfunction) {
 
     # compute contours without publication bias (normal distribution)
 
-    if (incorporate_heterogeneity) {
+    if (heterogeneity_adjusted) {
       # extract tau samples
       tau_result <- .evaluate.brma.tau(
         fit           = x[["fit"]],
@@ -553,7 +541,7 @@ funnel.brma <- function(x,
     mu_samples <- mu_samples[selected_samples_ind, 1]
 
     # get tau samples
-    if (incorporate_heterogeneity) {
+    if (heterogeneity_adjusted) {
       tau_result <- .evaluate.brma.tau(
         fit           = x[["fit"]],
         scale_data    = x[["data"]][["scale"]],
