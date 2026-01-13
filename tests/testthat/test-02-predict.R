@@ -8,10 +8,16 @@ skip_if_no_fits()
 fits <- lapply(list_fits(), load_fit)
 info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
+names(info) <- list_fits()
 
-skip("TODO")
+test_that("Prediction for selected models", {
 
-test_that("Model summary", {
+  ### simple meta-analysis
+  name <- "bcg_meta-analysis"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+
 
   name <- "bangertdrowns2004_location-scale"
   object <- fits[[name]]

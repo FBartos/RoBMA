@@ -144,10 +144,9 @@ test_that(".prepare_newdata works with brma.norm using sei", {
 
   # Prepare newdata using the same data
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -168,10 +167,9 @@ test_that(".prepare_newdata works with brma.norm using vi", {
 
   # Prepare newdata using the same data
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_norm_vi,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_norm_vi,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -199,10 +197,9 @@ test_that(".prepare_newdata works with different newdata (same structure)", {
 
   # Prepare using .prepare_newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = new_df,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
   )
 
   # Compare
@@ -229,10 +226,9 @@ test_that(".prepare_newdata works with brma.norm and mods formula", {
 
   # Prepare newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -263,10 +259,9 @@ test_that(".prepare_newdata with mods and different newdata", {
 
   # Prepare using .prepare_newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = new_df,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
   )
 
   # Compare
@@ -293,10 +288,9 @@ test_that(".prepare_newdata works with brma.norm and scale formula", {
 
   # Prepare newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -320,10 +314,9 @@ test_that(".prepare_newdata works with both mods and scale", {
 
   # Prepare newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -351,10 +344,9 @@ test_that(".prepare_newdata works with brma.glmm (binomial)", {
 
   # Prepare newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_glmm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_glmm,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -379,10 +371,9 @@ test_that(".prepare_newdata works with brma.glmm and mods", {
 
   # Prepare newdata
   newdata_result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = test_data_glmm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = test_data_glmm,
+    type    = "terms"
   )
 
   # Compare with the original data
@@ -410,10 +401,9 @@ test_that(".prepare_newdata throws error when yi is missing", {
 
   expect_error(
     RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = bad_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = bad_df,
+      type    = "terms"
     ),
     regexp = "yi"
   )
@@ -436,10 +426,9 @@ test_that(".prepare_newdata throws error when sei/vi is missing", {
 
   expect_error(
     RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = bad_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = bad_df,
+      type    = "terms"
     ),
     regexp = "sei.*vi"
   )
@@ -467,10 +456,9 @@ test_that(".prepare_newdata throws error when mods variables are missing", {
 
   expect_error(
     RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = bad_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = bad_df,
+      type    = "terms"
     ),
     regexp = "mod_cont"
   )
@@ -497,10 +485,9 @@ test_that(".prepare_newdata throws error when scale variables are missing", {
 
   expect_error(
     RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = bad_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = bad_df,
+      type    = "terms"
     ),
     regexp = "scale_var"
   )
@@ -529,10 +516,9 @@ test_that(".prepare_newdata throws error when GLMM columns are missing", {
 
   expect_error(
     RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = bad_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = bad_df,
+      type    = "terms"
     ),
     regexp = "n2i"
   )
@@ -569,17 +555,15 @@ test_that(".prepare_newdata preserves standardize_continuous_predictors setting"
 
   # Prepare newdata for both
   result_std <- RoBMA:::.prepare_newdata(
-    object                       = fit_std,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit_std,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   result_no_std <- RoBMA:::.prepare_newdata(
-    object                       = fit_no_std,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit_no_std,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   # Check attributes are preserved
@@ -615,17 +599,15 @@ test_that(".prepare_newdata preserves set_contrast_factor_predictors setting", {
 
   # Prepare newdata for both
   result_treatment <- RoBMA:::.prepare_newdata(
-    object                       = fit_treatment,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit_treatment,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   result_meandif <- RoBMA:::.prepare_newdata(
-    object                       = fit_meandif,
-    newdata                      = test_data_norm,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit_meandif,
+    newdata = test_data_norm,
+    type    = "terms"
   )
 
   # Check attributes are preserved
@@ -658,10 +640,9 @@ test_that(".prepare_newdata handles NA values in newdata", {
   # Should drop the NA row with a warning
   expect_warning(
     result <- RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = new_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = new_df,
+      type    = "terms"
     ),
     regexp = "removed"
   )
@@ -692,10 +673,9 @@ test_that(".prepare_newdata handles NA in mods", {
   # Should drop the NA row
   expect_warning(
     result <- RoBMA:::.prepare_newdata(
-      object                       = fit,
-      newdata                      = new_df,
-      type                         = "terms",
-      incorporate_publication_bias = TRUE
+      object  = fit,
+      newdata = new_df,
+      type    = "terms"
     ),
     regexp = "removed"
   )
@@ -724,10 +704,9 @@ test_that(".prepare_newdata works with single row newdata", {
   new_df <- data.frame(yi = 0.5, sei = 0.1)
 
   result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = new_df,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
   )
 
   expect_equal(nrow(result$outcome), 1)
@@ -757,10 +736,9 @@ test_that(".prepare_newdata works with newdata having extra columns", {
 
   # Should work, ignoring extra columns
   result <- RoBMA:::.prepare_newdata(
-    object                       = fit,
-    newdata                      = new_df,
-    type                         = "terms",
-    incorporate_publication_bias = TRUE
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
   )
 
   expect_equal(nrow(result$outcome), 2)

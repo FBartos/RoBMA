@@ -125,7 +125,7 @@
 # - Meta-regression models: evaluates mu formula with moderators
 # - Simple models: extracts mu column and replicates to K columns
 # - Effect direction flipping (for models fit with negative direction)
-# - PET/PEESE bias adjustments (added when incorporate_publication_bias = FALSE)
+# - PET/PEESE bias adjustments (added when bias_adjusted = FALSE)
 #
 # @param fit              runjags fit object containing posterior samples
 # @param outcome_data     data.frame with outcome info (must contain 'sei')
@@ -137,7 +137,7 @@
 # @param is_PET           logical; whether model includes PET adjustment
 # @param is_PEESE         logical; whether model includes PEESE adjustment
 # @param effect_direction character; "positive" or "negative" - direction of true effect
-# @param incorporate_publication_bias logical; if TRUE, PET/PEESE adjustments are skipped
+# @param bias_adjusted    logical; if TRUE, PET/PEESE adjustments are skipped
 #                         (returns bias-adjusted mu); if FALSE, adds bias terms
 # @param K                integer; number of observations
 #
@@ -146,7 +146,7 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.mu <- function(fit, outcome_data, mods_data, mods_formula, mods_priors,
                               is_mods, is_PET, is_PEESE, effect_direction,
-                              incorporate_publication_bias, K) {
+                              bias_adjusted, K) {
 
   # extract posterior samples from JAGS fit
   posterior_samples <- suppressWarnings(coda::as.mcmc(fit))
@@ -182,7 +182,7 @@
   ### add PET adjustment when NOT incorporating publication bias adjustment
   # (i.e., when we want to show the biased predictions)
   # PET model: E[y|se] = mu + PET * se
-  if (is_PET && !incorporate_publication_bias) {
+  if (is_PET && !bias_adjusted) {
 
     PET_samples <- posterior_samples[, "PET"]
     sei_vec     <- outcome_data[["sei"]]
@@ -196,7 +196,7 @@
 
   ### add PEESE adjustment when NOT incorporating publication bias adjustment
   # PEESE model: E[y|se] = mu + PEESE * se^2
-  if (is_PEESE && !incorporate_publication_bias) {
+  if (is_PEESE && !bias_adjusted) {
 
     PEESE_samples <- posterior_samples[, "PEESE"]
     sei_sq_vec    <- outcome_data[["sei"]]^2
@@ -273,12 +273,12 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .evaluate.brma.true_effects
+# .evaluate.brma.true_effects.norm
 # ---------------------------------------------------------------------------- #
 #
-# Compute posterior samples of true study effects (theta) using empirical Bayes.
+# Compute posterior samples of true study effects (theta) for normal models.
 #
-# The true effect for observation i is estimated via shrinkage (BLUP):
+# Uses empirical Bayes shrinkage (BLUP) to estimate true effects:
 #   theta_i = lambda_i * y_i + (1 - lambda_i) * mu_i
 # where:
 #   lambda_i = tau_within^2 / (tau_within^2 + se_i^2)
@@ -286,15 +286,19 @@
 # This corresponds to the posterior mean of theta given the data under a
 # normal-normal random effects model.
 #
-# @param mu_samples       S x K matrix of location samples (with study effects if multilevel)
-# @param tau_within       S x K matrix of within-study heterogeneity samples
+# IMPORTANT: For multilevel models, mu_samples must already include the
+# study-level contribution (gamma * tau_between) before calling this function.
+#
+# @param mu_samples       S x K matrix of location samples (must include
+#                         gamma * tau_between contribution for multilevel models)
+# @param tau_within       S x K matrix of within-study (estimate-level) heterogeneity
 # @param yi               numeric vector of length K; observed effect sizes
 # @param sei              numeric vector of length K; standard errors
 #
 # @return S x K matrix of true effect (theta) posterior samples
 #
 # ---------------------------------------------------------------------------- #
-.evaluate.brma.true_effects <- function(mu_samples, tau_within, yi, sei) {
+.evaluate.brma.true_effects.norm <- function(mu_samples, tau_within, yi, sei) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
@@ -307,14 +311,57 @@
 
   # compute shrinkage factor lambda (S x K matrix)
   # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage) to 1 (weak)
-  tau_sq  <- tau_within^2
-  se_sq   <- sei_mat^2
-  lambda  <- tau_sq / (tau_sq + se_sq)
+  tau_sq <- tau_within^2
+  se_sq  <- sei_mat^2
+  lambda <- tau_sq / (tau_sq + se_sq)
 
   # BLUP: weighted average of observed effect and model prediction
   # high tau -> lambda -> 1 -> trust data more
   # low tau -> lambda -> 0 -> trust model more
   true_effects_samples <- lambda * yi_mat + (1 - lambda) * mu_samples
+
+  return(true_effects_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.true_effects.glmm
+# ---------------------------------------------------------------------------- #
+#
+# Compute posterior samples of true study effects (theta) for GLMM models.
+#
+# For GLMM models (binomial or Poisson), the estimate-level random effects
+# (theta) are directly sampled in JAGS (not marginalized as in normal models).
+# The true effect is:
+#   true_effect_i = mu_i + theta_i * tau_within_i
+#
+# For same_data: extracts theta[k] from posterior samples
+# For new_data: samples new theta ~ N(0, 1) to marginalize over random effects
+#
+# IMPORTANT: For multilevel models, mu_samples must already include the
+# study-level contribution (gamma * tau_between) before calling this function.
+# This is handled by .evaluate.brma.study_effects() in brma.predict.R.
+#
+# @param fit              runjags fit object (needed to extract theta if same_data = TRUE)
+# @param mu_samples       S x K matrix of location samples (must include
+#                         gamma * tau_between contribution for multilevel models)
+# @param tau_within       S x K matrix of within-study (estimate-level) heterogeneity
+# @param same_data        logical; TRUE if predicting on original data
+# @param K                integer; number of observations
+#
+# @return S x K matrix of true effect (theta) posterior samples
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.true_effects.glmm <- function(fit, mu_samples, tau_within, same_data, K) {
+
+  # add the estimate-level random effects (theta * tau_within) to mu
+  theta_contribution <- .evaluate.brma.theta.glmm(
+    fit        = fit,
+    tau_within = tau_within,
+    same_data  = same_data,
+    K          = K
+  )
+  true_effects_samples <- mu_samples + theta_contribution
 
   return(true_effects_samples)
 }

@@ -18,7 +18,7 @@ test_that("Test against metafor::rma.uni", {
 
   # using RoBMA package
   fit_simple.brma <- brma(yi = yi, vi = vi, data = dat, measure = "RR", seed = 1, silent = TRUE)
-  save_fit("bcg_meta-analysis", fit_simple.brma, info = list(metafor = fit_simple.brma))
+  save_fit("bcg_meta-analysis", fit_simple.brma, info = list(metafor = fit_simple.metafor))
   expect_equal(fit_simple.metafor$beta[[1]],  fit_simple.brma$summary["mu","Mean"],  tolerance = 0.05)
   expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau","Mean"], tolerance = 0.05)
 

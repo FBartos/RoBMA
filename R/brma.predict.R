@@ -65,10 +65,9 @@ predict.brma <- function(object, newdata,
     # prepare newdata using the same settings as the original fit
     same_data <- FALSE
     new_data  <- .prepare_newdata(
-      object                       = object,
-      newdata                      = newdata,
-      type                         = type,
-      incorporate_publication_bias = incorporate_publication_bias
+      object        = object,
+      newdata       = newdata,
+      type          = type
     )
 
   }
@@ -105,7 +104,6 @@ predict.brma <- function(object, newdata,
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
-  S                   <- nrow(tau_within_samples)  # number of posterior samples
 
   ### return only tau samples if type = "terms.scale" is selected
   if (type == "terms.scale") {
@@ -137,17 +135,17 @@ predict.brma <- function(object, newdata,
   # returns S x K matrix of location samples
   # see .evaluate.brma.mu() in brma.evaluate.R for details
   mu_samples <- .evaluate.brma.mu(
-    fit                           = object[["fit"]],
-    outcome_data                  = outcome_data,
-    mods_data                     = new_data[["mods"]],
-    mods_formula                  = if (is_mods) attr(object[["data"]][["mods"]], "formula") else NULL,
-    mods_priors                   = priors[["mods"]],
-    is_mods                       = is_mods,
-    is_PET                        = is_PET,
-    is_PEESE                      = is_PEESE,
-    effect_direction              = effect_direction,
-    incorporate_publication_bias  = bias_adjusted,
-    K                             = K
+    fit               = object[["fit"]],
+    outcome_data      = outcome_data,
+    mods_data         = new_data[["mods"]],
+    mods_formula      = if (is_mods) attr(object[["data"]][["mods"]], "formula") else NULL,
+    mods_priors       = priors[["mods"]],
+    is_mods           = is_mods,
+    is_PET            = is_PET,
+    is_PEESE          = is_PEESE,
+    effect_direction  = effect_direction,
+    bias_adjusted     = bias_adjusted,
+    K                 = K
   )
 
   ### return only mu samples if type = "terms" is selected
@@ -188,17 +186,29 @@ predict.brma <- function(object, newdata,
     mu_samples <- mu_samples + study_contribution
   }
 
-  ### create true-effect prediction using helper function
-  # computes empirical Bayes (BLUP) estimates of true study effects
-  # see .evaluate.brma.true_effects() in brma.evaluate.R for details
+  ### create true-effect prediction
+  # dispatches between normal and GLMM approaches
+  # see .evaluate.brma.true_effects.norm() and .evaluate.brma.true_effects.glmm()
   if (type == "effect") {
 
-    true_effects_samples <- .evaluate.brma.true_effects(
-      mu_samples = mu_samples,
-      tau_within = tau_within_samples,
-      yi         = outcome_data[["yi"]],
-      sei        = outcome_data[["sei"]]
-    )
+    if (outcome_type == "norm") {
+      # normal models: empirical Bayes shrinkage (BLUP) estimates
+      true_effects_samples <- .evaluate.brma.true_effects.norm(
+        mu_samples = mu_samples,
+        tau_within = tau_within_samples,
+        yi         = outcome_data[["yi"]],
+        sei        = outcome_data[["sei"]]
+      )
+    } else {
+      # GLMM models (bin/pois): extract or sample theta from posterior
+      true_effects_samples <- .evaluate.brma.true_effects.glmm(
+        fit        = object[["fit"]],
+        mu_samples = mu_samples,
+        tau_within = tau_within_samples,
+        same_data  = same_data,
+        K          = K
+      )
+    }
 
     # rename samples
     colnames(true_effects_samples) <- paste0("theta[", seq_len(K), "]")

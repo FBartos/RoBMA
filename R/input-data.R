@@ -911,10 +911,9 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 # @param object A fitted brma object
 # @param newdata A data.frame with new data for prediction (must contain all model variables)
 # @param type Prediction type: "terms", "effect", or "response"
-# @param incorporate_publication_bias Whether to incorporate publication bias
 #
 # @return A data list equivalent to `object[["data"]]` but for `newdata`
-.prepare_newdata <- function(object, newdata, type, incorporate_publication_bias) {
+.prepare_newdata <- function(object, newdata, type) {
 
  # extract settings from the original fitted object's data attributes
   original_data <- object[["data"]]

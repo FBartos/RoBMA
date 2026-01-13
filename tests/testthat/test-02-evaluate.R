@@ -22,23 +22,27 @@ REFERENCE_DIR <<- testthat::test_path("..", "results", "evaluate")
 # using mock posterior sample matrices (no JAGS fit required)
 # ============================================================================ #
 
-test_that(".evaluate.brma.true_effects computes correct BLUPs", {
+test_that(".evaluate.brma.true_effects.norm computes correct BLUPs", {
 
   # create mock data
   S <- 100  # samples
-  K <- 5    # observations
+  K <- 4    # observations
 
   set.seed(1234)
   mu_samples <- matrix(rnorm(S * K, mean = 0.5, sd = 0.1), nrow = S, ncol = K)
-  tau_within <- matrix(abs(rnorm(S * K, mean = 0.2, sd = 0.05)), nrow = S, ncol = K)
-  yi  <- c(0.3, 0.5, 0.7, 0.4, 0.6)
-  sei <- c(0.1, 0.2, 0.15, 0.25, 0.12)
+  tau_within <- matrix(abs(rnorm(S * K, mean = 0.2, sd = 0.01)), nrow = S, ncol = K)
+  yi  <- c(0.3, 0.5, 0.4, 0.6)
+  sei <- c(0.1, 0.15, 0.25, 0.30)
 
   # compute true effects
-  theta <- .evaluate.brma.true_effects(mu_samples, tau_within, yi, sei)
+  theta <- .evaluate.brma.true_effects.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    sei        = sei
+  )
 
   # verify dimensions
-
   expect_equal(dim(theta), c(S, K))
 
   # verify shrinkage behavior: theta should be between yi and mu
@@ -51,8 +55,11 @@ test_that(".evaluate.brma.true_effects computes correct BLUPs", {
     # and closer to model when tau is small relative to se
     if (mean(tau_within[, k]) > sei[k]) {
       # high tau: theta closer to yi
-      expect_true(abs(mean_theta[k] - yi[k]) < abs(mean_theta[k] - mean_mu[k]) + 0.1,
+      expect_true(abs(mean_theta[k] - yi[k]) < abs(mean_theta[k] - mean_mu[k]),
                   info = paste("Observation", k, "should shrink toward data with high tau"))
+    } else {
+      expect_true(abs(mean_theta[k] - yi[k]) > abs(mean_theta[k] - mean_mu[k]),
+                  info = paste("Observation", k, "should shrink toward mean with high sei"))
     }
   }
 
@@ -72,7 +79,6 @@ test_that(".outcome_rng.norm has correct sampling variance", {
 
   # create mock data
   S <- 10000  # many samples for stable variance estimation
-
   K <- 3
 
   set.seed(5678)
@@ -81,7 +87,6 @@ test_that(".outcome_rng.norm has correct sampling variance", {
   sei <- c(0.1, 0.2, 0.3)
 
   # compute response samples
-  set.seed(9999)
   response <- .outcome_rng.norm(mu_samples, tau_within, sei)
 
   # verify dimensions
@@ -114,7 +119,6 @@ test_that(".evaluate.brma.study_effects returns contribution matrix for new data
 
   # for new data, gamma ~ N(0,1) is sampled, so contribution = gamma * tau_between
   # expected variance = tau_between^2 = 0.09
-  set.seed(333)
   contribution <- .evaluate.brma.study_effects(
     fit              = NULL,
     tau_between      = tau_between,
@@ -145,29 +149,33 @@ test_that("variance ordering: mu < theta < response", {
 
   set.seed(444)
   # create realistic mock data
-  mu_samples <- matrix(rnorm(S * K, mean = 0.3, sd = 0.15), nrow = S, ncol = K)
-  tau_within <- matrix(abs(rnorm(S * K, mean = 0.2, sd = 0.02)), nrow = S, ncol = K)
-  yi  <- c(0.4, 0.2, 0.5, 0.35)
+  mu_samples <- matrix(rnorm(S * K, mean = 0.33, sd = 0.05), nrow = S, ncol = K)
+  tau_within <- matrix(abs(rnorm(S * K, mean = 0.25, sd = 0.05)), nrow = S, ncol = K)
+  yi  <- c(0.30, 0.2, 0.5, 0.45)
   sei <- c(0.15, 0.1, 0.2, 0.12)
 
   # compute true effects and response
-  theta <- .evaluate.brma.true_effects(mu_samples, tau_within, yi, sei)
+  theta <- .evaluate.brma.true_effects.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    sei        = sei
+  )
 
-  set.seed(555)
   response <- .outcome_rng.norm(mu_samples, tau_within, sei)
 
-  # compute variances for each observation
-  for (k in seq_len(K)) {
-    var_mu       <- var(mu_samples[, k])
-    var_theta    <- var(theta[, k])
-    var_response <- var(response[, k])
+  # compute variances across the distributions
+  sd_mu       <- median(apply(mu_samples, 1, sd))
+  sd_theta    <- median(apply(theta, 1, sd))
+  sd_response <- median(apply(response, 1, sd))
 
-    # theta variance should be less than or equal to mu variance
-    # (shrinkage reduces variance toward the mean)
-    # response variance should be larger than theta (adds sampling error)
-    expect_true(var_response > var_theta,
-                info = paste("Observation", k, ": response should have more variance than theta"))
-  }
+  # theta variance should be less than or equal to mu variance
+  # (shrinkage reduces variance toward the mean)
+  # response variance should be larger than theta (adds sampling error)
+  expect_true(sd_response > sd_theta,
+              info = paste("Observation", k, ": response should have more variance than theta"))
+  expect_true(sd_theta > sd_mu,
+              info = paste("Observation", k, ": theta should have more variance than terms"))
 })
 
 
@@ -261,17 +269,17 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
     if (is_mods) next
 
     mu_samples <- .evaluate.brma.mu(
-      fit                          = object[["fit"]],
-      outcome_data                 = outcome_data,
-      mods_data                    = object[["data"]][["mods"]],
-      mods_formula                 = if (is_mods) attr(object[["data"]][["mods"]], "formula") else NULL,
-      mods_priors                  = priors[["mods"]],
-      is_mods                      = is_mods,
-      is_PET                       = is_PET,
-      is_PEESE                     = is_PEESE,
-      effect_direction             = effect_direction,
-      incorporate_publication_bias = TRUE,
-      K                            = K
+      fit               = object[["fit"]],
+      outcome_data      = outcome_data,
+      mods_data         = object[["data"]][["mods"]],
+      mods_formula      = if (is_mods) attr(object[["data"]][["mods"]], "formula") else NULL,
+      mods_priors       = priors[["mods"]],
+      is_mods           = is_mods,
+      is_PET            = is_PET,
+      is_PEESE          = is_PEESE,
+      effect_direction  = effect_direction,
+      bias_adjusted     = TRUE,
+      K                 = K
     )
 
     # verify dimensions
