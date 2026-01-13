@@ -66,7 +66,6 @@ test_that("Prior and posterior distributions for model parameters", {
       vdiffr::expect_doppelganger(paste0("base_pp_PEESE_", name), function() plot(fits[[name]], parameter = "PEESE", prior = TRUE))
       vdiffr::expect_doppelganger(paste0("ggplot_pp_PEESE_", name), plot(fits[[name]], parameter = "PEESE", prior = TRUE, plot_type = "ggplot"))
       # test complete PET-PEESE regression
-      # TODO: fix wrong visualization for negative effect (PET) -- the prediction goes up rather than down. Maybe we need to flip the samples manually?
       vdiffr::expect_doppelganger(paste0("base_pp_PETPEESE_", name), function() plot_PETPEESE(fits[[name]], prior = TRUE))
       vdiffr::expect_doppelganger(paste0("ggplot_pp_PETPEESE_", name), plot_PETPEESE(fits[[name]], prior = TRUE, plot_type = "ggplot"))
     }
