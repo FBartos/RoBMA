@@ -130,6 +130,8 @@
 # @param measure The effect size measure (used for "glmm" class to determine
 #                outcome type: "OR" for binomial, "IRR" for Poisson)
 # @param standardize_continuous_predictors Whether to standardize continuous predictors
+# @param skip_validation Whether to skip predictor validation checks (variability/levels).
+#        Should be TRUE when processing newdata for prediction. (validation done in BayesTools::JAGS_formula())
 #
 # @return A list with components:
 #   - outcome: data.frame with outcome variables (columns depend on class)
@@ -137,7 +139,7 @@
 #   - scale: scale information (data.frame or NULL)
 .check_and_list_data <- function(.call, .envir, class = "norm", measure,
                                  set_contrast_factor_predictors, standardize_continuous_predictors,
-                                 effect_direction = "positive") {
+                                 effect_direction = "positive", skip_validation = FALSE) {
 
   # check additional input
   .check_measure(measure)
@@ -147,6 +149,7 @@
     effect_direction <- "positive"
   }
   BayesTools::check_char(effect_direction, "effect_direction", allow_values = c("positive", "negative", "detect"))
+  BayesTools::check_bool(skip_validation, "skip_validation")
 
   ### Extract the data argument first - other variables may reference columns within it
   data <- .get_variable(.call, NULL, .envir, "data", allow_NULL = TRUE)
@@ -154,11 +157,11 @@
   ### Step 1: Extract and validate outcome variables (dispatch based on class)
   outcome_result <- switch(
     class,
-    "norm" = .check_and_list_data.outcome.norm(.call, data, .envir, effect_direction),
+    "norm" = .check_and_list_data.outcome.norm(.call, data, .envir, effect_direction, skip_validation),
     "glmm" = switch(
       measure,
-      "OR"  = .check_and_list_data.outcome.bin(.call, data, .envir),
-      "IRR" = .check_and_list_data.outcome.pois(.call, data, .envir)
+      "OR"  = .check_and_list_data.outcome.bin(.call, data, .envir, skip_validation),
+      "IRR" = .check_and_list_data.outcome.pois(.call, data, .envir, skip_validation)
     )
   )
 
@@ -246,8 +249,9 @@
   }
 
   # Validate predictor variables (after subsetting and NA dropping)
-  .check_and_list_data.validate_predictors(data_mods, "mods")
-  .check_and_list_data.validate_predictors(data_scale, "scale")
+  # Skip validation when processing newdata (skip_validation = TRUE)
+  .check_and_list_data.validate_predictors(data_mods, "mods", skip_validation)
+  .check_and_list_data.validate_predictors(data_scale, "scale", skip_validation)
 
   # Generate default study labels if not provided (after NA dropping)
   if (!slab_provided) {
@@ -289,6 +293,9 @@
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
 # @param .envir The enclosing environment
+# @param effect_direction The effect direction ("positive", "negative", or "detect")
+# @param skip_validation Whether to skip strict validation checks (for newdata).
+#        When TRUE, allows sei/vi/ni = 0 (useful for prediction at zero SE).
 #
 # @return A list with:
 #   - data_outcome: data.frame with yi, sei, ni, study_ids, slab, weights
@@ -298,7 +305,7 @@
 #   - slab_provided: logical, whether slab was provided by user
 #   - study_ids_provided: logical, whether study_ids was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
-.check_and_list_data.outcome.norm <- function(.call, data, .envir, effect_direction) {
+.check_and_list_data.outcome.norm <- function(.call, data, .envir, effect_direction, skip_validation = FALSE) {
 
   # Extract yi (may be a formula like yi ~ mod1 + mod2)
   yi <- .get_variable(.call, data, .envir, "yi", allow_NULL = FALSE)
@@ -351,12 +358,14 @@
   k <- length(yi)
 
   # Validate vi (sampling variance)
+  # When skip_validation = TRUE (newdata), allow vi = 0 for prediction at zero variance
   if (!is.null(vi))
-    BayesTools::check_real(vi, "vi", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+    BayesTools::check_real(vi, "vi", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
   # Validate sei (standard error)
+  # When skip_validation = TRUE (newdata), allow sei = 0 for prediction at zero SE
   if (!is.null(sei))
-    BayesTools::check_real(sei, "sei", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+    BayesTools::check_real(sei, "sei", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
   # Convert vi to sei or vice versa
   if (is.null(sei) && !is.null(vi)) {
@@ -372,8 +381,9 @@
   }
 
   # Validate ni (sample sizes)
+  # When skip_validation = TRUE (newdata), allow ni = 0
   if (!is.null(ni))
-    BayesTools::check_real(ni, "ni", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+    BayesTools::check_real(ni, "ni", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
   # Extract and validate common optional variables (weights, study_ids, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "yi")
@@ -424,7 +434,8 @@
 #   - slab_provided: logical, whether slab was provided by user
 #   - study_ids_provided: logical, whether study_ids was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
-.check_and_list_data.outcome.bin <- function(.call, data, .envir) {
+# @param skip_validation Whether to skip strict validation checks (for newdata).
+.check_and_list_data.outcome.bin <- function(.call, data, .envir, skip_validation = FALSE) {
 
   # Extract cell counts for 2x2 tables
   ai  <- .get_variable(.call, data, .envir, "ai",  allow_NULL = TRUE)
@@ -517,6 +528,8 @@
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
 # @param .envir The enclosing environment
+# @param skip_validation Whether to skip strict validation checks (for newdata).
+#        When TRUE, allows t1i/t2i = 0 (useful for prediction).
 #
 # @return A list with:
 #   - data_outcome: data.frame with x1i, x2i, t1i, t2i, study_ids, slab, weights
@@ -526,7 +539,7 @@
 #   - slab_provided: logical, whether slab was provided by user
 #   - study_ids_provided: logical, whether study_ids was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
-.check_and_list_data.outcome.pois <- function(.call, data, .envir) {
+.check_and_list_data.outcome.pois <- function(.call, data, .envir, skip_validation = FALSE) {
 
   # Extract event counts and person-time for Poisson models
   x1i <- .get_variable(.call, data, .envir, "x1i", allow_NULL = TRUE)
@@ -549,11 +562,13 @@
   # x2i: event counts in control group
   BayesTools::check_int(x2i, "x2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
 
-  # t1i: person-time in treatment group (must be positive)
-  BayesTools::check_real(t1i, "t1i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+  # t1i: person-time in treatment group
+  # When skip_validation = TRUE (newdata), allow t1i = 0
+  BayesTools::check_real(t1i, "t1i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
-  # t2i: person-time in control group (must be positive)
-  BayesTools::check_real(t2i, "t2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+  # t2i: person-time in control group
+  # When skip_validation = TRUE (newdata), allow t2i = 0
+  BayesTools::check_real(t2i, "t2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
   # Extract and validate common optional variables (weights, study_ids, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "x1i")
@@ -770,13 +785,24 @@
 #   - Continuous variables have sd > 0 (are not constant)
 #   - Factor variables have more than one level
 #
+# These checks are appropriate for original data but should be skipped for
+# newdata used in prediction, where single-value predictions are legitimate.
+#
 # @param df A data.frame with predictor variables (can be NULL)
 # @param name The name of the predictor type ("mods" or "scale") for error messages
+# @param skip_validation Logical; if TRUE, skip all validation checks.
+#        Should be TRUE when processing newdata for prediction.
 #
 # @return NULL (invisibly); stops with error if validation fails
-.check_and_list_data.validate_predictors <- function(df, name) {
+.check_and_list_data.validate_predictors <- function(df, name, skip_validation = FALSE) {
 
   if (is.null(df))
+    return(invisible(NULL))
+
+  # Skip validation for newdata (e.g., predicting at a single factor level or
+
+  # single continuous value is valid for prediction)
+  if (skip_validation)
     return(invisible(NULL))
 
   for (col_name in names(df)) {
@@ -1020,6 +1046,11 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   )
 
   # call .check_and_list_data with extracted settings
+  # Use skip_validation = TRUE because:
+  # 1. Newdata may have single-level factors (predicting for one group)
+  # 2. Newdata may have zero-variance continuous predictors (predicting at one value)
+  # 3. Factor levels are validated by BayesTools during formula evaluation
+  # 4. Scaling uses original data's mean/sd stored in the fit object
   new_data <- .check_and_list_data(
     .call  = .call,
     .envir = .envir,
@@ -1027,7 +1058,8 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     measure = measure,
     set_contrast_factor_predictors    = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
-    effect_direction                  = effect_direction
+    effect_direction                  = effect_direction,
+    skip_validation                   = TRUE
   )
 
   return(new_data)

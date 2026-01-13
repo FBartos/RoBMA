@@ -11,17 +11,24 @@
   probs = c(0.025, 0.975),
   bias_adjusted = TRUE,
   as_samples = FALSE,
+  quiet = FALSE,
   ...
 )
 }
 \arguments{
 \item{object}{a fitted brma object}
 
-\item{newdata}{a data.frame (if prediction for a meta-regression is performed) or
-a list named list with the effect size measure and variability metrics (if prediction
-for a meta-analysis is performed) for new studies. Note that the input has to corresponds
-to the format and naming that was used to estimate the original fit. Defaults to
-\code{NULL} which corresponds to prediction for the observed data.}
+\item{newdata}{specification for prediction data. Defaults to \code{NULL} which
+corresponds to prediction for the observed data. Alternatives are:
+\itemize{
+\item{\code{TRUE} returns a single aggregated prediction (either the scalar
+parameter for models without moderators/scale, or the average across the
+model matrix for regression models). Not available for \code{type = "response"}
+since observation-level sampling variance is required.}
+\item{A data.frame (for meta-regression) or a named list with effect size
+measure and variability metrics (for meta-analysis) for new studies. The input
+must correspond to the format and naming used in the original fit.}
+}}
 
 \item{type}{type of prediction to be performed. Defaults to \code{"response"} which
 produces predictions for the observed effect size estimates. Alternatives are
@@ -59,5 +66,5 @@ prediction interval).
 
 }
 \seealso{
-\code{\link[=true_effects]{true_effects()}}, \code{\link[=residuals.RoBMA]{residuals.RoBMA()}}
+\code{\link[=pooled_effect]{pooled_effect()}}, \code{\link[=pooled_heterogeneity]{pooled_heterogeneity()}}, \code{\link[=blup]{blup()}}
 }

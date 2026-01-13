@@ -26,9 +26,6 @@ scale. Defaults to \code{NULL} which returns the same scale as the model was est
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .975)}}
 
-\item{as_samples}{whether posterior samples instead of a summary table should
-be returned. Defaults to \code{FALSE}.}
-
 \item{...}{additional arguments}
 }
 \value{

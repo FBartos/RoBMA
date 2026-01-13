@@ -47,9 +47,6 @@ the estimated publication bias (note that selection models do not affect the mea
 when \code{"terms"} (equal mean parameter under normal vs. weighted likelihood equals different
 expectation).}
 
-\item{as_samples}{whether posterior samples instead of a summary table should
-be returned. Defaults to \code{FALSE}.}
-
 \item{...}{additional arguments}
 }
 \value{

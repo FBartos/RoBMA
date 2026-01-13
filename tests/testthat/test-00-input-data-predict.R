@@ -743,3 +743,242 @@ test_that(".prepare_newdata works with newdata having extra columns", {
 
   expect_equal(nrow(result$outcome), 2)
 })
+
+
+# ============================================================================
+# Tests for newdata edge cases (single values/levels)
+# These are valid for prediction but would fail original data validation
+# ============================================================================
+
+test_that(".prepare_newdata works with single-level factor in newdata", {
+
+  skip_on_cran()
+
+  # Fit with multi-level factor
+  fit <- brma.norm(
+    yi   = yi,
+    sei  = sei,
+    mods = ~ mod_fac,
+    data = test_data_norm,
+    only_data = TRUE
+  )
+
+  # newdata with only one level of the factor (predicting for group "A" only)
+  new_df <- data.frame(
+    yi      = c(0.1, 0.2, 0.3),
+    sei     = c(0.1, 0.1, 0.1),
+    mod_fac = factor(c("A", "A", "A"), levels = c("A", "B"))
+  )
+
+  # Should work - single level is valid for prediction
+
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 3)
+  expect_equal(nrow(result$mods), 3)
+  expect_equal(as.character(result$mods$mod_fac), c("A", "A", "A"))
+})
+
+
+test_that(".prepare_newdata works with zero-variance continuous predictor in newdata", {
+
+  skip_on_cran()
+
+  # Fit with continuous moderator that has variance
+  fit <- brma.norm(
+    yi   = yi,
+    sei  = sei,
+    mods = ~ mod_cont,
+    data = test_data_norm,
+    only_data = TRUE
+  )
+
+  # newdata with constant continuous predictor (predicting at single value)
+  new_df <- data.frame(
+    yi       = c(0.1, 0.2, 0.3),
+    sei      = c(0.1, 0.1, 0.1),
+    mod_cont = c(2.0, 2.0, 2.0)  # All same value
+  )
+
+  # Should work - zero variance is valid for prediction
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 3)
+  expect_equal(nrow(result$mods), 3)
+  expect_equal(result$mods$mod_cont, c(2.0, 2.0, 2.0))
+})
+
+
+test_that(".prepare_newdata works with single observation in newdata", {
+
+  skip_on_cran()
+
+  # Fit with both continuous and factor moderators
+  fit <- brma.norm(
+    yi   = yi,
+    sei  = sei,
+    mods = ~ mod_cont + mod_fac,
+    data = test_data_norm,
+    only_data = TRUE
+  )
+
+  # newdata with only one observation (implies single level and zero variance)
+  new_df <- data.frame(
+    yi       = 0.25,
+    sei      = 0.1,
+    mod_cont = 2.5,
+    mod_fac  = factor("B", levels = c("A", "B"))
+  )
+
+  # Should work - single observation is valid for prediction
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 1)
+  expect_equal(nrow(result$mods), 1)
+  expect_equal(result$mods$mod_cont, 2.5)
+  expect_equal(as.character(result$mods$mod_fac), "B")
+})
+
+
+test_that(".prepare_newdata works with scale formula and zero-variance predictor", {
+
+  skip_on_cran()
+
+  # Fit with scale formula
+  fit <- brma.norm(
+    yi    = yi,
+    sei   = sei,
+    scale = ~ scale_var,
+    data  = test_data_norm,
+    only_data = TRUE
+  )
+
+  # newdata with constant scale predictor
+  new_df <- data.frame(
+    yi        = c(0.1, 0.2),
+    sei       = c(0.1, 0.1),
+    scale_var = c(1.0, 1.0)  # All same value
+  )
+
+  # Should work - zero variance in scale predictor is valid for prediction
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 2)
+  expect_equal(nrow(result$scale), 2)
+  expect_equal(result$scale$scale_var, c(1.0, 1.0))
+})
+
+
+test_that(".prepare_newdata works with sei = 0 in newdata", {
+
+  skip_on_cran()
+
+  # Fit with normal data (sei > 0)
+  fit <- brma.norm(
+    yi   = yi,
+    sei  = sei,
+    data = test_data_norm,
+    only_data = TRUE
+  )
+
+  # newdata with sei = 0 (prediction at zero standard error)
+  new_df <- data.frame(
+    yi  = c(0.1, 0.2, 0.3),
+    sei = c(0, 0.1, 0)  # Some sei = 0
+  )
+
+  # Should work - sei = 0 is valid for prediction (type = "terms")
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 3)
+  expect_equal(result$outcome$sei, c(0, 0.1, 0))
+})
+
+
+test_that(".prepare_newdata works with vi = 0 in newdata", {
+
+  skip_on_cran()
+
+  # Fit with vi instead of sei
+  fit <- brma.norm(
+    yi   = yi,
+    vi   = vi,
+    data = test_data_norm_vi,
+    only_data = TRUE
+  )
+
+  # newdata with vi = 0 (prediction at zero variance)
+  new_df <- data.frame(
+    yi = c(0.1, 0.2),
+    vi = c(0, 0)  # All vi = 0
+  )
+
+  # Should work - vi = 0 is valid for prediction
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 2)
+  expect_equal(result$outcome$sei, c(0, 0))  # sei = sqrt(vi) = 0
+})
+
+
+test_that(".prepare_newdata works with ni = 0 in newdata", {
+
+  skip_on_cran()
+
+  # Create test data with ni (ni must be in original data to be expected in newdata)
+  test_data_with_ni <- data.frame(
+    yi  = c(0.2, 0.5, -0.1),
+    sei = c(0.1, 0.15, 0.12),
+    ni  = c(50, 100, 75)
+  )
+
+  # Fit with ni
+  fit <- brma.norm(
+    yi   = yi,
+    sei  = sei,
+    ni   = ni,
+    data = test_data_with_ni,
+    only_data = TRUE
+  )
+
+  # newdata with ni = 0
+  # Note: ni is optional, so we just verify it doesn't error when sei = 0
+  new_df <- data.frame(
+    yi  = c(0.1, 0.2),
+    sei = c(0, 0.1)  # Test with sei = 0 as main validation
+  )
+
+  # Should work - sei = 0 is valid for prediction
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result$outcome), 2)
+  expect_equal(result$outcome$sei, c(0, 0.1))
+})

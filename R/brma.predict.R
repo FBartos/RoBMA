@@ -3,11 +3,17 @@
 #' @description \code{predict.brma} predicts values
 #'
 #' @inheritParams summary.brma
-#' @param newdata a data.frame (if prediction for a meta-regression is performed) or
-#' a list named list with the effect size measure and variability metrics (if prediction
-#' for a meta-analysis is performed) for new studies. Note that the input has to corresponds
-#' to the format and naming that was used to estimate the original fit. Defaults to
-#' \code{NULL} which corresponds to prediction for the observed data.
+#' @param newdata specification for prediction data. Defaults to \code{NULL} which
+#' corresponds to prediction for the observed data. Alternatives are:
+#' \itemize{
+#'   \item{\code{TRUE} returns a single aggregated prediction (either the scalar
+#'   parameter for models without moderators/scale, or the average across the
+#'   model matrix for regression models). Not available for \code{type = "response"}
+#'   since observation-level sampling variance is required.}
+#'   \item{A data.frame (for meta-regression) or a named list with effect size
+#'   measure and variability metrics (for meta-analysis) for new studies. The input
+#'   must correspond to the format and naming used in the original fit.}
+#' }
 #' @param type type of prediction to be performed. Defaults to \code{"response"} which
 #' produces predictions for the observed effect size estimates. Alternatives are
 #' \code{"terms"} which produces the mean effect size estimate at the given predictors
@@ -31,19 +37,34 @@
 #' }
 #'
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
-#' @seealso [true_effects()], [residuals.RoBMA()]
+#' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
-predict.brma <- function(object, newdata,
+predict.brma <- function(object, newdata = NULL,
                          type = "terms",
                          probs = c(.025, .975),
                          bias_adjusted = TRUE,
                          as_samples = FALSE,
+                         quiet = FALSE,
                          ...){
 
   # some options checked inside BayesTools table directly
   BayesTools::check_char(type, "type", allow_values = c("response", "terms", "terms.scale", "effect"))
   BayesTools::check_bool(as_samples, "as_samples")
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+  BayesTools::check_bool(quiet, "quiet")
+
+  # check newdata: NULL, TRUE, or data.frame/list
+  if (!is.null(newdata) && !isTRUE(newdata)) {
+    if (!is.data.frame(newdata) && !is.list(newdata)) {
+      stop("'newdata' must be NULL, TRUE, a data.frame, or a named list.", call. = FALSE)
+    }
+  }
+
+  # check incompatible options: aggregate predictions not available for response
+  if (isTRUE(newdata) && type == "response") {
+    stop("Aggregated predictions (newdata = TRUE) are not available for type = 'response' ",
+         "because observation-level sampling variance is required.", call. = FALSE)
+  }
 
   ### types of predictions
   # terms:       fixed effects terms for the overall effect (mu) / incorporating mods if present
@@ -54,16 +75,26 @@ predict.brma <- function(object, newdata,
   #              (via marginalized random-effects)
 
   ### dispatch between prediction on the current data vs. new data
-  if (missing(newdata) || is.null(newdata)) {
+  if (is.null(newdata)) {
 
-    # an existing data are used
+    # existing data are used
     same_data <- TRUE
+    aggregate <- FALSE
+    new_data  <- object[["data"]]
+
+  } else if (isTRUE(newdata)) {
+
+    # aggregated prediction: use original data but marginalize random effects
+    # and average across observations (for mods/scale models)
+    same_data <- FALSE
+    aggregate <- TRUE
     new_data  <- object[["data"]]
 
   } else {
 
     # prepare newdata using the same settings as the original fit
     same_data <- FALSE
+    aggregate <- FALSE
     new_data  <- .prepare_newdata(
       object        = object,
       newdata       = newdata,
@@ -88,7 +119,8 @@ predict.brma <- function(object, newdata,
   fit_data          <- .create_fit_data(data = new_data, priors = priors)
 
   # outcome dimensions
-  K  <- nrow(outcome_data)
+  K_original <- nrow(outcome_data)
+  K          <- K_original
 
   ### obtain tau samples using helper function
   # returns list(tau_within, tau_between) - all S x K matrices
@@ -96,14 +128,28 @@ predict.brma <- function(object, newdata,
   tau_result          <- .evaluate.brma.tau(
     fit           = object[["fit"]],
     scale_data    = new_data[["scale"]],
-    scale_formula = if (is_scale) attr(object[["data"]][["scale"]], "formula") else NULL,
+    scale_formula = if (is_scale) .create_fit_formula_list(data = new_data, "scale") else NULL,
     scale_priors  = priors[["scale"]],
     is_scale      = is_scale,
     is_multilevel = is_multilevel,
-    K             = K
+    K             = K_original
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
+
+  ### aggregate tau samples if requested (for terms.scale only at this point)
+  ### mu aggregation happens after mu computation
+  if (aggregate && type == "terms.scale") {
+    # average tau across observations (rows are samples, columns are observations)
+    # for non-scale models, all columns are identical so this is a no-op
+    # for scale models, this averages across the model matrix
+    if (is_scale && K_original > 1 && !quiet) {
+      message("Aggregated prediction averages tau across the scale model matrix (K = ", K_original, " observations).")
+    }
+    tau_within_samples  <- matrix(rowMeans(tau_within_samples), ncol = 1)
+    tau_between_samples <- matrix(rowMeans(tau_between_samples), ncol = 1)
+    K <- 1L
+  }
 
   ### return only tau samples if type = "terms.scale" is selected
   if (type == "terms.scale") {
@@ -111,7 +157,7 @@ predict.brma <- function(object, newdata,
     tau_samples <- sqrt(tau_within_samples^2 + tau_between_samples^2)
 
     # rename samples
-    colnames(tau_samples) <- paste0("tau[", seq_len(K), "]")
+    colnames(tau_samples) <- if (aggregate) "tau" else paste0("tau[", seq_len(K), "]")
 
     if (as_samples) {
       return(tau_samples)
@@ -120,11 +166,11 @@ predict.brma <- function(object, newdata,
         samples    = asplit(tau_samples, 2),
         parameters = colnames(tau_samples),
         probs      = probs,
-        title      = "Scale Term Posterior Prediction:"
+        title      = if (aggregate) "Aggregated Scale Term Posterior Prediction:" else "Scale Term Posterior Prediction:"
       )
       out <- list(
         summary = outcome_table,
-        data    = new_data
+        data    = if (aggregate) NULL else new_data
       )
       class(out) <- "brma.predict"
       return(out)
@@ -138,21 +184,35 @@ predict.brma <- function(object, newdata,
     fit               = object[["fit"]],
     outcome_data      = outcome_data,
     mods_data         = new_data[["mods"]],
-    mods_formula      = if (is_mods) attr(object[["data"]][["mods"]], "formula") else NULL,
+    mods_formula      = if (is_mods) .create_fit_formula_list(data = new_data, "mods") else NULL,
     mods_priors       = priors[["mods"]],
     is_mods           = is_mods,
     is_PET            = is_PET,
     is_PEESE          = is_PEESE,
     effect_direction  = effect_direction,
     bias_adjusted     = bias_adjusted,
-    K                 = K
+    K                 = K_original
   )
+
+  ### aggregate mu and tau samples if requested (for terms/effect types)
+  if (aggregate && type %in% c("terms", "effect")) {
+    # average mu across observations (rows are samples, columns are observations)
+    # for non-mods models, all columns are identical so this is a no-op
+    # for mods models, this averages across the model matrix
+    if (is_mods && K_original > 1 && !quiet) {
+      message("Aggregated prediction averages mu across the moderator model matrix (K = ", K_original, " observations).")
+    }
+    mu_samples          <- matrix(rowMeans(mu_samples), ncol = 1)
+    tau_within_samples  <- matrix(rowMeans(tau_within_samples), ncol = 1)
+    tau_between_samples <- matrix(rowMeans(tau_between_samples), ncol = 1)
+    K <- 1L
+  }
 
   ### return only mu samples if type = "terms" is selected
   # terms incorporate fixed effects only (i.e., random effects are not incorporated)
   if (type == "terms") {
     # rename samples
-    colnames(mu_samples) <- paste0("mu[", seq_len(K), "]")
+    colnames(mu_samples) <- if (aggregate) "mu" else paste0("mu[", seq_len(K), "]")
 
     if (as_samples) {
       return(mu_samples)
@@ -161,11 +221,11 @@ predict.brma <- function(object, newdata,
         samples    = asplit(mu_samples, 2),
         parameters = colnames(mu_samples),
         probs      = probs,
-        title      = "Location Term Posterior Prediction:"
+        title      = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:"
       )
       out <- list(
         summary = outcome_table,
-        data    = new_data
+        data    = if (aggregate) NULL else new_data
       )
       class(out) <- "brma.predict"
       return(out)
@@ -175,6 +235,7 @@ predict.brma <- function(object, newdata,
   ### include 3-level (study-level) random-effects using helper function
   # returns contribution matrix gamma[study_id] * tau_between for multilevel models
   # see .evaluate.brma.study_effects() in brma.evaluate.R for details
+  # for aggregated predictions (same_data = FALSE, K = 1), function samples new gamma ~ N(0,1)
   if (is_multilevel) {
     study_contribution <- .evaluate.brma.study_effects(
       fit              = object[["fit"]],
@@ -188,19 +249,20 @@ predict.brma <- function(object, newdata,
 
   ### create true-effect prediction
   # dispatches between normal and GLMM approaches
-  # see .evaluate.brma.true_effects.norm() and .evaluate.brma.true_effects.glmm()
+  # both helpers handle same_data dispatch internally:
+  # - same_data = TRUE: use fitted values (BLUPs for normal, extracted theta for GLMM)
+  # - same_data = FALSE: sample from marginal distribution N(mu, tau_within)
   if (type == "effect") {
 
     if (outcome_type == "norm") {
-      # normal models: empirical Bayes shrinkage (BLUP) estimates
       true_effects_samples <- .evaluate.brma.true_effects.norm(
         mu_samples = mu_samples,
         tau_within = tau_within_samples,
         yi         = outcome_data[["yi"]],
-        sei        = outcome_data[["sei"]]
+        sei        = outcome_data[["sei"]],
+        same_data  = same_data
       )
     } else {
-      # GLMM models (bin/pois): extract or sample theta from posterior
       true_effects_samples <- .evaluate.brma.true_effects.glmm(
         fit        = object[["fit"]],
         mu_samples = mu_samples,
@@ -211,7 +273,7 @@ predict.brma <- function(object, newdata,
     }
 
     # rename samples
-    colnames(true_effects_samples) <- paste0("theta[", seq_len(K), "]")
+    colnames(true_effects_samples) <- if (aggregate) "theta" else paste0("theta[", seq_len(K), "]")
 
     if (as_samples) {
       return(true_effects_samples)
@@ -220,11 +282,11 @@ predict.brma <- function(object, newdata,
         samples    = asplit(true_effects_samples, 2),
         parameters = colnames(true_effects_samples),
         probs      = probs,
-        title      = "True Effect Posterior Prediction:"
+        title      = if (aggregate) "Aggregated True Effect Posterior Prediction:" else "True Effect Posterior Prediction:"
       )
       out <- list(
         summary = outcome_table,
-        data    = new_data
+        data    = if (aggregate) NULL else new_data
       )
       class(out) <- "brma.predict"
       return(out)

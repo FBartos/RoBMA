@@ -278,13 +278,13 @@
 #
 # Compute posterior samples of true study effects (theta) for normal models.
 #
-# Uses empirical Bayes shrinkage (BLUP) to estimate true effects:
+# For same_data = TRUE: Uses empirical Bayes shrinkage (BLUP) to estimate true effects:
 #   theta_i = lambda_i * y_i + (1 - lambda_i) * mu_i
 # where:
 #   lambda_i = tau_within^2 / (tau_within^2 + se_i^2)
 #
-# This corresponds to the posterior mean of theta given the data under a
-# normal-normal random effects model.
+# For same_data = FALSE: Samples from the marginal distribution of true effects:
+#   theta_i = mu_i + epsilon_i * tau_within_i, where epsilon_i ~ N(0, 1)
 #
 # IMPORTANT: For multilevel models, mu_samples must already include the
 # study-level contribution (gamma * tau_between) before calling this function.
@@ -292,33 +292,44 @@
 # @param mu_samples       S x K matrix of location samples (must include
 #                         gamma * tau_between contribution for multilevel models)
 # @param tau_within       S x K matrix of within-study (estimate-level) heterogeneity
-# @param yi               numeric vector of length K; observed effect sizes
-# @param sei              numeric vector of length K; standard errors
+# @param yi               numeric vector of length K; observed effect sizes (used only if same_data = TRUE)
+# @param sei              numeric vector of length K; standard errors (used only if same_data = TRUE)
+# @param same_data        logical; TRUE for BLUP estimates, FALSE for marginal sampling
 #
 # @return S x K matrix of true effect (theta) posterior samples
 #
 # ---------------------------------------------------------------------------- #
-.evaluate.brma.true_effects.norm <- function(mu_samples, tau_within, yi, sei) {
+.evaluate.brma.true_effects.norm <- function(mu_samples, tau_within, yi, sei, same_data) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
 
-  # replicate yi and sei across samples for vectorized computation
-  # matrix(vec, S, K, byrow = TRUE): each row is vec
-  # equivalent: for (s in 1:S) yi_mat[s,] <- yi
-  yi_mat  <- matrix(yi,  nrow = S, ncol = K, byrow = TRUE)
-  sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  if (same_data) {
 
-  # compute shrinkage factor lambda (S x K matrix)
-  # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage) to 1 (weak)
-  tau_sq <- tau_within^2
-  se_sq  <- sei_mat^2
-  lambda <- tau_sq / (tau_sq + se_sq)
+    # BLUP: empirical Bayes shrinkage estimates for existing observations
+    # replicate yi and sei across samples for vectorized computation
+    yi_mat  <- matrix(yi,  nrow = S, ncol = K, byrow = TRUE)
+    sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
 
-  # BLUP: weighted average of observed effect and model prediction
-  # high tau -> lambda -> 1 -> trust data more
-  # low tau -> lambda -> 0 -> trust model more
-  true_effects_samples <- lambda * yi_mat + (1 - lambda) * mu_samples
+    # compute shrinkage factor lambda (S x K matrix)
+    # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage) to 1 (weak)
+    tau_sq <- tau_within^2
+    se_sq  <- sei_mat^2
+    lambda <- tau_sq / (tau_sq + se_sq)
+
+    # BLUP: weighted average of observed effect and model prediction
+    # high tau -> lambda -> 1 -> trust data more
+    # low tau -> lambda -> 0 -> trust model more
+    true_effects_samples <- lambda * yi_mat + (1 - lambda) * mu_samples
+
+  } else {
+
+    # Marginal sampling: sample new theta from N(mu, tau_within)
+    # epsilon ~ N(0, 1), then theta = mu + epsilon * tau_within
+    epsilon <- matrix(stats::rnorm(S * K), nrow = S, ncol = K)
+    true_effects_samples <- mu_samples + epsilon * tau_within
+
+  }
 
   return(true_effects_samples)
 }

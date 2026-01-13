@@ -1,3 +1,4 @@
+context("Prior and posterior plots")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))

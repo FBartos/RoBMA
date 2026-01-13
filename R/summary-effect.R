@@ -25,7 +25,7 @@
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 #' @seealso [adjusted_effect()]
 #' @export
-pooled_effect <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE) {
+pooled_effect.RoBMA <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE, ...) {
   return(.compute_effect(object, conditional = conditional, output_scale = output_scale, probs = probs, type = "pooled", as_samples = as_samples))
 }
 
@@ -244,7 +244,7 @@ adjusted_effect <- function(object, conditional = FALSE, output_scale = NULL, pr
 #'
 #' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
 #' @export
-true_effects <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE){
+true_effects.RoBMA <- function(object, conditional = FALSE, output_scale = NULL, probs = c(.025, .975), as_samples = FALSE, ...){
 
   .check_is_any_RoBMA_object(object)
   BayesTools::check_bool(conditional, "conditional")
