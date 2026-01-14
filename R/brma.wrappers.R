@@ -208,8 +208,9 @@ blup <- function(object, ...) {
 #'
 #' @param object a fitted brma object
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
-#' \code{TRUE}, which returns bias-corrected estimates. Set to \code{FALSE}
-#' to obtain estimates that include publication bias effects.
+#' \code{FALSE}, which returns estimates including publication bias effects
+#' (i.e., what we expect the true effects to be given the biased observations).
+#' Set to \code{TRUE} to obtain bias-corrected estimates.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
 #' @param as_samples whether posterior samples should be returned instead of
@@ -249,7 +250,7 @@ blup <- function(object, ...) {
 #' @seealso [predict.brma()], [pooled_effect()], [pooled_heterogeneity()],
 #' [true_effects()]
 #' @export
-blup.brma <- function(object, bias_adjusted = TRUE,
+blup.brma <- function(object, bias_adjusted = FALSE,
                       probs = c(.025, .975), as_samples = FALSE, ...) {
   predict.brma(
     object        = object,
@@ -313,7 +314,7 @@ true_effects <- function(object, ...) {
 #' @seealso [blup.brma()], [predict.brma()], [pooled_effect()],
 #' [pooled_heterogeneity()]
 #' @export
-true_effects.brma <- function(object, bias_adjusted = TRUE,
+true_effects.brma <- function(object, bias_adjusted = FALSE,
                               probs = c(.025, .975), as_samples = FALSE, ...) {
   blup.brma(
     object        = object,

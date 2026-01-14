@@ -20,9 +20,22 @@
 #' levels (not accounting for the random-effects) and \code{"effect"} which predicts the
 #' distribution of the true study effects at the given predictors levels
 #' (i.e., incorporating heterogeneity into \code{"terms"}).
-#' @param bias_adjusted whether sampling of new values should adjust for publication bias
-#' (note that selection models do not affect the mean paramater when \code{"terms"}
-#' (equal mean parameter under normal vs. weighted likelihood equals different expectation).
+#' @param bias_adjusted whether predictions should adjust for publication bias.
+#' Defaults to \code{FALSE}. When \code{TRUE}:
+#' \itemize{
+#'   \item{PET/PEESE terms are NOT added to the mean parameter (mu), returning
+#'   the bias-corrected effect estimate.}
+#'   \item{For \code{type = "response"} with selection models, samples from
+#'   unweighted normal distribution instead of weighted distribution, simulating
+#'   what would be observed without publication bias.}
+#' }
+#' When \code{FALSE}:
+#' \itemize{
+#'   \item{PET/PEESE terms ARE added to mu, returning predictions that include
+#'   the expected bias (i.e., what we expect to observe given publication bias).}
+#'   \item{For \code{type = "response"} with selection models, samples from
+#'   weighted distribution reflecting the selective publishing process.}
+#' }
 #'
 #' @details
 #' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
@@ -42,7 +55,7 @@
 predict.brma <- function(object, newdata = NULL,
                          type = "terms",
                          probs = c(.025, .975),
-                         bias_adjusted = TRUE,
+                         bias_adjusted = FALSE,
                          as_samples = FALSE,
                          quiet = FALSE,
                          ...){

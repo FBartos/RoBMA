@@ -6,7 +6,7 @@
 \usage{
 \method{true_effects}{brma}(
   object,
-  bias_adjusted = TRUE,
+  bias_adjusted = FALSE,
   probs = c(0.025, 0.975),
   as_samples = FALSE,
   ...
@@ -16,8 +16,9 @@
 \item{object}{a fitted brma object}
 
 \item{bias_adjusted}{whether to adjust for publication bias. Defaults to
-\code{TRUE}, which returns bias-corrected estimates. Set to \code{FALSE}
-to obtain estimates that include publication bias effects.}
+\code{FALSE}, which returns estimates including publication bias effects
+(i.e., what we expect the true effects to be given the biased observations).
+Set to \code{TRUE} to obtain bias-corrected estimates.}
 
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}

@@ -337,3 +337,4 @@ test_that("Residuals function has correct interface", {
               info = "result should contain data element")
 
 })
+

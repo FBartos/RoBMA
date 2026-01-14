@@ -19,6 +19,11 @@
 #' fitted brma object.
 #'
 #' @param object a fitted brma object
+#' @param bias_adjusted whether residuals should be computed from bias-adjusted
+#' fitted values. Defaults to \code{FALSE}, which means residuals are computed
+#' as the difference between observed values and raw (biased) predictions
+#' including PET/PEESE terms. Set to \code{TRUE} to compute residuals from
+#' bias-corrected fitted values.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
 #' @param as_samples whether posterior samples should be returned instead of
@@ -33,6 +38,12 @@
 #'
 #' For meta-regression models, fitted values incorporate moderator effects.
 #' For models without moderators, all fitted values equal the pooled effect.
+#'
+#' When \code{bias_adjusted = FALSE} (default), the fitted values include
+#' PET/PEESE bias terms, so residuals represent deviation from what we
+#' expect to observe given publication bias. When \code{bias_adjusted = TRUE},
+#' fitted values are bias-corrected, so residuals represent deviation from
+#' the estimated true effect.
 #'
 #' For GLMM models (binomial or Poisson), observed effect sizes are computed
 #' from the raw frequency data using the same formulas as \code{metafor::escalc}
@@ -58,15 +69,20 @@
 #' # get residuals
 #' residuals(fit)
 #'
+#' # get residuals from bias-adjusted predictions
+#' residuals(fit, bias_adjusted = TRUE)
+#'
 #' # get posterior samples
 #' samples <- residuals(fit, as_samples = TRUE)
 #' }
 #'
 #' @seealso [predict.brma()], [blup.brma()], [pooled_effect()]
 #' @exportS3Method
-residuals.brma <- function(object, probs = c(.025, .975), as_samples = FALSE, ...) {
+residuals.brma <- function(object, bias_adjusted = FALSE,
+                           probs = c(.025, .975), as_samples = FALSE, ...) {
 
   # input validation
+  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(as_samples, "as_samples")
 
   # get model type
@@ -83,7 +99,7 @@ residuals.brma <- function(object, probs = c(.025, .975), as_samples = FALSE, ..
     object        = object,
     newdata       = NULL,
     type          = "terms",
-    bias_adjusted = FALSE,
+    bias_adjusted = bias_adjusted,
     as_samples    = TRUE,
     quiet         = TRUE
   )
