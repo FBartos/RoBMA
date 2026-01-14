@@ -31,9 +31,8 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    metafor::funnel(fit_metafor, main = "metafor")
-    funnel(fit_brma, plot_type = "base")
-    title(main = "brma")
+    metafor::funnel(fit_metafor, main = "metafor", addtau2 = TRUE, xlim = c(-3, 3), ylim = c(0, 0.8))
+    funnel(fit_brma, plot_type = "base", xlim = c(-3, 3), ylim = c(0, 0.8), main = "brma")
   })
 
   vdiffr::expect_doppelganger("funnel_simple_brma_ggplot",
@@ -59,12 +58,13 @@ test_that("Funnel plot for meta-regression works correctly", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("funnel_regression_comparison", function() {
+    # the main difference is that metafor visualizes standardized residuals
+    # while brma visualizes in how metafor incorporates heterogeneity into residuals
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::funnel(fit_metafor, main = "metafor")
-    funnel(fit_brma, plot_type = "base")
-    title(main = "brma")
+    funnel(fit_brma, plot_type = "base", sampling_heterogeneity = FALSE, main = "brma")
   })
 
   vdiffr::expect_doppelganger("funnel_regression_brma_ggplot",
@@ -93,9 +93,8 @@ test_that("Funnel plot for location-scale model works correctly", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    metafor::funnel(fit_metafor, main = "metafor")
-    funnel(fit_brma, plot_type = "base")
-    title(main = "brma")
+    metafor::funnel(fit_metafor, main = "metafor", ylim = c(0, 0.6))
+    funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.6), sampling_heterogeneity = FALSE)
   })
 
   vdiffr::expect_doppelganger("funnel_scale_brma_ggplot",
@@ -320,14 +319,14 @@ test_that("Funnel plot options work correctly", {
   fit_brma <- fits[[name]]
 
   # --------------------------------------------------
-  # Test incorporate_heterogeneity = FALSE
+  # Test sampling_heterogeneity = FALSE
   # --------------------------------------------------
 
   # with heterogeneity
-  data_with_het <- funnel(fit_brma, incorporate_heterogeneity = TRUE, as_data = TRUE)
+  data_with_het <- funnel(fit_brma, sampling_heterogeneity = TRUE, as_data = TRUE)
 
   # without heterogeneity
-  data_no_het <- funnel(fit_brma, incorporate_heterogeneity = FALSE, as_data = TRUE)
+  data_no_het <- funnel(fit_brma, sampling_heterogeneity = FALSE, as_data = TRUE)
 
   # funnel should be narrower without heterogeneity
   width_with_het <- max(data_with_het$funnel$x) - min(data_with_het$funnel$x)
@@ -344,9 +343,9 @@ test_that("Funnel plot options work correctly", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    funnel(fit_brma, incorporate_heterogeneity = TRUE, plot_type = "base")
+    funnel(fit_brma, sampling_heterogeneity = TRUE, plot_type = "base")
     title(main = "with heterogeneity")
-    funnel(fit_brma, incorporate_heterogeneity = FALSE, plot_type = "base")
+    funnel(fit_brma, sampling_heterogeneity = FALSE, plot_type = "base")
     title(main = "without heterogeneity")
   })
 
@@ -406,11 +405,11 @@ test_that("Funnel plot has correct interface", {
                info = "should error on invalid plot_type")
 
   # --------------------------------------------------
-  # Test error on invalid incorporate_heterogeneity
+  # Test error on invalid sampling_heterogeneity
   # --------------------------------------------------
 
-  expect_error(funnel(fit_brma, incorporate_heterogeneity = "yes"),
-               info = "should error on invalid incorporate_heterogeneity")
+  expect_error(funnel(fit_brma, sampling_heterogeneity = "yes"),
+               info = "should error on invalid sampling_heterogeneity")
 })
 
 
@@ -427,12 +426,72 @@ test_that("Funnel plot customization works", {
   # Test custom point aesthetics
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_custom_base", function() {
-    funnel(fit_brma, plot_type = "base", shape = 19, size = 2)
+  vdiffr::expect_doppelganger("funnel_custom_points_base", function() {
+    funnel(fit_brma, plot_type = "base", pch = 19, col = "blue", bg = "lightblue", cex = 1.5)
   })
 
-  vdiffr::expect_doppelganger("funnel_custom_ggplot",
-    funnel(fit_brma, plot_type = "ggplot", shape = 19, size = 3)
+  vdiffr::expect_doppelganger("funnel_custom_points_ggplot",
+    funnel(fit_brma, plot_type = "ggplot", pch = 19, col = "blue", bg = "lightblue", size = 3)
+  )
+
+  # --------------------------------------------------
+  # Test custom funnel region styling
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_custom_regions_base", function() {
+    funnel(fit_brma, plot_type = "base", back = "lightgrey", shade = "lightyellow", lty = "dashed")
+  })
+
+  vdiffr::expect_doppelganger("funnel_custom_regions_ggplot",
+    funnel(fit_brma, plot_type = "ggplot", back = "lightgrey", shade = "lightyellow", lty = "dashed")
+  )
+
+  # --------------------------------------------------
+  # Test suppressing background/shade
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_no_background_base", function() {
+    funnel(fit_brma, plot_type = "base", back = NA, shade = "white")
+  })
+
+  vdiffr::expect_doppelganger("funnel_no_shade_ggplot",
+    funnel(fit_brma, plot_type = "ggplot", back = "grey", shade = NA)
+  )
+
+  # --------------------------------------------------
+  # Test custom axis labels and title
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_custom_labels_base", function() {
+    funnel(fit_brma, plot_type = "base", xlab = "Effect Size Residual", ylab = "SE", main = "Funnel Plot")
+  })
+
+  vdiffr::expect_doppelganger("funnel_custom_labels_ggplot",
+    funnel(fit_brma, plot_type = "ggplot", xlab = "Effect Size Residual", ylab = "SE", main = "Funnel Plot")
+  )
+
+  # --------------------------------------------------
+  # Test custom axis ranges
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_custom_range_base", function() {
+    funnel(fit_brma, plot_type = "base", xlim = c(-2, 2), ylim = c(0, 1))
+  })
+
+  vdiffr::expect_doppelganger("funnel_custom_range_ggplot",
+    funnel(fit_brma, plot_type = "ggplot", xlim = c(-2, 2), ylim = c(0, 1))
+  )
+
+  # --------------------------------------------------
+  # Test line color customization
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_custom_lines_base", function() {
+    funnel(fit_brma, plot_type = "base", col.line = "darkgrey", col.refline = "red", lty = "solid")
+  })
+
+  vdiffr::expect_doppelganger("funnel_custom_lines_ggplot",
+    funnel(fit_brma, plot_type = "ggplot", col.line = "darkgrey", col.refline = "red", lty = "solid")
   )
 })
 

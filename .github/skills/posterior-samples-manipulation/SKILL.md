@@ -1,3 +1,8 @@
+---
+name: posterior-sample-manipulation
+description: Guide for working with posterior samples from the models (i.e., extracting parameter samples, transforming samples, computing posterior quantities).
+---
+
 # Skill: Posterior Sample Manipulation
 
 ## When to Use This Skill

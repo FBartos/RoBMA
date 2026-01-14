@@ -6,6 +6,7 @@
 \usage{
 \method{residuals}{brma}(
   object,
+  type = "outcome",
   bias_adjusted = FALSE,
   probs = c(0.025, 0.975),
   as_samples = FALSE,
@@ -14,6 +15,21 @@
 }
 \arguments{
 \item{object}{a fitted brma object}
+
+\item{type}{the type of residuals to compute. Options are:
+\itemize{
+\item \code{"outcome"} (default): Raw residuals (observed - fitted)
+\item \code{"pearson"}: Pearson (semi-standardized) residuals, dividing
+raw residuals by the marginal standard error \eqn{\sqrt{v_i + \tau^2}}
+\item \code{"rstandard"}: Internally standardized residuals, dividing
+raw residuals by their standard errors computed using the hat matrix
+\item \code{"quantile"}: Quantile residuals computed via inverse probability
+transformation. The CDF value \eqn{F(y_i | \mu_i, \sigma_i)} is computed
+for each observation and transformed to standard normal quantiles via
+\eqn{\Phi^{-1}(F(y_i))}. For selection models, the weighted normal CDF
+is used. Under a correctly specified model, quantile residuals should
+follow a standard normal distribution.
+}}
 
 \item{bias_adjusted}{whether residuals should be computed from bias-adjusted
 fitted values. Defaults to \code{FALSE}, which means residuals are computed
@@ -37,13 +53,36 @@ of posterior samples with one column per observation.
 }
 \description{
 Computes residuals (observed minus fitted values) from a
-fitted brma object.
+fitted brma object, with options for standardization.
 }
 \details{
-Residuals are computed as:
-\deqn{r_i = y_i - \hat{\mu}_i}
+Raw residuals (\code{type = "outcome"}) are computed as:
+\deqn{e_i = y_i - \hat{\mu}_i}
 where \eqn{y_i} is the observed effect size and \eqn{\hat{\mu}_i} is the
 fitted value (prediction from the fixed effects).
+
+Pearson residuals (\code{type = "pearson"}) divide raw residuals by the
+marginal standard error:
+\deqn{r_i^{Pearson} = \frac{e_i}{\sqrt{v_i + \tau^2}}}
+where \eqn{v_i} is the sampling variance and \eqn{\tau^2} is the
+between-study heterogeneity.
+
+Standardized residuals (\code{type = "rstandard"}) use the hat matrix to
+compute residual standard errors that account for the uncertainty in
+estimated coefficients:
+\deqn{z_i = \frac{e_i}{\sqrt{[(I-H)M(I-H)']_{ii}}}}
+where \eqn{H} is the hat matrix and \eqn{M} is the marginal variance-covariance
+matrix. For models without moderators, this simplifies to the Pearson formula.
+
+Quantile residuals (\code{type = "quantile"}) are computed via inverse
+probability transformation \insertCite{cox1968general}{RoBMA}:
+\deqn{q_i = \Phi^{-1}(F(y_i | \mu_i, \sigma_i))}
+where \eqn{F} is the cumulative distribution function of the marginal
+distribution, \eqn{\sigma_i = \sqrt{v_i + \tau^2}}, and \eqn{\Phi^{-1}}
+is the standard normal quantile function. For selection models
+(weightfunction), the weighted normal CDF is used. Under a correctly
+specified model, quantile residuals should follow a standard normal
+distribution, making them useful for model diagnostics.
 
 For meta-regression models, fitted values incorporate moderator effects.
 For models without moderators, all fitted values equal the pooled effect.
@@ -54,25 +93,31 @@ expect to observe given publication bias. When \code{bias_adjusted = TRUE},
 fitted values are bias-corrected, so residuals represent deviation from
 the estimated true effect.
 
-For GLMM models (binomial or Poisson), observed effect sizes are computed
-from the raw frequency data using the same formulas as \code{metafor::escalc}
-with the default zero-cell adjustment (adding 0.5 to all cells when any cell
-is zero). Specifically:
-\itemize{
-\item For binomial models (\code{measure = "OR"}): log odds ratio is computed as
-\code{log((ai + 0.5) * (di + 0.5) / ((bi + 0.5) * (ci + 0.5)))} when any cell is zero,
-otherwise \code{log(ai * di / (bi * ci))}.
-\item For Poisson models (\code{measure = "IRR"}): log incidence rate ratio is computed as
-\code{log((x1i / t1i) / (x2i / t2i))} with adjustment when any count is zero.
-}
+For GLMM models (binomial or Poisson), observed effect sizes and their
+sampling variances are computed from the raw frequency data using the
+same formulas as \code{metafor::escalc} with the default zero-cell
+adjustment (adding 0.5 to all cells when any cell is zero).
+
+The standardized residuals are computed separately for each posterior
+sample of \eqn{\tau}, naturally propagating uncertainty in heterogeneity
+to the standardized residuals.
 }
 \examples{
 \dontrun{
 # fit a brma model
 fit <- brma(yi ~ 1, sei = sei, data = dat)
 
-# get residuals
+# get raw residuals (default)
 residuals(fit)
+
+# get Pearson (semi-standardized) residuals
+residuals(fit, type = "pearson")
+
+# get internally standardized residuals
+residuals(fit, type = "rstandard")
+
+# get quantile residuals (should be ~N(0,1) if model is correct)
+residuals(fit, type = "quantile")
 
 # get residuals from bias-adjusted predictions
 residuals(fit, bias_adjusted = TRUE)
@@ -82,6 +127,9 @@ samples <- residuals(fit, as_samples = TRUE)
 }
 
 }
+\references{
+\insertAllCited{}
+}
 \seealso{
-\code{\link[=predict.brma]{predict.brma()}}, \code{\link[=blup.brma]{blup.brma()}}, \code{\link[=pooled_effect]{pooled_effect()}}
+\code{\link[=predict.brma]{predict.brma()}}, \code{\link[=blup.brma]{blup.brma()}}, \code{\link[=pooled_effect]{pooled_effect()}}, \code{\link[=rstandard.brma]{rstandard.brma()}}
 }
