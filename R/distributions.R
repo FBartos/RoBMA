@@ -629,6 +629,90 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     return(exp(log_lik))
   }
 }
+
+
+# ---------------------------------------------------------------------------- #
+# .dwnorm_fast.ss.matrix
+# ---------------------------------------------------------------------------- #
+#
+# Extended weighted normal density for matrix omega (posterior samples).
+#
+# This function extends .dwnorm_fast.ss to handle cases where omega varies
+# across posterior samples. Each row of omega corresponds to one posterior
+# sample, and the density is computed for a single observation x using the
+# corresponding omega row.
+#
+# This is used for LOO-PSIS computations where we need to evaluate the
+# likelihood for each observation at each posterior sample, with sample-specific
+# omega values.
+#
+# @param x        scalar; the observation value to evaluate
+# @param mean     numeric vector of length S; mean for each posterior sample
+# @param sd       numeric vector of length S; SD for each posterior sample
+# @param omega    S x W matrix of omega (weight) samples; one row per sample
+# @param crit_x   numeric vector of length W-1; critical values (same for all samples)
+# @param log      logical; return log-density if TRUE
+#
+# @return numeric vector of length S; (log-)density at x for each sample
+#
+# ---------------------------------------------------------------------------- #
+.dwnorm_fast.ss.matrix <- function(x, mean, sd, omega, crit_x, log = FALSE) {
+
+  S <- length(mean)
+  n_weights <- ncol(omega)
+
+  # compute log density for normal component (vectorized over samples)
+  log_dens <- stats::dnorm(x, mean = mean, sd = sd, log = TRUE)
+
+  # find which interval x falls into (same for all samples since crit_x is fixed)
+  # findInterval returns 0 for x < crit_x[1], 1 for crit_x[1] <= x < crit_x[2], etc.
+  idx <- findInterval(x, crit_x, left.open = FALSE, rightmost.closed = TRUE) + 1
+
+  # get the weight for this interval from each sample's omega row
+  w <- omega[, idx]
+
+  # handle JAGS precision issues
+  w[w > 1] <- 1
+  w[w < 0] <- 0
+
+  # compute the numerator (normal density + log weight)
+  log_numerator <- log_dens + log(w)
+
+  # compute the standardizing constant (denominator) for each sample
+  # this must match the weight assignment logic
+  denoms <- matrix(0, nrow = S, ncol = n_weights)
+
+  # interval 1: x < crit_x[1] gets omega[,1]
+  denoms[, 1] <- stats::pnorm(crit_x[1], mean, sd)
+  denoms[denoms[, 1] < 0, 1] <- 0  # numerical precision
+
+  # middle intervals: crit_x[j-1] <= x < crit_x[j] gets omega[,j]
+  if (n_weights > 2) {
+    for (j in 2:(n_weights - 1)) {
+      denoms[, j] <- stats::pnorm(crit_x[j], mean, sd) - rowSums(denoms[, 1:(j-1), drop = FALSE])
+      denoms[denoms[, j] < 0, j] <- 0  # numerical precision
+    }
+  }
+
+  # last interval: x >= crit_x[last] gets omega[,n_weights]
+  denoms[, n_weights] <- 1 - rowSums(denoms[, 1:(n_weights-1), drop = FALSE])
+  denoms[denoms[, n_weights] < 0, n_weights] <- 0  # numerical precision
+
+  # weight the denominators by sample-specific omega and compute log standardizing constant
+  log_denoms <- log(denoms) + log(omega)
+  log_std_const <- log(rowSums(exp(log_denoms)))
+
+  # final log density = numerator - standardizing constant
+  log_lik <- log_numerator - log_std_const
+
+  if (log) {
+    return(log_lik)
+  } else {
+    return(exp(log_lik))
+  }
+}
+
+
 .rwnorm_fast.ss      <- function(mean, sd, omega, crit_x, iter = 1){
 
   if(iter >= 50){

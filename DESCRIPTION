@@ -58,6 +58,7 @@ Suggests:
     weightr,
     lme4,
     fixest,
+    loo,
     emmeans,
     metadat,
     testthat,
