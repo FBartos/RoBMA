@@ -4,13 +4,7 @@
 \alias{pooled_effect.brma}
 \title{Pooled Effect Size for brma Objects}
 \usage{
-\method{pooled_effect}{brma}(
-  object,
-  bias_adjusted = TRUE,
-  probs = c(0.025, 0.975),
-  as_samples = FALSE,
-  ...
-)
+\method{pooled_effect}{brma}(object, bias_adjusted = TRUE, probs = c(0.025, 0.975), ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -22,15 +16,12 @@ to obtain estimates that include publication bias effects.}
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
-\item{as_samples}{whether posterior samples should be returned instead of
-a summary table. Defaults to \code{FALSE}.}
-
 \item{...}{additional arguments (currently ignored)}
 }
 \value{
-If \code{as_samples = FALSE}, returns a \code{brma.predict} object
-containing a summary table with the pooled effect estimate and credible
-interval. If \code{as_samples = TRUE}, returns a matrix of posterior samples.
+A \code{brma_samples} object containing posterior samples. When printed,
+displays a summary table. Use \code{summary()} to obtain the summary table directly.
+The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
 Computes the pooled (aggregated) effect size estimate
@@ -54,9 +45,6 @@ fit <- brma(yi ~ 1, sei = sei, data = dat)
 
 # get pooled effect
 pooled_effect(fit)
-
-# get posterior samples
-samples <- pooled_effect(fit, as_samples = TRUE)
 }
 
 }

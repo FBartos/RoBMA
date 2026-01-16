@@ -1,5 +1,7 @@
 context("Input handling for brma.glmm")
 
+skip_on_cran()
+
 # Test data for GLMM input specification tests (2x2 contingency tables)
 test_data_glmm <- data.frame(
   # Cell counts (ai = events in treatment, bi = non-events in treatment,
@@ -24,8 +26,6 @@ test_data_glmm <- data.frame(
 # ============================================================================
 
 test_that("GLMM input works with direct vectors (ai, bi, ci, di)", {
-
-  skip_on_cran()
 
   result <- brma.glmm(
     ai = c(10L, 15L, 12L),

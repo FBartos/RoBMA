@@ -153,7 +153,6 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
       newdata       = NULL,
       type          = "terms",
       bias_adjusted = bias_adjusted,
-      as_samples    = TRUE,
       quiet         = TRUE
     )
 
@@ -510,7 +509,6 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
     object     = object,
     newdata    = NULL,
     type       = "terms.scale",
-    as_samples = TRUE,
     quiet      = TRUE
   )
 
@@ -571,7 +569,6 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
     object     = object,
     newdata    = NULL,
     type       = "terms.scale",
-    as_samples = TRUE,
     quiet      = TRUE
   )
 

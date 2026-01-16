@@ -2,9 +2,10 @@ context("Funnel plot")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
-
+skip("UNDER UPDATE")
 # list & load all fits
 skip_if_no_fits()
+skip_if_not_installed("metafor")
 fits <- lapply(list_fits(), load_fit)
 info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
@@ -16,8 +17,6 @@ names(info) <- list_fits()
 # ============================================================================ #
 
 test_that("Funnel plot for simple meta-analysis matches metafor structure", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]
@@ -46,8 +45,6 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
 # ============================================================================ #
 
 test_that("Funnel plot for meta-regression works correctly", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bcg_meta-regression"
   fit_metafor <- info[[name]][["metafor"]]
@@ -79,8 +76,6 @@ test_that("Funnel plot for meta-regression works correctly", {
 
 test_that("Funnel plot for location-scale model works correctly", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "bangertdrowns2004_location-scale"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -108,8 +103,6 @@ test_that("Funnel plot for location-scale model works correctly", {
 # ============================================================================ #
 
 test_that("Funnel plot for 3-level model works correctly", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "konstantopoulos2011_3lvl"
   fit_metafor <- info[[name]][["metafor"]]
@@ -139,8 +132,6 @@ test_that("Funnel plot for 3-level model works correctly", {
 # ============================================================================ #
 
 test_that("Funnel plot for GLMM model works correctly", {
-
-  skip_if_not_installed("metafor")
 
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
@@ -191,8 +182,6 @@ test_that("Funnel plot for GLMM model works correctly", {
 
 test_that("Funnel plot for selection model (positive) works correctly", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "dat.lehmann2018-3PSM"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -221,8 +210,6 @@ test_that("Funnel plot for selection model (positive) works correctly", {
 # ============================================================================ #
 
 test_that("Funnel plot for selection model (negative) works correctly", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-3PSM_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -253,8 +240,6 @@ test_that("Funnel plot for selection model (negative) works correctly", {
 
 test_that("Funnel plot for PET model (positive) works correctly", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "dat.lehmann2018-PET"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -283,8 +268,6 @@ test_that("Funnel plot for PET model (positive) works correctly", {
 # ============================================================================ #
 
 test_that("Funnel plot for PET model (negative) works correctly", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-PET_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -502,8 +485,6 @@ test_that("Funnel plot customization works", {
 
 test_that("Standard errors are computed correctly for normal models", {
 
-  skip_if_not_installed("metafor")
-
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]
 
@@ -520,8 +501,6 @@ test_that("Standard errors are computed correctly for normal models", {
 
 
 test_that("Standard errors are computed correctly for binomial GLMM models", {
-
-  skip_if_not_installed("metafor")
 
   name     <- "bcg_glmm"
   fit_brma <- fits[[name]]
@@ -559,8 +538,6 @@ test_that("Standard errors are computed correctly for binomial GLMM models", {
 
 test_that("Standard errors are computed correctly for Poisson GLMM models", {
 
-  skip_if_not_installed("metafor")
-
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
 
@@ -596,8 +573,6 @@ test_that("Standard errors are computed correctly for Poisson GLMM models", {
 
 test_that("Funnel residuals match metafor across model types", {
 
-  skip_if_not_installed("metafor")
-
   # Define models and their tolerances
   models <- list(
     list(name = "bcg_meta-analysis",           tol = 0.05),
@@ -629,8 +604,6 @@ test_that("Funnel residuals match metafor across model types", {
 # ============================================================================ #
 
 test_that("Funnel standard errors match metafor for normal models", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]

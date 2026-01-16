@@ -72,5 +72,6 @@ as a \code{mcmc.list} object and then using the corresponding
 \pkg{posterior} conversion function.
 }
 \seealso{
-\code{\link[posterior]{draws}}, \code{\link{brma}}
+\code{\link[posterior]{draws}}, \code{\link{brma}},
+\code{\link{as_draws.brma_samples}}
 }

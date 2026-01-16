@@ -4,13 +4,7 @@
 \alias{blup.brma}
 \title{Best Linear Unbiased Predictions for brma Objects}
 \usage{
-\method{blup}{brma}(
-  object,
-  bias_adjusted = FALSE,
-  probs = c(0.025, 0.975),
-  as_samples = FALSE,
-  ...
-)
+\method{blup}{brma}(object, bias_adjusted = FALSE, probs = c(0.025, 0.975), ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -23,16 +17,13 @@ Set to \code{TRUE} to obtain bias-corrected estimates.}
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
-\item{as_samples}{whether posterior samples should be returned instead of
-a summary table. Defaults to \code{FALSE}.}
-
 \item{...}{additional arguments (currently ignored)}
 }
 \value{
-If \code{as_samples = FALSE}, returns a \code{brma.predict} object
-containing a summary table with one row per study showing the estimated
-true effect and credible interval. If \code{as_samples = TRUE}, returns
-a matrix of posterior samples with one column per study.
+A \code{brma_samples} object containing posterior samples with one
+column per study. When printed, displays a summary table. Use \code{summary()}
+to obtain the summary table directly. The samples can be converted to
+\pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
 Computes the estimated true study effects (theta) for a
@@ -60,9 +51,6 @@ fit <- brma(yi ~ 1, sei = sei, data = dat)
 
 # get BLUPs (true study effects)
 blup(fit)
-
-# get posterior samples
-samples <- blup(fit, as_samples = TRUE)
 }
 
 }

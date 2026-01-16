@@ -524,31 +524,31 @@ test_that("predict.brma with newdata = TRUE returns single aggregated prediction
     # test type = "terms"
     result_terms <- predict(object, newdata = TRUE, type = "terms")
 
-    expect_s3_class(result_terms, "brma.predict")
-    expect_null(result_terms[["data"]], info = paste(name, ": data should be NULL for aggregate"))
-    expect_equal(nrow(result_terms[["summary"]]), 1,
+    expect_s3_class(result_terms, "brma_samples")
+    expect_null(attr(result_terms, "data"), info = paste(name, ": data should be NULL for aggregate"))
+    expect_equal(nrow(summary(result_terms)), 1,
                  info = paste(name, ": should have single row for aggregate terms"))
 
     # test type = "terms.scale"
     result_scale <- predict(object, newdata = TRUE, type = "terms.scale")
 
-    expect_s3_class(result_scale, "brma.predict")
-    expect_null(result_scale[["data"]], info = paste(name, ": data should be NULL for aggregate scale"))
-    expect_equal(nrow(result_scale[["summary"]]), 1,
+    expect_s3_class(result_scale, "brma_samples")
+    expect_null(attr(result_scale, "data"), info = paste(name, ": data should be NULL for aggregate scale"))
+    expect_equal(nrow(summary(result_scale)), 1,
                  info = paste(name, ": should have single row for aggregate scale"))
 
     # test type = "effect"
     result_effect <- predict(object, newdata = TRUE, type = "effect")
 
-    expect_s3_class(result_effect, "brma.predict")
-    expect_null(result_effect[["data"]], info = paste(name, ": data should be NULL for aggregate effect"))
-    expect_equal(nrow(result_effect[["summary"]]), 1,
+    expect_s3_class(result_effect, "brma_samples")
+    expect_null(attr(result_effect, "data"), info = paste(name, ": data should be NULL for aggregate effect"))
+    expect_equal(nrow(summary(result_effect)), 1,
                  info = paste(name, ": should have single row for aggregate effect"))
   }
 })
 
 
-test_that("predict.brma with newdata = TRUE, as_samples = TRUE returns S x 1 matrix", {
+test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
 
   for (name in names(fits)) {
 
@@ -562,21 +562,21 @@ test_that("predict.brma with newdata = TRUE, as_samples = TRUE returns S x 1 mat
     S <- nrow(posterior_samples)
 
     # test type = "terms"
-    samples_terms <- predict(object, newdata = TRUE, type = "terms", as_samples = TRUE)
+    samples_terms <- predict(object, newdata = TRUE, type = "terms")
     expect_equal(dim(samples_terms), c(S, 1),
                  info = paste(name, ": terms samples should be S x 1"))
     expect_equal(colnames(samples_terms), "mu",
                  info = paste(name, ": terms samples should have 'mu' column name"))
 
     # test type = "terms.scale"
-    samples_scale <- predict(object, newdata = TRUE, type = "terms.scale", as_samples = TRUE)
+    samples_scale <- predict(object, newdata = TRUE, type = "terms.scale")
     expect_equal(dim(samples_scale), c(S, 1),
                  info = paste(name, ": scale samples should be S x 1"))
     expect_equal(colnames(samples_scale), "tau",
                  info = paste(name, ": scale samples should have 'tau' column name"))
 
     # test type = "effect"
-    samples_effect <- predict(object, newdata = TRUE, type = "effect", as_samples = TRUE)
+    samples_effect <- predict(object, newdata = TRUE, type = "effect")
     expect_equal(dim(samples_effect), c(S, 1),
                  info = paste(name, ": effect samples should be S x 1"))
     expect_equal(colnames(samples_effect), "theta",
@@ -613,11 +613,11 @@ test_that("aggregated mu equals rowMeans of non-aggregated mu", {
     # skip non-brma objects
     if (!inherits(object, "brma")) next
 
-    # get non-aggregated samples
-    samples_full <- predict(object, newdata = NULL, type = "terms", as_samples = TRUE)
+    # get non-aggregated samples (as plain matrix)
+    samples_full <- as.matrix(predict(object, newdata = NULL, type = "terms"))
 
-    # get aggregated samples
-    samples_agg <- predict(object, newdata = TRUE, type = "terms", as_samples = TRUE)
+    # get aggregated samples (as plain matrix)
+    samples_agg <- as.matrix(predict(object, newdata = TRUE, type = "terms"))
 
     # aggregated should equal rowMeans of full
     expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
@@ -638,11 +638,11 @@ test_that("aggregated tau equals rowMeans of non-aggregated tau", {
     # skip non-brma objects
     if (!inherits(object, "brma")) next
 
-    # get non-aggregated samples
-    samples_full <- predict(object, newdata = NULL, type = "terms.scale", as_samples = TRUE)
+    # get non-aggregated samples (as plain matrix)
+    samples_full <- as.matrix(predict(object, newdata = NULL, type = "terms.scale"))
 
-    # get aggregated samples
-    samples_agg <- predict(object, newdata = TRUE, type = "terms.scale", as_samples = TRUE)
+    # get aggregated samples (as plain matrix)
+    samples_agg <- as.matrix(predict(object, newdata = TRUE, type = "terms.scale"))
 
     # aggregated should equal rowMeans of full
     expected_agg <- matrix(rowMeans(samples_full), ncol = 1)

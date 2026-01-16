@@ -6,6 +6,7 @@ REFERENCE_DIR <<- testthat::test_path("..", "results", "predict")
 
 # list & load all fits
 skip_if_no_fits()
+skip_if_not_installed("metafor")
 fits <- lapply(list_fits(), load_fit)
 info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
@@ -17,8 +18,6 @@ names(info) <- list_fits()
 # ============================================================================ #
 
 test_that("Predictions for simple meta-analysis match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]
@@ -33,11 +32,11 @@ test_that("Predictions for simple meta-analysis match metafor", {
 
   # brma: using predict directly
   brma_pred_terms <- predict(fit_brma, type = "terms", newdata = TRUE)
-  brma_mu_predict <- brma_pred_terms$summary["mu", "Mean"]
+  brma_mu_predict <- summary(brma_pred_terms)["mu", "Mean"]
 
   # brma: using pooled_effect wrapper
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu_wrapper <- brma_pooled$summary["mu", "Mean"]
+  brma_mu_wrapper <- summary(brma_pooled)["mu", "Mean"]
 
   # comparisons
   expect_equal(brma_mu_predict, brma_mu_wrapper,
@@ -54,11 +53,11 @@ test_that("Predictions for simple meta-analysis match metafor", {
 
   # brma: using predict directly
   brma_pred_scale <- predict(fit_brma, type = "terms.scale", newdata = TRUE)
-  brma_tau_predict <- brma_pred_scale$summary["tau", "Mean"]
+  brma_tau_predict <- summary(brma_pred_scale)["tau", "Mean"]
 
   # brma: using pooled_heterogeneity wrapper
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau_wrapper <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau_wrapper <- summary(brma_pooled_het)["tau", "Mean"]
 
   # comparisons
   expect_equal(brma_tau_predict, brma_tau_wrapper,
@@ -76,15 +75,15 @@ test_that("Predictions for simple meta-analysis match metafor", {
 
   # brma: using predict directly
   brma_pred_effect <- predict(fit_brma, type = "effect")
-  brma_theta_predict <- brma_pred_effect$summary[, "Mean"]
+  brma_theta_predict <- summary(brma_pred_effect)[, "Mean"]
 
   # brma: using blup wrapper
   brma_blup <- blup(fit_brma)
-  brma_theta_blup <- brma_blup$summary[, "Mean"]
+  brma_theta_blup <- summary(brma_blup)[, "Mean"]
 
   # brma: using true_effects wrapper (alias)
   brma_true_eff <- true_effects(fit_brma)
-  brma_theta_true <- brma_true_eff$summary[, "Mean"]
+  brma_theta_true <- summary(brma_true_eff)[, "Mean"]
 
   # comparisons: wrappers should be identical
   expect_equal(brma_theta_predict, brma_theta_blup,
@@ -106,8 +105,6 @@ test_that("Predictions for simple meta-analysis match metafor", {
 
 test_that("Predictions for meta-regression match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "bcg_meta-regression"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -122,7 +119,7 @@ test_that("Predictions for meta-regression match metafor", {
 
   # brma: predict with type = "terms" and newdata = NULL gives per-study mu
   brma_pred_terms <- predict(fit_brma, type = "terms")
-  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+  brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   # comparison (moderator regression can have larger deviations)
   expect_equal(brma_fitted, metafor_fitted, tolerance = 0.05,
@@ -138,7 +135,7 @@ test_that("Predictions for meta-regression match metafor", {
 
   # brma: using pooled_effect wrapper (newdata = TRUE averages across model matrix)
   brma_pooled <- pooled_effect(fit_brma)
-  brma_pooled_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_pooled_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_pooled_mu, metafor_pooled_mu, tolerance = 0.05,
                info = "brma pooled effect should match mean of metafor fitted values")
@@ -153,7 +150,7 @@ test_that("Predictions for meta-regression match metafor", {
 
   # brma: using blup wrapper
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs for meta-regression")
@@ -167,8 +164,6 @@ test_that("Predictions for meta-regression match metafor", {
 # ============================================================================ #
 
 test_that("Predictions for location-scale model match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bangertdrowns2004_location-scale"
   fit_metafor <- info[[name]][["metafor"]]
@@ -185,7 +180,7 @@ test_that("Predictions for location-scale model match metafor", {
 
   # brma: predict with type = "terms" and newdata = NULL gives per-study mu
   brma_pred_terms <- predict(fit_brma, type = "terms")
-  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+  brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   expect_equal(brma_fitted, metafor_fitted, tolerance = 0.05,
                info = "brma per-study location predictions should match metafor")
@@ -200,7 +195,7 @@ test_that("Predictions for location-scale model match metafor", {
 
   # brma: predict with type = "terms.scale" and newdata = NULL
   brma_pred_scale  <- predict(fit_brma, type = "terms.scale")
-  brma_tau_studies <- brma_pred_scale$summary[, "Mean"]
+  brma_tau_studies <- summary(brma_pred_scale)[, "Mean"]
 
   expect_equal(brma_tau_studies, metafor_tau_studies, tolerance = 0.05,
                info = "brma per-study tau should match metafor")
@@ -214,7 +209,7 @@ test_that("Predictions for location-scale model match metafor", {
 
   # brma: pooled_heterogeneity averages tau across scale model matrix
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau_pooled <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau_pooled <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau_pooled, metafor_tau_pooled, tolerance = 0.05,
                info = "brma pooled tau should match mean of metafor study-specific tau")
@@ -229,7 +224,7 @@ test_that("Predictions for location-scale model match metafor", {
 
   # brma: using blup wrapper
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   # comparison with metafor (allow MCMC tolerance)
   expect_equal(brma_theta, metafor_theta, tolerance = 0.10,
@@ -245,8 +240,6 @@ test_that("Predictions for location-scale model match metafor", {
 
 test_that("Predictions for 3-level model match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "konstantopoulos2011_3lvl"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -258,7 +251,7 @@ test_that("Predictions for 3-level model match metafor", {
   metafor_mu <- fit_metafor$beta[[1]]
 
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
                info = "brma pooled effect should match metafor for 3-level model")
@@ -271,7 +264,7 @@ test_that("Predictions for 3-level model match metafor", {
   metafor_tau <- sqrt(fit_metafor$tau2)
 
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
                info = "brma total tau should match metafor for 3-level model")
@@ -286,7 +279,7 @@ test_that("Predictions for 3-level model match metafor", {
 
   # brma: using blup wrapper
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   # Verify BLUPs are computed for all observations
   n_obs <- nrow(fit_brma$data$outcome)
@@ -310,8 +303,6 @@ test_that("Predictions for 3-level model match metafor", {
 
 test_that("Predictions for GLMM model match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "bcg_glmm"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -323,7 +314,7 @@ test_that("Predictions for GLMM model match metafor", {
   metafor_mu <- fit_metafor$beta[[1]]
 
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
                info = "brma pooled effect should match metafor for GLMM model")
@@ -335,7 +326,7 @@ test_that("Predictions for GLMM model match metafor", {
   metafor_tau <- sqrt(fit_metafor$tau2)
 
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
                info = "brma pooled tau should match metafor for GLMM model")
@@ -349,7 +340,7 @@ test_that("Predictions for GLMM model match metafor", {
   # metafor_theta <- metafor_blup$pred
 
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   # Verify BLUPs are computed for all observations
   n_obs <- nrow(fit_brma$data$outcome)
@@ -364,8 +355,6 @@ test_that("Predictions for GLMM model match metafor", {
 
 test_that("Predictions for selection model match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "dat.lehmann2018-3PSM"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -377,7 +366,7 @@ test_that("Predictions for selection model match metafor", {
   metafor_mu <- fit_metafor$beta[[1]]
 
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
                info = "brma pooled effect should match metafor for selection model")
@@ -389,7 +378,7 @@ test_that("Predictions for selection model match metafor", {
   metafor_tau <- sqrt(fit_metafor$tau2)
 
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
                info = "brma pooled tau should match metafor for selection model")
@@ -404,7 +393,7 @@ test_that("Predictions for selection model match metafor", {
   # metafor_theta <- metafor_blup$pred
 
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   # Verify BLUPs are computed for all observations
   n_obs <- nrow(fit_brma$data$outcome)
@@ -429,8 +418,6 @@ test_that("Predictions for selection model match metafor", {
 
 test_that("Predictions for selection model with negative effects match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "dat.lehmann2018-3PSM_neg"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -442,7 +429,7 @@ test_that("Predictions for selection model with negative effects match metafor",
   metafor_mu <- fit_metafor$beta[[1]]
 
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
                info = "brma pooled effect should match metafor for selection model (negative effects)")
@@ -454,7 +441,7 @@ test_that("Predictions for selection model with negative effects match metafor",
   metafor_tau <- sqrt(fit_metafor$tau2)
 
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
                info = "brma pooled tau should match metafor for selection model (negative effects)")
@@ -465,7 +452,7 @@ test_that("Predictions for selection model with negative effects match metafor",
   # --------------------------------------------------
 
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   # Verify BLUPs are computed for all observations
   n_obs <- nrow(fit_brma$data$outcome)
@@ -490,8 +477,6 @@ test_that("Predictions for selection model with negative effects match metafor",
 
 test_that("Predictions for PET model match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "dat.lehmann2018-PET"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -507,7 +492,7 @@ test_that("Predictions for PET model match metafor", {
 
   # brma: pooled_effect automatically adjusts for sei = 0
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
                info = "brma pooled effect (at sei=0) should match metafor for PET model")
@@ -519,7 +504,7 @@ test_that("Predictions for PET model match metafor", {
   metafor_tau <- sqrt(fit_metafor$tau2)
 
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
                info = "brma pooled tau should match metafor for PET model")
@@ -534,7 +519,7 @@ test_that("Predictions for PET model match metafor", {
 
   # brma: predict with type = "terms" and newdata = NULL gives per-study mu
   brma_pred_terms <- predict(fit_brma, type = "terms")
-  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+  brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   expect_equal(brma_fitted, metafor_fitted, tolerance = 0.10,
                info = "brma per-study predictions should match metafor for PET model")
@@ -549,7 +534,7 @@ test_that("Predictions for PET model match metafor", {
 
   # brma: using blup wrapper
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs for meta-regression")
@@ -566,7 +551,7 @@ test_that("Predictions for PET model match metafor", {
 
   # brma: predict with type = "terms" and newdata = NULL gives per-study mu
   brma_pred_terms <- predict(fit_brma, type = "terms", bias_adjusted = TRUE)
-  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+  brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   expect_equal(brma_fitted, metafor_fitted, tolerance = 0.05,
                info = "brma per-study predictions should match metafor for PET model")
@@ -578,8 +563,6 @@ test_that("Predictions for PET model match metafor", {
 # ============================================================================ #
 
 test_that("Predictions for PET model with negative effects match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-PET_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -596,7 +579,7 @@ test_that("Predictions for PET model with negative effects match metafor", {
 
   # brma: pooled_effect automatically adjusts for sei = 0
   brma_pooled <- pooled_effect(fit_brma)
-  brma_mu <- brma_pooled$summary["mu", "Mean"]
+  brma_mu <- summary(brma_pooled)["mu", "Mean"]
 
   expect_equal(brma_mu, metafor_mu, tolerance = 0.05,
                info = "brma pooled effect (at sei=0) should match metafor for PET model")
@@ -608,7 +591,7 @@ test_that("Predictions for PET model with negative effects match metafor", {
   metafor_tau <- sqrt(fit_metafor$tau2)
 
   brma_pooled_het <- pooled_heterogeneity(fit_brma)
-  brma_tau <- brma_pooled_het$summary["tau", "Mean"]
+  brma_tau <- summary(brma_pooled_het)["tau", "Mean"]
 
   expect_equal(brma_tau, metafor_tau, tolerance = 0.05,
                info = "brma pooled tau should match metafor for PET model")
@@ -623,7 +606,7 @@ test_that("Predictions for PET model with negative effects match metafor", {
 
   # brma: predict with type = "terms" and newdata = NULL gives per-study mu
   brma_pred_terms <- predict(fit_brma, type = "terms")
-  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+  brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   expect_equal(brma_fitted, metafor_fitted, tolerance = 0.10,
                info = "brma per-study predictions should match metafor for PET model")
@@ -638,7 +621,7 @@ test_that("Predictions for PET model with negative effects match metafor", {
 
   # brma: using blup wrapper
   brma_blup <- blup(fit_brma)
-  brma_theta <- brma_blup$summary[, "Mean"]
+  brma_theta <- summary(brma_blup)[, "Mean"]
 
   expect_equal(brma_theta, metafor_theta, tolerance = 0.05,
                info = "brma BLUPs should match metafor BLUPs for meta-regression")
@@ -655,7 +638,7 @@ test_that("Predictions for PET model with negative effects match metafor", {
 
   # brma: predict with type = "terms" and newdata = NULL gives per-study mu
   brma_pred_terms <- predict(fit_brma, type = "terms", bias_adjusted = TRUE)
-  brma_fitted <- brma_pred_terms$summary[, "Mean"]
+  brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   expect_equal(brma_fitted, metafor_fitted, tolerance = 0.05,
                info = "brma per-study predictions should match metafor for PET model")
@@ -672,32 +655,35 @@ test_that("Wrapper functions have correct interface", {
   fit_brma <- fits[[name]]
 
   # --------------------------------------------------
-  # Test as_samples = TRUE returns matrix
+  # Test that wrappers return brma_samples which are matrices
   # --------------------------------------------------
 
-  samples_effect <- pooled_effect(fit_brma, as_samples = TRUE)
+  samples_effect <- pooled_effect(fit_brma)
+  expect_s3_class(samples_effect, "brma_samples")
   expect_true(is.matrix(samples_effect),
-              info = "pooled_effect with as_samples = TRUE should return matrix")
+              info = "pooled_effect should return brma_samples (matrix)")
   expect_equal(ncol(samples_effect), 1,
                info = "pooled_effect should return 1 column for aggregated estimate")
 
-  samples_het <- pooled_heterogeneity(fit_brma, as_samples = TRUE)
+  samples_het <- pooled_heterogeneity(fit_brma)
+  expect_s3_class(samples_het, "brma_samples")
   expect_true(is.matrix(samples_het),
-              info = "pooled_heterogeneity with as_samples = TRUE should return matrix")
+              info = "pooled_heterogeneity should return brma_samples (matrix)")
 
-  samples_blup <- blup(fit_brma, as_samples = TRUE)
+  samples_blup <- blup(fit_brma)
+  expect_s3_class(samples_blup, "brma_samples")
   expect_true(is.matrix(samples_blup),
-              info = "blup with as_samples = TRUE should return matrix")
+              info = "blup should return brma_samples (matrix)")
   n_studies <- nrow(fit_brma$data$outcome)
   expect_equal(ncol(samples_blup), n_studies,
                info = "blup should return one column per study")
 
   # --------------------------------------------------
-  # Test probs argument
+  # Test probs argument via print
   # --------------------------------------------------
 
   pred_90ci <- pooled_effect(fit_brma, probs = c(0.05, 0.95))
-  ci_names <- colnames(pred_90ci$summary)
+  ci_names <- colnames(summary(pred_90ci))
   # BayesTools may format as "5%" or "0.05" - check for either format
   has_lower <- any(grepl("5%|0\\.05", ci_names))
   has_upper <- any(grepl("95%|0\\.95", ci_names))
@@ -710,7 +696,7 @@ test_that("Wrapper functions have correct interface", {
 
   blup_result <- blup(fit_brma)
   true_eff_result <- true_effects(fit_brma)
-  expect_equal(blup_result$summary, true_eff_result$summary,
+  expect_equal(summary(blup_result), summary(true_eff_result),
                info = "true_effects should be identical to blup")
 
 })

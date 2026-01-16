@@ -10,7 +10,6 @@
   type = "terms",
   probs = c(0.025, 0.975),
   bias_adjusted = FALSE,
-  as_samples = FALSE,
   quiet = FALSE,
   ...
 )
@@ -60,7 +59,11 @@ weighted distribution reflecting the selective publishing process.}
 \item{...}{additional arguments}
 }
 \value{
-\code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+A \code{brma_samples} object containing posterior samples. When printed,
+displays a summary table via \code{BayesTools::ensemble_estimates_table}. The
+underlying samples matrix can be accessed directly (the object inherits from matrix)
+or via \code{summary()} to obtain the summary table. The samples can also be converted
+to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 }
 \description{
 \code{predict.brma} predicts values

@@ -33,6 +33,12 @@
   # Check and fix number of threads (sometimes bugs out during installation)
   .check_max_cores()
 
+  # Register S3 methods for posterior package (if available)
+  .register_posterior_methods()
+
+  # Register S3 methods for loo package (if available)
+  .register_loo_methods()
+
 }
 
 .onAttach <- function(libname, pkgname){
@@ -64,4 +70,98 @@
     rjags::load.module("RoBMA", path = RoBMA.private$module_location)
   }
 
+}
+
+
+# ---------------------------------------------------------------------------- #
+# S3 method registration for posterior package
+# ---------------------------------------------------------------------------- #
+
+# Register as_draws methods with the posterior package when it is available.
+# This allows posterior::as_draws(brma_object) to work correctly.
+.register_posterior_methods <- function() {
+
+  if (!requireNamespace("posterior", quietly = TRUE)) {
+    return(invisible(NULL))
+  }
+
+  # Register methods for brma class
+  .s3_register("posterior::as_draws",        "brma")
+  .s3_register("posterior::as_draws_array",  "brma")
+  .s3_register("posterior::as_draws_df",     "brma")
+  .s3_register("posterior::as_draws_list",   "brma")
+  .s3_register("posterior::as_draws_matrix", "brma")
+  .s3_register("posterior::as_draws_rvars",  "brma")
+
+  # Register methods for brma_samples class
+  .s3_register("posterior::as_draws",        "brma_samples")
+  .s3_register("posterior::as_draws_array",  "brma_samples")
+  .s3_register("posterior::as_draws_df",     "brma_samples")
+  .s3_register("posterior::as_draws_list",   "brma_samples")
+  .s3_register("posterior::as_draws_matrix", "brma_samples")
+  .s3_register("posterior::as_draws_rvars",  "brma_samples")
+
+  invisible(NULL)
+}
+
+# Register loo and loo_compare methods with the loo package when it is available.
+# This allows loo::loo(brma_object) and loo::loo_compare(brma_object) to work correctly.
+.register_loo_methods <- function() {
+
+  if (!requireNamespace("loo", quietly = TRUE)) {
+    return(invisible(NULL))
+  }
+
+  # Register methods for brma class
+  .s3_register("loo::loo",         "brma")
+  .s3_register("loo::loo_compare", "brma")
+  .s3_register("loo::loo_compare", "loo")
+
+  invisible(NULL)
+}
+
+# S3 method registration helper (adapted from vctrs package)
+# This is a standard pattern used by tidyverse and other packages to
+# conditionally register S3 methods with another package's generics.
+.s3_register <- function(generic, class, method = NULL) {
+
+  stopifnot(is.character(generic), length(generic) == 1)
+  stopifnot(is.character(class), length(class) == 1)
+
+  pieces <- strsplit(generic, "::")[[1]]
+  stopifnot(length(pieces) == 2)
+  package <- pieces[[1]]
+  generic <- pieces[[2]]
+
+  caller <- parent.frame()
+
+  get_method_env <- function() {
+    top <- topenv(caller)
+    if (isNamespace(top)) {
+      top
+    } else {
+      caller
+    }
+  }
+  get_method <- function(method, env) {
+    if (is.null(method)) {
+      get(paste0(generic, ".", class), envir = env)
+    } else {
+      method
+    }
+  }
+
+  register <- function(...) {
+    envir <- asNamespace(package)
+    method_fn <- get_method(method, get_method_env())
+    registerS3method(generic, class, method_fn, envir = envir)
+  }
+
+  setHook(packageEvent(package, "onLoad"), register)
+
+  if (isNamespaceLoaded(package)) {
+    register()
+  }
+
+  invisible()
 }

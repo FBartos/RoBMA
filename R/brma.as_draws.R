@@ -1,3 +1,21 @@
+# ============================================================================ #
+# brma.as_draws.R
+# ============================================================================ #
+#
+# This file provides an interface to the posterior package for brma objects.
+# It defines:
+#
+# - Generic S3 methods for as_draws family (for use when posterior is not loaded)
+# - Methods for brma class that convert MCMC samples to posterior draws formats
+# - Helper function to extract mcmc.list from brma objects
+#
+# ============================================================================ #
+
+
+# ---------------------------------------------------------------------------- #
+# Documentation
+# ---------------------------------------------------------------------------- #
+
 #' @title Convert brma Objects to posterior Draws Formats
 #'
 #' @description Provides an interface to the \pkg{posterior} package
@@ -28,10 +46,55 @@
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'
-#' @seealso \code{\link[posterior]{draws}}, \code{\link{brma}}
+#' @seealso \code{\link[posterior]{draws}}, \code{\link{brma}},
+#' \code{\link{as_draws.brma_samples}}
 #'
 #' @name as_draws.brma
 NULL
+
+
+# ---------------------------------------------------------------------------- #
+# Helper: Extract mcmc.list from brma objects
+# ---------------------------------------------------------------------------- #
+
+#' @title Extract mcmc.list from brma Objects
+#'
+#' @description Internal helper to extract the MCMC samples from a fitted
+#' \code{brma} object as a \code{mcmc.list} object suitable for conversion
+#' to \pkg{posterior} draws formats.
+#'
+#' @param x a fitted \code{brma} object
+#'
+#' @return A \code{mcmc.list} object containing the MCMC samples.
+#'
+#' @keywords internal
+.brma_to_mcmc.list <- function(x) {
+
+  if (!inherits(x, "brma")) {
+    stop("'x' must be a 'brma' object", call. = FALSE)
+  }
+
+  if (is.null(x[["fit"]]) || length(x[["fit"]]) == 0) {
+    stop("The 'brma' object does not contain a valid fit", call. = FALSE)
+  }
+
+  return(coda::as.mcmc.list(x[["fit"]]))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# Helper: Check posterior package availability
+# ---------------------------------------------------------------------------- #
+
+.check_posterior_package <- function() {
+  if (!requireNamespace("posterior", quietly = TRUE)) {
+    stop(
+      "Package 'posterior' is required for as_draws conversion.\n",
+      "Install it with: install.packages('posterior')",
+      call. = FALSE
+    )
+  }
+}
 
 #' @rdname as_draws.brma
 #' @export
@@ -69,14 +132,18 @@ as_draws_rvars <- function(x, ...) {
   UseMethod("as_draws_rvars")
 }
 
+
+# ---------------------------------------------------------------------------- #
+# as_draws methods for brma class
+# ---------------------------------------------------------------------------- #
+
 #' @rdname as_draws.brma
 #' @export
 as_draws.brma <- function(x, ...) {
 
-  require("posterior")
+  .check_posterior_package()
 
-  # extract the mcmc samples
-  mcmc.list <- coda::as.mcmc.list(x[["fit"]])
+  mcmc.list <- .brma_to_mcmc.list(x)
 
   return(posterior::as_draws(mcmc.list, ...))
 }
@@ -85,10 +152,9 @@ as_draws.brma <- function(x, ...) {
 #' @export
 as_draws_array.brma <- function(x, ...) {
 
-  require("posterior")
+  .check_posterior_package()
 
-  # extract the mcmc samples
-  mcmc.list <- coda::as.mcmc.list(x[["fit"]])
+  mcmc.list <- .brma_to_mcmc.list(x)
 
   return(posterior::as_draws_array(mcmc.list, ...))
 }
@@ -97,10 +163,9 @@ as_draws_array.brma <- function(x, ...) {
 #' @export
 as_draws_df.brma <- function(x, ...) {
 
-  require("posterior")
+  .check_posterior_package()
 
-  # extract the mcmc samples
-  mcmc.list <- coda::as.mcmc.list(x[["fit"]])
+  mcmc.list <- .brma_to_mcmc.list(x)
 
   return(posterior::as_draws_df(mcmc.list, ...))
 }
@@ -109,10 +174,9 @@ as_draws_df.brma <- function(x, ...) {
 #' @export
 as_draws_list.brma <- function(x, ...) {
 
-  require("posterior")
+  .check_posterior_package()
 
-  # extract the mcmc samples
-  mcmc.list <- coda::as.mcmc.list(x[["fit"]])
+  mcmc.list <- .brma_to_mcmc.list(x)
 
   return(posterior::as_draws_list(mcmc.list, ...))
 }
@@ -121,10 +185,9 @@ as_draws_list.brma <- function(x, ...) {
 #' @export
 as_draws_matrix.brma <- function(x, ...) {
 
-  require("posterior")
+  .check_posterior_package()
 
-  # extract the mcmc samples
-  mcmc.list <- coda::as.mcmc.list(x[["fit"]])
+  mcmc.list <- .brma_to_mcmc.list(x)
 
   return(posterior::as_draws_matrix(mcmc.list, ...))
 }
@@ -133,10 +196,9 @@ as_draws_matrix.brma <- function(x, ...) {
 #' @export
 as_draws_rvars.brma <- function(x, ...) {
 
-  require("posterior")
+  .check_posterior_package()
 
-  # extract the mcmc samples
-  mcmc.list <- coda::as.mcmc.list(x[["fit"]])
+  mcmc.list <- .brma_to_mcmc.list(x)
 
   return(posterior::as_draws_rvars(mcmc.list, ...))
 }

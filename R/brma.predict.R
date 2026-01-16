@@ -49,20 +49,22 @@
 #' @examples \dontrun{
 #' }
 #'
-#' @return \code{pooled_effect} returns a list of tables of class 'BayesTools_table'.
+#' @return A \code{brma_samples} object containing posterior samples. When printed,
+#' displays a summary table via \code{BayesTools::ensemble_estimates_table}. The
+#' underlying samples matrix can be accessed directly (the object inherits from matrix)
+#' or via \code{summary()} to obtain the summary table. The samples can also be converted
+#' to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 #' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
 predict.brma <- function(object, newdata = NULL,
                          type = "terms",
                          probs = c(.025, .975),
                          bias_adjusted = FALSE,
-                         as_samples = FALSE,
                          quiet = FALSE,
                          ...){
 
   # some options checked inside BayesTools table directly
   BayesTools::check_char(type, "type", allow_values = c("response", "terms", "terms.scale", "effect"))
-  BayesTools::check_bool(as_samples, "as_samples")
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(quiet, "quiet")
 
@@ -164,6 +166,10 @@ predict.brma <- function(object, newdata = NULL,
     K <- 1L
   }
 
+  ### extract MCMC chain info for brma_samples construction
+  n_chains <- length(object[["fit"]][["mcmc"]])
+  n_iter   <- object[["fit"]][["sample"]]
+
   ### return only tau samples if type = "terms.scale" is selected
   if (type == "terms.scale") {
     # reconstruct total tau from components: tau = sqrt(tau_within^2 + tau_between^2)
@@ -172,22 +178,14 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(tau_samples) <- if (aggregate) "tau" else paste0("tau[", seq_len(K), "]")
 
-    if (as_samples) {
-      return(tau_samples)
-    } else {
-      outcome_table <- BayesTools::ensemble_estimates_table(
-        samples    = asplit(tau_samples, 2),
-        parameters = colnames(tau_samples),
-        probs      = probs,
-        title      = if (aggregate) "Aggregated Scale Term Posterior Prediction:" else "Scale Term Posterior Prediction:"
-      )
-      out <- list(
-        summary = outcome_table,
-        data    = if (aggregate) NULL else new_data
-      )
-      class(out) <- "brma.predict"
-      return(out)
-    }
+    return(.new_brma_samples(
+      samples  = tau_samples,
+      n_chains = n_chains,
+      n_iter   = n_iter,
+      title    = if (aggregate) "Aggregated Scale Term Posterior Prediction:" else "Scale Term Posterior Prediction:",
+      probs    = probs,
+      data     = if (aggregate) NULL else new_data
+    ))
   }
 
   ### get the base mu samples using helper function
@@ -227,22 +225,14 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(mu_samples) <- if (aggregate) "mu" else paste0("mu[", seq_len(K), "]")
 
-    if (as_samples) {
-      return(mu_samples)
-    } else {
-      outcome_table <- BayesTools::ensemble_estimates_table(
-        samples    = asplit(mu_samples, 2),
-        parameters = colnames(mu_samples),
-        probs      = probs,
-        title      = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:"
-      )
-      out <- list(
-        summary = outcome_table,
-        data    = if (aggregate) NULL else new_data
-      )
-      class(out) <- "brma.predict"
-      return(out)
-    }
+    return(.new_brma_samples(
+      samples  = mu_samples,
+      n_chains = n_chains,
+      n_iter   = n_iter,
+      title    = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:",
+      probs    = probs,
+      data     = if (aggregate) NULL else new_data
+    ))
   }
 
   ### include 3-level (study-level) random-effects using helper function
@@ -288,22 +278,14 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(true_effects_samples) <- if (aggregate) "theta" else paste0("theta[", seq_len(K), "]")
 
-    if (as_samples) {
-      return(true_effects_samples)
-    } else {
-      outcome_table <- BayesTools::ensemble_estimates_table(
-        samples    = asplit(true_effects_samples, 2),
-        parameters = colnames(true_effects_samples),
-        probs      = probs,
-        title      = if (aggregate) "Aggregated True Effect Posterior Prediction:" else "True Effect Posterior Prediction:"
-      )
-      out <- list(
-        summary = outcome_table,
-        data    = if (aggregate) NULL else new_data
-      )
-      class(out) <- "brma.predict"
-      return(out)
-    }
+    return(.new_brma_samples(
+      samples  = true_effects_samples,
+      n_chains = n_chains,
+      n_iter   = n_iter,
+      title    = if (aggregate) "Aggregated True Effect Posterior Prediction:" else "True Effect Posterior Prediction:",
+      probs    = probs,
+      data     = if (aggregate) NULL else new_data
+    ))
 
   }
 
@@ -408,38 +390,13 @@ predict.brma <- function(object, newdata = NULL,
       colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
     }
 
-    if (as_samples) {
-      return(outcome_samples)
-    } else {
-      outcome_table <- BayesTools::ensemble_estimates_table(
-        samples    = asplit(outcome_samples, 2),
-        parameters = colnames(outcome_samples),
-        probs      = probs,
-        title      = "Observations Posterior Prediction:"
-      )
-      out <- list(
-        summary = outcome_table,
-        data    = new_data
-      )
-      class(out) <- "brma.predict"
-      return(out)
-    }
+    return(.new_brma_samples(
+      samples  = outcome_samples,
+      n_chains = n_chains,
+      n_iter   = n_iter,
+      title    = "Observations Posterior Prediction:",
+      probs    = probs,
+      data     = new_data
+    ))
   }
-}
-
-
-
-#' @export
-summary.brma.predict <- function(object, ...) {
-  print(object, ...)
-}
-
-#' @export
-print.brma.predict <- function(x, ...) {
-
-  cat("\n")
-  print(x[["summary"]])
-  cat("\n")
-
-  return(invisible(x))
 }

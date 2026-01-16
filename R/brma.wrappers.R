@@ -51,8 +51,6 @@ pooled_effect <- function(object, ...) {
 #' to obtain estimates that include publication bias effects.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
-#' @param as_samples whether posterior samples should be returned instead of
-#' a summary table. Defaults to \code{FALSE}.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -66,9 +64,9 @@ pooled_effect <- function(object, ...) {
 #'
 #' For models without moderators, this returns the single mu parameter.
 #'
-#' @return If \code{as_samples = FALSE}, returns a \code{brma.predict} object
-#' containing a summary table with the pooled effect estimate and credible
-#' interval. If \code{as_samples = TRUE}, returns a matrix of posterior samples.
+#' @return A \code{brma_samples} object containing posterior samples. When printed,
+#' displays a summary table. Use \code{summary()} to obtain the summary table directly.
+#' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
 #' # fit a brma model
@@ -76,25 +74,23 @@ pooled_effect <- function(object, ...) {
 #'
 #' # get pooled effect
 #' pooled_effect(fit)
-#'
-#' # get posterior samples
-#' samples <- pooled_effect(fit, as_samples = TRUE)
 #' }
 #'
 #' @seealso [predict.brma()], [pooled_heterogeneity()], [blup()]
 #' @export
 pooled_effect.brma <- function(object, bias_adjusted = TRUE,
-                               probs = c(.025, .975), as_samples = FALSE, ...) {
-  predict.brma(
+                               probs = c(.025, .975), ...) {
+  out <- predict.brma(
     object        = object,
     newdata       = TRUE,
     type          = "terms",
     probs         = probs,
     bias_adjusted = bias_adjusted,
-    as_samples    = as_samples,
     quiet         = TRUE,
     ...
   )
+  attr(out, "title") <- "Pooled Effect Size"
+  return(out)
 }
 
 
@@ -128,8 +124,6 @@ pooled_heterogeneity <- function(object, ...) {
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
-#' @param as_samples whether posterior samples should be returned instead of
-#' a summary table. Defaults to \code{FALSE}.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -145,10 +139,9 @@ pooled_heterogeneity <- function(object, ...) {
 #' For multilevel (3-level) models, the returned tau is the total heterogeneity:
 #' \code{tau = sqrt(tau_within^2 + tau_between^2)}.
 #'
-#' @return If \code{as_samples = FALSE}, returns a \code{brma.predict} object
-#' containing a summary table with the pooled heterogeneity estimate and
-#' credible interval. If \code{as_samples = TRUE}, returns a matrix of
-#' posterior samples.
+#' @return A \code{brma_samples} object containing posterior samples. When printed,
+#' displays a summary table. Use \code{summary()} to obtain the summary table directly.
+#' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
 #' # fit a brma model
@@ -156,24 +149,21 @@ pooled_heterogeneity <- function(object, ...) {
 #'
 #' # get pooled heterogeneity
 #' pooled_heterogeneity(fit)
-#'
-#' # get posterior samples
-#' samples <- pooled_heterogeneity(fit, as_samples = TRUE)
 #' }
 #'
 #' @seealso [predict.brma()], [pooled_effect()], [blup()]
 #' @export
-pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
-                                      as_samples = FALSE, ...) {
-  predict.brma(
+pooled_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
+  out <- predict.brma(
     object     = object,
     newdata    = TRUE,
     type       = "terms.scale",
     probs      = probs,
-    as_samples = as_samples,
     quiet      = TRUE,
     ...
   )
+  attr(out, "title") <- "Pooled Heterogeneity"
+  return(out)
 }
 
 
@@ -213,8 +203,6 @@ blup <- function(object, ...) {
 #' Set to \code{TRUE} to obtain bias-corrected estimates.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
-#' @param as_samples whether posterior samples should be returned instead of
-#' a summary table. Defaults to \code{FALSE}.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -231,10 +219,10 @@ blup <- function(object, ...) {
 #' For multilevel (3-level) models, the true effects incorporate both
 #' study-level (\eqn{\gamma}) and estimate-level random effects.
 #'
-#' @return If \code{as_samples = FALSE}, returns a \code{brma.predict} object
-#' containing a summary table with one row per study showing the estimated
-#' true effect and credible interval. If \code{as_samples = TRUE}, returns
-#' a matrix of posterior samples with one column per study.
+#' @return A \code{brma_samples} object containing posterior samples with one
+#' column per study. When printed, displays a summary table. Use \code{summary()}
+#' to obtain the summary table directly. The samples can be converted to
+#' \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
 #' # fit a brma model
@@ -242,26 +230,24 @@ blup <- function(object, ...) {
 #'
 #' # get BLUPs (true study effects)
 #' blup(fit)
-#'
-#' # get posterior samples
-#' samples <- blup(fit, as_samples = TRUE)
 #' }
 #'
 #' @seealso [predict.brma()], [pooled_effect()], [pooled_heterogeneity()],
 #' [true_effects()]
 #' @export
 blup.brma <- function(object, bias_adjusted = FALSE,
-                      probs = c(.025, .975), as_samples = FALSE, ...) {
-  predict.brma(
+                      probs = c(.025, .975), ...) {
+  out <- predict.brma(
     object        = object,
     newdata       = NULL,
     type          = "effect",
     probs         = probs,
     bias_adjusted = bias_adjusted,
-    as_samples    = as_samples,
     quiet         = TRUE,
     ...
   )
+  attr(out, "title") <- "True Study Effects (BLUPs)"
+  return(out)
 }
 
 
@@ -298,10 +284,10 @@ true_effects <- function(object, ...) {
 #' This function is identical to \code{\link{blup.brma}}. See that function
 #' for full details on how true effects are computed.
 #'
-#' @return If \code{as_samples = FALSE}, returns a \code{brma.predict} object
-#' containing a summary table with one row per study showing the estimated
-#' true effect and credible interval. If \code{as_samples = TRUE}, returns
-#' a matrix of posterior samples with one column per study.
+#' @return A \code{brma_samples} object containing posterior samples with one
+#' column per study. When printed, displays a summary table. Use \code{summary()}
+#' to obtain the summary table directly. The samples can be converted to
+#' \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
 #' # fit a brma model
@@ -315,12 +301,11 @@ true_effects <- function(object, ...) {
 #' [pooled_heterogeneity()]
 #' @export
 true_effects.brma <- function(object, bias_adjusted = FALSE,
-                              probs = c(.025, .975), as_samples = FALSE, ...) {
+                              probs = c(.025, .975), ...) {
   blup.brma(
     object        = object,
     bias_adjusted = bias_adjusted,
     probs         = probs,
-    as_samples    = as_samples,
     ...
   )
 }

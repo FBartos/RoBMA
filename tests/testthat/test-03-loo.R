@@ -1,3 +1,4 @@
+context("loo methods for brma objects")
 # Test LOO-PSIS functionality for brma objects
 # ============================================================================
 
