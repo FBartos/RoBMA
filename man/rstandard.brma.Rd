@@ -4,7 +4,7 @@
 \alias{rstandard.brma}
 \title{Standardized Residuals for brma Objects}
 \usage{
-\method{rstandard}{brma}(model, ...)
+\method{rstandard}{brma}(model, type = "LOO-PIT", ...)
 }
 \arguments{
 \item{model}{a fitted brma object}
@@ -12,33 +12,45 @@
 \item{...}{additional arguments passed to \code{\link{residuals.brma}}}
 }
 \value{
-A \code{brma.residuals} object containing standardized residuals,
-or a matrix of posterior samples if \code{as_samples = TRUE}.
+A numeric vector of LOO-PIT standardized residual means.
 }
 \description{
-Computes internally standardized residuals from a fitted brma
-object. This is a convenience wrapper for \code{residuals(object, type = "rstandard", ...)}.
+Computes standardized residuals from a fitted brma object using
+LOO-PIT (Leave-One-Out Probability Integral Transform). This is a
+convenience wrapper for \code{residuals(object, type = "LOO-PIT", ...)}.
 }
 \details{
-Standardized residuals use the hat matrix to compute residual standard errors
-that account for the uncertainty in estimated coefficients:
-\deqn{z_i = \frac{e_i}{\sqrt{[(I-H)M(I-H)']_{ii}}}}
-where \eqn{H} is the hat matrix and \eqn{M} is the marginal variance-covariance
-matrix. For models without moderators, this simplifies to Pearson residuals.
+LOO-PIT residuals are the Bayesian equivalent of studentized deleted
+residuals. They are computed via leave-one-out probability integral
+transformation using Pareto smoothed importance sampling. Under a correctly
+specified model, LOO-PIT residuals should follow a standard normal
+distribution.
+
+Unlike traditional standardized residuals (which use the hat matrix),
+LOO-PIT residuals properly account for estimation uncertainty and leverage
+without requiring explicit hat matrix computation. This makes them suitable
+for all model types including selection models and GLMMs.
+
+Note: LOO-PIT residuals are computationally more expensive than traditional
+standardized residuals as they require importance sampling.
 }
 \examples{
 \dontrun{
 # fit a brma model
 fit <- brma(yi ~ 1, sei = sei, data = dat)
 
-# get standardized residuals
+# get standardized residuals (LOO-PIT)
 rstandard(fit)
 
 # equivalent to:
-residuals(fit, type = "rstandard")
+residuals(fit, type = "LOO-PIT")
+
+# check LOO diagnostics
+loo_obj <- residuals(fit, type = "LOO-PIT", loo_only = TRUE)
+plot(loo_obj)  # check Pareto k values
 }
 
 }
 \seealso{
-\code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
+\code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=loo.brma]{loo.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

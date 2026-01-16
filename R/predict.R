@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Predict method for Robust Bayesian Meta-Analysis Fits
 #'
 #' @description \code{predict.RoBMA} predicts values based on the RoBMA model.

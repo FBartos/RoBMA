@@ -1,6 +1,7 @@
 context("(2) Distribution functions")
-skip("OLD TEST - REMOVE LATER")
 skip_on_cran()
+
+# TODO: to be updated
 
 ### weighted normal distributions ----
 test_that("Input checks work", {
@@ -851,4 +852,226 @@ test_that("Fast spike-and-slab output preformated distribution functions", {
          labels = paste("ω =", omega_multi[1,]), col = "darkgreen")
     legend("topright", c("fast.ss", "exported"), col = c("blue", "red"), lty = c(1, 2), lwd = 2)
   })
+})
+
+
+### .dwnorm_fast.ss.matrix tests ----
+# These tests verify that .dwnorm_fast.ss.matrix (used for LOO-PSIS with
+# sample-specific omega) produces the same results as .dwnorm_fast.ss
+
+test_that(".dwnorm_fast.ss.matrix matches .dwnorm_fast.ss for single observation", {
+
+  # Test parameters
+  set.seed(123)
+  S <- 50  # number of samples
+  x <- 0.5  # single observation
+
+  mean_vec <- rnorm(S, 0.2, 0.1)
+  sd_vec   <- runif(S, 0.2, 0.5)
+
+  # Test case 1: uniform omega (same across all samples)
+  crit_x <- c(0.4, 0.8)
+  omega_uniform <- matrix(rep(c(0.3, 0.6, 1.0), each = S), nrow = S, ncol = 3)
+
+  # Compute using .dwnorm_fast.ss.matrix
+  log_lik_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega_uniform, crit_x, log = TRUE)
+
+
+  # Compute using .dwnorm_fast.ss (loop over samples)
+  log_lik_loop <- sapply(seq_len(S), function(s) {
+    RoBMA:::.dwnorm_fast.ss(x, mean_vec[s], sd_vec[s], omega_uniform[s, , drop = FALSE], crit_x, log = TRUE)
+  })
+
+  expect_equal(log_lik_matrix, log_lik_loop, tolerance = 1e-10,
+               info = "uniform omega: matrix vs loop")
+})
+
+test_that(".dwnorm_fast.ss.matrix handles varying omega across samples", {
+
+  set.seed(456)
+  S <- 30
+  x <- 1.2
+
+  mean_vec <- rep(0.3, S)
+
+  sd_vec   <- rep(0.4, S)
+  crit_x   <- c(0.5, 1.0)
+
+  # omega varies across samples (as in LOO-PSIS with posterior omega samples)
+  omega_varying <- cbind(
+    runif(S, 0.1, 0.4),
+    runif(S, 0.4, 0.7),
+    rep(1.0, S)
+  )
+
+  # Compute using .dwnorm_fast.ss.matrix
+  log_lik_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega_varying, crit_x, log = TRUE)
+
+  # Compute using .dwnorm_fast.ss (loop over samples)
+  log_lik_loop <- sapply(seq_len(S), function(s) {
+    RoBMA:::.dwnorm_fast.ss(x, mean_vec[s], sd_vec[s], omega_varying[s, , drop = FALSE], crit_x, log = TRUE)
+  })
+
+  expect_equal(log_lik_matrix, log_lik_loop, tolerance = 1e-10,
+               info = "varying omega: matrix vs loop")
+
+  # Results should differ across samples due to varying omega
+  expect_true(length(unique(round(log_lik_matrix, 8))) > 1,
+              info = "varying omega should produce different log-likelihoods")
+})
+
+test_that(".dwnorm_fast.ss.matrix works for observations in different weight regions", {
+
+  set.seed(789)
+  S <- 20
+  crit_x <- c(0.3, 0.8)
+  omega <- matrix(c(rep(0.2, S), rep(0.5, S), rep(1.0, S)), nrow = S, ncol = 3)
+
+  mean_vec <- rep(0.5, S)
+  sd_vec   <- rep(0.25, S)
+
+  # Test observations falling in different regions
+  test_cases <- list(
+    x_below_first = 0.1,   # x < crit_x[1], gets omega[,1]
+    x_middle      = 0.5,   # crit_x[1] <= x < crit_x[2], gets omega[,2]
+    x_above_last  = 1.5    # x >= crit_x[2], gets omega[,3]
+  )
+
+  for (case_name in names(test_cases)) {
+    x <- test_cases[[case_name]]
+
+    log_lik_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+    log_lik_loop <- sapply(seq_len(S), function(s) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_vec[s], sd_vec[s], omega[s, , drop = FALSE], crit_x, log = TRUE)
+    })
+
+    expect_equal(log_lik_matrix, log_lik_loop, tolerance = 1e-10,
+                 info = paste("region test:", case_name))
+  }
+})
+
+test_that(".dwnorm_fast.ss.matrix returns finite values", {
+
+  set.seed(101)
+  S <- 100
+
+  # Generate diverse test cases
+  mean_vec <- rnorm(S, 0, 1)
+  sd_vec   <- runif(S, 0.1, 1.0)
+  crit_x   <- c(0.5, 1.5)
+  omega    <- cbind(runif(S, 0.1, 0.5), runif(S, 0.3, 0.8), rep(1.0, S))
+
+  # Test multiple x values
+  x_vals <- c(-2, -0.5, 0, 0.7, 1.2, 2.5)
+
+  for (x in x_vals) {
+    log_lik <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+
+    expect_true(all(is.finite(log_lik)),
+                info = paste("finite values for x =", x))
+    expect_length(log_lik, S)
+  }
+})
+
+test_that(".dwnorm_fast.ss.matrix handles multiple critical values", {
+
+  set.seed(202)
+  S <- 25
+
+  mean_vec <- rep(0.4, S)
+  sd_vec   <- rep(0.3, S)
+
+  # Test with 3 critical values (4 weight regions)
+  crit_x <- c(0.2, 0.6, 1.2)
+  omega <- cbind(
+    runif(S, 0.1, 0.3),
+    runif(S, 0.3, 0.5),
+    runif(S, 0.5, 0.8),
+    rep(1.0, S)
+  )
+
+  x_vals <- c(0.0, 0.4, 0.9, 1.5)  # one in each region
+
+  for (x in x_vals) {
+    log_lik_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+    log_lik_loop <- sapply(seq_len(S), function(s) {
+      RoBMA:::.dwnorm_fast.ss(x, mean_vec[s], sd_vec[s], omega[s, , drop = FALSE], crit_x, log = TRUE)
+    })
+
+    expect_equal(log_lik_matrix, log_lik_loop, tolerance = 1e-10,
+                 info = paste("multi-crit x =", x))
+  }
+})
+
+test_that(".dwnorm_fast.ss.matrix log=FALSE returns correct densities", {
+
+  set.seed(303)
+  S <- 15
+  x <- 0.6
+
+  mean_vec <- rnorm(S, 0.3, 0.2)
+  sd_vec   <- runif(S, 0.2, 0.4)
+  crit_x   <- c(0.4, 0.9)
+  omega    <- cbind(runif(S, 0.2, 0.4), runif(S, 0.5, 0.8), rep(1.0, S))
+
+  # Test log = FALSE
+  dens_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega, crit_x, log = FALSE)
+  log_lik_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+
+  expect_equal(dens_matrix, exp(log_lik_matrix), tolerance = 1e-10,
+               info = "log=FALSE should equal exp(log=TRUE)")
+
+  # All densities should be positive
+  expect_true(all(dens_matrix > 0), info = "densities should be positive")
+})
+
+test_that(".dwnorm_fast.ss.matrix matches exported dwnorm for constant omega", {
+
+  # When omega is the same for all samples and matches exported function format
+  set.seed(404)
+  S <- 40
+  x <- 0.7
+
+  mean_vec <- rep(0.25, S)
+  sd_vec   <- rep(0.35, S)
+  crit_x   <- c(0.5, 1.0)
+  omega_val <- c(0.3, 0.6, 1.0)
+  omega <- matrix(rep(omega_val, each = S), nrow = S, ncol = 3)
+
+  log_lik_matrix <- RoBMA:::.dwnorm_fast.ss.matrix(x, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+
+  # Compare with exported dwnorm (should give same result for all samples)
+  log_lik_exported <- dwnorm(x, mean_vec[1], sd_vec[1], crit_x = crit_x,
+                             omega = omega_val, type = "one.sided", log = TRUE)
+
+  # All matrix results should be identical and match exported
+  expect_equal(unique(log_lik_matrix), log_lik_exported, tolerance = 1e-8,
+               info = "constant omega should match exported dwnorm")
+})
+
+test_that(".dwnorm_fast.ss.matrix handles edge cases", {
+
+  S <- 10
+  crit_x <- c(0.5)  # single critical value (two weight regions)
+  omega <- cbind(runif(S, 0.3, 0.5), rep(1.0, S))
+
+  mean_vec <- rep(0, S)
+  sd_vec <- rep(1, S)
+
+  # Edge case 1: x exactly at critical value
+  x_at_crit <- 0.5
+  log_lik <- RoBMA:::.dwnorm_fast.ss.matrix(x_at_crit, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+  expect_true(all(is.finite(log_lik)), info = "x at critical value")
+
+  # Edge case 2: x far from mean
+  x_extreme <- 5.0
+  log_lik_extreme <- RoBMA:::.dwnorm_fast.ss.matrix(x_extreme, mean_vec, sd_vec, omega, crit_x, log = TRUE)
+  expect_true(all(is.finite(log_lik_extreme)), info = "extreme x value")
+
+  # Edge case 3: uniform omega (no selection)
+  omega_uniform <- matrix(1, nrow = S, ncol = 2)
+  log_lik_uniform <- RoBMA:::.dwnorm_fast.ss.matrix(0.3, mean_vec, sd_vec, omega_uniform, crit_x, log = TRUE)
+  log_lik_normal <- dnorm(0.3, mean_vec, sd_vec, log = TRUE)
+  expect_equal(log_lik_uniform, log_lik_normal, tolerance = 1e-10,
+               info = "uniform omega should equal normal distribution")
 })

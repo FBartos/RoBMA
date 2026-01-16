@@ -1,3 +1,6 @@
+### obsolete - use for reference only ###
+
+
 #' @title Check fitted RoBMA object for errors and warnings
 #'
 #' @description Checks fitted RoBMA object
@@ -30,7 +33,7 @@ check_RoBMA_convergence <- function(fit){
 
 # Internal function for re-evaluating model convergence with updated criteria:
 # Purpose: Allows post-hoc changes to convergence diagnostics without refitting
-# 
+#
 # Process:
 # 1. Extracts MCMC fit and marginal likelihood from model object
 # 2. Skips evaluation for error/null models (automatically non-converged)
@@ -40,7 +43,7 @@ check_RoBMA_convergence <- function(fit){
 #
 # Key behaviors:
 # - Bridge sampling requires both MCMC convergence AND valid marginal likelihood
-# - Spike-and-slab (ss) only requires MCMC convergence 
+# - Spike-and-slab (ss) only requires MCMC convergence
 # - Failed models can be kept or removed based on remove_failed setting
 # - Aggregates warnings from MCMC fitting, convergence checks, and marginal likelihood
 #
@@ -69,10 +72,10 @@ check_RoBMA_convergence <- function(fit){
     max_error    = convergence_checks[["max_error"]],     # Monte Carlo standard error maximum
     max_SD_error = convergence_checks[["max_SD_error"]]   # SD of MC error maximum
   )
-  
+
   # Aggregate warnings from fit and convergence check
   warnings    <- c(warnings, attr(fit, "warnings"), attr(check_fit, "errors"))
-  
+
   # Determine convergence based on MCMC diagnostics and user preferences
   if(convergence_checks[["remove_failed"]] && !check_fit){
     converged <- FALSE
@@ -105,7 +108,7 @@ check_RoBMA_convergence <- function(fit){
 #
 # Logic:
 # - Simple models: all priors must be point/none AND no publication bias (omega) priors
-# - Regression models: all non-term priors must be point/none AND all term priors must be point 
+# - Regression models: all non-term priors must be point/none AND all term priors must be point
 #   AND no publication bias priors
 #
 # Key concepts:
@@ -116,7 +119,7 @@ check_RoBMA_convergence <- function(fit){
 #
 # Returns: TRUE if model is constant (no sampling needed), FALSE otherwise
 .is_model_constant         <- function(priors){
-  
+
   if(is.null(priors[["terms"]])){
     # Simple (non-regression) models: check all components except terms
     # Must have no omega priors (publication bias requires sampling)
@@ -125,11 +128,11 @@ check_RoBMA_convergence <- function(fit){
     # Regression models: separate checks for non-term and term priors
     # Non-term priors (effect, heterogeneity, etc.): can be point or none, no omega allowed
     non_terms <- all(sapply(priors[names(priors) != "terms"], function(prior) is.prior.point(prior) | is.prior.none(prior))) && is.null(priors[["omega"]])
-    
+
     # Term priors (regression coefficients): must all be point priors (not none)
     # Regression coefficients can't be "none" - they must be either estimated or fixed
     terms     <- all(sapply(priors[["terms"]], function(prior) is.prior.point(prior)))
-    
+
     # Both conditions must be satisfied for model to be constant
     return(non_terms && terms)
   }
@@ -189,7 +192,7 @@ check_RoBMA_convergence <- function(fit){
 }
 # Internal function to aggregate and format errors/warnings for user display:
 # Purpose: Collects errors, warnings, and convergence issues across all models
-# 
+#
 # Process:
 # 1. Shortens long warning/error lists to manageable size (max_print limit)
 # 2. Adds convergence failure summary if any models failed
@@ -212,7 +215,7 @@ check_RoBMA_convergence <- function(fit){
 # Purpose: Returns logical vector indicating which models converged successfully
 #
 # Algorithm differences:
-# - Bridge sampling: multiple models stored in object[["models"]], each with convergence status  
+# - Bridge sampling: multiple models stored in object[["models"]], each with convergence status
 # - Spike-and-slab: single model stored in object[["model"]] with single convergence status
 #
 # Returns: logical vector (bridge) or single logical value (ss) indicating convergence
@@ -230,7 +233,7 @@ check_RoBMA_convergence <- function(fit){
 
 # Internal function to extract warnings from models with algorithm-specific formatting:
 # Purpose: Collects all warning messages across fitted models for user feedback
-# 
+#
 # Formatting differences:
 # - Bridge sampling: prefixes warnings with "Model (i):" to identify source model
 # - Spike-and-slab: returns warnings directly (only one model)
@@ -293,7 +296,7 @@ check_RoBMA_convergence <- function(fit){
 #
 # Component-specific logic:
 # - Effect: checks mu (simple models) or intercept (regression models)
-# - Heterogeneity: checks tau parameter 
+# - Heterogeneity: checks tau parameter
 # - Bias: checks omega (publication bias) parameter
 # - Hierarchical: checks rho (between-study correlation) parameter
 #

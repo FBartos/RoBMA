@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Transform RoBMA object into z-curve
 #'
 #' @description
@@ -391,13 +393,13 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
 
   # extract the data
   dots <- list(...)
-  
+
   # extract special parameters if provided (from plot.zcurve_RoBMA)
   dots_hist <- dots[["dots_hist"]]
   dots_all  <- dots[["dots_all"]]
   dots[["dots_hist"]] <- NULL
   dots[["dots_all"]]  <- NULL
-  
+
   # merge dots_all if provided (from plot.zcurve_RoBMA)
   if(!is.null(dots_all)){
     dots <- c(dots, dots_all[!names(dots_all) %in% names(dots)])
@@ -458,8 +460,8 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
                      ybottom = 0, ytop = df_hist$density,
                      border = dots_hist$border, col = dots_hist$col)
     }else{
-      graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col, 
-                     xlab = dots_hist$xlab, ylab = dots_hist$ylab, main = dots_hist$main, 
+      graphics::plot(z_hist, freq = FALSE, las = 1, border = dots_hist$border, col = dots_hist$col,
+                     xlab = dots_hist$xlab, ylab = dots_hist$ylab, main = dots_hist$main,
                      ylim = dots_hist$ylim, xaxt = dots_hist$xaxt, yaxt = dots_hist$yaxt)
     }
   }
@@ -469,7 +471,7 @@ hist.zcurve_RoBMA  <- function(x, plot_type = "base", from = -6, to = 6, by = 0.
     if(length(tresholds) > 0){
       dots_thresholds <- if(!is.null(dots_thresholds)) dots_thresholds else list()
       dots_thresholds <- .get_dots_thresholds_zcurve(dots_thresholds, plot_type = plot_type)
-      
+
       if(plot_type == "base"){
         graphics::abline(v = tresholds, col = dots_thresholds$col, lty = dots_thresholds$lty, lwd = dots_thresholds$lwd)
       }else if(plot_type == "ggplot"){
@@ -605,7 +607,7 @@ lines.zcurve_RoBMA <- function(x, conditional = FALSE, plot_type = "base",
     }else{
       ylim <- NULL
     }
-    
+
     # base R histogram arguments
     hist_dots <- list(
       border  = if(!is.null(dots[["border"]]))  dots[["border"]]  else "gray60",

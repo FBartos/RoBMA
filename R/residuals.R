@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Extract method for Robust Bayesian Meta-Analysis Fits
 #'
 #' @description \code{residuals.RoBMA} extract residuals based on the RoBMA model.

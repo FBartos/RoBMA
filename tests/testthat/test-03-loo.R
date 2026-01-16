@@ -1,6 +1,10 @@
 # Test LOO-PSIS functionality for brma objects
 # ============================================================================
 
+# The LOO-PSIS functionality is necessary for the residuals and funnel plot
+# functionality. Due to the computational costs (and the possibility to test)
+# against other metafor output) it is primary tested therein.
+
 source(testthat::test_path("common-functions.R"))
 
 # load cached fits

@@ -1,4 +1,4 @@
-
+### obsolete - use for reference only ###
 
 #' @title Summarizes heterogeneity of a RoBMA model
 #'

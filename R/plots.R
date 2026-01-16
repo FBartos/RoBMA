@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Plots a fitted RoBMA object
 #'
 #' @description \code{plot.RoBMA} allows to visualize

@@ -1,11 +1,16 @@
 context("Residuals")
 
+# TODO:
+# add a unit test with interaction and meandif factor
+# (to verify that the model matrix is correct)
+
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "residuals")
 
 # list & load all fits
 skip_if_no_fits()
+skip_if_not_installed("metafor")
 fits <- lapply(list_fits(), load_fit)
 info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
@@ -18,8 +23,6 @@ names(info) <- list_fits()
 
 test_that("Residuals for simple meta-analysis match metafor", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -29,10 +32,9 @@ test_that("Residuals for simple meta-analysis match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor")
 
   # --------------------------------------------------
@@ -40,10 +42,9 @@ test_that("Residuals for simple meta-analysis match metafor", {
   # --------------------------------------------------
 
   metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
+  brma_pearson    <- residuals(fit_brma, type = "pearson")
 
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
+  expect_equal(brma_pearson, as.vector(metafor_pearson), tolerance = 0.05,
                info = "brma pearson residuals should match metafor")
 
   # --------------------------------------------------
@@ -51,11 +52,21 @@ test_that("Residuals for simple meta-analysis match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
 
-  expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
+  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
                info = "brma rstandard residuals should match metafor")
+
+
+  # --------------------------------------------------
+  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # --------------------------------------------------
+
+  brma_loo_pit <- residuals(fit_brma, type = "LOO-PIT")
+
+  expect_equal(brma_rstandard, brma_loo_pit, tolerance = 0.05,
+               info = "LOO-PIT and rstandard residuals should be similar for simple models")
+
 })
 
 
@@ -64,8 +75,6 @@ test_that("Residuals for simple meta-analysis match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for meta-regression match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bcg_meta-regression"
   fit_metafor <- info[[name]][["metafor"]]
@@ -76,10 +85,9 @@ test_that("Residuals for meta-regression match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.10,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.10,
                info = "brma outcome residuals should match metafor for meta-regression")
 
   # --------------------------------------------------
@@ -87,10 +95,9 @@ test_that("Residuals for meta-regression match metafor", {
   # --------------------------------------------------
 
   metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
+  brma_pearson    <- residuals(fit_brma, type = "pearson")
 
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.10,
+  expect_equal(brma_pearson, as.vector(metafor_pearson), tolerance = 0.10,
                info = "brma pearson residuals should match metafor for meta-regression")
 
   # --------------------------------------------------
@@ -98,11 +105,19 @@ test_that("Residuals for meta-regression match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
 
-  expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.10,
+  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.10,
                info = "brma rstandard residuals should match metafor for meta-regression")
+
+  # --------------------------------------------------
+  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+
+  expect_equal(brma_rstandard, brma_loo_pit, tolerance = 0.10,
+               info = "LOO-PIT and rstandard residuals should be similar for simple models")
 })
 
 
@@ -111,8 +126,6 @@ test_that("Residuals for meta-regression match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for location-scale model match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "bangertdrowns2004_location-scale"
   fit_metafor <- info[[name]][["metafor"]]
@@ -123,10 +136,9 @@ test_that("Residuals for location-scale model match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for location-scale model")
 
   # --------------------------------------------------
@@ -134,10 +146,9 @@ test_that("Residuals for location-scale model match metafor", {
   # --------------------------------------------------
 
   metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
+  brma_pearson    <- residuals(fit_brma, type = "pearson")
 
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
+  expect_equal(brma_pearson, as.vector(metafor_pearson), tolerance = 0.05,
                info = "brma pearson residuals should match metafor for location-scale model")
 
   # --------------------------------------------------
@@ -145,11 +156,19 @@ test_that("Residuals for location-scale model match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
 
-  expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
+  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
                info = "brma rstandard residuals should match metafor for location-scale model")
+
+  # --------------------------------------------------
+  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # --------------------------------------------------
+
+  brma_loo_pit <- residuals(fit_brma, type = "LOO-PIT")
+
+  expect_equal(brma_rstandard, brma_loo_pit, tolerance = 0.05,
+               info = "LOO-PIT and rstandard residuals should be similar for simple models")
 })
 
 
@@ -158,8 +177,6 @@ test_that("Residuals for location-scale model match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for 3-level model match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "konstantopoulos2011_3lvl"
   fit_metafor <- info[[name]][["metafor"]]
@@ -170,10 +187,9 @@ test_that("Residuals for 3-level model match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for 3-level model")
 
   # --------------------------------------------------
@@ -181,10 +197,9 @@ test_that("Residuals for 3-level model match metafor", {
   # --------------------------------------------------
 
   metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
+  brma_pearson    <- residuals(fit_brma, type = "pearson")
 
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
+  expect_equal(brma_pearson, as.vector(metafor_pearson), tolerance = 0.05,
                info = "brma pearson residuals should match metafor for 3-level model")
 
   # --------------------------------------------------
@@ -192,11 +207,22 @@ test_that("Residuals for 3-level model match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
 
-  expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
+  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
                info = "brma rstandard residuals should match metafor for 3-level model")
+
+  # --------------------------------------------------
+  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+
+  # The loopit residuals don't match the rstandard residuals that well
+  # however, they seem to be well centered and scaled
+  expect_equal(mean(brma_loo_pit), 0, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
+  expect_equal(sd(brma_loo_pit),   1, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
+  expect_true(cor(brma_rstandard, brma_loo_pit) > 0.8,  info = "LOO-PIT and rstandard are directionally aligned")
 })
 
 
@@ -205,8 +231,6 @@ test_that("Residuals for 3-level model match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for selection model (positive) match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-3PSM"
   fit_metafor <- info[[name]][["metafor"]]
@@ -217,33 +241,41 @@ test_that("Residuals for selection model (positive) match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for selection model (positive)")
 
   # --------------------------------------------------
-  # Pearson residuals: compare brma vs metafor
+  # Pearson residuals: should not be available for selection models
   # --------------------------------------------------
 
-  metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
-
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
-               info = "brma pearson residuals should match metafor for selection model (positive)")
+  expect_error(
+    residuals(fit_brma, type = "pearson"),
+    "Pearson residuals are not available for selection models",
+    info = "pearson should error for selection models"
+  )
 
   # --------------------------------------------------
-  # Standardized (rstandard) residuals: compare brma vs metafor
+  # Standardized (rstandard) residuals: should not be available for selection models
   # --------------------------------------------------
-# TODO: not implemented in metafor
-#   metafor_rstandard <- rstandard(fit_metafor)
-#   brma_rstandard <- residuals(fit_brma, type = "rstandard")
-#   brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
-#
-#   expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
-#                info = "brma rstandard residuals should match metafor for selection model (positive)")
+
+  expect_error(
+    residuals(fit_brma, type = "rstandard"),
+    "Standardized residuals.*are not available for selection models",
+    info = "rstandard should error for selection models"
+  )
+
+  # --------------------------------------------------
+  # LOO-PIT residuals (no comparison)
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+
+  # the residuals find one massive outlier at 4th row
+  expect_true(brma_loo_pit[4]           > 4,  info = "LOO-PIT finds one large outlier")
+  expect_true(all(abs(brma_loo_pit[-4]) < 4), info = "LOO-PIT finds one large outlier")
+  expect_true(cor(brma_resid, brma_loo_pit) > 0.9, info = "LOO-PIT and residuals are directionally aligned")
 })
 
 
@@ -252,8 +284,6 @@ test_that("Residuals for selection model (positive) match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for selection model (negative) match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-3PSM_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -264,33 +294,42 @@ test_that("Residuals for selection model (negative) match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for selection model (negative)")
 
   # --------------------------------------------------
-  # Pearson residuals: compare brma vs metafor
+  # Pearson residuals: should not be available for selection models
   # --------------------------------------------------
 
-  metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
-
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
-               info = "brma pearson residuals should match metafor for selection model (negative)")
+  expect_error(
+    residuals(fit_brma, type = "pearson"),
+    "Pearson residuals are not available for selection models",
+    info = "pearson should error for selection models"
+  )
 
   # --------------------------------------------------
-  # Standardized (rstandard) residuals: compare brma vs metafor
+  # Standardized (rstandard) residuals: should not be available for selection models
   # --------------------------------------------------
-  # TODO: not implemented in metafor
-  #   metafor_rstandard <- rstandard(fit_metafor)
-  #   brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  #   brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
-  #
-  #   expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
-  #                info = "brma rstandard residuals should match metafor for selection model (negative)")
+
+  expect_error(
+    residuals(fit_brma, type = "rstandard"),
+    "Standardized residuals.*are not available for selection models",
+    info = "rstandard should error for selection models"
+  )
+
+  # --------------------------------------------------
+  # LOO-PIT residuals (no comparison)
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+
+  # the residuals find one massive outlier at 4th row
+  # note that the direction of residuals is flipped from (previous selection model since the data were flipped too)
+  expect_true(brma_loo_pit[4]           < -4,      info = "LOO-PIT finds one large outlier")
+  expect_true(all(abs(brma_loo_pit[-4]) < 4),      info = "LOO-PIT finds one large outlier")
+  expect_true(cor(brma_resid, brma_loo_pit) > 0.9, info = "LOO-PIT with negative direction is correctly flipped")
 })
 
 
@@ -299,8 +338,6 @@ test_that("Residuals for selection model (negative) match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for PET model (positive) match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-PET"
   fit_metafor <- info[[name]][["metafor"]]
@@ -311,10 +348,9 @@ test_that("Residuals for PET model (positive) match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for PET model (positive)")
 
   # --------------------------------------------------
@@ -322,10 +358,9 @@ test_that("Residuals for PET model (positive) match metafor", {
   # --------------------------------------------------
 
   metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
+  brma_pearson    <- residuals(fit_brma, type = "pearson")
 
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
+  expect_equal(brma_pearson, as.vector(metafor_pearson), tolerance = 0.05,
                info = "brma pearson residuals should match metafor for PET model (positive)")
 
   # --------------------------------------------------
@@ -333,11 +368,21 @@ test_that("Residuals for PET model (positive) match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
 
-  expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
+  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
                info = "brma rstandard residuals should match metafor for PET model (positive)")
+
+  # --------------------------------------------------
+  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+
+  # there is one extreme residual (again observation 4) that differs in intensity
+  expect_true(brma_loo_pit[4]           > 4,  info = "LOO-PIT finds one large outlier")
+  expect_true(all(abs(brma_loo_pit[-4]) < 4), info = "LOO-PIT finds one large outlier")
+  expect_true(cor(brma_rstandard, brma_loo_pit) > 0.9, info = "LOO-PIT and rstandard are directionally aligned")
 })
 
 
@@ -346,8 +391,6 @@ test_that("Residuals for PET model (positive) match metafor", {
 # ============================================================================ #
 
 test_that("Residuals for PET model (negative) match metafor", {
-
-  skip_if_not_installed("metafor")
 
   name        <- "dat.lehmann2018-PET_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -358,10 +401,9 @@ test_that("Residuals for PET model (negative) match metafor", {
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for PET model (negative)")
 
   # --------------------------------------------------
@@ -369,10 +411,9 @@ test_that("Residuals for PET model (negative) match metafor", {
   # --------------------------------------------------
 
   metafor_pearson <- residuals(fit_metafor, type = "pearson")
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
+  brma_pearson    <- residuals(fit_brma, type = "pearson")
 
-  expect_equal(brma_pearson_mean, as.vector(metafor_pearson), tolerance = 0.05,
+  expect_equal(brma_pearson, as.vector(metafor_pearson), tolerance = 0.05,
                info = "brma pearson residuals should match metafor for PET model (negative)")
 
   # --------------------------------------------------
@@ -380,11 +421,23 @@ test_that("Residuals for PET model (negative) match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  brma_rstandard    <- rstandard(fit_brma, type = "rstandard")
 
-  expect_equal(brma_rstandard_mean, as.vector(metafor_rstandard$z), tolerance = 0.05,
+  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
                info = "brma rstandard residuals should match metafor for PET model (negative)")
+
+
+  # --------------------------------------------------
+  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(rstandard(fit_brma))
+
+  # there is one extreme residual (again observation 4) that differs in intensity
+  # note that the direction of residuals is flipped from (previous PET since the data were flipped too)
+  expect_true(brma_loo_pit[4]           < -4,          info = "LOO-PIT finds one large outlier")
+  expect_true(all(abs(brma_loo_pit[-4]) < 4),          info = "LOO-PIT finds one large outlier")
+  expect_true(cor(brma_rstandard, brma_loo_pit) > 0.9, info = "LOO-PIT with negative direction is correctly flipped")
 })
 
 
@@ -394,134 +447,48 @@ test_that("Residuals for PET model (negative) match metafor", {
 
 test_that("Residuals for GLMM model are computed correctly", {
 
-  skip_if_not_installed("metafor")
-
   name        <- "nielweise2008_glmm"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
-
-  n_studies <- nrow(fit_brma$data$outcome)
 
   # --------------------------------------------------
   # Outcome residuals: compare brma vs metafor
   # --------------------------------------------------
 
   metafor_resid <- residuals(fit_metafor)
-  brma_resid <- residuals(fit_brma)
-  brma_resid_mean <- brma_resid$summary[, "Mean"]
+  brma_resid    <- residuals(fit_brma)
 
-  expect_equal(brma_resid_mean, as.vector(metafor_resid), tolerance = 0.05,
+  expect_equal(brma_resid, as.vector(metafor_resid), tolerance = 0.05,
                info = "brma outcome residuals should match metafor for GLMM model")
 
   # --------------------------------------------------
-  # Pearson residuals: check finite and correct length
-  # (metafor GLMM may not support pearson residuals directly)
+  # Pearson residuals: should not be available for GLMM models
   # --------------------------------------------------
 
-  # TODO: these do not exist for metafor
-  brma_pearson <- residuals(fit_brma, type = "pearson")
-  brma_pearson_mean <- brma_pearson$summary[, "Mean"]
-
-  expect_true(all(is.finite(brma_pearson_mean)),
-              info = "pearson residuals should be finite for GLMM model")
-  expect_equal(length(brma_pearson_mean), n_studies,
-               info = "pearson residuals should have one value per study")
+  expect_error(
+    residuals(fit_brma, type = "pearson"),
+    "Pearson residuals are only available for normal outcome models",
+    info = "pearson should error for GLMM models"
+  )
 
   # --------------------------------------------------
-  # Standardized (rstandard) residuals: check finite and correct length
+  # Standardized (rstandard) residuals: should not be available for GLMM models
   # --------------------------------------------------
 
-  # TODO: these do not exist for metafor
-  brma_rstandard <- residuals(fit_brma, type = "rstandard")
-  brma_rstandard_mean <- brma_rstandard$summary[, "Mean"]
+  expect_error(
+    residuals(fit_brma, type = "rstandard"),
+    "Standardized residuals.*are only available for normal outcome models",
+    info = "rstandard should error for GLMM models"
+  )
 
-  expect_true(all(is.finite(brma_rstandard_mean)),
-              info = "rstandard residuals should be finite for GLMM model")
-  expect_equal(length(brma_rstandard_mean), n_studies,
-               info = "rstandard residuals should have one value per study")
+  # --------------------------------------------------
+  # LOO-PIT residuals (no comparison)
+  # --------------------------------------------------
+
+  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+
+  # The residuals seem to be well centered and scaled
+  expect_equal(mean(brma_loo_pit), 0, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
+  expect_equal(sd(brma_loo_pit),   1, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
+  expect_true(cor(brma_resid, brma_loo_pit) > 0.9,      info = "LOO-PIT and residuals are directionally aligned")
 })
-
-
-# ============================================================================ #
-# Test: Residuals Function Interface
-# ============================================================================ #
-
-test_that("Residuals function has correct interface", {
-
-  name     <- "bcg_meta-analysis"
-  fit_brma <- fits[[name]]
-
-  n_studies <- nrow(fit_brma$data$outcome)
-
-  # --------------------------------------------------
-  # Test type argument accepts all valid values
-  # --------------------------------------------------
-
-  expect_no_error(residuals(fit_brma))
-  expect_no_error(residuals(fit_brma, type = "pearson"))
-  expect_no_error(residuals(fit_brma, type = "rstandard"))
-
-  # --------------------------------------------------
-  # Test as_samples = TRUE returns matrix for all types
-  # --------------------------------------------------
-
-  samples_outcome   <- residuals(fit_brma,   as_samples = TRUE)
-  samples_pearson   <- residuals(fit_brma, type = "pearson",   as_samples = TRUE)
-  samples_rstandard <- residuals(fit_brma, type = "rstandard", as_samples = TRUE)
-
-  expect_true(is.matrix(samples_outcome),
-              info = "outcome residuals with as_samples = TRUE should return matrix")
-  expect_true(is.matrix(samples_pearson),
-              info = "pearson residuals with as_samples = TRUE should return matrix")
-  expect_true(is.matrix(samples_rstandard),
-              info = "rstandard residuals with as_samples = TRUE should return matrix")
-
-  # all should have same dimensions
-  expect_equal(dim(samples_outcome), dim(samples_pearson))
-  expect_equal(dim(samples_outcome), dim(samples_rstandard))
-  expect_equal(ncol(samples_outcome), n_studies,
-               info = "residuals should return one column per study")
-
-  # --------------------------------------------------
-  # Test probs argument
-  # --------------------------------------------------
-
-  resid_90ci <- residuals(fit_brma, probs = c(0.05, 0.95))
-  ci_names <- colnames(resid_90ci$summary)
-  # BayesTools may format as "5%" or "0.05" - check for either format
-  has_lower <- any(grepl("5%|0\\.05", ci_names))
-  has_upper <- any(grepl("95%|0\\.95", ci_names))
-  expect_true(has_lower && has_upper,
-              info = "probs argument should control CI quantiles")
-
-  # --------------------------------------------------
-  # Test return class
-  # --------------------------------------------------
-
-  resid_result <- residuals(fit_brma)
-  expect_s3_class(resid_result, "brma.residuals")
-  expect_true("summary" %in% names(resid_result),
-              info = "result should contain summary element")
-  expect_true("data" %in% names(resid_result),
-              info = "result should contain data element")
-
-  # --------------------------------------------------
-  # Test that all residual types return finite values
-  # --------------------------------------------------
-
-  expect_true(all(is.finite(samples_outcome)),
-              info = "outcome residuals should all be finite")
-  expect_true(all(is.finite(samples_pearson)),
-              info = "pearson residuals should all be finite")
-  expect_true(all(is.finite(samples_rstandard)),
-              info = "rstandard residuals should all be finite")
-
-  # --------------------------------------------------
-  # Test rstandard() wrapper function
-  # --------------------------------------------------
-
-  rstandard_result <- rstandard(fit_brma)
-  residuals_rstandard <- residuals(fit_brma, type = "rstandard")
-
-  expect_equal(rstandard_result$summary, residuals_rstandard$summary,
-               info = "rstandard() should return same result as residuals(type='rstandard')")})

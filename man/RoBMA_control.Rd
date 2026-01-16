@@ -96,7 +96,7 @@ conv_checks <- set_convergence_checks(
 
 \dontrun{
 # Use in RoBMA function
-fit <- RoBMA(d = c(0.5, 0.3, 0.1), 
+fit <- RoBMA(d = c(0.5, 0.3, 0.1),
              se = c(0.2, 0.15, 0.1),
              autofit_control = autofit_ctrl,
              convergence_checks = conv_checks)

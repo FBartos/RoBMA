@@ -1,3 +1,6 @@
+### obsolete - use for reference only ###
+
+
 # Internal function for fitting individual RoBMA models using MCMC:
 # Purpose: Handles MCMC sampling and marginal likelihood computation for a single model
 #

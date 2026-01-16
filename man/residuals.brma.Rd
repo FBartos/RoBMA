@@ -4,52 +4,44 @@
 \alias{residuals.brma}
 \title{Residuals for brma Objects}
 \usage{
-\method{residuals}{brma}(
-  object,
-  type = "outcome",
-  bias_adjusted = FALSE,
-  probs = c(0.025, 0.975),
-  as_samples = FALSE,
-  ...
-)
+\method{residuals}{brma}(object, type = "outcome", bias_adjusted = FALSE, ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
 
 \item{type}{the type of residuals to compute. Options are:
 \itemize{
-\item \code{"outcome"} (default): Raw residuals (observed - fitted)
+\item \code{"outcome"} (default): Raw residuals (observed - fitted).
+Available for all model types.
 \item \code{"pearson"}: Pearson (semi-standardized) residuals, dividing
-raw residuals by the marginal standard error \eqn{\sqrt{v_i + \tau^2}}
+raw residuals by the marginal standard error \eqn{\sqrt{v_i + \tau^2}}.
+Only available for normal outcome models without selection (weightfunction)
+bias adjustment.
 \item \code{"rstandard"}: Internally standardized residuals, dividing
-raw residuals by their standard errors computed using the hat matrix
-\item \code{"quantile"}: Quantile residuals computed via inverse probability
-transformation. The CDF value \eqn{F(y_i | \mu_i, \sigma_i)} is computed
-for each observation and transformed to standard normal quantiles via
-\eqn{\Phi^{-1}(F(y_i))}. For selection models, the weighted normal CDF
-is used. Under a correctly specified model, quantile residuals should
-follow a standard normal distribution.
+raw residuals by their standard errors computed using the hat matrix.
+Only available for normal outcome models without selection (weightfunction)
+bias adjustment.
+\item \code{"LOO-PIT"}: Leave-one-out probability integral transform (PIT)
+residuals computed via Pareto smoothed importance sampling. The LOO-CDF
+value for each observation is computed and transformed to standard normal
+quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly specified model,
+these residuals should follow a standard normal distribution. This is the
+recommended standardized residual for Bayesian models as it properly
+accounts for estimation uncertainty and leverage. Available for all model
+types. Note: This is computationally more expensive than other methods.
 }}
 
 \item{bias_adjusted}{whether residuals should be computed from bias-adjusted
 fitted values. Defaults to \code{FALSE}, which means residuals are computed
 as the difference between observed values and raw (biased) predictions
 including PET/PEESE terms. Set to \code{TRUE} to compute residuals from
-bias-corrected fitted values.}
+bias-corrected fitted values. Only applies to \code{type = "outcome"}. Note
+that the bias adjustment residuals are not residuals in the traditional sense.}
 
-\item{probs}{quantiles of the posterior distribution to be displayed.
-Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
-
-\item{as_samples}{whether posterior samples should be returned instead of
-a summary table. Defaults to \code{FALSE}.}
-
-\item{...}{additional arguments (currently ignored)}
+\item{...}{additional arguments.}
 }
 \value{
-If \code{as_samples = FALSE}, returns a \code{brma.residuals} object
-containing a summary table with one row per observation showing the residual
-estimate and credible interval. If \code{as_samples = TRUE}, returns a matrix
-of posterior samples with one column per observation.
+A numeric vector of residual means, one per observation.
 }
 \description{
 Computes residuals (observed minus fitted values) from a
@@ -65,7 +57,8 @@ Pearson residuals (\code{type = "pearson"}) divide raw residuals by the
 marginal standard error:
 \deqn{r_i^{Pearson} = \frac{e_i}{\sqrt{v_i + \tau^2}}}
 where \eqn{v_i} is the sampling variance and \eqn{\tau^2} is the
-between-study heterogeneity.
+between-study heterogeneity. Only available for normal outcome models
+without selection (weightfunction) bias adjustment.
 
 Standardized residuals (\code{type = "rstandard"}) use the hat matrix to
 compute residual standard errors that account for the uncertainty in
@@ -73,34 +66,32 @@ estimated coefficients:
 \deqn{z_i = \frac{e_i}{\sqrt{[(I-H)M(I-H)']_{ii}}}}
 where \eqn{H} is the hat matrix and \eqn{M} is the marginal variance-covariance
 matrix. For models without moderators, this simplifies to the Pearson formula.
+Only available for normal outcome models without selection (weightfunction)
+bias adjustment.
 
-Quantile residuals (\code{type = "quantile"}) are computed via inverse
-probability transformation \insertCite{cox1968general}{RoBMA}:
-\deqn{q_i = \Phi^{-1}(F(y_i | \mu_i, \sigma_i))}
-where \eqn{F} is the cumulative distribution function of the marginal
-distribution, \eqn{\sigma_i = \sqrt{v_i + \tau^2}}, and \eqn{\Phi^{-1}}
-is the standard normal quantile function. For selection models
-(weightfunction), the weighted normal CDF is used. Under a correctly
-specified model, quantile residuals should follow a standard normal
-distribution, making them useful for model diagnostics.
+LOO-PIT residuals (\code{type = "LOO-PIT"}) are the Bayesian equivalent of
+studentized deleted residuals \insertCite{vehtari2017practical}{RoBMA}. They
+are computed via leave-one-out probability integral transformation:
+\deqn{r_i = \Phi^{-1}(u_i)}
+where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
+value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
+cumulative distribution function of the marginal distribution. Under a
+correctly specified model, LOO-PIT residuals should follow a standard
+normal distribution. Unlike traditional standardized residuals, LOO-PIT
+residuals properly account for estimation uncertainty and leverage without
+requiring a hat matrix. This is the recommended method for standardized
+residuals in Bayesian meta-analysis.
 
 For meta-regression models, fitted values incorporate moderator effects.
 For models without moderators, all fitted values equal the pooled effect.
-
-When \code{bias_adjusted = FALSE} (default), the fitted values include
-PET/PEESE bias terms, so residuals represent deviation from what we
-expect to observe given publication bias. When \code{bias_adjusted = TRUE},
-fitted values are bias-corrected, so residuals represent deviation from
-the estimated true effect.
 
 For GLMM models (binomial or Poisson), observed effect sizes and their
 sampling variances are computed from the raw frequency data using the
 same formulas as \code{metafor::escalc} with the default zero-cell
 adjustment (adding 0.5 to all cells when any cell is zero).
 
-The standardized residuals are computed separately for each posterior
-sample of \eqn{\tau}, naturally propagating uncertainty in heterogeneity
-to the standardized residuals.
+The residuals are computed separately for each posterior sample,
+naturally propagating uncertainty in model parameters to the residuals.
 }
 \examples{
 \dontrun{
@@ -110,20 +101,22 @@ fit <- brma(yi ~ 1, sei = sei, data = dat)
 # get raw residuals (default)
 residuals(fit)
 
-# get Pearson (semi-standardized) residuals
+# get Pearson (semi-standardized) residuals (normal outcome only)
 residuals(fit, type = "pearson")
 
-# get internally standardized residuals
+# get internally standardized residuals (normal outcome only)
 residuals(fit, type = "rstandard")
 
-# get quantile residuals (should be ~N(0,1) if model is correct)
-residuals(fit, type = "quantile")
+# get LOO-PIT residuals (recommended for standardized residuals)
+# should be ~N(0,1) if model is correctly specified
+residuals(fit, type = "LOO-PIT")
 
 # get residuals from bias-adjusted predictions
 residuals(fit, bias_adjusted = TRUE)
 
-# get posterior samples
-samples <- residuals(fit, as_samples = TRUE)
+# check LOO diagnostics before using LOO-PIT residuals
+loo_result <- loo(fit)
+plot(loo_result)  # check Pareto k values
 }
 
 }

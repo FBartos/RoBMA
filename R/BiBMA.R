@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Estimate a Bayesian Model-Averaged Meta-Analysis of Binomial Data
 #'
 #' @description \code{BiBMA} estimate a binomial-normal Bayesian

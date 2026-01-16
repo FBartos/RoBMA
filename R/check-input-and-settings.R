@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Prints summary of \code{"RoBMA"} ensemble implied by the specified priors
 #'
 #' @description \code{check_setup} prints summary of \code{"RoBMA"} ensemble
@@ -15,14 +17,14 @@
 #' @examples
 #' # check default RoBMA setup
 #' check_setup()
-#' 
+#'
 #' # check setup with custom priors
 #' check_setup(
 #'   priors_effect = prior("normal", list(mean = 0, sd = 0.5)),
-#'   priors_heterogeneity = prior("invgamma", list(shape = 2, scale = 0.3)),  
+#'   priors_heterogeneity = prior("invgamma", list(shape = 2, scale = 0.3)),
 #'   models = TRUE
 #' )
-#' 
+#'
 #' # show detailed model overview
 #' check_setup(models = TRUE)
 #' @export
@@ -185,7 +187,7 @@ check_setup.RoBMA <- check_setup
 #' # check regression setup with example data
 #' data(Andrews2021)
 #' check_setup.reg(~ measure + age, data = Andrews2021)
-#' 
+#'
 #' # check setup with custom priors
 #' check_setup.reg(~ measure + age, data = Andrews2021,
 #'                 priors_effect = prior("normal", list(mean = 0, sd = 0.5),
@@ -797,7 +799,7 @@ check_setup.reg <- function(
 
 #' @title Control MCMC fitting process
 #'
-#' @description \code{set_autofit_control} and \code{set_convergence_checks} control settings for the 
+#' @description \code{set_autofit_control} and \code{set_convergence_checks} control settings for the
 #' autofit process of the MCMC JAGS sampler and specify termination criteria and convergence checks.
 #'
 #' @param max_Rhat maximum value of the R-hat diagnostic.
@@ -833,7 +835,7 @@ check_setup.reg <- function(
 #' stop iterating based on convergence criteria. \code{set_convergence_checks} sets thresholds
 #' for determining whether a model has converged adequately.
 #'
-#' The autofit control manages computational resources by setting maximum time limits and 
+#' The autofit control manages computational resources by setting maximum time limits and
 #' determining how many additional samples to draw if convergence criteria are not met.
 #' The convergence checks determine the quality standards that fitted models must meet.
 #'
@@ -843,16 +845,16 @@ check_setup.reg <- function(
 #'   max_time = list(time = 30, unit = "mins"),
 #'   sample_extend = 2000
 #' )
-#' 
+#'
 #' # Set custom convergence checks with stricter criteria
 #' conv_checks <- set_convergence_checks(
 #'   max_Rhat = 1.01,
 #'   min_ESS = 1000
 #' )
-#' 
+#'
 #' \dontrun{
 #' # Use in RoBMA function
-#' fit <- RoBMA(d = c(0.5, 0.3, 0.1), 
+#' fit <- RoBMA(d = c(0.5, 0.3, 0.1),
 #'              se = c(0.2, 0.15, 0.1),
 #'              autofit_control = autofit_ctrl,
 #'              convergence_checks = conv_checks)

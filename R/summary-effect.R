@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Compute pooled effect size
 #'
 #' @description \code{pooled_effect} computes the pooled effect size

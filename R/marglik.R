@@ -1,8 +1,9 @@
 ### RoBMA 4.0.0
-
+# in progress -- important pieces missing
 ### compute marginal likelihood
 marglik <- function(x) {
 
+  # TODO: implement
 
 }
 
@@ -13,6 +14,7 @@ marglik <- function(x) {
     outcome_type) {
 
   ### follow the same structure as the generated JAGS code
+  # TODO: base on brma.evaluate.R and brma.pdf.R
 
   ### prepare heterogeneity parameter
   if (is_scale) {

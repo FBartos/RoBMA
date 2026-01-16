@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #### internal transformation functions ####
 ### main
 # jac = d inv(x) / dx

@@ -155,8 +155,7 @@ funnel.brma <- function(x, sampling_heterogeneity = TRUE, sampling_bias = TRUE,
   effect_direction  <- .effect_direction(x)
 
   # get residuals (yi - fitted) as mean of posterior samples
-  resid_samples <- residuals.brma(x, type = "outcome", bias_adjusted = bias_adjusted, as_samples = TRUE)
-  res           <- colMeans(resid_samples)
+  res <- residuals.brma(x, type = "outcome", bias_adjusted = bias_adjusted)
 
   # get standard errors
   se <- .outcome_data_sei(x)

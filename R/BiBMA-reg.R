@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Estimate a Robust Bayesian Meta-Analysis Meta-Regression
 #'
 #' @description \code{RoBMA} is used to estimate a robust Bayesian

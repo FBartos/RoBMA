@@ -5,6 +5,8 @@ description: Guide for working with posterior samples from the models (i.e., ext
 
 # Skill: Posterior Sample Manipulation
 
+This skill covers working with posterior samples from brma/RoBMA models, including extraction, transformation, and computation of derived quantities. Key topics include effect direction handling, the core computation functions (`.evaluate`, `.rng`, `.cdf`, `.pdf`), and common pitfalls to avoid.
+
 ## When to Use This Skill
 
 Use this skill when working with:
@@ -12,6 +14,8 @@ Use this skill when working with:
 - Implementing prediction functions that use JAGS posterior samples
 - Debugging sign/direction issues in effect size estimates
 - Working with selection models, PET, or PEESE bias adjustments
+- Understanding the core computation functions (`.evaluate`, `.rng`, `.cdf`, `.pdf`)
+- Implementing new model diagnostics or prediction methods
 
 ## Effect Direction Flipping in brma Models
 
@@ -37,6 +41,8 @@ When `effect_direction == "negative"` is specified, the JAGS model internally wo
 | `theta` (true study effects) | Original scale | None |
 | PET/PEESE bias term | Computed for positive effects | **Subtract** (not add) for negative effects |
 | Selection model sampling | Weights computed in positive space | Flip `mu` before sampling, flip result back |
+| RNG computation | Computed in original space | **Flip RNG** (- RNG) for negative effects |
+| CDF computation | Computed in original space | **Flip CDF** (1 - CDF) for negative effects |
 
 ### PET/PEESE Bias Adjustment
 
@@ -67,19 +73,40 @@ if (effect_direction == "negative") {
   mu_samples_for_wnorm <- mu_samples
 }
 
-outcome_samples <- .outcome_rng.wnorm(
-  mu_samples = mu_samples_for_wnorm,
-  tau_within = tau_within_samples,
-  sei        = outcome_data[["sei"]],
-  omega      = omega_samples,
-  crit_yi    = fit_data$crit_yi
-)
-
+outcome_samples <- .outcome_rng.wnorm(...)
 # Flip samples back to original space
 if (effect_direction == "negative") {
   outcome_samples <- -outcome_samples
 }
 ```
+
+### CDF Computation
+
+When computing cumulative distribution functions (e.g., for LOO-PIT residuals):
+- CDF is computed in original scale using `.cdf.brma()`
+- For negative effect directions, flip the CDF values: `cdf_matrix <- 1 - cdf_matrix`
+
+```r
+# Example from brma.residuals.R
+cdf_matrix <- .cdf.brma(object)
+effect_direction <- .effect_direction(object)
+if (effect_direction == "negative") {
+  cdf_matrix <- 1 - cdf_matrix
+}
+```
+
+## Core Computation Functions
+
+The brma package uses four families of internal functions for posterior sample manipulation:
+
+| Function Family | Purpose | Key Functions | Effect Direction Handling |
+|----------------|---------|---------------|---------------------------|
+| `.evaluate.*` | Extract posterior samples from JAGS | `.evaluate.brma.mu()`, `.evaluate.brma.study_effects()` | Returns samples in original scale (no flipping needed) |
+| `.rng.*` | Sample from posterior predictive distributions | `.outcome_rng.norm()`, `.outcome_rng.wnorm()`, etc. | Flipping handled by calling function |
+| `.cdf.*` | Compute cumulative distribution functions | `.cdf.brma()`, `.outcome_cdf.norm()`, etc. | CDF flipping handled by calling function |
+| `.pdf.*` | Compute log-likelihoods for LOO-PSIS | `.outcome_pdf.norm()`, `.outcome_pdf.wnorm()`, etc. | No flipping needed (density values) |
+
+**Function Organization**: Most families have a main dispatcher (e.g., `.cdf.brma()`) that handles model type detection and calls outcome-specific functions. Matrix outputs are consistently S × K (samples × observations).
 
 ### Common Mistakes to Avoid
 
@@ -88,12 +115,16 @@ if (effect_direction == "negative") {
 3. **Ignoring direction for PET/PEESE**: The bias adjustment direction matters
 4. **Forgetting to flip back**: When sampling in positive space, always flip results back
 5. **Flipping study effects (`gamma`)**: These are already in original scale
+6. **Forgetting rng/cdf flipping**: For LOO-PIT residuals, always flip CDF values for negative effects
 
 ### Key Files
 
-- `R/brma.evaluate.R` - Contains `.evaluate.brma.mu()` and `.evaluate.brma.study_effects()`
-- `R/brma.predict.R` - Contains prediction logic and weighted sampling
-- `R/fit.R` - Contains JAGS model syntax generation showing how `-mu` is used
+- `R/brma.evaluate.R` - Posterior sample extraction (`.evaluate.*` functions)
+- `R/brma.predict.R` - Prediction logic and RNG calling
+- `R/brma.rng.R` - Posterior predictive sampling (`.outcome_rng.*` functions)
+- `R/brma.cdf.R` - CDF computation (`.cdf.brma()`, `.outcome_cdf.*` functions)
+- `R/brma.pdf.R` - Log-likelihood computation (`.outcome_pdf.*` functions)
+- `R/fit.R` - JAGS model syntax generation
 
 ### Testing Effect Direction Handling
 

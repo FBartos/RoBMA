@@ -82,6 +82,8 @@ loo <- function(x, ...) UseMethod("loo")
 #' @export
 loo.brma <- function(x, ..., r_eff = NULL, parallel = FALSE) {
 
+  BayesTools::check_bool(parallel, "parallel")
+
   # check that loo package is available
   if (!requireNamespace("loo", quietly = TRUE)) {
     stop("Package 'loo' is required for this function. ",
@@ -89,20 +91,19 @@ loo.brma <- function(x, ..., r_eff = NULL, parallel = FALSE) {
   }
 
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .log_lik.brma(x)
+  log_lik <- .pdf.brma(x)
 
   # determine number of cores based on `parallel` and package options
-  cores <- if (isTRUE(parallel)) max(1, RoBMA.get_option("max_cores")) else 1
+  cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
 
   # compute relative effective sample sizes if not provided
   if (is.null(r_eff)) {
-    # for MCMC samples, we need to compute relative efficiency
     # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
-    # extract chain information from the fit
-    mcmc_list   <- coda::as.mcmc.list(x[["fit"]])
-    n_chains    <- length(mcmc_list)
-    n_iter      <- nrow(mcmc_list[[1]])
-    chain_id    <- rep(seq_len(n_chains), each = n_iter)
+    # Get chain / iteration information directly from the runjags fit
+    n_chains <- length(x[["fit"]][["mcmc"]])
+    n_iter   <- x[["fit"]][["sample"]]
+
+    chain_id <- rep(seq_len(n_chains), each = n_iter)
 
     r_eff <- loo::relative_eff(exp(log_lik), chain_id = chain_id, cores = cores)
   }
@@ -135,7 +136,7 @@ loo.brma <- function(x, ..., r_eff = NULL, parallel = FALSE) {
 #'
 #' @export
 logLik.brma <- function(object, ...) {
-  out <- .log_lik.brma(object)
+  out <- .pdf.brma(object)
   class(out) <- c("logLik.brma", class(out))
   return(out)
 }
@@ -309,7 +310,7 @@ waic.brma <- function(x, ...) {
   }
 
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .log_lik.brma(x)
+  log_lik <- .pdf.brma(x)
 
   # call waic on the log-likelihood matrix
   waic_result <- loo::waic(log_lik, ...)

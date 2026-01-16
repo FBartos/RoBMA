@@ -213,7 +213,7 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .log_lik.brma
+# .pdf.brma
 # ---------------------------------------------------------------------------- #
 #
 # Compute the full log-likelihood matrix for a brma object.
@@ -231,7 +231,7 @@
 # @return S x K matrix of log-likelihood values
 #
 # ---------------------------------------------------------------------------- #
-.log_lik.brma <- function(object) {
+.pdf.brma <- function(object) {
 
   ### extract priors and structural information about the model
   priors            <- object[["priors"]]
@@ -292,8 +292,20 @@
     mu_samples <- mu_samples + study_contribution
   }
 
+  ### obtain outcome data: yi and sei
+  yi  <- .outcome_data_yi(object)
+  sei <- .outcome_data_sei(object)
+
   ### dispatch to appropriate PDF function based on outcome type
   if (outcome_type == "norm") {
+
+    # for PET, PEESE, and selection models, the outcome and crit_yi is computed in "positive" space
+    # (yi flipped for negative effect direction in .create_fit_data)
+    # so we need to flip mu_samples to match
+    if (effect_direction == "negative") {
+      mu_samples <- -mu_samples
+      yi         <- -yi
+    }
 
     if (is_weightfunction) {
 
@@ -301,20 +313,9 @@
       posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
       omega_samples     <- posterior_samples[, grep("omega", colnames(posterior_samples)), drop = FALSE]
 
-      # for weighted distributions, crit_yi is computed in "positive" space
-      # (yi flipped for negative effect direction in .create_fit_data)
-      # so we need to flip mu_samples to match
-      if (effect_direction == "negative") {
-        mu_samples_for_wnorm <- -mu_samples
-        yi_for_wnorm         <- -outcome_data[["yi"]]
-      } else {
-        mu_samples_for_wnorm <- mu_samples
-        yi_for_wnorm         <- outcome_data[["yi"]]
-      }
-
       log_lik <- .outcome_pdf.wnorm(
-        yi         = yi_for_wnorm,
-        mu_samples = mu_samples_for_wnorm,
+        yi         = yi,
+        mu_samples = mu_samples,
         tau_within = tau_within_samples,
         sei        = outcome_data[["sei"]],
         omega      = omega_samples,
@@ -325,10 +326,10 @@
 
       # standard normal likelihood
       log_lik <- .outcome_pdf.norm(
-        yi         = outcome_data[["yi"]],
+        yi         = yi,
         mu_samples = mu_samples,
         tau_within = tau_within_samples,
-        sei        = outcome_data[["sei"]]
+        sei        = sei
       )
 
     }

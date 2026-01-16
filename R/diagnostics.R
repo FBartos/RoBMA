@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Checks a fitted RoBMA object
 #'
 #' @description \code{diagnostics} creates visual

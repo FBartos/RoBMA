@@ -1,3 +1,6 @@
+### obsolete - use for reference only ###
+
+
 #' @title Estimate a Bayesian Model-Averaged Meta-Analysis
 #'
 #' @description \code{NoBMA} is a wrapper around [RoBMA()] that can

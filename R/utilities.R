@@ -62,7 +62,7 @@ assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
 assign("min_jags_major",  4,                              envir = RoBMA.private)
 assign("max_jags_major",  4,                              envir = RoBMA.private)
 assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = RoBMA.private)
-assign("check_scaling",   TRUE,                                       envir = RoBMA.private)
+assign("check_scaling",   TRUE,                                       envir = RoBMA.private) # TODO: remove?
 
 assign("silent", FALSE,  envir = RoBMA.private)
 

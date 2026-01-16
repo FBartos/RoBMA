@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 # Internal function for validating and organizing priors into standard structure:
 # Purpose: Handles both custom user priors and precanned model specifications
 #

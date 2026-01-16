@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Prints a fitted RoBMA object
 #'
 #' @param x a fitted RoBMA object.

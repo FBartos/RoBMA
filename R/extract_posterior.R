@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Extract Posterior Samples from a RoBMA Model
 #'
 #' @description Extracts posterior samples for a specified parameter from a RoBMA model object.
