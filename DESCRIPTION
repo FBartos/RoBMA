@@ -40,6 +40,7 @@ Depends:
     R (>= 4.0.0)
 Imports:
     BayesTools (>= 0.2.24),
+    bridgesampling,
     runjags,
     rjags,
     stats,
@@ -52,13 +53,13 @@ Imports:
     ggplot2
 Suggests:
     parallel,
-    metaBMA,
     metafor,
     posterior,
     weightr,
     lme4,
     fixest,
-    loo,
+    loo,    
+    metaBMA,
     emmeans,
     metadat,
     testthat,

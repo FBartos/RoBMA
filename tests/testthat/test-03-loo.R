@@ -1,12 +1,18 @@
-context("loo methods for brma objects")
+# ============================================================================ #
+#
 # Test LOO-PSIS functionality for brma objects
+#
 # ============================================================================
+context("loo methods for brma objects")
 
 # The LOO-PSIS functionality is necessary for the residuals and funnel plot
 # functionality. Due to the computational costs (and the possibility to test)
 # against other metafor output) it is primary tested therein.
 
 source(testthat::test_path("common-functions.R"))
+skip_on_cran()
+skip_if_no_fits()
+skip_if_not_installed("loo")
 
 # load cached fits
 fits <- list()
@@ -22,8 +28,6 @@ for (name in list_fits()) {
 # ---------------------------------------------------------------------------- #
 
 test_that("logLik computes log-likelihood matrix with correct dimensions", {
-
-  skip_if_no_fits()
 
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]
@@ -57,8 +61,6 @@ test_that("logLik computes log-likelihood matrix with correct dimensions", {
 
 test_that("loo/WAIC computes roughly matches AIC", {
 
-  skip_if_no_fits()
-
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
@@ -91,9 +93,6 @@ test_that("loo/WAIC computes roughly matches AIC", {
 
 test_that("loo_compare compares two brma models", {
 
-  skip_if_no_fits()
-  skip_if_not_installed("loo")
-
   # get two brma fits
   fit_brma    <- fits[["bcg_meta-analysis"]]
   fit_brma2   <- fits[["bcg_meta-regression"]]
@@ -109,9 +108,6 @@ test_that("loo_compare compares two brma models", {
 })
 
 test_that("loo_compare works with loo objects", {
-
-  skip_if_no_fits()
-  skip_if_not_installed("loo")
 
   # get two brma fits
   fit_brma    <- fits[["bcg_meta-analysis"]]
@@ -132,9 +128,6 @@ test_that("loo_compare works with loo objects", {
 })
 
 test_that("loo_compare errors with < 2 models", {
-
-  skip_if_no_fits()
-  skip_if_not_installed("loo")
 
   # get one brma fit
   fit_brma <- fits[["bcg_meta-analysis"]]
