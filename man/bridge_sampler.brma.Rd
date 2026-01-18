@@ -16,28 +16,32 @@ An object of class \code{"bridge"} as returned by
 \code{\link[bridgesampling]{bridge_sampler}}.
 }
 \description{
-Compute the marginal likelihood of a brma model using
-bridge sampling. The returned object can be used for Bayesian model
-comparison via \code{\link{bf}} and \code{\link{post_prob}}.
+Extract the marginal likelihood bridge sampling object from
+a brma model. The marginal likelihood must first be computed using
+\code{\link{add_marglik}}.
 }
 \details{
-The marginal likelihood is computed using the \code{bridgesampling} package
-via the \code{BayesTools::JAGS_bridgesampling} wrapper.
+This function extracts the bridge sampling object that was previously
+computed and stored using \code{\link{add_marglik}}. If the marginal
+likelihood has not been computed, an error is thrown.
 
-This is the primary method for computing marginal likelihoods from brma
-objects. The convenience functions \code{\link{logml.brma}},
-\code{\link{bf.brma}}, and \code{\link{post_prob.brma}} internally call
-this method.
+The returned object can be used for Bayesian model comparison via
+\code{\link{bf}} and \code{\link{post_prob}}.
 }
 \examples{
 \dontrun{
 fit <- brma(y = d, se = se, data = Bem2011)
+
+# Compute marginal likelihood first
+fit <- add_marglik(fit)
+
+# Extract bridge sampling object
 bridge <- bridge_sampler(fit)
 print(bridge)
 }
 
 }
 \seealso{
-\code{\link[bridgesampling]{bridge_sampler}}, \code{\link{logml.brma}},
-\code{\link{bf.brma}}, \code{\link{post_prob.brma}}
+\code{\link{add_marglik}}, \code{\link[bridgesampling]{bridge_sampler}},
+\code{\link{logml.brma}}, \code{\link{bf.brma}}, \code{\link{post_prob.brma}}
 }

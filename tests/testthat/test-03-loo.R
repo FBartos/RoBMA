@@ -69,16 +69,25 @@ test_that("loo/WAIC computes roughly matches AIC", {
   fit_metafor2 <- info[[name2]][["metafor"]]
   fit_brma2    <- fits[[name2]]
 
-  # the AIC - LOO comparison is not exact but there should be some mapping
+  ### the AIC - LOO/WAIC comparison is not exact but there should be some mapping
 
   AIC_metafor  <- AIC(fit_metafor)
   AIC_metafor2 <- AIC(fit_metafor2)
 
+  ## loo
   loo_brma  <- loo(fit_brma)
-  loo_brma2 <- suppressWarnings(loo(fit_brma2))
+  loo_brma2 <- loo(fit_brma2)
 
+  # simulate loo not being computed to test the error
+  fit_brma[["loo"]] <- NULL
+  expect_error(loo(fit_brma), "LOO has not been computed")
+
+  ## waic (not precompted for test objects)
+  expect_error(waic(fit_brma), "WAIC has not been computed")
+  fit_brma   <- add_waic(fit_brma)
+  fit_brma2  <- suppressWarnings(add_waic(fit_brma2))
   waic_brma  <- waic(fit_brma)
-  waic_brma2 <- suppressWarnings(waic(fit_brma2))
+  waic_brma2 <- waic(fit_brma2)
 
   expect_equal(loo_brma$estimates["looic", "Estimate"],  28.71, tolerance = 0.01) # metafor: 28.40474
   expect_equal(loo_brma2$estimates["looic", "Estimate"], 24.93, tolerance = 0.01) # metafor: 24.21375

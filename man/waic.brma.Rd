@@ -9,25 +9,25 @@
 \arguments{
 \item{x}{a brma model object.}
 
-\item{...}{additional arguments passed to \code{\link[loo]{waic}}.}
+\item{...}{additional arguments (currently unused).}
 }
 \value{
 An object of class \code{"waic"} as returned by
 \code{\link[loo]{waic}}.
 }
 \description{
-Compute the Widely Applicable Information Criterion (WAIC)
-for brma model objects.
+Extract the WAIC object from a brma model object.
+The WAIC must first be computed using \code{\link{add_waic}}.
 }
 \details{
-WAIC is an alternative to LOO-CV for estimating out-of-sample predictive
-accuracy. Like LOO, it evaluates expected predictive performance for new
-observations.
+This function extracts the WAIC object that was previously computed and
+stored using \code{\link{add_waic}}. If WAIC has not been computed,
+an error is thrown.
 
 In most cases, LOO-PSIS (via \code{\link{loo.brma}}) is preferred over WAIC
 because it provides better estimates and includes diagnostics (Pareto k
 values) that indicate when the approximation may be unreliable.
 }
 \seealso{
-\code{\link{loo.brma}}, \code{\link[loo]{waic}}
+\code{\link{add_waic}}, \code{\link{loo.brma}}, \code{\link[loo]{waic}}
 }

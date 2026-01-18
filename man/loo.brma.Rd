@@ -4,69 +4,41 @@
 \alias{loo.brma}
 \title{LOO-PSIS for brma Objects}
 \usage{
-\method{loo}{brma}(x, ..., r_eff = NULL, parallel = FALSE)
+\method{loo}{brma}(x, ...)
 }
 \arguments{
 \item{x}{a brma model object.}
 
-\item{...}{additional arguments passed to \code{\link[loo]{loo}}.}
-
-\item{r_eff}{optional vector of relative effective sample sizes. If not
-provided, it is computed from the log-likelihood values.}
-
-\item{parallel}{Logical. If \code{TRUE} computations are parallelized and
-the number of cores is taken from \code{RoBMA.get_option("max_cores")}. If
-\code{FALSE} computations are run on a single core.}
+\item{...}{additional arguments (currently unused).}
 }
 \value{
 An object of class \code{c("psis_loo", "loo")} as returned by
 \code{\link[loo]{loo}}.
 }
 \description{
-Compute approximate leave-one-out cross-validation (LOO-CV)
-using Pareto smoothed importance sampling (PSIS) for brma model objects.
+Extract the LOO-PSIS object from a brma model object.
+The LOO must first be computed using \code{\link{add_loo}}.
 }
 \details{
-LOO-CV is computed at the estimate level: for binomial and Poisson models,
-each pair of counts (ai/ci or x1i/x2i) that defines a single effect size
-estimate is treated as one observation.
-
-For multilevel models, the LOO conditions on the fitted study-level random
-effects (gamma). This means the LOO evaluates prediction of new estimates
-within studies, not prediction of new studies.
-
-For selection models, the LOO evaluates the weighted likelihood, conditioning
-on the posterior omega samples.
-
-\strong{Important for model comparison:} When comparing models via
-\code{\link[loo]{loo_compare}}, the selection is based on expected
-out-of-sample predictive performance. This evaluates how well models predict
-\emph{new} observations, not how well they fit the observed data.
+This function extracts the LOO object that was previously computed and
+stored using \code{\link{add_loo}}. If LOO has not been computed,
+an error is thrown.
 }
 \examples{
 \dontrun{
 # Fit a brma model
 fit <- brma(yi = yi, sei = sei, data = dat)
 
-# Compute LOO-PSIS
+# Compute LOO-PSIS (must be called first)
+fit <- add_loo(fit)
+
+# Extract LOO object
 loo_fit <- loo(fit)
 print(loo_fit)
-
-# Check Pareto k diagnostics
-plot(loo_fit)
-
-# Compare two models
-fit1 <- brma(yi = yi, sei = sei, data = dat)
-fit2 <- brma(yi = yi, sei = sei, data = dat, priors_bias = NULL)
-loo_compare(loo(fit1), loo(fit2))
 }
 
-}
-\references{
-\insertCite{vehtari2017practical}{RoBMA}
-\insertCite{vehtari2024pareto}{RoBMA}
 }
 \seealso{
-\code{\link[loo]{loo}}, \code{\link[loo]{loo_compare}},
-\code{\link[loo]{pareto_k_ids}}
+\code{\link{add_loo}}, \code{\link[loo]{loo}},
+\code{\link[loo]{loo_compare}}, \code{\link[loo]{pareto_k_ids}}
 }

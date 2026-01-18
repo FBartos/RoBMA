@@ -430,7 +430,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
   }
 
   # compute LOO via PSIS
-  loo_result <- loo.brma(object, save_psis = TRUE)
+  loo_result <- loo.brma(object)
 
   # early exit if only LOO object requested
   if (loo_only) {

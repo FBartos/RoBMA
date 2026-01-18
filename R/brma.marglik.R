@@ -16,8 +16,62 @@
 ### RoBMA 4.0.0
 
 
+# ---------------------------------------------------------------------------- #
+# add_marglik generic and method
+# ---------------------------------------------------------------------------- #
+
+#' @export
+add_marglik <- function(object, ...) UseMethod("add_marglik")
+
+
+#' @title Add Marginal Likelihood to brma Objects
+#'
+#' @description Compute the marginal likelihood of a brma model using
+#' bridge sampling and store the result in the object.
+#'
+#' @param object a brma model object.
+#' @param ... additional arguments (currently not used).
+#'
+#' @details
+#' The marginal likelihood is computed using the \code{bridgesampling} package
+#' via the \code{BayesTools::JAGS_bridgesampling} wrapper. The result is stored
+#' in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
+#'
+#' @return The brma object with the marginal likelihood result stored in
+#' \code{object[["marglik"]]}.
+#'
+#' @seealso \code{\link{bridge_sampler.brma}}, \code{\link{logml.brma}},
+#' \code{\link{bf.brma}}, \code{\link{post_prob.brma}}
+#'
+#' @examples
+#' \dontrun{
+#' fit <- brma(y = d, se = se, data = Bem2011)
+#'
+#' # Compute and store marginal likelihood
+#' fit <- add_marglik(fit)
+#'
+#' # Extract bridge sampling object
+#' bridge <- bridge_sampler(fit)
+#' print(bridge)
+#'
+#' # Get log marginal likelihood
+#' logml(fit)
+#' }
+#'
+#' @export
+add_marglik.brma <- function(object, ...) {
+  marglik <- .marglik(object)
+  object[["marglik"]] <- marglik
+  return(object)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .marglik internal function
+# ---------------------------------------------------------------------------- #
+
 # Compute marginal likelihood for brma objects using bridge sampling.
-# This is an internal function called by the bridgesampling S3 methods.
+# This is an internal function called by add_marglik.brma.
 #
 # @param object a brma model object.
 #
@@ -318,7 +372,7 @@
     # clamp rho to [0, 1] to handle numerical precision issues
     rho <- min(max(rho, 0), 1)
 
-    # tau_within = tau * sqrt(rho)       (estimate-level heterogeneity)
+    # tau_within  = tau * sqrt(rho)       (estimate-level heterogeneity)
     # tau_between = tau * sqrt(1 - rho)  (study-level heterogeneity)
     tau_within_samples  <- tau_samples * sqrt(rho)
     tau_between_samples <- tau_samples * sqrt(1 - rho)

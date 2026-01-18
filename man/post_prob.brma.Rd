@@ -28,18 +28,25 @@ Compute posterior model probabilities from marginal
 likelihoods of brma models.
 }
 \details{
-The marginal likelihoods are computed using \code{\link{bridge_sampler.brma}}.
+The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
 }
 \examples{
 \dontrun{
 fit1 <- brma(y = d, se = se, data = Bem2011)
-fit2 <- brma(y = d, se = se, data = Bem2011,
-             priors = prior(family = "point", value = 0, parameter = "mu"))
+fit2 <- brma(
+  y = d, se = se, data = Bem2011,
+  priors = prior(family = "point", value = 0, parameter = "mu")
+)
+
+# Compute marginal likelihoods
+fit1 <- add_marglik(fit1)
+fit2 <- add_marglik(fit2)
+
 post_prob(fit1, fit2)
 }
 
 }
 \seealso{
-\code{\link{bridge_sampler.brma}}, \code{\link{bf.brma}},
-\code{\link{logml.brma}}
+\code{\link{add_marglik}}, \code{\link{bridge_sampler.brma}},
+\code{\link{bf.brma}}, \code{\link{logml.brma}}
 }

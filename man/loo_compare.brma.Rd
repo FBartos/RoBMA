@@ -34,13 +34,15 @@ out-of-sample predictive performance. This evaluates how well models predict
 fit_bias <- brma(yi = yi, sei = sei, data = dat)
 fit_nobias <- brma(yi = yi, sei = sei, data = dat, priors_bias = NULL)
 
+# Add LOO to both models
+fit_bias <- add_loo(fit_bias)
+fit_nobias <- add_loo(fit_nobias)
+
 # Compare models based on expected out-of-sample predictive performance
 loo_compare(fit_bias, fit_nobias)
 
-# Alternatively, compute loo objects first
-loo1 <- loo(fit_bias)
-loo2 <- loo(fit_nobias)
-loo_compare(loo1, loo2)
+# Alternatively, compare loo objects directly
+loo_compare(loo(fit_bias), loo(fit_nobias))
 }
 
 }

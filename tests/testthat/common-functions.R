@@ -12,14 +12,12 @@ if (test_files_dir == "" || !dir.exists(test_files_dir)) {
 }
 
 # Setup directory for saving fitted models
-temp_fits_dir    <- file.path(test_files_dir, "fits")
-temp_marglik_dir <- file.path(test_files_dir, "margliks")
-temp_info_dir    <- file.path(test_files_dir, "info")
-temp_temp_dir    <- file.path(test_files_dir, "temp")
-if (!dir.exists(temp_fits_dir))    dir.create(temp_fits_dir,    showWarnings = FALSE, recursive = TRUE)
-if (!dir.exists(temp_marglik_dir)) dir.create(temp_marglik_dir, showWarnings = FALSE, recursive = TRUE)
-if (!dir.exists(temp_info_dir))    dir.create(temp_info_dir,    showWarnings = FALSE, recursive = TRUE)
-if (!dir.exists(temp_temp_dir))    dir.create(temp_temp_dir,    showWarnings = FALSE, recursive = TRUE)
+temp_fits_dir <- file.path(test_files_dir, "fits")
+temp_info_dir <- file.path(test_files_dir, "info")
+temp_temp_dir <- file.path(test_files_dir, "temp")
+if (!dir.exists(temp_fits_dir)) dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(temp_info_dir)) dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Set environment variable so other test files can locate pre-fitted models
 Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
@@ -38,14 +36,16 @@ test_reference_table <- function(table, filename, info_msg = NULL,
     if (!dir.exists(print_dir)) {
       dir.create(print_dir, recursive = TRUE)
     }
-    writeLines(capture_output_lines(table, print = TRUE, width = 150),
-               file.path(print_dir, filename))
+    writeLines(
+      capture_output_lines(table, print = TRUE, width = 150),
+      file.path(print_dir, filename)
+    )
   } else {
     # Test mode
     ref_file <- file.path(print_dir, filename)
     if (file.exists(ref_file)) {
       expected_output <- readLines(ref_file, warn = FALSE)
-      actual_output   <- capture_output_lines(table, print = TRUE, width = 150)
+      actual_output <- capture_output_lines(table, print = TRUE, width = 150)
       expect_equal(actual_output, expected_output, info = info_msg)
     } else {
       skip(paste("Reference file", filename, "not found."))
@@ -102,15 +102,9 @@ skip_refit_if_cached <- function(name) {
 # HELPER FUNCTIONS: Model Fit Saving / Loading
 # ============================================================================ #
 
-save_fit     <- function(name, fit, marglik = NULL, info = NULL) {
-
-  # Save model fit
+save_fit <- function(name, fit, info = NULL) {
+  # Save model fit (marglik and loo are now stored in the fit object)
   saveRDS(fit, file = file.path(temp_fits_dir, paste0(name, ".RDS")))
-
-  # Save marglik if provided
-  if (!is.null(marglik)) {
-    saveRDS(marglik, file = file.path(temp_marglik_dir, paste0(name, ".RDS")))
-  }
 
   # Save info if provided
   if (!is.null(info)) {
@@ -119,24 +113,12 @@ save_fit     <- function(name, fit, marglik = NULL, info = NULL) {
 
   return(invisible(TRUE))
 }
-load_fit     <- function(name) {
-
+load_fit <- function(name) {
   # load model fit
   fit <- readRDS(file = file.path(temp_fits_dir, paste0(name, ".RDS")))
   return(fit)
 }
-load_marglik <- function(name) {
-
-  # load model marglik
-  marglik <- try(readRDS(file = file.path(temp_marglik_dir, paste0(name, ".RDS"))), silent = TRUE)
-  if (inherits(marglik, "try-error")) {
-    return(list())
-  } else {
-    return(marglik)
-  }
-}
-load_info    <- function(name) {
-
+load_info <- function(name) {
   # load model info
   info <- suppressWarnings(try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))), silent = TRUE))
   if (inherits(info, "try-error")) {
@@ -146,8 +128,7 @@ load_info    <- function(name) {
   }
 }
 
-list_fits    <- function(name) {
-
+list_fits <- function(name) {
   files <- suppressWarnings(list.files(temp_fits_dir))
   files <- gsub(".RDS", "", files)
 
@@ -155,22 +136,19 @@ list_fits    <- function(name) {
 }
 
 clean_cached_fits <- function(name) {
-
   if (!missing(name)) {
     # remove only the specific `name`` fitted indicator files side-effects from `temp_temp_dir`
     file.remove(file.path(temp_temp_dir, paste0(name, ".txt")))
   } else {
     # Remove all cached files from test directories
-    unlink(temp_fits_dir,    recursive = TRUE)
-    unlink(temp_marglik_dir, recursive = TRUE)
-    unlink(temp_info_dir,    recursive = TRUE)
-    unlink(temp_temp_dir,    recursive = TRUE)
+    unlink(temp_fits_dir, recursive = TRUE)
+    unlink(temp_info_dir, recursive = TRUE)
+    unlink(temp_temp_dir, recursive = TRUE)
 
     # Recreate empty directories
-    dir.create(temp_fits_dir,    showWarnings = FALSE, recursive = TRUE)
-    dir.create(temp_marglik_dir, showWarnings = FALSE, recursive = TRUE)
-    dir.create(temp_info_dir,    showWarnings = FALSE, recursive = TRUE)
-    dir.create(temp_temp_dir,    showWarnings = FALSE, recursive = TRUE)
+    dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)
+    dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
+    dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
   }
 
   return(invisible(TRUE))

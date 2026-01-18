@@ -15,20 +15,26 @@
 A scalar numeric value representing the log marginal likelihood.
 }
 \description{
-Extract the log marginal likelihood from a brma model
-computed via bridge sampling.
+Extract the log marginal likelihood from a brma model.
+The marginal likelihood must first be computed using \code{\link{add_marglik}}.
 }
 \details{
-The marginal likelihood is computed using \code{\link{bridge_sampler.brma}}.
+This function extracts the log marginal likelihood from the bridge sampling
+object that was previously computed and stored using \code{\link{add_marglik}}.
 }
 \examples{
 \dontrun{
 fit <- brma(y = d, se = se, data = Bem2011)
+
+# Compute marginal likelihood first
+fit <- add_marglik(fit)
+
+# Get log marginal likelihood
 logml(fit)
 }
 
 }
 \seealso{
-\code{\link{bridge_sampler.brma}}, \code{\link{bf.brma}},
-\code{\link{post_prob.brma}}
+\code{\link{add_marglik}}, \code{\link{bridge_sampler.brma}},
+\code{\link{bf.brma}}, \code{\link{post_prob.brma}}
 }

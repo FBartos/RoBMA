@@ -18,17 +18,21 @@
 # ============================================================================ #
 
 
+# ---------------------------------------------------------------------------- #
+# add_loo generic and method
+# ---------------------------------------------------------------------------- #
+
 #' @export
-loo <- function(x, ...) UseMethod("loo")
+add_loo <- function(object, ...) UseMethod("add_loo")
 
 
-#' @title LOO-PSIS for brma Objects
+#' @title Add LOO-PSIS to brma Objects
 #'
 #' @description Compute approximate leave-one-out cross-validation (LOO-CV)
-#' using Pareto smoothed importance sampling (PSIS) for brma model objects.
+#' using Pareto smoothed importance sampling (PSIS) for brma model objects
+#' and store the result in the object.
 #'
-#' @param x a brma model object.
-#' @param ... additional arguments passed to \code{\link[loo]{loo}}.
+#' @param object a brma model object.
 #' @param r_eff optional vector of relative effective sample sizes. If not
 #' provided, it is computed from the log-likelihood values.
 #' @param parallel Logical. If \code{TRUE} computations are parallelized and
@@ -46,33 +50,33 @@ loo <- function(x, ...) UseMethod("loo")
 #'
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
+#' 
+#' The PSIS object is essential for model comparison via
+#' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
 #' out-of-sample predictive performance. This evaluates how well models predict
 #' \emph{new} observations, not how well they fit the observed data.
 #'
-#' @return An object of class \code{c("psis_loo", "loo")} as returned by
-#' \code{\link[loo]{loo}}.
+#' @return The brma object with the LOO result stored in \code{object[["loo"]]}.
 #'
-#' @seealso \code{\link[loo]{loo}}, \code{\link[loo]{loo_compare}},
-#' \code{\link[loo]{pareto_k_ids}}
+#' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo}},
+#' \code{\link[loo]{loo_compare}}, \code{\link[loo]{pareto_k_ids}}
 #'
 #' @examples \dontrun{
 #' # Fit a brma model
 #' fit <- brma(yi = yi, sei = sei, data = dat)
 #'
-#' # Compute LOO-PSIS
+#' # Compute and store LOO-PSIS
+#' fit <- add_loo(fit)
+#'
+#' # Extract LOO object
 #' loo_fit <- loo(fit)
 #' print(loo_fit)
 #'
 #' # Check Pareto k diagnostics
 #' plot(loo_fit)
-#'
-#' # Compare two models
-#' fit1 <- brma(yi = yi, sei = sei, data = dat)
-#' fit2 <- brma(yi = yi, sei = sei, data = dat, priors_bias = NULL)
-#' loo_compare(loo(fit1), loo(fit2))
 #' }
 #'
 #' @references
@@ -80,18 +84,11 @@ loo <- function(x, ...) UseMethod("loo")
 #' \insertCite{vehtari2024pareto}{RoBMA}
 #'
 #' @export
-loo.brma <- function(x, ..., r_eff = NULL, parallel = FALSE) {
-
+add_loo.brma <- function(object, r_eff = NULL, parallel = FALSE) {
   BayesTools::check_bool(parallel, "parallel")
 
-  # check that loo package is available
-  if (!requireNamespace("loo", quietly = TRUE)) {
-    stop("Package 'loo' is required for this function. ",
-         "Please install it with: install.packages('loo')", call. = FALSE)
-  }
-
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .pdf.brma(x)
+  log_lik <- .pdf.brma(object)
 
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
@@ -100,8 +97,8 @@ loo.brma <- function(x, ..., r_eff = NULL, parallel = FALSE) {
   if (is.null(r_eff)) {
     # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
     # Get chain / iteration information directly from the runjags fit
-    n_chains <- length(x[["fit"]][["mcmc"]])
-    n_iter   <- x[["fit"]][["sample"]]
+    n_chains <- length(object[["fit"]][["mcmc"]])
+    n_iter <- object[["fit"]][["sample"]]
 
     chain_id <- rep(seq_len(n_chains), each = n_iter)
 
@@ -109,8 +106,106 @@ loo.brma <- function(x, ..., r_eff = NULL, parallel = FALSE) {
   }
 
   # call loo on the log-likelihood matrix
-  loo_result <- loo::loo(log_lik, r_eff = r_eff, cores = cores, ...)
-  return(loo_result)
+  loo_result <- loo::loo(log_lik, r_eff = r_eff, save_psis = TRUE, cores = cores)
+
+  # store in object and return
+
+  object[["loo"]] <- loo_result
+  return(object)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# add_waic generic and method
+# ---------------------------------------------------------------------------- #
+
+#' @export
+add_waic <- function(object, ...) UseMethod("add_waic")
+
+
+#' @title Add WAIC to brma Objects
+#'
+#' @description Compute the Widely Applicable Information Criterion (WAIC)
+#' for brma model objects and store the result in the object.
+#'
+#' @param object a brma model object.
+#' @param ... additional arguments passed to \code{\link[loo]{waic}}.
+#'
+#' @details
+#' WAIC is an alternative to LOO-CV for estimating out-of-sample predictive
+#' accuracy. Like LOO, it evaluates expected predictive performance for new
+#' observations.
+#'
+#' In most cases, LOO-PSIS (via \code{\link{add_loo}}) is preferred over WAIC
+#' because it provides better estimates and includes diagnostics (Pareto k
+#' values) that indicate when the approximation may be unreliable.
+#'
+#' @return The brma object with the WAIC result stored in \code{object[["waic"]]}.
+#'
+#' @seealso \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}
+#'
+#' @export
+add_waic.brma <- function(object, ...) {
+  # compute the log-likelihood matrix (S x K)
+  log_lik <- .pdf.brma(object)
+
+  # call waic on the log-likelihood matrix
+  waic_result <- loo::waic(log_lik, ...)
+
+  # store in object and return
+  object[["waic"]] <- waic_result
+  return(object)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# loo generic and extraction method
+# ---------------------------------------------------------------------------- #
+
+#' @export
+loo <- function(x, ...) UseMethod("loo")
+
+
+#' @title LOO-PSIS for brma Objects
+#'
+#' @description Extract the LOO-PSIS object from a brma model object.
+#' The LOO must first be computed using \code{\link{add_loo}}.
+#'
+#' @param x a brma model object.
+#' @param ... additional arguments (currently unused).
+#'
+#' @details
+#' This function extracts the LOO object that was previously computed and
+#' stored using \code{\link{add_loo}}. If LOO has not been computed,
+#' an error is thrown.
+#'
+#' @return An object of class \code{c("psis_loo", "loo")} as returned by
+#' \code{\link[loo]{loo}}.
+#'
+#' @seealso \code{\link{add_loo}}, \code{\link[loo]{loo}},
+#' \code{\link[loo]{loo_compare}}, \code{\link[loo]{pareto_k_ids}}
+#'
+#' @examples \dontrun{
+#' # Fit a brma model
+#' fit <- brma(yi = yi, sei = sei, data = dat)
+#'
+#' # Compute LOO-PSIS (must be called first)
+#' fit <- add_loo(fit)
+#'
+#' # Extract LOO object
+#' loo_fit <- loo(fit)
+#' print(loo_fit)
+#' }
+#'
+#' @export
+loo.brma <- function(x, ...) {
+  if (is.null(x[["loo"]])) {
+    stop("LOO has not been computed. Call 'object <- add_loo(object)' first.",
+      call. = FALSE
+    )
+  }
+
+  return(x[["loo"]])
 }
 
 
@@ -151,6 +246,10 @@ print.logLik.brma <- function(x, ...) {
 }
 
 
+# ---------------------------------------------------------------------------- #
+# loo_compare generic and methods
+# ---------------------------------------------------------------------------- #
+
 #' @export
 loo_compare <- function(x, ...) UseMethod("loo_compare")
 
@@ -182,24 +281,19 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' fit_bias <- brma(yi = yi, sei = sei, data = dat)
 #' fit_nobias <- brma(yi = yi, sei = sei, data = dat, priors_bias = NULL)
 #'
+#' # Add LOO to both models
+#' fit_bias <- add_loo(fit_bias)
+#' fit_nobias <- add_loo(fit_nobias)
+#'
 #' # Compare models based on expected out-of-sample predictive performance
 #' loo_compare(fit_bias, fit_nobias)
 #'
-#' # Alternatively, compute loo objects first
-#' loo1 <- loo(fit_bias)
-#' loo2 <- loo(fit_nobias)
-#' loo_compare(loo1, loo2)
+#' # Alternatively, compare loo objects directly
+#' loo_compare(loo(fit_bias), loo(fit_nobias))
 #' }
 #'
 #' @export
 loo_compare.brma <- function(x, ...) {
-
-  # check that loo package is available
-  if (!requireNamespace("loo", quietly = TRUE)) {
-    stop("Package 'loo' is required for this function. ",
-         "Please install it with: install.packages('loo')", call. = FALSE)
-  }
-
   # collect all models: x plus any in ...
   models <- c(list(x), list(...))
 
@@ -240,13 +334,6 @@ loo_compare.brma <- function(x, ...) {
 #'
 #' @export
 loo_compare.loo <- function(x, ...) {
-
-  # check that loo package is available
-  if (!requireNamespace("loo", quietly = TRUE)) {
-    stop("Package 'loo' is required for this function. ",
-         "Please install it with: install.packages('loo')", call. = FALSE)
-  }
-
   # collect all models: x plus any in ...
   models <- c(list(x), list(...))
 
@@ -273,22 +360,26 @@ loo_compare.loo <- function(x, ...) {
 }
 
 
+# ---------------------------------------------------------------------------- #
+# waic generic and extraction method
+# ---------------------------------------------------------------------------- #
+
 #' @export
 waic <- function(x, ...) UseMethod("waic")
 
 
 #' @title WAIC for brma Objects
 #'
-#' @description Compute the Widely Applicable Information Criterion (WAIC)
-#' for brma model objects.
+#' @description Extract the WAIC object from a brma model object.
+#' The WAIC must first be computed using \code{\link{add_waic}}.
 #'
 #' @param x a brma model object.
-#' @param ... additional arguments passed to \code{\link[loo]{waic}}.
+#' @param ... additional arguments (currently unused).
 #'
 #' @details
-#' WAIC is an alternative to LOO-CV for estimating out-of-sample predictive
-#' accuracy. Like LOO, it evaluates expected predictive performance for new
-#' observations.
+#' This function extracts the WAIC object that was previously computed and
+#' stored using \code{\link{add_waic}}. If WAIC has not been computed,
+#' an error is thrown.
 #'
 #' In most cases, LOO-PSIS (via \code{\link{loo.brma}}) is preferred over WAIC
 #' because it provides better estimates and includes diagnostics (Pareto k
@@ -297,22 +388,15 @@ waic <- function(x, ...) UseMethod("waic")
 #' @return An object of class \code{"waic"} as returned by
 #' \code{\link[loo]{waic}}.
 #'
-#' @seealso \code{\link{loo.brma}}, \code{\link[loo]{waic}}
+#' @seealso \code{\link{add_waic}}, \code{\link{loo.brma}}, \code{\link[loo]{waic}}
 #'
 #' @export
 waic.brma <- function(x, ...) {
-
-  # check that loo package is available
-  if (!requireNamespace("loo", quietly = TRUE)) {
-    stop("Package 'loo' is required for this function. ",
-         "Please install it with: install.packages('loo')", call. = FALSE)
+  if (is.null(x[["waic"]])) {
+    stop("WAIC has not been computed. Call 'object <- add_waic(object)' first.",
+      call. = FALSE
+    )
   }
 
-  # compute the log-likelihood matrix (S x K)
-  log_lik <- .pdf.brma(x)
-
-  # call waic on the log-likelihood matrix
-  waic_result <- loo::waic(log_lik, ...)
-
-  return(waic_result)
+  return(x[["waic"]])
 }

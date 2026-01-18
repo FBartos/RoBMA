@@ -9,36 +9,36 @@ skip_refit_if_cached("bselmodel")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::selmodel", {
-
   ### fit simple meta-analytic model to difference in two proportions
   data(dat.lehmann2018, package = "metadat")
-  fit_rma.metafor      <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
+  fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
   fit_selmodel.metafor <- metafor::selmodel(fit_rma.metafor, type = "stepfun", alternative = "greater", steps = .025)
 
   # using RoBMA package
   fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
-  fit.marglik   <- bridge_sampler(fit.bselmodel)
-  save_fit("dat.lehmann2018-3PSM", fit.bselmodel, fit.marglik, info = list(metafor = fit_selmodel.metafor))
+  fit.bselmodel <- add_marglik(fit.bselmodel)
+  fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
+  save_fit("dat.lehmann2018-3PSM", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
 
-  expect_equal(fit_selmodel.metafor$beta[[1]],  fit.bselmodel$summary["mu","Mean"],  tolerance = 0.01)
-  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau","Mean"], tolerance = 0.01)
-  expect_equal(fit_selmodel.metafor$delta[2],   fit.bselmodel$summary["omega[0.025,1]","Mean"], tolerance = 0.10)
+  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["mu", "Mean"], tolerance = 0.01)
+  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.01)
+  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,1]", "Mean"], tolerance = 0.10)
 })
 
 test_that("Test against metafor::selmodel (with negative effect sizes)", {
-
   ### fit simple meta-analytic model to difference in two proportions
   data(dat.lehmann2018, package = "metadat")
-  dat.lehmann2018$yi   <- -  dat.lehmann2018$yi
-  fit_rma.metafor      <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
+  dat.lehmann2018$yi <- -dat.lehmann2018$yi
+  fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
   fit_selmodel.metafor <- metafor::selmodel(fit_rma.metafor, type = "stepfun", alternative = "less", steps = .025)
 
   # using RoBMA package
   fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
-  fit.marglik   <- bridge_sampler(fit.bselmodel)
-  save_fit("dat.lehmann2018-3PSM_neg", fit.bselmodel, fit.marglik, info = list(metafor = fit_selmodel.metafor))
+  fit.bselmodel <- add_marglik(fit.bselmodel)
+  fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
+  save_fit("dat.lehmann2018-3PSM_neg", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
 
-  expect_equal(fit_selmodel.metafor$beta[[1]],  fit.bselmodel$summary["mu","Mean"],  tolerance = 0.01)
-  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau","Mean"], tolerance = 0.01)
-  expect_equal(fit_selmodel.metafor$delta[2],   fit.bselmodel$summary["omega[0.025,1]","Mean"], tolerance = 0.10)
+  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["mu", "Mean"], tolerance = 0.01)
+  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.01)
+  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,1]", "Mean"], tolerance = 0.10)
 })
