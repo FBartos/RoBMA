@@ -25,14 +25,14 @@ namespace RoBMA {
 DWWN2::DWWN2() : VectorDist("dwwnorm_2s", 5) {}
 
 
-bool DWWN2::checkParameterLength(std::vector<unsigned int> const &len) const
+bool DWWN2::checkParameterLength(std::vector<unsigned long> const &len) const
 {
   // there is one less cut-point then weights
   return n_crit_x(len) == n_omega(len) - 1;
 }
 
 bool DWWN2::checkParameterValue(std::vector<double const *> const &par,
-			    std::vector<unsigned int> const &len) const
+			    std::vector<unsigned long> const &len) const
 {
   bool crit_x_OK = true;
   bool omega_OK  = true;
@@ -54,10 +54,9 @@ bool DWWN2::checkParameterValue(std::vector<double const *> const &par,
   return crit_x_OK && omega_OK && var_OK && weight_OK;
 }
 
-double DWWN2::logDensity(double const *x, unsigned int length, PDFType type,
-			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper) const
+double DWWN2::logDensity(double const *x, PDFType type,
+			 std::vector<double const *> const &par,
+			 std::vector<unsigned long> const &len) const
 {
   // reassign the addresses to pointers
   const double *mu     = par[0];
@@ -76,41 +75,30 @@ double DWWN2::logDensity(double const *x, unsigned int length, PDFType type,
   return log_lik;
 }
 
-void DWWN2::randomSample(double *x, unsigned int length,
+void DWWN2::randomSample(double *x, 
 			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper,
+			  std::vector<unsigned long> const &len,
 			  RNG *rng) const
 {
   // not implemented
 }
 
-void DWWN2::support(double *lower, double *upper, unsigned int length,
+void DWWN2::support(double *lower, double *upper, 
 	     std::vector<double const *> const &par,
-	     std::vector<unsigned int> const &len) const
+	     std::vector<unsigned long> const &len) const
 {
   // no idea whether this is correct
-  for (unsigned int i = 0; i < length; ++i) {
+  for (unsigned long i = 0; i < length(len); ++i) {
 	  lower[i] = JAGS_NEGINF;
 	  upper[i] = JAGS_POSINF;
   }
 }
 
-unsigned int DWWN2::length(std::vector<unsigned int> const &len) const
+unsigned long DWWN2::length(std::vector<unsigned long> const &len) const
 {
   // no idea how this works
   return 1;
 }
-
-
-void DWWN2::typicalValue(double *x, unsigned int length,
-			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper) const
-{
-  // not implemented
-}
-
 
 bool DWWN2::isSupportFixed(std::vector<bool> const &fixmask) const
 {

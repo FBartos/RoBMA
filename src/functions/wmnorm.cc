@@ -13,7 +13,7 @@ namespace jags {
     // one-sided normal
     wnorm_1s_lpdf::wnorm_1s_lpdf() :ArrayFunction("wnorm_1s_lpdf", 5)
     {}
-    void wnorm_1s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void wnorm_1s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -28,25 +28,25 @@ namespace jags {
       *value = cpp_wnorm_1s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], J);
     }
 
-    bool wnorm_1s_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool wnorm_1s_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    bool wnorm_1s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+    bool wnorm_1s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> wnorm_1s_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> wnorm_1s_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-      return std::vector<unsigned int>(1,1);
+      return std::vector<unsigned long>(1,1);
     }
 
     // two-sided normal
     wnorm_2s_lpdf::wnorm_2s_lpdf() :ArrayFunction("wnorm_2s_lpdf", 5)
     {}
-    void wnorm_2s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void wnorm_2s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -61,26 +61,26 @@ namespace jags {
       *value = cpp_wnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], J);
     }
 
-    bool wnorm_2s_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool wnorm_2s_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    bool wnorm_2s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+    bool wnorm_2s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> wnorm_2s_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> wnorm_2s_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-      return std::vector<unsigned int>(1,1);
+      return std::vector<unsigned long>(1,1);
     }
 
 
     // one-sided multivariate normal
     wmnorm_1s_lpdf::wmnorm_1s_lpdf() :ArrayFunction("wmnorm_1s_lpdf", 5)
     {}
-    void wmnorm_1s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void wmnorm_1s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -97,26 +97,26 @@ namespace jags {
       *value = cpp_wmnorm_1s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
     }
 
-    bool wmnorm_1s_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool wmnorm_1s_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-		bool wmnorm_1s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+		bool wmnorm_1s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> wmnorm_1s_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> wmnorm_1s_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-	    return std::vector<unsigned int>(1,1);
+	    return std::vector<unsigned long>(1,1);
     }
 
 
     // two-sided multivariate normal
     wmnorm_2s_lpdf::wmnorm_2s_lpdf() :ArrayFunction("wmnorm_2s_lpdf", 5)
     {}
-    void wmnorm_2s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void wmnorm_2s_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -133,19 +133,19 @@ namespace jags {
       *value = cpp_wmnorm_2s_lpdf(&x[0], &mu[0], &sigma[0], &crit_x[0], &omega[0], K, J);
     }
 
-    bool wmnorm_2s_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool wmnorm_2s_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-		bool wmnorm_2s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+		bool wmnorm_2s_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> wmnorm_2s_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> wmnorm_2s_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-	    return std::vector<unsigned int>(1,1);
+	    return std::vector<unsigned long>(1,1);
     }
 
 
@@ -153,7 +153,7 @@ namespace jags {
     // one-sided multivariate normal
     wmnorm_1s_v_lpdf::wmnorm_1s_v_lpdf() :ArrayFunction("wmnorm_1s_v_lpdf", 8)
     {}
-    void wmnorm_1s_v_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void wmnorm_1s_v_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -229,26 +229,26 @@ namespace jags {
       *value = log_lik;
     }
 
-    bool wmnorm_1s_v_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool wmnorm_1s_v_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-		bool wmnorm_1s_v_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+		bool wmnorm_1s_v_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> wmnorm_1s_v_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> wmnorm_1s_v_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-	    return std::vector<unsigned int>(1,1);
+	    return std::vector<unsigned long>(1,1);
     }
 
 
     // two-sided multivariate normal
     wmnorm_2s_v_lpdf::wmnorm_2s_v_lpdf() :ArrayFunction("wmnorm_2s_v_lpdf", 8)
     {}
-    void wmnorm_2s_v_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void wmnorm_2s_v_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -324,19 +324,19 @@ namespace jags {
       *value = log_lik;
     }
 
-    bool wmnorm_2s_v_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool wmnorm_2s_v_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-		bool wmnorm_2s_v_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+		bool wmnorm_2s_v_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> wmnorm_2s_v_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> wmnorm_2s_v_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-	    return std::vector<unsigned int>(1,1);
+	    return std::vector<unsigned long>(1,1);
     }
   }
 }

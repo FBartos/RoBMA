@@ -19,23 +19,23 @@ namespace RoBMA {
 
 DWWNMIX::DWWNMIX() : VectorDist("dwwnorm_mix", 7) {}
 
-bool DWWNMIX::checkParameterLength(std::vector<unsigned int> const &len) const
+bool DWWNMIX::checkParameterLength(std::vector<unsigned long> const &len) const
 {
   // there is one less cut-point then weights
   return true;
 }
 
 bool DWWNMIX::checkParameterValue(std::vector<double const *> const &par,
-			    std::vector<unsigned int> const &len) const
+			    std::vector<unsigned long> const &len) const
 {
   return true;
 }
 
 // Log Density
-double DWWNMIX::logDensity(double const *x, unsigned int length, PDFType type,
-			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper) const
+double DWWNMIX::logDensity(double const *x, PDFType type,
+			   std::vector<double const *> const &par,
+			   std::vector<unsigned long> const &len) const
+
 {
     // extract parameters
     const double *mu     = par[0];
@@ -71,41 +71,30 @@ double DWWNMIX::logDensity(double const *x, unsigned int length, PDFType type,
     return log_lik;
 }
 
-void DWWNMIX::randomSample(double *x, unsigned int length,
+void DWWNMIX::randomSample(double *x,
 			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper,
+			  std::vector<unsigned long> const &len,
 			  RNG *rng) const
 {
   // not implemented
 }
 
-void DWWNMIX::support(double *lower, double *upper, unsigned int length,
+void DWWNMIX::support(double *lower, double *upper,
 	     std::vector<double const *> const &par,
-	     std::vector<unsigned int> const &len) const
+	     std::vector<unsigned long> const &len) const
 {
   // no idea whether this is correct
-  for (unsigned int i = 0; i < length; ++i) {
+  for (unsigned long i = 0; i < length(len); ++i) {
 	  lower[i] = JAGS_NEGINF;
 	  upper[i] = JAGS_POSINF;
   }
 }
 
-unsigned int DWWNMIX::length(std::vector<unsigned int> const &len) const
+unsigned long DWWNMIX::length(std::vector<unsigned long> const &len) const
 {
   // no idea how this works
   return 1;
 }
-
-
-void DWWNMIX::typicalValue(double *x, unsigned int length,
-			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper) const
-{
-  // not implemented
-}
-
 
 bool DWWNMIX::isSupportFixed(std::vector<bool> const &fixmask) const
 {
