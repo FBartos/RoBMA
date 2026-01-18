@@ -12,7 +12,7 @@ namespace jags {
     // one-sided multivariate normal
     mnorm_lpdf::mnorm_lpdf() :ArrayFunction("mnorm_lpdf", 3)
     {}
-    void mnorm_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void mnorm_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -26,26 +26,26 @@ namespace jags {
       *value = cpp_mnorm_lpdf(&x[0], &mu[0], &sigma[0], K);;
     }
 
-    bool mnorm_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool mnorm_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-		bool mnorm_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+		bool mnorm_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> mnorm_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> mnorm_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-	    return std::vector<unsigned int>(1,1);
+	    return std::vector<unsigned long>(1,1);
     }
 
 
     //// vector input type ----
     mnorm_v_lpdf::mnorm_v_lpdf() :ArrayFunction("mnorm_v_lpdf", 6)
     {}
-    void mnorm_v_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const
+    void mnorm_v_lpdf::evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *x      = args[0];
@@ -110,19 +110,19 @@ namespace jags {
       *value = log_lik;
     }
 
-    bool mnorm_v_lpdf::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool mnorm_v_lpdf::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-		bool mnorm_v_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+		bool mnorm_v_lpdf::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       return true;
     }
 
-    std::vector<unsigned int> mnorm_v_lpdf::dim(std::vector<std::vector<unsigned int> > const &dims,	std::vector<double const *> const &values) const
+    std::vector<unsigned long> mnorm_v_lpdf::dim(std::vector<std::vector<unsigned long> > const &dims,	std::vector<double const *> const &values) const
     {
-	    return std::vector<unsigned int>(1,1);
+	    return std::vector<unsigned long>(1,1);
     }
 
   }

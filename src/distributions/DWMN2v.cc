@@ -9,6 +9,7 @@
 #include <array>
 
 #include <JRmath.h>
+
 #include "../source/mnorm.h"
 #include "../source/wmnorm.h"
 #include "../source/tools.h"
@@ -16,13 +17,13 @@
 namespace jags {
   namespace RoBMA {
 
-    std::vector<unsigned int> DWMN2v::dim(std::vector<std::vector<unsigned int> > const &dims) const
+    std::vector<unsigned long> DWMN2v::dim(std::vector<std::vector<unsigned long> > const &dims) const
     {
-      return std::vector<unsigned int>(1,dims[0][0]);
+      return std::vector<unsigned long>(1,dims[0][0]);
     }
 
 
-    bool DWMN2v::checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const
+    bool DWMN2v::checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const
     {
       bool se2_OK    = true; // check that standard errors squared and mu dimension matches
       bool tau2_OK   = true; // check that tau squared is a single double
@@ -45,7 +46,7 @@ namespace jags {
     }
 
 
-    bool DWMN2v::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const
+    bool DWMN2v::checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const
     {
       const double *tau2   = par[2];
       const double *rho    = par[3];
@@ -70,8 +71,8 @@ namespace jags {
 
     DWMN2v::DWMN2v():ArrayDist("dwmnorm_2s_v", 7) {}
 
-    double DWMN2v::logDensity(double const *x, unsigned int length, PDFType type, std::vector<double const *> const &par,
-              std::vector<std::vector<unsigned int> > const &dims, double const *lower, double const *upper) const
+    double DWMN2v::logDensity(double const *x, PDFType type, std::vector<double const *> const &par,
+              std::vector<std::vector<unsigned long> > const &dims) const
     {
       // reassign the addresses to pointers
       const double *mu     = par[0];
@@ -119,31 +120,23 @@ namespace jags {
       return log_lik;
     }
 
-    void DWMN2v::randomSample(double *x, unsigned int length, std::vector<double const *> const &par,
-              std::vector<std::vector<unsigned int> > const &dims,
-              double const *lower, double const *upper,
+    void DWMN2v::randomSample(double *x, std::vector<double const *> const &par,
+              std::vector<std::vector<unsigned long> > const &dims,
               RNG *rng) const
     {
       // not implemented
     }
 
-    void DWMN2v::support(double *lower, double *upper, unsigned int length,
+    void DWMN2v::support(double *lower, double *upper,
               std::vector<double const *> const &par,
-              std::vector<std::vector<unsigned int> > const &dims) const
+              std::vector<std::vector<unsigned long> > const &dims) const
     {
+      unsigned long length = product(dim(dims));
       // no idea whether this is correct
-      for (unsigned int i = 0; i < length; ++i) {
+      for (unsigned long i = 0; i < length; ++i) {
         lower[i] = JAGS_NEGINF;
         upper[i] = JAGS_POSINF;
       }
-    }
-
-    void DWMN2v::typicalValue(double *x, unsigned int length,
-              std::vector<double const *> const &par,
-              std::vector<std::vector<unsigned int> > const &dims,
-              double const *lower, double const *upper) const
-    {
-      // not implemented
     }
 
     bool DWMN2v::isSupportFixed(std::vector<bool> const &fixmask) const

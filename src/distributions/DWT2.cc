@@ -21,14 +21,14 @@ namespace RoBMA {
 DWT2::DWT2() : VectorDist("dwt_2s", 4) {}
 
 
-bool DWT2::checkParameterLength(std::vector<unsigned int> const &len) const
+bool DWT2::checkParameterLength(std::vector<unsigned long> const &len) const
 {
   // there is one less cut-point then weights
   return n_crit_t(len) == n_omega(len) - 1;
 }
 
 bool DWT2::checkParameterValue(std::vector<double const *> const &par,
-			    std::vector<unsigned int> const &len) const
+			    std::vector<unsigned long> const &len) const
 {
   bool crit_t_OK = true;
   bool omega_OK  = true;
@@ -49,10 +49,9 @@ bool DWT2::checkParameterValue(std::vector<double const *> const &par,
   return crit_t_OK && omega_OK && df_OK;
 }
 
-double DWT2::logDensity(double const *x, unsigned int length, PDFType type,
-			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper) const
+double DWT2::logDensity(double const *x, PDFType type,
+			std::vector<double const *> const &par,
+			std::vector<unsigned long> const &len) const
 {
   double abs_x = std::fabs(*x);
   double df    = *par[0];
@@ -113,41 +112,30 @@ double DWT2::logDensity(double const *x, unsigned int length, PDFType type,
   return log_lik;
 }
 
-void DWT2::randomSample(double *x, unsigned int length,
+void DWT2::randomSample(double *x, 
 			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper,
+			  std::vector<unsigned long> const &len,
 			  RNG *rng) const
 {
   // not implemented
 }
 
-void DWT2::support(double *lower, double *upper, unsigned int length,
+void DWT2::support(double *lower, double *upper, 
 	     std::vector<double const *> const &par,
-	     std::vector<unsigned int> const &len) const
+	     std::vector<unsigned long> const &len) const
 {
   // no idea whether this is correct
-  for (unsigned int i = 0; i < length; ++i) {
+  for (unsigned long i = 0; i < length(len); ++i) {
 	  lower[i] = JAGS_NEGINF;
 	  upper[i] = JAGS_POSINF;
   }
 }
 
-unsigned int DWT2::length(std::vector<unsigned int> const &len) const
+unsigned long DWT2::length(std::vector<unsigned long> const &len) const
 {
   // no idea how this works
   return 1;
 }
-
-
-void DWT2::typicalValue(double *x, unsigned int length,
-			  std::vector<double const *> const &par,
-			  std::vector<unsigned int> const &len,
-			  double const *lower, double const *upper) const
-{
-  // not implemented
-}
-
 
 bool DWT2::isSupportFixed(std::vector<bool> const &fixmask) const
 {

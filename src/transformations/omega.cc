@@ -14,7 +14,7 @@ namespace jags {
 
     void eta2omega::evaluate(double *value,
                          std::vector<double const *> const &args,
-                         std::vector<unsigned int> const &lengths) const
+                         std::vector<unsigned long> const &lengths) const
     {
         // extract parameters
         const double *eta_vector  = args[0];
@@ -67,14 +67,14 @@ namespace jags {
         }
     }
 
-    unsigned int eta2omega::length(std::vector<unsigned int> const &lengths,
+    unsigned long eta2omega::length(std::vector<unsigned long> const &lengths,
                                   std::vector<double const *> const &args) const
     {
         // Output length matches the length of the second std::vector
         return lengths[1];
     }
 
-    bool eta2omega::checkParameterLength(std::vector<unsigned int> const &len) const
+    bool eta2omega::checkParameterLength(std::vector<unsigned long> const &len) const
     {
         return true;
     }
@@ -95,7 +95,7 @@ namespace jags {
     }
 
     bool eta2omega::checkParameterValue(std::vector<double const *> const &args,
-                                       std::vector<unsigned int> const &lens) const
+                                       std::vector<unsigned long> const &lens) const
     {
         return true;
     }

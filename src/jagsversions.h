@@ -3,7 +3,7 @@
     The previous version of the file is Copyright (C) Matthew Denwood, licensed under GPL-2.
 	
 	This header file sorts the necessary macros for compiling against 
-	JAGS 4
+	JAGS 5
  */
 
 #ifndef JAGS_VERSIONS_H_
@@ -33,11 +33,11 @@
 #endif // JAGS_MAJOR_ASSUMED
 
 // Check version of JAGS is OK:
-#if JAGS_MAJOR_USED > 4
+#if JAGS_MAJOR_USED > 5
 #warning "Compiling against a later version of JAGS than has been tested for this version of RoBMA ... you should probably update the RoBMA package!"
 #endif
 
-#if JAGS_MAJOR_USED < 4
+#if JAGS_MAJOR_USED < 5
 #error "This version of the RoBMA package requires compilation against JAGS version 4 or later"
 #endif
 

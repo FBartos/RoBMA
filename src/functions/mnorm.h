@@ -11,10 +11,10 @@ namespace jags {
       public:
         mnorm_lpdf();
 
-		void evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const;
-		bool checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const;
-		bool checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const;
-		std::vector<unsigned int> dim(std::vector<std::vector<unsigned int> > const &dims, std::vector<double const *> const &values) const;
+		void evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const override;
+		bool checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const override;
+		bool checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const override;
+		std::vector<unsigned long> dim(std::vector<std::vector<unsigned long> > const &dims, std::vector<double const *> const &values) const override;
     };
 
     class mnorm_v_lpdf : public ArrayFunction
@@ -22,10 +22,10 @@ namespace jags {
       public:
         mnorm_v_lpdf();
 
-		void evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned int> > const &dims) const;
-		bool checkParameterDim (std::vector<std::vector<unsigned int> > const &dims) const;
-		bool checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned int> > const &dims) const;
-		std::vector<unsigned int> dim(std::vector<std::vector<unsigned int> > const &dims, std::vector<double const *> const &values) const;
+		void evaluate(double *value, std::vector<double const *> const &args, std::vector<std::vector<unsigned long> > const &dims) const override;
+		bool checkParameterDim (std::vector<std::vector<unsigned long> > const &dims) const override;
+		bool checkParameterValue(std::vector<double const *> const &par, std::vector<std::vector<unsigned long> > const &dims) const override;
+		std::vector<unsigned long> dim(std::vector<std::vector<unsigned long> > const &dims, std::vector<double const *> const &values) const override;
     };
   }
 }
