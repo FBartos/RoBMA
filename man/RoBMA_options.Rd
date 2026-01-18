@@ -25,3 +25,23 @@ changes specified) is returned invisibly as a named list.
 A placeholder object and functions for the RoBMA package.
 (adapted from the runjags R package).
 }
+\details{
+The available options are:
+\describe{
+\item{\code{max_cores}}{number of cores to use for parallel computing (default to all available cores - 1)}
+\item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
+\item{\code{silent}}{whether to suppress output (default \code{FALSE})}
+\item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
+\item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
+\item{\code{autocompute.marglik}}{whether to automatically compute marginal likelihood (default \code{FALSE})}
+\item{\code{default_UISD.effect}}{default scaling of the unit information standard deviation for the effect size parameter (default \code{0.5})}
+\item{\code{default_UISD.heterogeneity}}{default scaling of the unit information standard deviation for the heterogeneity parameter (default \code{0.25})}
+\item{\code{default_UISD.mods}}{default scaling of the unit information standard deviation for the moderators (default \code{0.25})}
+\item{\code{default_UISD.scale}}{default scaling of the unit information standard deviation for the scale parameter (default \code{0.5})}
+\item{\code{default_informed_priors.mods}}{default scaling of informed priors for moderators (default \code{0.5})}
+\item{\code{default_informed_priors.scale}}{default scaling of informed priors for the scale parameter (default \code{0.5})}
+\item{\code{default_bias_weightfunction.alpha}}{default alpha for the weightfunction (default \code{1})}
+\item{\code{default_bias_PET.scale}}{default scale for the PET (default \code{1})}
+\item{\code{default_bias_PEESE.scale}}{default scale for the PEESE (default \code{5})}
+}
+}

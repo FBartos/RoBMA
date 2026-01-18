@@ -1,5 +1,46 @@
 ### RoBMA 4.0.0
 
+#' @title Input Data Specification
+#' @name data_input
+#' @description
+#' The following variables can be used to specify the input data for the
+#' \code{\link{brma}}, \code{\link{brma.glmm}}, \code{\link{bselmodel}},
+#' or other fitting functions.
+#'
+#' @param yi a vector of effect sizes.
+#' @param vi a vector of sampling variances.
+#' @param sei a vector of standard errors.
+#' @param weights an optional vector of weights.
+#' @param ni an optional vector of sample sizes (used for `measuer = "GEN"`
+#' or when estimating `"UISD"`).
+#' @param mods an optional vector, matrix, data.frame, or formula specifying
+#' moderators (or meta-regressors).
+#' @param scale an optional vector, matrix, data.frame, or formula specifying
+#' scale predictors (for location-scale models).
+#' @param study_ids an optional vector of study identifiers (used for clustering).
+#' @param data an optional data frame containing the variables.
+#' @param slab an optional vector of study labels.
+#' @param subset an optional logical or numeric vector specifying a subset of
+#' data to be used.
+#' @param measure a character string specifying the effect size measure.
+#' Defaults to `"GEN"`. Other options are `"SMD"`, `"OR"`, `"RR"`, `"RD"`,
+#' `"HR"`, `"IRR"`, `"ZCOR"`.
+#' @param ai a vector of the number of events in the treatment/experimental group.
+#' @param bi a vector of the number of non-events in the treatment/experimental group.
+#' @param ci a vector of the number of events in the control group.
+#' @param di a vector of the number of non-events in the control group.
+#' @param n1i a vector of the sample size in the treatment/experimental group.
+#' @param n2i a vector of the sample size in the control group.
+#' @param x1i a vector of the number of events in the treatment/experimental group
+#' (for Poisson data).
+#' @param x2i a vector of the number of events in the control group (for Poisson data).
+#' @param t1i a vector of the person-time in the treatment/experimental group.
+#' @param t2i a vector of the person-time in the control group.
+#'
+NULL
+
+
+
 # Internal helper function to extract a variable from a data frame or environment
 # Supports three input formats:
 #   1. Direct vector: yi = c(0.1, 0.2, 0.3)

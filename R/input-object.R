@@ -1,5 +1,30 @@
 ### RoBMA 4.0.0
 
+#' @title Fitting specification
+#' @name fitting_specification
+#'
+#' @description
+#' The `brma` family of functions uses the following arguments to specify the
+#' MCMC sampling and fitting settings.
+#'
+#' @param sample numeric. Number of MCMC samples to save. Defaults to `5000`.
+#' @param burnin numeric. Number of burn-in iterations. Defaults to `2000`.
+#' @param adapt numeric. Number of adaptation iterations. Defaults to `500`.
+#' @param chains numeric. Number of MCMC chains. Defaults to `3`.
+#' @param thin numeric. Thinning interval. Defaults to `1`.
+#' @param parallel logical. Whether to run MCMC chains in parallel. Defaults to `FALSE`.
+#' @param autofit logical. Whether to automatically extend the MCMC chains if convergence is not met.
+#' Defaults to `FALSE`.
+#' @param autofit_control list of autofit control settings. See [set_autofit_control()] for details.
+#' @param convergence_checks list of convergence check settings. See [set_convergence_checks()] for details.
+#' @param seed numeric. Random seed for reproducibility. Defaults to `NULL`.
+#' @param silent logical. Whether to suppress output. Defaults to `RoBMA.get_option("silent")`.
+#' @param ... additional arguments.
+#'
+#' @seealso \code{\link{brma}}, \code{\link{set_autofit_control}}, \code{\link{set_convergence_checks}}
+#' @aliases fitting_specification
+NULL
+
 ### creates basic RoBMA object with
 # - fit_control
 # - autofit_control

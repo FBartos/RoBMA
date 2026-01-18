@@ -4,6 +4,9 @@
 #' @description Function for fitting random-effects, meta-regression, multilevel,
 #' and location-scale meta-analytic PET models.
 #'
+#' @inheritParams data_input
+#' @inheritParams prior_specification
+#' @inheritParams fitting_specification
 #' @export
 bPET <- function(
   # input specification
@@ -71,6 +74,17 @@ bPET <- function(
   ### store simple summary & coefficients
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
+
+  ### autocompute
+  if (RoBMA.get_option("autocompute.loo")) {
+    object <- add_loo(object)
+  }
+  if (RoBMA.get_option("autocompute.waic")) {
+    object <- add_waic(object)
+  }
+  if (RoBMA.get_option("autocompute.marglik")) {
+    object <- add_marglik(object)
+  }
 
   return(object)
 }

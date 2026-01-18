@@ -50,6 +50,106 @@ brma.glmm(
   ...
 )
 }
+\arguments{
+\item{ai}{a vector of the number of events in the treatment/experimental group.}
+
+\item{bi}{a vector of the number of non-events in the treatment/experimental group.}
+
+\item{ci}{a vector of the number of events in the control group.}
+
+\item{di}{a vector of the number of non-events in the control group.}
+
+\item{n1i}{a vector of the sample size in the treatment/experimental group.}
+
+\item{n2i}{a vector of the sample size in the control group.}
+
+\item{x1i}{a vector of the number of events in the treatment/experimental group
+(for Poisson data).}
+
+\item{x2i}{a vector of the number of events in the control group (for Poisson data).}
+
+\item{t1i}{a vector of the person-time in the treatment/experimental group.}
+
+\item{t2i}{a vector of the person-time in the control group.}
+
+\item{weights}{an optional vector of weights.}
+
+\item{mods}{an optional vector, matrix, data.frame, or formula specifying
+moderators (or meta-regressors).}
+
+\item{scale}{an optional vector, matrix, data.frame, or formula specifying
+scale predictors (for location-scale models).}
+
+\item{study_ids}{an optional vector of study identifiers (used for clustering).}
+
+\item{data}{an optional data frame containing the variables.}
+
+\item{slab}{an optional vector of study labels.}
+
+\item{subset}{an optional logical or numeric vector specifying a subset of
+data to be used.}
+
+\item{measure}{a character string specifying the effect size measure.
+Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR"}, \code{"RD"},
+\code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
+
+\item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
+(the intercept). Defaults to \code{NULL}.}
+
+\item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
+parameter. Defaults to \code{NULL}.}
+
+\item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
+Defaults to \code{NULL}.}
+
+\item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
+Defaults to \code{NULL}.}
+
+\item{prior_heterogeneity_allocation}{prior distribution for the fraction of variance
+explained by the moderators across studies (\eqn{\nu}). Defaults to \code{NULL}.}
+
+\item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
+Defaults to \code{TRUE}.}
+
+\item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
+Defaults to \code{"treatment"}.}
+
+\item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
+Defaults to \code{NULL}.}
+
+\item{rescale_priors}{numeric. A scaling factor for the prior distributions. Defaults to 1.}
+
+\item{prior_informed_field}{character. The field of the informed prior distributions.
+Defaults to \code{NULL}.}
+
+\item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
+Defaults to \code{NULL}.}
+
+\item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
+
+\item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
+
+\item{adapt}{numeric. Number of adaptation iterations. Defaults to \code{500}.}
+
+\item{chains}{numeric. Number of MCMC chains. Defaults to \code{3}.}
+
+\item{thin}{numeric. Thinning interval. Defaults to \code{1}.}
+
+\item{parallel}{logical. Whether to run MCMC chains in parallel. Defaults to \code{FALSE}.}
+
+\item{autofit}{logical. Whether to automatically extend the MCMC chains if convergence is not met.
+Defaults to \code{FALSE}.}
+
+\item{autofit_control}{list of autofit control settings. See \code{\link[=set_autofit_control]{set_autofit_control()}} for details.}
+
+\item{convergence_checks}{list of convergence check settings. See \code{\link[=set_convergence_checks]{set_convergence_checks()}} for details.}
+
+\item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
+
+\item{silent}{logical. Whether to suppress output. Defaults to \code{RoBMA.get_option("silent")}.}
+
+\item{...}{additional arguments.}
+}
 \description{
 Function for fitting random-effects, meta-regression, multilevel,
 and location-scale meta-analytic models directly to either binary or count data.

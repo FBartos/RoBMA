@@ -8,6 +8,9 @@
 #' @description
 #'
 #'
+#' @inheritParams data_input
+#' @inheritParams prior_specification
+#' @inheritParams fitting_specification
 #' @details
 #' ## Prior distributions
 #' Prior distributions must be specified for all model parameters.
@@ -190,6 +193,17 @@ brma <- brma.norm <- function(
   ### store simple summary & coefficients
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
+
+  ### autocompute
+  if (RoBMA.get_option("autocompute.loo")) {
+    object <- add_loo(object)
+  }
+  if (RoBMA.get_option("autocompute.waic")) {
+    object <- add_waic(object)
+  }
+  if (RoBMA.get_option("autocompute.marglik")) {
+    object <- add_marglik(object)
+  }
 
   return(object)
 }

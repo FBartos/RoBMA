@@ -4,6 +4,9 @@
 #' @description Function for fitting random-effects, meta-regression, multilevel,
 #' and location-scale meta-analytic models directly to either binary or count data.
 #'
+#' @inheritParams data_input
+#' @inheritParams prior_specification
+#' @inheritParams fitting_specification
 #' @details
 #' Model for odds ratios (`measure = "OR"`) corresponds to Model 4 described in
 #' \insertCite{jackson2018comparison;textual}{RoBMA}.
@@ -81,6 +84,16 @@ brma.glmm <- function(
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
 
-  return(object)
+  ### autocompute
+  if (RoBMA.get_option("autocompute.loo")) {
+    object <- add_loo(object)
+  }
+  if (RoBMA.get_option("autocompute.waic")) {
+    object <- add_waic(object)
+  }
+  if (RoBMA.get_option("autocompute.marglik")) {
+    object <- add_marglik(object)
+  }
 
+  return(object)
 }

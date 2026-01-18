@@ -101,6 +101,13 @@ contr.meandif <- BayesTools::contr.meandif
 contr.independent <- BayesTools::contr.independent
 
 
+
+
+
+
+
+
+### TODO: remove old functions below ----
 #' @title Set default prior distributions
 #'
 #' @description Set default prior distributions for RoBMA models.
