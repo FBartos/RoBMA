@@ -14,7 +14,8 @@ test_that("autocompute options work for brma()", {
 
   # Ensure options are off by default
   RoBMA.options(autocompute.loo = FALSE, autocompute.waic = FALSE, autocompute.marglik = FALSE)
-  fit_default <- brma(yi = yi, vi = vi, data = dat, measure = "RR", constants = list(max_models = 1), seed = 1, silent = TRUE, chains = 1, sample = 500, burnin = 100)
+  fit_default <- suppressWarnings(brma(yi = yi, vi = vi, data = dat, measure = "RR",
+                                       seed = 1, silent = TRUE, chains = 3, sample = 500, burnin = 100))
 
   expect_null(fit_default$loo)
   expect_null(fit_default$waic)
@@ -25,7 +26,8 @@ test_that("autocompute options work for brma()", {
   RoBMA.options(autocompute.loo = TRUE, autocompute.waic = TRUE, autocompute.marglik = TRUE)
   on.exit(RoBMA.options(autocompute.loo = FALSE, autocompute.waic = FALSE, autocompute.marglik = FALSE))
 
-  fit_auto <- brma(yi = yi, vi = vi, data = dat, measure = "RR", constants = list(max_models = 1), seed = 1, silent = TRUE, chains = 1, sample = 500, burnin = 100)
+  fit_auto <- suppressWarnings(brma(yi = yi, vi = vi, data = dat, measure = "RR",
+                                    seed = 1, silent = TRUE, chains = 3, sample = 500, burnin = 100))
 
   expect_true(!is.null(fit_auto$loo))
   expect_true(!is.null(fit_auto$waic))

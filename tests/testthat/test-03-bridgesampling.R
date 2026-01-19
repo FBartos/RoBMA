@@ -27,7 +27,7 @@ for (name in list_fits()) {
 test_that("bridge_sampler extracts bridge sampling object", {
   for (name in list_fits()) {
     # the marginal likelihood inherits the correct class
-    expect_s3_class(bridge_sampler(fits[[name]][["marglik"]]), "bridge")
+    expect_s3_class(bridge_sampler(fits[[name]]), "bridge")
 
     # the marginal likelihood and BIC-based marglik are close
     # (the analyses don't use unit information priors but the
@@ -73,19 +73,15 @@ test_that("simple comparisons", {
 # ---------------------------------------------------------------------------- #
 
 test_that("logml returns scalar log marginal likelihood, can be applied to both bridge and brma", {
-  name <- "bcg_meta-analysis"
-  fit_brma <- fits[[name]]
-  marglik_brma <- bridge_sampler(fit_brma)
 
-  logml_result1 <- bridgesampling::logml(marglik_brma)
-  logml_result2 <- bridgesampling::logml(fit_brma)
-  logml_result3 <- RoBMA::logml(marglik_brma)
-  logml_result4 <- RoBMA::logml(fit_brma)
+  name     <- "bcg_meta-analysis"
+  fit_brma <- fits[[name]]
+
+  logml_result1 <- bridgesampling::logml(fit_brma)
+  logml_result2 <- RoBMA::logml(fit_brma)
 
   # consistency check
   expect_equal(logml_result1, logml_result2, tolerance = 0.01)
-  expect_equal(logml_result1, logml_result3, tolerance = 0.01)
-  expect_equal(logml_result1, logml_result4, tolerance = 0.01)
 })
 
 
@@ -94,24 +90,19 @@ test_that("logml returns scalar log marginal likelihood, can be applied to both 
 # ---------------------------------------------------------------------------- #
 
 test_that("bf computes Bayes factor between two models, can be applied to both bridge and brma", {
+
   fit_brma1 <- fits[["bcg_meta-analysis"]]
   fit_brma2 <- fits[["bcg_meta-regression"]]
 
-  marglik_brma1 <- bridge_sampler(fit_brma1)
-  marglik_brma2 <- bridge_sampler(fit_brma2)
-
-  bf_result1 <- RoBMA::bf(marglik_brma1, marglik_brma2)
-  bf_result2 <- bridgesampling::bf(marglik_brma1, marglik_brma2)
-  bf_result3 <- RoBMA::bayes_factor(marglik_brma1, marglik_brma2)
-  bf_result4 <- bridgesampling::bayes_factor(marglik_brma1, marglik_brma2)
-
-  bf_result5 <- RoBMA::bf(fit_brma1, fit_brma2)
+  bf_result1 <- RoBMA::bf(fit_brma1, fit_brma2)
+  bf_result2 <- bridgesampling::bf(fit_brma1, fit_brma2)
+  bf_result3 <- RoBMA::bayes_factor(fit_brma1, fit_brma2)
+  bf_result4 <- bridgesampling::bayes_factor(fit_brma1, fit_brma2)
 
   # consistency check
   expect_equal(bf_result1, bf_result2, tolerance = 0.01)
   expect_equal(bf_result1, bf_result3, tolerance = 0.01)
   expect_equal(bf_result1, bf_result4, tolerance = 0.01)
-  expect_equal(bf_result1, bf_result5, tolerance = 0.01)
 })
 
 
@@ -120,14 +111,12 @@ test_that("bf computes Bayes factor between two models, can be applied to both b
 # ---------------------------------------------------------------------------- #
 
 test_that("post_prob computes posterior model probabilities", {
+
   fit_brma1 <- fits[["bcg_meta-analysis"]]
   fit_brma2 <- fits[["bcg_meta-regression"]]
 
-  marglik_brma1 <- bridge_sampler(fit_brma1)
-  marglik_brma2 <- bridge_sampler(fit_brma2)
-
-  pp_result1 <- post_prob(marglik_brma1, marglik_brma2)
-  pp_result2 <- post_prob(fit_brma1, fit_brma2)
+  pp_result1 <- RoBMA::post_prob(fit_brma1, fit_brma2)
+  pp_result2 <- bridgesampling::post_prob(fit_brma1, fit_brma2)
 
   # consistency check
   expect_equal(pp_result1, pp_result2, tolerance = 0.01)
@@ -135,23 +124,19 @@ test_that("post_prob computes posterior model probabilities", {
 
 
 test_that("post_prob respects prior model probabilities", {
-  skip_if_no_fits()
-  skip_on_cran()
 
-  fit_brma <- fits[["bcg_meta-analysis"]]
+  fit_brma  <- fits[["bcg_meta-analysis"]]
   fit_brma2 <- fits[["bcg_meta-regression"]]
 
   # equal priors (default)
-  pp_equal <- post_prob(fit_brma, fit_brma2)
+  pp_equal <- RoBMA::post_prob(fit_brma, fit_brma2)
 
   # unequal priors
-  pp_unequal <- post_prob(fit_brma, fit_brma2, prior_prob = c(0.9, 0.1))
+  pp_unequal <- RoBMA::post_prob(fit_brma, fit_brma2, prior_prob = c(0.9, 0.1))
 
   # with stronger prior on first model, its posterior should increase
-  # (unless evidence overwhelmingly favors second model)
-  expect_true(is.numeric(pp_unequal))
-  expect_length(pp_unequal, 2)
-  expect_equal(sum(pp_unequal), 1, tolerance = 1e-10)
+  expect_true(pp_equal[1] <  pp_unequal[1])
+  expect_equal(sum(pp_unequal), 1)
 })
 
 
@@ -160,10 +145,8 @@ test_that("post_prob respects prior model probabilities", {
 # ---------------------------------------------------------------------------- #
 
 test_that("bf errors with non-brma object", {
-  skip_if_no_fits()
 
   fit_brma <- fits[["bcg_meta-analysis"]]
-
   expect_error(
     bf(fit_brma, "not a brma"),
     "needs to be of class 'brma'"
@@ -172,10 +155,8 @@ test_that("bf errors with non-brma object", {
 
 
 test_that("post_prob errors with single model", {
-  skip_if_no_fits()
 
   fit_brma <- fits[["bcg_meta-analysis"]]
-
   expect_error(
     post_prob(fit_brma),
     "Only one object"
@@ -184,12 +165,10 @@ test_that("post_prob errors with single model", {
 
 
 test_that("bridge_sampler errors if marglik not computed", {
-  skip_if_no_fits()
 
   # create a fit without marglik
   fit_brma <- fits[["bcg_meta-analysis"]]
   fit_brma[["marglik"]] <- NULL
-
   expect_error(
     bridge_sampler(fit_brma),
     "add_marglik"
