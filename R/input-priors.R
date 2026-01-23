@@ -138,7 +138,7 @@
 #'
 #' @references
 #' \insertAllCited{}
-#' 
+#'
 #' @seealso \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}}, \code{\link{brma}}
 #' @aliases prior_specification
 NULL
@@ -400,7 +400,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     if (missing(prior) && missing(steps)) {
       prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = c(0.025), "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), 2)))
     } else if (missing(prior) && !missing(steps)) {
-      prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = steps, "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps + 1))))
+      prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = steps, "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps) + 1)))
     } else if (!BayesTools::is.prior.weightfunction(prior)) {
       stop("'prior_bias' must be a `prior_weightfunction` object", call. = FALSE)
     }

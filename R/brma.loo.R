@@ -50,7 +50,7 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #'
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
-#' 
+#'
 #' The PSIS object is essential for model comparison via
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #'
@@ -399,4 +399,74 @@ waic.brma <- function(x, ...) {
   }
 
   return(x[["waic"]])
+}
+
+
+# ---------------------------------------------------------------------------- #
+# loo_weights generic and methods
+# ---------------------------------------------------------------------------- #
+
+#' @export
+loo_weights <- function(object, ...) UseMethod("loo_weights")
+
+
+#' @title Extract Normalized PSIS Weights from brma Object
+#'
+#' @description Extract the normalized Pareto smoothed importance sampling
+#' (PSIS) weights from a brma model object.
+#'
+#' @param object a brma model object.
+#' @param ... currently unused.
+#'
+#' @return A matrix of normalized PSIS weights.
+#'
+#' @exportS3Method
+loo_weights.brma <- function(object, ...) {
+  # extract loo
+  loo_result <- loo.brma(object)
+
+  # extract PSIS object and get normalized weights
+  psis_object <- loo_result[["psis_object"]]
+  psis_weights <- loo::weights.importance_sampling(psis_object, log = FALSE, normalize = TRUE)
+
+  return(psis_weights)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# check_loo generic and methods
+# ---------------------------------------------------------------------------- #
+
+#' @export
+check_loo <- function(object, ...) UseMethod("check_loo")
+
+
+#' @title Check LOO Diagnostics for brma Objects
+#'
+#' @description Check Pareto k diagnostics for a brma model object and
+#' warn if any values are high.
+#'
+#' @param object a brma model object.
+#' @param ... currently unused.
+#'
+#' @return NULL (throws warning if diagnostics are unreliable).
+#'
+#' @exportS3Method
+check_loo.brma <- function(object, ...) {
+  # extract loo
+  loo_result <- loo.brma(object)
+
+  # check Pareto k diagnostics and warn if unreliable
+  pareto_k <- loo_result[["diagnostics"]][["pareto_k"]]
+  bad_k <- which(pareto_k > 0.7)
+  if (length(bad_k) > 0) {
+    warning(
+      "Some Pareto k values are high (> 0.7), indicating potentially unreliable ",
+      "LOO-PIT residuals for observations: ", paste(bad_k, collapse = ", "), ". ",
+      "Inspect the loo fit by using loo(object).",
+      call. = FALSE
+    )
+  }
+
+  return()
 }

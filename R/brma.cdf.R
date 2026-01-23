@@ -187,104 +187,104 @@
 #
 # Compute the full CDF matrix for a brma object.
 #
-# This is the main dispatcher function that coordinates extraction of posterior
-# samples and computation of pointwise CDF values using the appropriate
-# CDF function for the outcome type.
+# This function computes pointwise CDF values F(yi | mu, tau) for each
+# observation and posterior sample. It uses predict.brma to obtain the
+# appropriate mu samples at the requested level.
 #
-# The CDF is computed at the estimate level: for multilevel models, we condition
-# on the fitted study-level random effects (gamma); for selection models, we
-# condition on the omega samples.
-#
-# @param object           brma object
+# @param object brma object
+# @param type   character; level at which to compute CDF. Options are:
+#               - "marginal" (default): Fixed effects only (mu).
+#                 CDF: yi ~ N(mu_i, tau^2 + sei^2)
+#               - "study": Fixed effects + study-level random effects (mu + gamma).
+#                 Only available for multilevel models.
+#                 CDF: yi ~ N(mu_i + gamma_j, tau_within^2 + sei^2)
+#               - "estimate": True study effects (mu + gamma + theta).
+#                 CDF: yi ~ N(theta_i, sei^2)
 #
 # @return S x K matrix of CDF values in (0, 1)
 #
 # ---------------------------------------------------------------------------- #
-.cdf.brma <- function(object) {
+.cdf.brma <- function(object, type = "marginal") {
 
-  ### extract priors and structural information about the model
+  ### input validation
+  type <- match.arg(type, c("marginal", "study", "estimate"))
+
+  ### extract structural information about the model
   priors            <- object[["priors"]]
   data              <- object[["data"]]
-  is_mods           <- .is_mods(object)
   is_multilevel     <- .is_multilevel(object)
   is_scale          <- .is_scale(object)
-  is_PET            <- .is_PET(object)
-  is_PEESE          <- .is_PEESE(object)
   is_weightfunction <- .is_weightfunction(object)
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
 
-  ### extract outcome data and fit data
-  outcome_data <- data[["outcome"]]
-  fit_data     <- .create_fit_data(data = data, priors = priors)
-  K            <- nrow(outcome_data)
-
-  ### obtain tau samples using helper function
-  tau_result          <- .evaluate.brma.tau(
-    fit           = object[["fit"]],
-    scale_data    = data[["scale"]],
-    scale_formula = if (is_scale) .create_fit_formula_list(data = data, "scale") else NULL,
-    scale_priors  = priors[["scale"]],
-    is_scale      = is_scale,
-    is_multilevel = is_multilevel,
-    K             = K
-  )
-  tau_within_samples  <- tau_result[["tau_within"]]
-  tau_between_samples <- tau_result[["tau_between"]]
-
-  ### get the base mu samples using helper function
-  # for CDF evaluation, we do NOT adjust for publication bias
-  # (we want to evaluate CDF under the assumed model, which includes bias)
-  mu_samples <- .evaluate.brma.mu(
-    fit               = object[["fit"]],
-    outcome_data      = outcome_data,
-    mods_data         = data[["mods"]],
-    mods_formula      = if (is_mods) .create_fit_formula_list(data = data, "mods") else NULL,
-    mods_priors       = priors[["mods"]],
-    is_mods           = is_mods,
-    is_PET            = is_PET,
-    is_PEESE          = is_PEESE,
-    effect_direction  = effect_direction,
-    bias_adjusted     = FALSE,  # include PET/PEESE terms in CDF
-    K                 = K
-  )
-
-  ### include 3-level (study-level) random-effects for multilevel models
-  if (is_multilevel) {
-    study_contribution <- .evaluate.brma.study_effects(
-      fit              = object[["fit"]],
-      tau_between      = tau_between_samples,
-      study_ids        = fit_data[["study_ids"]],
-      same_data        = TRUE,  # use fitted gamma values
-      effect_direction = effect_direction
-    )
-    mu_samples <- mu_samples + study_contribution
+  # check: study type requires multilevel model
+  if (type == "study" && !is_multilevel) {
+    stop("type = 'study' is only available for multilevel (3-level) models. ",
+         "Use type = 'marginal' for non-multilevel models.", call. = FALSE)
   }
 
-  ### obtain outcome data: yi and sei
+  ### obtain observed effect sizes and sampling SEs
   yi  <- .outcome_data_yi(object)
   sei <- .outcome_data_sei(object)
+  K   <- length(yi)
 
-  ### dispatch to appropriate CDF function based on outcome type
+  ### get mu samples at the appropriate level using predict.brma
+  # map CDF types to predict.brma types
+  predict_type <- switch(type,
+    "marginal"  = "terms",
+    "study"     = "study",
+    "estimate"  = "estimate"
+  )
+
+  mu_samples <- predict.brma(
+    object  = object,
+    newdata = NULL,
+    type    = predict_type,
+    quiet   = TRUE
+  )
+  S <- nrow(mu_samples)
+
+  ### determine tau for CDF computation
+  # for "estimate" type, tau = 0 (conditional on true effect, only sampling variance)
+  # for "marginal" and "study" types, tau = tau_within (from scale model)
+  if (type == "estimate") {
+    tau_within_samples <- matrix(0, nrow = S, ncol = K)
+  } else {
+    # get tau samples from predict.brma
+    tau_within_samples <- predict.brma(
+      object  = object,
+      newdata = NULL,
+      type    = "terms.scale",
+      quiet   = TRUE
+    )
+  }
+
+  ### compute CDF based on outcome type
   if (outcome_type == "norm") {
 
-    # for PET, PEESE, and selection models, the outcome and crit_yi is computed in "positive" space
-    # (yi flipped for negative effect direction in .create_fit_data)
-    # so we need to flip mu_samples to match
+    # flip for negative effect direction (applies to normal and weighted normal)
     if (effect_direction == "negative") {
-      mu_samples <- -mu_samples
-      yi         <- -yi
+      mu_samples_cdf <- -mu_samples
+      yi_cdf         <- -yi
+    } else {
+      mu_samples_cdf <- mu_samples
+      yi_cdf         <- yi
     }
 
+    # dispatch between weighted and standard normal
     if (is_weightfunction) {
 
       # extract omega samples for weight function
       posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
       omega_samples     <- posterior_samples[, grep("omega", colnames(posterior_samples)), drop = FALSE]
 
+      # get fit_data for crit_yi
+      fit_data <- .create_fit_data(data = data, priors = priors)
+
       cdf_vals <- .outcome_cdf.wnorm(
-        yi         = yi,
-        mu_samples = mu_samples,
+        yi         = yi_cdf,
+        mu_samples = mu_samples_cdf,
         tau_within = tau_within_samples,
         sei        = sei,
         omega      = omega_samples,
@@ -295,8 +295,8 @@
 
       # standard normal CDF
       cdf_vals <- .outcome_cdf.norm(
-        yi         = yi,
-        mu_samples = mu_samples,
+        yi         = yi_cdf,
+        mu_samples = mu_samples_cdf,
         tau_within = tau_within_samples,
         sei        = sei
       )
@@ -304,22 +304,13 @@
     }
 
     # flip CDF for negative effect direction
-    # since F(-y) under flipped model = 1 - F(y) under original
     if (effect_direction == "negative") {
       cdf_vals <- 1 - cdf_vals
     }
 
   } else if (outcome_type == "bin") {
 
-    # add GLMM random effects (theta * tau_within)
-    theta_contribution <- .evaluate.brma.theta.glmm(
-      fit        = object[["fit"]],
-      tau_within = tau_within_samples,
-      same_data  = TRUE,  # use fitted theta values
-      K          = K
-    )
-    mu_samples <- mu_samples + theta_contribution
-
+    # binomial CDF using normal approximation
     cdf_vals <- .outcome_cdf.binom(
       yi         = yi,
       sei        = sei,
@@ -328,15 +319,7 @@
 
   } else if (outcome_type == "pois") {
 
-    # add GLMM random effects (theta * tau_within)
-    theta_contribution <- .evaluate.brma.theta.glmm(
-      fit        = object[["fit"]],
-      tau_within = tau_within_samples,
-      same_data  = TRUE,  # use fitted theta values
-      K          = K
-    )
-    mu_samples <- mu_samples + theta_contribution
-
+    # Poisson CDF using normal approximation
     cdf_vals <- .outcome_cdf.pois(
       yi         = yi,
       sei        = sei,
@@ -350,3 +333,5 @@
 
   return(cdf_vals)
 }
+
+

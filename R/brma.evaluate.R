@@ -286,6 +286,7 @@
 # ---------------------------------------------------------------------------- #
 #
 # Compute posterior samples of true study effects (theta) for normal models.
+# (applies to selection models too)
 #
 # For same_data = TRUE: Uses empirical Bayes shrinkage (BLUP) to estimate true effects:
 #   theta_i = lambda_i * y_i + (1 - lambda_i) * mu_i

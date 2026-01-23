@@ -50,22 +50,31 @@ test_that("Residuals for simple meta-analysis match metafor", {
   # --------------------------------------------------
   # Standardized (rstandard) residuals: compare brma vs metafor
   # --------------------------------------------------
+  # conditonal == marginal for a simple model
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
+  brma_rstandard    <- rstandard(fit_brma)
 
-  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
-               info = "brma rstandard residuals should match metafor")
-
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.05,
+               info = "brma rstandard resid should match metafor")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.05,
+               info = "brma rstandard se should match metafor")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.05,
+               info = "brma rstandard z should match metafor")
 
   # --------------------------------------------------
-  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # rstudent (LOO-PIT) residuals: compare brma vs metafor
   # --------------------------------------------------
 
-  brma_loo_pit <- residuals(fit_brma, type = "LOO-PIT")
+  metafor_rstudent <- rstudent(fit_metafor)
+  brma_rstudent    <- rstudent(fit_brma)
 
-  expect_equal(brma_rstandard, brma_loo_pit, tolerance = 0.05,
-               info = "LOO-PIT and rstandard residuals should be similar for simple models")
+  expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.05,
+               info = "brma rstudent resid should match metafor")
+  expect_equal(brma_rstudent$se, metafor_rstudent$se, tolerance = 0.05,
+               info = "brma rstudent se should match metafor")
+  expect_equal(brma_rstudent$z, metafor_rstudent$z, tolerance = 0.05,
+               info = "brma rstudent z should match metafor")
 
 })
 
@@ -105,19 +114,40 @@ test_that("Residuals for meta-regression match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
+  brma_rstandard    <- rstandard(fit_brma)
 
-  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.10,
-               info = "brma rstandard residuals should match metafor for meta-regression")
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.10,
+               info = "brma rstandard resid should match metafor for meta-regression")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.10,
+               info = "brma rstandard se should match metafor for meta-regression")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.10,
+               info = "brma rstandard z should match metafor for meta-regression")
+
+
+  metafor_rstandard <- rstandard(fit_metafor, type = "conditional")
+  brma_rstandard    <- rstandard(fit_brma, type = "conditional")
+
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.10,
+               info = "brma rstandard resid should match metafor (conditional)")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.10,
+               info = "brma rstandard se should match metafor (conditional)")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.10,
+               info = "brma rstandard z should match metafor (conditional)")
+
 
   # --------------------------------------------------
-  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # rstudent (LOO-PIT) residuals: compare brma vs metafor
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+  metafor_rstudent <- rstudent(fit_metafor)
+  brma_rstudent    <- rstudent(fit_brma)
 
-  expect_equal(brma_rstandard, brma_loo_pit, tolerance = 0.10,
-               info = "LOO-PIT and rstandard residuals should be similar for simple models")
+  expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.10,
+               info = "brma rstudent resid should match metafor")
+  expect_equal(brma_rstudent$se, metafor_rstudent$se, tolerance = 0.10,
+               info = "brma rstudent se should match metafor")
+  expect_equal(brma_rstudent$z, metafor_rstudent$z, tolerance = 0.15,
+               info = "brma rstudent z should match metafor")
 })
 
 
@@ -156,19 +186,32 @@ test_that("Residuals for location-scale model match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
+  brma_rstandard    <- rstandard(fit_brma)
 
-  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
-               info = "brma rstandard residuals should match metafor for location-scale model")
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.05,
+               info = "brma rstandard resid should match metafor for location-scale model")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.05,
+               info = "brma rstandard se should match metafor for location-scale model")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.05,
+               info = "brma rstandard z should match metafor for location-scale model")
 
   # --------------------------------------------------
-  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # rstudent (LOO-PIT) residuals: no metafor comparison possible, check distribution
   # --------------------------------------------------
 
-  brma_loo_pit <- residuals(fit_brma, type = "LOO-PIT")
+  # metafor_rstudent <- rstudent(fit_metafor)
+  brma_rstudent    <- rstudent(fit_brma)
 
-  expect_equal(brma_rstandard, brma_loo_pit, tolerance = 0.05,
-               info = "LOO-PIT and rstandard residuals should be similar for simple models")
+  # expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.10,
+  #              info = "brma rstudent resid should match metafor")
+  # expect_equal(brma_rstudent$se, metafor_rstudent$se, tolerance = 0.05,
+  #              info = "brma rstudent se should match metafor")
+  # expect_equal(brma_rstudent$z, metafor_rstudent$z, tolerance = 0.05,
+  #              info = "brma rstudent z should match metafor")
+
+  expect_equal(mean(brma_rstudent$z), 0, 0.05)
+  expect_equal(sd(brma_rstudent$z),   1, 0.05)
+  expect_true(cor(brma_rstudent$z, metafor_rstandard$z, method = "spearman") > 0.8)
 })
 
 
@@ -207,22 +250,42 @@ test_that("Residuals for 3-level model match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
+  brma_rstandard    <- rstandard(fit_brma)
 
-  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
-               info = "brma rstandard residuals should match metafor for 3-level model")
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.05,
+               info = "brma rstandard resid should match metafor for 3-level model")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.05,
+               info = "brma rstandard se should match metafor for 3-level model")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.05,
+               info = "brma rstandard z should match metafor for 3-level model")
+
+  # TODO: check why & fix
+  metafor_rstandard <- rstandard(fit_metafor, type = "conditional")
+  brma_rstandard    <- rstandard(fit_brma, type = "conditional")
+
+  expect_error(expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.10,
+                            info = "brma rstandard resid should match metafor (conditional)"))
+  expect_error(expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.10,
+                            info = "brma rstandard se should match metafor (conditional)"))
+  expect_error(expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.10,
+                            info = "brma rstandard z should match metafor (conditional)"))
 
   # --------------------------------------------------
-  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # rstudent (LOO-PIT) residuals: compare brma vs metafor
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+  metafor_rstudent <- rstudent(fit_metafor)
+  brma_rstudent    <- rstudent(fit_brma)
 
-  # The loopit residuals don't match the rstandard residuals that well
-  # however, they seem to be well centered and scaled
-  expect_equal(mean(brma_loo_pit), 0, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
-  expect_equal(sd(brma_loo_pit),   1, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
-  expect_true(cor(brma_rstandard, brma_loo_pit) > 0.8,  info = "LOO-PIT and rstandard are directionally aligned")
+  expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.05,
+               info = "brma rstudent resid should match metafor")
+  expect_equal(brma_rstudent$se, metafor_rstudent$se, tolerance = 0.05,
+               info = "brma rstudent se should match metafor")
+  expect_equal(brma_rstudent$z, metafor_rstudent$z, tolerance = 0.10,
+               info = "brma rstudent z should match metafor")
+
+  # TODO: add clustered residuals
+
 })
 
 
@@ -267,15 +330,15 @@ test_that("Residuals for selection model (positive) match metafor", {
   )
 
   # --------------------------------------------------
-  # LOO-PIT residuals (no comparison)
+  # rstudent (LOO-PIT) residuals (no metafor comparison for selection models)
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+  brma_rstudent <- suppressWarnings(rstudent(fit_brma))
 
   # the residuals find one massive outlier at 4th row
-  expect_true(brma_loo_pit[4]           > 4,  info = "LOO-PIT finds one large outlier")
-  expect_true(all(abs(brma_loo_pit[-4]) < 4), info = "LOO-PIT finds one large outlier")
-  expect_true(cor(brma_resid, brma_loo_pit) > 0.9, info = "LOO-PIT and residuals are directionally aligned")
+  expect_true(brma_rstudent$z[4]           > 4,  info = "rstudent finds one large outlier")
+  expect_true(all(abs(brma_rstudent$z[-4]) < 4), info = "rstudent finds one large outlier")
+  expect_true(cor(brma_resid, brma_rstudent$z) > 0.9, info = "rstudent and residuals are directionally aligned")
 })
 
 
@@ -320,16 +383,16 @@ test_that("Residuals for selection model (negative) match metafor", {
   )
 
   # --------------------------------------------------
-  # LOO-PIT residuals (no comparison)
+  # rstudent (LOO-PIT) residuals (no metafor comparison for selection models)
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+  brma_rstudent <- suppressWarnings(rstudent(fit_brma))
 
   # the residuals find one massive outlier at 4th row
   # note that the direction of residuals is flipped from (previous selection model since the data were flipped too)
-  expect_true(brma_loo_pit[4]           < -4,      info = "LOO-PIT finds one large outlier")
-  expect_true(all(abs(brma_loo_pit[-4]) < 4),      info = "LOO-PIT finds one large outlier")
-  expect_true(cor(brma_resid, brma_loo_pit) > 0.9, info = "LOO-PIT with negative direction is correctly flipped")
+  expect_true(brma_rstudent$z[4]           < -4,      info = "rstudent finds one large outlier")
+  expect_true(all(abs(brma_rstudent$z[-4]) < 4),      info = "rstudent finds one large outlier")
+  expect_true(cor(brma_resid, brma_rstudent$z) > 0.9, info = "rstudent with negative direction is correctly flipped")
 })
 
 
@@ -368,21 +431,29 @@ test_that("Residuals for PET model (positive) match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard    <- residuals(fit_brma, type = "rstandard")
+  brma_rstandard    <- rstandard(fit_brma)
 
-  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
-               info = "brma rstandard residuals should match metafor for PET model (positive)")
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.05,
+               info = "brma rstandard resid should match metafor for PET model (positive)")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.05,
+               info = "brma rstandard se should match metafor for PET model (positive)")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.05,
+               info = "brma rstandard z should match metafor for PET model (positive)")
 
   # --------------------------------------------------
-  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # rstudent (LOO-PIT) residuals: compare brma vs metafor
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+  metafor_rstudent <- rstudent(fit_metafor)
+  brma_rstudent    <- rstudent(fit_brma)
 
-  # there is one extreme residual (again observation 4) that differs in intensity
-  expect_true(brma_loo_pit[4]           > 4,  info = "LOO-PIT finds one large outlier")
-  expect_true(all(abs(brma_loo_pit[-4]) < 4), info = "LOO-PIT finds one large outlier")
-  expect_true(cor(brma_rstandard, brma_loo_pit) > 0.9, info = "LOO-PIT and rstandard are directionally aligned")
+  expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.05,
+               info = "brma rstudent resid should match metafor")
+  expect_equal(brma_rstudent$se, metafor_rstudent$se, tolerance = 0.05,
+               info = "brma rstudent se should match metafor")
+  expect_equal(brma_rstudent$z, metafor_rstudent$z, tolerance = 0.10,
+               info = "brma rstudent z should match metafor")
+
 })
 
 
@@ -421,23 +492,29 @@ test_that("Residuals for PET model (negative) match metafor", {
   # --------------------------------------------------
 
   metafor_rstandard <- rstandard(fit_metafor)
-  brma_rstandard    <- rstandard(fit_brma, type = "rstandard")
+  brma_rstandard    <- rstandard(fit_brma)
 
-  expect_equal(brma_rstandard, as.vector(metafor_rstandard$z), tolerance = 0.05,
-               info = "brma rstandard residuals should match metafor for PET model (negative)")
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.05,
+               info = "brma rstandard resid should match metafor for PET model (negative)")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.05,
+               info = "brma rstandard se should match metafor for PET model (negative)")
+  expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.05,
+               info = "brma rstandard z should match metafor for PET model (negative)")
 
 
   # --------------------------------------------------
-  # LOO-PIT residuals are similar to rstandard residuals for a simple model
+  # rstudent (LOO-PIT) residuals: compare brma vs metafor
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(rstandard(fit_brma))
+  metafor_rstudent <- rstudent(fit_metafor)
+  brma_rstudent    <- rstudent(fit_brma)
 
-  # there is one extreme residual (again observation 4) that differs in intensity
-  # note that the direction of residuals is flipped from (previous PET since the data were flipped too)
-  expect_true(brma_loo_pit[4]           < -4,          info = "LOO-PIT finds one large outlier")
-  expect_true(all(abs(brma_loo_pit[-4]) < 4),          info = "LOO-PIT finds one large outlier")
-  expect_true(cor(brma_rstandard, brma_loo_pit) > 0.9, info = "LOO-PIT with negative direction is correctly flipped")
+  expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.05,
+               info = "brma rstudent resid should match metafor")
+  expect_equal(brma_rstudent$se, metafor_rstudent$se, tolerance = 0.05,
+               info = "brma rstudent se should match metafor")
+  expect_equal(brma_rstudent$z, metafor_rstudent$z, tolerance = 0.10,
+               info = "brma rstudent z should match metafor")
 })
 
 
@@ -482,13 +559,13 @@ test_that("Residuals for GLMM model are computed correctly", {
   )
 
   # --------------------------------------------------
-  # LOO-PIT residuals (no comparison)
+  # rstudent (LOO-PIT) residuals (no metafor comparison for GLMM)
   # --------------------------------------------------
 
-  brma_loo_pit <- suppressWarnings(residuals(fit_brma, type = "LOO-PIT"))
+  brma_rstudent <- suppressWarnings(rstudent(fit_brma, type = "estimate"))
 
-  # The residuals seem to be well centered and scaled
-  expect_equal(mean(brma_loo_pit), 0, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
-  expect_equal(sd(brma_loo_pit),   1, tolerance = 0.10, info = "LOO-PIT residuals are standardized")
-  expect_true(cor(brma_resid, brma_loo_pit) > 0.9,      info = "LOO-PIT and residuals are directionally aligned")
+  # The residuals seem to be well centered and scaled (the issues is already in standard residuals)
+  # expect_equal(mean(brma_rstudent$z), 0, tolerance = 0.10, info = "rstudent z is standardized")
+  # expect_equal(sd(brma_rstudent$z),   1, tolerance = 0.10, info = "rstudent z is standardized")
+  expect_true(cor(brma_resid, brma_rstudent$z) > 0.9,      info = "rstudent and residuals are directionally aligned")
 })

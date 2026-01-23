@@ -8,6 +8,7 @@
   object,
   newdata = NULL,
   type = "terms",
+  as_measure = TRUE,
   probs = c(0.025, 0.975),
   bias_adjusted = FALSE,
   quiet = FALSE,
@@ -29,12 +30,26 @@ measure and variability metrics (for meta-analysis) for new studies. The input
 must correspond to the format and naming used in the original fit.}
 }}
 
-\item{type}{type of prediction to be performed. Defaults to \code{"response"} which
-produces predictions for the observed effect size estimates. Alternatives are
-\code{"terms"} which produces the mean effect size estimate at the given predictors
-levels (not accounting for the random-effects) and \code{"effect"} which predicts the
-distribution of the true study effects at the given predictors levels
-(i.e., incorporating heterogeneity into \code{"terms"}).}
+\item{type}{type of prediction to be performed. Options are:
+\itemize{
+\item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
+Produces the mean effect size estimate at the given predictor levels,
+not accounting for random effects.}
+\item{\code{"study"}: Fixed effects plus study-level random effects (mu + gamma).
+Only available for multilevel (3-level) models.}
+\item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True study
+effects (mu + gamma + theta). Incorporates all random effects including estimate-level
+heterogeneity. For existing data, returns BLUPs (empirical Bayes estimates).}
+\item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
+Incorporates both heterogeneity and sampling variability.}
+\item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
+regression if present.}
+}}
+
+\item{as_measure}{logical; whether to return GLMM response predictions as
+effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
+\code{TRUE}. Only relevant for GLMM models with \code{type = "response"}.
+When \code{FALSE}, returns raw frequency data (counts).}
 
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .975)}}
@@ -69,12 +84,18 @@ to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 \code{predict.brma} predicts values
 }
 \details{
+\strong{Type hierarchy:}
+\itemize{
+\item{\code{"terms"}: mu (fixed effects only)}
+\item{\code{"study"}: mu + gamma (adds study-level random effect)}
+\item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
+\item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
+}
+
 Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
-predictions for the new effect size estimates (instead of the true study effects).
-To obtain results corresponding to the metafor's predict function, use the
-\code{type = "terms"} to obtain the mean effect size estimate in its credible interval
-and \code{type = "effect"} to obtain the distribution of the true study effects (i.e.,
-prediction interval).
+predictions for the new effect size estimates. To obtain results corresponding to
+metafor's predict function, use \code{type = "terms"} for the mean effect size
+and \code{type = "estimate"} for true study effects (prediction interval).
 }
 \examples{
 \dontrun{

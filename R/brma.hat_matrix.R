@@ -1,73 +1,197 @@
-# TODO:
-# Assess whether this separate file is actually needed once all function is
-# implemented (the functionality might be merged into residual directly?)
-# (unless it is reused in other influence diagnostics)
-
-
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
 # brma.hat_matrix.R
+# ============================================================================ #
+#
+# This file contains internal functions for computing the hat matrix and related
+# quantities for brma objects. These functions are shared between residuals()
+# (for rstandard) and hatvalues().
+#
+# ============================================================================ #
+
+
+# ---------------------------------------------------------------------------- #
+# .compute_hat_matrix_samples
 # ---------------------------------------------------------------------------- #
 #
-# Utilities to compute the hat matrix for brma models. The core function
-# `.hat_matrix()` computes the hat matrix H = X (X' W X)^{-1} X' W given a
-# model matrix X and a weight matrix W. A convenience wrapper
-# `.compute_hat_matrix()` builds W from sampling variances and tau^2 and uses
-# `.get_model_matrix()` to extract X from a brma object.
+# Computes hat matrix components for each posterior sample.
 #
-# This file intentionally contains only hat-matrix related helpers so we can
-# later swap or extend the computation depending on model / likelihood type.
+# Returns a list containing:
+# - H_diag: S x K matrix of hat matrix diagonals (leverages)
+# - H: S x K x K array of full hat matrices (only if return_full_H = TRUE)
+# - se_components: S x K matrix of standard errors components for residuals (if return_se = TRUE)
+# - M_diag: S x K matrix of marginal variance diagonals
+#
+# @param object brma object
+# @param type character; type of residuals/hatvalues to compute:
+#               - "marginal" (default): Uses marginal variance M
+#               - "study": Uses within-study variance M_within
+#               - "estimate": Uses sampling variance V
+# @param return_full_H logical; whether to return the full hat matrix for each sample
+# @param return_se logical; whether to compute and return standard error components
 #
 # ---------------------------------------------------------------------------- #
+.compute_hat_matrix_samples <- function(object, type = "marginal", return_full_H = FALSE, return_se = FALSE) {
+  # check inputs
+  type <- match.arg(type, c("marginal", "study", "estimate"))
 
-#' Compute hat matrix from model matrix and weight matrix
-#'
-#' @param X numeric matrix; model matrix with K rows (observations) and p cols
-#' @param W numeric matrix; weight matrix (usually diagonal) of dimension K x K
-#'
-#' @return numeric matrix H (K x K) hat matrix
-#' @keywords internal
-.hat_matrix <- function(X, W) {
+  # get model characteristics
+  is_multilevel <- .is_multilevel(object)
+  is_scale      <- .is_scale(object)
+  priors        <- object[["priors"]]
 
-  # Xt W X
-  XtWX <- crossprod(X, W %*% X)
+  # get observed data
+  outcome_data <- object[["data"]][["outcome"]]
+  yi           <- .outcome_data_yi(object)
+  vi           <- .outcome_data_vi(object)
+  K            <- length(yi)
 
-  # invert robustly (use generalized inverse on failure)
-  XtWX_inv <- tryCatch(
-    solve(XtWX),
-    error = function(e) MASS::ginv(XtWX)
-  )
-
-  # H = X (X' W X)^{-1} X' W
-  H <- X %*% XtWX_inv %*% crossprod(X, W)
-
-  return(H)
-}
-
-
-#' Convenience wrapper to compute hat matrix for a brma object and a sample of tau^2
-#'
-#' Builds the weight matrix W = diag(1 / (vi + tau2_s)) where `vi` are the
-#' sampling variances returned by `.outcome_data_vi()` and `tau2_s` is a length-
-#' K numeric vector of tau^2 values for one posterior sample. The function
-#' extracts the model matrix using `.get_model_matrix()` and returns H.
-#'
-#' @param object brma object
-#' @param tau2_s numeric vector of length K with tau^2 values for a single sample
-#'
-#' @return numeric matrix H (K x K)
-#' @keywords internal
-.compute_hat_matrix <- function(object, tau2_s) {
-
-  # model matrix
+  # get design matrix X
   X <- .get_model_matrix(object)
 
-  # sampling variances
-  vi <- .outcome_data_vi(object)
+  # get tau samples (heterogeneity)
+  # tau_within: estimate-level heterogeneity (used for study and estimate residuals)
+  # tau_between: study-level heterogeneity (only for multilevel models)
+  tau_result <- .evaluate.brma.tau(
+    fit           = object[["fit"]],
+    scale_data    = object[["data"]][["scale"]],
+    scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
+    scale_priors  = priors[["scale"]],
+    is_scale      = is_scale,
+    is_multilevel = is_multilevel,
+    K             = K
+  )
+  tau_within_samples  <- tau_result[["tau_within"]]
+  tau_between_samples <- tau_result[["tau_between"]]
 
-  # construct weight matrix W = diag(1 / (vi + tau2_s))
-  W <- diag(1 / (vi + tau2_s))
+  S <- nrow(tau_within_samples)
 
-  H <- .hat_matrix(X, W)
+  # get study_ids for multilevel structure
+  ids <- NULL
+  if (is_multilevel) {
+    ids <- outcome_data[["study_ids"]]
+  }
 
-  return(H)
+  # initialize outputs
+  H_diag_samples <- matrix(0, nrow = S, ncol = K)
+  H_samples      <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
+  se_samples     <- if (return_se) matrix(0, nrow = S, ncol = K) else NULL
+  M_diag_samples <- matrix(0, nrow = S, ncol = K) # useful debug/checking
+
+  # Pre-calculate indices for multilevel blocks to avoid repeating inside loop
+  block_indices <- list()
+  if (is_multilevel) {
+    unique_ids <- unique(ids[!is.na(ids)])
+    for (id in unique_ids) {
+      idx <- which(ids == id)
+      if (length(idx) > 1) {
+        block_indices[[as.character(id)]] <- idx
+      }
+    }
+  }
+
+  for (s in seq_len(S)) {
+    # 1. Construct full Marginal Variance Matrix M
+    # Diagonal: vi + tau_within^2 + tau_between^2
+    tau2_w_s <- tau_within_samples[s, ]^2
+    tau2_b_s <- tau_between_samples[s, ]^2
+
+    M_diag <- vi + tau2_w_s + tau2_b_s
+    M <- diag(M_diag)
+    M_diag_samples[s, ] <- M_diag
+
+    # Add off-diagonal tau_between^2 for same study (multilevel only)
+    if (length(block_indices) > 0) {
+      # tau_between is constant within study (usually), take first from sample
+      # Assuming tau2_b is constant across studies for standard 3-lvl logic here
+      # If it were varying per ID, we'd need to fetch it per ID.
+      # .evaluate.brma.tau usually returns S x K where K matches data.
+      # So we can just take the value from the first index of the block.
+
+      for (bid in names(block_indices)) {
+        idx <- block_indices[[bid]]
+        val <- tau2_b_s[idx[1]]
+
+        # Add val to off-diagonals of the block
+        # (diagonal already has it, so we add 0 to diagonal of the block addition)
+        block_add <- matrix(val, nrow = length(idx), ncol = length(idx))
+        diag(block_add) <- 0
+
+        M[idx, idx] <- M[idx, idx] + block_add
+      }
+    }
+
+    # 2. Compute Weight matrix W and Hat matrix H
+    # W = M^{-1}
+    # Use Cholesky for stability and validity
+    chk <- try(chol(M), silent = TRUE)
+    if (inherits(chk, "try-error")) {
+      # If Cholesky fails, M is likely not positive definite -> invalid sample
+      # For now, we return NA which will likely propagate to NA in outputs
+      W <- matrix(NA, nrow = K, ncol = K)
+    } else {
+      W <- chol2inv(chk)
+    }
+
+    # H = X (X' W X)^{-1} X' W
+    # Note: X' W is K x K if computed directly, but X is K x p.
+    # XtW should be p x K.
+    XtW <- crossprod(X, W) # X' W
+    XtWX <- XtW %*% X # X' W X
+
+    # Invert XtWX (p x p)
+    XtWX_inv <- tryCatch(solve(XtWX), error = function(e) MASS::ginv(XtWX))
+
+    # H = X * (XtWX_inv) * XtW
+    H <- X %*% XtWX_inv %*% XtW
+
+    # store leverage (diagonal)
+    H_diag_samples[s, ] <- diag(H)
+
+    # store full H if requested
+    if (return_full_H) {
+      H_samples[s, , ] <- H
+    }
+
+    # 3. Compute Standard Errors if requested
+    if (return_se) {
+      ImH <- diag(K) - H
+
+      if (type == "marginal") {
+        # Marginal: Var(e) = (I-H) M (I-H)'
+        ve <- ImH %*% tcrossprod(M, ImH)
+        se_samples[s, ] <- sqrt(diag(ve))
+      } else if (type == "study") {
+        # Study: Var(e) = (I-H) M_within (I-H)'
+        # M_within = diag(vi + tau_within^2)
+        M_within <- diag(vi + tau2_w_s)
+
+        ve <- ImH %*% tcrossprod(M_within, ImH)
+        se_samples[s, ] <- sqrt(diag(ve))
+      } else if (type == "estimate") {
+        # Estimate/Conditional:
+        # SE = sqrt(diag(V W (I-H) V)) where V = diag(vi)
+        # V * W * (I-H) * V
+        # Simplification: V * W * (ImH) * V
+        # Since V is diagonal, this is V %*% (W %*% ImH) %*% V
+        # Diagonal elements: vi[i] * (W%*%ImH)[i,i] * vi[i] = vi[i]^2 * (W%*%ImH)[i,i]
+
+        W_ImH <- W %*% ImH
+        se_samples[s, ] <- sqrt(vi^2 * diag(W_ImH))
+      }
+    }
+  }
+
+  result <- list(
+    H_diag = H_diag_samples,
+    M_diag = M_diag_samples
+  )
+
+  if (return_full_H) {
+    result[["H"]] <- H_samples
+  }
+  if (return_se) {
+    result[["se"]] <- se_samples
+  }
+
+  return(result)
 }

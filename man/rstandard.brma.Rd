@@ -2,55 +2,71 @@
 % Please edit documentation in R/brma.residuals.R
 \name{rstandard.brma}
 \alias{rstandard.brma}
-\title{Standardized Residuals for brma Objects}
+\title{Internally Standardized Residuals for brma Objects}
 \usage{
-\method{rstandard}{brma}(model, type = "LOO-PIT", ...)
+\method{rstandard}{brma}(model, type = "marginal", ...)
 }
 \arguments{
 \item{model}{a fitted brma object}
 
-\item{...}{additional arguments passed to \code{\link{residuals.brma}}}
+\item{type}{the type of residuals to compute. Options are:
+\itemize{
+\item \code{"marginal"} (default): Residuals from fixed effects predictions
+(observed - Xβ).
+\item \code{"study"}: Residuals from study-level predictions (observed -
+(Xβ + gamma)). Only available for multilevel (3-level) models.
+\item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs,
+i.e., deviations of the observed effect sizes from the best linear
+unbiased predictions of the study-specific true effects (observed - theta).
+}}
+
+\item{...}{additional arguments (currently ignored)}
 }
 \value{
-A numeric vector of LOO-PIT standardized residual means.
+A data frame with columns:
+\itemize{
+\item \code{resid}: Raw residuals
+\item \code{se}: Standard errors of the residuals
+\item \code{z}: Standardized residuals
+}
 }
 \description{
-Computes standardized residuals from a fitted brma object using
-LOO-PIT (Leave-One-Out Probability Integral Transform). This is a
-convenience wrapper for \code{residuals(object, type = "LOO-PIT", ...)}.
+Computes internally standardized residuals from a fitted brma
+object using the hat matrix. Returns a data frame with raw residuals,
+standard errors, and standardized residuals (z-values). Available for normal
+outcome models only.
 }
 \details{
-LOO-PIT residuals are the Bayesian equivalent of studentized deleted
-residuals. They are computed via leave-one-out probability integral
-transformation using Pareto smoothed importance sampling. Under a correctly
-specified model, LOO-PIT residuals should follow a standard normal
-distribution.
+This function returns a data frame with three columns matching the output
+of \code{metafor::rstandard}:
+\itemize{
+\item \code{resid}: Raw residuals (observed - fitted values)
+\item \code{se}: Standard errors of the residuals
+\item \code{z}: Standardized residuals (resid / se)
+}
 
-Unlike traditional standardized residuals (which use the hat matrix),
-LOO-PIT residuals properly account for estimation uncertainty and leverage
-without requiring explicit hat matrix computation. This makes them suitable
-for all model types including selection models and GLMMs.
+Internally standardized residuals divide the observed residuals by their
+corresponding standard errors computed using the hat matrix. For a correctly
+specified model, these residuals should approximately follow a standard
+normal distribution.
 
-Note: LOO-PIT residuals are computationally more expensive than traditional
-standardized residuals as they require importance sampling.
+This function is only available for normal outcome models without selection
+(weightfunction) bias adjustment. For other model types, use
+\code{\link{rstudent.brma}} which uses LOO-PIT.
 }
 \examples{
 \dontrun{
 # fit a brma model
 fit <- brma(yi ~ 1, sei = sei, data = dat)
 
-# get standardized residuals (LOO-PIT)
+# get marginal internally standardized residuals (default)
 rstandard(fit)
 
-# equivalent to:
-residuals(fit, type = "LOO-PIT")
-
-# check LOO diagnostics
-loo_obj <- residuals(fit, type = "LOO-PIT", loo_only = TRUE)
-plot(loo_obj)  # check Pareto k values
+# get estimate-level (BLUP-based) residuals
+rstandard(fit, type = "estimate")
 }
 
 }
 \seealso{
-\code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=loo.brma]{loo.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
+\code{\link[=rstudent.brma]{rstudent.brma()}}, \code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=blup.brma]{blup.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

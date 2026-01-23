@@ -21,14 +21,15 @@ bias adjustment.
 raw residuals by their standard errors computed using the hat matrix.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
-\item \code{"LOO-PIT"}: Leave-one-out probability integral transform (PIT)
-residuals computed via Pareto smoothed importance sampling. The LOO-CDF
-value for each observation is computed and transformed to standard normal
-quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly specified model,
-these residuals should follow a standard normal distribution. This is the
-recommended standardized residual for Bayesian models as it properly
+\item \code{"LOO-PIT" (alias: \code{"rstudent"}}: Leave-one-out probability
+integral transform (PIT) residuals computed via Pareto smoothed importance
+sampling. The LOO-CDF value for each observation is computed and transformed
+to standard normal quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly
+specified model, these residuals should follow a standard normal distribution.
+This is the recommended standardized residual for Bayesian models as it properly
 accounts for estimation uncertainty and leverage. Available for all model
-types. Note: This is computationally more expensive than other methods.
+types. Note: This requires that the loo has been computed previously (see
+\code{\link[=add_loo]{add_loo()}} function).
 }}
 
 \item{bias_adjusted}{whether residuals should be computed from bias-adjusted
@@ -116,7 +117,7 @@ residuals(fit, bias_adjusted = TRUE)
 
 # check LOO diagnostics before using LOO-PIT residuals
 loo_result <- loo(fit)
-plot(loo_result)  # check Pareto k values
+plot(loo_result) # check Pareto k values
 }
 
 }
@@ -124,5 +125,5 @@ plot(loo_result)  # check Pareto k values
 \insertAllCited{}
 }
 \seealso{
-\code{\link[=predict.brma]{predict.brma()}}, \code{\link[=blup.brma]{blup.brma()}}, \code{\link[=pooled_effect]{pooled_effect()}}, \code{\link[=rstandard.brma]{rstandard.brma()}}
+\code{\link[=predict.brma]{predict.brma()}}, \code{\link[=blup.brma]{blup.brma()}}, \code{\link[=pooled_effect]{pooled_effect()}}, \code{\link[=rstandard.brma]{rstandard.brma()}}, \code{\link[=rstudent.brma]{rstudent.brma()}}
 }

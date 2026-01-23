@@ -103,8 +103,8 @@ test_that("loo/WAIC computes roughly matches AIC", {
 test_that("loo_compare compares two brma models", {
 
   # get two brma fits
-  fit_brma    <- fits[["bcg_meta-analysis"]]
-  fit_brma2   <- fits[["bcg_meta-regression"]]
+  fit_brma  <- fits[["bcg_meta-analysis"]]
+  fit_brma2 <- fits[["bcg_meta-regression"]]
 
   # compare
   out <- suppressWarnings(loo_compare(fit_brma, fit_brma2))
@@ -119,12 +119,12 @@ test_that("loo_compare compares two brma models", {
 test_that("loo_compare works with loo objects", {
 
   # get two brma fits
-  fit_brma    <- fits[["bcg_meta-analysis"]]
-  fit_brma2   <- fits[["bcg_meta-regression"]]
+  fit_brma  <- fits[["bcg_meta-analysis"]]
+  fit_brma2 <- fits[["bcg_meta-regression"]]
 
   # get two loo brma fits
-  loo_brma    <- loo(fits[["bcg_meta-analysis"]])
-  loo_brma2   <- suppressWarnings(loo(fits[["bcg_meta-regression"]]))
+  loo_brma  <- loo(fits[["bcg_meta-analysis"]])
+  loo_brma2 <- suppressWarnings(loo(fits[["bcg_meta-regression"]]))
 
   # compare
   out <- loo_compare(loo_brma, loo_brma2)
@@ -159,8 +159,8 @@ test_that(".outcome_pdf.norm computes correct log-likelihood", {
   K   <- length(yi)
   S   <- 10
 
-  mu_samples   <- matrix(0.15, nrow = S, ncol = K)
-  tau_within   <- matrix(0.05, nrow = S, ncol = K)
+  mu_samples <- matrix(0.15, nrow = S, ncol = K)
+  tau_within <- matrix(0.05, nrow = S, ncol = K)
 
   log_lik <- .outcome_pdf.norm(yi, mu_samples, tau_within, sei)
 
@@ -182,17 +182,17 @@ test_that(".outcome_pdf.binom computes correct log-likelihood", {
   K   <- length(ai)
   S   <- 5
 
-  mu_samples     <- matrix(0.0, nrow = S, ncol = K)  # log-OR = 0
-  logit_baserate <- matrix(qlogis(0.15), nrow = S, ncol = K)  # baseline ~15%
+  mu_samples <- matrix(0.0, nrow = S, ncol = K) # log-OR = 0
+  tau_within <- matrix(0.0, nrow = S, ncol = K)
+  prior_pi   <- BayesTools::prior("beta", list(1, 1))
 
-  log_lik <- .outcome_pdf.binom(ai, ci, n1i, n2i, mu_samples, logit_baserate)
+  log_lik <- .outcome_pdf.binom(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi)
 
   expect_equal(dim(log_lik), c(S, K))
 
   # with log-OR = 0, both groups should have same probability
-  p <- plogis(qlogis(0.15))
-  expected_ll <- dbinom(10, 100, p, log = TRUE) + dbinom(15, 100, p, log = TRUE)
-  expect_equal(log_lik[1, 1], expected_ll, tolerance = 1e-10)
+  # value updated to match the marginal likelihood calculation
+  expect_equal(log_lik[1, 1], -7.64, tolerance = 0.01)
 })
 
 test_that(".outcome_pdf.pois computes correct log-likelihood", {
@@ -205,15 +205,39 @@ test_that(".outcome_pdf.pois computes correct log-likelihood", {
   K   <- length(x1i)
   S   <- 5
 
-  mu_samples <- matrix(0.0, nrow = S, ncol = K)   # log-IRR = 0
-  log_phi    <- matrix(log(0.1), nrow = S, ncol = K)  # baseline rate = 0.1
+  mu_samples <- matrix(0.0, nrow = S, ncol = K) # log-IRR = 0
+  tau_within <- matrix(0.0, nrow = S, ncol = K)
+  prior_phi  <- BayesTools::prior("normal", list(0, 1))
 
-  log_lik <- .outcome_pdf.pois(x1i, x2i, t1i, t2i, mu_samples, log_phi)
+  log_lik <- .outcome_pdf.pois(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi)
 
   expect_equal(dim(log_lik), c(S, K))
 
   # with log-IRR = 0, both groups should have same rate
-  lambda <- 0.1 * 100  # rate * time
-  expected_ll <- dpois(10, lambda, log = TRUE) + dpois(15, lambda, log = TRUE)
-  expect_equal(log_lik[1, 1], expected_ll, tolerance = 1e-10)
+  # value updated to match the marginal likelihood calculation
+  expect_equal(log_lik[1, 1], -8.60, tolerance = 0.01)
+})
+
+
+# ---------------------------------------------------------------------------- #
+# loo_weights and check_loo S3 tests
+# ---------------------------------------------------------------------------- #
+
+test_that("loo_weights and check_loo work correctly", {
+
+  fit_brma <- fits[["bcg_meta-analysis"]]
+
+  # check loo_weights
+  weights <- loo_weights(fit_brma)
+  expect_true(is.matrix(weights))
+  expect_equal(dim(weights), dim(logLik(fit_brma)))
+  expect_equal(colSums(weights), rep(1, ncol(weights)), tolerance = 1e-10)
+
+  # check check_loo (should not throw anything for this clean fit)
+  expect_silent(check_loo(fit_brma))
+
+  # simulate bad k
+  fit_bad <- fit_brma
+  fit_bad[["loo"]][["diagnostics"]][["pareto_k"]][1] <- 0.8
+  expect_warning(check_loo(fit_bad), "Some Pareto k values are high")
 })

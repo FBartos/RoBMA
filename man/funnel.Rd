@@ -7,9 +7,10 @@
 \usage{
 \method{funnel}{brma}(
   x,
+  residual,
+  type = "LOO-PIT",
   sampling_heterogeneity = TRUE,
   sampling_bias = TRUE,
-  bias_adjusted = FALSE,
   plot_type = "base",
   ...
 )
@@ -28,19 +29,38 @@
 \arguments{
 \item{x}{a fitted brma object}
 
+\item{residual}{whether to use standardized residuals mode. Defaults to
+not specified, which means the function automatically determines the mode:
+\itemize{
+\item \code{FALSE} (auto): For intercept-only models without scale
+regression, displays observed effect sizes minus the pooled estimate
+against the sampling distribution funnel.
+\item \code{TRUE} (auto or explicit): For models with moderators or scale
+regression, or when explicitly set to \code{TRUE}, displays standardized
+residuals against the standard normal funnel.
+}}
+
+\item{type}{the type of residuals to use when in residual mode.
+Options are:
+\itemize{
+\item \code{"LOO-PIT"} (alias: \code{"rstudent"}; default): Leave-one-out probability integral transform
+residuals (most robust, works for all model types).
+\item \code{"rstandard"}: Internally standardized residuals using
+the hat matrix. Only available for normal outcome models.
+\item \code{"outcome"}: Raw outcome residuals (observed - fitted).
+}
+Only used when funnel is in residual mode.}
+
 \item{sampling_heterogeneity}{whether heterogeneity should be incorporated
-into the sampling distribution funnel. Defaults to \code{TRUE}.}
+into the sampling distribution funnel. Defaults to \code{TRUE}. Only used
+when \code{residual = FALSE} (outcome mode).}
 
 \item{sampling_bias}{whether publication bias should be incorporated into the
-sampling distribution funnel. Defaults to \code{TRUE}. When \code{TRUE} and
-the model includes selection models (weightfunction), uses weighted normal
-quantiles for the funnel contours. When \code{TRUE} and the model includes
-PET/PEESE, incorporates the expected skew from these regression adjustments.}
-
-\item{bias_adjusted}{whether residuals should be computed from bias-adjusted
-fitted values. Defaults to \code{FALSE}, which means residuals represent
-deviation from the raw (biased) effect estimate. When \code{TRUE},
-residuals are computed from bias-corrected fitted values.}
+sampling distribution funnel. Defaults to \code{TRUE}. Only used when
+\code{residual = FALSE} (outcome mode). When \code{TRUE} and the model
+includes selection models (weightfunction), uses weighted normal quantiles.
+When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
+skew from these regression adjustments.}
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
@@ -48,7 +68,7 @@ residuals are computed from bias-corrected fitted values.}
 \item{...}{additional graphical arguments to customize the plot appearance:
 \describe{
 \item{xlim, ylim}{numeric vectors of length 2 specifying axis limits}
-\item{xlab, ylab}{character strings for axis labels (defaults: "Residual", "Standard Error")}
+\item{xlab, ylab}{character strings for axis labels}
 \item{main}{character string for plot title (default: no title)}
 \item{pch}{point symbol (default: 21, filled circle). Use standard R pch values.}
 \item{col}{point border color (default: "black")}
@@ -92,9 +112,11 @@ or a ggplot object if \code{plot_type = "ggplot"}.
 or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
-\code{funnel.brma} creates a funnel plot for a fitted brma object,
-displaying residuals against standard errors with the expected sampling
-distribution funnel.
+\code{funnel.brma} creates a funnel plot for a fitted brma object.
+For intercept-only models without scale regression, this displays observed
+effect sizes against the expected sampling distribution. For models with
+moderators or scale regression, this displays standardized residuals against
+the standard normal distribution.
 
 \code{funnel.RoBMA} creates a funnel plot for
 a \code{"RoBMA"} object.
@@ -104,26 +126,22 @@ simplifications to visualize the sampling distribution, see Details for
 more information.
 }
 \details{
-The funnel plot displays residuals (observed effect minus fitted value)
-on the x-axis and standard errors on the y-axis. The funnel region represents
-the 95\% prediction region for residuals based on the sampling distribution.
+The funnel plot has two modes depending on the model complexity:
 
-For meta-regression models, residuals account for moderator effects.
+\strong{Outcome mode} (intercept-only models without scale regression):
+Displays residuals (observed - pooled estimate) on the x-axis and standard
+errors on the y-axis. The funnel region represents the 95\% prediction region
+based on the sampling distribution, optionally incorporating heterogeneity
+and publication bias.
 
-When \code{sampling_heterogeneity = TRUE}, the funnel boundaries incorporate
-between-study heterogeneity:
-\deqn{CI = \pm 1.96 \times \sqrt{se^2 + \tau^2}}
-where \eqn{\tau} is the estimated between-study heterogeneity.
+\strong{Residual mode} (models with moderators or scale regression):
+Displays residuals on the x-axis and standard errors on the
+y-axis. The funnel region represents the 95\% prediction region
+based on the standard error. Under a correctly specified model,
+residuals should fall within this region approximately 95\% of the time.
 
-When \code{sampling_bias = TRUE} and the model includes publication bias
-adjustment (selection models or PET/PEESE), the funnel contours reflect
-the expected distortion in the sampling distribution due to bias. For
-selection models, weighted normal quantiles are used. For PET/PEESE,
-the regression-based skew is incorporated.
-
-The \code{bias_adjusted} parameter controls how residuals (the points) are
-computed: when \code{TRUE}, residuals show deviation from the bias-corrected
-pooled effect; when \code{FALSE}, they show deviation from raw predictions.
+The \code{type} argument controls how residuals are computed in residual
+mode. See \code{\link{residuals.brma}} for details on each type.
 
 For GLMM models, observed effect sizes are computed from the raw frequency
 data using formulas equivalent to \code{metafor::escalc}.
@@ -141,36 +159,26 @@ estimates (the uncertainty about those values is not incorporated into the figur
 }
 \examples{
 \dontrun{
-# fit a brma model
+# Simple meta-analysis: outcome mode (yi - mu vs sampling distribution)
 fit <- brma(yi ~ 1, sei = sei, data = dat)
-
-# create funnel plot
 funnel(fit)
 
-# without heterogeneity in sampling distribution
-funnel(fit, sampling_heterogeneity = FALSE)
+# Force residual mode even for simple model
+funnel(fit, residual = TRUE)
 
-# without bias in sampling distribution
-funnel(fit, sampling_bias = FALSE)
+# Meta-regression: automatically uses residual mode
+fit_reg <- brma(yi ~ mod, sei = sei, data = dat)
+funnel(fit_reg) # shows standardized residuals
 
-# residuals from bias-adjusted predictions
-funnel(fit, bias_adjusted = TRUE)
+# Different residual types
+funnel(fit_reg, type = "LOO-PIT")
 
-# customize point appearance
-funnel(fit, pch = 19, col = "blue", bg = "lightblue", cex = 1.5)
-
-# customize funnel region styling
+# Customize appearance
+funnel(fit, pch = 19, col = "blue", bg = "lightblue")
 funnel(fit, back = "lightgrey", shade = "white", lty = "dashed")
-
-# custom axis labels and title
-funnel(fit, xlab = "Effect Size Residual", main = "Funnel Plot")
-
-# custom axis limits
-funnel(fit, xlim = c(-2, 2), ylim = c(0, 1))
 
 # using ggplot2
 funnel(fit, plot_type = "ggplot")
-funnel(fit, plot_type = "ggplot", pch = 19, size = 3, col = "red")
 }
 
 \dontrun{
@@ -184,5 +192,5 @@ funnel(fit)
 
 }
 \seealso{
-\code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
+\code{\link[=residuals.brma]{residuals.brma()}}, \code{\link[=rstandard.brma]{rstandard.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

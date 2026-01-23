@@ -147,6 +147,11 @@ add_marglik.brma <- function(object, ...) {
 # The function converts single-sample parameters to 1-row matrices to reuse
 # the existing evaluate and pdf helper functions from brma.evaluate.R and
 # brma.pdf.R.
+# (in contrast to .pdf.brma, this function does not add likelihood contributions from 
+#  estimate-level effects / baserate/ lograte for GLMMs since those are automatically 
+#  handled via JAGS_bridgesampling function -- i.e., all parameters generated directly 
+#  by BayesTools are automatically evaluated in the likelihood calculation, the only 
+#  part missing is the final p(data | parameters) term) 
 #
 # @param parameters       named list of parameter values (preprocessed by BayesTools)
 #                         - mu: scalar (no mods) or vector of length K (with mods)

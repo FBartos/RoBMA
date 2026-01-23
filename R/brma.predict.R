@@ -14,12 +14,25 @@
 #'   measure and variability metrics (for meta-analysis) for new studies. The input
 #'   must correspond to the format and naming used in the original fit.}
 #' }
-#' @param type type of prediction to be performed. Defaults to \code{"response"} which
-#' produces predictions for the observed effect size estimates. Alternatives are
-#' \code{"terms"} which produces the mean effect size estimate at the given predictors
-#' levels (not accounting for the random-effects) and \code{"effect"} which predicts the
-#' distribution of the true study effects at the given predictors levels
-#' (i.e., incorporating heterogeneity into \code{"terms"}).
+#' @param type type of prediction to be performed. Options are:
+#' \itemize{
+#'   \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
+#'   Produces the mean effect size estimate at the given predictor levels,
+#'   not accounting for random effects.}
+#'   \item{\code{"study"}: Fixed effects plus study-level random effects (mu + gamma).
+#'   Only available for multilevel (3-level) models.}
+#'   \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True study
+#'   effects (mu + gamma + theta). Incorporates all random effects including estimate-level
+#'   heterogeneity. For existing data, returns BLUPs (empirical Bayes estimates).}
+#'   \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
+#'   Incorporates both heterogeneity and sampling variability.}
+#'   \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
+#'   regression if present.}
+#' }
+#' @param as_measure logical; whether to return GLMM response predictions as
+#' effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
+#' \code{TRUE}. Only relevant for GLMM models with \code{type = "response"}.
+#' When \code{FALSE}, returns raw frequency data (counts).
 #' @param bias_adjusted whether predictions should adjust for publication bias.
 #' Defaults to \code{FALSE}. When \code{TRUE}:
 #' \itemize{
@@ -38,13 +51,18 @@
 #' }
 #'
 #' @details
-#' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
-#' predictions for the new effect size estimates (instead of the true study effects).
-#' To obtain results corresponding to the metafor's predict function, use the
-#' \code{type = "terms"} to obtain the mean effect size estimate in its credible interval
-#' and \code{type = "effect"} to obtain the distribution of the true study effects (i.e.,
-#' prediction interval).
+#' \strong{Type hierarchy:}
+#' \itemize{
+#'   \item{\code{"terms"}: mu (fixed effects only)}
+#'   \item{\code{"study"}: mu + gamma (adds study-level random effect)}
+#'   \item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
+#'   \item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
+#' }
 #'
+#' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
+#' predictions for the new effect size estimates. To obtain results corresponding to
+#' metafor's predict function, use \code{type = "terms"} for the mean effect size
+#' and \code{type = "estimate"} for true study effects (prediction interval).
 #'
 #' @examples \dontrun{
 #' }
@@ -58,13 +76,25 @@
 #' @export
 predict.brma <- function(object, newdata = NULL,
                          type = "terms",
+                         as_measure = TRUE,
                          probs = c(.025, .975),
                          bias_adjusted = FALSE,
                          quiet = FALSE,
                          ...){
 
-  # some options checked inside BayesTools table directly
-  BayesTools::check_char(type, "type", allow_values = c("response", "terms", "terms.scale", "effect"))
+  # normalize type aliases
+  type <- match.arg(type, c("terms", "marginal", "study", "estimate", "effect", "blup",
+                            "response", "outcome", "terms.scale"))
+  type <- switch(type,
+    "marginal" = "terms",
+    "effect"   = "estimate",
+    "blup"     = "estimate",
+    "outcome"  = "response",
+    type  # default: keep as is
+  )
+
+  # input validation
+  BayesTools::check_bool(as_measure, "as_measure")
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(quiet, "quiet")
 
@@ -83,11 +113,11 @@ predict.brma <- function(object, newdata = NULL,
 
   ### types of predictions
   # terms:       fixed effects terms for the overall effect (mu) / incorporating mods if present
+  # study:       terms + study-level random effects (mu + gamma) - multilevel only
   # terms.scale: fixed effects terms for the overall heterogeneity (tau) / incorporating scale if present
-  # effect:      incorporating between-study heterogeneity into terms to obtain the true study effects
-  #              (via empirical Bayes for random effects necessary, in case of new_data, new random effect is sampled)
+  # estimate:    incorporating between-study heterogeneity into terms to obtain the true study effects
+  #              (via empirical Bayes for existing data, new random effect sampled for new data)
   # response:    incorporating between-study heterogeneity and sampling variability
-  #              (via marginalized random-effects)
 
   ### dispatch between prediction on the current data vs. new data
   if (is.null(newdata)) {
@@ -128,6 +158,12 @@ predict.brma <- function(object, newdata = NULL,
   is_weightfunction <- .is_weightfunction(object)
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
+
+  # check: study type requires multilevel model
+  if (type == "study" && !is_multilevel) {
+    stop("type = 'study' is only available for multilevel (3-level) models. ",
+         "Use type = 'terms' for non-multilevel models.", call. = FALSE)
+  }
 
   ### extract outcome data and fit data for convenience
   outcome_data      <- new_data[["outcome"]]
@@ -205,8 +241,8 @@ predict.brma <- function(object, newdata = NULL,
     K                 = K_original
   )
 
-  ### aggregate mu and tau samples if requested (for terms/effect types)
-  if (aggregate && type %in% c("terms", "effect")) {
+  ### aggregate mu and tau samples if requested (for terms/study/estimate types)
+  if (aggregate && type %in% c("terms", "study", "estimate")) {
     # average mu across observations (rows are samples, columns are observations)
     # for non-mods models, all columns are identical so this is a no-op
     # for mods models, this averages across the model matrix
@@ -250,12 +286,28 @@ predict.brma <- function(object, newdata = NULL,
     mu_samples <- mu_samples + study_contribution
   }
 
+  ### return study-level predictions if type = "study" is selected
+  # study incorporates fixed effects + study-level random effects (mu + gamma)
+  if (type == "study") {
+    # rename samples
+    colnames(mu_samples) <- if (aggregate) "mu_study" else paste0("mu_study[", seq_len(K), "]")
+
+    return(.new_brma_samples(
+      samples  = mu_samples,
+      n_chains = n_chains,
+      n_iter   = n_iter,
+      title    = if (aggregate) "Aggregated Study-Level Posterior Prediction:" else "Study-Level Posterior Prediction:",
+      probs    = probs,
+      data     = if (aggregate) NULL else new_data
+    ))
+  }
+
   ### create true-effect prediction
   # dispatches between normal and GLMM approaches
   # both helpers handle same_data dispatch internally:
   # - same_data = TRUE: use fitted values (BLUPs for normal, extracted theta for GLMM)
   # - same_data = FALSE: sample from marginal distribution N(mu, tau_within)
-  if (type == "effect") {
+  if (type == "estimate") {
 
     if (outcome_type == "norm") {
       true_effects_samples <- .evaluate.brma.true_effects.norm(
@@ -333,6 +385,46 @@ predict.brma <- function(object, newdata = NULL,
           t1i        = outcome_data[["t1i"]],
           t2i        = outcome_data[["t2i"]]
         )
+
+      }
+
+      # convert to effect size measure if requested (default)
+      if (as_measure) {
+
+        if (outcome_type == "bin") {
+          # convert counts to log-odds ratio using escalc-like formula
+          # logOR = log((ai/bi) / (ci/di)) where bi = n1i - ai, di = n2i - ci
+          # extract ai and ci from interleaved outcome_samples
+          ai <- outcome_samples[, seq(1, 2 * K, by = 2), drop = FALSE]
+          ci <- outcome_samples[, seq(2, 2 * K, by = 2), drop = FALSE]
+          # compute complementary counts
+          n1i_mat <- matrix(outcome_data[["n1i"]], nrow = nrow(ai), ncol = K, byrow = TRUE)
+          n2i_mat <- matrix(outcome_data[["n2i"]], nrow = nrow(ai), ncol = K, byrow = TRUE)
+          bi <- n1i_mat - ai
+          di <- n2i_mat - ci
+          # apply 0.5 continuity correction for zero cells
+          ai_adj <- ai + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
+          bi_adj <- bi + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
+          ci_adj <- ci + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
+          di_adj <- di + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
+          # compute log-odds ratio
+          outcome_samples <- log((ai_adj * di_adj) / (bi_adj * ci_adj))
+          colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
+
+        } else if (outcome_type == "pois") {
+          # convert counts to log incidence rate ratio
+          # logIRR = log((x1i/t1i) / (x2i/t2i))
+          x1i <- outcome_samples[, seq(1, 2 * K, by = 2), drop = FALSE]
+          x2i <- outcome_samples[, seq(2, 2 * K, by = 2), drop = FALSE]
+          t1i_mat <- matrix(outcome_data[["t1i"]], nrow = nrow(x1i), ncol = K, byrow = TRUE)
+          t2i_mat <- matrix(outcome_data[["t2i"]], nrow = nrow(x1i), ncol = K, byrow = TRUE)
+          # apply 0.5 continuity correction for zero counts
+          x1i_adj <- x1i + 0.5 * (x1i == 0 | x2i == 0)
+          x2i_adj <- x2i + 0.5 * (x1i == 0 | x2i == 0)
+          # compute log incidence rate ratio
+          outcome_samples <- log((x1i_adj / t1i_mat) / (x2i_adj / t2i_mat))
+          colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
+        }
 
       }
 

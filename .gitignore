@@ -24,3 +24,5 @@ models/MetaRegression/*
 .RData
 Rplots.pdf
 .RData
+/tests/testthat/test_files
+.RData

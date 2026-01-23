@@ -31,20 +31,21 @@
 #'     raw residuals by their standard errors computed using the hat matrix.
 #'     Only available for normal outcome models without selection (weightfunction)
 #'     bias adjustment.
-#'   \item \code{"LOO-PIT"}: Leave-one-out probability integral transform (PIT)
-#'     residuals computed via Pareto smoothed importance sampling. The LOO-CDF
-#'     value for each observation is computed and transformed to standard normal
-#'     quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly specified model,
-#'     these residuals should follow a standard normal distribution. This is the
-#'     recommended standardized residual for Bayesian models as it properly
+#'   \item \code{"LOO-PIT" (alias: \code{"rstudent"}}: Leave-one-out probability
+#'     integral transform (PIT) residuals computed via Pareto smoothed importance
+#'     sampling. The LOO-CDF value for each observation is computed and transformed
+#'     to standard normal quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly
+#'     specified model, these residuals should follow a standard normal distribution.
+#'     This is the recommended standardized residual for Bayesian models as it properly
 #'     accounts for estimation uncertainty and leverage. Available for all model
-#'     types. Note: This is computationally more expensive than other methods.
+#'     types. Note: This requires that the loo has been computed previously (see
+#'     [add_loo()] function).
 #' }
 #' @param bias_adjusted whether residuals should be computed from bias-adjusted
 #' fitted values. Defaults to \code{FALSE}, which means residuals are computed
 #' as the difference between observed values and raw (biased) predictions
 #' including PET/PEESE terms. Set to \code{TRUE} to compute residuals from
-#' bias-corrected fitted values. Only applies to \code{type = "outcome"}. Note 
+#' bias-corrected fitted values. Only applies to \code{type = "outcome"}. Note
 #' that the bias adjustment residuals are not residuals in the traditional sense.
 #' @param ... additional arguments.
 #'
@@ -118,18 +119,18 @@
 #'
 #' # check LOO diagnostics before using LOO-PIT residuals
 #' loo_result <- loo(fit)
-#' plot(loo_result)  # check Pareto k values
+#' plot(loo_result) # check Pareto k values
 #' }
 #'
 #' @references
 #' \insertAllCited{}
 #'
-#' @seealso [predict.brma()], [blup.brma()], [pooled_effect()], [rstandard.brma()]
+#' @seealso [predict.brma()], [blup.brma()], [pooled_effect()], [rstandard.brma()], [rstudent.brma()]
 #' @exportS3Method
 residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...) {
 
   # input validation
-  BayesTools::check_char(type, "type", allow_values = c("outcome", "pearson", "rstandard", "LOO-PIT"))
+  BayesTools::check_char(type, "type", allow_values = c("outcome", "pearson", "rstandard", "rstudent", "LOO-PIT"))
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
 
   # extract model characteristics for error checking
@@ -140,12 +141,9 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
   .check_residual_type_availability(type, outcome_type, is_weightfunction)
 
   # dispatch to LOO-PIT method (separate path due to different computation)
-  if (type == "LOO-PIT") {
-
-    out <- .standardize_residuals_loopit(object)
-
+  if (is.element(type, c("LOO-PIT", "rstudent"))) {
+    out <- .standardized_residuals_loopit(object)
   } else {
-
     # get fitted values (mu predictions for each observation)
     # type = "terms" gives fixed effects predictions estimate-level random effects
     fitted_samples <- predict.brma(
@@ -163,30 +161,39 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
     # compute raw residuals: yi - fitted
     # fitted_samples is S x K matrix, yi is vector of length K
     # replicate yi across samples for vectorized subtraction
-    S      <- nrow(fitted_samples)
-    yi_mat <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
+    S <- nrow(fitted_samples)
+    yi_mat        <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
     resid_samples <- yi_mat - fitted_samples
 
     # standardize residuals if requested
-    if (type == "pearson") {
+    if (type == "pearson" || type == "rstandard") {
 
-      resid_samples <- .standardize_residuals_pearson(
-        resid_samples = resid_samples,
-        object        = object
-      )
+      hat_type <- "marginal" # residuals() uses marginal residuals by default
+      calc_se  <- TRUE
 
-    } else if (type == "rstandard") {
-
-      resid_samples <- .standardize_residuals_rstandard(
-        resid_samples = resid_samples,
-        object        = object
-      )
-
+      if (type == "rstandard") {
+        # use hat matrix SE
+        hat_res       <- .compute_hat_matrix_samples(object, type = "marginal", return_se = TRUE)
+        se_samples    <- hat_res[["se"]]
+        resid_samples <- resid_samples / se_samples
+      } else if (type == "pearson") {
+        # use marginal SE without hat matrix
+        # SE = sqrt(vi + tau_total^2)
+        vi <- .outcome_data_vi(object)
+        tau_samples <- predict.brma(
+          object     = object,
+          newdata    = NULL,
+          type       = "terms.scale",
+          quiet      = TRUE
+        )
+        vi_mat        <- matrix(vi, nrow = S, ncol = K, byrow = TRUE)
+        se_samples    <- sqrt(vi_mat + tau_samples^2)
+        resid_samples <- resid_samples / se_samples
+      }
     }
 
     # compute posterior mean residuals
     out <- colMeans(resid_samples)
-
   }
 
   # clean names
@@ -195,51 +202,282 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
 }
 
 
-#' @title Standardized Residuals for brma Objects
+#' @title Internally Standardized Residuals for brma Objects
 #'
-#' @description Computes standardized residuals from a fitted brma object using
-#' LOO-PIT (Leave-One-Out Probability Integral Transform). This is a
-#' convenience wrapper for \code{residuals(object, type = "LOO-PIT", ...)}.
+#' @description Computes internally standardized residuals from a fitted brma
+#' object using the hat matrix. Returns a data frame with raw residuals,
+#' standard errors, and standardized residuals (z-values). Available for normal
+#' outcome models only.
 #'
 #' @param model a fitted brma object
-#' @param ... additional arguments passed to \code{\link{residuals.brma}}
+#' @param type the type of residuals to compute. Options are:
+#' \itemize{
+#'   \item \code{"marginal"} (default): Residuals from fixed effects predictions
+#'     (observed - Xβ).
+#'   \item \code{"study"}: Residuals from study-level predictions (observed -
+#'     (Xβ + gamma)). Only available for multilevel (3-level) models.
+#'   \item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs,
+#'     i.e., deviations of the observed effect sizes from the best linear
+#'     unbiased predictions of the study-specific true effects (observed - theta).
+#' }
+#' @param ... additional arguments (currently ignored)
 #'
 #' @details
-#' LOO-PIT residuals are the Bayesian equivalent of studentized deleted
-#' residuals. They are computed via leave-one-out probability integral
-#' transformation using Pareto smoothed importance sampling. Under a correctly
-#' specified model, LOO-PIT residuals should follow a standard normal
-#' distribution.
+#' This function returns a data frame with three columns matching the output
+#' of \code{metafor::rstandard}:
+#' \itemize{
+#'   \item \code{resid}: Raw residuals (observed - fitted values)
+#'   \item \code{se}: Standard errors of the residuals
+#'   \item \code{z}: Standardized residuals (resid / se)
+#' }
 #'
-#' Unlike traditional standardized residuals (which use the hat matrix),
-#' LOO-PIT residuals properly account for estimation uncertainty and leverage
-#' without requiring explicit hat matrix computation. This makes them suitable
-#' for all model types including selection models and GLMMs.
+#' Internally standardized residuals divide the observed residuals by their
+#' corresponding standard errors computed using the hat matrix. For a correctly
+#' specified model, these residuals should approximately follow a standard
+#' normal distribution.
 #'
-#' Note: LOO-PIT residuals are computationally more expensive than traditional
-#' standardized residuals as they require importance sampling.
+#' This function is only available for normal outcome models without selection
+#' (weightfunction) bias adjustment. For other model types, use
+#' \code{\link{rstudent.brma}} which uses LOO-PIT.
 #'
-#' @return A numeric vector of LOO-PIT standardized residual means.
+#' @return A data frame with columns:
+#' \itemize{
+#'   \item \code{resid}: Raw residuals
+#'   \item \code{se}: Standard errors of the residuals
+#'   \item \code{z}: Standardized residuals
+#' }
 #'
 #' @examples \dontrun{
 #' # fit a brma model
 #' fit <- brma(yi ~ 1, sei = sei, data = dat)
 #'
-#' # get standardized residuals (LOO-PIT)
+#' # get marginal internally standardized residuals (default)
 #' rstandard(fit)
 #'
-#' # equivalent to:
-#' residuals(fit, type = "LOO-PIT")
-#'
-#' # check LOO diagnostics
-#' loo_obj <- residuals(fit, type = "LOO-PIT", loo_only = TRUE)
-#' plot(loo_obj)  # check Pareto k values
+#' # get estimate-level (BLUP-based) residuals
+#' rstandard(fit, type = "estimate")
 #' }
 #'
-#' @seealso [residuals.brma()], [loo.brma()], [predict.brma()]
+#' @seealso [rstudent.brma()], [residuals.brma()], [blup.brma()], [predict.brma()]
 #' @exportS3Method
-rstandard.brma <- function(model, type = "LOO-PIT", ...) {
-  residuals.brma(object = model, type = type, ...)
+rstandard.brma <- function(model, type = "marginal", ...) {
+
+  # normalize type alias
+  type <- match.arg(type, c("marginal", "study", "estimate", "conditional"))
+  if (type == "conditional") {
+    type <- "estimate"
+  }
+
+  # check model type availability
+  outcome_type <- .outcome_type(model)
+  is_weightfunction <- .is_weightfunction(model)
+  is_multilevel <- .is_multilevel(model)
+
+  if (outcome_type != "norm") {
+    stop(
+      "rstandard is only available for normal outcome models. ",
+      "Use rstudent() for GLMM models.",
+      call. = FALSE
+    )
+  }
+  if (is_weightfunction) {
+    stop(
+      "rstandard is not available for selection models (weightfunction). ",
+      "Use rstudent() for selection models.",
+      call. = FALSE
+    )
+  }
+  if (type == "study" && !is_multilevel) {
+    stop(
+      "type = 'study' is only available for multilevel (3-level) models.",
+      call. = FALSE
+    )
+  }
+
+  # get observed effect sizes
+  yi <- .outcome_data_yi(model)
+  K  <- length(yi)
+
+  # map type to predict.brma type
+  pred_type <- switch(type,
+    "marginal" = "terms",
+    "study"    = "study",
+    "estimate" = "estimate"
+  )
+
+  # get fitted values via predict.brma
+  fitted_samples <- predict.brma(
+    object  = model,
+    newdata = NULL,
+    type    = pred_type,
+    quiet   = TRUE
+  )
+
+  # compute raw residuals: yi - fitted
+  S <- nrow(fitted_samples)
+  yi_mat <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
+  resid_samples <- yi_mat - fitted_samples
+
+  # compute standard errors using hat matrix helper
+  hat_res <- .compute_hat_matrix_samples(
+    object    = model,
+    type      = type,
+    return_se = TRUE
+  )
+  se_samples <- hat_res[["se"]]
+
+  # compute standardized residuals
+  z_samples <- resid_samples / se_samples
+
+  # construct output data frame matching metafor::rstandard format
+  out <- data.frame(
+    resid = colMeans(resid_samples),
+    se    = colMeans(se_samples),
+    z     = colMeans(z_samples)
+  )
+  rownames(out) <- NULL
+
+  return(out)
+}
+
+
+#' @title Externally Standardized (Studentized) Residuals for brma Objects
+#'
+#' @description Computes externally standardized residuals (also called
+#' studentized residuals or standardized deleted residuals) from a fitted brma
+#' object using LOO-PIT (Leave-One-Out Probability Integral Transform).
+#' Returns a data frame with raw residuals, standard errors, and standardized
+#' residuals (z-values).
+#'
+#' @param model a fitted brma object
+#' @param type the type of residuals to compute. Options are:
+#' \itemize{
+#'   \item \code{"marginal"} (default): Residuals from marginal (fixed effects)
+#'     predictions (observed - Xβ).
+#'   \item \code{"study"}: Residuals from study-level predictions (observed -
+#'     (Xβ + gamma)). Only available for multilevel (3-level) models.
+#'   \item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs
+#'     (observed - theta). Note that these residuals are conceptually
+#'     questionable since it would be impossible to retain the true study effect
+#'     had the study been ommited.
+#' }
+#' @param ... additional arguments (currently ignored)
+#'
+#' @details
+#' This function returns a data frame with three columns matching the output
+#' of \code{metafor::rstudent}:
+#' \itemize{
+#'   \item \code{resid}: Raw residuals (observed - fitted values)
+#'   \item \code{se}: Standard errors of the residuals (back-computed from z)
+#'   \item \code{z}: Externally standardized residuals (LOO-PIT transformed)
+#' }
+#'
+#' LOO-PIT residuals are the Bayesian equivalent of studentized deleted
+#' residuals. They are computed via leave-one-out probability integral
+#' transformation using Pareto smoothed importance sampling. For each
+#' observation, the LOO-weighted CDF is computed and transformed to a
+#' standard normal quantile.
+#'
+#' Under a correctly specified model, LOO-PIT residuals should follow a
+#' standard normal distribution. Large absolute values may indicate outliers
+#' or model misspecification.
+#'
+#' Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
+#' residuals properly account for estimation uncertainty and leverage without
+#' requiring explicit hat matrix computation. This makes \code{rstudent.brma}
+#' suitable for all model types including selection models and GLMMs.
+#'
+#' @return A data frame with columns:
+#' \itemize{
+#'   \item \code{resid}: Raw residuals
+#'   \item \code{se}: Standard errors of the residuals
+#'   \item \code{z}: Externally standardized residuals (LOO-PIT)
+#' }
+#'
+#' @examples \dontrun{
+#' # fit a brma model
+#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' fit <- add_loo(fit)
+#'
+#' # get marginal externally standardized residuals (default)
+#' rstudent(fit)
+#'
+#' # get estimate-level (BLUP-based) residuals
+#' rstudent(fit, type = "estimate")
+#'
+#' # check LOO diagnostics
+#' loo_obj <- loo(fit)
+#' plot(loo_obj) # check Pareto k values
+#' }
+#'
+#' @seealso [rstandard.brma()], [residuals.brma()], [loo.brma()], [blup.brma()]
+#' @exportS3Method
+rstudent.brma <- function(model, type = "marginal", ...) {
+  # normalize type alias
+  type <- match.arg(type, c("marginal", "study", "estimate", "conditional"))
+  if (type == "conditional") type <- "estimate"
+
+  # check model type availability
+  outcome_type <- .outcome_type(model)
+  is_multilevel <- .is_multilevel(model)
+
+  # study type requires multilevel model
+  if (type == "study" && !is_multilevel) {
+    stop(
+      "type = 'study' is only available for multilevel (3-level) models.",
+      call. = FALSE
+    )
+  }
+
+  # get observed effect sizes
+  yi <- .outcome_data_yi(model)
+  K  <- length(yi)
+
+  # map type to predict.brma type
+  pred_type <- switch(type,
+    "marginal" = "terms",
+    "study"    = "study",
+    "estimate" = "estimate"
+  )
+
+  # get fitted values via predict.brma
+  fitted_samples <- predict.brma(
+    object  = model,
+    newdata = NULL,
+    type    = pred_type,
+    quiet   = TRUE
+  )
+
+  # compute raw residuals: yi - fitted
+  S <- nrow(fitted_samples)
+  yi_mat <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
+  resid_samples <- yi_mat - fitted_samples
+
+  # extract PSIS object and get normalized weights
+  # (PSIS warning is done within .standardized_residuals_loopit)
+  psis_weights <- loo_weights(model)
+
+  # compute LOO-weighted residuals for each observation
+  resid <- colSums(psis_weights * resid_samples)
+
+  # get LOO-PIT z values using the specified type
+  z <- .standardized_residuals_loopit(model, type = type)
+
+  # back-compute SE from z and resid: se = resid / z
+  # handle zero z values to avoid division by zero
+  se <- abs(resid / z)
+  se[!is.finite(se)] <- NA
+  # TODO: implement a workaround by using posterior sd?
+
+  # construct output data frame matching metafor::rstudent format
+  out <- data.frame(
+    resid = resid,
+    se    = se,
+    z     = z
+  )
+  rownames(out) <- NULL
+
+  return(out)
 }
 
 
@@ -264,18 +502,15 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
   outcome_data <- object[["data"]][["outcome"]]
 
   if (outcome_type == "norm") {
-
     # normal models: yi is directly available
     return(outcome_data[["yi"]])
-
   } else if (outcome_type == "bin") {
-
     # binomial models: compute log odds ratio from 2x2 table
     # using metafor::escalc formula with default zero-cell adjustment (add = 0.5)
-    ai  <- outcome_data[["ai"]]
-    bi  <- outcome_data[["n1i"]] - outcome_data[["ai"]]  # bi = n1i - ai
-    ci  <- outcome_data[["ci"]]
-    di  <- outcome_data[["n2i"]] - outcome_data[["ci"]]  # di = n2i - ci
+    ai <- outcome_data[["ai"]]
+    bi <- outcome_data[["n1i"]] - outcome_data[["ai"]] # bi = n1i - ai
+    ci <- outcome_data[["ci"]]
+    di <- outcome_data[["n2i"]] - outcome_data[["ci"]] # di = n2i - ci
     add <- 0.5
 
     # vectorized computation with conditional zero-cell adjustment
@@ -286,9 +521,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
     di_adj <- di + add * needs_adj
 
     return(log((ai_adj * di_adj) / (bi_adj * ci_adj)))
-
   } else if (outcome_type == "pois") {
-
     # Poisson models: compute log incidence rate ratio
     x1i <- outcome_data[["x1i"]]
     t1i <- outcome_data[["t1i"]]
@@ -302,7 +535,6 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
     x2i_adj <- x2i + add * needs_adj
 
     return(log((x1i_adj / t1i) / (x2i_adj / t2i)))
-
   }
 }
 
@@ -323,23 +555,19 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 #
 # ---------------------------------------------------------------------------- #
 .outcome_data_sei <- function(object) {
-
   outcome_type <- .outcome_type(object)
   outcome_data <- object[["data"]][["outcome"]]
 
   if (outcome_type == "norm") {
-
     # normal models: sei is directly available
     return(outcome_data[["sei"]])
-
   } else if (outcome_type == "bin") {
-
     # binomial models: compute approximate SE for log odds ratio
     # SE(logOR) = sqrt(1/ai + 1/bi + 1/ci + 1/di) with zero-cell adjustment
-    ai  <- outcome_data[["ai"]]
-    bi  <- outcome_data[["n1i"]] - outcome_data[["ai"]]
-    ci  <- outcome_data[["ci"]]
-    di  <- outcome_data[["n2i"]] - outcome_data[["ci"]]
+    ai <- outcome_data[["ai"]]
+    bi <- outcome_data[["n1i"]] - outcome_data[["ai"]]
+    ci <- outcome_data[["ci"]]
+    di <- outcome_data[["n2i"]] - outcome_data[["ci"]]
     add <- 0.5
 
     # vectorized computation with conditional zero-cell adjustment
@@ -349,10 +577,8 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
     ci_adj <- ci + add * needs_adj
     di_adj <- di + add * needs_adj
 
-    return(sqrt(1/ai_adj + 1/bi_adj + 1/ci_adj + 1/di_adj))
-
+    return(sqrt(1 / ai_adj + 1 / bi_adj + 1 / ci_adj + 1 / di_adj))
   } else if (outcome_type == "pois") {
-
     # Poisson models: compute approximate SE for log IRR
     # SE(logIRR) = sqrt(1/x1i + 1/x2i)
     x1i <- outcome_data[["x1i"]]
@@ -364,8 +590,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
     x1i_adj <- x1i + add * needs_adj
     x2i_adj <- x2i + add * needs_adj
 
-    return(sqrt(1/x1i_adj + 1/x2i_adj))
-
+    return(sqrt(1 / x1i_adj + 1 / x2i_adj))
   }
 }
 
@@ -389,7 +614,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 
 
 # ---------------------------------------------------------------------------- #
-# .standardize_residuals_loopit
+# .standardized_residuals_loopit
 # ---------------------------------------------------------------------------- #
 #
 # Compute LOO-PIT residuals.
@@ -401,7 +626,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 # The algorithm:
 # 1. Compute LOO via PSIS (reusing loo.brma)
 # 2. Extract normalized PSIS weights (S x K matrix)
-# 3. Compute full CDF matrix F(yi | theta^(s)) (S x K matrix)
+# 3. Compute CDF matrix F(yi | theta^(s)) (S x K matrix) for the specified type
 # 4. For each observation i, compute LOO-weighted CDF:
 #    u_i = sum_s w_{is} * F(yi | theta^(s))
 # 5. Transform to standard normal: r_i = qnorm(u_i)
@@ -412,54 +637,24 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 # - Work for all model types (selection models, GLMMs)
 #
 # @param object   brma object
-# @param loo_only if TRUE, return only the LOO object (for diagnostics)
-# @param probs    quantiles for summary (not used if loo_only = TRUE)
+# @param type     character; type of CDF to use:
+#                 - "marginal" (default): marginal CDF yi ~ N(mu_i, tau^2 + se_i^2)
+#                 - "study": conditional CDF yi ~ N(theta_i + gamma_j, se_i^2)
+#                 - "estimate": conditional CDF yi ~ N(theta_i, se_i^2)
 #
 # @return If loo_only = TRUE, returns the psis_loo object.
-#         Otherwise, returns list with:
-#         - samples: S x K matrix of LOO-PIT residual samples
-#         - loo: the psis_loo object (for diagnostics)
+#         Otherwise, returns numeric vector of LOO-PIT residuals.
 #
 # ---------------------------------------------------------------------------- #
-.standardize_residuals_loopit <- function(object, loo_only = FALSE, probs = c(.025, .975)) {
-
-  # check that loo package is available
-  if (!requireNamespace("loo", quietly = TRUE)) {
-    stop("Package 'loo' is required for LOO-PIT residuals. ",
-         "Please install it with: install.packages('loo')", call. = FALSE)
-  }
-
-  # compute LOO via PSIS
-  loo_result <- loo.brma(object)
-
-  # early exit if only LOO object requested
-  if (loo_only) {
-    return(loo_result)
-  }
-
+.standardized_residuals_loopit <- function(object, type = "marginal") {
   # extract PSIS object and get normalized weights
-  psis_object <- loo_result[["psis_object"]]
-  # weights() returns S x K matrix of normalized (not log) weights
-  psis_weights <- loo::weights.importance_sampling(psis_object, log = FALSE, normalize = TRUE)
+  psis_weights <- loo_weights(object)
 
   # check Pareto k diagnostics and warn if unreliable
-  pareto_k <- loo_result[["diagnostics"]][["pareto_k"]]
-  bad_k <- which(pareto_k > 0.7)
-  if (length(bad_k) > 0) {
-    warning(
-      "Some Pareto k values are high (> 0.7), indicating potentially unreliable ",
-      "LOO-PIT residuals for observations: ", paste(bad_k, collapse = ", "), ". ",
-      "Consider using loo_only = TRUE to inspect diagnostics.",
-      call. = FALSE
-    )
-  }
+  check_loo(object)
 
-  # compute full CDF matrix (S x K)
-  cdf_matrix <- .cdf.brma(object)
-
-  # get dimensions
-  S <- nrow(cdf_matrix)
-  K <- ncol(cdf_matrix)
+  # compute CDF matrix (S x K) for the specified type
+  cdf_matrix <- .cdf.brma(object, type = type)
 
   # compute LOO-weighted CDF for each observation
   # u_i = sum_s w_{is} * F(yi | theta^(s))
@@ -477,158 +672,21 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 
 
 # ---------------------------------------------------------------------------- #
-# .standardize_residuals_pearson
+# .check_residual_type_availability
 # ---------------------------------------------------------------------------- #
 #
-# Compute Pearson (semi-standardized) residuals.
+# Helper function to validate that the requested residual type is compatible
+# with the model's outcome type and presence of selection (weightfunction).
 #
-# Divides raw residuals by the marginal standard error sqrt(vi + tau^2),
-# where vi is the sampling variance and tau^2 is the total heterogeneity.
+# @param type Residual type requested
+# @param outcome_type Model outcome type
+# @param is_weightfunction Whether model includes weightfunction
 #
-# This is computed per posterior sample, naturally propagating uncertainty
-# in tau to the standardized residuals.
-#
-# @param resid_samples S x K matrix of raw residual samples
-# @param object        brma object
-# @param outcome_type  character; "norm", "bin", or "pois"
-#
-# @return S x K matrix of Pearson residual samples
+# @return NULL (throws error if invalid combination)
+# @keywords internal
 #
 # ---------------------------------------------------------------------------- #
-.standardize_residuals_pearson <- function(resid_samples, object) {
-
-  S  <- nrow(resid_samples)
-  K  <- ncol(resid_samples)
-
-  # get sampling variances
-  vi <- .outcome_data_vi(object)
-
-  # get tau samples (heterogeneity)
-  # use predict.brma with type = "terms.scale" to get tau samples
-  tau_samples <- predict.brma(
-    object     = object,
-    newdata    = NULL,
-    type       = "terms.scale",
-    quiet      = TRUE
-  )
-
-  # tau_samples is S x K matrix (one column per observation for location-scale models,
-  # or all columns identical for non-scale models)
-
-  # compute marginal variance: vi + tau^2
-  # vi is vector of length K, tau_samples is S x K matrix
-  vi_mat <- matrix(vi, nrow = S, ncol = K, byrow = TRUE)
-  marginal_var <- vi_mat + tau_samples^2
-
-  # compute Pearson residuals: ei / sqrt(vi + tau^2)
-  marginal_se <- sqrt(marginal_var)
-  pearson_resid <- resid_samples / marginal_se
-
-  return(pearson_resid)
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .standardize_residuals_rstandard
-# ---------------------------------------------------------------------------- #
-#
-# Compute internally standardized residuals using the hat matrix.
-#
-# Following metafor::rstandard.rma.uni:
-#   H = X (X'WX)^{-1} X' W     (hat matrix)
-#   ImH = I - H
-#   ve = ImH M ImH'            (variance-covariance of residuals)
-#   SE_i = sqrt(ve_ii)         (standard error of each residual)
-#   z_i = e_i / SE_i           (standardized residual)
-#
-# where M is the marginal variance-covariance matrix (diagonal with vi + tau^2).
-#
-# For models without moderators, this simplifies to Pearson residuals since
-# the hat matrix correction has minimal effect on the diagonal.
-#
-# This is computed per posterior sample, naturally propagating uncertainty
-# in tau to the standardized residuals.
-#
-# @param resid_samples S x K matrix of raw residual samples
-# @param object        brma object
-# @param outcome_type  character; "norm", "bin", or "pois"
-#
-# @return S x K matrix of standardized residual samples
-#
-# ---------------------------------------------------------------------------- #
-.standardize_residuals_rstandard <- function(resid_samples, object) {
-
-  S  <- nrow(resid_samples)
-  K  <- ncol(resid_samples)
-
-  # get sampling variances
-  vi <- .outcome_data_vi(object)
-
-  # get tau samples (heterogeneity)
-  tau_samples <- predict.brma(
-    object     = object,
-    newdata    = NULL,
-    type       = "terms.scale",
-    quiet      = TRUE
-  )
-
-  # get model matrix X
-  X <- .get_model_matrix(object)
-
-  # for intercept-only models, use Pearson formula (hat matrix correction is minimal)
-  if (ncol(X) == 1 && all(X == 1)) {
-    return(.standardize_residuals_pearson(resid_samples, object))
-  }
-
-  # for models with moderators, compute full hat matrix correction per sample
-  # this is more expensive but accounts for the projection
-  rstandard_samples <- matrix(0, nrow = S, ncol = K)
-
-  for (s in seq_len(S)) {
-    # get tau^2 for this sample (use first column, or column-specific for scale models)
-    tau2_s <- tau_samples[s, ]^2
-
-    # construct marginal variance M = diag(vi + tau^2)
-    M <- diag(vi + tau2_s)
-
-    # weight matrix W = M^{-1}
-    W <- diag(1 / (vi + tau2_s))
-
-    # hat matrix H = X (X' W X)^{-1} X' W
-    H <- .hat_matrix(X, W)
-
-    # I - H
-    ImH <- diag(K) - H
-
-    # variance-covariance of residuals: (I-H) M (I-H)'
-    ve <- ImH %*% tcrossprod(M, ImH)
-
-    # standard errors of residuals
-    se_resid <- sqrt(diag(ve))
-
-    # standardized residuals
-    rstandard_samples[s, ] <- resid_samples[s, ] / se_resid
-  }
-
-  return(rstandard_samples)
-}
-
-
-
-
-#' Check if a residual type is supported for the given model
-#'
-#' Helper function to validate that the requested residual type is compatible
-#' with the model's outcome type and presence of selection (weightfunction).
-#'
-#' @param type Residual type requested
-#' @param outcome_type Model outcome type
-#' @param is_weightfunction Whether model includes weightfunction
-#'
-#' @return NULL (throws error if invalid combination)
-#' @keywords internal
 .check_residual_type_availability <- function(type, outcome_type, is_weightfunction) {
-
   if (type == "pearson") {
     if (outcome_type != "norm") {
       stop(
@@ -666,6 +724,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
   return(invisible(NULL))
 }
 
+
 # ---------------------------------------------------------------------------- #
 # .get_model_matrix
 # ---------------------------------------------------------------------------- #
@@ -678,7 +737,6 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 #
 # ---------------------------------------------------------------------------- #
 .get_model_matrix <- function(object) {
-
   # check if there are moderators
   is_mods <- .is_mods(object)
 
@@ -693,7 +751,7 @@ rstandard.brma <- function(model, type = "LOO-PIT", ...) {
 
   # TODO: use BayesTools to obtain the actual adjusted model matrix
   # (i.e., for handling different factor contrasts, etc.)
-  mods_data    <- object[["data"]][["mods"]]
+  mods_data <- object[["data"]][["mods"]]
   mods_formula <- attr(mods_data, "formula")
 
   # create the model matrix

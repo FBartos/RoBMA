@@ -25,6 +25,7 @@ for (name in list_fits()) {
 # ---------------------------------------------------------------------------- #
 
 test_that("bridge_sampler extracts bridge sampling object", {
+
   for (name in list_fits()) {
     # the marginal likelihood inherits the correct class
     expect_s3_class(bridge_sampler(fits[[name]]), "bridge")
