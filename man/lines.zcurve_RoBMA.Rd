@@ -21,7 +21,7 @@
 )
 }
 \arguments{
-\item{x}{A RoBMA object}
+\item{x}{a fitted RoBMA object}
 
 \item{conditional}{whether conditional estimates should be
 plotted. Defaults to \code{FALSE} which plots the model-averaged
@@ -36,8 +36,7 @@ or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .975)}}
 
-\item{max_samples}{Maximum number of samples from the posterior distribution
-that will be used for estimating z-curve estimates.}
+\item{max_samples}{Maximum number of posterior samples to use for plotting credible intervals. Defaults to 500.}
 
 \item{extrapolate}{Logical indicating whether to extrapolate values beyond the observed data range.}
 

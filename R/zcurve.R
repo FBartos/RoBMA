@@ -31,7 +31,7 @@
 #' }
 #'
 #' @export
-as_zcurve <- function(x, significance_level = stats::qnorm(0.975), max_samples = 1000){
+as_zcurve.RoBMA <- function(x, significance_level = stats::qnorm(0.975), max_samples = 1000){
 
   if(x[["add_info"]][["algorithm"]] != "ss")
     stop("Predictions can only be computed for spike and slab models.")
