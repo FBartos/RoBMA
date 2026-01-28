@@ -21,7 +21,7 @@
 #' @return \code{summary_heterogeneity} returns a list of tables of class 'BayesTools_table'.
 #'
 #' @export
-summary_heterogeneity <- function(object, type = "ensemble", conditional = FALSE,
+summary_heterogeneity.RoBMA <- function(object, type = "ensemble", conditional = FALSE,
                                   output_scale = NULL, probs = c(.025, .975),
                                   short_name = FALSE, remove_spike_0 = FALSE){
 

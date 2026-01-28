@@ -1,12 +1,4 @@
-brma.norm, brma.glmm
-- prediction
-- (residual) funnel plot
-- zcurve plot
-- (other common diagnostic plots)
-- heterogeneity summary
-- effect summary
-
-
+brma class
 
 plot_weightfunction
 Expand the function to use `show_data` argument. if TRUE, the function should show p-values as jitter on the x-axis
