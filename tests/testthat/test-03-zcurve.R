@@ -43,19 +43,20 @@ test_that("Z-curve plot for simple meta-analysis works", {
 test_that("Z-curve plot customization works", {
 
   name     <- "bcg_meta-analysis"
-  zc       <- as_zcurve(fits[[name]]$models[[1]])
+  zc       <- as_zcurve(fits[[name]])
 
   # --------------------------------------------------
   # Test custom styles
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("zcurve_custom_base", function() {
-    plot(zc, plot_type = "base",
-         plot_fit = TRUE, plot_CI = TRUE,
-         col = "blue", lwd = 2, lty = 2,           # line args
-         dots_hist = list(fill = "lightblue", color = "blue"),
-         main = "Custom Z-Curve"
-    )
+    suppressMessages(plot(
+      zc, plot_type = "base",
+      plot_fit = TRUE, plot_CI = TRUE,
+      lwd = 2, lty = 2,           # line args
+      dots_hist = list(col = "lightblue"),
+      main = "Custom Z-Curve"
+    ))
   })
 
   # For ggplot, we pass specific list args for hist/lines as per .get_dots_* in implementation

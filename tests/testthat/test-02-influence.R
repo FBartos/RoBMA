@@ -105,7 +105,7 @@ test_that("Influence stats for 3-level model match metafor", {
   fit_brma    <- fits[[name]]
 
   # There is no influence for selection models nor seperate functions
-  inf_brma <- influence(fit_brma)
+  inf_brma <- suppressWarnings(influence(fit_brma))
   expect_true(!is.null(inf_brma))
 })
 

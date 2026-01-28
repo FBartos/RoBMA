@@ -29,53 +29,63 @@
 \arguments{
 \item{x}{a zcurve_brma object.}
 
-\item{plot_type}{whether to use base graphics (\code{"base"}) or
-ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.}
+\item{plot_type}{graphics system: \code{"base"} or \code{"ggplot"}.
+Defaults to \code{"base"}.}
 
 \item{probs}{quantiles for credible intervals. Defaults to \code{c(.025, .975)}.}
 
-\item{max_samples}{maximum number of posterior samples for plotting.
+\item{max_samples}{maximum posterior samples for density estimation.
 Defaults to 500.}
 
-\item{plot_fit}{whether to include the model fit (biases included). Defaults to \code{TRUE}.}
-
-\item{plot_extrapolation}{whether to include the extrapolated model fit (no bias). Defaults to \code{TRUE}.}
-
-\item{plot_CI}{whether to include credible intervals. Defaults to \code{TRUE}.}
-
-\item{plot_thresholds}{whether to display significance thresholds.
+\item{plot_fit}{whether to show fitted density (with bias adjustments).
 Defaults to \code{TRUE}.}
 
-\item{from}{lower bound of z-value range for plotting. Defaults to -6.}
+\item{plot_extrapolation}{whether to show extrapolated density (bias removed).
+Defaults to \code{TRUE}.}
 
-\item{to}{upper bound of z-value range for plotting. Defaults to 6.}
+\item{plot_CI}{whether to show credible interval bands. Defaults to \code{TRUE}.}
 
-\item{by.hist}{bin width for the histogram. Defaults to 0.5.}
+\item{plot_thresholds}{whether to show significance threshold lines.
+Defaults to \code{TRUE}.}
 
-\item{length.out.hist}{number of bins for histogram (alternative to by.hist).}
+\item{from, to}{z-value range for plotting. Defaults to \code{-6} and \code{6}.}
 
-\item{by.lines}{step size for plotting density lines. Defaults to 0.05.}
+\item{by.hist}{bin width for histogram. Defaults to 0.5.}
 
-\item{length.out.lines}{number of points for density lines (alternative to by.lines).}
+\item{length.out.hist}{number of histogram bins (alternative to \code{by.hist}).}
 
-\item{dots_hist}{list of graphical parameters for the histogram.}
+\item{by.lines}{step size for density lines. Defaults to 0.05.}
 
-\item{dots_fit}{list of graphical parameters for fit lines.}
+\item{length.out.lines}{number of density points (alternative to \code{by.lines}).}
 
-\item{dots_extrapolation}{list of graphical parameters for extrapolation lines.}
+\item{dots_hist}{graphical parameters for histogram (list).}
 
-\item{dots_thresholds}{list of graphical parameters for threshold lines.}
+\item{dots_fit}{graphical parameters for fit lines (list).}
 
-\item{...}{additional graphical parameters.}
+\item{dots_extrapolation}{graphical parameters for extrapolation lines (list).}
+
+\item{dots_thresholds}{graphical parameters for threshold lines (list).}
+
+\item{...}{additional graphical parameters passed to components.}
 }
 \value{
-Returns \code{NULL} invisibly for base graphics, or a ggplot2
-object if \code{plot_type = "ggplot"}.
+\code{NULL} invisibly for base graphics, or a ggplot2 object.
 }
 \description{
-Plots a z-curve visualization for a zcurve_brma object,
-showing the histogram of z-statistics with the model-implied density.
+Plots a z-curve visualization showing the histogram of
+observed z-statistics overlaid with model-implied densities.
+}
+\details{
+The plot displays two density curves:
+\describe{
+\item{Fit (black)}{Model-implied density including publication bias adjustments.
+This represents the expected distribution of z-statistics given the estimated
+selection process.}
+\item{Extrapolation (blue)}{Bias-corrected density representing the hypothetical
+distribution without selective reporting. The area beyond the significance
+threshold corresponds to the EDR.}
+}
 }
 \seealso{
-\code{\link{hist.zcurve_brma}}, \code{\link{lines.zcurve_brma}}
+\code{\link[=hist.zcurve_brma]{hist.zcurve_brma()}}, \code{\link[=lines.zcurve_brma]{lines.zcurve_brma()}}, \code{\link[=summary.zcurve_brma]{summary.zcurve_brma()}}
 }

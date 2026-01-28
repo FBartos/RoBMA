@@ -2,7 +2,7 @@
 % Please edit documentation in R/brma.zcurve.R
 \name{as_zcurve.brma}
 \alias{as_zcurve.brma}
-\title{Transform brma object into z-curve}
+\title{Transform brma Object to Z-Curve}
 \usage{
 \method{as_zcurve}{brma}(
   object,
@@ -12,24 +12,41 @@
 )
 }
 \arguments{
-\item{object}{A brma object}
+\item{object}{a brma object.}
 
-\item{significance_level}{Significance level used for computation of z-curve
-estimates. Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
+\item{significance_level}{z-value threshold for significance. Defaults
+to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 
-\item{max_samples}{Maximum number of samples from the posterior distribution
-that will be used for estimating z-curve estimates. Defaults to 1000.}
+\item{max_samples}{maximum number of posterior samples for estimation.
+Defaults to 1000.}
 
 \item{...}{additional arguments (currently unused).}
 }
 \value{
-\code{as_zcurve} returns the input object with class "zcurve_brma"
-and a new \code{"zcurve"} list component containing the results.
+The input object with added class \code{"zcurve_brma"} and a new
+\code{zcurve} list component containing:
+\describe{
+\item{estimates}{posterior samples for EDR and weights}
+\item{data}{observed z-statistics and significance counts}
+}
 }
 \description{
-This function transforms the estimated brma model into a
-z-curve object that can be further summarized and plotted.
+Transforms an estimated brma model into a z-curve object
+that can be summarized and plotted to assess replicability.
+}
+\details{
+Z-curve analysis estimates the Expected Discovery Rate (EDR), which
+represents the average power of statistically significant studies. This
+provides insight into the replicability of findings in a literature.
+
+The implementation uses extrapolation mode by default, which removes
+publication bias adjustments (PET/PEESE/selection weights) to estimate
+what the true power distribution would be without selective reporting.
+
+The resulting object retains all original brma properties while adding
+z-curve results, enabling both standard meta-analytic summaries and
+z-curve diagnostics on the same object.
 }
 \seealso{
-\code{\link{summary.zcurve_brma}}, \code{\link{plot.zcurve_brma}}
+\code{\link[=summary.zcurve_brma]{summary.zcurve_brma()}}, \code{\link[=plot.zcurve_brma]{plot.zcurve_brma()}}, \code{\link[=hist.zcurve_brma]{hist.zcurve_brma()}}
 }

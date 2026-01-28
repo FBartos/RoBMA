@@ -23,38 +23,43 @@
 \arguments{
 \item{x}{a zcurve_brma object.}
 
-\item{plot_type}{whether to use base graphics (\code{"base"}) or
-ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.}
+\item{plot_type}{graphics system: \code{"base"} or \code{"ggplot"}.
+Defaults to \code{"base"}.}
 
 \item{probs}{quantiles for credible intervals. Defaults to \code{c(.025, .975)}.}
 
-\item{max_samples}{maximum number of posterior samples. Defaults to 500.}
+\item{max_samples}{maximum posterior samples for density. Defaults to 500.}
 
-\item{plot_CI}{whether to include credible intervals. Defaults to TRUE.}
+\item{plot_CI}{whether to show credible interval bands. Defaults to \code{TRUE}.}
 
-\item{extrapolate}{whether to extrapolate (unbiased) or show fit (biased). Defaults to FALSE.}
+\item{extrapolate}{whether to remove bias adjustments. Defaults to \code{FALSE}.}
 
-\item{from}{lower bound of z-value range. Defaults to -6.}
+\item{from, to}{z-value range for density. Defaults to \code{-6} and \code{6}.}
 
-\item{to}{upper bound of z-value range. Defaults to 6.}
+\item{by}{step size for density points. Defaults to 0.05.}
 
-\item{by}{step size for density evaluation. Defaults to 0.05.}
+\item{length.out}{number of density points (alternative to \code{by}).}
 
-\item{length.out}{number of points.}
+\item{col}{line color. Defaults to \code{"black"}.}
 
-\item{col}{line color. Defaults to "black".}
-
-\item{as_data}{if TRUE, returns data frame instead of plotting.}
+\item{as_data}{whether to return data instead of plotting. Defaults to \code{FALSE}.}
 
 \item{...}{additional graphical parameters.}
 }
 \value{
-Returns \code{NULL} invisibly for base graphics, a list of ggplot2
-layers if \code{plot_type = "ggplot"}, or a data frame if \code{as_data = TRUE}.
+\code{NULL} invisibly for base graphics, ggplot2 layers for ggplot,
+or a data frame with columns \code{x}, \code{y}, \code{y_lCI}, \code{y_uCI}
+if \code{as_data = TRUE}.
 }
 \description{
-Adds posterior predictive density lines to a z-curve plot.
+Adds model-implied density lines to an existing z-curve plot.
+}
+\details{
+When \code{extrapolate = FALSE}, the density includes all bias adjustments
+(PET/PEESE regression, selection weights) representing the fitted model.
+When \code{extrapolate = TRUE}, bias adjustments are removed to show the
+hypothetical distribution without publication bias.
 }
 \seealso{
-\code{\link{as_zcurve.brma}}, \code{\link{plot.zcurve_brma}}
+\code{\link[=plot.zcurve_brma]{plot.zcurve_brma()}}, \code{\link[=hist.zcurve_brma]{hist.zcurve_brma()}}
 }

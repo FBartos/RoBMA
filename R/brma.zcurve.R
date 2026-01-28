@@ -2,7 +2,18 @@
 # brma.zcurve.R
 # ============================================================================ #
 #
-# This file implements Z-curve diagnostics for brma class objects.
+# Z-curve diagnostics for brma class objects.
+#
+# Z-curve analysis provides estimates of Expected Discovery Rate (EDR) and
+# related metrics for assessing replicability of meta-analytic findings.
+# The implementation follows the framework from Bartos & Schimmack (2022) and
+# extends it to Bayesian meta-analytic models.
+#
+# Design principles:
+# - as_zcurve() transforms brma to zcurve_brma, enabling summary/plot methods
+# - Extrapolation mode removes publication bias to estimate "true" power
+# - Fitted mode includes bias adjustments for observed distribution
+# - All computations are sample-based to propagate posterior uncertainty
 #
 # ============================================================================ #
 
@@ -15,23 +26,39 @@
 as_zcurve <- function(object, ...) UseMethod("as_zcurve")
 
 
-#' @title Transform brma object into z-curve
+#' @title Transform brma Object to Z-Curve
 #'
-#' @description
-#' This function transforms the estimated brma model into a
-#' z-curve object that can be further summarized and plotted.
+#' @description Transforms an estimated brma model into a z-curve object
+#' that can be summarized and plotted to assess replicability.
 #'
-#' @param object A brma object
-#' @param significance_level Significance level used for computation of z-curve
-#' estimates. Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05).
-#' @param max_samples Maximum number of samples from the posterior distribution
-#' that will be used for estimating z-curve estimates. Defaults to 1000.
+#' @param object a brma object.
+#' @param significance_level z-value threshold for significance. Defaults
+#' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
+#' @param max_samples maximum number of posterior samples for estimation.
+#' Defaults to 1000.
 #' @param ... additional arguments (currently unused).
 #'
-#' @return \code{as_zcurve} returns the input object with class "zcurve_brma"
-#' and a new \code{"zcurve"} list component containing the results.
+#' @details
+#' Z-curve analysis estimates the Expected Discovery Rate (EDR), which
+#' represents the average power of statistically significant studies. This
+#' provides insight into the replicability of findings in a literature.
 #'
-#' @seealso \code{\link{summary.zcurve_brma}}, \code{\link{plot.zcurve_brma}}
+#' The implementation uses extrapolation mode by default, which removes
+#' publication bias adjustments (PET/PEESE/selection weights) to estimate
+#' what the true power distribution would be without selective reporting.
+#'
+#' The resulting object retains all original brma properties while adding
+#' z-curve results, enabling both standard meta-analytic summaries and
+#' z-curve diagnostics on the same object.
+#'
+#' @return The input object with added class \code{"zcurve_brma"} and a new
+#' \code{zcurve} list component containing:
+#' \describe{
+#'   \item{estimates}{posterior samples for EDR and weights}
+#'   \item{data}{observed z-statistics and significance counts}
+#' }
+#'
+#' @seealso [summary.zcurve_brma()], [plot.zcurve_brma()], [hist.zcurve_brma()]
 #'
 #' @export
 as_zcurve.brma <- function(object, significance_level = stats::qnorm(0.975), max_samples = 1000, ...) {
@@ -81,16 +108,31 @@ as_zcurve.brma <- function(object, significance_level = stats::qnorm(0.975), max
 
 #' @title Summarize Z-Curve Results
 #'
-#' @description Creates summary tables for a zcurve_brma object.
+#' @description Creates summary tables for z-curve estimates including
+#' EDR, Soric FDR, and estimated missing studies.
 #'
 #' @param object a zcurve_brma object.
 #' @param probs quantiles of the posterior distribution to display.
 #' Defaults to \code{c(.025, .975)}.
 #' @param ... additional arguments (currently unused).
 #'
-#' @return An object of class \code{"summary.zcurve_brma"}.
+#' @details
+#' The summary includes:
+#' \describe{
+#'   \item{EDR}{Expected Discovery Rate - average power of significant studies}
+#'   \item{Soric FDR}{Expected proportion of false discoveries among significant
+#'     results, computed from EDR following Soric (1989)}
+#'   \item{Missing N}{Estimated number of studies suppressed by publication bias,
+#'     computed from the selection model weights}
+#' }
 #'
-#' @seealso \code{\link{as_zcurve.brma}}, \code{\link{plot.zcurve_brma}}
+#' The footer reports the Observed Discovery Rate (ODR) with 95\% CI for
+#' comparison with the model-estimated EDR.
+#'
+#' @return An object of class \code{"summary.zcurve_brma"} containing the
+#' estimates table.
+#'
+#' @seealso [as_zcurve.brma()], [plot.zcurve_brma()]
 #'
 #' @export
 summary.zcurve_brma <- function(object, probs = c(.025, .975), ...) {
@@ -167,36 +209,47 @@ print.zcurve_brma <- function(x, ...) {
 
 #' @title Plot Z-Curve Results
 #'
-#' @description Plots a z-curve visualization for a zcurve_brma object,
-#' showing the histogram of z-statistics with the model-implied density.
+#' @description Plots a z-curve visualization showing the histogram of
+#' observed z-statistics overlaid with model-implied densities.
 #'
 #' @param x a zcurve_brma object.
-#' @param plot_type whether to use base graphics (\code{"base"}) or
-#' ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.
+#' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
+#' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
-#' @param max_samples maximum number of posterior samples for plotting.
+#' @param max_samples maximum posterior samples for density estimation.
 #' Defaults to 500.
-#' @param plot_fit whether to include the model fit (biases included). Defaults to \code{TRUE}.
-#' @param plot_extrapolation whether to include the extrapolated model fit (no bias). Defaults to \code{TRUE}.
-#' @param plot_CI whether to include credible intervals. Defaults to \code{TRUE}.
-#' @param plot_thresholds whether to display significance thresholds.
+#' @param plot_fit whether to show fitted density (with bias adjustments).
 #' Defaults to \code{TRUE}.
-#' @param from lower bound of z-value range for plotting. Defaults to -6.
-#' @param to upper bound of z-value range for plotting. Defaults to 6.
-#' @param by.hist bin width for the histogram. Defaults to 0.5.
-#' @param length.out.hist number of bins for histogram (alternative to by.hist).
-#' @param by.lines step size for plotting density lines. Defaults to 0.05.
-#' @param length.out.lines number of points for density lines (alternative to by.lines).
-#' @param dots_hist list of graphical parameters for the histogram.
-#' @param dots_fit list of graphical parameters for fit lines.
-#' @param dots_extrapolation list of graphical parameters for extrapolation lines.
-#' @param dots_thresholds list of graphical parameters for threshold lines.
-#' @param ... additional graphical parameters.
+#' @param plot_extrapolation whether to show extrapolated density (bias removed).
+#' Defaults to \code{TRUE}.
+#' @param plot_CI whether to show credible interval bands. Defaults to \code{TRUE}.
+#' @param plot_thresholds whether to show significance threshold lines.
+#' Defaults to \code{TRUE}.
+#' @param from,to z-value range for plotting. Defaults to \code{-6} and \code{6}.
+#' @param by.hist bin width for histogram. Defaults to 0.5.
+#' @param length.out.hist number of histogram bins (alternative to \code{by.hist}).
+#' @param by.lines step size for density lines. Defaults to 0.05.
+#' @param length.out.lines number of density points (alternative to \code{by.lines}).
+#' @param dots_hist graphical parameters for histogram (list).
+#' @param dots_fit graphical parameters for fit lines (list).
+#' @param dots_extrapolation graphical parameters for extrapolation lines (list).
+#' @param dots_thresholds graphical parameters for threshold lines (list).
+#' @param ... additional graphical parameters passed to components.
 #'
-#' @return Returns \code{NULL} invisibly for base graphics, or a ggplot2
-#' object if \code{plot_type = "ggplot"}.
+#' @details
+#' The plot displays two density curves:
+#' \describe{
+#'   \item{Fit (black)}{Model-implied density including publication bias adjustments.
+#'     This represents the expected distribution of z-statistics given the estimated
+#'     selection process.}
+#'   \item{Extrapolation (blue)}{Bias-corrected density representing the hypothetical
+#'     distribution without selective reporting. The area beyond the significance
+#'     threshold corresponds to the EDR.}
+#' }
 #'
-#' @seealso \code{\link{hist.zcurve_brma}}, \code{\link{lines.zcurve_brma}}
+#' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
+#'
+#' @seealso [hist.zcurve_brma()], [lines.zcurve_brma()], [summary.zcurve_brma()]
 #'
 #' @export
 plot.zcurve_brma <- function(x, plot_type = "base",
@@ -363,27 +416,30 @@ plot.zcurve_brma <- function(x, plot_type = "base",
 
 #' @title Histogram of Z-Statistics
 #'
-#' @description Plots a histogram of observed z-values for a zcurve_brma object.
+#' @description Plots a histogram of observed z-values from the meta-analysis.
 #'
 #' @param x a zcurve_brma object.
-#' @param plot_type whether to use base graphics (\code{"base"}) or
-#' ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.
-#' @param from lower bound of z-value range. Defaults to -6.
-#' @param to upper bound of z-value range. Defaults to 6.
+#' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
+#' Defaults to \code{"base"}.
+#' @param from,to z-value range for plotting. Defaults to \code{-6} and \code{6}.
 #' @param by bin width. Defaults to 0.5.
-#' @param length.out number of bins.
-#' @param add logical; if TRUE, adds to existing plot. Defaults to FALSE.
-#' @param plot_thresholds whether to display significance thresholds.
-#' Defaults to TRUE.
-#' @param dots_thresholds list of graphical parameters for threshold lines.
-#' @param dots_hist list of graphical parameters for histogram.
-#' @param dots_all list of all graphical parameters.
+#' @param length.out number of bins (alternative to \code{by}).
+#' @param add whether to add to existing plot. Defaults to \code{FALSE}.
+#' @param plot_thresholds whether to show significance threshold lines.
+#' Defaults to \code{TRUE}.
+#' @param dots_thresholds graphical parameters for threshold lines (list).
+#' @param dots_hist graphical parameters for histogram (list).
+#' @param dots_all graphical parameters passed to all components (list).
 #' @param ... additional graphical parameters.
 #'
-#' @return Returns \code{NULL} invisibly for base graphics, or a ggplot2
-#' object if \code{plot_type = "ggplot"}.
+#' @details
+#' Z-statistics are computed as effect size divided by standard error
+#' (\code{yi / sei}). Histogram bins are adjusted to align with significance
+#' thresholds when selection model priors are present.
 #'
-#' @seealso \code{\link{as_zcurve.brma}}, \code{\link{plot.zcurve_brma}}
+#' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
+#'
+#' @seealso [plot.zcurve_brma()], [lines.zcurve_brma()]
 #'
 #' @export
 hist.zcurve_brma <- function(x, plot_type = "base",
@@ -517,27 +573,33 @@ hist.zcurve_brma <- function(x, plot_type = "base",
 
 #' @title Add Z-Curve Density Lines
 #'
-#' @description Adds posterior predictive density lines to a z-curve plot.
+#' @description Adds model-implied density lines to an existing z-curve plot.
 #'
 #' @param x a zcurve_brma object.
-#' @param plot_type whether to use base graphics (\code{"base"}) or
-#' ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.
+#' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
+#' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
-#' @param max_samples maximum number of posterior samples. Defaults to 500.
-#' @param plot_CI whether to include credible intervals. Defaults to TRUE.
-#' @param extrapolate whether to extrapolate (unbiased) or show fit (biased). Defaults to FALSE.
-#' @param from lower bound of z-value range. Defaults to -6.
-#' @param to upper bound of z-value range. Defaults to 6.
-#' @param by step size for density evaluation. Defaults to 0.05.
-#' @param length.out number of points.
-#' @param col line color. Defaults to "black".
-#' @param as_data if TRUE, returns data frame instead of plotting.
+#' @param max_samples maximum posterior samples for density. Defaults to 500.
+#' @param plot_CI whether to show credible interval bands. Defaults to \code{TRUE}.
+#' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
+#' @param from,to z-value range for density. Defaults to \code{-6} and \code{6}.
+#' @param by step size for density points. Defaults to 0.05.
+#' @param length.out number of density points (alternative to \code{by}).
+#' @param col line color. Defaults to \code{"black"}.
+#' @param as_data whether to return data instead of plotting. Defaults to \code{FALSE}.
 #' @param ... additional graphical parameters.
 #'
-#' @return Returns \code{NULL} invisibly for base graphics, a list of ggplot2
-#' layers if \code{plot_type = "ggplot"}, or a data frame if \code{as_data = TRUE}.
+#' @details
+#' When \code{extrapolate = FALSE}, the density includes all bias adjustments
+#' (PET/PEESE regression, selection weights) representing the fitted model.
+#' When \code{extrapolate = TRUE}, bias adjustments are removed to show the
+#' hypothetical distribution without publication bias.
 #'
-#' @seealso \code{\link{as_zcurve.brma}}, \code{\link{plot.zcurve_brma}}
+#' @return \code{NULL} invisibly for base graphics, ggplot2 layers for ggplot,
+#' or a data frame with columns \code{x}, \code{y}, \code{y_lCI}, \code{y_uCI}
+#' if \code{as_data = TRUE}.
+#'
+#' @seealso [plot.zcurve_brma()], [hist.zcurve_brma()]
 #'
 #' @export
 lines.zcurve_brma <- function(x, plot_type = "base",
@@ -642,15 +704,23 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 #
 # Core computation function for z-curve estimates and densities.
 #
-# @param object      brma object
-# @param z_threshold significance threshold (z-value) for EDR computation
-# @param z_sequence  vector of z-values for density computation
-# @param max_samples maximum number of posterior samples to use
-# @param extrapolate logical; if TRUE, computes unbiased estimates (removes PET/PEESE/Weights)
-#                    if FALSE, computes fitted estimates (includes biases)
+# This function operates in two modes:
+# 1. EDR mode (z_threshold set): Computes Expected Discovery Rate
+# 2. Density mode (z_sequence set): Computes density over z-values
 #
-# @return if z_threshold is set: list(EDR, weights)
-#         if z_sequence is set: S x length(z_sequence) matrix of densities
+# The extrapolate parameter controls bias adjustment:
+# - extrapolate=TRUE:  Removes publication bias (PET/PEESE/weights) to estimate
+#                      "true" power distribution
+# - extrapolate=FALSE: Includes all bias adjustments for fitted distribution
+#
+# @param object      brma object with fit and priors
+# @param z_threshold z-value threshold for significance (EDR mode)
+# @param z_sequence  vector of z-values for density evaluation (density mode)
+# @param max_samples maximum posterior samples for computation
+# @param extrapolate whether to remove bias adjustments
+#
+# @return EDR mode:     list with EDR (S-vector) and weights (S-vector)
+#         Density mode: S x length(z_sequence) matrix of densities
 #
 # ---------------------------------------------------------------------------- #
 .zcurve_fun.brma <- function(object, z_threshold = NULL, z_sequence = NULL,
@@ -731,19 +801,12 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
       for (i in seq_len(K)) {
 
-        # Total SD for prediction: sqrt(tau_within^2 + se^2)
-        total_sd <- sqrt(tau_within[j, i]^2 + sei[i]^2)
-
-        # Logic:
-        # 1. Standard calculation using pnorm/dnorm
-        # 2. If weightfunction AND extrapolate=FALSE: use weighted version (.dwnorm_fast)
-        #    Else: use standard unweighted
-
+        # predictive SD combines heterogeneity and sampling error
+        total_sd     <- sqrt(tau_within[j, i]^2 + sei[i]^2)
         use_weighted <- is_weightfunction && !extrapolate
 
         if (!use_weighted) {
-          # Standard Normal Probability > Threshold (two-tailed)
-          # P(|Z| > z_crit) = P(Z > z_c) + P(Z < -z_c)
+          # two-tailed probability of exceeding threshold
           prob <-
             stats::pnorm(z_threshold * sei[i], mu_samples[j, i], total_sd, lower.tail = FALSE) +
             stats::pnorm(-z_threshold * sei[i], mu_samples[j, i], total_sd, lower.tail = TRUE)
@@ -752,14 +815,8 @@ lines.zcurve_brma <- function(x, plot_type = "base",
           temp_weights[i]    <- 1
 
         } else {
-          # Weighted Normal Probability (Selection Models)
-          # We need to account for the weight function which modifies the density
-
-          # The density is f_w(y) = f(y) * w(y) / C
-          # Probability in region is Integral(f_w(y))
-          # .pwnorm_fast.ss computes cumulative probability for weighted normal
-
-          # Adjust for negative effect direction (flip mu) if needed for wnorm helpers
+          # selection models: use weighted normal CDF
+          # wnorm helpers assume positive effect direction
           mu_j_i <- mu_samples[j, i]
           if (effect_direction == "negative") {
             mu_j_i <- -mu_j_i
@@ -786,13 +843,9 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
           temp_thresholds[i] <- prob_upper + prob_lower
 
-          # Weight for normalization (if needed for output but EDR is just prob)
-          # RoBMA returns 1/constant as weight?
-
-          # Calculate normalizing constant C to return as weight
-          # (used for "Missing N" calculation)
+          # normalizing constant for "Missing N" calculation
           temp_consts <- .dwnorm_fast.ss(
-            x               = 0, # dummy
+            x               = 0,
             mean            = mu_j_i,
             sd              = total_sd,
             omega           = omega_samples[j, , drop = FALSE],
@@ -805,11 +858,10 @@ lines.zcurve_brma <- function(x, plot_type = "base",
       }
 
       if (is_weightfunction && !extrapolate) {
-         # for selection models, RoBMA weights the EDR computation by the inverse probability of publication?
-         # "outcome_thresholds[j] <- stats::weighted.mean(temp_thresholds, temp_weights)" in zcurve.R line 1089
+         # weight by inverse publication probability
          outcome_thresholds[j] <- stats::weighted.mean(temp_thresholds, temp_weights)
       } else {
-         mean(temp_thresholds)
+         outcome_thresholds[j] <- mean(temp_thresholds)
       }
 
       outcome_weights[j] <- mean(temp_weights)
@@ -836,19 +888,15 @@ lines.zcurve_brma <- function(x, plot_type = "base",
         use_weighted <- is_weightfunction && !extrapolate
 
         if (!use_weighted) {
-
-          # Unweighted density: dnorm(z*se, mu, sd) * se
-          # Jacobian * se because we transform from y to z scale: z = y/se -> dy = se * dz
+          # Jacobian: f_Z(z) = f_Y(z*se) * se
           temp_densities_mat[i, ] <- stats::dnorm(
             z_sequence * sei[i],
             mean = mu_samples[j, i],
             sd   = total_sd
           ) * sei[i]
 
-          # Special case: Extrapolate with Selection Model
-          # If we are extrapolating a selection model, we need to adjust the density magnitude
+          # extrapolation with selection: scale by normalizing constant
           if (is_weightfunction && extrapolate) {
-             # Calculate constant C
              mu_j_i <- mu_samples[j, i]
              if (effect_direction == "negative") {
               mu_j_i_flipped <- -mu_j_i
@@ -871,9 +919,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
 
         } else {
-          # Weighted density (Fitted Model)
-          # Use .dwnorm_fast.ss vectorization over x (z_sequence)
-
+          # fitted selection model density
           mu_j_i <- mu_samples[j, i]
           y_seq  <- z_sequence * sei[i]
           if (effect_direction == "negative") {
@@ -883,8 +929,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
             mu_j_i_flipped <- mu_j_i
             y_seq_flipped  <- y_seq
           }
-          
-          # .dwnorm_fast.ss can handle vector x
+
           dens_y <- .dwnorm_fast.ss(
             x      = y_seq_flipped,
             mean   = mu_j_i_flipped,
@@ -907,10 +952,30 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 }
 
 
-# ---------------------------------------------------------------------------- #
-# Graphical helper functions (reused verbatim from previous brma.zcurve.R)
-# ---------------------------------------------------------------------------- #
+# ============================================================================ #
+# Graphical Helper Functions
+# ============================================================================ #
+#
+# These functions extract and set default graphical parameters for z-curve
+# plotting components. They handle the translation between base graphics
+# and ggplot2 parameter naming conventions.
+#
+# ============================================================================ #
 
+
+# ---------------------------------------------------------------------------- #
+# .get_dots_hist_zcurve
+# ---------------------------------------------------------------------------- #
+#
+# Extracts histogram graphical parameters with defaults.
+#
+# @param dots      list of user-supplied graphical parameters
+# @param plot_type "base" or "ggplot"
+# @param max_density maximum density value for setting ylim
+#
+# @return list of graphical parameters appropriate for plot_type
+#
+# ---------------------------------------------------------------------------- #
 .get_dots_hist_zcurve <- function(dots, plot_type = "base", max_density = NULL) {
   if (plot_type == "base") {
     if (!is.null(dots[["ylim"]]) && !is.null(max_density)) {
@@ -943,6 +1008,21 @@ lines.zcurve_brma <- function(x, plot_type = "base",
   return(hist_dots)
 }
 
+
+# ---------------------------------------------------------------------------- #
+# .get_dots_lines_zcurve
+# ---------------------------------------------------------------------------- #
+#
+# Extracts density line graphical parameters with defaults.
+#
+# @param dots      list of user-supplied graphical parameters
+# @param plot_type "base" or "ggplot"
+# @param col       default line color
+# @param alpha     default alpha for CI ribbons
+#
+# @return list of graphical parameters appropriate for plot_type
+#
+# ---------------------------------------------------------------------------- #
 .get_dots_lines_zcurve <- function(dots, plot_type = "base", col = "black", alpha = 0.40) {
   if (plot_type == "base") {
     line_dots <- list(
@@ -962,6 +1042,19 @@ lines.zcurve_brma <- function(x, plot_type = "base",
   return(line_dots)
 }
 
+
+# ---------------------------------------------------------------------------- #
+# .get_dots_thresholds_zcurve
+# ---------------------------------------------------------------------------- #
+#
+# Extracts threshold line graphical parameters with defaults.
+#
+# @param dots      list of user-supplied graphical parameters
+# @param plot_type "base" or "ggplot"
+#
+# @return list of graphical parameters appropriate for plot_type
+#
+# ---------------------------------------------------------------------------- #
 .get_dots_thresholds_zcurve <- function(dots, plot_type = "base") {
   if (plot_type == "base") {
     threshold_dots <- list(
@@ -979,11 +1072,45 @@ lines.zcurve_brma <- function(x, plot_type = "base",
   return(threshold_dots)
 }
 
+
+# ---------------------------------------------------------------------------- #
+# .get_Soric_FDR
+# ---------------------------------------------------------------------------- #
+#
+# Computes Soric's (1989) False Discovery Rate estimate from EDR.
+#
+# @param EDR       Expected Discovery Rate (vector or scalar)
+# @param sig_level two-sided significance level (e.g., 0.05)
+#
+# @return Soric FDR estimate
+#
+# ---------------------------------------------------------------------------- #
 .get_Soric_FDR <- function(EDR, sig_level) {
+
   ((1 / EDR) - 1) * (sig_level / (1 - sig_level))
 }
 
-# Logic from zcurve.R for binning
+
+# ---------------------------------------------------------------------------- #
+# .zcurve_bins
+# ---------------------------------------------------------------------------- #
+#
+# Creates bin sequence for z-curve histograms and densities.
+#
+# For histograms, bins are shifted to align with significance thresholds
+# when selection model priors are present. For densities, threshold
+# values are added to the sequence to ensure accurate representation.
+#
+# @param priors     list of priors (used to extract thresholds)
+# @param from       lower bound of z-value range
+# @param to         upper bound of z-value range
+# @param by         step size (NULL to use length.out)
+# @param length.out number of bins (NULL to use by)
+# @param type       "hist" or "dens"
+#
+# @return numeric vector of bin boundaries or density evaluation points
+#
+# ---------------------------------------------------------------------------- #
 .zcurve_bins <- function(priors, from, to, by, length.out, type = "hist") {
   if (is.null(length.out)) {
     bins <- seq(from = from, to = to, by = by)

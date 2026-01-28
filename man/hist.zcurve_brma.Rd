@@ -22,37 +22,39 @@
 \arguments{
 \item{x}{a zcurve_brma object.}
 
-\item{plot_type}{whether to use base graphics (\code{"base"}) or
-ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.}
+\item{plot_type}{graphics system: \code{"base"} or \code{"ggplot"}.
+Defaults to \code{"base"}.}
 
-\item{from}{lower bound of z-value range. Defaults to -6.}
-
-\item{to}{upper bound of z-value range. Defaults to 6.}
+\item{from, to}{z-value range for plotting. Defaults to \code{-6} and \code{6}.}
 
 \item{by}{bin width. Defaults to 0.5.}
 
-\item{length.out}{number of bins.}
+\item{length.out}{number of bins (alternative to \code{by}).}
 
-\item{add}{logical; if TRUE, adds to existing plot. Defaults to FALSE.}
+\item{add}{whether to add to existing plot. Defaults to \code{FALSE}.}
 
-\item{plot_thresholds}{whether to display significance thresholds.
-Defaults to TRUE.}
+\item{plot_thresholds}{whether to show significance threshold lines.
+Defaults to \code{TRUE}.}
 
-\item{dots_thresholds}{list of graphical parameters for threshold lines.}
+\item{dots_thresholds}{graphical parameters for threshold lines (list).}
 
-\item{dots_hist}{list of graphical parameters for histogram.}
+\item{dots_hist}{graphical parameters for histogram (list).}
 
-\item{dots_all}{list of all graphical parameters.}
+\item{dots_all}{graphical parameters passed to all components (list).}
 
 \item{...}{additional graphical parameters.}
 }
 \value{
-Returns \code{NULL} invisibly for base graphics, or a ggplot2
-object if \code{plot_type = "ggplot"}.
+\code{NULL} invisibly for base graphics, or a ggplot2 object.
 }
 \description{
-Plots a histogram of observed z-values for a zcurve_brma object.
+Plots a histogram of observed z-values from the meta-analysis.
+}
+\details{
+Z-statistics are computed as effect size divided by standard error
+(\code{yi / sei}). Histogram bins are adjusted to align with significance
+thresholds when selection model priors are present.
 }
 \seealso{
-\code{\link{as_zcurve.brma}}, \code{\link{plot.zcurve_brma}}
+\code{\link[=plot.zcurve_brma]{plot.zcurve_brma()}}, \code{\link[=lines.zcurve_brma]{lines.zcurve_brma()}}
 }

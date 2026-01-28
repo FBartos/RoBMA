@@ -82,7 +82,5 @@
 <rect x='593.40' y='486.13' width='24.33' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
 <rect x='617.73' y='486.13' width='24.33' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
 <rect x='642.07' y='486.13' width='24.33' height='0.00' style='stroke-width: 0.75; stroke: #999999;' />
-<line x1='279.02' y1='502.56' x2='279.02' y2='59.04' style='stroke-width: 0.75; stroke: #FF0000; stroke-dasharray: 1.00,3.00;' />
-<line x1='469.78' y1='502.56' x2='469.78' y2='59.04' style='stroke-width: 0.75; stroke: #FF0000; stroke-dasharray: 1.00,3.00;' />
 </g>
 </svg>

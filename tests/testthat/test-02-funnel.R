@@ -76,12 +76,12 @@ test_that("Funnel plot for meta-regression works correctly", {
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::funnel(fit_metafor, main = "metafor", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstudent")
-    funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstudent")
+    suppressWarnings(funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstudent"))
   })
 
   vdiffr::expect_doppelganger(
     "funnel_regression_brma_ggplot",
-    funnel(fit_brma, plot_type = "ggplot")
+    suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
   )
 })
 
@@ -243,7 +243,7 @@ test_that("Funnel plot for PET model (positive) works correctly", {
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     # the residuals need to be selected specifically because bPET is not treated as a regression
     metafor::funnel(fit_metafor, main = "metafor", xlim = c(-2, 2), ylim = c(0.8, 0), type = "rstudent")
-    funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0))
+    suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0)))
   })
 
   vdiffr::expect_doppelganger(
@@ -273,7 +273,7 @@ test_that("Funnel plot for PET model (negative) works correctly", {
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     # the residuals need to be selected specifically because bPET is not treated as a regression
     metafor::funnel(fit_metafor, main = "metafor", xlim = c(-2, 2), ylim = c(0.8, 0), type = "rstudent")
-    funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0))
+    suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0)))
   })
 
   vdiffr::expect_doppelganger(

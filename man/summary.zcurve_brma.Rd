@@ -15,11 +15,26 @@ Defaults to \code{c(.025, .975)}.}
 \item{...}{additional arguments (currently unused).}
 }
 \value{
-An object of class \code{"summary.zcurve_brma"}.
+An object of class \code{"summary.zcurve_brma"} containing the
+estimates table.
 }
 \description{
-Creates summary tables for a zcurve_brma object.
+Creates summary tables for z-curve estimates including
+EDR, Soric FDR, and estimated missing studies.
+}
+\details{
+The summary includes:
+\describe{
+\item{EDR}{Expected Discovery Rate - average power of significant studies}
+\item{Soric FDR}{Expected proportion of false discoveries among significant
+results, computed from EDR following Soric (1989)}
+\item{Missing N}{Estimated number of studies suppressed by publication bias,
+computed from the selection model weights}
+}
+
+The footer reports the Observed Discovery Rate (ODR) with 95\\% CI for
+comparison with the model-estimated EDR.
 }
 \seealso{
-\code{\link{as_zcurve.brma}}, \code{\link{plot.zcurve_brma}}
+\code{\link[=as_zcurve.brma]{as_zcurve.brma()}}, \code{\link[=plot.zcurve_brma]{plot.zcurve_brma()}}
 }
