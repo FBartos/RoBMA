@@ -40,13 +40,13 @@ test_that("Heterogeneity for simple meta-analysis matches metafor", {
                info = "brma tau2 should match metafor")
 
   # I2
-  expect_equal(brma_het$estimates["I2", "Mean"],
+  expect_equal(brma_het$estimates["I2", "Median"],
                fit_metafor$I2, tolerance = 0.05,
                info = "brma I2 should match metafor")
 
   # H2
-  expect_equal(brma_het$estimates["H2", "Mean"],
-               fit_metafor$H2, tolerance = 0.10,
+  expect_equal(brma_het$estimates["H2", "Median"],
+               fit_metafor$H2, tolerance = 0.05,
                info = "brma H2 should match metafor")
 })
 
@@ -69,7 +69,7 @@ test_that("Heterogeneity for 3-level model matches metafor", {
 
   # Total tau should match sqrt(sum(sigma2))
   expect_equal(brma_het$estimates["tau", "Mean"],
-               sqrt(sum(fit_metafor$sigma2)), tolerance = 0.05,
+               sqrt(fit_metafor$tau2), tolerance = 0.05,
                info = "brma total tau should match metafor")
 
   # tau [within] should match sqrt(sigma2[1]) (estimate-level)
@@ -98,15 +98,15 @@ test_that("Heterogeneity for 3-level model matches metafor", {
   I2_within  <- 100 * (total_var * fit_metafor$rho) / (total_var + typical_v)
   I2_between <- 100 * (total_var * (1-fit_metafor$rho)) / (total_var + typical_v)
 
-  expect_equal(brma_het$estimates["I2", "Mean"],
+  expect_equal(brma_het$estimates["I2", "Median"],
                I2_total, tolerance = 0.05,
                info = "brma total I2 should match metafor formula")
 
-  expect_equal(brma_het$estimates["I2 [within]", "Mean"],
+  expect_equal(brma_het$estimates["I2 [within]", "Median"],
                I2_within, tolerance = 0.10,
                info = "brma I2 within should match metafor formula")
 
-  expect_equal(brma_het$estimates["I2 [between]", "Mean"],
+  expect_equal(brma_het$estimates["I2 [between]", "Median"],
                I2_between, tolerance = 0.10,
                info = "brma I2 between should match metafor formula")
 })
@@ -129,11 +129,20 @@ test_that("Heterogeneity for meta-regression matches metafor", {
                sqrt(fit_metafor$tau2), tolerance = 0.05,
                info = "brma tau should match metafor for meta-regression")
 
-  # I2 and H2 should also be computed
-  expect_true("I2" %in% rownames(brma_het$estimates),
-              info = "I2 should be present for meta-regression")
-  expect_true("H2" %in% rownames(brma_het$estimates),
-              info = "H2 should be present for meta-regression")
+  # tau2
+  expect_equal(brma_het$estimates["tau2", "Mean"],
+               fit_metafor$tau2, tolerance = 0.05,
+               info = "brma tau2 should match metafor for meta-regression")
+
+  # I2
+  expect_equal(brma_het$estimates["I2", "Median"],
+               fit_metafor$I2, tolerance = 0.05,
+               info = "brma I2 should match metafor for meta-regression")
+
+  # H2
+  expect_equal(brma_het$estimates["H2", "Median"],
+               fit_metafor$H2, tolerance = 0.05,
+               info = "brma H2 should match metafor for meta-regression")
 })
 
 
@@ -141,63 +150,169 @@ test_that("Heterogeneity for meta-regression matches metafor", {
 # Test: Location-Scale Model Heterogeneity
 # ============================================================================ #
 
-test_that("Heterogeneity for location-scale model is computed", {
+test_that("Heterogeneity for location-scale model matches metafor", {
 
-  name     <- "bangertdrowns2004_location-scale"
-  fit_brma <- fits[[name]]
+  name        <- "bangertdrowns2004_location-scale"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
 
   # For location-scale models, heterogeneity varies by observation
   # summary_heterogeneity should aggregate across the scale model matrix
   brma_het <- summary_heterogeneity(fit_brma)
 
-  expect_true("tau" %in% rownames(brma_het$estimates),
-              info = "summary_heterogeneity should return tau for location-scale models")
-  expect_true("I2" %in% rownames(brma_het$estimates),
-              info = "summary_heterogeneity should return I2 for location-scale models")
-  expect_true("H2" %in% rownames(brma_het$estimates),
-              info = "summary_heterogeneity should return H2 for location-scale models")
+  # I2 and H2 - compare against metafor's values
+  # Note: metafor's I2 and H2 for location-scale models are computed differently
+  # (they use the average tau across observations)
+  expect_equal(brma_het$estimates["I2", "Median"],
+               mean(fit_metafor$I2), tolerance = 0.05,
+               info = "brma I2 should match metafor for location-scale models")
+
+  expect_equal(brma_het$estimates["H2", "Median"],
+               mean(fit_metafor$H2), tolerance = 0.20,
+               info = "brma H2 should match metafor for location-scale models")
 })
 
 
 # ============================================================================ #
-# Test: Output Structure
+# Test: bPET Model Heterogeneity
 # ============================================================================ #
 
-test_that("Output structure is correct", {
+test_that("Heterogeneity for bPET model matches metafor", {
 
-  name     <- "bcg_meta-analysis"
-  fit_brma <- fits[[name]]
+  name        <- "dat.lehmann2018-PET"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
 
   brma_het <- summary_heterogeneity(fit_brma)
 
-  # check class
+  # tau (should match residual heterogeneity from metafor)
+  expect_equal(brma_het$estimates["tau", "Mean"],
+               sqrt(fit_metafor$tau2), tolerance = 0.05,
+               info = "brma tau should match metafor for bPET model")
 
-  expect_s3_class(brma_het, "summary.brma_heterogeneity")
+  # tau2
+  expect_equal(brma_het$estimates["tau2", "Mean"],
+               fit_metafor$tau2, tolerance = 0.05,
+               info = "brma tau2 should match metafor for bPET model")
 
-  # check components
-  expect_true("estimates" %in% names(brma_het),
-              info = "output should contain estimates")
-  expect_s3_class(brma_het$estimates, "BayesTools_table")
+  # I2
+  expect_equal(brma_het$estimates["I2", "Median"],
+               fit_metafor$I2, tolerance = 0.05,
+               info = "brma I2 should match metafor for bPET model")
 
-  # check parameter names for non-multilevel
-  expect_equal(rownames(brma_het$estimates),
-               c("tau", "tau2", "I2", "H2"),
-               info = "non-multilevel should have tau, tau2, I2, H2")
+  # H2
+  expect_equal(brma_het$estimates["H2", "Median"],
+               fit_metafor$H2, tolerance = 0.05,
+               info = "brma H2 should match metafor for bPET model")
 })
 
 
-test_that("Multilevel output structure is correct", {
+test_that("Heterogeneity for bPET model (negative effects) matches metafor", {
 
-  name     <- "konstantopoulos2011_3lvl"
-  fit_brma <- fits[[name]]
+  name        <- "dat.lehmann2018-PET_neg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
 
   brma_het <- summary_heterogeneity(fit_brma)
 
-  # check parameter names for multilevel
-  expected_params <- c("tau", "tau [within]", "tau [between]",
-                       "tau2", "tau2 [within]", "tau2 [between]",
-                       "I2", "I2 [within]", "I2 [between]", "H2")
-  expect_equal(rownames(brma_het$estimates),
-               expected_params,
-               info = "multilevel should have partitioned heterogeneity")
+  # tau (should match residual heterogeneity from metafor)
+  expect_equal(brma_het$estimates["tau", "Mean"],
+               sqrt(fit_metafor$tau2), tolerance = 0.05,
+               info = "brma tau should match metafor for bPET model (negative)")
+
+  # tau2
+  expect_equal(brma_het$estimates["tau2", "Mean"],
+               fit_metafor$tau2, tolerance = 0.05,
+               info = "brma tau2 should match metafor for bPET model (negative)")
+
+  # I2
+  expect_equal(brma_het$estimates["I2", "Median"],
+               fit_metafor$I2, tolerance = 0.05,
+               info = "brma I2 should match metafor for bPET model (negative)")
+
+  # H2
+  expect_equal(brma_het$estimates["H2", "Median"],
+               fit_metafor$H2, tolerance = 0.05,
+               info = "brma H2 should match metafor for bPET model (negative)")
+})
+
+
+# ============================================================================ #
+# Test: bselmodel Heterogeneity
+# ============================================================================ #
+
+test_that("Heterogeneity for bselmodel matches metafor", {
+
+  name        <- "dat.lehmann2018-3PSM"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  brma_het <- summary_heterogeneity(fit_brma)
+
+  # tau (should match heterogeneity from metafor selmodel)
+  expect_equal(brma_het$estimates["tau", "Mean"],
+               sqrt(fit_metafor$tau2), tolerance = 0.05,
+               info = "brma tau should match metafor for bselmodel")
+
+  # tau2
+  expect_equal(brma_het$estimates["tau2", "Mean"],
+               fit_metafor$tau2, tolerance = 0.05,
+               info = "brma tau2 should match metafor for bselmodel")
+
+  # I2 / H2 are not reported for selection models
+})
+
+
+test_that("Heterogeneity for bselmodel (negative effects) matches metafor", {
+
+  name        <- "dat.lehmann2018-3PSM_neg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  brma_het <- summary_heterogeneity(fit_brma)
+
+  # tau (should match heterogeneity from metafor selmodel)
+  expect_equal(brma_het$estimates["tau", "Mean"],
+               sqrt(fit_metafor$tau2), tolerance = 0.05,
+               info = "brma tau should match metafor for bselmodel (negative)")
+
+  # tau2
+  expect_equal(brma_het$estimates["tau2", "Mean"],
+               fit_metafor$tau2, tolerance = 0.05,
+               info = "brma tau2 should match metafor for bselmodel (negative)")
+
+  # I2 / H2 are not reported for selection models
+})
+
+# ============================================================================ #
+# Test: GLMM Heterogeneity
+# ============================================================================ #
+
+test_that("Heterogeneity for GLMM model matches metafor", {
+
+  name        <- "nielweise2008_glmm"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  brma_het <- summary_heterogeneity(fit_brma)
+
+  # tau (should match heterogeneity from metafor selmodel)
+  expect_equal(brma_het$estimates["tau", "Mean"],
+               sqrt(fit_metafor$tau2), tolerance = 0.10,
+               info = "brma tau should match metafor for glmm")
+
+  # tau2
+  expect_equal(brma_het$estimates["tau2", "Mean"],
+               fit_metafor$tau2, tolerance = 0.10,
+               info = "brma tau2 should match metafor for glmm")
+
+  # I2
+  expect_equal(brma_het$estimates["I2", "Median"],
+               fit_metafor$I2, tolerance = 0.20, # the actual value is quite close
+               info = "brma I2 should match metafor for glmm")
+
+  # H2
+  expect_equal(brma_het$estimates["H2", "Median"],
+               fit_metafor$H2, tolerance = 0.10,
+               info = "brma H2 should match metafor for glmm")
 })

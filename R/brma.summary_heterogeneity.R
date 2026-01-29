@@ -74,8 +74,8 @@ summary_heterogeneity <- function(object, ...) {
 #'
 #' The I^2 and H^2 statistics are computed following the metafor package
 #' implementation, using the "typical" sampling variance formula from
-#' Higgins & Thompson (2002). For multilevel models, the partitioned I^2
-#' follows the approach described in the metafor documentation.
+#' \insertCite{higgins2002quantifying;textual}{RoBMA} For multilevel models,
+#' the partitioned I^2 follows the approach described in the metafor documentation.
 #'
 #' @return A list of class \code{summary_heterogeneity.brma} containing:
 #' \itemize{
@@ -91,8 +91,7 @@ summary_heterogeneity <- function(object, ...) {
 #' }
 #'
 #' @references
-#' Higgins, J. P., & Thompson, S. G. (2002). Quantifying heterogeneity in a
-#' meta-analysis. Statistics in Medicine, 21(11), 1539-1558.
+#' \insertAllCited{}
 #'
 #' @seealso [pooled_heterogeneity()], [summary.brma()]
 #' @export
@@ -106,14 +105,18 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
   is_scale      <- .is_scale(object)
 
   # extract sampling variances using helper
-
   vi <- .outcome_data_vi(object)
   K  <- length(vi)
 
   # compute typical sampling variance (v_tilde)
   # following metafor formula (Higgins & Thompson, 2002, eq. 9)
-  w       <- 1/vi
-  v_tilde <- ((K - 1) * sum(w)) / (sum(w)^2 - sum(w^2))
+  # using the generalized formula with projection matrix for meta-regression
+  X <- .get_model_matrix(object)
+  p <- ncol(X)
+  W <- diag(1/vi, nrow = K)
+  P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+
+  v_tilde <- (K - p) / sum(diag(P))
 
   # extract tau samples using the evaluate helper
   tau_result <- .evaluate.brma.tau(

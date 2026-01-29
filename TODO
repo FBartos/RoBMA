@@ -1,4 +1,27 @@
-brma class
+**brma class**
+missing features
+  - radial	Radial (Galbraith) plot
+  - baujat	Baujat plot
+  - qqnorm	QQ-normal plot
+  - nobs	Number of observations
+  - gosh	GOSH analysis
+  - regplot	Regression/bubble plot
+  - vif 	Variance inflation factors
+  - robust	Cluster-robust inference
+
+missing basic methods
+  - coef	Extract model coefficients
+  - vcov	Variance-covariance matrix of coefficients
+
+missing wrappers:
+  - confint	Confidence/credible intervals
+  - fitted	Fitted values (currently only via predict)
+  - ranef	Extract random effects
+
+Other
+- restrict I^2/H^2 output
+- verify hatvalues calculation (sometimes bit of from metafor)
+
 
 plot_weightfunction
 Expand the function to use `show_data` argument. if TRUE, the function should show p-values as jitter on the x-axis

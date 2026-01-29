@@ -22,6 +22,10 @@ Additional detailed instructions are available in `.claude/instructions/`:
 - [testing.md](.claude/instructions/testing.md) - Unit testing workflow and cache system
 - [vignettes.md](.claude/instructions/vignettes.md) - Vignette writing and pre-computation patterns
 - [posterior-samples.md](.claude/instructions/posterior-samples.md) - Effect direction handling and core computation functions
+- [helper-functions.md](.claude/instructions/helper-functions.md) - Internal helper functions for data access
+- [metafor-comparison-tests.md](.claude/instructions/metafor-comparison-tests.md) - Testing against metafor reference
+- [test-file-template.md](.claude/instructions/test-file-template.md) - Template for test-02-*.R files
+- [s3-class-naming.md](.claude/instructions/s3-class-naming.md) - S3 class naming conventions
 
 Read these files when working on the corresponding areas.
 

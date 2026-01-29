@@ -6,7 +6,8 @@
       "WebFetch(domain:www.metafor-project.org)",
       "WebFetch(domain:www.cran.r-project.org)",
       "WebFetch(domain:www.github.com/wviechtb/metafor)",
-      "WebFetch(domain:www.wviechtb.github.io/metafor/)"
+      "WebFetch(domain:www.wviechtb.github.io/metafor/)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -44,8 +44,8 @@ partitions heterogeneity into within-study and between-study components:
 
 The I^2 and H^2 statistics are computed following the metafor package
 implementation, using the "typical" sampling variance formula from
-Higgins & Thompson (2002). For multilevel models, the partitioned I^2
-follows the approach described in the metafor documentation.
+\insertCite{higgins2002quantifying;textual}{RoBMA} For multilevel models,
+the partitioned I^2 follows the approach described in the metafor documentation.
 }
 \examples{
 \dontrun{
@@ -58,8 +58,7 @@ summary_heterogeneity(fit)
 
 }
 \references{
-Higgins, J. P., & Thompson, S. G. (2002). Quantifying heterogeneity in a
-meta-analysis. Statistics in Medicine, 21(11), 1539-1558.
+\insertAllCited{}
 }
 \seealso{
 \code{\link[=pooled_heterogeneity]{pooled_heterogeneity()}}, \code{\link[=summary.brma]{summary.brma()}}
