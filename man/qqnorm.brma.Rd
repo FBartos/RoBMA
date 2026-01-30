@@ -146,13 +146,6 @@ qqnorm(fit, pch = 19, col = "blue", shade = "lightblue")
 }
 
 }
-\references{
-Wang, M. C., & Bushman, B. J. (1998). Using the normal quantile plot to
-explore meta-analytic data sets. \emph{Psychological Methods}, 3(1), 46-54.
-
-Cook, R. D., & Weisberg, S. (1982). \emph{Residuals and influence in
-regression}. New York: Chapman and Hall.
-}
 \seealso{
 \code{\link[=rstudent.brma]{rstudent.brma()}}, \code{\link[=rstandard.brma]{rstandard.brma()}}, \code{\link[=residuals.brma]{residuals.brma()}},
 \code{\link[=funnel.brma]{funnel.brma()}}, \code{\link[=radial.brma]{radial.brma()}}

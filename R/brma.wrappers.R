@@ -19,6 +19,44 @@
 
 
 # ---------------------------------------------------------------------------- #
+# nobs and coef methods
+# ---------------------------------------------------------------------------- #
+
+#' @title Number of Observations for brma Objects
+#'
+#' @description Extract the number of observations (studies/estimates) from
+#' a fitted brma object.
+#'
+#' @param object a fitted brma object
+#' @param ... additional arguments (currently ignored)
+#'
+#' @return An integer giving the number of observations.
+#'
+#' @seealso [brma.norm()], [brma.glmm()]
+#' @export
+nobs.brma <- function(object, ...) {
+  return(length(.outcome_data_yi(object)))
+}
+
+
+#' @title Extract Model Coefficients for brma Objects
+#'
+#' @description Extract model coefficients (posterior means) from a
+#' fitted brma object.
+#'
+#' @param object a fitted brma object
+#' @param ... additional arguments (currently ignored)
+#'
+#' @return A named numeric vector of posterior mean coefficients.
+#'
+#' @seealso [summary.brma()]
+#' @export
+coef.brma <- function(object, ...) {
+  return(object[["coefficients"]])
+}
+
+
+# ---------------------------------------------------------------------------- #
 # pooled_effect generic and brma method
 # ---------------------------------------------------------------------------- #
 

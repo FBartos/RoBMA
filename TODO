@@ -1,15 +1,13 @@
 **brma class**
 missing features
-  - baujat	Baujat plot
-  - nobs	Number of observations
-  - gosh	GOSH analysis
   - regplot	Regression/bubble plot
   - vif 	Variance inflation factors
-  - robust	Cluster-robust inference
-
-missing basic methods
-  - coef	Extract model coefficients
   - vcov	Variance-covariance matrix of coefficients
+  - robust	Cluster-robust inference
+  - baujat	Baujat plot
+  - gosh	GOSH analysis
+
+
 
 missing wrappers:
   - confint	Confidence/credible intervals
