@@ -7,7 +7,13 @@
       "WebFetch(domain:www.cran.r-project.org)",
       "WebFetch(domain:www.github.com/wviechtb/metafor)",
       "WebFetch(domain:www.wviechtb.github.io/metafor/)",
-      "Bash(grep:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:rdrr.io)",
+      "WebFetch(domain:wviechtb.github.io)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

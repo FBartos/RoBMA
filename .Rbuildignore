@@ -28,3 +28,5 @@ README.html
 ^\.github$
 ^codecov\.yml$
 _pkgdown.yml
+^\.claude$
+CLAUDE.md

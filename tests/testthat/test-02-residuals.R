@@ -140,7 +140,7 @@ test_that("Residuals for meta-regression match metafor", {
   # --------------------------------------------------
 
   metafor_rstudent <- rstudent(fit_metafor)
-  brma_rstudent    <- rstudent(fit_brma)
+  brma_rstudent    <- suppressWarnings(rstudent(fit_brma))
 
   expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.10,
                info = "brma rstudent resid should match metafor")
@@ -445,7 +445,7 @@ test_that("Residuals for PET model (positive) match metafor", {
   # --------------------------------------------------
 
   metafor_rstudent <- rstudent(fit_metafor)
-  brma_rstudent    <- rstudent(fit_brma)
+  brma_rstudent    <- suppressWarnings(rstudent(fit_brma))
 
   expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.05,
                info = "brma rstudent resid should match metafor")
@@ -507,7 +507,7 @@ test_that("Residuals for PET model (negative) match metafor", {
   # --------------------------------------------------
 
   metafor_rstudent <- rstudent(fit_metafor)
-  brma_rstudent    <- rstudent(fit_brma)
+  brma_rstudent    <- suppressWarnings(rstudent(fit_brma))
 
   expect_equal(brma_rstudent$resid, metafor_rstudent$resid, tolerance = 0.05,
                info = "brma rstudent resid should match metafor")
