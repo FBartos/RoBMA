@@ -1,7 +1,6 @@
 **brma class**
 missing features
   - baujat	Baujat plot
-  - qqnorm	QQ-normal plot
   - nobs	Number of observations
   - gosh	GOSH analysis
   - regplot	Regression/bubble plot

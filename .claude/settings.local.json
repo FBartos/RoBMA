@@ -13,7 +13,10 @@
       "WebFetch(domain:wviechtb.github.io)",
       "WebFetch(domain:en.wikipedia.org)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(for file in c:R-PackagesRoBMARbrma.*.R)",
+      "Bash(do grep \"^\\\\\\(^[a-z_]\\\\+\\\\.brma\\\\s*<-\\\\|#'' @exportS3Method\\\\\\)\" \"$file\")",
+      "Bash(done)"
     ]
   }
 }
