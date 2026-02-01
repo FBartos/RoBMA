@@ -9,7 +9,7 @@ skip_refit_if_cached("bPET")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::rma.uni with mods = ~ sei ", {
-  ### fit simple meta-analytic model to difference in two proportions
+  ### fit PET model
   data(dat.lehmann2018, package = "metadat")
   fit_PET.metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat.lehmann2018)
 
@@ -26,7 +26,7 @@ test_that("Test against metafor::rma.uni with mods = ~ sei ", {
 
 
 test_that("Test against metafor::rma.uni with mods = ~ sei (with negative effect sizes)", {
-  ### fit simple meta-analytic model to difference in two proportions
+  ### fit PET model
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
   fit_PET.metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat.lehmann2018)

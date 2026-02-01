@@ -9,7 +9,7 @@ skip_refit_if_cached("brma.glmm")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::rma.glmm", {
-  ### fit simple meta-analytic model to difference in two proportions
+  ### fit generalized meta-analytic model to difference in two proportions
   data(dat.bcg, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, model = "UM.FS")
 
@@ -22,7 +22,7 @@ test_that("Test against metafor::rma.glmm", {
   expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau", "Mean"], tolerance = 0.05)
 
 
-  ### fit simple meta-analytic model to difference in two rations
+  ### fit generalized meta-analytic model to difference in two rations
   data(dat.nielweise2008, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "IRR", x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i, data = dat.nielweise2008, model = "UM.FS")
 

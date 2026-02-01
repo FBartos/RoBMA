@@ -1,3 +1,4 @@
+#' @export
 RoBMA <- function(
   # input specification
   yi, vi, sei, weights, ni,
@@ -12,7 +13,7 @@ RoBMA <- function(
   set_contrast_factor_predictors = "meandif",
   prior_unit_information_sd, rescale_priors = 1,
   prior_informed_field, prior_informed_subfield,
-  model_type,
+  model_type = "PSMA",
 
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
@@ -31,15 +32,18 @@ RoBMA <- function(
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,
     autofit = autofit, parallel = parallel, silent = silent, seed = seed,
-    autofit_control = autofit_control, convergence_checks = convergence_checks,
-    # additional options
-    standardize_continuous_predictors = standardize_continuous_predictors
+    autofit_control = autofit_control, convergence_checks = convergence_checks
   )
 
   ### check and store the data
-  object$data <- .check_and_list_data(.call = match.call(), .envir = parent.frame(), class = "norm")
+  object$data <- .check_and_list_data(
+    .call = match.call(), .envir = parent.frame(), class = "norm",
+    set_contrast_factor_predictors = set_contrast_factor_predictors,
+    standardize_continuous_predictors = standardize_continuous_predictors,
+    measure = measure)
   if (isTRUE(dots[["only_data"]]))
     return(object)
+
 
   ### check and store priors
   # checks and store the base priors
@@ -54,7 +58,7 @@ RoBMA <- function(
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], measure = measure)
+    data = object[["data"]], model_type = model_type)
   if (isTRUE(dots[["only_priors"]]))
     return(object)
 

@@ -2,6 +2,7 @@
 % Please edit documentation in R/RoBMA-package.R
 \docType{package}
 \name{RoBMA-package}
+\alias{RoBMA}
 \alias{RoBMA-package}
 \alias{RoBMA_package}
 \alias{RoBMA.package}

@@ -176,22 +176,10 @@ and does not bias PET and PEESE style models. The other options are
 Supplying \code{"none"} will treat the effect sizes as unstandardized and
 refrain from any transformations.}
 
-\item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
-Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
-and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
-the samples from prior distributions are internally transformed to match the
-\code{transformation} of the data. The \code{prior_scale} corresponds to
-the effect size scale of default output, but can be changed within the summary function.}
-
 \item{standardize_predictors}{whether continuous predictors should be standardized prior to
 estimating the model. Defaults to \code{TRUE}. Continuous predictor standardization is important
 for applying the default prior distributions for continuous predictors. Note that the resulting
 output corresponds to standardized meta-regression coefficients.}
-
-\item{effect_direction}{the expected direction of the effect. Correctly specifying
-the expected direction of the effect is crucial for one-sided selection models,
-as they specify cut-offs using one-sided p-values. Defaults to \code{"positive"}
-(another option is \code{"negative"}).}
 
 \item{priors}{named list of prior distributions for each predictor
 (with names corresponding to the predictors). It allows users to
@@ -210,67 +198,6 @@ Parameters without specified prior distributions are assumed to be only adjusted
 for using the default alternative hypothesis prior distributions (i.e.,
 \code{prior_covariates} or \code{prior_factors}).
 If \code{priors} is specified, \code{test_predictors} is ignored.}
-
-\item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
-The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
-settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
-\code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
-\code{priors_bias_null}, and \code{priors_effect}. See details for more information
-about the different model types.}
-
-\item{priors_effect}{list of prior distributions for the effect size (\code{mu})
-parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-a standard normal distribution
-\code{prior(distribution = "normal", parameters = list(mean = 0, sd = 1))}.}
-
-\item{priors_heterogeneity}{list of prior distributions for the heterogeneity \code{tau}
-parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-\code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))} that
-is based on heterogeneities estimates from psychology \insertCite{erp2017estimates}{RoBMA}.}
-
-\item{priors_bias}{list of prior distributions for the publication bias adjustment
-component that will be treated as belonging to the alternative hypothesis.
-Defaults to \code{list(
-prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),
-    steps = c(0.05)),             prior_weights = 1/12),
-prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),
-    steps = c(0.05, 0.10)),       prior_weights = 1/12),
-prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),
-     steps = c(0.05)),             prior_weights = 1/12),
-prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),
-     steps = c(0.025, 0.05)),      prior_weights = 1/12),
-prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),
-     steps = c(0.05, 0.5)),        prior_weights = 1/12),
-prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1),
-     steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-prior_PET(distribution   = "Cauchy", parameters = list(0,1), truncation = list(0, Inf),
-     prior_weights = 1/4),
-prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf),
-     prior_weights = 1/4)
-)}, corresponding to the RoBMA-PSMA model introduce by \insertCite{bartos2021no;textual}{RoBMA}.}
-
-\item{priors_effect_null}{list of prior distributions for the effect size (\code{mu})
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero,
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
-\item{priors_heterogeneity_null}{list of prior distributions for the heterogeneity \code{tau}
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero (a fixed effect meta-analytic models),
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
-\item{priors_bias_null}{list of prior weight functions for the \code{omega} parameter
-that will be treated as belonging to the null hypothesis. Defaults no publication
-bias adjustment, \code{prior_none()}.}
-
-\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
-(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
-Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
-\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
-
-\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
-(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
 
 \item{prior_covariates}{a prior distributions for the regression parameter
 of continuous covariates on the effect size under the alternative hypothesis

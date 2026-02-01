@@ -9,7 +9,7 @@ skip_refit_if_cached("bselmodel")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::selmodel", {
-  ### fit simple meta-analytic model to difference in two proportions
+  ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
   fit_selmodel.metafor <- metafor::selmodel(fit_rma.metafor, type = "stepfun", alternative = "greater", steps = .025)
@@ -26,7 +26,7 @@ test_that("Test against metafor::selmodel", {
 })
 
 test_that("Test against metafor::selmodel (with negative effect sizes)", {
-  ### fit simple meta-analytic model to difference in two proportions
+  ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
   fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")

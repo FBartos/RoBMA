@@ -34,16 +34,6 @@ parameter that will be treated as belonging to the alternative hypothesis. Defau
 is based on heterogeneities of logOR estimates from the Cochrane Database of Systematic Reviews
 \insertCite{bartos2023empirical}{RoBMA}.}
 
-\item{priors_effect_null}{list of prior distributions for the effect size (\code{mu})
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero,
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
-\item{priors_heterogeneity_null}{list of prior distributions for the heterogeneity \code{tau}
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero (a fixed effect meta-analytic models),
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
 \item{priors_baseline}{prior distributions for the alternative hypothesis about
 intercepts (\code{pi}) of each study. Defaults to \code{NULL}.}
 
@@ -53,9 +43,7 @@ for each intercept \code{prior("beta", parameters = list(alpha = 1, beta = 1), c
 
 \item{models}{should the models' details be printed.}
 
-\item{silent}{whether all print messages regarding the fitting process
-should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
-also suppresses all messages.}
+\item{silent}{do not print the results.}
 
 \item{...}{additional arguments.}
 }

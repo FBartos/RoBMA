@@ -68,50 +68,6 @@ that will be treated as belonging to the null hypothesis. Defaults to \code{NULL
 
 \item{study_names}{an optional argument with the names of the studies}
 
-\item{chains}{a number of chains of the MCMC algorithm.}
-
-\item{adapt}{a number of adaptation iterations of the MCMC algorithm.
-Defaults to \code{500}.}
-
-\item{burnin}{a number of burnin iterations of the MCMC algorithm.
-Defaults to \code{2000}.}
-
-\item{sample}{a number of sampling iterations of the MCMC algorithm.
-Defaults to \code{5000}.}
-
-\item{thin}{a thinning of the chains of the MCMC algorithm. Defaults to
-\code{1}.}
-
-\item{autofit}{whether the model should be fitted until the convergence
-criteria (specified in \code{autofit_control}) are satisfied. Defaults to
-\code{TRUE}.}
-
-\item{parallel}{whether the individual models should be fitted in parallel.
-Defaults to \code{FALSE}. The implementation is not completely stable
-and might cause a connection error.}
-
-\item{autofit_control}{allows to pass autofit control settings with the
-\code{\link[=set_autofit_control]{set_autofit_control()}} function. See \code{?set_autofit_control} for
-options and default settings.}
-
-\item{convergence_checks}{automatic convergence checks to assess the fitted
-models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
-\code{?set_convergence_checks} for options and default settings.}
-
-\item{save}{whether all models posterior distributions should be kept
-after obtaining a model-averaged result. Defaults to \code{"all"} which
-does not remove anything. Set to \code{"min"} to significantly reduce
-the size of final object, however, some model diagnostics and further
-manipulation with the object will not be possible.}
-
-\item{seed}{a seed to be set before model fitting, marginal likelihood
-computation, and posterior mixing for reproducibility of results. Defaults
-to \code{NULL} - no seed is set.}
-
-\item{silent}{whether all print messages regarding the fitting process
-should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
-also suppresses all messages.}
-
 \item{...}{additional arguments.}
 }
 \value{

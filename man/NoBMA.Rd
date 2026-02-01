@@ -80,10 +80,8 @@ transformations are unavailable with this type of input)}
 studies (for using a multilevel model). Defaults to \code{NULL} for
 studies being independent.}
 
-\item{data}{a data object created by the \code{combine_data} function. This is
-an alternative input entry to specifying the \code{d}, \code{r}, \code{y}, etc...
-directly. I.e., RoBMA function does not allow passing a data.frame and
-referencing to the columns.}
+\item{data}{a data frame with column names corresponding to the
+variable names used to supply data individually}
 
 \item{weight}{specifies likelihood weights of the individual estimates.
 Notes that this is an untested experimental feature.}
@@ -96,102 +94,6 @@ and does not bias PET and PEESE style models. The other options are
 \code{"cohens_d"}, correlation coefficient \code{"r"} and \code{"logOR"}.
 Supplying \code{"none"} will treat the effect sizes as unstandardized and
 refrain from any transformations.}
-
-\item{prior_scale}{an effect size scale used to define priors. Defaults to \code{"cohens_d"}.
-Other options are \code{"fishers_z"}, correlation coefficient \code{"r"},
-and \code{"logOR"}. The prior scale does not need to match the effect sizes measure -
-the samples from prior distributions are internally transformed to match the
-\code{transformation} of the data. The \code{prior_scale} corresponds to
-the effect size scale of default output, but can be changed within the summary function.}
-
-\item{model_type}{string specifying the RoBMA ensemble. Defaults to \code{NULL}.
-The other options are \code{"PSMA"}, \code{"PP"}, and \code{"2w"} which override
-settings passed to the \code{priors_effect}, \code{priors_heterogeneity},
-\code{priors_effect}, \code{priors_effect_null}, \code{priors_heterogeneity_null},
-\code{priors_bias_null}, and \code{priors_effect}. See details for more information
-about the different model types.}
-
-\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
-factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
-
-\item{priors_effect}{list of prior distributions for the effect size (\code{mu})
-parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-a standard normal distribution
-\code{prior(distribution = "normal", parameters = list(mean = 0, sd = 1))}.}
-
-\item{priors_heterogeneity}{list of prior distributions for the heterogeneity \code{tau}
-parameter that will be treated as belonging to the alternative hypothesis. Defaults to
-\code{prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))} that
-is based on heterogeneities estimates from psychology \insertCite{erp2017estimates}{RoBMA}.}
-
-\item{priors_effect_null}{list of prior distributions for the effect size (\code{mu})
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero,
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
-\item{priors_heterogeneity_null}{list of prior distributions for the heterogeneity \code{tau}
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero (a fixed effect meta-analytic models),
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
-\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
-(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
-Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
-\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
-
-\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
-(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
-
-\item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
-which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
-sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
-Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
-\code{adapt} iterations are needed for the \code{"ss"} algorithm.}
-
-\item{chains}{a number of chains of the MCMC algorithm.}
-
-\item{sample}{a number of sampling iterations of the MCMC algorithm.
-Defaults to \code{5000}.}
-
-\item{burnin}{a number of burnin iterations of the MCMC algorithm.
-Defaults to \code{2000}.}
-
-\item{adapt}{a number of adaptation iterations of the MCMC algorithm.
-Defaults to \code{500}.}
-
-\item{thin}{a thinning of the chains of the MCMC algorithm. Defaults to
-\code{1}.}
-
-\item{parallel}{whether the individual models should be fitted in parallel.
-Defaults to \code{FALSE}. The implementation is not completely stable
-and might cause a connection error.}
-
-\item{autofit}{whether the model should be fitted until the convergence
-criteria (specified in \code{autofit_control}) are satisfied. Defaults to
-\code{TRUE}.}
-
-\item{autofit_control}{allows to pass autofit control settings with the
-\code{\link[=set_autofit_control]{set_autofit_control()}} function. See \code{?set_autofit_control} for
-options and default settings.}
-
-\item{convergence_checks}{automatic convergence checks to assess the fitted
-models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
-\code{?set_convergence_checks} for options and default settings.}
-
-\item{save}{whether all models posterior distributions should be kept
-after obtaining a model-averaged result. Defaults to \code{"all"} which
-does not remove anything. Set to \code{"min"} to significantly reduce
-the size of final object, however, some model diagnostics and further
-manipulation with the object will not be possible.}
-
-\item{seed}{a seed to be set before model fitting, marginal likelihood
-computation, and posterior mixing for reproducibility of results. Defaults
-to \code{NULL} - no seed is set.}
-
-\item{silent}{whether all print messages regarding the fitting process
-should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
-also suppresses all messages.}
 
 \item{...}{additional arguments.}
 }

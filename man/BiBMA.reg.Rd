@@ -91,9 +91,6 @@ for using the default alternative hypothesis prior distributions (i.e.,
 \code{prior_covariates} or \code{prior_factors}).
 If \code{priors} is specified, \code{test_predictors} is ignored.}
 
-\item{rescale_priors}{a re-scaling factor for the prior distributions. The re-scaling
-factor allows to adjust the width of all default priors simultaneously. Defaults to \code{1}.}
-
 \item{priors_effect}{list of prior distributions for the effect size (\code{mu})
 parameter that will be treated as belonging to the alternative hypothesis. Defaults to
 \code{prior(distribution = "student",   parameters = list(location = 0, scale = 0.58, df = 4))},
@@ -105,16 +102,6 @@ parameter that will be treated as belonging to the alternative hypothesis. Defau
 \code{prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55))} that
 is based on heterogeneities of logOR estimates from the Cochrane Database of Systematic Reviews
 \insertCite{bartos2023empirical}{RoBMA}.}
-
-\item{priors_effect_null}{list of prior distributions for the effect size (\code{mu})
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero,
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
-
-\item{priors_heterogeneity_null}{list of prior distributions for the heterogeneity \code{tau}
-parameter that will be treated as belonging to the null hypothesis. Defaults to
-a point null hypotheses at zero (a fixed effect meta-analytic models),
-\code{prior(distribution = "point", parameters = list(location = 0))}.}
 
 \item{prior_covariates}{a prior distributions for the regression parameter
 of continuous covariates on the effect size under the alternative hypothesis
@@ -137,71 +124,12 @@ of categorical covariates on the effect size under the null hypothesis
 (unless set explicitly in \code{priors}). Defaults to a no effect
 \code{prior("spike",  parameters = list(location = 0))}.}
 
-\item{priors_hierarchical}{list of prior distributions for the correlation of random effects
-(\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
-Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
-\code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.}
-
-\item{priors_hierarchical_null}{list of prior distributions for the correlation of random effects
-(\code{rho}) parameter that will be treated as belonging to the null hypothesis. Defaults to \code{NULL}.}
-
 \item{priors_baseline}{prior distributions for the alternative hypothesis about
 intercepts (\code{pi}) of each study. Defaults to \code{NULL}.}
 
 \item{priors_baseline_null}{prior distributions for the null hypothesis about
 intercepts (\code{pi}) for each study. Defaults to an independent uniform prior distribution
 for each intercept \code{prior("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent")}.}
-
-\item{algorithm}{a string specifying the algorithm used for the model averaging. Defaults to \code{"bridge"}
-which results in estimating individual models using JAGS and computing the marginal likelihood using bridge
-sampling. An alternative is \code{"ss"} which uses spike and slab like parameterization to approximate the
-Bayesian model averaging with a single model. Note that significantly more \code{sample}, \code{burnin}, and
-\code{adapt} iterations are needed for the \code{"ss"} algorithm.}
-
-\item{chains}{a number of chains of the MCMC algorithm.}
-
-\item{sample}{a number of sampling iterations of the MCMC algorithm.
-Defaults to \code{5000}.}
-
-\item{burnin}{a number of burnin iterations of the MCMC algorithm.
-Defaults to \code{2000}.}
-
-\item{adapt}{a number of adaptation iterations of the MCMC algorithm.
-Defaults to \code{500}.}
-
-\item{thin}{a thinning of the chains of the MCMC algorithm. Defaults to
-\code{1}.}
-
-\item{parallel}{whether the individual models should be fitted in parallel.
-Defaults to \code{FALSE}. The implementation is not completely stable
-and might cause a connection error.}
-
-\item{autofit}{whether the model should be fitted until the convergence
-criteria (specified in \code{autofit_control}) are satisfied. Defaults to
-\code{TRUE}.}
-
-\item{autofit_control}{allows to pass autofit control settings with the
-\code{\link[=set_autofit_control]{set_autofit_control()}} function. See \code{?set_autofit_control} for
-options and default settings.}
-
-\item{convergence_checks}{automatic convergence checks to assess the fitted
-models, passed with \code{\link[=set_convergence_checks]{set_convergence_checks()}} function. See
-\code{?set_convergence_checks} for options and default settings.}
-
-\item{save}{whether all models posterior distributions should be kept
-after obtaining a model-averaged result. Defaults to \code{"all"} which
-does not remove anything. Set to \code{"min"} to significantly reduce
-the size of final object, however, some model diagnostics and further
-manipulation with the object will not be possible.}
-
-\item{seed}{a seed to be set before model fitting, marginal likelihood
-computation, and posterior mixing for reproducibility of results. Defaults
-to \code{NULL} - no seed is set.}
-
-\item{silent}{whether all print messages regarding the fitting process
-should be suppressed. Defaults to \code{TRUE}. Note that \code{parallel = TRUE}
-also suppresses all messages.}
 
 \item{...}{additional arguments.}
 }

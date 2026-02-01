@@ -9,7 +9,7 @@ skip_refit_if_cached("bPEESE")
 
 ### Uses examples from the metafor package
 test_that("Test against metafor::rma.uni with mods = ~ sei^2 ", {
-  ### fit simple meta-analytic model to difference in two proportions
+  ### fit PEESE model
   data(dat.lehmann2018, package = "metadat")
   fit_PEESE.metafor <- metafor::rma(yi, vi, mods = ~vi, data = dat.lehmann2018)
 

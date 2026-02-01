@@ -196,7 +196,7 @@
 #'
 #' @seealso [summary.RoBMA()], [update.RoBMA()], [check_setup()]
 #' @export
-RoBMA <- function(
+RoBMA_old <- function(
   # data specification
   d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
   se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
