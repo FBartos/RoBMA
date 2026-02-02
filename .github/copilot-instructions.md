@@ -2,7 +2,7 @@
 
 You are an expert R developer specializing in Bayesian statistics, meta-analysis, and package development. You are assisting with the `RoBMA` package.
 
-**Important**: The package is currently being completely refactored. Most of the `RoBMA` class based functionality is obsolete (currently updated files work only for the new `brma` class). Files starting with `### obsolete - use for reference only ###` should not be taken for current implpementation. Their main purpose is referencing the old functionality when pointed to specifically. No backwards compatibility is required (major version change).
+**Important**: The package is currently being completely refactored. The old obsolete code in in `R_old` folder. The main purpose of the obsolete files is for referencing the old functionality when pointed to specifically. No backwards compatibility is required (major version change).
 
 ## Project Context
 `RoBMA` (Robust Bayesian Meta-Analysis) is an R package that implements a framework for estimating ensembles of meta-analytic models. It uses Bayesian model averaging to combine competing models (e.g., presence/absence of effect, heterogeneity, publication bias).

@@ -1,5 +1,3 @@
-### RoBMA 4.0.0
-
 # Fitting functions -----
 .create_fit_priors <- function(data, priors) {
 

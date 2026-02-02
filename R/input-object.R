@@ -1,5 +1,3 @@
-### RoBMA 4.0.0
-
 #' @title Fitting specification
 #' @name fitting_specification
 #'

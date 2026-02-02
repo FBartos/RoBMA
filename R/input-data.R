@@ -1,5 +1,3 @@
-### RoBMA 4.0.0
-
 #' @title Input Data Specification
 #' @name data_input
 #' @description

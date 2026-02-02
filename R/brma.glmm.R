@@ -1,4 +1,3 @@
-### RoBMA 4.0.0
 #' @title Bayesian Generalized Meta-Analysis
 #'
 #' @description Function for fitting random-effects, meta-regression, multilevel,

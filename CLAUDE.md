@@ -14,7 +14,7 @@ RoBMA (Robust Bayesian Meta-Analysis) is an R package for estimating ensembles o
 
 **System Requirement**: JAGS 4.3.1+ must be installed (https://mcmc-jags.sourceforge.io/)
 
-**Current Status**: Major refactor in progress from `RoBMA` class to new `brma` class. Files marked with `### obsolete - use for reference only ###` should not be used for current implementation. No backwards compatibility required (major version change).
+**Current Status**: **Important**: The package is currently being completely refactored. The old obsolete code in in `R_old` folder. The main purpose of the obsolete files is for referencing the old functionality when pointed to specifically. No backwards compatibility is required (major version change).
 
 ## Supplementary Instructions
 

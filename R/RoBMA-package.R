@@ -1,3 +1,4 @@
+# TODO: needs to be updated
 ##' RoBMA: Robust Bayesian meta-analysis
 ##'
 ##' RoBMA: Bayesian model-averaged meta-analysis with adjustments for publication

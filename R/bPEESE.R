@@ -1,4 +1,3 @@
-### RoBMA 4.0.0
 #' @title Bayesian Precision-Effect Estimate with Standard Errors (PEESE) Model
 #'
 #' @description Function for fitting random-effects, meta-regression, multilevel,

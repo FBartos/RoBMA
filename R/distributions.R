@@ -1,3 +1,4 @@
+# TODO: needs to be updated and cleaned from old code
 #' @title Weighted normal distribution
 #'
 #' @description Density, distribution function, quantile function

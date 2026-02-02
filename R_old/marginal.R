@@ -1,3 +1,5 @@
+### obsolete - use for reference only ###
+
 #' @title Summarize marginal estimates of a fitted RoBMA regression object
 #'
 #' @description \code{marginal_summary} creates summary tables for
