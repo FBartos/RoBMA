@@ -647,21 +647,62 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # likelihood for each observation at each posterior sample, with sample-specific
 # omega values.
 #
-# @param x        scalar; the observation value to evaluate
-# @param mean     numeric vector of length S; mean for each posterior sample
-# @param sd       numeric vector of length S; SD for each posterior sample
-# @param omega    S x W matrix of omega (weight) samples; one row per sample
-# @param crit_x   numeric vector of length W-1; critical values (same for all samples)
-# @param log      logical; return log-density if TRUE
+# Performance optimization: When use_normal is provided, samples with
+# use_normal[i] = TRUE use the fast normal path (dnorm), skipping the
+# expensive normalization constant computation. This is correct because
+# these samples have omega = all 1s (set by JAGS for non-weightfunction models).
+#
+# @param x          scalar; the observation value to evaluate
+# @param mean       numeric vector of length S; mean for each posterior sample
+# @param sd         numeric vector of length S; SD for each posterior sample
+# @param omega      S x W matrix of omega (weight) samples; one row per sample
+# @param crit_x     numeric vector of length W-1; critical values (same for all samples)
+# @param log        logical; return log-density if TRUE
+# @param use_normal optional logical vector of length S; TRUE if sample should use
+#                   fast normal path (for samples with omega = all 1s)
 #
 # @return numeric vector of length S; (log-)density at x for each sample
 #
 # ---------------------------------------------------------------------------- #
-.dwnorm_fast.ss.matrix <- function(x, mean, sd, omega, crit_x, log = FALSE) {
+.dwnorm_fast.ss.matrix <- function(x, mean, sd, omega, crit_x, log = FALSE,
+                                   use_normal = NULL) {
 
   S <- length(mean)
   n_weights <- ncol(omega)
 
+  # FAST PATH: If use_normal indicator provided, subdispatch per-row
+  # This avoids expensive normalization constant computation when omega = all 1s
+  if (!is.null(use_normal)) {
+
+    log_lik <- rep(NA_real_, S)
+
+    # Normal path for rows where all omega = 1 (fast)
+    if (any(use_normal)) {
+      log_lik[use_normal] <- stats::dnorm(x, mean = mean[use_normal],
+                                          sd = sd[use_normal], log = TRUE)
+    }
+
+    # Weighted path for rows with actual weights (slow - recursive call)
+    if (any(!use_normal)) {
+      idx <- which(!use_normal)
+
+      # RECURSIVE CALL: Use original function with use_normal = NULL
+      # This reuses all the weighted computation logic without duplication
+      log_lik[idx] <- .dwnorm_fast.ss.matrix(
+        x          = x,
+        mean       = mean[idx],
+        sd         = sd[idx],
+        omega      = omega[idx, , drop = FALSE],
+        crit_x     = crit_x,
+        log        = TRUE,
+        use_normal = NULL  # <-- Triggers full weighted computation
+      )
+    }
+
+    if (log) return(log_lik) else return(exp(log_lik))
+  }
+
+  # NO use_normal provided: full weighted computation for ALL rows
   # compute log density for normal component (vectorized over samples)
   log_dens <- stats::dnorm(x, mean = mean, sd = sd, log = TRUE)
 
@@ -714,21 +755,56 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 
-.rwnorm_fast.ss      <- function(mean, sd, omega, crit_x, iter = 1){
+# Performance optimization: When use_normal is provided, samples with
+# use_normal[i] = TRUE use the fast normal path (rnorm), skipping the
+# weighted rejection sampling. This is correct because these samples
+# have omega = all 1s (set by JAGS for non-weightfunction models).
+#
+.rwnorm_fast.ss      <- function(mean, sd, omega, crit_x, iter = 1, use_normal = NULL){
 
+  n <- length(mean)
+
+  # FAST PATH: If use_normal indicator provided, subdispatch per-row
+  if (!is.null(use_normal)) {
+
+    x <- rep(NA_real_, n)
+
+    # Normal path for rows where all omega = 1 (fast)
+    if (any(use_normal)) {
+      x[use_normal] <- stats::rnorm(sum(use_normal), mean = mean[use_normal],
+                                    sd = sd[use_normal])
+    }
+
+    # Weighted path for rows with actual weights (slow - recursive call)
+    if (any(!use_normal)) {
+      idx <- which(!use_normal)
+      x[idx] <- .rwnorm_fast.ss(
+        mean       = mean[idx],
+        sd         = sd[idx],
+        omega      = omega[idx, , drop = FALSE],
+        crit_x     = crit_x,
+        iter       = iter,
+        use_normal = NULL  # <-- Triggers full weighted computation
+      )
+    }
+
+    return(x)
+  }
+
+  # NO use_normal provided: full weighted computation for ALL rows
   if(iter >= 50){
     # avoid getting stuck in an infinite recursion
     return(.rwnorm_fast.ss2(mean, sd, omega, crit_x))
   }
 
   # samples
-  x <- stats::rnorm(length(mean), mean = mean, sd = sd)
+  x <- stats::rnorm(n, mean = mean, sd = sd)
 
   # find correct weight using helper function
   w <- .get_weight_fast.ss(x, omega, crit_x)
 
   # assign publication status
-  p <- stats::rbinom(length(mean), 1, prob = w) == 1
+  p <- stats::rbinom(n, 1, prob = w) == 1
 
   # deal with possibility of sd = 0
   # (sampling never finishes, insert the mean value instead)
@@ -747,17 +823,54 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 # special version to sample the true effects from sequential selection
-.rwnorm_true_fast.ss <- function(mean, tau, se, omega, crit_x){
+#
+# Performance optimization: When use_normal is provided, samples with
+# use_normal[i] = TRUE use the fast normal path (sampling from N(mean, tau)),
+# skipping the weighted rejection sampling. This is correct because these
+# samples have omega = all 1s (set by JAGS for non-weightfunction models).
+#
+.rwnorm_true_fast.ss <- function(mean, tau, se, omega, crit_x, use_normal = NULL){
 
+  n <- length(mean)
+
+  # FAST PATH: If use_normal indicator provided, subdispatch per-row
+  if (!is.null(use_normal)) {
+
+    xt <- rep(NA_real_, n)
+
+    # Normal path for rows where all omega = 1 (fast)
+    # Sample true effect directly from N(mean, tau)
+    if (any(use_normal)) {
+      xt[use_normal] <- stats::rnorm(sum(use_normal), mean = mean[use_normal],
+                                     sd = tau[use_normal])
+    }
+
+    # Weighted path for rows with actual weights (slow - recursive call)
+    if (any(!use_normal)) {
+      idx <- which(!use_normal)
+      xt[idx] <- .rwnorm_true_fast.ss(
+        mean       = mean[idx],
+        tau        = tau[idx],
+        se         = se,
+        omega      = omega[idx, , drop = FALSE],
+        crit_x     = crit_x,
+        use_normal = NULL  # <-- Triggers full weighted computation
+      )
+    }
+
+    return(xt)
+  }
+
+  # NO use_normal provided: full weighted computation for ALL rows
   # samples
-  xt <- stats::rnorm(length(mean), mean = mean, sd = tau)
-  xo <- stats::rnorm(length(mean), mean = xt,   sd = se)
+  xt <- stats::rnorm(n, mean = mean, sd = tau)
+  xo <- stats::rnorm(n, mean = xt,   sd = se)
 
   # find correct weight using helper function
   w <- .get_weight_fast.ss(xo, omega, crit_x)
 
   # assign publication status
-  p <- stats::rbinom(length(mean), 1, prob = w) == 1
+  p <- stats::rbinom(n, 1, prob = w) == 1
 
   # re-sample the missing estimates
   xt[!p] <- NA
@@ -783,9 +896,52 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 }
 
 # fast preformated p and q functions
-.pwnorm_fast.ss <- function(q, mean, sd, omega, crit_x, lower.tail = TRUE, log.p = FALSE){
+#
+# Performance optimization: When use_normal is provided, samples with
+# use_normal[i] = TRUE use the fast normal path (pnorm), skipping the
+# expensive weighted CDF computation. This is correct because these samples
+# have omega = all 1s (set by JAGS for non-weightfunction models).
+#
+.pwnorm_fast.ss <- function(q, mean, sd, omega, crit_x, lower.tail = TRUE, log.p = FALSE,
+                            use_normal = NULL){
 
-  n     <- length(q)
+  n <- length(q)
+
+  # FAST PATH: If use_normal indicator provided, subdispatch per-row
+  if (!is.null(use_normal)) {
+
+    if (log.p) {
+      result <- rep(NA_real_, n)
+    } else {
+      result <- rep(NA_real_, n)
+    }
+
+    # Normal path for rows where all omega = 1 (fast)
+    if (any(use_normal)) {
+      result[use_normal] <- stats::pnorm(q[use_normal], mean = mean[use_normal],
+                                         sd = sd[use_normal], lower.tail = lower.tail,
+                                         log.p = log.p)
+    }
+
+    # Weighted path for rows with actual weights (slow - recursive call)
+    if (any(!use_normal)) {
+      idx <- which(!use_normal)
+      result[idx] <- .pwnorm_fast.ss(
+        q          = q[idx],
+        mean       = mean[idx],
+        sd         = sd[idx],
+        omega      = omega[idx, , drop = FALSE],
+        crit_x     = crit_x,
+        lower.tail = lower.tail,
+        log.p      = log.p,
+        use_normal = NULL  # <-- Triggers full weighted computation
+      )
+    }
+
+    return(result)
+  }
+
+  # NO use_normal provided: full weighted computation for ALL rows
   log_p <- rep(0, n)
 
   # compute standardizing constant once for all observations

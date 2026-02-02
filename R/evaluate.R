@@ -503,3 +503,69 @@
 .inv_logit <- function(x) {
   return(1 / (1 + exp(-x)))
 }
+
+
+# ---------------------------------------------------------------------------- #
+# .extract_use_normal
+# ---------------------------------------------------------------------------- #
+#
+# Extract bias indicator and compute use_normal logical vector.
+#
+# For RoBMA objects with mixture bias priors, `bias_indicator` tracks which
+# bias model generated each posterior sample. For brma objects with a single
+# bias prior, no indicator column exists (all samples use the same model).
+#
+# This function is used for performance optimization in PDF/CDF/RNG functions.
+# When `use_normal[i] = TRUE`, the sample uses a non-weightfunction bias model
+# (PET, PEESE, or no bias), so the fast normal path can be used instead of
+# the expensive weighted normal computation.
+#
+# @param object    brma or RoBMA object
+#
+# @return A logical vector of length S (number of posterior samples):
+#   - TRUE if sample uses non-weightfunction bias model (PET, PEESE, or no bias)
+#   - FALSE if sample uses weightfunction bias model
+#
+# ---------------------------------------------------------------------------- #
+.extract_use_normal <- function(object) {
+
+  priors <- object[["priors"]]
+  fit    <- object[["fit"]]
+
+  # extract posterior samples
+  posterior_samples <- suppressWarnings(coda::as.mcmc(fit))
+  S <- nrow(posterior_samples)
+
+  # check if bias_indicator column exists (RoBMA with mixture priors)
+  has_bias_indicator <- "bias_indicator" %in% colnames(posterior_samples)
+
+  if (has_bias_indicator) {
+
+    # RoBMA case: multiple bias priors in mixture
+    bias_indicator <- as.integer(posterior_samples[, "bias_indicator"])
+
+    # extract bias priors and ensure list format
+    priors_bias <- priors[["outcome"]][["bias"]]
+    if (!BayesTools::is.prior.mixture(priors_bias)) {
+      priors_bias <- list(priors_bias)
+    }
+
+    # identify which bias priors are weightfunctions
+    weightfunction_indices <- which(sapply(priors_bias, BayesTools::is.prior.weightfunction))
+
+    # use_normal = TRUE for samples NOT from weightfunction priors
+    use_normal <- !(bias_indicator %in% weightfunction_indices)
+
+  } else {
+
+    # brma case: single bias prior (or no bias)
+    # check if the single prior is a weightfunction
+    is_weightfunction <- .is_priors_weightfunction(priors)
+
+    # if weightfunction, all samples use weighted path; otherwise all use normal
+    use_normal <- rep(!is_weightfunction, S)
+
+  }
+
+  return(use_normal)
+}

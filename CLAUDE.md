@@ -28,6 +28,8 @@ Additional detailed instructions are available in `.claude/instructions/`:
 - [metafor-comparison-tests.md](.claude/instructions/metafor-comparison-tests.md) - Testing against metafor reference
 - [test-file-template.md](.claude/instructions/test-file-template.md) - Template for test-02-*.R files
 - [s3-class-naming.md](.claude/instructions/s3-class-naming.md) - S3 class naming conventions
+- [use-normal-subdispatch.md](.claude/instructions/use-normal-subdispatch.md) - Performance optimization for mixed weighted/normal samples
+- [bias-indicator-extraction.md](.claude/instructions/bias-indicator-extraction.md) - RoBMA bias model identification from posterior
 
 Read these files when working on the corresponding areas.
 
@@ -71,6 +73,30 @@ Leave an empty line after opening brace `{` in function definitions.
 
 ## Architecture
 
+### Class Hierarchy
+- **brma**: Base class for single-model fits (`brma()`, `bselmodel()`, `bPET()`, `bPEESE()`)
+- **RoBMA**: Extends brma for ensemble model averaging: `class(x) <- c("RoBMA", "brma")`
+- S3 dispatch gives RoBMA all brma methods automatically; override only what differs
+
+### JAGS Behavior for Publication Bias Models
+
+**Critical insight**: JAGS sets `omega = 1` for non-weightfunction posterior samples.
+
+This means:
+- When `is_weightfunction = TRUE`, always use `.outcome_pdf.wnorm()` etc.
+- Weighted normal with omega = 1 mathematically equals normal distribution
+- No per-sample dispatch needed in most cases
+
+**bias_indicator column**: For RoBMA (mixture priors), posterior samples contain `bias_indicator` column (1-indexed) tracking which bias model generated each sample. Use `.extract_use_normal()` for robust detection.
+
+**PET/PEESE coefficients**: JAGS sets PET = 0 and PEESE = 0 for non-PET/PEESE samples. Adding `PET * sei` for all samples is correct (0 contributes nothing).
+
+### GLMM Limitations
+
+Weightfunction publication bias priors are **not supported** for GLMM outcomes:
+- Binomial (`brma.glmm()` with OR) - no weightfunction
+- Poisson (`brma.glmm()` with IRR) - no weightfunction
+
 ### Component Separation
 - **BayesTools**: Generic Bayesian infrastructure (input validation via `check_XXX()`, JAGS settings, plotting)
 - **RoBMA**: Meta-analysis-specific logic (ensemble construction, model averaging, publication bias)
@@ -85,6 +111,8 @@ Leave an empty line after opening brace `{` in function definitions.
   - specific functionality in `R/brma.XXX.R` files
   - input handling in `R/input-data.R`,  `R/input-priors.R`,  `R/input-object.R`
   - model specification in `R/fit.R`
+  - posterior evaluation in `R/evaluate.R`, `R/pdf.R`, `R/cdf.R`, `R/rng.R`
+  - weighted distributions in `R/distributions.R`
 
 ### Key Obsolete Files
 - `R/fit-and-marglik.R` - Core MCMC fitting and marginal likelihood computation

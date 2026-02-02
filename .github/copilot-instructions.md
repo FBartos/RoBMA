@@ -48,10 +48,27 @@ You are an expert R developer specializing in Bayesian statistics, meta-analysis
 7. **Convergence**: Automatic refitting until criteria satisfied (see `.balance_component_probability()`)
 
 ### Model Structure & Classes
-- **Base class**: `RoBMA` (S3 object containing `models` list, `data`, `fit_control`, etc.)
-- **Subclasses**: `RoBMA.reg` (meta-regression), `BiBMA` (binomial-normal for binary outcomes)
-- **Class hierarchy**: `c("BiBMA", "RoBMA")` or `c("RoBMA", "RoBMA.reg")` for method dispatch
-- **Key methods**: `summary.RoBMA()`, `plot.RoBMA()`, `update.RoBMA()`, `predict.RoBMA()`
+- **brma**: Base class for single-model fits (`brma()`, `bselmodel()`, `bPET()`, `bPEESE()`)
+- **RoBMA**: Extends brma for ensemble model averaging: `class(x) <- c("RoBMA", "brma")`
+- S3 dispatch gives RoBMA all brma methods automatically; override only what differs
+- **Key methods**: `summary.brma()`, `plot.brma()`, `predict.brma()`
+
+### JAGS Behavior for Publication Bias Models
+**Critical insight**: JAGS sets `omega = 1` for non-weightfunction posterior samples.
+
+This means:
+- When `is_weightfunction = TRUE`, always use `.outcome_pdf.wnorm()` etc.
+- Weighted normal with omega = 1 mathematically equals normal distribution
+- No per-sample dispatch needed in most cases
+
+**bias_indicator column**: For RoBMA (mixture priors), posterior samples contain `bias_indicator` column (1-indexed) tracking which bias model generated each sample. Use `.extract_use_normal()` for robust detection.
+
+**PET/PEESE coefficients**: JAGS sets PET = 0 and PEESE = 0 for non-PET/PEESE samples. Adding `PET * sei` for all samples is correct (0 contributes nothing).
+
+### GLMM Limitations
+Weightfunction publication bias priors are **not supported** for GLMM outcomes:
+- Binomial (`brma.glmm()` with OR) - no weightfunction
+- Poisson (`brma.glmm()` with IRR) - no weightfunction
 
 ### Model Averaging & Inference (`R/inference-and-model-averaging.R`)
 - **Component Structure**: Each model characterized by which components are null vs alternative hypothesis

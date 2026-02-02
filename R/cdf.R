@@ -68,17 +68,25 @@
 #
 # This uses the .pwnorm_fast.ss function that handles the weighted CDF.
 #
+# Performance optimization: When use_normal is provided, samples with
+# use_normal[i] = TRUE use the fast normal path (pnorm), skipping the
+# expensive weighted CDF computation. This is correct because these samples
+# have omega = all 1s (set by JAGS for non-weightfunction models).
+#
 # @param yi               numeric vector of length K; observed effect sizes
 # @param mu_samples       S x K matrix of location samples
 # @param tau_within       S x K matrix of within-study heterogeneity samples
 # @param sei              numeric vector of length K; standard errors
 # @param omega            S x W matrix of omega (weight) samples
 # @param crit_yi          W x K matrix of critical values for each observation
+# @param use_normal       optional logical vector of length S; TRUE if sample should
+#                         use fast normal path (for samples with omega = all 1s)
 #
 # @return S x K matrix of CDF values from weighted distribution
 #
 # ---------------------------------------------------------------------------- #
-.outcome_cdf.wnorm <- function(yi, mu_samples, tau_within, sei, omega, crit_yi) {
+.outcome_cdf.wnorm <- function(yi, mu_samples, tau_within, sei, omega, crit_yi,
+                               use_normal = NULL) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
@@ -93,11 +101,12 @@
 
   for (k in seq_len(K)) {
     cdf_vals[, k] <- .pwnorm_fast.ss(
-      q      = rep(yi[k], S),
-      mean   = mu_samples[, k],
-      sd     = total_sd[, k],
-      omega  = omega,
-      crit_x = crit_yi[, k]
+      q          = rep(yi[k], S),
+      mean       = mu_samples[, k],
+      sd         = total_sd[, k],
+      omega      = omega,
+      crit_x     = crit_yi[, k],
+      use_normal = use_normal  # <-- Pass through for internal subdispatch
     )
   }
 
@@ -282,13 +291,18 @@
       # get fit_data for crit_yi
       fit_data <- .create_fit_data(data = data, priors = priors)
 
+      # compute use_normal indicator for performance optimization
+      # this identifies which samples come from non-weightfunction bias models
+      use_normal <- .extract_use_normal(object)
+
       cdf_vals <- .outcome_cdf.wnorm(
         yi         = yi_cdf,
         mu_samples = mu_samples_cdf,
         tau_within = tau_within_samples,
         sei        = sei,
         omega      = omega_samples,
-        crit_yi    = fit_data$crit_yi
+        crit_yi    = fit_data$crit_yi,
+        use_normal = use_normal
       )
 
     } else {

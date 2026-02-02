@@ -61,16 +61,24 @@
 #
 # This uses the fast spike-and-slab weighted normal sampler.
 #
+# Performance optimization: When use_normal is provided, samples with
+# use_normal[i] = TRUE use the fast normal path (rnorm), skipping the
+# weighted rejection sampling. This is correct because these samples
+# have omega = all 1s (set by JAGS for non-weightfunction models).
+#
 # @param mu_samples       S x K matrix of location samples
 # @param tau_within       S x K matrix of within-study heterogeneity samples
 # @param sei              numeric vector of length K; standard errors
 # @param omega            S x W matrix of omega (weight) samples
 # @param crit_yi          W x K matrix of critical values for each observation
+# @param use_normal       optional logical vector of length S; TRUE if sample should
+#                         use fast normal path (for samples with omega = all 1s)
 #
 # @return S x K matrix of sampled observed effect sizes from weighted distribution
 #
 # ---------------------------------------------------------------------------- #
-.outcome_rng.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi) {
+.outcome_rng.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi,
+                               use_normal = NULL) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
@@ -85,10 +93,11 @@
 
   for (k in seq_len(K)) {
     response_samples[, k] <- .rwnorm_fast.ss(
-      mean   = mu_samples[, k],
-      sd     = total_sd[, k],
-      omega  = omega,
-      crit_x = crit_yi[, k]
+      mean       = mu_samples[, k],
+      sd         = total_sd[, k],
+      omega      = omega,
+      crit_x     = crit_yi[, k],
+      use_normal = use_normal  # <-- Pass through for internal subdispatch
     )
   }
 

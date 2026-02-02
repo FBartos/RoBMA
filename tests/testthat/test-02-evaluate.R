@@ -652,3 +652,211 @@ test_that("aggregated tau equals rowMeans of non-aggregated tau", {
                  info = paste(name, ": aggregated tau should equal rowMeans of full tau"))
   }
 })
+
+
+# ============================================================================ #
+# SECTION 3: Tests for .extract_use_normal()
+# ============================================================================ #
+# These tests verify the bias indicator extraction helper function
+# that identifies which posterior samples use weightfunction vs normal path
+# ============================================================================ #
+
+test_that(".extract_use_normal returns correct structure for brma without bias", {
+
+  for (name in names(fits)) {
+
+    object <- fits[[name]]
+
+    # skip non-brma objects or objects with bias priors
+    if (!inherits(object, "brma")) next
+    if (.is_bias(object)) next
+
+    # test the function
+    use_normal <- .extract_use_normal(object)
+
+    # get expected sample count
+    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
+    S <- nrow(posterior_samples)
+
+    # verify structure
+    expect_type(use_normal, "logical")
+    expect_length(use_normal, S)
+
+    # all samples should use normal path (no weightfunction)
+    expect_true(all(use_normal),
+                info = paste(name, ": brma without bias should have all use_normal = TRUE"))
+  }
+})
+
+
+test_that(".extract_use_normal returns correct structure for brma with weightfunction", {
+
+  for (name in names(fits)) {
+
+    object <- fits[[name]]
+
+    # skip non-brma objects or objects without weightfunction priors
+    if (!inherits(object, "brma")) next
+    if (!.is_weightfunction(object)) next
+    if (inherits(object, "RoBMA")) next  # RoBMA has mixture priors, test separately
+
+    # test the function
+    use_normal <- .extract_use_normal(object)
+
+    # get expected sample count
+    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
+    S <- nrow(posterior_samples)
+
+    # verify structure
+    expect_type(use_normal, "logical")
+    expect_length(use_normal, S)
+
+    # all samples should use weighted path (all from weightfunction)
+    expect_true(all(!use_normal),
+                info = paste(name, ": brma with single weightfunction should have all use_normal = FALSE"))
+  }
+})
+
+
+test_that(".extract_use_normal returns correct structure for brma with PET", {
+
+  for (name in names(fits)) {
+
+    object <- fits[[name]]
+
+    # skip non-brma objects or objects without PET priors
+    if (!inherits(object, "brma")) next
+    if (!.is_PET(object)) next
+    if (.is_weightfunction(object)) next  # skip if also has weightfunction
+    if (inherits(object, "RoBMA")) next
+
+    # test the function
+    use_normal <- .extract_use_normal(object)
+
+    # get expected sample count
+    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
+    S <- nrow(posterior_samples)
+
+    # verify structure
+    expect_type(use_normal, "logical")
+    expect_length(use_normal, S)
+
+    # all samples should use normal path (PET is not a weightfunction)
+    expect_true(all(use_normal),
+                info = paste(name, ": brma with PET should have all use_normal = TRUE"))
+  }
+})
+
+
+test_that(".extract_use_normal returns correct structure for RoBMA", {
+
+  for (name in names(fits)) {
+
+    object <- fits[[name]]
+
+    # only test RoBMA objects
+    if (!inherits(object, "RoBMA")) next
+
+    # test the function
+    use_normal <- .extract_use_normal(object)
+
+    # get expected sample count
+    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
+    S <- nrow(posterior_samples)
+
+    # verify structure
+    expect_type(use_normal, "logical")
+    expect_length(use_normal, S)
+
+    # RoBMA should have a mix of TRUE and FALSE (different bias models)
+    # get bias_indicator to verify
+    if ("bias_indicator" %in% colnames(posterior_samples)) {
+      bias_indicator <- as.integer(posterior_samples[, "bias_indicator"])
+
+      # extract bias priors
+      priors_bias <- object[["priors"]][["outcome"]][["bias"]]
+      if (!BayesTools::is.prior.mixture(priors_bias)) {
+        priors_bias <- list(priors_bias)
+      }
+
+      # identify weightfunction indices
+      wf_indices <- which(sapply(priors_bias, BayesTools::is.prior.weightfunction))
+
+      # verify use_normal is correctly computed
+      expected_use_normal <- !(bias_indicator %in% wf_indices)
+      expect_equal(use_normal, expected_use_normal,
+                   info = paste(name, ": use_normal should match bias_indicator logic"))
+
+      # verify we have both types of samples (unless all priors are one type)
+      if (length(wf_indices) > 0 && length(wf_indices) < length(priors_bias)) {
+        expect_true(any(use_normal) && any(!use_normal),
+                    info = paste(name, ": RoBMA should have mix of normal and weighted samples"))
+      }
+    }
+  }
+})
+
+
+# ============================================================================ #
+# SECTION 4: Integration Tests for .pdf.brma() and .cdf.brma() with use_normal
+# ============================================================================ #
+# These tests verify that PDF and CDF functions work correctly with the
+# use_normal fast-path optimization
+# ============================================================================ #
+
+test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", {
+
+  for (name in names(fits)) {
+
+    object <- fits[[name]]
+
+    # skip non-brma objects or objects without weightfunction priors
+    if (!inherits(object, "brma")) next
+    if (!.is_weightfunction(object)) next
+
+    # compute PDF (this internally uses use_normal optimization)
+    log_lik <- .pdf.brma(object)
+
+    # verify structure
+    expect_true(is.matrix(log_lik),
+                info = paste(name, ": log_lik should be a matrix"))
+    expect_true(all(is.finite(log_lik)),
+                info = paste(name, ": all log-likelihoods should be finite"))
+    expect_true(all(log_lik <= 0),
+                info = paste(name, ": all log-likelihoods should be non-positive"))
+
+    # verify dimensions match
+    K <- length(.outcome_data_yi(object))
+    expect_equal(ncol(log_lik), K,
+                 info = paste(name, ": ncol should match number of observations"))
+  }
+})
+
+
+test_that(".cdf.brma returns valid CDF values for weightfunction models", {
+
+  for (name in names(fits)) {
+
+    object <- fits[[name]]
+
+    # skip non-brma objects or objects without weightfunction priors
+    if (!inherits(object, "brma")) next
+    if (!.is_weightfunction(object)) next
+
+    # compute CDF (this internally uses use_normal optimization)
+    cdf_vals <- .cdf.brma(object)
+
+    # verify structure
+    expect_true(is.matrix(cdf_vals),
+                info = paste(name, ": cdf_vals should be a matrix"))
+    expect_true(all(is.finite(cdf_vals)),
+                info = paste(name, ": all CDF values should be finite"))
+    expect_true(all(cdf_vals > 0 & cdf_vals < 1),
+                info = paste(name, ": all CDF values should be in (0, 1)"))
+
+    # verify dimensions match
+    K <- length(.outcome_data_yi(object))
+    expect_equal(ncol(cdf_vals), K,
+                 info = paste(name, ": ncol should match number of observations"))
+  }
+})

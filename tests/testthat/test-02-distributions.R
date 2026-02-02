@@ -1075,3 +1075,179 @@ test_that(".dwnorm_fast.ss.matrix handles edge cases", {
   expect_equal(log_lik_uniform, log_lik_normal, tolerance = 1e-10,
                info = "uniform omega should equal normal distribution")
 })
+
+
+### use_normal fast-path tests ----
+# These tests verify that the use_normal parameter provides correct results
+# by subdispatching to normal path for samples with omega = all 1s
+
+test_that(".dwnorm_fast.ss.matrix with use_normal produces correct results", {
+
+  set.seed(789)
+  S <- 100
+  x <- 0.3
+  mean_vals <- rnorm(S, 0.2, 0.1)
+  sd_vals <- rep(0.1, S)
+
+  # create mixed omega: first 50 are uniform (use_normal=TRUE), rest have weights
+  omega <- rbind(
+    matrix(1, nrow = 50, ncol = 3),
+    matrix(c(0.3, 0.6, 1), nrow = 50, ncol = 3, byrow = TRUE)
+  )
+  crit_x <- c(0.5, 1.0)
+  use_normal <- c(rep(TRUE, 50), rep(FALSE, 50))
+
+  # compute with use_normal subdispatch
+  result_subdispatch <- RoBMA:::.dwnorm_fast.ss.matrix(
+    x = x, mean = mean_vals, sd = sd_vals,
+    omega = omega, crit_x = crit_x, log = TRUE, use_normal = use_normal
+  )
+
+  # compute without subdispatch (full weighted for all)
+  result_full <- RoBMA:::.dwnorm_fast.ss.matrix(
+    x = x, mean = mean_vals, sd = sd_vals,
+    omega = omega, crit_x = crit_x, log = TRUE, use_normal = NULL
+  )
+
+  # first 50 should match dnorm (because omega=1)
+  expect_equal(
+    result_subdispatch[1:50],
+    dnorm(x, mean = mean_vals[1:50], sd = sd_vals[1:50], log = TRUE),
+    tolerance = 1e-10,
+    info = "use_normal=TRUE samples should match dnorm"
+  )
+
+  # last 50 should match full computation
+  expect_equal(result_subdispatch[51:100], result_full[51:100], tolerance = 1e-10,
+               info = "use_normal=FALSE samples should match full weighted computation")
+})
+
+
+test_that(".dwnorm_fast.ss.matrix with all use_normal=TRUE equals dnorm", {
+
+  set.seed(101)
+  S <- 50
+  x <- 0.25
+  mean_vals <- rnorm(S, 0.3, 0.1)
+  sd_vals <- runif(S, 0.1, 0.2)
+
+  # uniform omega
+  omega <- matrix(1, nrow = S, ncol = 3)
+  crit_x <- c(0.5, 1.0)
+  use_normal <- rep(TRUE, S)
+
+  result <- RoBMA:::.dwnorm_fast.ss.matrix(
+    x = x, mean = mean_vals, sd = sd_vals,
+    omega = omega, crit_x = crit_x, log = TRUE, use_normal = use_normal
+  )
+
+  expected <- dnorm(x, mean = mean_vals, sd = sd_vals, log = TRUE)
+
+  expect_equal(result, expected, tolerance = 1e-10)
+})
+
+
+test_that(".pwnorm_fast.ss with use_normal produces correct results", {
+
+  set.seed(202)
+  S <- 100
+  q <- 0.4
+  mean_vals <- rnorm(S, 0.2, 0.1)
+  sd_vals <- rep(0.15, S)
+
+  # create mixed omega
+  omega <- rbind(
+    matrix(1, nrow = 50, ncol = 3),
+    matrix(c(0.3, 0.6, 1), nrow = 50, ncol = 3, byrow = TRUE)
+  )
+  crit_x <- c(0.5, 1.0)
+  use_normal <- c(rep(TRUE, 50), rep(FALSE, 50))
+
+  # compute with use_normal subdispatch
+  result_subdispatch <- RoBMA:::.pwnorm_fast.ss(
+    q = rep(q, S), mean = mean_vals, sd = sd_vals,
+    omega = omega, crit_x = crit_x, use_normal = use_normal
+  )
+
+  # first 50 should match pnorm
+  expect_equal(
+    result_subdispatch[1:50],
+    pnorm(q, mean = mean_vals[1:50], sd = sd_vals[1:50]),
+    tolerance = 1e-10,
+    info = "use_normal=TRUE samples should match pnorm"
+  )
+
+  # compute without subdispatch for comparison
+  result_full <- RoBMA:::.pwnorm_fast.ss(
+    q = rep(q, S), mean = mean_vals, sd = sd_vals,
+    omega = omega, crit_x = crit_x, use_normal = NULL
+  )
+
+  # last 50 should match full computation
+  expect_equal(result_subdispatch[51:100], result_full[51:100], tolerance = 1e-10,
+               info = "use_normal=FALSE samples should match full weighted computation")
+})
+
+
+test_that(".rwnorm_fast.ss with use_normal samples from correct distributions", {
+
+  set.seed(303)
+  n <- 10000
+
+  mean_vals <- rep(0.5, n)
+  sd_vals <- rep(0.2, n)
+
+  # first half: normal path, second half: weighted path
+  omega <- rbind(
+    matrix(1, nrow = n/2, ncol = 3),
+    matrix(c(0.3, 0.6, 1), nrow = n/2, ncol = 3, byrow = TRUE)
+  )
+  crit_x <- c(0.5, 1.0)
+  use_normal <- c(rep(TRUE, n/2), rep(FALSE, n/2))
+
+  samples <- RoBMA:::.rwnorm_fast.ss(
+    mean = mean_vals, sd = sd_vals,
+    omega = omega, crit_x = crit_x, use_normal = use_normal
+  )
+
+  # first half should have mean ≈ 0.5 and sd ≈ 0.2
+  expect_equal(mean(samples[1:(n/2)]), 0.5, tolerance = 0.02,
+               info = "use_normal=TRUE samples should have correct mean")
+  expect_equal(sd(samples[1:(n/2)]), 0.2, tolerance = 0.02,
+               info = "use_normal=TRUE samples should have correct sd")
+
+  # second half should be biased toward higher values (publication selection)
+  expect_true(mean(samples[(n/2+1):n]) > mean(samples[1:(n/2)]),
+              info = "weighted samples should be biased by selection")
+})
+
+
+test_that(".rwnorm_true_fast.ss with use_normal samples from correct distributions", {
+
+  set.seed(404)
+  n <- 10000
+
+  mean_vals <- rep(0.3, n)
+  tau_vals <- rep(0.2, n)
+  se <- 0.1
+
+  # first half: normal path, second half: weighted path
+  omega <- rbind(
+    matrix(1, nrow = n/2, ncol = 3),
+    matrix(c(0.2, 0.5, 1), nrow = n/2, ncol = 3, byrow = TRUE)
+  )
+  crit_x <- c(0.3, 0.7)
+  use_normal <- c(rep(TRUE, n/2), rep(FALSE, n/2))
+
+  samples <- RoBMA:::.rwnorm_true_fast.ss(
+    mean = mean_vals, tau = tau_vals, se = se,
+    omega = omega, crit_x = crit_x, use_normal = use_normal
+  )
+
+  # first half should have mean ≈ 0.3 and sd ≈ 0.2 (sampling from N(mean, tau))
+  expect_equal(mean(samples[1:(n/2)]), 0.3, tolerance = 0.02,
+               info = "use_normal=TRUE samples should have correct mean")
+  expect_equal(sd(samples[1:(n/2)]), 0.2, tolerance = 0.02,
+               info = "use_normal=TRUE samples should have correct sd")
+})
+

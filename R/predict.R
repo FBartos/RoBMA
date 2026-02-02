@@ -453,6 +453,10 @@ predict.brma <- function(object, newdata = NULL,
         posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
         omega_samples     <- posterior_samples[, grep("omega", colnames(posterior_samples)), drop = FALSE]
 
+        # compute use_normal indicator for performance optimization
+        # this identifies which samples come from non-weightfunction bias models
+        use_normal <- .extract_use_normal(object)
+
         # for weighted distributions, crit_yi is computed in "positive" space
         # (yi flipped for negative effect direction in .create_fit_data)
         # so we need to flip mu_samples to match, sample, then flip back
@@ -468,7 +472,8 @@ predict.brma <- function(object, newdata = NULL,
           tau_within = tau_within_samples,
           sei        = outcome_data[["sei"]],
           omega      = omega_samples,
-          crit_yi    = fit_data$crit_yi
+          crit_yi    = fit_data$crit_yi,
+          use_normal = use_normal
         )
 
         # flip samples back to original space

@@ -28,7 +28,7 @@ RoBMA <- function(
   time.start   <- proc.time()
   dots         <- list(...)
   object       <- .createObject(
-    dots = dots, class = "RoBMA",
+    dots = dots, class = c("RoBMA", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,
     autofit = autofit, parallel = parallel, silent = silent, seed = seed,
