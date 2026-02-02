@@ -987,9 +987,6 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   effect_direction                  <- .effect_direction(object)
   outcome_type                      <- .outcome_type(object)
 
-  # determine whether this is a regression model (has formula/mods)
-  is_regression <- .is_regression(object)
-
   # build the synthetic call expression
   # start with the base call structure
   call_args <- list(quote(.prepare_newdata_call))
