@@ -1446,7 +1446,8 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (!missing(prior_informed_subfield))
     BayesTools::check_char(prior_informed_subfield, "prior_informed_subfield", allow_NA = FALSE)
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
-  BayesTools::check_char(model_type, "model_type", allow_values = c("2w", "6w", "PP", "PSMA"))
+  if (!missing(model_type))
+    BayesTools::check_char(model_type, "model_type", allow_values = c("2w", "6w", "PP", "PSMA"))
 
   ### set prior distributions
   measure       <- .data_measure(data)
@@ -1464,11 +1465,6 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
     rescale_priors = rescale_priors
   )
-  prior_outcome[["bias"]] <- .assign_prior.bias_mixture(
-    prior = prior_bias, prior_null = prior_bias_null, measure = measure,
-    data = data, prior_unit_information_sd = prior_unit_information_sd, model_type = model_type
-  )
-
   # only for multilevel models
   if (.is_data_multilevel(data)) {
     prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation_mixture(
@@ -1489,6 +1485,13 @@ estimate_unit_information_sd <- function(sei, ni) {
     # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
     # (these are marginalized in the normal model)
     prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+  }
+  # only for RoBMA
+  if (!missing(model_type)) {
+    prior_outcome[["bias"]] <- .assign_prior.bias_mixture(
+      prior = prior_bias, prior_null = prior_bias_null, measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd, model_type = model_type
+    )
   }
 
 

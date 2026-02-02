@@ -104,21 +104,29 @@ Weightfunction publication bias priors are **not supported** for GLMM outcomes:
 
 ### Main User Interfaces
 - `brma()`, `brma.glmm()`, `bselmodel()`, `bPET()`, `bPEESE()` - Primary single-model fitting functions for simple models (mostly complete by now, closely matching metafor specification, use `brma` class)
-- `RoBMA(), RoBMA.glmm()` - Primary ensemble fitting functions (still to be rewritten)
+- `RoBMA()` - Primary ensemble fitting function with publication bias adjustment
+- `BMA()`, `BMA.norm()` - Model-averaging without publication bias (wrapper, omits `model_type`)
+- `BMA.glmm()` - Model-averaging for GLMM (binomial/Poisson) without publication bias
+
+### Class Hierarchy (Extended)
+
+Classes are layered for S3 method dispatch:
+- **brma**: Base class for all Bayesian meta-analysis
+- **brma.norm** / **brma.glmm**: Likelihood type (normal vs GLMM)
+- **RoBMA**: Indicates mixture priors (model-averaging via product space)
+- **Wrapper classes prepend**: `c("BMA.norm", "RoBMA", "brma")`, `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`
 
 ### Key Current Files
-- key functionality is implemented only for `brma` class so far
-  - specific functionality in `R/brma.XXX.R` files
-  - input handling in `R/input-data.R`,  `R/input-priors.R`,  `R/input-object.R`
-  - model specification in `R/fit.R`
-  - posterior evaluation in `R/evaluate.R`, `R/pdf.R`, `R/cdf.R`, `R/rng.R`
-  - weighted distributions in `R/distributions.R`
+- input handling in `R/input-data.R`,  `R/input-priors.R`,  `R/input-object.R`
+- model specification in `R/fit.R`
+- posterior evaluation in `R/evaluate.R`, `R/pdf.R`, `R/cdf.R`, `R/rng.R`
+- weighted distributions in `R/distributions.R`
 
 ### Key Obsolete Files
-- `R/fit-and-marglik.R` - Core MCMC fitting and marginal likelihood computation
-- `R/inference-and-model-averaging.R` - BMA weights, Bayes factors, posterior mixing
-- `R/check-input-and-settings.R` - Input validation, `check_setup()` for previewing ensembles
-- `R/transformations.R` - Effect size conversions (Cohen's d ↔ Fisher's z ↔ log OR ↔ r)
+- `R_old/fit-and-marglik.R` - Core MCMC fitting and marginal likelihood computation
+- `R_old/inference-and-model-averaging.R` - BMA weights, Bayes factors, posterior mixing
+- `R_old/check-input-and-settings.R` - Input validation, `check_setup()` for previewing ensembles
+- `R_old/transformations.R` - Effect size conversions (Cohen's d ↔ Fisher's z ↔ log OR ↔ r)
 
 ### JAGS Extension (src/)
 Custom C++ JAGS module with weighted distributions for publication bias:
