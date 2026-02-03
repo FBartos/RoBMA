@@ -58,6 +58,11 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param ylab character; y-axis label. Defaults to "Observed Effect Size".
 #' @param xlim numeric vector of length 2; x-axis limits. Defaults to data range.
 #' @param ylim numeric vector of length 2; y-axis limits. Defaults to data range.
+#' @param sampling_bias whether publication bias should be incorporated into the
+#' predicted effect shown in the regplot. Defaults to \code{TRUE}. When \code{TRUE}
+#' and the model includes PET/PEESE, incorporates the expected bias from these
+#' regression adjustments into predictions. When \code{FALSE}, shows bias-adjusted
+#' (corrected) predictions.
 #' @param plot_type character; whether to use base R graphics (\code{"base"})
 #' or ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.
 #' @param as_data logical; if \code{TRUE}, returns plot data instead of
@@ -130,6 +135,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
                          refline = NULL, psize = NULL, plim = c(0.5, 3),
                          by = NULL, legend = TRUE,
                          xlab = NULL, ylab = NULL, xlim = NULL, ylim = NULL,
+                         sampling_bias = TRUE,
                          plot_type = "base", as_data = FALSE, ...) {
 
   # input validation
@@ -139,6 +145,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   BayesTools::check_real(level, "level", lower = 50, upper = 99.9)
   BayesTools::check_int(digits, "digits", lower = 0)
   BayesTools::check_bool(legend, "legend")
+  BayesTools::check_bool(sampling_bias, "sampling_bias")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(as_data, "as_data")
 
@@ -168,25 +175,26 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
 
   # generate plot data
   regplot_data <- .regplot_data(
-    x        = x,
-    mod_name = mod_name,
-    mod_type = mod_type,
-    mod_data = mod_data,
-    by_info  = by_info,
-    pred     = pred,
-    ci       = ci,
-    pi       = pi,
-    level    = level,
-    at       = at,
-    psize    = psize,
-    plim     = plim,
-    transf   = transf,
-    xlim     = xlim,
-    ylim     = ylim,
-    xlab     = xlab,
-    ylab     = ylab,
-    refline  = refline,
-    dots     = dots
+    x             = x,
+    mod_name      = mod_name,
+    mod_type      = mod_type,
+    mod_data      = mod_data,
+    by_info       = by_info,
+    pred          = pred,
+    ci            = ci,
+    pi            = pi,
+    level         = level,
+    at            = at,
+    psize         = psize,
+    plim          = plim,
+    transf        = transf,
+    xlim          = xlim,
+    ylim          = ylim,
+    xlab          = xlab,
+    ylab          = ylab,
+    refline       = refline,
+    sampling_bias = sampling_bias,
+    dots          = dots
   )
 
   # allow data return for programmatic access
@@ -299,15 +307,16 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
 # @param ylim     y-axis limits
 # @param xlab     x-axis label
 # @param ylab     y-axis label
-# @param refline  reference line position
-# @param dots     graphical parameters
+# @param refline       reference line position
+# @param sampling_bias logical; incorporate bias into predictions
+# @param dots          graphical parameters
 #
 # @return list with plot data components
 #
 # ---------------------------------------------------------------------------- #
 .regplot_data <- function(x, mod_name, mod_type, mod_data, by_info,
                           pred, ci, pi, level, at, psize, plim, transf,
-                          xlim, ylim, xlab, ylab, refline, dots) {
+                          xlim, ylim, xlab, ylab, refline, sampling_bias, dots) {
 
   # get observed data
   yi  <- .outcome_data_yi(x)
@@ -375,12 +384,34 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   }
   newdata <- as.data.frame(newdata_list)
 
+  # add dummy outcome values required by predict.brma
+  # these are not used for type = "terms" or "estimate" predictions
+  # but are required by .prepare_newdata() for validation
+  # zeros are OK because skip_validation = TRUE in .prepare_newdata()
+  outcome_type <- .outcome_type(x)
+  if (outcome_type == "norm") {
+    newdata[["yi"]]  <- rep(0, n_pred)
+    newdata[["sei"]] <- rep(0, n_pred)
+  } else if (outcome_type == "bin") {
+    newdata[["ai"]]  <- rep(0, n_pred)
+    newdata[["ci"]]  <- rep(0, n_pred)
+    newdata[["n1i"]] <- rep(0, n_pred)
+    newdata[["n2i"]] <- rep(0, n_pred)
+  } else if (outcome_type == "pois") {
+    newdata[["x1i"]] <- rep(0, n_pred)
+    newdata[["x2i"]] <- rep(0, n_pred)
+    newdata[["t1i"]] <- rep(0, n_pred)
+    newdata[["t2i"]] <- rep(0, n_pred)
+  }
+
   # get predictions for CI (fixed effects only)
+  # bias_adjusted = !sampling_bias: when sampling_bias = TRUE, include bias (bias_adjusted = FALSE)
   pred_samples <- predict.brma(
-    object  = x,
-    newdata = newdata,
-    type    = "terms",
-    quiet   = TRUE
+    object        = x,
+    newdata       = newdata,
+    type          = "terms",
+    bias_adjusted = !sampling_bias,
+    quiet         = TRUE
   )
 
   # compute summary statistics
@@ -391,10 +422,11 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   # get predictions for PI (includes heterogeneity)
   if (pi) {
     pi_samples <- predict.brma(
-      object  = x,
-      newdata = newdata,
-      type    = "estimate",
-      quiet   = TRUE
+      object        = x,
+      newdata       = newdata,
+      type          = "estimate",
+      bias_adjusted = !sampling_bias,
+      quiet         = TRUE
     )
     pi_lower <- apply(pi_samples, 2, quantile, probs = probs[1])
     pi_upper <- apply(pi_samples, 2, quantile, probs = probs[2])

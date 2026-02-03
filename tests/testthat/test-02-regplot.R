@@ -11,6 +11,18 @@ info <- lapply(list_fits(), load_info)
 names(fits) <- list_fits()
 names(info) <- list_fits()
 
+# TODO:
+# - missing border of the shade (no shade deletes everything)
+# - the predicticted line and bands should extend all the way to the end of plotting range
+# - remove these warning messages:
+# - should use the quantile function (as the funnel plot) instead of doing random simulation via predict
+# ```
+# Warning messages:
+#  1: In data.frame(x = c(at_pred, rev(at_pred)), y = c(pred_lower, rev(pred_upper)),  :
+#  row names were found from a short variable and have been discarded
+#  2: In data.frame(x = c(at_pred, rev(at_pred)), y = c(pi_lower, rev(pi_upper)),  :
+#  row names were found from a short variable and have been discarded
+# ```
 
 # ============================================================================ #
 # Test: Continuous Moderator Regression Plot
@@ -30,13 +42,13 @@ test_that("Regression plot for continuous moderator matches metafor structure", 
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    metafor::regplot(fit_metafor, mod = "year", main = "metafor")
-    regplot(fit_brma, mod = "year", plot_type = "base", main = "brma")
+    metafor::regplot(fit_metafor, mod = "year", main = "metafor", ylim = c(-2, 0.5))
+    regplot(fit_brma, mod = "year", plot_type = "base", main = "brma", ylim = c(-2, 0.5))
   })
 
   vdiffr::expect_doppelganger(
     "regplot_continuous_brma_ggplot",
-    regplot(fit_brma, mod = "year",, plot_type = "ggplot")
+    regplot(fit_brma, mod = "year", plot_type = "ggplot")
   )
 })
 
@@ -116,13 +128,13 @@ test_that("Regression plot for location-scale model works", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    metafor::regplot(fit_metafor, mod = "ni100", main = "metafor")
-    regplot(fit_brma, mod = "ni100", plot_type = "base", main = "location-scale")
+    metafor::regplot(fit_metafor, mod = "ni100", main = "metafor", ylim = c(-1, 1.5))
+    regplot(fit_brma, mod = "ni100", plot_type = "base", main = "brma", ylim = c(-1, 1.5))
   })
 
   vdiffr::expect_doppelganger(
     "regplot_scale_brma_ggplot",
-    regplot(fit_brma, plot_type = "ggplot")
+    regplot(fit_brma, plot_type = "ggplot", mod = "ni100")
   )
 })
 
@@ -140,7 +152,7 @@ test_that("Regression plot has correct interface", {
   # Test as_data = TRUE returns list with expected components
   # --------------------------------------------------
 
-  regplot_data <- regplot(fit_brma, as_data = TRUE)
+  regplot_data <- regplot(fit_brma, mod = "year", as_data = TRUE)
 
   expect_true(is.list(regplot_data),
     info = "as_data = TRUE should return a list"
@@ -203,12 +215,12 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_custom_points_base", function() {
-    regplot(fit_brma, plot_type = "base", pch = 19, col = "blue", bg = "lightblue")
+    regplot(fit_brma, mod = "year", plot_type = "base", pch = 21, col = "blue", bg = "lightblue")
   })
 
   vdiffr::expect_doppelganger(
     "regplot_custom_points_ggplot",
-    regplot(fit_brma, plot_type = "ggplot", pch = 19, col = "blue", bg = "lightblue")
+    regplot(fit_brma, mod = "year", plot_type = "ggplot", pch = 21, col = "blue", bg = "lightblue")
   )
 
   # --------------------------------------------------
@@ -216,13 +228,13 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_custom_bands_base", function() {
-    regplot(fit_brma, plot_type = "base", lcol = "darkblue", col.ci = "lightblue",
+    regplot(fit_brma, mod = "year", plot_type = "base", lcol = "darkblue", col.ci = "lightblue",
             pi = TRUE, col.pi = "lightyellow")
   })
 
   vdiffr::expect_doppelganger(
     "regplot_custom_bands_ggplot",
-    regplot(fit_brma, plot_type = "ggplot", lcol = "darkblue", col.ci = "lightblue",
+    regplot(fit_brma, mod = "year", plot_type = "ggplot", lcol = "darkblue", col.ci = "lightblue",
             pi = TRUE, col.pi = "lightyellow")
   )
 
@@ -231,12 +243,12 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_refline_base", function() {
-    regplot(fit_brma, plot_type = "base", refline = 0)
+    regplot(fit_brma, mod = "year", plot_type = "base", refline = 0)
   })
 
   vdiffr::expect_doppelganger(
     "regplot_refline_ggplot",
-    regplot(fit_brma, plot_type = "ggplot", refline = 0)
+    regplot(fit_brma, mod = "year", plot_type = "ggplot", refline = 0)
   )
 
   # --------------------------------------------------
@@ -244,14 +256,14 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_custom_labels_base", function() {
-    regplot(fit_brma, plot_type = "base",
+    regplot(fit_brma, mod = "ablat", plot_type = "base",
             xlab = "Absolute Latitude", ylab = "Log Risk Ratio",
             main = "BCG Meta-Regression")
   })
 
   vdiffr::expect_doppelganger(
     "regplot_custom_labels_ggplot",
-    regplot(fit_brma, plot_type = "ggplot",
+    regplot(fit_brma, mod = "ablat", plot_type = "ggplot",
             xlab = "Absolute Latitude", ylab = "Log Risk Ratio",
             main = "BCG Meta-Regression")
   )
@@ -261,12 +273,12 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_no_shade_base", function() {
-    regplot(fit_brma, plot_type = "base", shade = FALSE)
+    regplot(fit_brma, mod = "ablat", plot_type = "base", shade = FALSE)
   })
 
   vdiffr::expect_doppelganger(
     "regplot_no_shade_ggplot",
-    regplot(fit_brma, plot_type = "ggplot", shade = FALSE)
+    regplot(fit_brma, mod = "ablat", plot_type = "ggplot", shade = FALSE)
   )
 
   # --------------------------------------------------
@@ -274,12 +286,12 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_custom_limits_base", function() {
-    regplot(fit_brma, plot_type = "base", xlim = c(0, 60), ylim = c(-3, 1))
+    regplot(fit_brma, mod = "ablat", plot_type = "base", xlim = c(0, 60), ylim = c(-3, 1))
   })
 
   vdiffr::expect_doppelganger(
     "regplot_custom_limits_ggplot",
-    regplot(fit_brma, plot_type = "ggplot", xlim = c(0, 60), ylim = c(-3, 1))
+    regplot(fit_brma, mod = "ablat", plot_type = "ggplot", xlim = c(0, 60), ylim = c(-3, 1))
   )
 
   # --------------------------------------------------
@@ -287,7 +299,7 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_ci_only_base", function() {
-    regplot(fit_brma, plot_type = "base", ci = TRUE, pi = FALSE)
+    regplot(fit_brma, mod = "ablat", plot_type = "base", ci = TRUE, pi = FALSE)
   })
 
   # --------------------------------------------------
@@ -295,7 +307,7 @@ test_that("Regression plot customization works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_no_bands_base", function() {
-    regplot(fit_brma, plot_type = "base", ci = FALSE, pi = FALSE)
+    regplot(fit_brma, mod = "ablat", plot_type = "base", ci = FALSE, pi = FALSE)
   })
 })
 
@@ -314,10 +326,10 @@ test_that("Regression plot confidence level works", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("regplot_level_90_base", function() {
-    regplot(fit_brma, plot_type = "base", level = 90, main = "90% CI")
+    regplot(fit_brma, mod = "ablat", plot_type = "base", level = 90, main = "90% CI")
   })
 
   vdiffr::expect_doppelganger("regplot_level_99_base", function() {
-    regplot(fit_brma, plot_type = "base", level = 99, main = "99% CI")
+    regplot(fit_brma, mod = "ablat", plot_type = "base", level = 99, main = "99% CI")
   })
 })

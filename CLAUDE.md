@@ -30,8 +30,8 @@ Additional detailed instructions are available in `.claude/instructions/`:
 - [s3-class-naming.md](.claude/instructions/s3-class-naming.md) - S3 class naming conventions
 - [use-normal-subdispatch.md](.claude/instructions/use-normal-subdispatch.md) - Performance optimization for mixed weighted/normal samples
 - [bias-indicator-extraction.md](.claude/instructions/bias-indicator-extraction.md) - RoBMA bias model identification from posterior
-- [r-package-plotting-architecture.md](.claude/instructions/r-package-plotting-architecture.md) - 3-layer architecture pattern for dual base/ggplot plotting support
-- [r-visual-testing-vdiffr.md](.claude/instructions/r-visual-testing-vdiffr.md) - Visual regression testing patterns using vdiffr
+- [predict-newdata-workaround.md](.claude/instructions/predict-newdata-workaround.md) - Dummy outcome values for predict.brma() with newdata
+- [sampling-bias-parameter.md](.claude/instructions/sampling-bias-parameter.md) - sampling_bias parameter pattern for RoBMA/bPET/bPEESE/bselmodel
 
 
 
