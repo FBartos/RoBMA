@@ -901,7 +901,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
              if (effect_direction == "negative") {
               mu_j_i_flipped <- -mu_j_i
              } else {
-              mu_j_i_flipped <- mu_j_i  
+              mu_j_i_flipped <- mu_j_i
              }
 
              temp_consts <- .dwnorm_fast.ss(
@@ -1146,4 +1146,83 @@ lines.zcurve_brma <- function(x, plot_type = "base",
   }
 
   return(bins)
+}
+
+
+.zcurve_bins      <- function(priors, from, to, by, length.out, type = "hist"){
+
+  if(is.null(length.out)){
+    bins <- seq(from = from, to = to, by = by)
+  }else{
+    bins <- seq(from = from, to = to, length.out = length.out)
+  }
+
+  priors_bias <- priors[["bias"]]
+
+  # return simple binning in case of no bias
+  if(is.null(priors_bias)){
+    return(bins)
+  }
+
+  # obtain tresholds from the specified priors
+  z_bounds <- .zcurve_threshold(priors)
+
+  # return simple binning in case of no weightfunctions
+  if(length(z_bounds) == 0){
+    return(bins)
+  }
+
+  # retain bounds within the plotting range
+  z_bounds <- z_bounds[z_bounds > from & z_bounds < to]
+
+  if(type == "hist"){
+    # for histogram, shift the specified bin boundaries to the closest z-treshold
+    for(i in seq_along(z_bounds)){
+
+      # get index of the first larger sequence
+      i_larger <- which(bins > z_bounds[i])[1]
+
+      # if there is none skip
+      if(is.na(i_larger))
+        next
+
+      # get index of the closer one from below
+      i_lower  <- i_larger - 1
+
+      # replace the closer sequence with the boundary
+      if(bins[i_larger] - z_bounds[i] < z_bounds[i] - bins[i_lower]){
+        bins[i_larger] <- z_bounds[i]
+      }else{
+        bins[i_lower]  <- z_bounds[i]
+      }
+    }
+  }else if(type == "dens"){
+    # for density, extend the specified support at the threshold
+    bins <- sort(unique(c(bins, z_bounds)))
+  }
+
+  return(bins)
+}
+.zcurve_threshold <- function(priors){
+
+  priors_bias <- priors[["bias"]]
+
+  # return simple binning in case of no bias
+  if(is.null(priors_bias)){
+    return()
+  }
+
+  priors_weightfunctions <- priors_bias[sapply(priors_bias, is.prior.weightfunction)]
+
+  # return simple binning in case of no weightfunctions
+  if(length(priors_weightfunctions) == 0){
+    return()
+  }
+
+  # obtain tresholds from the specified priors
+  p_bounds <- BayesTools::weightfunctions_mapping(priors_weightfunctions, cuts_only = TRUE)
+  z_bounds <- stats::qnorm(rev(p_bounds), 0, 1, lower.tail = FALSE)
+  z_bounds <- z_bounds[!is.infinite(z_bounds)]
+
+  return(z_bounds)
 }
