@@ -32,6 +32,13 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param pred logical; whether to show the prediction line. Defaults to \code{TRUE}.
 #' @param ci logical; whether to show confidence interval bands. Defaults to \code{TRUE}.
 #' @param pi logical; whether to show prediction interval bands. Defaults to \code{FALSE}.
+#' @param si logical; whether to show sampling interval bands. Defaults to \code{FALSE}.
+#' The sampling interval shows the expected range of observed effect sizes,
+#' incorporating both heterogeneity (tau) and a representative level of
+#' sampling error (mean SE across studies). When the model includes
+#' publication bias adjustments and \code{sampling_bias = TRUE}, the
+#' sampling interval incorporates the expected distortion from the
+#' selection process.
 #' @param level numeric; confidence/prediction interval level in percent.
 #' Defaults to \code{95}.
 #' @param at numeric vector; for continuous moderators, values at which to
@@ -75,11 +82,13 @@ regplot <- function(x, ...) UseMethod("regplot")
 #'   \item{bg}{point fill color (default: "gray")}
 #'   \item{lcol}{line color (default: "black")}
 #'   \item{lwd}{line width (default: 2)}
-#'   \item{shade}{CI/PI band shading (default: TRUE)}
+#'   \item{shade}{CI/PI/SI band shading (default: TRUE)}
 #'   \item{col.ci}{CI band color (default: "gray70")}
 #'   \item{col.pi}{PI band color (default: "gray85")}
+#'   \item{col.si}{SI band color (default: "gray92")}
 #'   \item{alpha.ci}{CI band transparency (default: 0.4)}
 #'   \item{alpha.pi}{PI band transparency (default: 0.2)}
+#'   \item{alpha.si}{SI band transparency (default: 0.15)}
 #'   \item{jitter}{jitter amount for categorical moderators (default: 0.2)}
 #' }
 #'
@@ -92,6 +101,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #'   \item Prediction line showing the estimated regression relationship
 #'   \item Confidence bands showing uncertainty in the mean prediction
 #'   \item Optional prediction bands showing expected range of true effects
+#'   \item Optional sampling interval bands showing expected range of observed outcomes
 #' }
 #'
 #' For continuous moderators, predictions are computed across the observed
@@ -115,6 +125,12 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' # with prediction intervals
 #' regplot(fit, pi = TRUE)
 #'
+#' # with sampling intervals
+#' regplot(fit, si = TRUE)
+#'
+#' # all interval bands
+#' regplot(fit, ci = TRUE, pi = TRUE, si = TRUE)
+#'
 #' # using ggplot2
 #' regplot(fit, plot_type = "ggplot")
 #'
@@ -129,7 +145,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @seealso [funnel.brma()], [predict.brma()]
 #' @export
 #' @rdname regplot
-regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
+regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si = FALSE,
                          level = 95, at = NULL, digits = 2,
                          transf = NULL, atransf = NULL, targs = NULL,
                          refline = NULL, psize = NULL, plim = c(0.5, 3),
@@ -142,6 +158,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   BayesTools::check_bool(pred, "pred")
   BayesTools::check_bool(ci, "ci")
   BayesTools::check_bool(pi, "pi")
+  BayesTools::check_bool(si, "si")
   BayesTools::check_real(level, "level", lower = 50, upper = 99.9)
   BayesTools::check_int(digits, "digits", lower = 0)
   BayesTools::check_bool(legend, "legend")
@@ -183,6 +200,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
     pred          = pred,
     ci            = ci,
     pi            = pi,
+    si            = si,
     level         = level,
     at            = at,
     psize         = psize,
@@ -298,6 +316,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
 # @param pred     logical; show prediction line
 # @param ci       logical; show CI bands
 # @param pi       logical; show PI bands
+# @param si       logical; show SI bands
 # @param level    confidence level (0-100)
 # @param at       values at which to evaluate predictions
 # @param psize    point sizes (or NULL for auto)
@@ -315,14 +334,15 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
 #
 # ---------------------------------------------------------------------------- #
 .regplot_data <- function(x, mod_name, mod_type, mod_data, by_info,
-                          pred, ci, pi, level, at, psize, plim, transf,
+                          pred, ci, pi, si, level, at, psize, plim, transf,
                           xlim, ylim, xlab, ylab, refline, sampling_bias, dots) {
 
   # get observed data
-  yi  <- .outcome_data_yi(x)
-  sei <- .outcome_data_sei(x)
-  vi  <- sei^2
-  K   <- length(yi)
+  yi     <- .outcome_data_yi(x)
+  sei    <- .outcome_data_sei(x)
+  vi     <- sei^2
+  K      <- length(yi)
+  se_rep <- mean(sei)
 
   # convert level to probability for quantiles
   alpha <- (100 - level) / 100
@@ -419,20 +439,60 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   pred_lower <- apply(pred_samples, 2, quantile, probs = probs[1])
   pred_upper <- apply(pred_samples, 2, quantile, probs = probs[2])
 
-  # get predictions for PI (includes heterogeneity)
-  if (pi) {
-    pi_samples <- predict.brma(
-      object        = x,
-      newdata       = newdata,
-      type          = "estimate",
-      bias_adjusted = !sampling_bias,
-      quiet         = TRUE
+  # compute heterogeneity (tau) if needed for PI or SI
+  if (pi || si) {
+
+    is_scale      <- .is_scale(x)
+    is_multilevel <- .is_multilevel(x)
+
+    scale_data    <- NULL
+    scale_formula <- NULL
+    if (is_scale) {
+      new_data_prepared <- .prepare_newdata(object = x, newdata = newdata, type = "estimate")
+      scale_data        <- new_data_prepared[["scale"]]
+      scale_formula     <- .create_fit_formula_list(data = new_data_prepared, "scale")
+    }
+
+    tau_result <- .evaluate.brma.tau(
+      fit           = x[["fit"]],
+      scale_data    = scale_data,
+      scale_formula = scale_formula,
+      scale_priors  = x[["priors"]][["scale"]],
+      is_scale      = is_scale,
+      is_multilevel = is_multilevel,
+      K             = n_pred
     )
-    pi_lower <- apply(pi_samples, 2, quantile, probs = probs[1])
-    pi_upper <- apply(pi_samples, 2, quantile, probs = probs[2])
+    tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
+    tau_mean  <- colMeans(tau_total)
+  }
+
+  # get prediction interval (includes heterogeneity)
+  if (pi) {
+    pi_lower <- stats::qnorm(probs[1], mean = pred_mean, sd = tau_mean)
+    pi_upper <- stats::qnorm(probs[2], mean = pred_mean, sd = tau_mean)
   } else {
     pi_lower <- NULL
     pi_upper <- NULL
+  }
+
+  # get sampling interval (includes heterogeneity + sampling error)
+  if (si) {
+    sd_si <- sqrt(se_rep^2 + tau_mean^2)
+
+    is_weightfunction <- .is_weightfunction(x)
+
+    if (sampling_bias && is_weightfunction) {
+      si_bounds <- .regplot_si_quantiles_weighted(x, pred_mean, sd_si, se_rep, probs)
+      si_lower  <- si_bounds$lower
+      si_upper  <- si_bounds$upper
+    } else {
+      # normal quantiles (PET/PEESE bias already in pred_mean when sampling_bias = TRUE)
+      si_lower <- stats::qnorm(probs[1], mean = pred_mean, sd = sd_si)
+      si_upper <- stats::qnorm(probs[2], mean = pred_mean, sd = sd_si)
+    }
+  } else {
+    si_lower <- NULL
+    si_upper <- NULL
   }
 
   # apply transformation to predictions
@@ -443,6 +503,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
     if (pi) {
       pi_lower <- transf(pi_lower)
       pi_upper <- transf(pi_upper)
+    }
+    if (si) {
+      si_lower <- transf(si_lower)
+      si_upper <- transf(si_upper)
     }
   }
 
@@ -459,6 +523,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
     all_y <- c(yi_plot, pred_mean)
     if (ci) all_y <- c(all_y, pred_lower, pred_upper)
     if (pi) all_y <- c(all_y, pi_lower, pi_upper)
+    if (si) all_y <- c(all_y, si_lower, si_upper)
     ylim <- range(pretty(range(all_y, na.rm = TRUE)))
   }
 
@@ -533,6 +598,28 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
     }
   }
 
+  # SI band data
+  df_si <- NULL
+  if (si) {
+    if (mod_type == "continuous") {
+      df_si <- data.frame(
+        x     = c(at_pred, rev(at_pred)),
+        y     = c(si_lower, rev(si_upper)),
+        lower = si_lower,
+        upper = si_upper,
+        xpred = at_pred
+      )
+    } else {
+      df_si <- data.frame(
+        x     = seq_along(at_pred),
+        y     = pred_mean,
+        lower = si_lower,
+        upper = si_upper,
+        level = at_pred
+      )
+    }
+  }
+
   # reference line data
   df_refline <- NULL
   if (!is.null(refline)) {
@@ -546,6 +633,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
     pred     = df_pred,
     ci       = df_ci,
     pi       = df_pi,
+    si       = df_si,
     refline  = df_refline,
     xlim     = xlim,
     ylim     = ylim,
@@ -555,6 +643,89 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
     mod_name = mod_name,
     levels   = if (mod_type == "categorical") levels(mod_data) else NULL
   ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_si_quantiles_weighted
+# ---------------------------------------------------------------------------- #
+#
+# Compute weighted normal quantiles for SI when model has selection
+# (weightfunction) adjustment. Adapts funnel's .get_funnel_quantiles_weighted()
+# for per-prediction-point computation with fixed representative SE.
+#
+# @param x         brma object
+# @param pred_mean numeric vector of predicted means at each moderator value
+# @param sd_si     numeric vector of total SD (sqrt(se_rep^2 + tau^2))
+# @param se_rep    numeric scalar representative SE (mean of observed SEs)
+# @param probs     numeric vector of length 2 with lower/upper quantile probs
+#
+# @return list with 'lower' and 'upper' quantile vectors
+#
+# ---------------------------------------------------------------------------- #
+.regplot_si_quantiles_weighted <- function(x, pred_mean, sd_si, se_rep, probs) {
+
+  n_pred           <- length(pred_mean)
+  effect_direction <- .effect_direction(x)
+
+  # extract posterior mean omega from fitted model
+  posterior_samples <- suppressWarnings(coda::as.mcmc(x[["fit"]]))
+  omega_cols        <- grep("^omega\\[", colnames(posterior_samples))
+  omega_mean        <- colMeans(posterior_samples[, omega_cols, drop = FALSE])
+  omega_matrix      <- matrix(omega_mean, nrow = n_pred, ncol = length(omega_mean), byrow = TRUE)
+
+  # extract publication bias priors to determine steps (p-value cutoffs)
+  priors      <- x[["priors"]]
+  priors_bias <- priors[["outcome"]][["bias"]]
+  if (!BayesTools::is.prior.mixture(priors_bias)) {
+    priors_bias <- list(priors_bias)
+  }
+
+  steps <- BayesTools::weightfunctions_mapping(
+    priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)],
+    cuts_only = TRUE,
+    one_sided = TRUE
+  )
+  steps <- rev(steps)[c(-1, -length(steps))]
+
+  # crit_x is fixed (same representative SE for all prediction points)
+  crit_x <- stats::qnorm(steps, lower.tail = FALSE) * se_rep
+
+  lower <- numeric(n_pred)
+  upper <- numeric(n_pred)
+
+  # flip mu if negative direction (same logic as funnel)
+  if (effect_direction == "negative") {
+    mu_calc <- -pred_mean
+  } else {
+    mu_calc <- pred_mean
+  }
+
+  for (i in seq_len(n_pred)) {
+    lower[i] <- .qwnorm_fast.ss(
+      p      = probs[1],
+      mean   = mu_calc[i],
+      sd     = sd_si[i],
+      omega  = omega_matrix[i, , drop = FALSE],
+      crit_x = crit_x
+    )
+    upper[i] <- .qwnorm_fast.ss(
+      p      = probs[2],
+      mean   = mu_calc[i],
+      sd     = sd_si[i],
+      omega  = omega_matrix[i, , drop = FALSE],
+      crit_x = crit_x
+    )
+  }
+
+  # flip back if effect direction is negative
+  if (effect_direction == "negative") {
+    temp  <- -upper
+    upper <- -lower
+    lower <- temp
+  }
+
+  return(list(lower = lower, upper = upper))
 }
 
 
@@ -581,8 +752,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   lwd       <- dots[["lwd"]]
   col_ci    <- dots[["col.ci"]]
   col_pi    <- dots[["col.pi"]]
+  col_si    <- dots[["col.si"]]
   alpha_ci  <- dots[["alpha.ci"]]
   alpha_pi  <- dots[["alpha.pi"]]
+  alpha_si  <- dots[["alpha.si"]]
   shade     <- dots[["shade"]]
   main      <- dots[["main"]]
   jitter_am <- dots[["jitter"]]
@@ -592,6 +765,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   df_pred    <- data$pred
   df_ci      <- data$ci
   df_pi      <- data$pi
+  df_si      <- data$si
   df_refline <- data$refline
   mod_type   <- data$mod_type
 
@@ -624,6 +798,26 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   # draw reference line (if specified)
   if (!is.null(df_refline)) {
     graphics::abline(h = df_refline$y, lty = "dashed", col = "gray50")
+  }
+
+  # draw SI band (if present and shading enabled) -- outermost band
+  if (!is.null(df_si) && shade) {
+    if (mod_type == "continuous") {
+      col_si_alpha <- grDevices::adjustcolor(col_si, alpha.f = alpha_si)
+      graphics::polygon(df_si$x, df_si$y, col = col_si_alpha, border = NA)
+    } else {
+      # categorical: draw error bars for SI
+      for (i in seq_len(nrow(df_si))) {
+        graphics::segments(
+          x0  = df_si$x[i],
+          y0  = df_si$lower[i],
+          x1  = df_si$x[i],
+          y1  = df_si$upper[i],
+          col = grDevices::adjustcolor(col_si, alpha.f = alpha_si + 0.3),
+          lwd = 9
+        )
+      }
+    }
   }
 
   # draw PI band (if present and shading enabled)
@@ -715,8 +909,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   lwd       <- dots[["lwd"]]
   col_ci    <- dots[["col.ci"]]
   col_pi    <- dots[["col.pi"]]
+  col_si    <- dots[["col.si"]]
   alpha_ci  <- dots[["alpha.ci"]]
   alpha_pi  <- dots[["alpha.pi"]]
+  alpha_si  <- dots[["alpha.si"]]
   shade     <- dots[["shade"]]
   main      <- dots[["main"]]
   jitter_am <- dots[["jitter"]]
@@ -727,6 +923,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   df_pred    <- data$pred
   df_ci      <- data$ci
   df_pi      <- data$pi
+  df_si      <- data$si
   df_refline <- data$refline
   mod_type   <- data$mod_type
 
@@ -740,6 +937,29 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
         linetype   = "dashed",
         colour     = "gray50"
       )
+  }
+
+  # add SI band (if present and shading enabled) -- outermost band
+  if (!is.null(df_si) && shade) {
+    if (mod_type == "continuous") {
+      out <- out +
+        ggplot2::geom_polygon(
+          mapping = ggplot2::aes(x = df_si$x, y = df_si$y),
+          fill    = col_si,
+          alpha   = alpha_si
+        )
+    } else {
+      # categorical: draw error bars
+      out <- out +
+        ggplot2::geom_errorbar(
+          data    = df_si,
+          mapping = ggplot2::aes(x = x, ymin = lower, ymax = upper),
+          width   = 0.3,
+          colour  = col_si,
+          alpha   = alpha_si + 0.3,
+          linewidth = 3
+        )
+    }
   }
 
   # add PI band (if present and shading enabled)
@@ -900,8 +1120,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE,
   if (is.null(dots[["shade"]]))    dots[["shade"]]    <- TRUE
   if (is.null(dots[["col.ci"]]))   dots[["col.ci"]]   <- "gray70"
   if (is.null(dots[["col.pi"]]))   dots[["col.pi"]]   <- "gray85"
+  if (is.null(dots[["col.si"]]))   dots[["col.si"]]   <- "gray92"
   if (is.null(dots[["alpha.ci"]])) dots[["alpha.ci"]] <- 0.4
   if (is.null(dots[["alpha.pi"]])) dots[["alpha.pi"]] <- 0.2
+  if (is.null(dots[["alpha.si"]])) dots[["alpha.si"]] <- 0.15
 
   # categorical moderator jitter
   if (is.null(dots[["jitter"]]))   dots[["jitter"]]   <- 0.2

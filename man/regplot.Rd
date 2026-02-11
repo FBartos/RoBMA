@@ -10,6 +10,7 @@
   pred = TRUE,
   ci = TRUE,
   pi = FALSE,
+  si = FALSE,
   level = 95,
   at = NULL,
   digits = 2,
@@ -25,6 +26,7 @@
   ylab = NULL,
   xlim = NULL,
   ylim = NULL,
+  sampling_bias = TRUE,
   plot_type = "base",
   as_data = FALSE,
   ...
@@ -42,6 +44,14 @@ If multiple moderators are present, this argument is required.}
 \item{ci}{logical; whether to show confidence interval bands. Defaults to \code{TRUE}.}
 
 \item{pi}{logical; whether to show prediction interval bands. Defaults to \code{FALSE}.}
+
+\item{si}{logical; whether to show sampling interval bands. Defaults to \code{FALSE}.
+The sampling interval shows the expected range of observed effect sizes,
+incorporating both heterogeneity (tau) and a representative level of
+sampling error (mean SE across studies). When the model includes
+publication bias adjustments and \code{sampling_bias = TRUE}, the
+sampling interval incorporates the expected distortion from the
+selection process.}
 
 \item{level}{numeric; confidence/prediction interval level in percent.
 Defaults to \code{95}.}
@@ -84,6 +94,12 @@ Defaults to \code{TRUE}.}
 
 \item{ylim}{numeric vector of length 2; y-axis limits. Defaults to data range.}
 
+\item{sampling_bias}{whether publication bias should be incorporated into the
+predicted effect shown in the regplot. Defaults to \code{TRUE}. When \code{TRUE}
+and the model includes PET/PEESE, incorporates the expected bias from these
+regression adjustments into predictions. When \code{FALSE}, shows bias-adjusted
+(corrected) predictions.}
+
 \item{plot_type}{character; whether to use base R graphics (\code{"base"})
 or ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.}
 
@@ -98,11 +114,13 @@ creating plot. Defaults to \code{FALSE}.}
 \item{bg}{point fill color (default: "gray")}
 \item{lcol}{line color (default: "black")}
 \item{lwd}{line width (default: 2)}
-\item{shade}{CI/PI band shading (default: TRUE)}
+\item{shade}{CI/PI/SI band shading (default: TRUE)}
 \item{col.ci}{CI band color (default: "gray70")}
 \item{col.pi}{PI band color (default: "gray85")}
+\item{col.si}{SI band color (default: "gray92")}
 \item{alpha.ci}{CI band transparency (default: 0.4)}
 \item{alpha.pi}{PI band transparency (default: 0.2)}
+\item{alpha.si}{SI band transparency (default: 0.15)}
 \item{jitter}{jitter amount for categorical moderators (default: 0.2)}
 }}
 }
@@ -126,6 +144,7 @@ meta-regression results. It displays:
 \item Prediction line showing the estimated regression relationship
 \item Confidence bands showing uncertainty in the mean prediction
 \item Optional prediction bands showing expected range of true effects
+\item Optional sampling interval bands showing expected range of observed outcomes
 }
 
 For continuous moderators, predictions are computed across the observed
@@ -145,6 +164,12 @@ regplot(fit)
 
 # with prediction intervals
 regplot(fit, pi = TRUE)
+
+# with sampling intervals
+regplot(fit, si = TRUE)
+
+# all interval bands
+regplot(fit, ci = TRUE, pi = TRUE, si = TRUE)
 
 # using ggplot2
 regplot(fit, plot_type = "ggplot")

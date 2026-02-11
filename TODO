@@ -1,23 +1,26 @@
 **brma class**
 missing features
-  - regplot	Regression/bubble plot
-  - vif 	Variance inflation factors
-  - vcov	Variance-covariance matrix of coefficients
-  - robust	Cluster-robust inference
-  - baujat	Baujat plot
+  - vif 	Variance inflation factors (search how GIF works in metafor)
+  - vcov	Variance-covariance matrix of coefficients (requires more methodological development)
+  - robust	Cluster-robust inference (requires more methodological development)
+  - baujat	Baujat plot (skip too computationally difficutl)
   - gosh	GOSH analysis
 
+changes:
+ - change study_ids argument to `cluster` for consistency 
 
 
 missing wrappers:
-  - confint	Confidence/credible intervals
+  - confint	credible intervals (for all model parameters i.e., merges output from summary tables )
   - fitted	Fitted values (currently only via predict)
-  - ranef	Extract random effects
+  - ranef	Extract random effects (should this be the offsets? see metafor)
 
 extensions of existing methods
   - add cluster argument to loo / residuals / forest plot
 
-plot_weightfunction
+
+
+plot_weightfunction (should be in BayesTools)
 Expand the function to use `show_data` argument. if TRUE, the function should show p-values as jitter on the x-axis
 - compute p-values by transformation of yi/sei
 - note that re-scale options spaces the cutpoints equally (not mapping to p-values directly)

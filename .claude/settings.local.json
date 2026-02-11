@@ -17,7 +17,8 @@
       "Bash(for file in c:R-PackagesRoBMARbrma.*.R)",
       "Bash(do grep \"^\\\\\\(^[a-z_]\\\\+\\\\.brma\\\\s*<-\\\\|#'' @exportS3Method\\\\\\)\" \"$file\")",
       "Bash(done)",
-      "WebFetch(domain:wviechtm.github.io)"
+      "WebFetch(domain:wviechtm.github.io)",
+      "WebFetch(domain:posit-dev.github.io)"
     ]
   }
 }

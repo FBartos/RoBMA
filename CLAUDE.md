@@ -49,6 +49,54 @@ devtools::check()                 # Full R CMD check
 
 **Testing Note**: Long-running model fits are cached. Run `devtools::test(filter = "fit")` first to generate cached fits, then use `devtools::test(filter = "topic")` for faster iteration.
 
+## MCP Tools (r-mcptools via btw)
+
+An MCP server (`btw` package) is configured in `.mcp.json` and `.claude/mcp-server.R`, providing R-aware tools. Prefer these over raw `Rscript` calls when available — they return structured output and handle R session state.
+
+### Available Tool Groups
+
+**`pkg`** — Package development (prefer over `Rscript -e "devtools::*"`)
+
+- `btw_tool_pkg_load_all` — `pkgload::load_all()`, hot loads package code
+- `btw_tool_pkg_document` — `devtools::document()`, updates documentation and exports
+- `btw_tool_pkg_test` — `devtools::test()`, accepts `filter` for specific tests
+- `btw_tool_pkg_check` — `devtools::check()`, full R CMD check
+- `btw_tool_pkg_coverage` — `covr::package_coverage()`, file or line-level
+
+**`run`** — Execute arbitrary R code with captured output (values, plots, messages, warnings, errors)
+
+- `btw_tool_run_r` — run R code snippets; useful for testing functions interactively
+
+**`docs`** — R package documentation lookup
+
+- `btw_tool_docs_help_page` — read help page for a topic (e.g., `brma` in `RoBMA`)
+- `btw_tool_docs_package_help_topics` — list all help topics in a package
+- `btw_tool_docs_package_news` — read NEWS/changelog (supports regex search)
+- `btw_tool_docs_available_vignettes` / `btw_tool_docs_vignette` — list/read vignettes
+
+**`env`** — Inspect R session environment
+
+- `btw_tool_env_describe_environment` — list objects in global env with structure
+- `btw_tool_env_describe_data_frame` — describe data frame (skim/glimpse/json)
+
+**`cran`** — CRAN package search
+
+- `btw_tool_cran_search` — search CRAN packages by keyword
+- `btw_tool_cran_package` — describe a specific CRAN package
+
+**`sessioninfo`** — R session metadata
+
+- `btw_tool_sessioninfo_platform` — R version, OS, locale
+- `btw_tool_sessioninfo_package` — installed/attached package versions
+- `btw_tool_sessioninfo_is_package_installed` — check if package is installed
+
+### When to Use MCP Tools
+
+- **Looking up BayesTools or dependency API**: use `docs` tools instead of reading installed package source
+- **Running quick R expressions**: use `run_r` for interactive testing during development
+- **Package dev cycle**: use `pkg` tools for load/document/test/check — cleaner output than raw Rscript
+- **Checking dependency changes**: use `docs_package_news` to read changelogs
+
 ## Code Style
 
 - **Naming**: `snake_case` for functions, arguments, variables
