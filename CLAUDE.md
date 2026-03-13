@@ -207,3 +207,36 @@ When adding JAGS distributions: implement in `src/distributions/`, register in `
 - No tidyverse (maintain low dependency footprint)
 - Never write to user directories without permission
 - Always use `::` for package functions
+
+## Meta-Analysis Knowledge Library
+
+`knowledge-base/` contains a comprehensive reference library built from all 196 CRAN meta-analysis packages (2,989 features, 5,511 implementations across 16 categories). Use it when implementing new features to study how other packages solve the same problem.
+
+### How to navigate
+
+1. **Start here**: Read `knowledge-base/_master_index.json` (~38K tokens) for the full landscape
+2. **Find a feature**: Grep `knowledge-base/_feature_lookup.json` for the feature name — returns category + reference package. Old merged names resolve via `merged_into` aliases.
+3. **Browse a category**: Read `knowledge-base/categories/<cat>.toc.json` (5-48K tokens, fits in context) to see all features. Features with a `family` array are merged groups.
+4. **Drill into detail**: Grep `knowledge-base/categories/<cat>.json` for the specific feature to see implementations with algorithm notes, key arguments, example usage, quality scores, and literature references. These files are large (50-460K tokens) — grep, don't read whole.
+5. **Research a package**: Read `knowledge-base/packages/profiles/<pkg>.md` for a quick summary.
+6. **Plan what to build**: Read `knowledge-base/_gap_analysis.md` (29K tokens) for prioritized feature gaps with design decisions.
+
+### Categories
+
+| Category | Features | Covers |
+|----------|----------|--------|
+| model-fitting | 422 | RE, FE, multivariate, GLM models |
+| data-preparation | 651 | Effect sizes, variance estimation |
+| utility | 558 | Helpers, formatting |
+| summary-print | 340 | Print/summary methods |
+| visualization-other | 262 | Baujat, radial, network graphs |
+| bayesian | 113 | Priors, MCMC, posterior summaries |
+| prediction-ci | 104 | Prediction intervals, BLUPs |
+| diagnostics-influence | 94 | Influence, outliers, GOSH |
+| forest-plot | 89 | Forest plot variants |
+| network-ma | 84 | NMA, node-splitting, ranking |
+| publication-bias | 77 | Funnel, trim-fill, selection models |
+| meta-regression | 60 | Moderator analysis |
+| heterogeneity | 53 | Tau-sq, I-sq, Q-profile |
+| model-comparison | 50 | LRT, AIC/BIC/DIC |
+| reporting | 31 | GRADE, PRISMA |

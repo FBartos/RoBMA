@@ -30,3 +30,4 @@ README.html
 _pkgdown.yml
 ^\.claude$
 CLAUDE.md
+^knowledge-base$
