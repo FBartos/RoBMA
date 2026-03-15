@@ -808,7 +808,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   # deal with possibility of sd = 0
   # (sampling never finishes, insert the mean value instead)
-  idx <- !p & sd < sqrt(.Machine$double.ep)
+  idx <- !p & sd < sqrt(.Machine$double.eps)
   x[idx] <- mean[idx]
   p[idx] <- TRUE
 
@@ -1004,7 +1004,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   # handle lower.tail
   if(!lower.tail){
-    log_prob <- log(1 - exp(log_prob))
+    log_prob <- log1p(-exp(log_prob))
   }
 
   # return log probability or probability

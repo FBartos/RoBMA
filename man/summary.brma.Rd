@@ -16,7 +16,7 @@
 \item{object}{a fitted brma object}
 
 \item{probs}{quantiles of the posterior samples to be displayed.
-Defaults to \code{c(.025, .975)}}
+Defaults to \code{c(.025, .50, .975)}}
 
 \item{include_MCMC_diagnostics}{whether to include MCMC diagnostics in the output.
 Defaults to \code{TRUE}.}

@@ -262,7 +262,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
     seed   <- old_fit_control[["seed"]]
   }
 
-  new_fit_control <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = chains, silent = silent, seed = seed)
+  new_fit_control <- BayesTools::JAGS_check_and_list_fit_settings(chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin, autofit = autofit, parallel = parallel, cores = cores, silent = silent, seed = seed)
 
   return(new_fit_control)
 }
@@ -303,8 +303,13 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     restarts <- old_autofit_control[["restarts"]]
   }
+  if(!is.null(autofit_control[["max_extend"]])){
+    max_extend <- autofit_control[["max_extend"]]
+  }else{
+    max_extend <- old_autofit_control[["max_extend"]]
+  }
 
-  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts)
+  new_autofit_control <- set_autofit_control(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, max_time = max_time, sample_extend = sample_extend, restarts = restarts, max_extend = max_extend)
   new_autofit_control <- BayesTools::JAGS_check_and_list_autofit_settings(autofit_control = new_autofit_control)
 
   return(new_autofit_control)

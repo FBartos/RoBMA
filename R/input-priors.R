@@ -515,7 +515,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior <- .rescale_prior_object(prior, rescale_priors)
 
     # check the specified prior distribution
-    switch(
+    prior <- switch(
       parameter,
       "effect"        = .check_prior.effect(prior),
       "heterogeneity" = .check_prior.heterogeneity(prior)
@@ -588,7 +588,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   }
 
   # check the user specified prior distribution
-  .check_prior.restricted_01(prior, prior_name = "heterogeneity_allocation")
+  prior <- .check_prior.restricted_01(prior, prior_name = "heterogeneity_allocation")
 
   return(prior)
 }
@@ -601,7 +601,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   }
 
   # check the user specified prior distribution
-  .check_prior.restricted_01(prior, prior_name = "baserate")
+  prior <- .check_prior.restricted_01(prior, prior_name = "baserate")
 
   # transform the prior into independent factor prior
   prior <- BayesTools::prior_factor(prior[["distribution"]], parameters = prior[["parameters"]], truncation = prior[["truncation"]], contrast = "independent")
@@ -911,18 +911,18 @@ estimate_unit_information_sd <- function(sei, ni) {
   # there is no scaling of the publication bias priors based on rescale_priors
   # (only PEESE prior is rescaled to the match the UISD of the measure)
 
-  if (missing(prior) && missing(prior_null)) {
+  ### PEESE prior is inversely related to the specified effect size
+  # for SMD we use Cauchy with scale 1
+  # for other effect sizes, we re-scale by the corresponding UISD
+  UISD_SMD <- .get_unit_information_sd(measure = "SMD")
+  if (missing(prior_unit_information_sd)) {
+    UISD_measure <- .get_unit_information_sd(data = data, measure = measure)
+  } else {
+    UISD_measure <- prior_unit_information_sd
+  }
+  UISD_ratio <- UISD_SMD / UISD_measure
 
-    ### PEESE prior is inversely related to the specified effect size
-    # for SMD we use Cauchy with scale 1
-    # for other effect sizes, we re-scale by the corresponding UISD
-    UISD_SMD <- .get_unit_information_sd(measure = "SMD")
-    if (missing(prior_unit_information_sd)) {
-      UISD_measure <- .get_unit_information_sd(data = data, measure = measure)
-    } else {
-      UISD_measure <- prior_unit_information_sd
-    }
-    UISD_ratio <- UISD_SMD / UISD_measure
+  if (missing(prior) && missing(prior_null)) {
 
     if (model_type == "2w") {
       # prior based on Maier 2022 original RoBMA article
@@ -1191,17 +1191,17 @@ estimate_unit_information_sd <- function(sei, ni) {
   # check object type
   if (!BayesTools::is.prior(prior))
     stop("The 'prior_effect' argument must be a prior distribution.", call. = FALSE)
-  if (!(BayesTools::is.prior.simple(prior) || !BayesTools::is.prior.point(prior)))
+  if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
     stop("The 'prior_effect' argument must be a either a simple or point prior distribution.", call. = FALSE)
 
-  return()
+  return(prior)
 }
 .check_prior.heterogeneity            <- function(prior) {
 
   # check object type
   if (!BayesTools::is.prior(prior))
     stop("The 'prior_heterogeneity' argument must be a prior distribution.", call. = FALSE)
-  if (!(BayesTools::is.prior.simple(prior) || !BayesTools::is.prior.point(prior)))
+  if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
     stop("The 'prior_heterogeneity' argument must be a either a simple or point prior distribution.", call. = FALSE)
 
   # check range restriction
@@ -1211,14 +1211,14 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior[["truncation"]][["lower"]] <- 0
   }
 
-  return()
+  return(prior)
 }
 .check_prior.restricted_01            <- function(prior, prior_name) {
 
   # check object type
   if (!BayesTools::is.prior(prior))
     stop(sprintf("The '%s' argument must be a prior distribution.", prior_name), call. = FALSE)
-  if (!(BayesTools::is.prior.simple(prior) || !BayesTools::is.prior.point(prior)))
+  if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
     stop(sprintf("The '%s' argument must be a either a simple or point prior distribution.", prior_name), call. = FALSE)
 
   # check range restriction
@@ -1234,7 +1234,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior[["truncation"]][["upper"]] <- 1
   }
 
-  return()
+  return(prior)
 }
 .check_prior.term                     <- function(prior) {
 
@@ -1261,7 +1261,7 @@ estimate_unit_information_sd <- function(sei, ni) {
 }
 .get_prior_bias_type                  <- function(prior) {
   if (BayesTools::is.prior.none(prior)) {
-    priors_alt <- "none"
+    bias_type <- "none"
   } else if (BayesTools::is.prior.weightfunction(prior)) {
     bias_type <- "selmodel"
   } else if (BayesTools::is.prior.PET(prior)) {
@@ -1300,7 +1300,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     return(prior)
 
   # no need for point / no prior distributions
-  if (is.prior.point(prior) || is.prior.none(prior))
+  if (BayesTools::is.prior.point(prior) || BayesTools::is.prior.none(prior))
     return(prior)
 
   # only specific prior distributions can be rescaled

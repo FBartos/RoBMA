@@ -21,6 +21,7 @@
 #'
 #' @seealso [RoBMA()] [brma.norm()] [summary.brma()] [plot.brma()]
 #'
+#' @export BMA.norm
 #' @export
 BMA <- BMA.norm <- function(
   # input specification
@@ -50,7 +51,6 @@ BMA <- BMA.norm <- function(
 ) {
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
   object       <- .createObject(
     dots = dots, class = c("BMA.norm", "RoBMA", "brma"),

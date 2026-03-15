@@ -52,7 +52,7 @@ effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
 When \code{FALSE}, returns raw frequency data (counts).}
 
 \item{probs}{quantiles of the posterior samples to be displayed.
-Defaults to \code{c(.025, .975)}}
+Defaults to \code{c(.025, .50, .975)}}
 
 \item{bias_adjusted}{whether predictions should adjust for publication bias.
 Defaults to \code{FALSE}. When \code{TRUE}:

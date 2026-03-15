@@ -6,7 +6,7 @@
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior samples to be displayed.
-#' Defaults to \code{c(.025, .975)}
+#' Defaults to \code{c(.025, .50, .975)}
 #' @param include_MCMC_diagnostics whether to include MCMC diagnostics in the output.
 #' Defaults to \code{TRUE}.
 #' @param standardized_coefficients whether to show standardized meta-regression coefficients.
@@ -141,7 +141,7 @@ print.summary.brma <- function(x, ...) {
 
 #' @export
 print.brma <- function(x, ...) {
-  print(summary.brma(x, ...))
+  print(summary(x, ...))
 }
 
 .summary.brma_model_names <- function(object) {

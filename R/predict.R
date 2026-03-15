@@ -103,6 +103,9 @@ predict.brma <- function(object, newdata = NULL,
     if (!is.data.frame(newdata) && !is.list(newdata)) {
       stop("'newdata' must be NULL, TRUE, a data.frame, or a named list.", call. = FALSE)
     }
+    if (is.list(newdata) && !is.data.frame(newdata) && is.null(names(newdata))) {
+      stop("'newdata' list must be named.", call. = FALSE)
+    }
   }
 
   # check incompatible options: aggregate predictions not available for response

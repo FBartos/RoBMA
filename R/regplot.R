@@ -166,6 +166,12 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(as_data, "as_data")
 
+  # not yet implemented arguments
+  if (!is.null(atransf))
+    stop("The 'atransf' argument is not yet implemented.", call. = FALSE)
+  if (!is.null(targs))
+    stop("The 'targs' argument is not yet implemented.", call. = FALSE)
+
   # check that model has moderators
   if (!.is_mods(x)) {
     stop("regplot requires a model with moderators. ",
@@ -184,10 +190,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   # identify grouping variable (if specified)
   by_info <- NULL
   if (!is.null(by)) {
-    by_info <- .regplot_get_moderator(x, by)
-    if (by_info$name == mod_name) {
-      stop("'by' variable must be different from 'mod' variable.", call. = FALSE)
-    }
+    stop("The 'by' argument is not yet implemented.", call. = FALSE)
   }
 
   # generate plot data
@@ -463,13 +466,13 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       K             = n_pred
     )
     tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
-    tau_mean  <- colMeans(tau_total)
   }
 
-  # get prediction interval (includes heterogeneity)
+  # get prediction interval (includes heterogeneity) using full posterior
   if (pi) {
-    pi_lower <- stats::qnorm(probs[1], mean = pred_mean, sd = tau_mean)
-    pi_upper <- stats::qnorm(probs[2], mean = pred_mean, sd = tau_mean)
+    pi_samples <- pred_samples + stats::rnorm(length(pred_samples), mean = 0, sd = tau_total)
+    pi_lower   <- apply(pi_samples, 2, stats::quantile, probs = probs[1])
+    pi_upper   <- apply(pi_samples, 2, stats::quantile, probs = probs[2])
   } else {
     pi_lower <- NULL
     pi_upper <- NULL
@@ -477,7 +480,8 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
   # get sampling interval (includes heterogeneity + sampling error)
   if (si) {
-    sd_si <- sqrt(se_rep^2 + tau_mean^2)
+    tau_mean <- colMeans(tau_total)
+    sd_si    <- sqrt(se_rep^2 + tau_mean^2)
 
     is_weightfunction <- .is_weightfunction(x)
 
@@ -498,15 +502,21 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   # apply transformation to predictions
   if (!is.null(transf)) {
     pred_mean  <- transf(pred_mean)
-    pred_lower <- transf(pred_lower)
-    pred_upper <- transf(pred_upper)
+    ci_lo      <- transf(pred_lower)
+    ci_hi      <- transf(pred_upper)
+    pred_lower <- pmin(ci_lo, ci_hi)
+    pred_upper <- pmax(ci_lo, ci_hi)
     if (pi) {
-      pi_lower <- transf(pi_lower)
-      pi_upper <- transf(pi_upper)
+      pi_lo    <- transf(pi_lower)
+      pi_hi    <- transf(pi_upper)
+      pi_lower <- pmin(pi_lo, pi_hi)
+      pi_upper <- pmax(pi_lo, pi_hi)
     }
     if (si) {
-      si_lower <- transf(si_lower)
-      si_upper <- transf(si_upper)
+      si_lo    <- transf(si_lower)
+      si_hi    <- transf(si_upper)
+      si_lower <- pmin(si_lo, si_hi)
+      si_upper <- pmax(si_lo, si_hi)
     }
   }
 
@@ -872,9 +882,11 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
   # draw observed points (bubbles)
   if (mod_type == "categorical") {
-    # add jitter for categorical
-    set.seed(42)  # for reproducibility
+    # add jitter for categorical (save/restore RNG state)
+    old_seed <- if (exists(".Random.seed", envir = .GlobalEnv)) get(".Random.seed", envir = .GlobalEnv) else NULL
+    set.seed(42)
     x_jittered <- df_points$x + stats::runif(nrow(df_points), -jitter_am, jitter_am)
+    if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = .GlobalEnv) else rm(".Random.seed", envir = .GlobalEnv)
     graphics::points(x_jittered, df_points$y, pch = pch, col = col, bg = bg,
                      cex = df_points$size)
   } else {

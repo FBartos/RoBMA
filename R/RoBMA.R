@@ -25,7 +25,6 @@ RoBMA <- function(
   seed = NULL, silent = TRUE, ...) {
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
   object       <- .createObject(
     dots = dots, class = c("RoBMA", "brma"),

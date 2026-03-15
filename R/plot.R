@@ -363,15 +363,17 @@ diagnostic_plots.brma <- function(x, parameter, parameter_mods, parameter_scale,
 #' @rdname diagnostic_plots
 diagnostic_plots_autocorrelation <- function(x, ...) UseMethod("diagnostic_plots_autocorrelation")
 
+#' @export
 #' @rdname diagnostic_plots
 diagnostic_plots_autocorrelation.brma <- function(x, parameter = NULL, plot_type = "base", lags = 30, ...) {
-  diagnostic_plots(x = x, parameter = parameter, type = "autocorrelation", plot_type = plot_type, lags = 30, ...)
+  diagnostic_plots(x = x, parameter = parameter, type = "autocorrelation", plot_type = plot_type, lags = lags, ...)
 }
 
 #' @export
 #' @rdname diagnostic_plots
 diagnostic_plots_trace <- function(x, ...) UseMethod("diagnostic_plots_trace")
 
+#' @export
 #' @rdname diagnostic_plots
 diagnostic_plots_trace.brma           <- function(x, parameter = NULL, plot_type = "base", ...) {
   diagnostic_plots(x = x, parameter = parameter, type = "trace", plot_type = plot_type, ...)
@@ -381,6 +383,7 @@ diagnostic_plots_trace.brma           <- function(x, parameter = NULL, plot_type
 #' @rdname diagnostic_plots
 diagnostic_plots_density <- function(x, ...) UseMethod("diagnostic_plots_density")
 
+#' @export
 #' @rdname diagnostic_plots
 diagnostic_plots_density.brma         <- function(x, parameter = NULL, plot_type = "base", ...) {
   diagnostic_plots(x = x, parameter = parameter, type = "density", plot_type = plot_type, ...)
@@ -601,13 +604,18 @@ diagnostic_plots_density.brma         <- function(x, parameter = NULL, plot_type
   return(dots)
 }
 .get_samples_n_levels <- function(samples, parameter) {
+
   if (inherits(samples[[parameter]], "mixed_posteriors.factor")) {
-    if (attr(samples[[parameter]],"orthonormal") || attr(samples[[parameter]],"meandif")) {
-      n_levels <- length(attr(samples[[parameter]],"level_names"))
-    } else if (attr(samples[[parameter]],"treatment")) {
-      n_levels <- length(attr(x$add_info[["predictors"]],"level_names")) - 1
+    if (attr(samples[[parameter]], "orthonormal") || attr(samples[[parameter]], "meandif")) {
+      n_levels <- length(attr(samples[[parameter]], "level_names"))
+    } else if (attr(samples[[parameter]], "treatment")) {
+      n_levels <- length(attr(samples[[parameter]], "level_names")) - 1
+    } else {
+      n_levels <- 1
     }
   } else {
     n_levels <- 1
   }
+
+  return(n_levels)
 }
