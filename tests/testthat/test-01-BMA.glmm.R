@@ -53,3 +53,6 @@ test_that("BMA.glmm handles custom priors", {
   # tau mixture should only have alternative (no null)
   expect_equal(length(fit$priors$outcome$tau), 1)
 })
+
+# TODO: add single group models
+# TODO: add single group models

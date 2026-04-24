@@ -76,49 +76,32 @@
   H_samples      <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
   se_samples     <- if (return_se) matrix(0, nrow = S, ncol = K) else NULL
   M_diag_samples <- matrix(0, nrow = S, ncol = K) # useful debug/checking
+  V              <- diag(vi, nrow = K, ncol = K)
+  I_K            <- diag(K)
 
   # Pre-calculate indices for multilevel blocks to avoid repeating inside loop
   block_indices <- list()
   if (is_multilevel) {
-    unique_ids <- unique(ids[!is.na(ids)])
-    for (id in unique_ids) {
-      idx <- which(ids == id)
-      if (length(idx) > 1) {
-        block_indices[[as.character(id)]] <- idx
-      }
-    }
+    block_indices <- .get_multilevel_block_indices(ids)
   }
 
   for (s in seq_len(S)) {
     # 1. Construct full Marginal Variance Matrix M
-    # Diagonal: vi + tau_within^2 + tau_between^2
     tau2_w_s <- tau_within_samples[s, ]^2
-    tau2_b_s <- tau_between_samples[s, ]^2
+    tau_b_s  <- tau_between_samples[s, ]
 
-    M_diag <- vi + tau2_w_s + tau2_b_s
-    M <- diag(M_diag)
-    M_diag_samples[s, ] <- M_diag
-
-    # Add off-diagonal tau_between^2 for same study (multilevel only)
-    if (length(block_indices) > 0) {
-      # tau_between is constant within study (usually), take first from sample
-      # Assuming tau2_b is constant across studies for standard 3-lvl logic here
-      # If it were varying per ID, we'd need to fetch it per ID.
-      # .evaluate.brma.tau usually returns S x K where K matches data.
-      # So we can just take the value from the first index of the block.
-
-      for (bid in names(block_indices)) {
-        idx <- block_indices[[bid]]
-        val <- tau2_b_s[idx[1]]
-
-        # Add val to off-diagonals of the block
-        # (diagonal already has it, so we add 0 to diagonal of the block addition)
-        block_add <- matrix(val, nrow = length(idx), ncol = length(idx))
-        diag(block_add) <- 0
-
-        M[idx, idx] <- M[idx, idx] + block_add
-      }
+    if (is_multilevel) {
+      M <- .build_multilevel_marginal_covariance(
+        tau_within    = tau_within_samples[s, ],
+        tau_between   = tau_b_s,
+        vi            = vi,
+        block_indices = block_indices
+      )
+    } else {
+      M <- diag(vi + tau2_w_s, nrow = K, ncol = K)
     }
+
+    M_diag_samples[s, ] <- diag(M)
 
     # 2. Compute Weight matrix W and Hat matrix H
     # W = M^{-1}
@@ -154,29 +137,25 @@
 
     # 3. Compute Standard Errors if requested
     if (return_se) {
-      ImH <- diag(K) - H
+      ImH <- I_K - H
 
       if (type == "marginal") {
         # Marginal: Var(e) = (I-H) M (I-H)'
-        ve <- ImH %*% tcrossprod(M, ImH)
-        se_samples[s, ] <- sqrt(diag(ve))
+        ve <- ImH %*% M %*% t(ImH)
+        se_samples[s, ] <- sqrt(pmax(diag(ve), 0))
       } else if (type == "study") {
         # Study: Var(e) = (I-H) M_within (I-H)'
         # M_within = diag(vi + tau_within^2)
-        M_within <- diag(vi + tau2_w_s)
+        M_within <- diag(vi + tau2_w_s, nrow = K, ncol = K)
 
-        ve <- ImH %*% tcrossprod(M_within, ImH)
-        se_samples[s, ] <- sqrt(diag(ve))
+        ve <- ImH %*% M_within %*% t(ImH)
+        se_samples[s, ] <- sqrt(pmax(diag(ve), 0))
       } else if (type == "estimate") {
         # Estimate/Conditional:
-        # SE = sqrt(diag(V W (I-H) V)) where V = diag(vi)
-        # V * W * (I-H) * V
-        # Simplification: V * W * (ImH) * V
-        # Since V is diagonal, this is V %*% (W %*% ImH) %*% V
-        # Diagonal elements: vi[i] * (W%*%ImH)[i,i] * vi[i] = vi[i]^2 * (W%*%ImH)[i,i]
-
-        W_ImH <- W %*% ImH
-        se_samples[s, ] <- sqrt(vi^2 * diag(W_ImH))
+        # Metafor's multilevel conditional residual variance is:
+        # V W (I-H) M (I-H)' W V, where V is the sampling covariance.
+        residual_v <- V %*% W %*% ImH %*% M %*% t(ImH) %*% W %*% V
+        se_samples[s, ] <- sqrt(pmax(diag(residual_v), 0))
       }
     }
   }

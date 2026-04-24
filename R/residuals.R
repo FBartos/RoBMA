@@ -168,9 +168,6 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
     # standardize residuals if requested
     if (type == "pearson" || type == "rstandard") {
 
-      hat_type <- "marginal" # residuals() uses marginal residuals by default
-      calc_se  <- TRUE
-
       if (type == "rstandard") {
         # use hat matrix SE
         hat_res       <- .compute_hat_matrix_samples(object, type = "marginal", return_se = TRUE)
@@ -329,10 +326,13 @@ rstandard.brma <- function(model, type = "marginal", ...) {
   # compute standardized residuals
   z_samples <- resid_samples / se_samples
 
+  resid <- colMeans(resid_samples)
+  se    <- colMeans(se_samples)
+
   # construct output data frame matching metafor::rstandard format
   out <- data.frame(
-    resid = colMeans(resid_samples),
-    se    = colMeans(se_samples),
+    resid = resid,
+    se    = se,
     z     = colMeans(z_samples)
   )
   rownames(out) <- NULL
@@ -418,15 +418,11 @@ rstudent.brma <- function(model, type = "marginal", ...) {
   if (type == "conditional") type <- "estimate"
 
   # check model type availability
-  outcome_type <- .outcome_type(model)
   is_multilevel <- .is_multilevel(model)
 
   # study type requires multilevel model
   if (type == "study" && !is_multilevel) {
-    stop(
-      "type = 'study' is only available for multilevel (3-level) models.",
-      call. = FALSE
-    )
+    stop("type = 'study' is only available for multilevel (3-level) models.", call. = FALSE)
   }
 
   # get observed effect sizes

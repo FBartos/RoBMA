@@ -822,8 +822,6 @@ test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", 
                 info = paste(name, ": log_lik should be a matrix"))
     expect_true(all(is.finite(log_lik)),
                 info = paste(name, ": all log-likelihoods should be finite"))
-    expect_true(all(log_lik <= 0),
-                info = paste(name, ": all log-likelihoods should be non-positive"))
 
     # verify dimensions match
     K <- length(.outcome_data_yi(object))

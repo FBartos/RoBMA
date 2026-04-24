@@ -31,3 +31,4 @@ _pkgdown.yml
 ^\.claude$
 CLAUDE.md
 ^knowledge-base$
+^\.positai$

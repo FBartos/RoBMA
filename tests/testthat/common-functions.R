@@ -153,3 +153,53 @@ clean_cached_fits <- function(name) {
 
   return(invisible(TRUE))
 }
+
+
+# Construct conditional standardized residuals for multilevel metafor::rma.mv fits.
+# metafor::rstandard() only provides marginal residuals for rma.mv, so the
+# conditional oracle must be built from the marginal fit, BLUP random effects,
+# and the GLS residual variance matrix.
+metafor_rstandard_conditional_mv <- function(model) {
+  if (!inherits(model, "rma.mv")) {
+    stop("'model' must inherit from 'rma.mv'.", call. = FALSE)
+  }
+  if (is.null(model[["yi"]]) || is.null(model[["X"]]) ||
+      is.null(model[["M"]])  || is.null(model[["V"]])) {
+    stop("Model object does not contain the information needed for conditional residuals.", call. = FALSE)
+  }
+
+  fitted_values <- as.vector(stats::fitted(model))
+
+  ranef_components <- metafor::ranef(model, expand = TRUE)
+  if (length(ranef_components) == 0L) {
+    stop("No random-effect BLUPs available for this 'rma.mv' object.", call. = FALSE)
+  }
+
+  random_effects <- Reduce(
+    `+`,
+    lapply(ranef_components, function(component) component[["intrcpt"]])
+  )
+
+  residuals <- as.vector(model[["yi"]] - (fitted_values + random_effects))
+
+  hat_matrix <- stats::hatvalues(model, type = "matrix")
+  marginal_v <- model[["M"]]
+  sampling_v <- model[["V"]]
+  weights    <- chol2inv(chol(marginal_v))
+  k          <- model[["k"]]
+  identity   <- diag(k)
+  imh        <- identity - hat_matrix
+
+  residual_v <- sampling_v %*% weights %*% imh %*% marginal_v %*%
+    t(imh) %*% weights %*% sampling_v
+  se <- sqrt(diag(residual_v))
+
+  out <- data.frame(
+    resid = residuals,
+    se    = as.vector(se),
+    z     = residuals / se
+  )
+  rownames(out) <- NULL
+
+  return(out)
+}

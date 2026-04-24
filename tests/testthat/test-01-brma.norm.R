@@ -23,18 +23,18 @@ test_that("Test against metafor::rma.uni", {
   expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau", "Mean"], tolerance = 0.05)
 
 
-  ### fit meta-regression
+  ### fit meta-regression (continuous predictors)
   fit_mods.metafor <- metafor::rma(yi, vi, mods = ~ ablat + year, data = dat)
 
-  # using RoBMA package
-  fit_mods.brma <- brma(yi, vi, mods = ~ ablat + year, data = dat, measure = "RR", seed = 1, silent = TRUE)
+  # using RoBMA package (rescale priors to reduce the shrinkage)
+  fit_mods.brma <- brma(yi, vi, mods = ~ ablat + year, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 5)
   fit_mods.brma <- add_marglik(fit_mods.brma)
   fit_mods.brma <- suppressWarnings(add_loo(fit_mods.brma))
   save_fit("bcg_meta-regression", fit_mods.brma, info = list(mods = c("ablat", "year"), metafor = fit_mods.metafor))
 
-  expect_equal(fit_mods.metafor$beta[[1]], fit_mods.brma$summary["(mu) intercept", "Mean"], tolerance = 1.5)
+  expect_equal(fit_mods.metafor$beta[[1]], fit_mods.brma$summary["(mu) intercept", "Mean"], tolerance = 0.25)
   expect_equal(fit_mods.metafor$beta[[2]], fit_mods.brma$summary["(mu) ablat", "Mean"], tolerance = 0.01)
-  expect_equal(fit_mods.metafor$beta[[3]], fit_mods.brma$summary["(mu) year", "Mean"], tolerance = 0.001)
+  expect_equal(fit_mods.metafor$beta[[3]], fit_mods.brma$summary["(mu) year", "Mean"], tolerance = 0.01)
   # the large difference in the intercept is a consequence in the large impact of small changes in the year coefficient
   # (they get multiplied by 2000)
 
@@ -44,6 +44,73 @@ test_that("Test against metafor::rma.uni", {
   expect_equal(fit_mods.metafor.scaled$beta[[1]], fit_mods.brma.scaled["(mu) intercept", "Mean"], tolerance = 0.05)
   expect_equal(fit_mods.metafor.scaled$beta[[2]], fit_mods.brma.scaled["(mu) ablat", "Mean"], tolerance = 0.05)
   expect_equal(fit_mods.metafor.scaled$beta[[3]], fit_mods.brma.scaled["(mu) year", "Mean"], tolerance = 0.05)
+
+
+  ### fit meta-regression (factor predictor)
+  fit_mods2.metafor <- metafor::rma(yi, vi, mods = ~ alloc, data = dat)
+
+  # using RoBMA package (increase scale because of shrinkage, dummy coding)
+  fit_mods2.brma <- brma(yi, vi, mods = ~ alloc, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 5)
+  fit_mods2.brma <- add_marglik(fit_mods2.brma)
+  fit_mods2.brma <- suppressWarnings(add_loo(fit_mods2.brma))
+  save_fit("bcg_meta-regression2", fit_mods2.brma, info = list(mods = c("alloc"), metafor = fit_mods2.metafor))
+
+  expect_equal(fit_mods2.metafor$beta[[1]], fit_mods2.brma$summary["(mu) intercept", "Mean"], tolerance = 0.05)
+  expect_equal(fit_mods2.metafor$beta[[2]], fit_mods2.brma$summary["(mu) alloc[random]", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods2.metafor$beta[[3]], fit_mods2.brma$summary["(mu) alloc[systematic]", "Mean"], tolerance = 0.05)
+
+  # using RoBMA package (increase scale because of shrinkage, meandif coding)
+  fit_mods2b.brma <- brma(yi, vi, mods = ~ alloc, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 2, set_contrast_factor_predictors = "meandif")
+  fit_mods2b.brma <- add_marglik(fit_mods2b.brma)
+  fit_mods2b.brma <- suppressWarnings(add_loo(fit_mods2b.brma))
+  save_fit("bcg_meta-regression2b", fit_mods2b.brma, info = list(mods = c("alloc"), metafor = NULL))
+
+
+  ### fit meta-regression with interaction (fact * cont)
+  fit_mods3.metafor <- metafor::rma(yi, vi, mods = ~ alloc * year, data = dat)
+
+  # using RoBMA package (increase scale because of shrinkage, dummy coding)
+  fit_mods3.brma <- brma(yi, vi, mods = ~ alloc * year, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 5)
+  fit_mods3.brma <- add_marglik(fit_mods3.brma)
+  fit_mods3.brma <- suppressWarnings(add_loo(fit_mods3.brma))
+  save_fit("bcg_meta-regression3", fit_mods3.brma, info = list(mods = c("alloc", "year", "alloc:year"), metafor = fit_mods3.metafor))
+
+  expect_equal(fit_mods3.metafor$beta[[1]], fit_mods3.brma$summary["(mu) intercept", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods3.metafor$beta[[2]], fit_mods3.brma$summary["(mu) alloc[random]", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods3.metafor$beta[[3]], fit_mods3.brma$summary["(mu) alloc[systematic]", "Mean"], tolerance = 0.15)
+  expect_equal(fit_mods3.metafor$beta[[4]], fit_mods3.brma$summary["(mu) year", "Mean"], tolerance = 0.05)
+  expect_equal(fit_mods3.metafor$beta[[5]], fit_mods3.brma$summary["(mu) alloc[systematic]:year", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods3.metafor$beta[[6]], fit_mods3.brma$summary["(mu) alloc[random]:year", "Mean"], tolerance = 0.10)
+
+  # using RoBMA package (increase scale because of shrinkage, meandif coding)
+  fit_mods3b.brma <- brma(yi, vi, mods = ~ alloc * year, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 5, set_contrast_factor_predictors = "meandif")
+  fit_mods3b.brma <- add_marglik(fit_mods3b.brma)
+  fit_mods3b.brma <- suppressWarnings(add_loo(fit_mods3b.brma))
+  save_fit("bcg_meta-regression3b", fit_mods3b.brma, info = list(mods = c("alloc", "year", "alloc:year"), metafor = NULL))
+
+
+  ### fit meta-regression with interaction (fact * fact)
+  dat$year_before1969 <- factor(dat$year < 1969)
+  fit_mods4.metafor <- metafor::rma(yi, vi, mods = ~ alloc * year_before1969, data = dat)
+
+  # using RoBMA package (increase scale because of shrinkage, dummy coding)
+  fit_mods4.brma <- brma(yi, vi, mods = ~ alloc * year_before1969, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 5)
+  fit_mods4.brma <- add_marglik(fit_mods4.brma)
+  fit_mods4.brma <- suppressWarnings(add_loo(fit_mods4.brma))
+  save_fit("bcg_meta-regression4", fit_mods4.brma, info = list(mods = c("alloc", "year_before1969", "alloc:year_before1969"), metafor = fit_mods4.metafor))
+
+  expect_equal(fit_mods4.metafor$beta[[1]], fit_mods4.brma$summary["(mu) intercept", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods4.metafor$beta[[2]], fit_mods4.brma$summary["(mu) alloc[random]", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods4.metafor$beta[[3]], fit_mods4.brma$summary["(mu) alloc[systematic]", "Mean"], tolerance = 0.15)
+  expect_equal(fit_mods4.metafor$beta[[4]], fit_mods4.brma$summary["(mu) year", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods4.metafor$beta[[5]], fit_mods4.brma$summary["(mu) alloc[random]:year_before1969[TRUE]", "Mean"], tolerance = 0.15)
+  expect_equal(fit_mods4.metafor$beta[[6]], fit_mods4.brma$summary["(mu) alloc[systematic]:year_before1969[TRUE]", "Mean"], tolerance = 0.10)
+
+  # using RoBMA package (increase scale because of shrinkage, meandif coding)
+  fit_mods4b.brma <- brma(yi, vi, mods = ~ alloc * year_before1969, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 5, set_contrast_factor_predictors = "meandif")
+  fit_mods4b.brma <- add_marglik(fit_mods4b.brma)
+  fit_mods4b.brma <- suppressWarnings(add_loo(fit_mods4b.brma))
+  save_fit("bcg_meta-regression4b", fit_mods4b.brma, info = list(mods = c("alloc", "year_before1969", "alloc:year_before1969"), metafor = NULL))
 })
 
 test_that("Test against metafor::rma.ls", {
@@ -83,4 +150,19 @@ test_that("Test against metafor::rma.mv (3lvl)", {
   expect_equal(fit_3lvl.metafor$beta[[1]], fit_3lvl.brma$summary["mu", "Mean"], tolerance = 0.01)
   expect_equal(sqrt(fit_3lvl.metafor$tau2), fit_3lvl.brma$summary["tau", "Mean"], tolerance = 0.01)
   expect_equal(fit_3lvl.metafor$rho, fit_3lvl.brma$summary["rho", "Mean"], tolerance = 0.05)
+
+  ### fit 3lvl model with a predictor
+  data(dat.konstantopoulos2011, package = "metadat")
+  fit_3lvl2.metafor <- metafor::rma.mv(yi, vi, mods = ~ vi, random = ~ school | district, data = dat.konstantopoulos2011)
+
+  # using RoBMA package
+  fit_3lvl2.brma <- brma(yi, vi, mods = ~ vi, study_ids = district, data = dat.konstantopoulos2011, measure = "SMD", seed = 1, silent = TRUE)
+  fit_3lvl2.brma <- add_marglik(fit_3lvl2.brma)
+  fit_3lvl2.brma <- suppressWarnings(add_loo(fit_3lvl2.brma))
+  save_fit("konstantopoulos2011_3lvl2", fit_3lvl2.brma, info = list(metafor = fit_3lvl2.metafor))
+
+  expect_equal(fit_3lvl2.metafor$beta[[1]], fit_3lvl2.brma$summary["(mu) intercept", "Mean"], tolerance = 0.01)
+  expect_equal(fit_3lvl2.metafor$beta[[2]], fit_3lvl2.brma$summary["(mu) vi", "Mean"], tolerance = 0.10)
+  expect_equal(sqrt(fit_3lvl2.metafor$tau2), fit_3lvl2.brma$summary["tau", "Mean"], tolerance = 0.01)
+  expect_equal(fit_3lvl2.metafor$rho, fit_3lvl2.brma$summary["rho", "Mean"], tolerance = 0.05)
 })

@@ -25,6 +25,24 @@ test_that("Test against metafor::selmodel", {
   expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,1]", "Mean"], tolerance = 0.10)
 })
 
+test_that("Test against metafor::selmodel with 2 steps", {
+  ### fit selection model
+  data(dat.lehmann2018, package = "metadat")
+  fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
+  fit_selmodel.metafor <- metafor::selmodel(fit_rma.metafor, type = "stepfun", alternative = "greater", steps = c(.025, 0.50))
+
+  # using RoBMA package
+  fit.bselmodel <- bselmodel(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE, steps = c(0.025, 0.50))
+  fit.bselmodel <- add_marglik(fit.bselmodel)
+  fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
+  save_fit("dat.lehmann2018-4PSM", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
+
+  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["mu", "Mean"], tolerance = 0.05)
+  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.05)
+  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,0.5]", "Mean"], tolerance = 0.15)
+  expect_equal(fit_selmodel.metafor$delta[3], fit.bselmodel$summary["omega[0.5,1]", "Mean"], tolerance = 0.15)
+})
+
 test_that("Test against metafor::selmodel (with negative effect sizes)", {
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")

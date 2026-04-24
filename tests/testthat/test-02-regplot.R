@@ -173,6 +173,27 @@ test_that("Regression plot has correct interface", {
     info = "points should have x, y, and size columns"
   )
 
+  # Check continuous interval-band structure
+  band_columns <- c("x", "y", "lower", "upper", "xpred")
+  n_pred       <- nrow(regplot_data$pred)
+
+  for (band_name in c("ci", "pi", "si")) {
+    band_data <- regplot_data[[band_name]]
+
+    expect_true(all(band_columns %in% names(band_data)),
+      info = paste0(band_name, " should have x, y, lower, upper, and xpred columns")
+    )
+    expect_equal(nrow(band_data), 2 * n_pred,
+      info = paste0(band_name, " should contain one row per polygon vertex")
+    )
+    expect_true(all(vapply(band_data[band_columns], length, integer(1)) == nrow(band_data)),
+      info = paste0(band_name, " columns should all have matching lengths")
+    )
+    expect_equal(band_data$x, band_data$xpred,
+      info = paste0(band_name, " x coordinates should match the stored prediction x values")
+    )
+  }
+
   # Check number of points matches number of studies
   n_studies <- nrow(fit_brma$data$outcome)
   expect_equal(nrow(regplot_data$points), n_studies,

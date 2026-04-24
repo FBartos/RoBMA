@@ -217,6 +217,122 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .get_multilevel_block_indices
+# ---------------------------------------------------------------------------- #
+#
+# Create a reusable block index list for multilevel covariance calculations.
+#
+# @param study_ids integer vector of study identifiers
+#
+# @return A named list of integer index vectors, one per study.
+#
+# ---------------------------------------------------------------------------- #
+.get_multilevel_block_indices <- function(study_ids) {
+
+  split(seq_along(study_ids), study_ids)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .build_multilevel_marginal_covariance
+# ---------------------------------------------------------------------------- #
+#
+# Construct the marginal covariance matrix for a 3-level normal model.
+#
+# The covariance decomposes into:
+# - sampling variance: diag(vi)
+# - estimate-level heterogeneity: diag(tau_within^2)
+# - study-level heterogeneity: block-wise tcrossprod(tau_between)
+#
+# @param tau_within    numeric vector of length K with within-study SDs
+# @param tau_between   numeric vector of length K with between-study SDs
+# @param vi            numeric vector of length K with sampling variances
+# @param block_indices list of observation indices for each study
+#
+# @return A K x K marginal covariance matrix.
+#
+# ---------------------------------------------------------------------------- #
+.build_multilevel_marginal_covariance <- function(tau_within, tau_between, vi,
+                                                  block_indices) {
+
+  K <- length(vi)
+
+  marginal_covariance <- diag(vi + tau_within^2, nrow = K, ncol = K)
+
+  for (idx in block_indices) {
+    marginal_covariance[idx, idx] <- marginal_covariance[idx, idx] +
+      tcrossprod(tau_between[idx])
+  }
+
+  return(marginal_covariance)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.multilevel_blup.norm
+# ---------------------------------------------------------------------------- #
+#
+# Compute exact same-data BLUP contributions for 3-level normal models.
+#
+# The conditional predictor is obtained from the marginal mixed-model identity:
+#   b_hat = G M^{-1} (y - X beta)
+# where G is decomposed into study-level and estimate-level components.
+#
+# @param mu_samples   S x K matrix of fixed-effect predictions
+# @param tau_within   S x K matrix of within-study SDs
+# @param tau_between  S x K matrix of between-study SDs
+# @param yi           numeric vector of observed outcomes
+# @param vi           numeric vector of sampling variances
+# @param study_ids    integer vector of study identifiers
+#
+# @return A list with S x K matrices `study` and `estimate`.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.multilevel_blup.norm <- function(mu_samples, tau_within, tau_between,
+                                                yi, vi, study_ids) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  block_indices <- .get_multilevel_block_indices(study_ids)
+
+  study_contribution    <- matrix(0, nrow = S, ncol = K)
+  estimate_contribution <- matrix(0, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    marginal_covariance <- .build_multilevel_marginal_covariance(
+      tau_within    = tau_within[s, ],
+      tau_between   = tau_between[s, ],
+      vi            = vi,
+      block_indices = block_indices
+    )
+
+    chol_m <- try(chol(marginal_covariance), silent = TRUE)
+
+    if (inherits(chol_m, "try-error")) {
+      weights <- tryCatch(solve(marginal_covariance), error = function(e) MASS::ginv(marginal_covariance))
+    } else {
+      weights <- chol2inv(chol_m)
+    }
+
+    weighted_residual <- as.vector(weights %*% (yi - mu_samples[s, ]))
+
+    estimate_contribution[s, ] <- tau_within[s, ]^2 * weighted_residual
+
+    for (idx in block_indices) {
+      study_scale <- sum(tau_between[s, idx] * weighted_residual[idx])
+      study_contribution[s, idx] <- tau_between[s, idx] * study_scale
+    }
+  }
+
+  return(list(
+    study    = study_contribution,
+    estimate = estimate_contribution
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .evaluate.brma.study_effects
 # ---------------------------------------------------------------------------- #
 #

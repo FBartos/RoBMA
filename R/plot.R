@@ -179,12 +179,14 @@ plot_weightfunction.brma  <- function(
 }
 
 
-#' @title Plots Weight Function of brma Object
+#' @title Plots PET-PEESE Fit of brma Object
 #'
 #' @description \code{plot.brma} visualizes posterior
-#' (and prior) weight function of a brma object.
+#' (and prior) PET-PEESE fit of a brma object.
 #'
 #' @param x a fitted RoBMA object
+#' @param show_data whether the observed effect sizes should be added to
+#' figure. Defaults to \code{TRUE}.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.

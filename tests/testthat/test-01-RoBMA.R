@@ -1,4 +1,4 @@
-context("Model fitting for bselmodel")
+context("Model fitting for RoBMA")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
@@ -9,7 +9,8 @@ skip_refit_if_cached("RoBMA")
 
 ### Uses examples from the metafor package
 test_that("Test RoBMA", {
-
+  # test the default model
+  data(Bem2011, package = "RoBMA")
   data(dat.lehmann2018, package = "metadat")
   fit.RoBMA <- RoBMA(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
   fit.RoBMA <- suppressWarnings(add_loo(fit.RoBMA))
@@ -18,7 +19,6 @@ test_that("Test RoBMA", {
 })
 
 test_that("Test RoBMA (with negative effect sizes)", {
-  skip("TODO")
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
   fit.RoBMA <- RoBMA(yi, vi, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
@@ -26,3 +26,5 @@ test_that("Test RoBMA (with negative effect sizes)", {
 
   save_fit("dat.lehmann2018-RoBMA-neg", fit.RoBMA, info = list())
 })
+
+# TODO: add examples

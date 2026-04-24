@@ -239,6 +239,9 @@ NULL
     k      = k
   )
 
+    data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
+    data_scale <- .check_and_list_data.coerce_character_predictors(data_scale)
+
   ### Step 3: Apply subset (before NA handling)
   subset <- .get_variable(.call, data, .envir, "subset", allow_NULL = TRUE)
 
@@ -742,6 +745,31 @@ NULL
     stop(paste0("The '", name, "' argument must be a formula, matrix, or data.frame."),
          call. = FALSE)
   }
+}
+
+
+# Internal function to coerce character predictors to factors
+# Character moderators and scale predictors must be factors before downstream
+# contrast handling builds design matrices.
+#
+# @param df A data.frame with predictor variables (can be NULL)
+#
+# @return The input data.frame with character columns converted to factors
+.check_and_list_data.coerce_character_predictors <- function(df) {
+
+  if (is.null(df))
+    return(NULL)
+
+  character_columns <- vapply(df, is.character, logical(1))
+
+  if (!any(character_columns))
+    return(df)
+
+  for (col_name in names(df)[character_columns]) {
+    df[[col_name]] <- factor(df[[col_name]])
+  }
+
+  return(df)
 }
 
 

@@ -3,7 +3,7 @@
 \name{plot_PETPEESE}
 \alias{plot_PETPEESE}
 \alias{plot_PETPEESE.brma}
-\title{Plots Weight Function of brma Object}
+\title{Plots PET-PEESE Fit of brma Object}
 \usage{
 plot_PETPEESE(x, ...)
 
@@ -27,6 +27,9 @@ to adjust the line thickness, line type, line color, fill color,
 x-label, y-label, title, x-axis range, and y-axis range
 respectively.}
 
+\item{show_data}{whether the observed effect sizes should be added to
+figure. Defaults to \code{TRUE}.}
+
 \item{prior}{whether prior distribution should be added to
 figure. Defaults to \code{FALSE}.}
 
@@ -47,7 +50,7 @@ or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \description{
 \code{plot.brma} visualizes posterior
-(and prior) weight function of a brma object.
+(and prior) PET-PEESE fit of a brma object.
 }
 \examples{
 \dontrun{

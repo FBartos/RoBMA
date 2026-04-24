@@ -278,14 +278,30 @@ predict.brma <- function(object, newdata = NULL,
   # returns contribution matrix gamma[study_id] * tau_between for multilevel models
   # see .evaluate.brma.study_effects() in brma.evaluate.R for details
   # for aggregated predictions (same_data = FALSE, K = 1), function samples new gamma ~ N(0,1)
-  if (is_multilevel) {
-    study_contribution <- .evaluate.brma.study_effects(
-      fit              = object[["fit"]],
-      tau_between      = tau_between_samples,
-      study_ids        = fit_data[["study_ids"]],
-      same_data        = same_data,
-      effect_direction = effect_direction
+  multilevel_blup <- NULL
+  if (is_multilevel && outcome_type == "norm" && same_data) {
+    multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
+      mu_samples  = mu_samples,
+      tau_within  = tau_within_samples,
+      tau_between = tau_between_samples,
+      yi          = outcome_data[["yi"]],
+      vi          = outcome_data[["sei"]]^2,
+      study_ids   = fit_data[["study_ids"]]
     )
+  }
+
+  if (is_multilevel) {
+    if (!is.null(multilevel_blup)) {
+      study_contribution <- multilevel_blup[["study"]]
+    } else {
+      study_contribution <- .evaluate.brma.study_effects(
+        fit              = object[["fit"]],
+        tau_between      = tau_between_samples,
+        study_ids        = fit_data[["study_ids"]],
+        same_data        = same_data,
+        effect_direction = effect_direction
+      )
+    }
     mu_samples <- mu_samples + study_contribution
   }
 
@@ -312,7 +328,9 @@ predict.brma <- function(object, newdata = NULL,
   # - same_data = FALSE: sample from marginal distribution N(mu, tau_within)
   if (type == "estimate") {
 
-    if (outcome_type == "norm") {
+    if (!is.null(multilevel_blup)) {
+      true_effects_samples <- mu_samples + multilevel_blup[["estimate"]]
+    } else if (outcome_type == "norm") {
       true_effects_samples <- .evaluate.brma.true_effects.norm(
         mu_samples = mu_samples,
         tau_within = tau_within_samples,

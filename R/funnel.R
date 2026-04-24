@@ -5,8 +5,9 @@
 # This file contains the funnel plot functions for brma objects.
 #
 # Two modes of dispatch:
-# 1) No mods AND no scale: Shows outcome residuals against sampling distribution
-# 2) All other cases: Shows standardized residuals against standard normal
+# 1) No mods AND no scale: Shows observed effect sizes against the fitted
+#    sampling distribution
+# 2) All other cases: Shows residuals against a standard-error funnel
 #
 # ============================================================================ #
 
@@ -19,38 +20,42 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' @title Funnel Plot for brma Object
 #'
 #' @description \code{funnel.brma} creates a funnel plot for a fitted brma object.
-#' For intercept-only models without scale regression, this displays observed
-#' effect sizes against the expected sampling distribution. For models with
-#' moderators or scale regression, this displays standardized residuals against
-#' the standard normal distribution.
+#' For intercept-only models without scale regression, the default outcome mode
+#' displays observed effect sizes against the fitted sampling distribution. For
+#' models with location or scale moderators, the default residual mode displays
+#' residuals against a standard-error funnel.
 #'
 #' @param x a fitted brma object
-#' @param residual whether to use standardized residuals mode. Defaults to
-#' not specified, which means the function automatically determines the mode:
+#' @param residual whether to use residual mode. Defaults to not specified,
+#' which means the function automatically determines the mode:
 #' \itemize{
 #'   \item \code{FALSE} (auto): For intercept-only models without scale
-#'     regression, displays observed effect sizes minus the pooled estimate
-#'     against the sampling distribution funnel.
+#'     regression, displays observed effect sizes against the fitted sampling
+#'     distribution funnel.
 #'   \item \code{TRUE} (auto or explicit): For models with moderators or scale
-#'     regression, or when explicitly set to \code{TRUE}, displays standardized
-#'     residuals against the standard normal funnel.
+#'     regression, or when explicitly set to \code{TRUE}, displays residuals on
+#'     the x-axis, using \code{type} to determine how those residuals are
+#'     computed.
 #' }
 #' @param type the type of residuals to use when in residual mode.
 #' Options are:
 #' \itemize{
-#'   \item \code{"LOO-PIT"} (alias: \code{"rstudent"}; default): Leave-one-out probability integral transform
-#'     residuals (most robust, works for all model types).
+#'   \item \code{"LOO-PIT"} (alias: \code{"rstudent"}; default): Leave-one-out
+#'     probability integral transform residuals returned by
+#'     \code{\link{rstudent.brma}}.
 #'   \item \code{"rstandard"}: Internally standardized residuals using
-#'     the hat matrix. Only available for normal outcome models.
-#'   \item \code{"outcome"}: Raw outcome residuals (observed - fitted).
+#'     \code{\link{rstandard.brma}}. Only available for normal outcome models.
+#'   \item \code{"outcome"}: Raw outcome residuals from
+#'     \code{\link{residuals.brma}} with \code{type = "outcome"}.
 #' }
 #' Only used when funnel is in residual mode.
 #' @param sampling_heterogeneity whether heterogeneity should be incorporated
 #' into the sampling distribution funnel. Defaults to \code{TRUE}. Only used
-#' when \code{residual = FALSE} (outcome mode).
+#' in outcome mode and ignored in residual mode.
 #' @param sampling_bias whether publication bias should be incorporated into the
 #' sampling distribution funnel. Defaults to \code{TRUE}. Only used when
-#' \code{residual = FALSE} (outcome mode). When \code{TRUE} and the model
+#' \code{residual = FALSE} or when automatic mode selects outcome mode. Ignored
+#' in residual mode. When \code{TRUE} and the model
 #' includes selection models (weightfunction), uses weighted normal quantiles.
 #' When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 #' skew from these regression adjustments.
@@ -70,60 +75,82 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'   \item{shade}{funnel region fill color (default: "white"). Set to \code{NA} to suppress.}
 #'   \item{lty}{line type for funnel edges and center line (default: "dotted")}
 #'   \item{col.line}{color for funnel edge lines (default: "black")}
-#'   \item{refline}{position of vertical reference line (default: 0)}
+#'   \item{refline}{numeric override for the reference line. By default,
+#'   residual mode uses 0, while outcome mode uses the center of the fitted
+#'   sampling distribution, which may be curved when PET/PEESE bias adjustment
+#'   is incorporated.}
 #'   \item{col.refline}{color of vertical reference line (default: "black")}
-#'   \item{as_data}{if \code{TRUE}, returns plot data instead of creating plot}
+#'   \item{as_data}{if \code{TRUE}, returns plot data instead of creating a plot}
 #' }
 #'
 #' @details
-#' The funnel plot has two modes depending on the model complexity:
+#' The funnel plot has two modes. If \code{residual} is not specified, the mode
+#' is chosen automatically from the fitted model: intercept-only models without
+#' scale regression use outcome mode, whereas models with location or scale
+#' moderators use residual mode.
 #'
 #' \strong{Outcome mode} (intercept-only models without scale regression):
-#' Displays residuals (observed - pooled estimate) on the x-axis and standard
-#' errors on the y-axis. The funnel region represents the 95% prediction region
-#' based on the sampling distribution, optionally incorporating heterogeneity
+#' Displays observed effect sizes on the x-axis and standard errors on the
+#' y-axis. The reference line follows the center of the fitted sampling
+#' distribution. When \code{sampling_bias = FALSE}, this center is the pooled
+#' effect; when PET/PEESE bias adjustment is incorporated, the center line can
+#' vary with the standard error. The funnel region represents the central 95\%
+#' region of the sampling distribution, optionally incorporating heterogeneity
 #' and publication bias.
 #'
 #'
 #' \strong{Residual mode} (models with moderators or scale regression):
 #' Displays residuals on the x-axis and standard errors on the
-#' y-axis. The funnel region represents the 95% prediction region
-#' based on the standard error. Under a correctly specified model,
-#' residuals should fall within this region approximately 95% of the time.
+#' y-axis. The funnel region represents the central 95\% region of
+#' \eqn{N(0, \mathrm{SE}^2)}. With \code{type = "LOO-PIT"} or
+#' \code{"rstandard"}, these are standardized residual diagnostics. With
+#' \code{type = "outcome"}, these are raw outcome residuals. Under a correctly
+#' specified model, most points should fall within this region.
 #'
 #' The \code{type} argument controls how residuals are computed in residual
 #' mode. See \code{\link{residuals.brma}} for details on each type.
+#' The \code{sampling_heterogeneity} and \code{sampling_bias} arguments are
+#' ignored in residual mode.
 #'
 #' For GLMM models, observed effect sizes are computed from the raw frequency
 #' data using formulas equivalent to \code{metafor::escalc}.
 #'
-#' @return \code{funnel.brma} returns \code{NULL} invisibly if \code{plot_type = "base"}
-#' or a ggplot object if \code{plot_type = "ggplot"}.
+#' @return If \code{as_data = TRUE}, \code{funnel.brma} returns a list with the
+#' data used for plotting, including the plotted points, funnel polygons,
+#' plotting limits, labels, and reference line. Otherwise, it returns
+#' \code{NULL} invisibly if \code{plot_type = "base"} or a ggplot object if
+#' \code{plot_type = "ggplot"}.
 #'
 #' @examples \dontrun{
-#' # Simple meta-analysis: outcome mode (yi - mu vs sampling distribution)
+#' # Simple meta-analysis: outcome mode (observed effect sizes vs fitted
+#' # sampling distribution)
 #' fit <- brma(yi ~ 1, sei = sei, data = dat)
 #' funnel(fit)
 #'
 #' # Force residual mode even for simple model
 #' funnel(fit, residual = TRUE)
 #'
-#' # Meta-regression: automatically uses residual mode
+#' # Meta-regression: automatically uses residual mode with LOO-PIT residuals
 #' fit_reg <- brma(yi ~ mod, sei = sei, data = dat)
-#' funnel(fit_reg) # shows standardized residuals
+#' funnel(fit_reg)
 #'
 #' # Different residual types
 #' funnel(fit_reg, type = "LOO-PIT")
+#' funnel(fit_reg, type = "outcome")
 #'
 #' # Customize appearance
 #' funnel(fit, pch = 19, col = "blue", bg = "lightblue")
 #' funnel(fit, back = "lightgrey", shade = "white", lty = "dashed")
 #'
+#' # Return plotting data instead of drawing the figure
+#' funnel_data <- funnel(fit, as_data = TRUE)
+#'
 #' # using ggplot2
 #' funnel(fit, plot_type = "ggplot")
 #' }
 #'
-#' @seealso [residuals.brma()], [rstandard.brma()], [predict.brma()]
+#' @seealso [residuals.brma()], [rstandard.brma()], [rstudent.brma()],
+#'   [predict.brma()]
 #' @export
 #' @rdname funnel
 funnel.brma <- function(x, residual, type = "LOO-PIT",
@@ -187,8 +214,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 #
 # Generate funnel plot data for outcome mode (no mods AND no scale).
 #
-# Shows observed residuals (yi - pooled estimate) against the sampling
-# distribution funnel.
+# Shows observed effect sizes against the fitted sampling distribution funnel.
 #
 # @param x                      brma object
 # @param sampling_heterogeneity logical; incorporate tau into funnel

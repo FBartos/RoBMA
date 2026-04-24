@@ -713,8 +713,26 @@ test_that("Mods auto-converts character to factor", {
   )[["data"]]
 
   expect_true(!is.null(result$mods))
-  # model.frame should convert character to factor
-  expect_true(is.factor(result$mods$mod_char) || is.character(result$mods$mod_char))
+  expect_true(is.factor(result$mods$mod_char))
+  expect_equal(as.character(result$mods$mod_char), test_data_mods$mod_char)
+})
+
+
+test_that("yi formula auto-converts character moderators to factor", {
+
+  skip_on_cran()
+
+  result <- brma.norm(
+    yi   = effect ~ mod_char,
+    sei  = std_err,
+    data = test_data_mods,
+    only_data = TRUE
+  )[["data"]]
+
+  expect_true(!is.null(result$mods))
+  expect_true(is.factor(result$mods$mod_char))
+  expect_equal(as.character(result$mods$mod_char), test_data_mods$mod_char)
+  expect_equal(paste0(as.character(attr(result$mods, "formula")), collapse = " "), "~ mod_char")
 })
 
 

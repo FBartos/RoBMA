@@ -306,6 +306,36 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
 
 # ---------------------------------------------------------------------------- #
+# .regplot_band_data_continuous
+# ---------------------------------------------------------------------------- #
+#
+# Build continuous interval-band data with one row per polygon vertex while
+# preserving the underlying interval bounds for programmatic access.
+#
+# @param xpred numeric vector of prediction x values
+# @param lower numeric vector of lower interval bounds
+# @param upper numeric vector of upper interval bounds
+#
+# @return data.frame with consistent polygon and interval metadata
+#
+# ---------------------------------------------------------------------------- #
+.regplot_band_data_continuous <- function(xpred, lower, upper) {
+
+  band_x     <- c(xpred, rev(xpred))
+  band_lower <- c(lower, rev(lower))
+  band_upper <- c(upper, rev(upper))
+
+  data.frame(
+    x     = unname(band_x),
+    y     = unname(c(lower, rev(upper))),
+    lower = unname(band_lower),
+    upper = unname(band_upper),
+    xpred = unname(band_x)
+  )
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .regplot_data
 # ---------------------------------------------------------------------------- #
 #
@@ -567,12 +597,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   df_ci <- NULL
   if (ci) {
     if (mod_type == "continuous") {
-      df_ci <- data.frame(
-        x     = c(at_pred, rev(at_pred)),
-        y     = c(pred_lower, rev(pred_upper)),
+      df_ci <- .regplot_band_data_continuous(
+        xpred = at_pred,
         lower = pred_lower,
-        upper = pred_upper,
-        xpred = at_pred
+        upper = pred_upper
       )
     } else {
       # for categorical, store as points with error bars
@@ -590,12 +618,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   df_pi <- NULL
   if (pi) {
     if (mod_type == "continuous") {
-      df_pi <- data.frame(
-        x     = c(at_pred, rev(at_pred)),
-        y     = c(pi_lower, rev(pi_upper)),
+      df_pi <- .regplot_band_data_continuous(
+        xpred = at_pred,
         lower = pi_lower,
-        upper = pi_upper,
-        xpred = at_pred
+        upper = pi_upper
       )
     } else {
       df_pi <- data.frame(
@@ -612,12 +638,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   df_si <- NULL
   if (si) {
     if (mod_type == "continuous") {
-      df_si <- data.frame(
-        x     = c(at_pred, rev(at_pred)),
-        y     = c(si_lower, rev(si_upper)),
+      df_si <- .regplot_band_data_continuous(
+        xpred = at_pred,
         lower = si_lower,
-        upper = si_upper,
-        xpred = at_pred
+        upper = si_upper
       )
     } else {
       df_si <- data.frame(

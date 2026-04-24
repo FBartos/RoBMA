@@ -33,3 +33,10 @@ test_that("Test against metafor::rma.glmm", {
   expect_equal(fit_simple.metafor$beta[[1]], fit_simple.brma$summary["mu", "Mean"], tolerance = 0.05)
   expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau", "Mean"], tolerance = 0.10) # the tau is very variable here
 })
+
+
+# TODO:
+# add single-group example
+
+# TODO:
+# add meta-regression

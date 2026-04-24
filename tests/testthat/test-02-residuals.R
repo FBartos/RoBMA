@@ -259,16 +259,19 @@ test_that("Residuals for 3-level model match metafor", {
   expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.05,
                info = "brma rstandard z should match metafor for 3-level model")
 
-  # TODO: check why & fix
-  metafor_rstandard <- rstandard(fit_metafor, type = "conditional")
+  # metafor::rstandard() ignores type = "conditional" for rma.mv fits,
+  # so use the multilevel BLUP-based oracle from common-functions.R instead.
+  metafor_rstandard <- metafor_rstandard_conditional_mv(fit_metafor)
   brma_rstandard    <- rstandard(fit_brma, type = "conditional")
+  brma_theta         <- colMeans(as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE)))
+  metafor_theta      <- fit_metafor[["yi"]] - metafor_rstandard$resid
 
-  expect_error(expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.10,
-                            info = "brma rstandard resid should match metafor (conditional)"))
-  expect_error(expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.10,
-                            info = "brma rstandard se should match metafor (conditional)"))
-  expect_error(expect_equal(brma_rstandard$z, metafor_rstandard$z, tolerance = 0.10,
-                            info = "brma rstandard z should match metafor (conditional)"))
+  expect_equal(as.vector(brma_theta), as.vector(metafor_theta), tolerance = 0.11,
+               info = "brma estimate-level BLUPs should match the metafor multilevel oracle")
+  expect_equal(brma_rstandard$resid, metafor_rstandard$resid, tolerance = 0.11,
+               info = "brma conditional residual means should match the metafor BLUP oracle")
+  expect_equal(brma_rstandard$se, metafor_rstandard$se, tolerance = 0.05,
+               info = "brma conditional residual standard errors should match the metafor BLUP oracle")
 
   # --------------------------------------------------
   # rstudent (LOO-PIT) residuals: compare brma vs metafor
