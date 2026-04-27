@@ -58,7 +58,10 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param plim numeric vector of length 2; range for point sizes.
 #' Defaults to \code{c(0.5, 3)}.
 #' @param by character; name of a moderator variable to use for separate
-#' lines/colors. Defaults to \code{NULL}.
+#' lines/colors. Defaults to \code{NULL}. If omitted and the selected
+#' moderator enters exactly one two-way interaction, the other variable in the
+#' interaction is used automatically. Continuous \code{by} moderators are shown
+#' at mean - SD, mean, and mean + SD.
 #' @param legend logical; whether to show legend when \code{by} is specified.
 #' Defaults to \code{TRUE}.
 #' @param xlab character; x-axis label. Defaults to the moderator name.
@@ -90,6 +93,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #'   \item{alpha.pi}{PI band transparency (default: 0.2)}
 #'   \item{alpha.si}{SI band transparency (default: 0.15)}
 #'   \item{jitter}{jitter amount for categorical moderators (default: 0.2)}
+#'   \item{box.width}{box width for categorical interval summaries (default: 0.5)}
 #' }
 #'
 #' @details
@@ -187,11 +191,8 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   mod_type <- mod_info$type
   mod_data <- mod_info$data
 
-  # identify grouping variable (if specified)
-  by_info <- NULL
-  if (!is.null(by)) {
-    stop("The 'by' argument is not yet implemented.", call. = FALSE)
-  }
+  # identify grouping variable (explicit or auto-detected interaction)
+  by_info <- .regplot_get_by(x, by, mod_name)
 
   # generate plot data
   regplot_data <- .regplot_data(
@@ -206,6 +207,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     si            = si,
     level         = level,
     at            = at,
+    digits        = digits,
     psize         = psize,
     plim          = plim,
     transf        = transf,
@@ -306,6 +308,108 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
 
 # ---------------------------------------------------------------------------- #
+# .regplot_get_by
+# ---------------------------------------------------------------------------- #
+#
+# Identify and validate a grouping moderator for interaction displays.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_get_by <- function(x, by, mod_name) {
+
+  mods_data <- x[["data"]][["mods"]]
+
+  if (is.null(by)) {
+    by <- .regplot_detect_interaction_by(x, mod_name)
+  }
+
+  if (is.null(by)) {
+    return(NULL)
+  }
+
+  mod_names <- names(mods_data)
+
+  if (!is.character(by) || length(by) != 1L) {
+    stop("'by' must be NULL or a single moderator name.", call. = FALSE)
+  }
+  if (by == mod_name) {
+    stop("'by' must be different from 'mod'.", call. = FALSE)
+  }
+  if (!by %in% mod_names) {
+    stop("Moderator '", by, "' not found. ",
+         "Available moderators: ", paste(mod_names, collapse = ", "),
+         call. = FALSE)
+  }
+
+  by_values <- mods_data[[by]]
+
+  if (is.factor(by_values) || is.character(by_values)) {
+    by_type <- "categorical"
+    if (is.character(by_values)) {
+      by_values <- factor(by_values)
+    }
+  } else {
+    by_type <- "continuous"
+  }
+
+  return(list(
+    name = by,
+    type = by_type,
+    data = by_values
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_detect_interaction_by
+# ---------------------------------------------------------------------------- #
+#
+# Auto-select the second variable from a unique two-way interaction containing
+# the plotted moderator.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_detect_interaction_by <- function(x, mod_name) {
+
+  mods_data <- x[["data"]][["mods"]]
+  formula   <- attr(mods_data, "formula")
+
+  if (is.null(formula)) {
+    return(NULL)
+  }
+
+  term_labels <- attr(stats::terms(formula), "term.labels")
+  term_labels <- term_labels[grepl(":", term_labels, fixed = TRUE)]
+
+  if (length(term_labels) == 0L) {
+    return(NULL)
+  }
+
+  candidates <- character()
+
+  for (term in term_labels) {
+    variables <- strsplit(term, ":", fixed = TRUE)[[1]]
+    variables <- trimws(variables)
+
+    if (length(variables) == 2L && mod_name %in% variables) {
+      candidates <- c(candidates, setdiff(variables, mod_name))
+    }
+  }
+
+  candidates <- unique(candidates[candidates %in% names(mods_data)])
+
+  if (length(candidates) == 0L) {
+    return(NULL)
+  }
+  if (length(candidates) > 1L) {
+    stop("The selected moderator enters multiple interactions. ",
+         "Please specify 'by'. Candidate moderators: ",
+         paste(candidates, collapse = ", "), ".", call. = FALSE)
+  }
+
+  return(candidates)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .regplot_band_data_continuous
 # ---------------------------------------------------------------------------- #
 #
@@ -319,7 +423,8 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # @return data.frame with consistent polygon and interval metadata
 #
 # ---------------------------------------------------------------------------- #
-.regplot_band_data_continuous <- function(xpred, lower, upper) {
+.regplot_band_data_continuous <- function(xpred, lower, upper, group = "All",
+                                          group_id = 1L) {
 
   band_x     <- c(xpred, rev(xpred))
   band_lower <- c(lower, rev(lower))
@@ -330,8 +435,235 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     y     = unname(c(lower, rev(upper))),
     lower = unname(band_lower),
     upper = unname(band_upper),
-    xpred = unname(band_x)
+    xpred = unname(band_x),
+    group = rep(group, length(band_x)),
+    group_id = rep(group_id, length(band_x))
   )
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_prediction_grid
+# ---------------------------------------------------------------------------- #
+#
+# Build moderator values for predictions. The selected moderator forms the
+# x-axis; an optional `by` moderator expands the grid into interaction lines.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_prediction_grid <- function(x, mod_name, mod_type, mod_data,
+                                     by_info, at, digits) {
+
+  mods_data <- x[["data"]][["mods"]]
+
+  if (mod_type == "continuous") {
+    if (is.null(at)) {
+      x_range <- range(mod_data)
+      at_pred <- seq(x_range[1], x_range[2], length.out = 101)
+    } else {
+      at_pred <- at
+    }
+    x_values  <- at_pred
+    x_numeric <- at_pred
+    x_levels  <- NULL
+  } else {
+    x_levels  <- levels(mod_data)
+    at_pred   <- x_levels
+    x_values  <- factor(at_pred, levels = x_levels)
+    x_numeric <- seq_along(at_pred)
+  }
+
+  if (is.null(by_info)) {
+    by_values <- list(
+      values = NULL,
+      labels = "All",
+      levels = NULL
+    )
+  } else {
+    by_values <- .regplot_by_values(by_info, digits)
+  }
+
+  grid <- expand.grid(
+    x_id     = seq_along(at_pred),
+    group_id = seq_along(by_values[["labels"]]),
+    KEEP.OUT.ATTRS = FALSE
+  )
+  grid[["group"]] <- by_values[["labels"]][grid[["group_id"]]]
+  grid[["x"]]     <- x_numeric[grid[["x_id"]]]
+  if (mod_type == "categorical") {
+    grid[["level"]] <- at_pred[grid[["x_id"]]]
+  }
+
+  n_pred       <- nrow(grid)
+  newdata_list <- list()
+
+  for (nm in names(mods_data)) {
+    if (nm == mod_name) {
+      if (mod_type == "continuous") {
+        newdata_list[[nm]] <- x_values[grid[["x_id"]]]
+      } else {
+        newdata_list[[nm]] <- factor(at_pred[grid[["x_id"]]], levels = x_levels)
+      }
+    } else if (!is.null(by_info) && nm == by_info[["name"]]) {
+      if (by_info[["type"]] == "continuous") {
+        newdata_list[[nm]] <- by_values[["values"]][grid[["group_id"]]]
+      } else {
+        newdata_list[[nm]] <- factor(
+          by_values[["values"]][grid[["group_id"]]],
+          levels = by_values[["levels"]]
+        )
+      }
+    } else {
+      other_vals <- mods_data[[nm]]
+      if (is.factor(other_vals) || is.character(other_vals)) {
+        other_levels <- levels(factor(other_vals))
+        newdata_list[[nm]] <- factor(
+          rep(other_levels[1], n_pred),
+          levels = other_levels
+        )
+      } else {
+        newdata_list[[nm]] <- rep(mean(other_vals), n_pred)
+      }
+    }
+  }
+
+  return(list(
+    newdata  = as.data.frame(newdata_list),
+    grid     = grid,
+    at_pred  = at_pred,
+    groups   = by_values[["labels"]],
+    x_levels = x_levels
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_by_values
+# ---------------------------------------------------------------------------- #
+#
+# Values used for the grouping moderator.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_by_values <- function(by_info, digits) {
+
+  by_data <- by_info[["data"]]
+
+  if (by_info[["type"]] == "continuous") {
+    by_mean <- mean(by_data)
+    by_sd   <- stats::sd(by_data)
+    values  <- c(by_mean - by_sd, by_mean, by_mean + by_sd)
+    labels  <- c("Mean - 1 SD", "Mean", "Mean + 1 SD")
+
+    if (!is.finite(by_sd) || by_sd == 0) {
+      values <- by_mean
+      labels <- format(round(by_mean, digits = digits), trim = TRUE)
+    }
+
+    labels <- paste0(by_info[["name"]], ": ", labels)
+    return(list(values = values, labels = labels, levels = NULL))
+  }
+
+  by_factor <- factor(by_data)
+
+  return(list(
+    values = levels(by_factor),
+    labels = levels(by_factor),
+    levels = levels(by_factor)
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_observed_groups
+# ---------------------------------------------------------------------------- #
+#
+# Assign observed studies to plotting groups.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_observed_groups <- function(by_info, groups, n) {
+
+  if (is.null(by_info)) {
+    return(list(
+      group    = rep("All", n),
+      group_id = rep(1L, n)
+    ))
+  }
+
+  by_data <- by_info[["data"]]
+
+  if (by_info[["type"]] == "categorical") {
+    group <- as.character(factor(by_data, levels = groups))
+  } else {
+    by_mean <- mean(by_data)
+    by_sd   <- stats::sd(by_data)
+
+    if (!is.finite(by_sd) || by_sd == 0 || length(groups) == 1L) {
+      group <- rep(groups[1], length(by_data))
+    } else {
+      by_values <- c(by_mean - by_sd, by_mean, by_mean + by_sd)
+      breaks    <- c(-Inf, mean(by_values[1:2]), mean(by_values[2:3]), Inf)
+      group     <- as.character(cut(by_data, breaks = breaks, labels = groups))
+    }
+  }
+
+  return(list(
+    group    = group,
+    group_id = match(group, groups)
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_add_dummy_outcome
+# ---------------------------------------------------------------------------- #
+#
+# Add outcome columns required by predict.brma() for formula validation.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_add_dummy_outcome <- function(x, newdata, n_pred, sei) {
+
+  outcome_type <- .outcome_type(x)
+
+  if (outcome_type == "norm") {
+    newdata[["yi"]]  <- rep(0, n_pred)
+    newdata[["sei"]] <- rep(sei, n_pred)
+  } else if (outcome_type == "bin") {
+    newdata[["ai"]]  <- rep(0, n_pred)
+    newdata[["ci"]]  <- rep(0, n_pred)
+    newdata[["n1i"]] <- rep(0, n_pred)
+    newdata[["n2i"]] <- rep(0, n_pred)
+  } else if (outcome_type == "pois") {
+    newdata[["x1i"]] <- rep(0, n_pred)
+    newdata[["x2i"]] <- rep(0, n_pred)
+    newdata[["t1i"]] <- rep(0, n_pred)
+    newdata[["t2i"]] <- rep(0, n_pred)
+  }
+
+  return(newdata)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_band_data_categorical
+# ---------------------------------------------------------------------------- #
+#
+# Categorical intervals are rendered as box-style summaries.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_band_data_categorical <- function(grid, middle, lower, upper) {
+
+  out <- data.frame(
+    x        = grid[["x"]],
+    y        = middle,
+    middle   = middle,
+    lower    = lower,
+    upper    = upper,
+    group    = grid[["group"]],
+    group_id = grid[["group_id"]],
+    level    = grid[["level"]],
+    stringsAsFactors = FALSE
+  )
+
+  return(out)
 }
 
 
@@ -367,21 +699,19 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 #
 # ---------------------------------------------------------------------------- #
 .regplot_data <- function(x, mod_name, mod_type, mod_data, by_info,
-                          pred, ci, pi, si, level, at, psize, plim, transf,
-                          xlim, ylim, xlab, ylab, refline, sampling_bias, dots) {
+                          pred, ci, pi, si, level, at, digits, psize, plim,
+                          transf, xlim, ylim, xlab, ylab, refline,
+                          sampling_bias, dots) {
 
-  # get observed data
   yi     <- .outcome_data_yi(x)
   sei    <- .outcome_data_sei(x)
   vi     <- sei^2
   K      <- length(yi)
   se_rep <- mean(sei)
 
-  # convert level to probability for quantiles
   alpha <- (100 - level) / 100
   probs <- c(alpha / 2, 1 - alpha / 2)
 
-  # compute point sizes based on inverse variance if not provided
   if (is.null(psize)) {
     weights   <- 1 / vi
     weights_n <- (weights - min(weights)) / (max(weights) - min(weights) + 1e-10)
@@ -390,75 +720,32 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     psize <- rep(psize, K)
   }
 
-  # apply transformation to observed effect sizes
   yi_plot <- yi
   if (!is.null(transf)) {
     yi_plot <- transf(yi)
   }
 
-  # determine x-axis values for prediction
-  if (mod_type == "continuous") {
-    if (is.null(at)) {
-      x_range  <- range(mod_data)
-      at_pred  <- seq(x_range[1], x_range[2], length.out = 101)
-    } else {
-      at_pred <- at
-    }
-  } else {
-    # categorical: use factor levels
-    at_pred <- levels(mod_data)
-  }
+  prediction_grid <- .regplot_prediction_grid(
+    x         = x,
+    mod_name  = mod_name,
+    mod_type  = mod_type,
+    mod_data  = mod_data,
+    by_info   = by_info,
+    at        = at,
+    digits    = digits
+  )
+  grid   <- prediction_grid[["grid"]]
+  groups <- prediction_grid[["groups"]]
+  n_pred <- nrow(grid)
 
-  # create newdata for predictions
-  # need to set other moderators to their means/reference levels
-  mods_data    <- x[["data"]][["mods"]]
-  n_pred       <- length(at_pred)
-  newdata_list <- list()
+  prediction_se <- if (sampling_bias) se_rep else 0
+  newdata <- .regplot_add_dummy_outcome(
+    x       = x,
+    newdata = prediction_grid[["newdata"]],
+    n_pred  = n_pred,
+    sei     = prediction_se
+  )
 
-  for (nm in names(mods_data)) {
-    if (nm == mod_name) {
-      if (mod_type == "continuous") {
-        newdata_list[[nm]] <- at_pred
-      } else {
-        newdata_list[[nm]] <- factor(at_pred, levels = levels(mod_data))
-      }
-    } else {
-      # set other predictors to mean/reference
-      other_vals <- mods_data[[nm]]
-      if (is.factor(other_vals) || is.character(other_vals)) {
-        # use first level (reference)
-        newdata_list[[nm]] <- factor(rep(levels(factor(other_vals))[1], n_pred),
-                                     levels = levels(factor(other_vals)))
-      } else {
-        # use mean
-        newdata_list[[nm]] <- rep(mean(other_vals), n_pred)
-      }
-    }
-  }
-  newdata <- as.data.frame(newdata_list)
-
-  # add dummy outcome values required by predict.brma
-  # these are not used for type = "terms" or "estimate" predictions
-  # but are required by .prepare_newdata() for validation
-  # zeros are OK because skip_validation = TRUE in .prepare_newdata()
-  outcome_type <- .outcome_type(x)
-  if (outcome_type == "norm") {
-    newdata[["yi"]]  <- rep(0, n_pred)
-    newdata[["sei"]] <- rep(0, n_pred)
-  } else if (outcome_type == "bin") {
-    newdata[["ai"]]  <- rep(0, n_pred)
-    newdata[["ci"]]  <- rep(0, n_pred)
-    newdata[["n1i"]] <- rep(0, n_pred)
-    newdata[["n2i"]] <- rep(0, n_pred)
-  } else if (outcome_type == "pois") {
-    newdata[["x1i"]] <- rep(0, n_pred)
-    newdata[["x2i"]] <- rep(0, n_pred)
-    newdata[["t1i"]] <- rep(0, n_pred)
-    newdata[["t2i"]] <- rep(0, n_pred)
-  }
-
-  # get predictions for CI (fixed effects only)
-  # bias_adjusted = !sampling_bias: when sampling_bias = TRUE, include bias (bias_adjusted = FALSE)
   pred_samples <- predict.brma(
     object        = x,
     newdata       = newdata,
@@ -466,15 +753,13 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     bias_adjusted = !sampling_bias,
     quiet         = TRUE
   )
+  pred_samples <- as.matrix(pred_samples)
 
-  # compute summary statistics
   pred_mean  <- colMeans(pred_samples)
-  pred_lower <- apply(pred_samples, 2, quantile, probs = probs[1])
-  pred_upper <- apply(pred_samples, 2, quantile, probs = probs[2])
+  pred_lower <- apply(pred_samples, 2, stats::quantile, probs = probs[1], names = FALSE)
+  pred_upper <- apply(pred_samples, 2, stats::quantile, probs = probs[2], names = FALSE)
 
-  # compute heterogeneity (tau) if needed for PI or SI
   if (pi || si) {
-
     is_scale      <- .is_scale(x)
     is_multilevel <- .is_multilevel(x)
 
@@ -486,56 +771,66 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       scale_formula     <- .create_fit_formula_list(data = new_data_prepared, "scale")
     }
 
+    posterior_samples <- .get_posterior_samples(x[["fit"]])
     tau_result <- .evaluate.brma.tau(
-      fit           = x[["fit"]],
-      scale_data    = scale_data,
-      scale_formula = scale_formula,
-      scale_priors  = x[["priors"]][["scale"]],
-      is_scale      = is_scale,
-      is_multilevel = is_multilevel,
-      K             = n_pred
+      fit               = x[["fit"]],
+      scale_data        = scale_data,
+      scale_formula     = scale_formula,
+      scale_priors      = x[["priors"]][["scale"]],
+      is_scale          = is_scale,
+      is_multilevel     = is_multilevel,
+      K                 = n_pred,
+      posterior_samples = posterior_samples
     )
     tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
   }
 
-  # get prediction interval (includes heterogeneity) using full posterior
   if (pi) {
-    pi_samples <- pred_samples + stats::rnorm(length(pred_samples), mean = 0, sd = tau_total)
-    pi_lower   <- apply(pi_samples, 2, stats::quantile, probs = probs[1])
-    pi_upper   <- apply(pi_samples, 2, stats::quantile, probs = probs[2])
+    pi_bounds <- .regplot_mixture_interval_quantiles(
+      mean_samples = pred_samples,
+      sd_samples   = tau_total,
+      probs        = probs
+    )
+    pi_lower <- pi_bounds[["lower"]]
+    pi_upper <- pi_bounds[["upper"]]
   } else {
     pi_lower <- NULL
     pi_upper <- NULL
   }
 
-  # get sampling interval (includes heterogeneity + sampling error)
   if (si) {
-    tau_mean <- colMeans(tau_total)
-    sd_si    <- sqrt(se_rep^2 + tau_mean^2)
+    sd_si <- sqrt(tau_total^2 + se_rep^2)
 
-    is_weightfunction <- .is_weightfunction(x)
-
-    if (sampling_bias && is_weightfunction) {
-      si_bounds <- .regplot_si_quantiles_weighted(x, pred_mean, sd_si, se_rep, probs)
-      si_lower  <- si_bounds$lower
-      si_upper  <- si_bounds$upper
+    if (sampling_bias && .is_weightfunction(x)) {
+      si_bounds <- .regplot_weighted_mixture_interval_quantiles(
+        x            = x,
+        mean_samples = pred_samples,
+        sd_samples   = sd_si,
+        se           = se_rep,
+        probs        = probs
+      )
     } else {
-      # normal quantiles (PET/PEESE bias already in pred_mean when sampling_bias = TRUE)
-      si_lower <- stats::qnorm(probs[1], mean = pred_mean, sd = sd_si)
-      si_upper <- stats::qnorm(probs[2], mean = pred_mean, sd = sd_si)
+      si_bounds <- .regplot_mixture_interval_quantiles(
+        mean_samples = pred_samples,
+        sd_samples   = sd_si,
+        probs        = probs
+      )
     }
+
+    si_lower <- si_bounds[["lower"]]
+    si_upper <- si_bounds[["upper"]]
   } else {
     si_lower <- NULL
     si_upper <- NULL
   }
 
-  # apply transformation to predictions
   if (!is.null(transf)) {
     pred_mean  <- transf(pred_mean)
     ci_lo      <- transf(pred_lower)
     ci_hi      <- transf(pred_upper)
     pred_lower <- pmin(ci_lo, ci_hi)
     pred_upper <- pmax(ci_lo, ci_hi)
+
     if (pi) {
       pi_lo    <- transf(pi_lower)
       pi_hi    <- transf(pi_upper)
@@ -550,7 +845,6 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     }
   }
 
-  # determine plot limits
   if (is.null(xlim)) {
     if (mod_type == "continuous") {
       xlim <- range(pretty(range(mod_data)))
@@ -567,99 +861,102 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     ylim <- range(pretty(range(all_y, na.rm = TRUE)))
   }
 
-  # set axis labels
   if (is.null(xlab)) xlab <- mod_name
   if (is.null(ylab)) ylab <- "Observed Effect Size"
 
-  # create output data structures
+  observed_groups <- .regplot_observed_groups(
+    by_info = by_info,
+    groups  = groups,
+    n       = K
+  )
+
   df_points <- data.frame(
-    x    = if (mod_type == "continuous") mod_data else as.numeric(mod_data),
-    y    = yi_plot,
-    size = psize,
+    x        = if (mod_type == "continuous") mod_data else as.numeric(mod_data),
+    y        = yi_plot,
+    size     = psize,
+    group    = observed_groups[["group"]],
+    group_id = observed_groups[["group_id"]],
     stringsAsFactors = FALSE
   )
 
-  # for categorical, add factor info
   if (mod_type == "categorical") {
     df_points$level <- mod_data
   }
 
-  # prediction line data
   df_pred <- NULL
   if (pred) {
     df_pred <- data.frame(
-      x = if (mod_type == "continuous") at_pred else seq_along(at_pred),
-      y = pred_mean
+      x        = grid[["x"]],
+      y        = pred_mean,
+      group    = grid[["group"]],
+      group_id = grid[["group_id"]],
+      stringsAsFactors = FALSE
     )
+    if (mod_type == "categorical") {
+      df_pred[["level"]] <- grid[["level"]]
+    }
   }
 
-  # CI band data
   df_ci <- NULL
   if (ci) {
     if (mod_type == "continuous") {
-      df_ci <- .regplot_band_data_continuous(
-        xpred = at_pred,
-        lower = pred_lower,
-        upper = pred_upper
-      )
+      df_ci <- do.call(rbind, lapply(seq_along(groups), function(i) {
+        rows <- grid[["group_id"]] == i
+        .regplot_band_data_continuous(
+          xpred    = grid[["x"]][rows],
+          lower    = pred_lower[rows],
+          upper    = pred_upper[rows],
+          group    = groups[i],
+          group_id = i
+        )
+      }))
+      rownames(df_ci) <- NULL
     } else {
-      # for categorical, store as points with error bars
-      df_ci <- data.frame(
-        x     = seq_along(at_pred),
-        y     = pred_mean,
-        lower = pred_lower,
-        upper = pred_upper,
-        level = at_pred
-      )
+      df_ci <- .regplot_band_data_categorical(grid, pred_mean, pred_lower, pred_upper)
     }
   }
 
-  # PI band data
   df_pi <- NULL
   if (pi) {
     if (mod_type == "continuous") {
-      df_pi <- .regplot_band_data_continuous(
-        xpred = at_pred,
-        lower = pi_lower,
-        upper = pi_upper
-      )
+      df_pi <- do.call(rbind, lapply(seq_along(groups), function(i) {
+        rows <- grid[["group_id"]] == i
+        .regplot_band_data_continuous(
+          xpred    = grid[["x"]][rows],
+          lower    = pi_lower[rows],
+          upper    = pi_upper[rows],
+          group    = groups[i],
+          group_id = i
+        )
+      }))
+      rownames(df_pi) <- NULL
     } else {
-      df_pi <- data.frame(
-        x     = seq_along(at_pred),
-        y     = pred_mean,
-        lower = pi_lower,
-        upper = pi_upper,
-        level = at_pred
-      )
+      df_pi <- .regplot_band_data_categorical(grid, pred_mean, pi_lower, pi_upper)
     }
   }
 
-  # SI band data
   df_si <- NULL
   if (si) {
     if (mod_type == "continuous") {
-      df_si <- .regplot_band_data_continuous(
-        xpred = at_pred,
-        lower = si_lower,
-        upper = si_upper
-      )
+      df_si <- do.call(rbind, lapply(seq_along(groups), function(i) {
+        rows <- grid[["group_id"]] == i
+        .regplot_band_data_continuous(
+          xpred    = grid[["x"]][rows],
+          lower    = si_lower[rows],
+          upper    = si_upper[rows],
+          group    = groups[i],
+          group_id = i
+        )
+      }))
+      rownames(df_si) <- NULL
     } else {
-      df_si <- data.frame(
-        x     = seq_along(at_pred),
-        y     = pred_mean,
-        lower = si_lower,
-        upper = si_upper,
-        level = at_pred
-      )
+      df_si <- .regplot_band_data_categorical(grid, pred_mean, si_lower, si_upper)
     }
   }
 
-  # reference line data
   df_refline <- NULL
   if (!is.null(refline)) {
-    df_refline <- data.frame(
-      y = refline
-    )
+    df_refline <- data.frame(y = refline)
   }
 
   return(list(
@@ -675,91 +972,589 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     ylab     = ylab,
     mod_type = mod_type,
     mod_name = mod_name,
+    by_name  = if (!is.null(by_info)) by_info[["name"]] else NULL,
+    by_type  = if (!is.null(by_info)) by_info[["type"]] else NULL,
+    groups   = groups,
     levels   = if (mod_type == "categorical") levels(mod_data) else NULL
   ))
 }
 
 
 # ---------------------------------------------------------------------------- #
-# .regplot_si_quantiles_weighted
+# .regplot_mixture_interval_quantiles
 # ---------------------------------------------------------------------------- #
 #
-# Compute weighted normal quantiles for SI when model has selection
-# (weightfunction) adjustment. Adapts funnel's .get_funnel_quantiles_weighted()
-# for per-prediction-point computation with fixed representative SE.
-#
-# @param x         brma object
-# @param pred_mean numeric vector of predicted means at each moderator value
-# @param sd_si     numeric vector of total SD (sqrt(se_rep^2 + tau^2))
-# @param se_rep    numeric scalar representative SE (mean of observed SEs)
-# @param probs     numeric vector of length 2 with lower/upper quantile probs
-#
-# @return list with 'lower' and 'upper' quantile vectors
+# Deterministic quantiles of posterior mixtures of normal distributions.
 #
 # ---------------------------------------------------------------------------- #
-.regplot_si_quantiles_weighted <- function(x, pred_mean, sd_si, se_rep, probs) {
+.has_native_regplot_mixture <- function() {
 
-  n_pred           <- length(pred_mean)
+  return(
+    is.loaded("RoBMA_regplot_normal_mixture_interval",   PACKAGE = "RoBMA") &&
+      is.loaded("RoBMA_regplot_weighted_mixture_interval", PACKAGE = "RoBMA")
+  )
+}
+
+
+.regplot_mixture_interval_quantiles <- function(mean_samples, sd_samples, probs) {
+
+  mean_samples <- as.matrix(mean_samples)
+  sd_samples   <- as.matrix(sd_samples)
+
+  if (.has_native_regplot_mixture()) {
+    return(.Call(
+      "RoBMA_regplot_normal_mixture_interval",
+      .native_numeric_matrix(mean_samples),
+      .native_numeric_matrix(sd_samples),
+      .native_numeric_vector(probs),
+      PACKAGE = "RoBMA"
+    ))
+  }
+
+  return(.regplot_mixture_interval_quantiles_r(
+    mean_samples = mean_samples,
+    sd_samples   = sd_samples,
+    probs        = probs
+  ))
+}
+
+
+.regplot_mixture_interval_quantiles_r <- function(mean_samples, sd_samples, probs) {
+
+  lower <- numeric(ncol(mean_samples))
+  upper <- numeric(ncol(mean_samples))
+
+  for (i in seq_len(ncol(mean_samples))) {
+    cdf_fun <- function(q) {
+      .regplot_normal_mixture_cdf(
+        q    = q,
+        mean = mean_samples[, i],
+        sd   = sd_samples[, i]
+      )
+    }
+
+    lower[i] <- .regplot_mixture_quantile(probs[1], mean_samples[, i], sd_samples[, i], cdf_fun)
+    upper[i] <- .regplot_mixture_quantile(probs[2], mean_samples[, i], sd_samples[, i], cdf_fun)
+  }
+
+  return(list(lower = lower, upper = upper))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_weighted_mixture_interval_quantiles
+# ---------------------------------------------------------------------------- #
+#
+# Deterministic quantiles of observed-effect mixtures with selection branches.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_weighted_mixture_interval_quantiles <- function(x, mean_samples,
+                                                         sd_samples, se,
+                                                         probs) {
+
+  mean_samples     <- as.matrix(mean_samples)
+  sd_samples       <- as.matrix(sd_samples)
+  setup            <- .regplot_selection_setup(x)
   effect_direction <- .effect_direction(x)
 
-  # extract posterior mean omega from fitted model
-  posterior_samples <- suppressWarnings(coda::as.mcmc(x[["fit"]]))
-  omega_cols        <- grep("^omega\\[", colnames(posterior_samples))
-  omega_mean        <- colMeans(posterior_samples[, omega_cols, drop = FALSE])
-  omega_matrix      <- matrix(omega_mean, nrow = n_pred, ncol = length(omega_mean), byrow = TRUE)
+  if (.has_native_regplot_mixture()) {
+    selection <- setup[["selection"]]
+    if (!is.null(selection)) {
+      crit_yi <- matrix(
+        stats::qnorm(selection[["steps"]], lower.tail = FALSE) * se,
+        ncol = 1
+      )
 
-  # extract publication bias priors to determine steps (p-value cutoffs)
-  priors      <- x[["priors"]]
-  priors_bias <- priors[["outcome"]][["bias"]]
+      return(.Call(
+        "RoBMA_regplot_weighted_mixture_interval",
+        .native_numeric_matrix(mean_samples),
+        .native_numeric_matrix(sd_samples),
+        .native_numeric_vector(probs),
+        .native_numeric_matrix(setup[["omega"]]),
+        .native_integer_vector(setup[["bias_indicator"]]),
+        as.logical(setup[["is_weightfunction"]]),
+        .native_numeric_matrix(crit_yi),
+        .native_numeric_matrix(selection[["crit_yi_mapping"]]),
+        .native_integer_vector(selection[["crit_yi_mapping_max"]]),
+        effect_direction,
+        PACKAGE = "RoBMA"
+      ))
+    }
+  }
+
+  return(.regplot_weighted_mixture_interval_quantiles_r(
+    mean_samples     = mean_samples,
+    sd_samples       = sd_samples,
+    se               = se,
+    probs            = probs,
+    setup            = setup,
+    effect_direction = effect_direction
+  ))
+}
+
+
+.regplot_weighted_mixture_interval_quantiles_r <- function(mean_samples,
+                                                           sd_samples, se,
+                                                           probs, setup,
+                                                           effect_direction) {
+
+  lower <- numeric(ncol(mean_samples))
+  upper <- numeric(ncol(mean_samples))
+
+  for (i in seq_len(ncol(mean_samples))) {
+    cdf_fun <- function(q) {
+      .regplot_weighted_mixture_cdf(
+        q                = q,
+        mean             = mean_samples[, i],
+        sd               = sd_samples[, i],
+        se               = se,
+        setup            = setup,
+        effect_direction = effect_direction
+      )
+    }
+
+    lower[i] <- .regplot_mixture_quantile(probs[1], mean_samples[, i], sd_samples[, i], cdf_fun)
+    upper[i] <- .regplot_mixture_quantile(probs[2], mean_samples[, i], sd_samples[, i], cdf_fun)
+  }
+
+  return(list(lower = lower, upper = upper))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_mixture_quantile
+# ---------------------------------------------------------------------------- #
+#
+# Invert a posterior-mixture CDF.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_mixture_quantile <- function(p, mean, sd, cdf_fun) {
+
+  eps_sd <- sqrt(.Machine$double.eps)
+
+  if (all(sd < eps_sd)) {
+    return(unname(stats::quantile(mean, probs = p, names = FALSE, type = 8)))
+  }
+
+  spread <- pmax(sd, eps_sd)
+  lower  <- min(mean - 10 * spread, na.rm = TRUE)
+  upper  <- max(mean + 10 * spread, na.rm = TRUE)
+
+  if (!is.finite(lower) || !is.finite(upper)) {
+    return(NA_real_)
+  }
+  if (lower >= upper) {
+    lower <- lower - 1
+    upper <- upper + 1
+  }
+
+  obj_fun     <- function(q) cdf_fun(q) - p
+  lower_value <- obj_fun(lower)
+  upper_value <- obj_fun(upper)
+  step        <- max(spread, na.rm = TRUE)
+
+  if (!is.finite(step) || step <= 0) {
+    step <- max(1, abs(mean), na.rm = TRUE)
+  }
+
+  for (i in seq_len(25)) {
+    if (lower_value <= 0 && upper_value >= 0) {
+      break
+    }
+    if (lower_value > 0) {
+      lower       <- lower - step
+      lower_value <- obj_fun(lower)
+    }
+    if (upper_value < 0) {
+      upper       <- upper + step
+      upper_value <- obj_fun(upper)
+    }
+    step <- step * 2
+  }
+
+  if (lower_value > 0 || upper_value < 0) {
+    return(.regplot_grid_quantile(p, lower, upper, cdf_fun))
+  }
+
+  out <- tryCatch(
+    stats::uniroot(obj_fun, interval = c(lower, upper), tol = 1e-6)[["root"]],
+    error = function(e) NA_real_
+  )
+
+  if (is.na(out)) {
+    out <- .regplot_grid_quantile(p, lower, upper, cdf_fun)
+  }
+
+  return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_normal_mixture_cdf
+# ---------------------------------------------------------------------------- #
+.regplot_normal_mixture_cdf <- function(q, mean, sd) {
+
+  eps_sd     <- sqrt(.Machine$double.eps)
+  cdf_values <- rep(NA_real_, length(mean))
+  zero_sd    <- sd < eps_sd
+
+  if (any(zero_sd)) {
+    cdf_values[zero_sd] <- as.numeric(q >= mean[zero_sd])
+  }
+  if (any(!zero_sd)) {
+    cdf_values[!zero_sd] <- stats::pnorm(
+      q,
+      mean = mean[!zero_sd],
+      sd   = sd[!zero_sd]
+    )
+  }
+
+  cdf_values <- pmin(pmax(cdf_values, 0), 1)
+  return(base::mean(cdf_values))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_weighted_mixture_cdf
+# ---------------------------------------------------------------------------- #
+.regplot_weighted_mixture_cdf <- function(q, mean, sd, se, setup,
+                                          effect_direction) {
+
+  eps_sd     <- sqrt(.Machine$double.eps)
+  cdf_values <- rep(NA_real_, length(mean))
+  zero_sd    <- sd < eps_sd
+
+  if (any(zero_sd)) {
+    cdf_values[zero_sd] <- as.numeric(q >= mean[zero_sd])
+  }
+
+  normal_rows <- !setup[["is_weightfunction"]] & !zero_sd
+  if (any(normal_rows)) {
+    cdf_values[normal_rows] <- stats::pnorm(
+      q,
+      mean = mean[normal_rows],
+      sd   = sd[normal_rows]
+    )
+  }
+
+  weighted_rows <- setup[["is_weightfunction"]] & !zero_sd
+  if (any(weighted_rows)) {
+    setup[["mu"]] <- mean
+    rows <- which(weighted_rows)
+    cdf_values[rows] <- .funnel_weighted_cdf(
+      q                = q,
+      rows             = rows,
+      se               = se,
+      total_sd         = sd,
+      setup            = setup,
+      effect_direction = effect_direction
+    )
+  }
+
+  cdf_values <- pmin(pmax(cdf_values, 0), 1)
+  return(base::mean(cdf_values))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_selection_setup
+# ---------------------------------------------------------------------------- #
+.regplot_selection_setup <- function(x) {
+
+  posterior_samples <- .get_posterior_samples(x[["fit"]])
+  S                 <- nrow(posterior_samples)
+  priors_bias       <- x[["priors"]][["outcome"]][["bias"]]
+
   if (!BayesTools::is.prior.mixture(priors_bias)) {
     priors_bias <- list(priors_bias)
   }
 
-  steps <- BayesTools::weightfunctions_mapping(
-    priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)],
-    cuts_only = TRUE,
-    one_sided = TRUE
-  )
-  steps <- rev(steps)[c(-1, -length(steps))]
+  branch_is_weightfunction <- vapply(priors_bias, BayesTools::is.prior.weightfunction, logical(1))
+  bias_indicator           <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
 
-  # crit_x is fixed (same representative SE for all prediction points)
-  crit_x <- stats::qnorm(steps, lower.tail = FALSE) * se_rep
+  if (any(is.na(bias_indicator)) ||
+      any(bias_indicator < 1L | bias_indicator > length(priors_bias))) {
+    stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
+  }
 
-  lower <- numeric(n_pred)
-  upper <- numeric(n_pred)
-
-  # flip mu if negative direction (same logic as funnel)
-  if (effect_direction == "negative") {
-    mu_calc <- -pred_mean
+  omega_cols <- grep("^omega(\\[|$)", colnames(posterior_samples))
+  if (length(omega_cols) > 0L) {
+    omega_samples <- .extract_omega_samples(posterior_samples)
   } else {
-    mu_calc <- pred_mean
+    omega_samples <- matrix(1, nrow = S, ncol = 1)
   }
 
-  for (i in seq_len(n_pred)) {
-    lower[i] <- .qwnorm_fast.ss(
-      p      = probs[1],
-      mean   = mu_calc[i],
-      sd     = sd_si[i],
-      omega  = omega_matrix[i, , drop = FALSE],
-      crit_x = crit_x
+  return(list(
+    omega             = omega_samples,
+    bias_indicator    = bias_indicator,
+    is_weightfunction = branch_is_weightfunction[bias_indicator],
+    selection         = .funnel_selection_setup(priors_bias, branch_is_weightfunction)
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .regplot_grid_quantile
+# ---------------------------------------------------------------------------- #
+.regplot_grid_quantile <- function(p, lower, upper, cdf_fun) {
+
+  grid <- seq(lower, upper, length.out = 1000)
+  cdf  <- vapply(grid, cdf_fun, numeric(1))
+  index <- which(cdf >= p)[1]
+
+  if (is.na(index)) {
+    return(grid[length(grid)])
+  }
+
+  return(grid[index])
+}
+
+
+# ---------------------------------------------------------------------------- #
+# Plotting helpers
+# ---------------------------------------------------------------------------- #
+.regplot_has_shade <- function(shade) {
+  return(isTRUE(shade))
+}
+
+.regplot_palette <- function(groups, default_col) {
+
+  n <- length(groups)
+  if (n == 1L) {
+    return(stats::setNames(default_col[1], groups))
+  }
+
+  if (length(default_col) >= n && length(unique(default_col)) > 1L) {
+    cols <- default_col[seq_len(n)]
+  } else {
+    cols <- grDevices::hcl.colors(n, palette = "Dark 3")
+  }
+
+  return(stats::setNames(cols, groups))
+}
+
+.regplot_dodge_x <- function(x, group_id, n_groups, dodge_width) {
+
+  if (n_groups <= 1L) {
+    return(x)
+  }
+
+  offset <- (group_id - (n_groups + 1) / 2) * dodge_width / n_groups
+  return(x + offset)
+}
+
+.regplot_jitter_values <- function(n, amount) {
+
+  if (amount <= 0) {
+    return(rep(0, n))
+  }
+
+  old_seed <- if (exists(".Random.seed", envir = .GlobalEnv)) {
+    get(".Random.seed", envir = .GlobalEnv)
+  } else {
+    NULL
+  }
+  on.exit({
+    if (!is.null(old_seed)) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  })
+
+  set.seed(42)
+  return(stats::runif(n, -amount, amount))
+}
+
+.regplot_band_edges <- function(df_band) {
+
+  out <- do.call(rbind, lapply(split(df_band, df_band[["group"]]), function(df_group) {
+    n <- nrow(df_group) / 2
+    data.frame(
+      x        = rep(df_group[["x"]][seq_len(n)], 2),
+      y        = c(df_group[["lower"]][seq_len(n)], df_group[["upper"]][seq_len(n)]),
+      edge     = rep(c("lower", "upper"), each = n),
+      group    = rep(df_group[["group"]][1], 2 * n),
+      group_id = rep(df_group[["group_id"]][1], 2 * n),
+      stringsAsFactors = FALSE
     )
-    upper[i] <- .qwnorm_fast.ss(
-      p      = probs[2],
-      mean   = mu_calc[i],
-      sd     = sd_si[i],
-      omega  = omega_matrix[i, , drop = FALSE],
-      crit_x = crit_x
+  }))
+
+  rownames(out) <- NULL
+  return(out)
+}
+
+.regplot_draw_continuous_band_base <- function(df_band, fill_col, alpha,
+                                               border_col, shade, lwd) {
+
+  if (is.null(df_band)) {
+    return(invisible(NULL))
+  }
+
+  for (group in unique(df_band[["group"]])) {
+    df_group <- df_band[df_band[["group"]] == group, , drop = FALSE]
+    n        <- nrow(df_group) / 2
+
+    if (.regplot_has_shade(shade)) {
+      graphics::polygon(
+        df_group[["x"]],
+        df_group[["y"]],
+        col    = grDevices::adjustcolor(fill_col[group], alpha.f = alpha),
+        border = NA
+      )
+    }
+
+    graphics::lines(
+      df_group[["x"]][seq_len(n)],
+      df_group[["lower"]][seq_len(n)],
+      col = border_col[group],
+      lwd = max(1, lwd / 2)
+    )
+    graphics::lines(
+      df_group[["x"]][seq_len(n)],
+      df_group[["upper"]][seq_len(n)],
+      col = border_col[group],
+      lwd = max(1, lwd / 2)
     )
   }
 
-  # flip back if effect direction is negative
-  if (effect_direction == "negative") {
-    temp  <- -upper
-    upper <- -lower
-    lower <- temp
+  return(invisible(NULL))
+}
+
+.regplot_draw_categorical_band_base <- function(df_band, fill_col, alpha,
+                                                border_col, shade, width,
+                                                n_groups, dodge_width, lwd) {
+
+  if (is.null(df_band)) {
+    return(invisible(NULL))
   }
 
-  return(list(lower = lower, upper = upper))
+  x <- .regplot_dodge_x(df_band[["x"]], df_band[["group_id"]], n_groups, dodge_width)
+  w <- width / max(1, n_groups)
+
+  for (i in seq_len(nrow(df_band))) {
+    group <- df_band[["group"]][i]
+    graphics::rect(
+      xleft   = x[i] - w / 2,
+      ybottom = df_band[["lower"]][i],
+      xright  = x[i] + w / 2,
+      ytop    = df_band[["upper"]][i],
+      col     = if (.regplot_has_shade(shade)) grDevices::adjustcolor(fill_col[group], alpha.f = alpha) else NA,
+      border  = border_col[group],
+      lwd     = max(1, lwd / 2)
+    )
+    graphics::segments(
+      x0  = x[i] - w / 2,
+      y0  = df_band[["middle"]][i],
+      x1  = x[i] + w / 2,
+      y1  = df_band[["middle"]][i],
+      col = border_col[group],
+      lwd = max(1, lwd / 2)
+    )
+  }
+
+  return(invisible(NULL))
+}
+
+
+.regplot_add_continuous_band_ggplot <- function(out, df_band, fill_col, alpha,
+                                                border_col, shade, has_by) {
+
+  if (is.null(df_band)) {
+    return(out)
+  }
+
+  if (.regplot_has_shade(shade)) {
+    if (has_by) {
+      out <- out +
+        ggplot2::geom_polygon(
+          data    = df_band,
+          mapping = ggplot2::aes(x = x, y = y, group = group, fill = group),
+          alpha   = alpha
+        )
+    } else {
+      out <- out +
+        ggplot2::geom_polygon(
+          data    = df_band,
+          mapping = ggplot2::aes(x = x, y = y, group = group),
+          fill    = fill_col[1],
+          alpha   = alpha
+        )
+    }
+  }
+
+  df_edges <- .regplot_band_edges(df_band)
+  if (has_by) {
+    out <- out +
+      ggplot2::geom_line(
+        data    = df_edges,
+        mapping = ggplot2::aes(x = x, y = y, group = interaction(group, edge), colour = group),
+        linewidth = 0.35
+      )
+  } else {
+    out <- out +
+      ggplot2::geom_line(
+        data    = df_edges,
+        mapping = ggplot2::aes(x = x, y = y, group = edge),
+        colour  = border_col[1],
+        linewidth = 0.35
+      )
+  }
+
+  return(out)
+}
+
+.regplot_add_categorical_band_ggplot <- function(out, df_band, fill_col, alpha,
+                                                 border_col, shade, has_by,
+                                                 width, n_groups, dodge_width) {
+
+  if (is.null(df_band)) {
+    return(out)
+  }
+
+  df_band[["x_plot"]] <- .regplot_dodge_x(
+    df_band[["x"]],
+    df_band[["group_id"]],
+    n_groups,
+    dodge_width
+  )
+  width <- width / max(1, n_groups)
+
+  if (has_by && .regplot_has_shade(shade)) {
+    out <- out +
+      ggplot2::geom_crossbar(
+        data    = df_band,
+        mapping = ggplot2::aes(x = x_plot, y = middle, ymin = lower, ymax = upper,
+                               colour = group, fill = group),
+        width   = width,
+        alpha   = alpha,
+        linewidth = 0.35
+      )
+  } else if (has_by) {
+    out <- out +
+      ggplot2::geom_crossbar(
+        data    = df_band,
+        mapping = ggplot2::aes(x = x_plot, y = middle, ymin = lower, ymax = upper,
+                               colour = group),
+        width   = width,
+        fill    = NA,
+        alpha   = 1,
+        linewidth = 0.35
+      )
+  } else {
+    out <- out +
+      ggplot2::geom_crossbar(
+        data    = df_band,
+        mapping = ggplot2::aes(x = x_plot, y = middle, ymin = lower, ymax = upper),
+        width   = width,
+        colour  = border_col[1],
+        fill    = if (.regplot_has_shade(shade)) fill_col[1] else NA,
+        alpha   = if (.regplot_has_shade(shade)) alpha else 1,
+        linewidth = 0.35
+      )
+  }
+
+  return(out)
 }
 
 
@@ -778,7 +1573,6 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # ---------------------------------------------------------------------------- #
 .regplot_plot_base <- function(data, dots, legend = TRUE) {
 
-  # extract graphical parameters
   pch       <- dots[["pch"]]
   col       <- dots[["col"]]
   bg        <- dots[["bg"]]
@@ -793,8 +1587,9 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   shade     <- dots[["shade"]]
   main      <- dots[["main"]]
   jitter_am <- dots[["jitter"]]
+  box_width <- dots[["box.width"]]
+  dodge_w   <- dots[["dodge.width"]]
 
-  # extract data components
   df_points  <- data$points
   df_pred    <- data$pred
   df_ci      <- data$ci
@@ -802,10 +1597,27 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   df_si      <- data$si
   df_refline <- data$refline
   mod_type   <- data$mod_type
+  groups     <- data$groups
+  n_groups   <- length(groups)
+  has_by     <- n_groups > 1L
 
-  # set up the plot area
+  line_cols <- .regplot_palette(groups, lcol)
+  point_cols <- if (has_by) line_cols else stats::setNames(rep(col, n_groups), groups)
+  point_bgs  <- if (has_by) {
+    stats::setNames(grDevices::adjustcolor(line_cols, alpha.f = 0.45), groups)
+  } else {
+    stats::setNames(rep(bg, n_groups), groups)
+  }
+
+  if (has_by) {
+    ci_cols <- pi_cols <- si_cols <- line_cols
+  } else {
+    ci_cols <- stats::setNames(rep(col_ci, n_groups), groups)
+    pi_cols <- stats::setNames(rep(col_pi, n_groups), groups)
+    si_cols <- stats::setNames(rep(col_si, n_groups), groups)
+  }
+
   if (mod_type == "categorical") {
-    # categorical: custom x-axis
     graphics::plot(
       NA, NA,
       xlim = data$xlim,
@@ -829,93 +1641,97 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     )
   }
 
-  # draw reference line (if specified)
   if (!is.null(df_refline)) {
     graphics::abline(h = df_refline$y, lty = "dashed", col = "gray50")
   }
 
-  # draw SI band (if present and shading enabled) -- outermost band
-  if (!is.null(df_si) && shade) {
+  if (!is.null(df_si)) {
     if (mod_type == "continuous") {
-      col_si_alpha <- grDevices::adjustcolor(col_si, alpha.f = alpha_si)
-      graphics::polygon(df_si$x, df_si$y, col = col_si_alpha, border = NA)
+      .regplot_draw_continuous_band_base(df_si, si_cols, alpha_si, si_cols, shade, lwd)
     } else {
-      # categorical: draw error bars for SI
-      for (i in seq_len(nrow(df_si))) {
-        graphics::segments(
-          x0  = df_si$x[i],
-          y0  = df_si$lower[i],
-          x1  = df_si$x[i],
-          y1  = df_si$upper[i],
-          col = grDevices::adjustcolor(col_si, alpha.f = alpha_si + 0.3),
-          lwd = 9
-        )
-      }
+      .regplot_draw_categorical_band_base(
+        df_si, si_cols, alpha_si, si_cols, shade,
+        box_width * 1.4, n_groups, dodge_w, lwd
+      )
     }
   }
 
-  # draw PI band (if present and shading enabled)
-  if (!is.null(df_pi) && shade) {
+  if (!is.null(df_pi)) {
     if (mod_type == "continuous") {
-      col_pi_alpha <- grDevices::adjustcolor(col_pi, alpha.f = alpha_pi)
-      graphics::polygon(df_pi$x, df_pi$y, col = col_pi_alpha, border = NA)
+      .regplot_draw_continuous_band_base(df_pi, pi_cols, alpha_pi, pi_cols, shade, lwd)
     } else {
-      # categorical: draw error bars for PI
-      for (i in seq_len(nrow(df_pi))) {
-        graphics::segments(
-          x0  = df_pi$x[i],
-          y0  = df_pi$lower[i],
-          x1  = df_pi$x[i],
-          y1  = df_pi$upper[i],
-          col = grDevices::adjustcolor(col_pi, alpha.f = alpha_pi + 0.3),
-          lwd = 6
-        )
-      }
+      .regplot_draw_categorical_band_base(
+        df_pi, pi_cols, alpha_pi, pi_cols, shade,
+        box_width * 1.15, n_groups, dodge_w, lwd
+      )
     }
   }
 
-  # draw CI band (if present and shading enabled)
-  if (!is.null(df_ci) && shade) {
+  if (!is.null(df_ci)) {
     if (mod_type == "continuous") {
-      col_ci_alpha <- grDevices::adjustcolor(col_ci, alpha.f = alpha_ci)
-      graphics::polygon(df_ci$x, df_ci$y, col = col_ci_alpha, border = NA)
+      .regplot_draw_continuous_band_base(df_ci, ci_cols, alpha_ci, ci_cols, shade, lwd)
     } else {
-      # categorical: draw error bars for CI
-      for (i in seq_len(nrow(df_ci))) {
-        graphics::segments(
-          x0  = df_ci$x[i],
-          y0  = df_ci$lower[i],
-          x1  = df_ci$x[i],
-          y1  = df_ci$upper[i],
-          col = grDevices::adjustcolor(col_ci, alpha.f = alpha_ci + 0.3),
-          lwd = 3
-        )
-      }
+      .regplot_draw_categorical_band_base(
+        df_ci, ci_cols, alpha_ci, ci_cols, shade,
+        box_width, n_groups, dodge_w, lwd
+      )
     }
   }
 
-  # draw prediction line
   if (!is.null(df_pred)) {
     if (mod_type == "continuous") {
-      graphics::lines(df_pred$x, df_pred$y, col = lcol, lwd = lwd)
+      for (group in groups) {
+        df_group <- df_pred[df_pred[["group"]] == group, , drop = FALSE]
+        graphics::lines(df_group$x, df_group$y, col = line_cols[group], lwd = lwd)
+      }
     } else {
-      # categorical: draw points at predicted means
-      graphics::points(df_pred$x, df_pred$y, pch = 18, col = lcol, cex = 1.5)
+      x_pred <- .regplot_dodge_x(df_pred$x, df_pred$group_id, n_groups, dodge_w)
+      graphics::points(
+        x_pred,
+        df_pred$y,
+        pch = 18,
+        col = line_cols[df_pred$group],
+        cex = 1.5
+      )
     }
   }
 
-  # draw observed points (bubbles)
   if (mod_type == "categorical") {
-    # add jitter for categorical (save/restore RNG state)
-    old_seed <- if (exists(".Random.seed", envir = .GlobalEnv)) get(".Random.seed", envir = .GlobalEnv) else NULL
-    set.seed(42)
-    x_jittered <- df_points$x + stats::runif(nrow(df_points), -jitter_am, jitter_am)
-    if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = .GlobalEnv) else rm(".Random.seed", envir = .GlobalEnv)
-    graphics::points(x_jittered, df_points$y, pch = pch, col = col, bg = bg,
-                     cex = df_points$size)
+    x_points <- .regplot_dodge_x(df_points$x, df_points$group_id, n_groups, dodge_w)
+    x_points <- x_points + .regplot_jitter_values(
+      n      = nrow(df_points),
+      amount = jitter_am / max(1, n_groups)
+    )
+    graphics::points(
+      x_points,
+      df_points$y,
+      pch = pch,
+      col = point_cols[df_points$group],
+      bg  = point_bgs[df_points$group],
+      cex = df_points$size
+    )
   } else {
-    graphics::points(df_points$x, df_points$y, pch = pch, col = col, bg = bg,
-                     cex = df_points$size)
+    graphics::points(
+      df_points$x,
+      df_points$y,
+      pch = pch,
+      col = point_cols[df_points$group],
+      bg  = point_bgs[df_points$group],
+      cex = df_points$size
+    )
+  }
+
+  if (has_by && legend) {
+    graphics::legend(
+      "topright",
+      legend = groups,
+      col    = line_cols,
+      pt.bg  = point_bgs,
+      pch    = 21,
+      lty    = 1,
+      lwd    = lwd,
+      bty    = "n"
+    )
   }
 
   return(invisible(NULL))
@@ -937,7 +1753,6 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # ---------------------------------------------------------------------------- #
 .regplot_plot_ggplot <- function(data, dots, legend = TRUE) {
 
-  # extract graphical parameters
   pch       <- dots[["pch"]]
   col       <- dots[["col"]]
   bg        <- dots[["bg"]]
@@ -952,9 +1767,9 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   shade     <- dots[["shade"]]
   main      <- dots[["main"]]
   jitter_am <- dots[["jitter"]]
-  size      <- dots[["size"]]
+  box_width <- dots[["box.width"]]
+  dodge_w   <- dots[["dodge.width"]]
 
-  # extract data components
   df_points  <- data$points
   df_pred    <- data$pred
   df_ci      <- data$ci
@@ -962,10 +1777,21 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   df_si      <- data$si
   df_refline <- data$refline
   mod_type   <- data$mod_type
+  groups     <- data$groups
+  n_groups   <- length(groups)
+  has_by     <- n_groups > 1L
+
+  line_cols <- .regplot_palette(groups, lcol)
+  if (has_by) {
+    ci_cols <- pi_cols <- si_cols <- line_cols
+  } else {
+    ci_cols <- stats::setNames(rep(col_ci, n_groups), groups)
+    pi_cols <- stats::setNames(rep(col_pi, n_groups), groups)
+    si_cols <- stats::setNames(rep(col_si, n_groups), groups)
+  }
 
   out <- ggplot2::ggplot()
 
-  # add reference line (if specified)
   if (!is.null(df_refline)) {
     out <- out +
       ggplot2::geom_hline(
@@ -975,124 +1801,112 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       )
   }
 
-  # add SI band (if present and shading enabled) -- outermost band
-  if (!is.null(df_si) && shade) {
+  if (!is.null(df_si)) {
     if (mod_type == "continuous") {
-      out <- out +
-        ggplot2::geom_polygon(
-          mapping = ggplot2::aes(x = df_si$x, y = df_si$y),
-          fill    = col_si,
-          alpha   = alpha_si
-        )
+      out <- .regplot_add_continuous_band_ggplot(out, df_si, si_cols, alpha_si, si_cols, shade, has_by)
     } else {
-      # categorical: draw error bars
-      out <- out +
-        ggplot2::geom_errorbar(
-          data    = df_si,
-          mapping = ggplot2::aes(x = x, ymin = lower, ymax = upper),
-          width   = 0.3,
-          colour  = col_si,
-          alpha   = alpha_si + 0.3,
-          linewidth = 3
-        )
+      out <- .regplot_add_categorical_band_ggplot(
+        out, df_si, si_cols, alpha_si, si_cols, shade, has_by,
+        box_width * 1.4, n_groups, dodge_w
+      )
     }
   }
 
-  # add PI band (if present and shading enabled)
-  if (!is.null(df_pi) && shade) {
+  if (!is.null(df_pi)) {
     if (mod_type == "continuous") {
-      out <- out +
-        ggplot2::geom_polygon(
-          mapping = ggplot2::aes(x = df_pi$x, y = df_pi$y),
-          fill    = col_pi,
-          alpha   = alpha_pi
-        )
+      out <- .regplot_add_continuous_band_ggplot(out, df_pi, pi_cols, alpha_pi, pi_cols, shade, has_by)
     } else {
-      # categorical: draw error bars
-      out <- out +
-        ggplot2::geom_errorbar(
-          data    = df_pi,
-          mapping = ggplot2::aes(x = x, ymin = lower, ymax = upper),
-          width   = 0.2,
-          colour  = col_pi,
-          alpha   = alpha_pi + 0.3,
-          linewidth = 2
-        )
+      out <- .regplot_add_categorical_band_ggplot(
+        out, df_pi, pi_cols, alpha_pi, pi_cols, shade, has_by,
+        box_width * 1.15, n_groups, dodge_w
+      )
     }
   }
 
-  # add CI band (if present and shading enabled)
-  if (!is.null(df_ci) && shade) {
+  if (!is.null(df_ci)) {
     if (mod_type == "continuous") {
-      out <- out +
-        ggplot2::geom_polygon(
-          mapping = ggplot2::aes(x = df_ci$x, y = df_ci$y),
-          fill    = col_ci,
-          alpha   = alpha_ci
-        )
+      out <- .regplot_add_continuous_band_ggplot(out, df_ci, ci_cols, alpha_ci, ci_cols, shade, has_by)
     } else {
-      # categorical: draw error bars
-      out <- out +
-        ggplot2::geom_errorbar(
-          data    = df_ci,
-          mapping = ggplot2::aes(x = x, ymin = lower, ymax = upper),
-          width   = 0.1,
-          colour  = col_ci,
-          alpha   = alpha_ci + 0.3,
-          linewidth = 1
-        )
+      out <- .regplot_add_categorical_band_ggplot(
+        out, df_ci, ci_cols, alpha_ci, ci_cols, shade, has_by,
+        box_width, n_groups, dodge_w
+      )
     }
   }
 
-  # add prediction line
   if (!is.null(df_pred)) {
     if (mod_type == "continuous") {
-      out <- out +
-        ggplot2::geom_line(
-          mapping   = ggplot2::aes(x = df_pred$x, y = df_pred$y),
-          colour    = lcol,
-          linewidth = lwd / 2
-        )
+      if (has_by) {
+        out <- out +
+          ggplot2::geom_line(
+            data    = df_pred,
+            mapping = ggplot2::aes(x = x, y = y, colour = group, group = group),
+            linewidth = lwd / 2
+          )
+      } else {
+        out <- out +
+          ggplot2::geom_line(
+            data    = df_pred,
+            mapping = ggplot2::aes(x = x, y = y),
+            colour  = lcol[1],
+            linewidth = lwd / 2
+          )
+      }
     } else {
-      # categorical: draw predicted means as diamonds
-      out <- out +
-        ggplot2::geom_point(
-          mapping = ggplot2::aes(x = df_pred$x, y = df_pred$y),
-          shape   = 18,
-          colour  = lcol,
-          size    = 4
-        )
+      df_pred[["x_plot"]] <- .regplot_dodge_x(df_pred$x, df_pred$group_id, n_groups, dodge_w)
+      if (has_by) {
+        out <- out +
+          ggplot2::geom_point(
+            data    = df_pred,
+            mapping = ggplot2::aes(x = x_plot, y = y, colour = group),
+            shape   = 18,
+            size    = 4
+          )
+      } else {
+        out <- out +
+          ggplot2::geom_point(
+            data    = df_pred,
+            mapping = ggplot2::aes(x = x_plot, y = y),
+            shape   = 18,
+            colour  = lcol[1],
+            size    = 4
+          )
+      }
     }
   }
 
-  # add observed points (bubbles)
   if (mod_type == "categorical") {
-    # add jitter for categorical
+    df_points[["x_plot"]] <- .regplot_dodge_x(df_points$x, df_points$group_id, n_groups, dodge_w)
+    df_points[["x_plot"]] <- df_points[["x_plot"]] + .regplot_jitter_values(
+      n      = nrow(df_points),
+      amount = jitter_am / max(1, n_groups)
+    )
+  } else {
+    df_points[["x_plot"]] <- df_points[["x"]]
+  }
+
+  if (has_by) {
     out <- out +
       ggplot2::geom_point(
         data    = df_points,
-        mapping = ggplot2::aes(x = x, y = y, size = size),
-        shape   = pch,
-        colour  = col,
-        fill    = bg,
-        position = ggplot2::position_jitter(width = jitter_am, height = 0, seed = 42)
+        mapping = ggplot2::aes(x = x_plot, y = y, size = size,
+                               colour = group, fill = group),
+        shape   = pch
       )
   } else {
     out <- out +
       ggplot2::geom_point(
         data    = df_points,
-        mapping = ggplot2::aes(x = x, y = y, size = size),
+        mapping = ggplot2::aes(x = x_plot, y = y, size = size),
         shape   = pch,
         colour  = col,
         fill    = bg
       )
   }
 
-  # configure size scale
   out <- out +
     ggplot2::scale_size_identity()
 
-  # set axis scales and labels
   if (mod_type == "categorical") {
     out <- out +
       ggplot2::scale_x_continuous(
@@ -1115,13 +1929,20 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       name   = data$ylab
     )
 
-  # add title if specified
+  if (has_by) {
+    out <- out +
+      ggplot2::scale_colour_manual(values = line_cols, name = data$by_name) +
+      ggplot2::scale_fill_manual(values = line_cols, name = data$by_name)
+  }
+
   if (!is.null(main)) {
     out <- out + ggplot2::ggtitle(main)
   }
 
-  # remove legend for size (since we're using scale_size_identity)
   out <- out + ggplot2::guides(size = "none")
+  if (has_by && !legend) {
+    out <- out + ggplot2::guides(colour = "none", fill = "none")
+  }
 
   return(out)
 }
@@ -1162,7 +1983,9 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   if (is.null(dots[["alpha.si"]])) dots[["alpha.si"]] <- 0.15
 
   # categorical moderator jitter
-  if (is.null(dots[["jitter"]]))   dots[["jitter"]]   <- 0.2
+  if (is.null(dots[["jitter"]]))      dots[["jitter"]]      <- 0.2
+  if (is.null(dots[["box.width"]]))   dots[["box.width"]]   <- 0.5
+  if (is.null(dots[["dodge.width"]])) dots[["dodge.width"]] <- 0.75
 
   # title (NULL = no title by default)
   if (is.null(dots[["main"]]))     dots[["main"]]     <- NULL

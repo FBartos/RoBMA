@@ -49,6 +49,10 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'     \code{\link{residuals.brma}} with \code{type = "outcome"}.
 #' }
 #' Only used when funnel is in residual mode.
+#' @param unit output unit for residual mode. Only \code{"estimate"} is
+#' implemented in this pass.
+#' @param conditioning_depth residual conditioning depth for residual mode.
+#' Options are \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.
 #' @param sampling_heterogeneity whether heterogeneity should be incorporated
 #' into the sampling distribution funnel. Defaults to \code{TRUE}. Only used
 #' in outcome mode and ignored in residual mode.
@@ -102,8 +106,12 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' \strong{Residual mode} (models with moderators or scale regression):
 #' Displays residuals on the x-axis and standard errors on the
 #' y-axis. The funnel region represents the central 95\% region of
-#' \eqn{N(0, \mathrm{SE}^2)}. With \code{type = "LOO-PIT"} or
-#' \code{"rstandard"}, these are standardized residual diagnostics. With
+#' \eqn{N(0, \mathrm{SE}^2)}. With \code{type = "LOO-PIT"}, the plotted
+#' residuals and standard errors are the raw-scale LOO predictive companions
+#' returned by \code{\link{rstudent.brma}}; the PIT-normalized \code{z} values
+#' are used by \code{\link{qqnorm.brma}} and influence diagnostics. With
+#' \code{type = "rstandard"}, the plotted values are internally standardized
+#' residual companions from \code{\link{rstandard.brma}}. With
 #' \code{type = "outcome"}, these are raw outcome residuals. Under a correctly
 #' specified model, most points should fall within this region.
 #'
@@ -154,16 +162,41 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' @export
 #' @rdname funnel
 funnel.brma <- function(x, residual, type = "LOO-PIT",
+                        unit = "estimate", conditioning_depth = "marginal",
                         sampling_heterogeneity = TRUE, sampling_bias = TRUE,
                         plot_type = "base", ...) {
   # input validation
+  conditioning_depth_specified <- !missing(conditioning_depth)
+  dots                         <- list(...)
+  .check_legacy_level_arg(dots, "funnel()")
+
   BayesTools::check_char(type, "type", allow_values = c("outcome", "rstandard", "LOO-PIT", "rstudent"))
+  unit               <- .normalize_unit(unit)
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
   BayesTools::check_bool(sampling_heterogeneity, "sampling_heterogeneity")
   BayesTools::check_bool(sampling_bias, "sampling_bias")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  .check_unit_conditioning_depth(
+    object             = x,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "funnel()"
+  )
+
+  if (unit == "cluster") {
+    .check_cluster_unit_deferred("funnel()")
+  }
+
+  if ((type == "LOO-PIT" || type == "rstudent") && conditioning_depth_specified) {
+    stop(
+      "LOO-PIT residuals use the estimate-unit LOO target; ",
+      "do not set 'conditioning_depth'.",
+      call. = FALSE
+    )
+  }
 
   # set up graphical arguments with defaults
-  dots <- .set_dots_funnel(...)
+  dots <- .set_dots_funnel(dots)
 
   # get model characteristics
   is_mods  <- .is_mods(x)
@@ -183,7 +216,13 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     # sampling heterogeneity/bias ignored in residual mode - explicitly set to FALSE
     sampling_heterogeneity <- FALSE
     sampling_bias          <- FALSE
-    funnel_data <- .funnel_data_residual(x = x, type = type, dots = dots)
+    funnel_data <- .funnel_data_residual(
+      x                  = x,
+      type               = type,
+      unit               = unit,
+      conditioning_depth = conditioning_depth,
+      dots               = dots
+    )
   } else {
     funnel_data <- .funnel_data_outcome(
       x                      = x,
@@ -256,15 +295,16 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
   # compute confidence interval offsets from center (based on sampling distribution)
   ci_offsets <- .get_funnel_quantiles(
-    x                 = x,
-    se_sequence       = se_sequence,
-    mu                = mu_mean,
-    tau               = tau,
-    sampling_bias     = sampling_bias,
-    is_weightfunction = is_weightfunction,
-    is_PET            = is_PET,
-    is_PEESE          = is_PEESE,
-    effect_direction  = effect_direction
+    x                      = x,
+    se_sequence            = se_sequence,
+    mu                     = mu_mean,
+    tau                    = tau,
+    sampling_heterogeneity = sampling_heterogeneity,
+    sampling_bias          = sampling_bias,
+    is_weightfunction      = is_weightfunction,
+    is_PET                 = is_PET,
+    is_PEESE               = is_PEESE,
+    effect_direction       = effect_direction
   )
   # funnel bounds are absolute coordinates (mu was passed inside)
   ci_left  <- ci_offsets$lower
@@ -306,15 +346,16 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
   # recompute contours for clipped sequence
   ci_offsets_clipped <- .get_funnel_quantiles(
-    x                 = x,
-    se_sequence       = se_sequence_clipped,
-    mu                = mu_mean,
-    tau               = tau,
-    sampling_bias     = sampling_bias,
-    is_weightfunction = is_weightfunction,
-    is_PET            = is_PET,
-    is_PEESE          = is_PEESE,
-    effect_direction  = effect_direction
+    x                      = x,
+    se_sequence            = se_sequence_clipped,
+    mu                     = mu_mean,
+    tau                    = tau,
+    sampling_heterogeneity = sampling_heterogeneity,
+    sampling_bias          = sampling_bias,
+    is_weightfunction      = is_weightfunction,
+    is_PET                 = is_PET,
+    is_PEESE               = is_PEESE,
+    effect_direction       = effect_direction
   )
   ci_left  <- ci_offsets_clipped$lower
   ci_right <- ci_offsets_clipped$upper
@@ -384,29 +425,46 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 #
 # Generate funnel plot data for residual mode (mods OR scale).
 #
-# @param x    brma object
-# @param type character; type of residuals
-# @param dots list of graphical parameters
+# @param x                  brma object
+# @param type               character; type of residuals
+# @param unit               character; output unit
+# @param conditioning_depth character; conditioning depth
+# @param dots               list of graphical parameters
 #
 # @return list with funnel plot data components
 #
 # ---------------------------------------------------------------------------- #
-.funnel_data_residual <- function(x, type, dots) {
+.funnel_data_residual <- function(x, type, unit, conditioning_depth, dots) {
 
   # get residuals based on type
   # rstandard and rstudent return data.frame with resid, se, z columns
   if (type == "rstandard") {
-    res_obj <- rstandard.brma(x)
+    res_obj <- rstandard.brma(
+      model              = x,
+      unit               = unit,
+      conditioning_depth = conditioning_depth
+    )
     res <- res_obj$resid
     se  <- res_obj$se
   } else if (type == "LOO-PIT" || type == "rstudent") {
-    res_obj <- rstudent.brma(x)
+    res_obj <- rstudent.brma(x, unit = unit)
     res <- res_obj$resid
     se  <- res_obj$se
   } else if (type == "outcome") {
     # raw outcome residuals
-    res <- residuals.brma(x, type = "outcome")
-    se  <- .outcome_data_sei(x)
+    res_obj <- residuals.brma(
+      object             = x,
+      type               = "outcome",
+      unit               = unit,
+      conditioning_depth = conditioning_depth
+    )
+    if (is.data.frame(res_obj)) {
+      res <- res_obj$resid
+      se  <- res_obj$se
+    } else {
+      res <- res_obj
+      se  <- .outcome_data_sei(x)
+    }
   }
   K <- length(se)
 
@@ -452,9 +510,15 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
   # create output data structures
   df_points <- data.frame(
-    x = res,
-    y = se
+    x                  = res,
+    y                  = se,
+    unit               = rep(unit, K),
+    conditioning_depth = rep(conditioning_depth, K)
   )
+  if (exists("res_obj") && is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
+    df_points[["cluster"]]     <- res_obj[["cluster"]]
+    df_points[["n_estimates"]] <- res_obj[["n_estimates"]]
+  }
   # Funnel: use CLIPPED data for filled polygon
   df_funnel <- data.frame(
     x = c(rev(ci_left_clipped), ci_right_clipped),
@@ -666,35 +730,26 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
       )
   }
 
-  # add vertical reference line (now potentially curved)
-  out <- out +
-    ggplot2::geom_line(
-      mapping = ggplot2::aes(
-        x = df_refline$x,
-        y = df_refline$y
-      ),
-      linetype = lty,
-      colour = col_refline
-    )
+  out <- .add_funnel_path_or_line(
+    out    = out,
+    data   = df_refline,
+    lty    = lty,
+    colour = col_refline
+  )
 
   # add funnel edge lines
-  out <- out +
-    ggplot2::geom_line(
-      mapping = ggplot2::aes(
-        x = df_funnel_edge1$x,
-        y = df_funnel_edge1$y
-      ),
-      linetype = lty,
-      colour = col_line
-    ) +
-    ggplot2::geom_line(
-      mapping = ggplot2::aes(
-        x = df_funnel_edge2$x,
-        y = df_funnel_edge2$y
-      ),
-      linetype = lty,
-      colour = col_line
-    )
+  out <- .add_funnel_path_or_line(
+    out    = out,
+    data   = df_funnel_edge1,
+    lty    = lty,
+    colour = col_line
+  )
+  out <- .add_funnel_path_or_line(
+    out    = out,
+    data   = df_funnel_edge2,
+    lty    = lty,
+    colour = col_line
+  )
 
   # add points
   out <- out +
@@ -728,6 +783,52 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   }
 
   return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .add_funnel_path_or_line
+# ---------------------------------------------------------------------------- #
+#
+# Add a contour line to a ggplot object.
+#
+# PET/PEESE contours can be non-monotone in x because they are parameterized by
+# standard error. ggplot2::geom_line() sorts by x, which can scramble such
+# contours, so those cases must use geom_path().
+#
+# ---------------------------------------------------------------------------- #
+.add_funnel_path_or_line <- function(out, data, lty, colour) {
+
+  x_finite <- data[["x"]][is.finite(data[["x"]])]
+  if (length(x_finite) < 3L) {
+    is_monotone <- TRUE
+  } else {
+    x_diff      <- diff(x_finite)
+    x_diff      <- x_diff[x_diff != 0]
+    is_monotone <- length(x_diff) < 2L || all(x_diff > 0) || all(x_diff < 0)
+  }
+
+  if (is_monotone) {
+    return(out +
+      ggplot2::geom_line(
+        mapping = ggplot2::aes(
+          x = data[["x"]],
+          y = data[["y"]]
+        ),
+        linetype = lty,
+        colour   = colour
+      )
+    )
+  }
+
+  return(out +
+    ggplot2::geom_path(
+      data    = data,
+      mapping = ggplot2::aes(x = x, y = y),
+      linetype = lty,
+      colour   = colour
+    )
+  )
 }
 
 
@@ -822,26 +923,27 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 #
 # Compute quantiles for funnel plot contours based on the sampling distribution.
 #
-# When sampling_bias = TRUE:
-# - For selection models (weightfunction): uses weighted normal quantiles
-# - For PET/PEESE: incorporates expected skew from regression adjustment
+# When sampling_bias = TRUE, posterior rows dispatch to their active bias model
+# and the contour is obtained by inverting the model-averaged CDF.
 #
 # When sampling_bias = FALSE: uses standard normal quantiles.
 #
-# @param x                 brma object
-# @param se_sequence       numeric vector of SE values for funnel contours
-# @param mu                numeric scalar of pooled effect estimate
-# @param tau               numeric scalar of heterogeneity estimate
-# @param sampling_bias     logical; whether to incorporate bias into sampling dist
-# @param is_weightfunction logical; whether model has selection model
-# @param is_PET            logical; whether model has PET adjustment
-# @param is_PEESE          logical; whether model has PEESE adjustment
-# @param effect_direction  character; "positive" or "negative"
+# @param x                      brma object
+# @param se_sequence            numeric vector of SE values for funnel contours
+# @param mu                     numeric scalar of pooled effect estimate
+# @param tau                    numeric scalar of heterogeneity estimate
+# @param sampling_heterogeneity logical; whether to incorporate tau
+# @param sampling_bias          logical; whether to incorporate bias into sampling dist
+# @param is_weightfunction      logical; whether model has selection model
+# @param is_PET                 logical; whether model has PET adjustment
+# @param is_PEESE               logical; whether model has PEESE adjustment
+# @param effect_direction       character; "positive" or "negative"
 #
 # @return list with 'lower' and 'upper' quantile vectors
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_quantiles <- function(x, se_sequence, mu, tau, sampling_bias,
+.get_funnel_quantiles <- function(x, se_sequence, mu, tau,
+                                  sampling_heterogeneity, sampling_bias,
                                   is_weightfunction, is_PET, is_PEESE,
                                   effect_direction) {
   n_se   <- length(se_sequence)
@@ -854,82 +956,80 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
       upper = stats::qnorm(0.975, mean = mu, sd = sd_seq),
       mid   = rep(mu, n_se)
     ))
-  } else if (is_weightfunction) {
-    # use weighted normal quantiles for selection models
-    return(.get_funnel_quantiles_weighted(x, se_sequence, mu, sd_seq, effect_direction))
-  } else if (is_PET || is_PEESE) {
-    # for PET/PEESE, incorporate regression-based skew
-    return(.get_funnel_quantiles_PETPEESE(x, se_sequence, mu, sd_seq, is_PET, is_PEESE, effect_direction))
   }
+
+  if (!BayesTools::is.prior.mixture(x[["priors"]][["outcome"]][["bias"]])) {
+    if (is_weightfunction) {
+      return(.get_funnel_quantiles_weighted_plugin(
+        x                = x,
+        se_sequence      = se_sequence,
+        mu               = mu,
+        sd_seq           = sd_seq,
+        effect_direction = effect_direction
+      ))
+    }
+    if (is_PET || is_PEESE) {
+      return(.get_funnel_quantiles_PETPEESE_plugin(
+        x                = x,
+        se_sequence      = se_sequence,
+        mu               = mu,
+        sd_seq           = sd_seq,
+        is_PET           = is_PET,
+        is_PEESE         = is_PEESE,
+        effect_direction = effect_direction
+      ))
+    }
+  }
+
+  return(.get_funnel_quantiles_model_averaged(
+    x                      = x,
+    se_sequence            = se_sequence,
+    sampling_heterogeneity = sampling_heterogeneity,
+    effect_direction       = effect_direction
+  ))
 }
 
 
 # ---------------------------------------------------------------------------- #
-# .get_funnel_quantiles_weighted
+# .get_funnel_quantiles_weighted_plugin
 # ---------------------------------------------------------------------------- #
 #
-# Compute weighted normal quantiles for funnel contours when model has
-# selection (weightfunction) adjustment.
-#
-# Uses posterior mean omega and computes weighted quantiles via .qwnorm_fast.ss.
-#
-# @param x                brma object
-# @param se_sequence      numeric vector of SE values
-# @param mu               numeric scalar of pooled effect
-# @param sd_seq           numeric vector of total SD (sqrt(se^2 + tau^2))
-# @param effect_direction character; "positive" or "negative"
-#
-# @return list with 'lower' and 'upper' quantile vectors
+# Fast plug-in weighted-normal contours for single selection-model priors.
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_quantiles_weighted <- function(x, se_sequence, mu, sd_seq, effect_direction) {
+.get_funnel_quantiles_weighted_plugin <- function(x, se_sequence, mu, sd_seq,
+                                                 effect_direction) {
 
-  n_se <- length(se_sequence)
+  n_se              <- length(se_sequence)
+  posterior_samples <- .get_posterior_samples(x[["fit"]])
+  omega_cols        <- grep("^omega\\[", colnames(posterior_samples))
+  omega_mean        <- colMeans(posterior_samples[, omega_cols, drop = FALSE])
+  omega_matrix      <- matrix(omega_mean, nrow = n_se, ncol = length(omega_mean), byrow = TRUE)
+  priors_bias       <- x[["priors"]][["outcome"]][["bias"]]
 
-  # extract posterior mean omega from fitted model
-  posterior_samples <- suppressWarnings(coda::as.mcmc(x[["fit"]]))
-  # use more robust regex for extracting omega columns (e.g. omega[1], omega[2])
-  omega_cols <- grep("^omega\\[", colnames(posterior_samples))
-
-  omega_mean   <- colMeans(posterior_samples[, omega_cols, drop = FALSE])
-  omega_matrix <- matrix(omega_mean, nrow = n_se, ncol = length(omega_mean), byrow = TRUE)
-
-  # Extract publication bias priors to determine steps (p-value cutoffs)
-  priors <- x[["priors"]]
-  priors_bias <- priors[["outcome"]][["bias"]]
   if (!BayesTools::is.prior.mixture(priors_bias)) {
     priors_bias <- list(priors_bias)
   }
 
-  # create the weightfunction mapping for effect size thresholds
-  # (logic mirrored from .create_fit_data in fit.R)
   steps <- BayesTools::weightfunctions_mapping(
     priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)],
     cuts_only = TRUE,
     one_sided = TRUE
   )
-  # remove 0 and 1 boundaries if present and reversed
   steps <- rev(steps)[c(-1, -length(steps))]
 
   lower <- numeric(n_se)
   upper <- numeric(n_se)
 
-  # Adjust mu based on effect direction for calculation
-  # Weighted normal calculation assumes positive significant effects
-  # If effect_direction is negative, the "significant" effects are negative values
   if (effect_direction == "negative") {
     mu_calc <- -mu
   } else {
     mu_calc <- mu
   }
 
-  # compute weighted quantiles for each SE level
   for (i in seq_len(n_se)) {
-
-    # Calculate critical values for the current SE using the steps
     crit_x <- stats::qnorm(steps, lower.tail = FALSE) * se_sequence[i]
 
-    # compute quantiles centered at mu_calc
     lower[i] <- .qwnorm_fast.ss(
       p      = 0.025,
       mean   = mu_calc,
@@ -946,7 +1046,6 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     )
   }
 
-  # flip back if effect direction is negative
   if (effect_direction == "negative") {
     temp  <- -upper
     upper <- -lower
@@ -958,35 +1057,20 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
 
 # ---------------------------------------------------------------------------- #
-# .get_funnel_quantiles_PETPEESE
+# .get_funnel_quantiles_PETPEESE_plugin
 # ---------------------------------------------------------------------------- #
 #
-# Compute quantiles incorporating PET/PEESE regression-based skew.
-#
-# PET adds a linear term in SE, PEESE adds a quadratic term in SE^2.
-# This shifts the expected sampling distribution away from center.
-#
-# @param x                brma object
-# @param se_sequence      numeric vector of SE values
-# @param mu               numeric scalar of pooled effect
-# @param sd_seq           numeric vector of total SD (sqrt(se^2 + tau^2))
-# @param is_PET           logical; whether model has PET
-# @param is_PEESE         logical; whether model has PEESE
-# @param effect_direction character; "positive" or "negative"
-#
-# @return list with 'lower' and 'upper' quantile vectors
+# Fast plug-in normal contours for single PET/PEESE priors.
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_quantiles_PETPEESE <- function(x, se_sequence, mu, sd_seq, is_PET, is_PEESE, effect_direction) {
+.get_funnel_quantiles_PETPEESE_plugin <- function(x, se_sequence, mu, sd_seq,
+                                                  is_PET, is_PEESE,
+                                                  effect_direction) {
 
-  n_se <- length(se_sequence)
-
-  # extract posterior mean PET/PEESE coefficients
-  posterior_samples <- suppressWarnings(coda::as.mcmc(x[["fit"]]))
-
-  # compute bias shift at each SE level
-  bias_shift <- rep(0, n_se)
-  direction <- ifelse(effect_direction == "negative", -1, 1)
+  n_se              <- length(se_sequence)
+  posterior_samples <- .get_posterior_samples(x[["fit"]])
+  bias_shift        <- rep(0, n_se)
+  direction         <- ifelse(effect_direction == "negative", -1, 1)
 
   if (is_PET && "PET" %in% colnames(posterior_samples)) {
     PET_mean   <- mean(posterior_samples[, "PET"])
@@ -998,12 +1082,448 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     bias_shift <- bias_shift + direction * PEESE_mean * se_sequence^2
   }
 
-  # the funnel is centered at mu, plus bias shifts
   mid   <- mu + bias_shift
   lower <- stats::qnorm(0.025, mean = mid, sd = sd_seq)
   upper <- stats::qnorm(0.975, mean = mid, sd = sd_seq)
 
   return(list(lower = lower, upper = upper, mid = mid))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .get_funnel_quantiles_model_averaged
+# ---------------------------------------------------------------------------- #
+#
+# Compute model-averaged funnel contours for publication-bias models.
+#
+# Each posterior row dispatches to its active bias model:
+# - no-bias rows use a normal CDF
+# - PET/PEESE rows use a normal CDF with the row-specific bias offset
+# - selection-model rows use the mapped weighted-normal CDF
+#
+# Quantiles are obtained from the averaged posterior-row CDF.
+#
+# @return list with 'lower', 'upper', and 'mid' quantile vectors
+#
+# ---------------------------------------------------------------------------- #
+.get_funnel_quantiles_model_averaged <- function(x, se_sequence,
+                                                 sampling_heterogeneity,
+                                                 effect_direction) {
+
+  setup <- .funnel_model_averaged_setup(
+    x                      = x,
+    sampling_heterogeneity = sampling_heterogeneity
+  )
+
+  lower <- vapply(
+    se_sequence,
+    .funnel_model_averaged_quantile,
+    numeric(1),
+    p                = 0.025,
+    setup            = setup,
+    effect_direction = effect_direction
+  )
+  upper <- vapply(
+    se_sequence,
+    .funnel_model_averaged_quantile,
+    numeric(1),
+    p                = 0.975,
+    setup            = setup,
+    effect_direction = effect_direction
+  )
+  mid <- vapply(
+    se_sequence,
+    .funnel_model_averaged_quantile,
+    numeric(1),
+    p                = 0.5,
+    setup            = setup,
+    effect_direction = effect_direction
+  )
+
+  return(list(lower = lower, upper = upper, mid = mid))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_model_averaged_setup
+# ---------------------------------------------------------------------------- #
+#
+# Prepare posterior-row quantities for model-averaged funnel contours.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_model_averaged_setup <- function(x, sampling_heterogeneity) {
+
+  posterior_samples <- .get_posterior_samples(x[["fit"]])
+  S                 <- nrow(posterior_samples)
+  priors_bias       <- x[["priors"]][["outcome"]][["bias"]]
+
+  if (!BayesTools::is.prior.mixture(priors_bias)) {
+    priors_bias <- list(priors_bias)
+  }
+
+  branch_is_weightfunction <- vapply(priors_bias, BayesTools::is.prior.weightfunction, logical(1))
+  branch_is_PET            <- vapply(priors_bias, BayesTools::is.prior.PET,            logical(1))
+  branch_is_PEESE          <- vapply(priors_bias, BayesTools::is.prior.PEESE,          logical(1))
+  bias_indicator           <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
+
+  if (any(is.na(bias_indicator)) ||
+      any(bias_indicator < 1L | bias_indicator > length(priors_bias))) {
+    stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
+  }
+
+  mu_samples <- .funnel_mu_samples(x, posterior_samples)
+
+  if (sampling_heterogeneity) {
+    tau_samples <- .funnel_tau_samples(x, posterior_samples)
+  } else {
+    tau_samples <- rep(0, S)
+  }
+
+  PET_samples   <- .funnel_posterior_column(posterior_samples, "PET",   S)
+  PEESE_samples <- .funnel_posterior_column(posterior_samples, "PEESE", S)
+
+  PET_samples[!branch_is_PET[bias_indicator]]     <- 0
+  PEESE_samples[!branch_is_PEESE[bias_indicator]] <- 0
+
+  omega_cols <- grep("^omega\\[", colnames(posterior_samples))
+  if (length(omega_cols) > 0) {
+    omega_samples <- as.matrix(posterior_samples[, omega_cols, drop = FALSE])
+  } else {
+    omega_samples <- matrix(1, nrow = S, ncol = 1)
+  }
+
+  return(list(
+    mu                    = mu_samples,
+    tau                   = tau_samples,
+    PET                   = PET_samples,
+    PEESE                 = PEESE_samples,
+    omega                 = omega_samples,
+    bias_indicator        = bias_indicator,
+    is_weightfunction     = branch_is_weightfunction[bias_indicator],
+    selection             = .funnel_selection_setup(priors_bias, branch_is_weightfunction)
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_mu_samples
+# ---------------------------------------------------------------------------- #
+#
+# Extract pooled location samples without PET/PEESE bias offsets.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_mu_samples <- function(x, posterior_samples) {
+
+  if (!.is_mods(x)) {
+    return(as.numeric(posterior_samples[, "mu"]))
+  }
+
+  mu_samples <- predict.brma(
+    object        = x,
+    newdata       = TRUE,
+    type          = "terms",
+    bias_adjusted = TRUE,
+    quiet         = TRUE
+  )
+
+  return(as.numeric(as.matrix(mu_samples)[, 1]))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_tau_samples
+# ---------------------------------------------------------------------------- #
+#
+# Extract total heterogeneity samples for outcome-mode funnel contours.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_tau_samples <- function(x, posterior_samples) {
+
+  tau_result <- .evaluate.brma.tau(
+    fit               = x[["fit"]],
+    scale_data        = x[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(x)) .create_fit_formula_list(data = x[["data"]], "scale") else NULL,
+    scale_priors      = x[["priors"]][["scale"]],
+    is_scale          = .is_scale(x),
+    is_multilevel     = .is_multilevel(x),
+    K                 = nrow(x[["data"]][["outcome"]]),
+    posterior_samples = posterior_samples
+  )
+
+  return(rowMeans(tau_result[["tau_total"]]))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_posterior_column
+# ---------------------------------------------------------------------------- #
+#
+# Extract an optional posterior column, returning zeros when absent.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_posterior_column <- function(posterior_samples, column, S) {
+
+  if (column %in% colnames(posterior_samples)) {
+    return(as.numeric(posterior_samples[, column]))
+  }
+
+  return(rep(0, S))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_selection_setup
+# ---------------------------------------------------------------------------- #
+#
+# Recreate the branch-specific weightfunction cutpoint mapping for arbitrary SEs.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_selection_setup <- function(priors_bias, branch_is_weightfunction) {
+
+  if (!any(branch_is_weightfunction)) {
+    return(NULL)
+  }
+
+  steps <- BayesTools::weightfunctions_mapping(
+    priors_bias[branch_is_weightfunction],
+    cuts_only = TRUE,
+    one_sided = TRUE
+  )
+  steps <- rev(steps)[c(-1, -length(steps))]
+
+  crit_yi_mapping     <- matrix(0L, nrow = length(steps), ncol = length(priors_bias))
+  crit_yi_mapping_max <- rep(0L, length(priors_bias))
+
+  for (i in seq_along(priors_bias)) {
+    if (branch_is_weightfunction[i]) {
+      this_steps <- .get_one_sided_cuts(priors_bias[[i]])
+      crit_yi_mapping[seq_along(this_steps), i] <- which(steps %in% this_steps)
+      crit_yi_mapping_max[i] <- length(this_steps)
+    }
+  }
+
+  return(list(
+    steps                = steps,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_model_averaged_quantile
+# ---------------------------------------------------------------------------- #
+#
+# Invert the model-averaged posterior-row CDF at one SE value.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_model_averaged_quantile <- function(se, p, setup, effect_direction) {
+
+  total_sd <- sqrt(se^2 + setup[["tau"]]^2)
+  location <- .funnel_row_location(se, setup, effect_direction)
+  eps_sd   <- sqrt(.Machine$double.eps)
+
+  if (all(total_sd < eps_sd)) {
+    return(unname(stats::quantile(location, probs = p, names = FALSE, type = 8)))
+  }
+
+  spread <- pmax(total_sd, eps_sd)
+  lower  <- min(location - 10 * spread, na.rm = TRUE)
+  upper  <- max(location + 10 * spread, na.rm = TRUE)
+
+  if (!is.finite(lower) || !is.finite(upper)) {
+    return(NA_real_)
+  }
+  if (lower >= upper) {
+    lower <- lower - 1
+    upper <- upper + 1
+  }
+
+  obj_fun <- function(q) {
+    .funnel_model_averaged_cdf(
+      q                = q,
+      se               = se,
+      setup            = setup,
+      effect_direction = effect_direction
+    ) - p
+  }
+
+  lower_value <- obj_fun(lower)
+  upper_value <- obj_fun(upper)
+  step        <- max(spread, na.rm = TRUE)
+  if (!is.finite(step) || step <= 0) {
+    step <- max(1, abs(location), na.rm = TRUE)
+  }
+
+  for (i in seq_len(25)) {
+    if (lower_value <= 0 && upper_value >= 0) {
+      break
+    }
+    if (lower_value > 0) {
+      lower       <- lower - step
+      lower_value <- obj_fun(lower)
+    }
+    if (upper_value < 0) {
+      upper       <- upper + step
+      upper_value <- obj_fun(upper)
+    }
+    step <- step * 2
+  }
+
+  if (lower_value > 0 || upper_value < 0) {
+    return(.funnel_grid_quantile(p, lower, upper, se, setup, effect_direction))
+  }
+
+  out <- tryCatch(
+    stats::uniroot(obj_fun, interval = c(lower, upper), tol = 1e-6)[["root"]],
+    error = function(e) NA_real_
+  )
+
+  if (is.na(out)) {
+    out <- .funnel_grid_quantile(p, lower, upper, se, setup, effect_direction)
+  }
+
+  return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_model_averaged_cdf
+# ---------------------------------------------------------------------------- #
+#
+# Average CDF values across posterior rows at one x-coordinate and SE.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_model_averaged_cdf <- function(q, se, setup, effect_direction) {
+
+  S          <- length(setup[["mu"]])
+  total_sd   <- sqrt(se^2 + setup[["tau"]]^2)
+  location   <- .funnel_row_location(se, setup, effect_direction)
+  eps_sd     <- sqrt(.Machine$double.eps)
+  cdf_values <- rep(NA_real_, S)
+
+  zero_sd <- total_sd < eps_sd
+  if (any(zero_sd)) {
+    cdf_values[zero_sd] <- as.numeric(q >= location[zero_sd])
+  }
+
+  normal_rows <- !setup[["is_weightfunction"]] & !zero_sd
+  if (any(normal_rows)) {
+    cdf_values[normal_rows] <- stats::pnorm(
+      q,
+      mean = location[normal_rows],
+      sd   = total_sd[normal_rows]
+    )
+  }
+
+  weighted_rows <- setup[["is_weightfunction"]] & !zero_sd
+  if (any(weighted_rows)) {
+    rows <- which(weighted_rows)
+    cdf_values[rows] <- .funnel_weighted_cdf(
+      q                = q,
+      rows             = rows,
+      se               = se,
+      total_sd         = total_sd,
+      setup            = setup,
+      effect_direction = effect_direction
+    )
+  }
+
+  cdf_values <- pmin(pmax(cdf_values, 0), 1)
+  return(mean(cdf_values))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_row_location
+# ---------------------------------------------------------------------------- #
+#
+# Row-specific expected observed location on the original effect-size scale.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_row_location <- function(se, setup, effect_direction) {
+
+  direction <- ifelse(effect_direction == "negative", -1, 1)
+
+  return(
+    setup[["mu"]] +
+      direction * setup[["PET"]] * se +
+      direction * setup[["PEESE"]] * se^2
+  )
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_weighted_cdf
+# ---------------------------------------------------------------------------- #
+#
+# Weighted-normal CDF for selection-model posterior rows.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_weighted_cdf <- function(q, rows, se, total_sd, setup, effect_direction) {
+
+  selection <- setup[["selection"]]
+
+  if (is.null(selection) || length(selection[["steps"]]) == 0) {
+    return(stats::pnorm(q, mean = setup[["mu"]][rows], sd = total_sd[rows]))
+  }
+
+  crit_yi <- matrix(
+    stats::qnorm(selection[["steps"]], lower.tail = FALSE) * se,
+    ncol = 1
+  )
+
+  if (effect_direction == "negative") {
+    q_eval     <- -q
+    mean_eval  <- -setup[["mu"]][rows]
+    lower_tail <- FALSE
+  } else {
+    q_eval     <- q
+    mean_eval  <- setup[["mu"]][rows]
+    lower_tail <- TRUE
+  }
+
+  cdf <- .wnorm_mix_cdf_matrix(
+    q                   = q_eval,
+    mean                = matrix(mean_eval, ncol = 1),
+    sd                  = matrix(total_sd[rows], ncol = 1),
+    omega               = setup[["omega"]][rows, , drop = FALSE],
+    crit_yi             = crit_yi,
+    bias_indicator      = setup[["bias_indicator"]][rows],
+    crit_yi_mapping     = selection[["crit_yi_mapping"]],
+    crit_yi_mapping_max = selection[["crit_yi_mapping_max"]],
+    lower.tail          = lower_tail
+  )
+
+  return(as.numeric(cdf[, 1]))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_grid_quantile
+# ---------------------------------------------------------------------------- #
+#
+# Fallback inversion for discontinuous CDFs from degenerate posterior rows.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_grid_quantile <- function(p, lower, upper, se, setup, effect_direction) {
+
+  grid <- seq(lower, upper, length.out = 1000)
+  cdf  <- vapply(
+    grid,
+    .funnel_model_averaged_cdf,
+    numeric(1),
+    se               = se,
+    setup            = setup,
+    effect_direction = effect_direction
+  )
+  index <- which(cdf >= p)[1]
+
+  if (is.na(index)) {
+    return(grid[length(grid)])
+  }
+
+  return(grid[index])
 }
 
 
@@ -1021,9 +1541,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 # @return list of graphical parameters with defaults applied
 #
 # ---------------------------------------------------------------------------- #
-.set_dots_funnel <- function(...) {
-
-  dots <- list(...)
+.set_dots_funnel <- function(dots) {
 
   # point styling (use metafor-style argument names)
   if (is.null(dots[["pch"]])) dots[["pch"]] <- 21 # open circle with fill

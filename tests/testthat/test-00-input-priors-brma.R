@@ -145,6 +145,60 @@ test_that("Invalid prior_unit_information_sd throws error", {
 
 
 # ============================================================================
+# Tests for constructor aliases and bias prior defaults
+# ============================================================================
+
+test_that("brma.norm alias is not overwritten by bselmodel", {
+
+  skip_on_cran()
+
+  result <- brma.norm(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", only_data = TRUE
+  )
+
+  expect_s3_class(result, "brma.norm")
+  expect_false("bselmodel" %in% class(result))
+  expect_false("prior_bias" %in% names(formals(brma.norm)))
+})
+
+
+test_that("Explicit NULL prior_bias uses defaults for single bias models", {
+
+  skip_on_cran()
+
+  result_sel <- bselmodel(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", prior_bias = NULL, only_priors = TRUE
+  )[["priors"]]
+  expect_true(BayesTools::is.prior.weightfunction(result_sel$outcome$bias))
+
+  result_pet <- bPET(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", prior_bias = NULL, only_priors = TRUE
+  )[["priors"]]
+  expect_true(BayesTools::is.prior.PET(result_pet$outcome$bias))
+})
+
+
+test_that("bPEESE default respects manual prior_unit_information_sd", {
+
+  skip_on_cran()
+
+  result <- bPEESE(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", prior_unit_information_sd = 10,
+    only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(
+    result$outcome$bias$parameters$scale,
+    RoBMA.get_option("default_bias_PEESE.scale") * sqrt(2) / 10
+  )
+})
+
+
+# ============================================================================
 # Tests for rescale_priors
 # ============================================================================
 
@@ -289,17 +343,34 @@ test_that("Conflicting prior specifications throw errors", {
 })
 
 
+test_that("Informed scale priors are assigned", {
+
+  skip_on_cran()
+
+  result <- brma.norm(
+    yi = effect, sei = std_err, scale = ~ scale_var,
+    data = test_data, measure = "SMD",
+    prior_informed_field = "medicine", only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(
+    result$scale$scale_var$parameters$sd,
+    RoBMA.get_option("default_informed_priors.scale")
+  )
+})
+
+
 # ============================================================================
-# Tests for heterogeneity allocation prior (study_ids)
+# Tests for heterogeneity allocation prior (cluster)
 # ============================================================================
 
 test_that("Heterogeneity allocation prior works correctly", {
 
   skip_on_cran()
 
-  # Default Beta(1,1) when study_ids specified
+  # Default Beta(1,1) when cluster specified
   result <- brma.norm(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     measure = "SMD", only_priors = TRUE
   )[["priors"]]
   expect_true("rho" %in% names(result$outcome))
@@ -310,14 +381,40 @@ test_that("Heterogeneity allocation prior works correctly", {
   # Custom prior
   custom_prior <- BayesTools::prior("beta", parameters = list(alpha = 2, beta = 2))
   result_custom <- brma.norm(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     prior_heterogeneity_allocation = custom_prior, measure = "OR", only_priors = TRUE
   )[["priors"]]
   expect_equal(result_custom$outcome$rho$parameters$alpha, 2)
 
-  # No rho when study_ids not specified
+  # No rho when cluster not specified
   result_no_ids <- brma.norm(yi = effect, sei = std_err, data = test_data, measure = "SMD", only_priors = TRUE)
   expect_false("rho" %in% names(result_no_ids$outcome))
+})
+
+
+test_that("Constrained point priors outside support throw errors", {
+
+  skip_on_cran()
+
+  expect_error(
+    brma.norm(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "SMD",
+      prior_heterogeneity = BayesTools::prior("spike", parameters = list(location = -0.1)),
+      only_priors = TRUE
+    ),
+    regexp = "prior_heterogeneity"
+  )
+
+  expect_error(
+    brma.norm(
+      yi = effect, sei = std_err, cluster = cluster, data = test_data,
+      measure = "SMD",
+      prior_heterogeneity_allocation = BayesTools::prior("spike", parameters = list(location = 1.1)),
+      only_priors = TRUE
+    ),
+    regexp = "heterogeneity_allocation"
+  )
 })
 
 
@@ -357,6 +454,14 @@ test_that("Moderator priors are assigned correctly", {
     prior_mods = custom_mod, measure = "SMD", only_priors = TRUE
   )[["priors"]]
   expect_equal(result_mod$mods$mod_cont$parameters$sd, 0.3)
+
+  # Single prior_mods applies to all terms
+  result_mod_default <- brma.norm(
+    yi = effect, sei = std_err, mods = ~ mod_cont,
+    data = test_data, prior_mods = custom_mod[[1]],
+    measure = "SMD", only_priors = TRUE
+  )[["priors"]]
+  expect_equal(result_mod_default$mods$mod_cont$parameters$sd, 0.3)
 })
 
 

@@ -7,10 +7,10 @@
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
 #' @export
-bselmodel <- brma.norm <- function(
+bselmodel <- function(
     # input specification
   yi, vi, sei, weights, ni,
-  mods, scale, study_ids,
+  mods, scale, cluster,
   data, slab, subset,
   measure = "GEN",
 

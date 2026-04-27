@@ -21,8 +21,8 @@
 #
 # This function samples from this distribution for each posterior sample.
 #
-# @param mu_samples       S x K matrix of location samples (with study effects if multilevel)
-# @param tau_within       S x K matrix of within-study heterogeneity samples
+# @param mu_samples       S x K matrix of location samples (with cluster effects if multilevel)
+# @param tau_within       S x K matrix of within-cluster heterogeneity samples
 # @param sei              numeric vector of length K; standard errors
 #
 # @return S x K matrix of sampled observed effect sizes
@@ -67,18 +67,23 @@
 # have omega = all 1s (set by JAGS for non-weightfunction models).
 #
 # @param mu_samples       S x K matrix of location samples
-# @param tau_within       S x K matrix of within-study heterogeneity samples
+# @param tau_within       S x K matrix of within-cluster heterogeneity samples
 # @param sei              numeric vector of length K; standard errors
 # @param omega            S x W matrix of omega (weight) samples
-# @param crit_yi          W x K matrix of critical values for each observation
+# @param crit_yi          W - 1 x K matrix of critical values for each observation
 # @param use_normal       optional logical vector of length S; TRUE if sample should
 #                         use fast normal path (for samples with omega = all 1s)
+# @param bias_indicator   optional integer vector of length S; active bias branch
+#                         for branch-specific cutpoint mapping
+# @param crit_yi_mapping  optional cutpoint mapping matrix, cuts x branches
+# @param crit_yi_mapping_max optional active cutoff count per branch
 #
 # @return S x K matrix of sampled observed effect sizes from weighted distribution
 #
 # ---------------------------------------------------------------------------- #
 .outcome_rng.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi,
-                               use_normal = NULL) {
+                               use_normal = NULL, bias_indicator = NULL,
+                               crit_yi_mapping = NULL, crit_yi_mapping_max = NULL) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
@@ -89,16 +94,42 @@
 
   # sample from weighted normal for each observation
   # (loop is necessary due to .rwnorm_fast.ss interface)
+  has_mapping <- .selection_has_mapping(
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  )
   response_samples <- matrix(NA_real_, nrow = S, ncol = K)
 
   for (k in seq_len(K)) {
-    response_samples[, k] <- .rwnorm_fast.ss(
-      mean       = mu_samples[, k],
-      sd         = total_sd[, k],
-      omega      = omega,
-      crit_x     = crit_yi[, k],
-      use_normal = use_normal  # <-- Pass through for internal subdispatch
-    )
+    if (has_mapping) {
+      response_samples[, k] <- .selection_branch_apply(
+        S                   = S,
+        bias_indicator      = bias_indicator,
+        crit_yi_mapping     = crit_yi_mapping,
+        crit_yi_mapping_max = crit_yi_mapping_max,
+        normal_fun = function(rows) {
+          stats::rnorm(length(rows), mean = mu_samples[rows, k],
+                       sd = total_sd[rows, k])
+        },
+        weighted_fun = function(rows, map_idx) {
+          .rwnorm_fast.ss(
+            mean   = mu_samples[rows, k],
+            sd     = total_sd[rows, k],
+            omega  = .selection_active_omega(omega, rows, map_idx),
+            crit_x = crit_yi[map_idx, k]
+          )
+        }
+      )
+    } else {
+      response_samples[, k] <- .rwnorm_fast.ss(
+        mean       = mu_samples[, k],
+        sd         = total_sd[, k],
+        omega      = omega,
+        crit_x     = crit_yi[, k],
+        use_normal = use_normal  # <-- Pass through for internal subdispatch
+      )
+    }
   }
 
   return(response_samples)
@@ -142,8 +173,16 @@
   outcome_samples_ci <- matrix(NA_integer_, nrow = S, ncol = K)
 
   for (k in seq_len(K)) {
-    outcome_samples_ai[, k] <- stats::rbinom(n = S, size = n1i[k], prob = .inv_logit(logit_p1[, k]))
-    outcome_samples_ci[, k] <- stats::rbinom(n = S, size = n2i[k], prob = .inv_logit(logit_p2[, k]))
+    outcome_samples_ai[, k] <- stats::rbinom(
+      n    = S,
+      size = n1i[k],
+      prob = .inv_logit(logit_p1[, k])
+    )
+    outcome_samples_ci[, k] <- stats::rbinom(
+      n    = S,
+      size = n2i[k],
+      prob = .inv_logit(logit_p2[, k])
+    )
   }
 
   # name columns
@@ -203,8 +242,14 @@
   outcome_samples_x2i <- matrix(NA_integer_, nrow = S, ncol = K)
 
   for (k in seq_len(K)) {
-    outcome_samples_x1i[, k] <- stats::rpois(n = S, lambda = exp(log_lambda1[, k]))
-    outcome_samples_x2i[, k] <- stats::rpois(n = S, lambda = exp(log_lambda2[, k]))
+    outcome_samples_x1i[, k] <- stats::rpois(
+      n      = S,
+      lambda = exp(log_lambda1[, k])
+    )
+    outcome_samples_x2i[, k] <- stats::rpois(
+      n      = S,
+      lambda = exp(log_lambda2[, k])
+    )
   }
 
   # name columns

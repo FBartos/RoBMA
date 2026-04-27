@@ -19,9 +19,9 @@
 #'   \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
 #'   Produces the mean effect size estimate at the given predictor levels,
 #'   not accounting for random effects.}
-#'   \item{\code{"study"}: Fixed effects plus study-level random effects (mu + gamma).
+#'   \item{\code{"cluster"}: Fixed effects plus cluster-level random effects (mu + gamma).
 #'   Only available for multilevel (3-level) models.}
-#'   \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True study
+#'   \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
 #'   effects (mu + gamma + theta). Incorporates all random effects including estimate-level
 #'   heterogeneity. For existing data, returns BLUPs (empirical Bayes estimates).}
 #'   \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
@@ -54,7 +54,7 @@
 #' \strong{Type hierarchy:}
 #' \itemize{
 #'   \item{\code{"terms"}: mu (fixed effects only)}
-#'   \item{\code{"study"}: mu + gamma (adds study-level random effect)}
+#'   \item{\code{"cluster"}: mu + gamma (adds cluster-level random effect)}
 #'   \item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
 #'   \item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
 #' }
@@ -62,7 +62,7 @@
 #' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 #' predictions for the new effect size estimates. To obtain results corresponding to
 #' metafor's predict function, use \code{type = "terms"} for the mean effect size
-#' and \code{type = "estimate"} for true study effects (prediction interval).
+#' and \code{type = "estimate"} for true effects (prediction interval).
 #'
 #' @examples \dontrun{
 #' }
@@ -83,7 +83,7 @@ predict.brma <- function(object, newdata = NULL,
                          ...){
 
   # normalize type aliases
-  type <- match.arg(type, c("terms", "marginal", "study", "estimate", "effect", "blup",
+  type <- match.arg(type, c("terms", "marginal", "cluster", "estimate", "effect", "blup",
                             "response", "outcome", "terms.scale"))
   type <- switch(type,
     "marginal" = "terms",
@@ -116,11 +116,11 @@ predict.brma <- function(object, newdata = NULL,
 
   ### types of predictions
   # terms:       fixed effects terms for the overall effect (mu) / incorporating mods if present
-  # study:       terms + study-level random effects (mu + gamma) - multilevel only
+  # cluster:     terms + cluster-level random effects (mu + gamma) - multilevel only
   # terms.scale: fixed effects terms for the overall heterogeneity (tau) / incorporating scale if present
-  # estimate:    incorporating between-study heterogeneity into terms to obtain the true study effects
+  # estimate:    incorporating heterogeneity into terms to obtain the true effects
   #              (via empirical Bayes for existing data, new random effect sampled for new data)
-  # response:    incorporating between-study heterogeneity and sampling variability
+  # response:    incorporating heterogeneity and sampling variability
 
   ### dispatch between prediction on the current data vs. new data
   if (is.null(newdata)) {
@@ -159,12 +159,14 @@ predict.brma <- function(object, newdata = NULL,
   is_PET            <- .is_PET(object)
   is_PEESE          <- .is_PEESE(object)
   is_weightfunction <- .is_weightfunction(object)
+  is_weights        <- .is_weights(object)
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
 
-  # check: study type requires multilevel model
-  if (type == "study" && !is_multilevel) {
-    stop("type = 'study' is only available for multilevel (3-level) models. ",
+  # check: cluster type requires multilevel model
+  if (type == "cluster" && !is_multilevel) {
+    stop("type = 'cluster' is only available for multilevel (3-level) models. ",
          "Use type = 'terms' for non-multilevel models.", call. = FALSE)
   }
 
@@ -178,15 +180,16 @@ predict.brma <- function(object, newdata = NULL,
 
   ### obtain tau samples using helper function
   # returns list(tau_within, tau_between) - all S x K matrices
-  # see .evaluate.brma.tau() in brma.evaluate.R for details
+  # see .evaluate.brma.tau() in evaluate.R for details
   tau_result          <- .evaluate.brma.tau(
-    fit           = object[["fit"]],
-    scale_data    = new_data[["scale"]],
-    scale_formula = if (is_scale) .create_fit_formula_list(data = new_data, "scale") else NULL,
-    scale_priors  = priors[["scale"]],
-    is_scale      = is_scale,
-    is_multilevel = is_multilevel,
-    K             = K_original
+    fit               = object[["fit"]],
+    scale_data        = new_data[["scale"]],
+    scale_formula     = if (is_scale) .create_fit_formula_list(data = new_data, "scale") else NULL,
+    scale_priors      = priors[["scale"]],
+    is_scale          = is_scale,
+    is_multilevel     = is_multilevel,
+    K                 = K_original,
+    posterior_samples = posterior_samples
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
@@ -229,7 +232,7 @@ predict.brma <- function(object, newdata = NULL,
 
   ### get the base mu samples using helper function
   # returns S x K matrix of location samples
-  # see .evaluate.brma.mu() in brma.evaluate.R for details
+  # see .evaluate.brma.mu() in evaluate.R for details
   mu_samples <- .evaluate.brma.mu(
     fit               = object[["fit"]],
     outcome_data      = outcome_data,
@@ -241,11 +244,12 @@ predict.brma <- function(object, newdata = NULL,
     is_PEESE          = is_PEESE,
     effect_direction  = effect_direction,
     bias_adjusted     = bias_adjusted,
-    K                 = K_original
+    K                 = K_original,
+    posterior_samples = posterior_samples
   )
 
-  ### aggregate mu and tau samples if requested (for terms/study/estimate types)
-  if (aggregate && type %in% c("terms", "study", "estimate")) {
+  ### aggregate mu and tau samples if requested (for terms/cluster/estimate types)
+  if (aggregate && type %in% c("terms", "cluster", "estimate")) {
     # average mu across observations (rows are samples, columns are observations)
     # for non-mods models, all columns are identical so this is a no-op
     # for mods models, this averages across the model matrix
@@ -274,48 +278,79 @@ predict.brma <- function(object, newdata = NULL,
     ))
   }
 
-  ### include 3-level (study-level) random-effects using helper function
-  # returns contribution matrix gamma[study_id] * tau_between for multilevel models
-  # see .evaluate.brma.study_effects() in brma.evaluate.R for details
+  ### include 3-level (cluster-level) random-effects using helper function
+  # returns contribution matrix gamma[cluster] * tau_between for multilevel models
+  # see .evaluate.brma.cluster_effects() in evaluate.R for details
   # for aggregated predictions (same_data = FALSE, K = 1), function samples new gamma ~ N(0,1)
-  multilevel_blup <- NULL
-  if (is_multilevel && outcome_type == "norm" && same_data) {
+  blup_vi <- NULL
+  if (outcome_type == "norm") {
+    blup_vi <- outcome_data[["sei"]]^2
+    if (is_weights) {
+      blup_vi <- blup_vi / outcome_data[["weights"]]
+    }
+  }
+
+  blup_bias_offset <- NULL
+  if (outcome_type == "norm" && same_data && bias_adjusted && (is_PET || is_PEESE)) {
+    blup_bias_offset <- .evaluate.brma.bias_offset(
+      fit               = object[["fit"]],
+      outcome_data      = outcome_data,
+      is_PET            = is_PET,
+      is_PEESE          = is_PEESE,
+      effect_direction  = effect_direction,
+      K                 = K,
+      posterior_samples = posterior_samples
+    )
+  }
+
+  # Exact block BLUP applies when the Gaussian residual model matches the target.
+  # For weightfunction models, gamma is sampled under the selected-data
+  # likelihood; keep those draws and apply estimate-level shrinkage conditional
+  # on them instead of replacing them by the ordinary Gaussian block shortcut.
+  multilevel_blup     <- NULL
+  use_multilevel_blup <- is_multilevel && outcome_type == "norm" && same_data &&
+    !is_weightfunction
+
+  if (use_multilevel_blup) {
     multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
       mu_samples  = mu_samples,
       tau_within  = tau_within_samples,
       tau_between = tau_between_samples,
       yi          = outcome_data[["yi"]],
-      vi          = outcome_data[["sei"]]^2,
-      study_ids   = fit_data[["study_ids"]]
+      vi          = blup_vi,
+      cluster     = fit_data[["cluster"]],
+      bias_offset = blup_bias_offset
     )
   }
 
   if (is_multilevel) {
     if (!is.null(multilevel_blup)) {
-      study_contribution <- multilevel_blup[["study"]]
+      cluster_contribution <- multilevel_blup[["cluster"]]
     } else {
-      study_contribution <- .evaluate.brma.study_effects(
-        fit              = object[["fit"]],
-        tau_between      = tau_between_samples,
-        study_ids        = fit_data[["study_ids"]],
-        same_data        = same_data,
-        effect_direction = effect_direction
+      cluster <- if (aggregate) seq_len(K) else fit_data[["cluster"]]
+      cluster_contribution <- .evaluate.brma.cluster_effects(
+        fit               = object[["fit"]],
+        tau_between       = tau_between_samples,
+        cluster           = cluster,
+        same_data         = same_data,
+        effect_direction  = effect_direction,
+        posterior_samples = posterior_samples
       )
     }
-    mu_samples <- mu_samples + study_contribution
+    mu_samples <- mu_samples + cluster_contribution
   }
 
-  ### return study-level predictions if type = "study" is selected
-  # study incorporates fixed effects + study-level random effects (mu + gamma)
-  if (type == "study") {
+  ### return cluster-level predictions if type = "cluster" is selected
+  # cluster incorporates fixed effects + cluster-level random effects (mu + gamma)
+  if (type == "cluster") {
     # rename samples
-    colnames(mu_samples) <- if (aggregate) "mu_study" else paste0("mu_study[", seq_len(K), "]")
+    colnames(mu_samples) <- if (aggregate) "mu_cluster" else paste0("mu_cluster[", seq_len(K), "]")
 
     return(.new_brma_samples(
       samples  = mu_samples,
       n_chains = n_chains,
       n_iter   = n_iter,
-      title    = if (aggregate) "Aggregated Study-Level Posterior Prediction:" else "Study-Level Posterior Prediction:",
+      title    = if (aggregate) "Aggregated Cluster-Level Posterior Prediction:" else "Cluster-Level Posterior Prediction:",
       probs    = probs,
       data     = if (aggregate) NULL else new_data
     ))
@@ -332,19 +367,21 @@ predict.brma <- function(object, newdata = NULL,
       true_effects_samples <- mu_samples + multilevel_blup[["estimate"]]
     } else if (outcome_type == "norm") {
       true_effects_samples <- .evaluate.brma.true_effects.norm(
-        mu_samples = mu_samples,
-        tau_within = tau_within_samples,
-        yi         = outcome_data[["yi"]],
-        sei        = outcome_data[["sei"]],
-        same_data  = same_data
+        mu_samples  = mu_samples,
+        tau_within  = tau_within_samples,
+        yi          = outcome_data[["yi"]],
+        sei         = sqrt(blup_vi),
+        same_data   = same_data,
+        bias_offset = blup_bias_offset
       )
     } else {
       true_effects_samples <- .evaluate.brma.true_effects.glmm(
-        fit        = object[["fit"]],
-        mu_samples = mu_samples,
-        tau_within = tau_within_samples,
-        same_data  = same_data,
-        K          = K
+        fit               = object[["fit"]],
+        mu_samples        = mu_samples,
+        tau_within        = tau_within_samples,
+        same_data         = same_data,
+        K                 = K,
+        posterior_samples = posterior_samples
       )
     }
 
@@ -370,20 +407,38 @@ predict.brma <- function(object, newdata = NULL,
 
       # the estimate-level effects are not marginalized for GLMMs
       # include the sampled random effects or marginalize over them for new data
-      # see .evaluate.brma.theta.glmm() in brma.evaluate.R for details
+      # see .evaluate.brma.theta.glmm() in evaluate.R for details
       theta_contribution <- .evaluate.brma.theta.glmm(
-        fit        = object[["fit"]],
-        tau_within = tau_within_samples,
-        same_data  = same_data,
-        K          = K
+        fit               = object[["fit"]],
+        tau_within        = tau_within_samples,
+        same_data         = same_data,
+        K                 = K,
+        posterior_samples = posterior_samples
       )
       mu_samples <- mu_samples + theta_contribution
 
       if (outcome_type == "bin") {
 
         ### incorporate with base-rate using helper function
-        # .evaluate.brma.baserate() returns S x K matrix of logit(pi) samples
-        logit_baserate <- .evaluate.brma.baserate(fit = object[["fit"]], K = K)
+        # Existing data use fitted pi[k]. Newdata samples new pi from the
+        # estimate-specific prior; reusing fitted pi[k] would index old studies.
+        if (same_data) {
+          if (K != nrow(object[["data"]][["outcome"]])) {
+            stop("Existing-data GLMM response prediction has inconsistent K.",
+                 call. = FALSE)
+          }
+          logit_baserate <- .evaluate.brma.baserate(
+            fit               = object[["fit"]],
+            K                 = K,
+            posterior_samples = posterior_samples
+          )
+        } else {
+          logit_baserate <- .evaluate.brma.baserate_newdata(
+            prior_pi = priors[["outcome"]][["pi"]],
+            S        = nrow(mu_samples),
+            K        = K
+          )
+        }
 
         ### sample outcome using RNG helper
         outcome_samples <- .outcome_rng.binom(
@@ -396,8 +451,25 @@ predict.brma <- function(object, newdata = NULL,
       } else if (outcome_type == "pois") {
 
         ### incorporate with log-rate using helper function
-        # .evaluate.brma.lograte() returns S x K matrix of log(phi) samples
-        log_phi <- .evaluate.brma.lograte(fit = object[["fit"]], K = K)
+        # Existing data use fitted phi[k]. Newdata samples new phi from the
+        # estimate-specific prior; reusing fitted phi[k] would index old studies.
+        if (same_data) {
+          if (K != nrow(object[["data"]][["outcome"]])) {
+            stop("Existing-data GLMM response prediction has inconsistent K.",
+                 call. = FALSE)
+          }
+          log_phi <- .evaluate.brma.lograte(
+            fit               = object[["fit"]],
+            K                 = K,
+            posterior_samples = posterior_samples
+          )
+        } else {
+          log_phi <- .evaluate.brma.lograte_newdata(
+            prior_phi = priors[["outcome"]][["phi"]],
+            S         = nrow(mu_samples),
+            K         = K
+          )
+        }
 
         ### sample outcome using RNG helper
         outcome_samples <- .outcome_rng.pois(
@@ -471,12 +543,11 @@ predict.brma <- function(object, newdata = NULL,
 
         # sample from weighted normal distribution for selection models
         # extract omega samples for weight function
-        posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
-        omega_samples     <- posterior_samples[, grep("omega", colnames(posterior_samples)), drop = FALSE]
+        omega_samples <- .extract_omega_samples(posterior_samples)
 
         # compute use_normal indicator for performance optimization
         # this identifies which samples come from non-weightfunction bias models
-        use_normal <- .extract_use_normal(object)
+        use_normal <- .extract_use_normal(object, posterior_samples = posterior_samples)
 
         # for weighted distributions, crit_yi is computed in "positive" space
         # (yi flipped for negative effect direction in .create_fit_data)
@@ -489,12 +560,15 @@ predict.brma <- function(object, newdata = NULL,
         }
 
         outcome_samples <- .outcome_rng.wnorm(
-          mu_samples = mu_samples_for_wnorm,
-          tau_within = tau_within_samples,
-          sei        = outcome_data[["sei"]],
-          omega      = omega_samples,
-          crit_yi    = fit_data$crit_yi,
-          use_normal = use_normal
+          mu_samples          = mu_samples_for_wnorm,
+          tau_within          = tau_within_samples,
+          sei                 = outcome_data[["sei"]],
+          omega               = omega_samples,
+          crit_yi             = fit_data$crit_yi,
+          use_normal          = use_normal,
+          bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
+          crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
+          crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
         )
 
         # flip samples back to original space

@@ -34,11 +34,14 @@
 #'     matrix. Only available for normal outcome models without selection
 #'     (weightfunction) bias adjustment.
 #' }
+#' @param unit output unit. Only \code{"estimate"} is implemented currently.
+#' @param conditioning_depth residual conditioning depth. Options are
+#' \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.
 #' @param envelope logical indicating whether to add a pseudo confidence
 #' envelope to the plot. The envelope is created by simulating sets of
 #' standard normal quantiles, providing a reference for the expected variability
 #' under a correctly specified model. Defaults to \code{TRUE}.
-#' @param level numeric value between 0 and 100 specifying the confidence level
+#' @param conf_level numeric value between 0 and 100 specifying the confidence level
 #' for the envelope bounds. Defaults to \code{95}.
 #' @param bonferroni logical indicating whether to apply Bonferroni correction
 #' to the envelope, so it can be regarded as a simultaneous confidence region
@@ -77,7 +80,7 @@
 #' @details
 #' The normal QQ plot is a diagnostic tool for assessing whether the
 #' standardized residuals follow a standard normal distribution, as expected
-#' under a correctly specified model. Each point represents one study,
+#' under a correctly specified model. Each point represents one estimate,
 #' plotted at coordinates \eqn{(\Phi^{-1}(p_i), z_{(i)})} where
 #' \eqn{p_i} are the plotting positions and \eqn{z_{(i)}} are the sorted
 #' standardized residuals.
@@ -128,36 +131,71 @@
 #' @seealso [rstudent.brma()], [rstandard.brma()], [residuals.brma()],
 #' [funnel.brma()], [radial.brma()]
 #' @exportS3Method
-qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
+qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
+                         conditioning_depth = "marginal", envelope = TRUE,
+                         conf_level = 95,
                          bonferroni = FALSE, reps = 1000, smooth = TRUE,
                          xlim, ylim, xlab, ylab, plot_type = "base", ...) {
 
   # input validation
+  conditioning_depth_specified <- !missing(conditioning_depth)
+  dots                         <- list(...)
+  if ("level" %in% names(dots)) {
+    if (is.numeric(dots[["level"]]) && length(dots[["level"]]) == 1L) {
+      conf_level      <- dots[["level"]]
+      dots[["level"]] <- NULL
+    } else {
+      .check_legacy_level_arg(dots, "qqnorm()")
+    }
+  }
+
   BayesTools::check_char(type, "type", allow_values = c("rstandard", "rstudent", "LOO-PIT"))
+  unit               <- .normalize_unit(unit)
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
   BayesTools::check_bool(envelope, "envelope")
-  BayesTools::check_real(level, "level", lower = 0, upper = 100)
+  BayesTools::check_real(conf_level, "conf_level", lower = 0, upper = 100)
   BayesTools::check_bool(bonferroni, "bonferroni")
   BayesTools::check_int(reps, "reps", lower = 1)
   BayesTools::check_bool(smooth, "smooth")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  .check_unit_conditioning_depth(
+    object             = y,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "qqnorm()"
+  )
+
+  if (unit == "cluster") {
+    .check_cluster_unit_deferred("qqnorm()")
+  }
+
+  if ((type == "LOO-PIT" || type == "rstudent") && conditioning_depth_specified) {
+    stop(
+      "LOO-PIT residuals use the estimate-unit LOO target; ",
+      "do not set 'conditioning_depth'.",
+      call. = FALSE
+    )
+  }
 
   # set up graphical arguments with defaults
-  dots <- .set_dots_qqnorm(...)
+  dots <- .set_dots_qqnorm(dots)
 
   # generate QQ plot data
   qq_data <- .qqnorm_data(
-    x          = y,
-    type       = type,
-    envelope   = envelope,
-    level      = level,
-    bonferroni = bonferroni,
-    reps       = reps,
-    smooth     = smooth,
-    xlim       = if (missing(xlim)) NULL else xlim,
-    ylim       = if (missing(ylim)) NULL else ylim,
-    xlab       = if (missing(xlab)) NULL else xlab,
-    ylab       = if (missing(ylab)) NULL else ylab,
-    dots       = dots
+    x                  = y,
+    type               = type,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    envelope           = envelope,
+    conf_level         = conf_level,
+    bonferroni         = bonferroni,
+    reps               = reps,
+    smooth             = smooth,
+    xlim               = if (missing(xlim)) NULL else xlim,
+    ylim               = if (missing(ylim)) NULL else ylim,
+    xlab               = if (missing(xlab)) NULL else xlab,
+    ylab               = if (missing(ylab)) NULL else ylab,
+    dots               = dots
   )
 
   # allow data return for programmatic access
@@ -186,8 +224,10 @@ qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
 #
 # @param x          brma object
 # @param type       residual type ("rstudent", "LOO-PIT", or "rstandard")
+# @param unit       output unit.
+# @param conditioning_depth residual conditioning depth.
 # @param envelope   logical; draw envelope
-# @param level      confidence level (0-100)
+# @param conf_level confidence level (0-100)
 # @param bonferroni logical; Bonferroni correction
 # @param reps       number of simulation replications
 # @param smooth     logical; smooth envelope bounds
@@ -200,15 +240,20 @@ qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
 # @return list with QQ plot data components
 #
 # ---------------------------------------------------------------------------- #
-.qqnorm_data <- function(x, type, envelope, level, bonferroni, reps, smooth,
+.qqnorm_data <- function(x, type, unit, conditioning_depth, envelope, conf_level,
+                          bonferroni, reps, smooth,
                           xlim, ylim, xlab, ylab, dots) {
 
   # get standardized residuals
   if (type == "rstandard") {
-    res_obj <- rstandard.brma(x)
+    res_obj <- rstandard.brma(
+      model              = x,
+      unit               = unit,
+      conditioning_depth = conditioning_depth
+    )
   } else {
     # type == "rstudent" or "LOO-PIT"
-    res_obj <- rstudent.brma(x)
+    res_obj <- rstudent.brma(x, unit = unit)
   }
   z <- res_obj$z
   K <- length(z)
@@ -231,7 +276,7 @@ qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
   if (envelope) {
     env_data <- .qqnorm_envelope(
       K          = K,
-      level      = level,
+      level      = conf_level,
       bonferroni = bonferroni,
       reps       = reps,
       smooth     = smooth,
@@ -256,7 +301,16 @@ qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
   if (is.null(ylab)) ylab <- "Sample Quantiles"
 
   # points data frame
-  df_points <- data.frame(x = qq_x, y = qq_y)
+  df_points <- data.frame(
+    x                  = qq_x,
+    y                  = qq_y,
+    unit               = rep(unit, K),
+    conditioning_depth = rep(conditioning_depth, K)
+  )
+  if (is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
+    df_points[["cluster"]]     <- res_obj[["cluster"]][sort_order]
+    df_points[["n_estimates"]] <- res_obj[["n_estimates"]][sort_order]
+  }
 
   return(list(
     # core QQ data (for invisible return, matching metafor)
@@ -272,9 +326,11 @@ qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
     xlab     = xlab,
     ylab     = ylab,
     # metadata
-    type     = type,
-    level    = level,
-    K        = K
+    type               = type,
+    level              = conf_level,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    K                  = K
   ))
 }
 
@@ -494,9 +550,7 @@ qqnorm.brma <- function(y, type = "rstudent", envelope = TRUE, level = 95,
 # @return list of graphical parameters with defaults applied
 #
 # ---------------------------------------------------------------------------- #
-.set_dots_qqnorm <- function(...) {
-
-  dots <- list(...)
+.set_dots_qqnorm <- function(dots) {
 
   # point styling
   if (is.null(dots[["pch"]]))  dots[["pch"]]  <- 21

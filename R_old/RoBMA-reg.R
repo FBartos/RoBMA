@@ -112,7 +112,7 @@
 #' @seealso [RoBMA()] [summary.RoBMA()], [update.RoBMA()], [check_setup.reg()]
 #' @export
 RoBMA.reg <- function(
-    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, cluster = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -149,7 +149,7 @@ RoBMA.reg <- function(
 
 
   ### prepare & check the data
-  object$data    <- .combine_data.reg(formula, data, standardize_predictors, transformation, study_names, study_ids)
+  object$data    <- .combine_data.reg(formula, data, standardize_predictors, transformation, study_names, cluster)
   object$formula <- formula
 
   # switch between multivariate and weighted models

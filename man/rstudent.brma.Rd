@@ -4,22 +4,16 @@
 \alias{rstudent.brma}
 \title{Externally Standardized (Studentized) Residuals for brma Objects}
 \usage{
-\method{rstudent}{brma}(model, type = "marginal", ...)
+\method{rstudent}{brma}(model, unit = "estimate", conditioning_depth = "marginal", ...)
 }
 \arguments{
-\item{model}{a fitted brma object}
+\item{model}{a fitted brma object.}
 
-\item{type}{the type of residuals to compute. Options are:
-\itemize{
-\item \code{"marginal"} (default): Residuals from marginal (fixed effects)
-predictions (observed - Xβ).
-\item \code{"study"}: Residuals from study-level predictions (observed -
-(Xβ + gamma)). Only available for multilevel (3-level) models.
-\item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs
-(observed - theta). Note that these residuals are conceptually
-questionable since it would be impossible to retain the true study effect
-had the study been ommited.
-}}
+\item{unit}{output unit. Only \code{"estimate"} is available for LOO-PIT
+residuals.}
+
+\item{conditioning_depth}{unused for LOO-PIT residuals. LOO-PIT residuals
+always use the estimate-unit LOO target.}
 
 \item{...}{additional arguments (currently ignored)}
 }
@@ -42,8 +36,8 @@ residuals (z-values).
 This function returns a data frame with three columns matching the output
 of \code{metafor::rstudent}:
 \itemize{
-\item \code{resid}: Raw residuals (observed - fitted values)
-\item \code{se}: Standard errors of the residuals (back-computed from z)
+\item \code{resid}: LOO predictive residuals (observed - fitted values)
+\item \code{se}: LOO predictive standard errors when available
 \item \code{z}: Externally standardized residuals (LOO-PIT transformed)
 }
 
@@ -57,6 +51,13 @@ Under a correctly specified model, LOO-PIT residuals should follow a
 standard normal distribution. Large absolute values may indicate outliers
 or model misspecification.
 
+The \code{z} column is the primary standardized diagnostic. The \code{resid}
+and \code{se} columns are raw-scale companions computed from LOO predictive
+moments using the normalized PSIS weights. For selection models, these moments
+are computed from the fitted weighted-normal predictive distribution. For
+GLMMs, they are computed on the approximate effect-size scale used by the
+LOO-PIT diagnostic.
+
 Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 residuals properly account for estimation uncertainty and leverage without
 requiring explicit hat matrix computation. This makes \code{rstudent.brma}
@@ -68,11 +69,8 @@ suitable for all model types including selection models and GLMMs.
 fit <- brma(yi ~ 1, sei = sei, data = dat)
 fit <- add_loo(fit)
 
-# get marginal externally standardized residuals (default)
+# get externally standardized residuals
 rstudent(fit)
-
-# get estimate-level (BLUP-based) residuals
-rstudent(fit, type = "estimate")
 
 # check LOO diagnostics
 loo_obj <- loo(fit)

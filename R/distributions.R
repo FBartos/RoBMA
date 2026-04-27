@@ -573,6 +573,392 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 # - .pwnorm_fast.ss: cumulative distribution function
 # - .qwnorm_fast.ss: quantile function
 # - .get_weight_fast.ss: shared weight assignment helper function
+.native_numeric_matrix <- function(x) {
+
+  if (!is.matrix(x)) {
+    x <- as.matrix(x)
+  }
+  if (!is.double(x)) {
+    storage.mode(x) <- "double"
+  }
+  return(x)
+}
+
+.native_numeric_vector <- function(x) {
+
+  if (!is.double(x)) {
+    x <- as.double(x)
+  }
+  return(x)
+}
+
+.native_integer_vector <- function(x) {
+
+  if (!is.integer(x)) {
+    x <- as.integer(x)
+  }
+  return(x)
+}
+
+.has_native_wnorm_mix <- function() {
+
+  return(
+    is.loaded("RoBMA_wnorm_mix_logpdf_matrix",  PACKAGE = "RoBMA") &&
+      is.loaded("RoBMA_wnorm_mix_cdf_matrix",     PACKAGE = "RoBMA") &&
+      is.loaded("RoBMA_wnorm_mix_moments_matrix", PACKAGE = "RoBMA")
+  )
+}
+
+.has_native_wnorm_mix_log_norm <- function() {
+
+  return(is.loaded("RoBMA_wnorm_mix_log_norm_matrix", PACKAGE = "RoBMA"))
+}
+
+.has_native_wnorm_mix_precomp <- function() {
+
+  return(
+    is.loaded("RoBMA_wnorm_mix_logpdf_precomp_matrix", PACKAGE = "RoBMA") &&
+      is.loaded("RoBMA_wnorm_mix_cdf_precomp_matrix",    PACKAGE = "RoBMA")
+  )
+}
+
+.wnorm_mix_logpdf_matrix <- function(yi, mean, sd, omega, crit_yi,
+                                     bias_indicator, crit_yi_mapping,
+                                     crit_yi_mapping_max) {
+
+  if (!.has_native_wnorm_mix()) {
+    return(.wnorm_mix_logpdf_matrix_r(
+      yi                  = yi,
+      mean                = mean,
+      sd                  = sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max
+    ))
+  }
+
+  return(.Call(
+    "RoBMA_wnorm_mix_logpdf_matrix",
+    .native_numeric_vector(yi),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(omega),
+    .native_numeric_matrix(crit_yi),
+    .native_integer_vector(bias_indicator),
+    .native_numeric_matrix(crit_yi_mapping),
+    .native_integer_vector(crit_yi_mapping_max),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.wnorm_mix_logpdf_precomp_matrix <- function(yi, mean, sd, omega, crit_yi,
+                                             bias_indicator, crit_yi_mapping,
+                                             crit_yi_mapping_max, log_norm) {
+
+  if (!.has_native_wnorm_mix_precomp()) {
+    return(.wnorm_mix_logpdf_matrix(
+      yi                  = yi,
+      mean                = mean,
+      sd                  = sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max
+    ))
+  }
+
+  return(.Call(
+    "RoBMA_wnorm_mix_logpdf_precomp_matrix",
+    .native_numeric_vector(yi),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(omega),
+    .native_numeric_matrix(crit_yi),
+    .native_integer_vector(bias_indicator),
+    .native_numeric_matrix(crit_yi_mapping),
+    .native_integer_vector(crit_yi_mapping_max),
+    .native_numeric_matrix(log_norm),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.wnorm_mix_cdf_matrix <- function(q, mean, sd, omega, crit_yi,
+                                  bias_indicator, crit_yi_mapping,
+                                  crit_yi_mapping_max, lower.tail = TRUE,
+                                  log.p = FALSE) {
+
+  if (!.has_native_wnorm_mix()) {
+    return(.wnorm_mix_cdf_matrix_r(
+      q                   = q,
+      mean                = mean,
+      sd                  = sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      lower.tail          = lower.tail,
+      log.p               = log.p
+    ))
+  }
+
+  return(.Call(
+    "RoBMA_wnorm_mix_cdf_matrix",
+    .native_numeric_vector(q),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(omega),
+    .native_numeric_matrix(crit_yi),
+    .native_integer_vector(bias_indicator),
+    .native_numeric_matrix(crit_yi_mapping),
+    .native_integer_vector(crit_yi_mapping_max),
+    lower.tail,
+    log.p,
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.wnorm_mix_cdf_precomp_matrix <- function(q, mean, sd, omega, crit_yi,
+                                          bias_indicator, crit_yi_mapping,
+                                          crit_yi_mapping_max, log_norm,
+                                          lower.tail = TRUE, log.p = FALSE) {
+
+  if (!.has_native_wnorm_mix_precomp()) {
+    return(.wnorm_mix_cdf_matrix(
+      q                   = q,
+      mean                = mean,
+      sd                  = sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      lower.tail          = lower.tail,
+      log.p               = log.p
+    ))
+  }
+
+  return(.Call(
+    "RoBMA_wnorm_mix_cdf_precomp_matrix",
+    .native_numeric_vector(q),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(omega),
+    .native_numeric_matrix(crit_yi),
+    .native_integer_vector(bias_indicator),
+    .native_numeric_matrix(crit_yi_mapping),
+    .native_integer_vector(crit_yi_mapping_max),
+    .native_numeric_matrix(log_norm),
+    lower.tail,
+    log.p,
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.wnorm_mix_moments_matrix <- function(mean, sd, omega, crit_yi,
+                                      bias_indicator, crit_yi_mapping,
+                                      crit_yi_mapping_max) {
+
+  if (!.has_native_wnorm_mix()) {
+    return(.wnorm_mix_moments_matrix_r(
+      mean                = mean,
+      sd                  = sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max
+    ))
+  }
+
+  return(.Call(
+    "RoBMA_wnorm_mix_moments_matrix",
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(omega),
+    .native_numeric_matrix(crit_yi),
+    .native_integer_vector(bias_indicator),
+    .native_numeric_matrix(crit_yi_mapping),
+    .native_integer_vector(crit_yi_mapping_max),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.wnorm_mix_log_norm_matrix <- function(mean, sd, omega, crit_yi,
+                                       bias_indicator, crit_yi_mapping,
+                                       crit_yi_mapping_max) {
+
+  if (!.has_native_wnorm_mix_log_norm()) {
+    return(.wnorm_mix_log_norm_matrix_r(
+      mean                = mean,
+      sd                  = sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max
+    ))
+  }
+
+  return(.Call(
+    "RoBMA_wnorm_mix_log_norm_matrix",
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(omega),
+    .native_numeric_matrix(crit_yi),
+    .native_integer_vector(bias_indicator),
+    .native_numeric_matrix(crit_yi_mapping),
+    .native_integer_vector(crit_yi_mapping_max),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.wnorm_mix_logpdf_matrix_r <- function(yi, mean, sd, omega, crit_yi,
+                                       bias_indicator, crit_yi_mapping,
+                                       crit_yi_mapping_max) {
+
+  S   <- nrow(mean)
+  K   <- ncol(mean)
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    out[, k] <- .selection_branch_apply(
+      S                   = S,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      normal_fun = function(rows) {
+        stats::dnorm(yi[k], mean = mean[rows, k],
+                     sd = sd[rows, k], log = TRUE)
+      },
+      weighted_fun = function(rows, map_idx) {
+        .dwnorm_fast.ss.matrix(
+          x      = yi[k],
+          mean   = mean[rows, k],
+          sd     = sd[rows, k],
+          omega  = .selection_active_omega(omega, rows, map_idx),
+          crit_x = crit_yi[map_idx, k],
+          log    = TRUE
+        )
+      }
+    )
+  }
+
+  return(out)
+}
+
+.wnorm_mix_cdf_matrix_r <- function(q, mean, sd, omega, crit_yi,
+                                    bias_indicator, crit_yi_mapping,
+                                    crit_yi_mapping_max, lower.tail = TRUE,
+                                    log.p = FALSE) {
+
+  S   <- nrow(mean)
+  K   <- ncol(mean)
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    out[, k] <- .selection_branch_apply(
+      S                   = S,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      normal_fun = function(rows) {
+        stats::pnorm(q[k], mean = mean[rows, k], sd = sd[rows, k],
+                     lower.tail = lower.tail, log.p = log.p)
+      },
+      weighted_fun = function(rows, map_idx) {
+        .pwnorm_fast.ss(
+          q          = rep(q[k], length(rows)),
+          mean       = mean[rows, k],
+          sd         = sd[rows, k],
+          omega      = .selection_active_omega(omega, rows, map_idx),
+          crit_x     = crit_yi[map_idx, k],
+          lower.tail = lower.tail,
+          log.p      = log.p
+        )
+      }
+    )
+  }
+
+  return(out)
+}
+
+.wnorm_mix_moments_matrix_r <- function(mean, sd, omega, crit_yi,
+                                        bias_indicator, crit_yi_mapping,
+                                        crit_yi_mapping_max) {
+
+  S             <- nrow(mean)
+  K             <- ncol(mean)
+  moment_mean   <- matrix(NA_real_, nrow = S, ncol = K)
+  moment_second <- matrix(NA_real_, nrow = S, ncol = K)
+  bias_indicator <- as.integer(bias_indicator)
+
+  for (k in seq_len(K)) {
+    for (branch in sort(unique(bias_indicator))) {
+      rows        <- which(bias_indicator == branch)
+      mapping_max <- crit_yi_mapping_max[branch]
+
+      if (is.na(mapping_max) || mapping_max == 0) {
+        moment_mean[rows, k]   <- mean[rows, k]
+        moment_second[rows, k] <- mean[rows, k]^2 + sd[rows, k]^2
+      } else {
+        map_idx <- as.integer(crit_yi_mapping[seq_len(mapping_max), branch])
+        moments <- .wnorm_moments_fast.ss.matrix(
+          mean   = mean[rows, k],
+          sd     = sd[rows, k],
+          omega  = .selection_active_omega(omega, rows, map_idx),
+          crit_x = crit_yi[map_idx, k]
+        )
+        moment_mean[rows, k]   <- moments[["mean"]]
+        moment_second[rows, k] <- moments[["second"]]
+      }
+    }
+  }
+
+  return(list(
+    mean   = moment_mean,
+    second = moment_second
+  ))
+}
+
+.wnorm_mix_log_norm_matrix_r <- function(mean, sd, omega, crit_yi,
+                                         bias_indicator, crit_yi_mapping,
+                                         crit_yi_mapping_max) {
+
+  S   <- nrow(mean)
+  K   <- ncol(mean)
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    out[, k] <- .selection_branch_apply(
+      S                   = S,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      normal_fun = function(rows) {
+        rep(0, length(rows))
+      },
+      weighted_fun = function(rows, map_idx) {
+        dens <- .dwnorm_fast.ss(
+          x               = rep(0, length(rows)),
+          mean            = mean[rows, k],
+          sd              = sd[rows, k],
+          omega           = .selection_active_omega(omega, rows, map_idx),
+          crit_x          = crit_yi[map_idx, k],
+          log             = TRUE,
+          attach_constant = TRUE
+        )
+        attr(dens, "constant")
+      }
+    )
+  }
+
+  return(out)
+}
+
 .dwnorm_fast.ss      <- function(x, mean, sd, omega, crit_x, log = FALSE, attach_constant = FALSE){
 
   # compute density for normal component
@@ -607,7 +993,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   # weight the denominators and compute log standardizing constant
   log_denoms <- log(denoms) + log(omega)
-  log_std_const <- log(rowSums(exp(log_denoms)))
+  log_std_const <- .rowLogSumExps(log_denoms)
 
   # final log density = numerator - standardizing constant
   log_lik <- log_numerator - log_std_const
@@ -742,7 +1128,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   # weight the denominators by sample-specific omega and compute log standardizing constant
   log_denoms <- log(denoms) + log(omega)
-  log_std_const <- log(rowSums(exp(log_denoms)))
+  log_std_const <- .rowLogSumExps(log_denoms)
 
   # final log density = numerator - standardizing constant
   log_lik <- log_numerator - log_std_const
@@ -851,7 +1237,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
       xt[idx] <- .rwnorm_true_fast.ss(
         mean       = mean[idx],
         tau        = tau[idx],
-        se         = se,
+        se         = .subset_if_vector(se, idx),
         omega      = omega[idx, , drop = FALSE],
         crit_x     = crit_x,
         use_normal = NULL  # <-- Triggers full weighted computation
@@ -876,10 +1262,23 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   xt[!p] <- NA
 
   if(any(!p)){
-    xt[!p] <- .rwnorm_true_fast.ss(mean[!p], tau[!p], se, omega[!p,,drop=FALSE], crit_x)
+    xt[!p] <- .rwnorm_true_fast.ss(
+      mean   = mean[!p],
+      tau    = tau[!p],
+      se     = .subset_if_vector(se, !p),
+      omega  = omega[!p,,drop=FALSE],
+      crit_x = crit_x
+    )
   }
 
   return(xt)
+}
+
+.subset_if_vector <- function(x, idx) {
+  if (length(x) == 1L) {
+    return(x)
+  }
+  return(x[idx])
 }
 
 # alternative version using inverse probability transform
@@ -968,7 +1367,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
   denoms[denoms < 0] <- 0
 
   log_denoms      <- log(denoms) + log(omega)
-  log_denom_total <- log(rowSums(exp(log_denoms)))
+  log_denom_total <- .rowLogSumExps(log_denoms)
 
   # compute numerators for each observation
   for(i in seq_len(n)){
@@ -996,11 +1395,12 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     temp_p <- c(temp_p, temp_p_add)
 
     # weight by omega values
-    log_p[i] <- log(sum(exp(log(temp_p) + log(omega[i, 1:length(temp_p)]))))
+    log_p[i] <- .rowLogSumExps(matrix(log(temp_p) + log(omega[i, 1:length(temp_p)]), nrow = 1))
   }
 
   # subtract standardizing constant to get log probability
   log_prob <- log_p - log_denom_total
+  log_prob <- pmin(log_prob, 0)
 
   # handle lower.tail
   if(!lower.tail){
@@ -1014,6 +1414,139 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     return(exp(log_prob))
   }
 }
+
+
+# ---------------------------------------------------------------------------- #
+# .wnorm_moments_fast.ss.matrix
+# ---------------------------------------------------------------------------- #
+#
+# First two raw moments of the weighted normal distribution for posterior rows.
+#
+# This mirrors the interval convention used by .dwnorm_fast.ss.matrix() and
+# .pwnorm_fast.ss(): omega[, 1] applies below the first cutoff, omega[, j] to
+# the interval [crit_x[j - 1], crit_x[j]), and the final omega column above the
+# last cutoff.
+#
+# @param mean       numeric vector of length S.
+# @param sd         numeric vector of length S.
+# @param omega      S x W matrix of selection weights.
+# @param crit_x     numeric vector of length W - 1.
+# @param use_normal optional logical vector; TRUE rows use normal moments.
+#
+# @return list with vectors mean and second, each length S.
+#
+# ---------------------------------------------------------------------------- #
+.wnorm_moments_fast.ss.matrix <- function(mean, sd, omega, crit_x, use_normal = NULL) {
+
+  S <- length(mean)
+
+  if (!is.matrix(omega)) {
+    omega <- matrix(omega, nrow = S, ncol = length(omega), byrow = TRUE)
+  }
+
+  if (!is.null(use_normal)) {
+
+    moment_mean   <- rep(NA_real_, S)
+    moment_second <- rep(NA_real_, S)
+
+    if (any(use_normal)) {
+      moment_mean[use_normal]   <- mean[use_normal]
+      moment_second[use_normal] <- mean[use_normal]^2 + sd[use_normal]^2
+    }
+
+    if (any(!use_normal)) {
+      idx     <- which(!use_normal)
+      moments <- .wnorm_moments_fast.ss.matrix(
+        mean       = mean[idx],
+        sd         = sd[idx],
+        omega      = omega[idx, , drop = FALSE],
+        crit_x     = crit_x,
+        use_normal = NULL
+      )
+      moment_mean[idx]   <- moments[["mean"]]
+      moment_second[idx] <- moments[["second"]]
+    }
+
+    return(list(
+      mean   = moment_mean,
+      second = moment_second
+    ))
+  }
+
+  n_weights <- ncol(omega)
+  if (length(crit_x) + 1L != n_weights) {
+    stop("'crit_x' must have one fewer value than columns in 'omega'.", call. = FALSE)
+  }
+
+  omega[omega > 1] <- 1
+  omega[omega < 0] <- 0
+
+  moment_mean   <- mean
+  moment_second <- mean^2 + sd^2
+
+  is_zero_sd <- sd < sqrt(.Machine$double.eps)
+  if (all(is_zero_sd)) {
+    return(list(
+      mean   = moment_mean,
+      second = moment_second
+    ))
+  }
+
+  rows       <- which(!is_zero_sd)
+  mean_rows  <- mean[rows]
+  sd_rows    <- sd[rows]
+  omega_rows <- omega[rows, , drop = FALSE]
+  n_rows     <- length(rows)
+
+  lower <- c(-Inf, crit_x)
+  upper <- c(crit_x, Inf)
+
+  denom           <- rep(0, n_rows)
+  weighted_mean   <- rep(0, n_rows)
+  weighted_second <- rep(0, n_rows)
+
+  for (j in seq_len(n_weights)) {
+    alpha <- (lower[j] - mean_rows) / sd_rows
+    beta  <- (upper[j] - mean_rows) / sd_rows
+
+    interval_prob <- stats::pnorm(beta) - stats::pnorm(alpha)
+    interval_prob[interval_prob < 0] <- 0
+
+    phi_alpha <- stats::dnorm(alpha)
+    phi_beta  <- stats::dnorm(beta)
+
+    alpha_phi <- alpha * phi_alpha
+    beta_phi  <- beta  * phi_beta
+    alpha_phi[!is.finite(alpha_phi)] <- 0
+    beta_phi[!is.finite(beta_phi)]   <- 0
+
+    tail_shift   <- phi_alpha - phi_beta
+    second_shift <- alpha_phi - beta_phi
+
+    interval_mean <- mean_rows * interval_prob + sd_rows * tail_shift
+    interval_second <- (mean_rows^2 + sd_rows^2) * interval_prob +
+      2 * mean_rows * sd_rows * tail_shift +
+      sd_rows^2 * second_shift
+
+    weight <- omega_rows[, j]
+
+    denom           <- denom + weight * interval_prob
+    weighted_mean   <- weighted_mean + weight * interval_mean
+    weighted_second <- weighted_second + weight * interval_second
+  }
+
+  valid <- denom > 0
+  moment_mean[rows[valid]]   <- weighted_mean[valid] / denom[valid]
+  moment_second[rows[valid]] <- weighted_second[valid] / denom[valid]
+  moment_mean[rows[!valid]]   <- NA_real_
+  moment_second[rows[!valid]] <- NA_real_
+
+  return(list(
+    mean   = moment_mean,
+    second = moment_second
+  ))
+}
+
 .qwnorm_fast.ss <- function(p, mean, sd, omega, crit_x){
 
   n <- length(p)

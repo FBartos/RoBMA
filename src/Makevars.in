@@ -40,7 +40,7 @@ OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distri
 		  transformations/omega.o \
 		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
 		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
-		  init.o RoBMA.o testRoBMA.o \
+		  r-wmnorm.o r-glmm.o r-regplot.o init.o RoBMA.o testRoBMA.o \
 
 ###############
 

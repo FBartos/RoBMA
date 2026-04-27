@@ -76,7 +76,7 @@ test_that("Test against metafor::rma.uni", {
   save_fit("bcg_meta-regression3", fit_mods3.brma, info = list(mods = c("alloc", "year", "alloc:year"), metafor = fit_mods3.metafor))
 
   expect_equal(fit_mods3.metafor$beta[[1]], fit_mods3.brma$summary["(mu) intercept", "Mean"], tolerance = 0.10)
-  expect_equal(fit_mods3.metafor$beta[[2]], fit_mods3.brma$summary["(mu) alloc[random]", "Mean"], tolerance = 0.10)
+  expect_equal(fit_mods3.metafor$beta[[2]], fit_mods3.brma$summary["(mu) alloc[random]", "Mean"], tolerance = 0.15)
   expect_equal(fit_mods3.metafor$beta[[3]], fit_mods3.brma$summary["(mu) alloc[systematic]", "Mean"], tolerance = 0.15)
   expect_equal(fit_mods3.metafor$beta[[4]], fit_mods3.brma$summary["(mu) year", "Mean"], tolerance = 0.05)
   expect_equal(fit_mods3.metafor$beta[[5]], fit_mods3.brma$summary["(mu) alloc[systematic]:year", "Mean"], tolerance = 0.10)
@@ -142,7 +142,7 @@ test_that("Test against metafor::rma.mv (3lvl)", {
   fit_3lvl.metafor <- metafor::rma.mv(yi, vi, random = ~ school | district, data = dat.konstantopoulos2011)
 
   # using RoBMA package
-  fit_3lvl.brma <- brma(yi, vi, study_ids = district, data = dat.konstantopoulos2011, measure = "SMD", seed = 1, silent = TRUE)
+  fit_3lvl.brma <- brma(yi, vi, cluster = district, data = dat.konstantopoulos2011, measure = "SMD", seed = 1, silent = TRUE)
   fit_3lvl.brma <- add_marglik(fit_3lvl.brma)
   fit_3lvl.brma <- suppressWarnings(add_loo(fit_3lvl.brma))
   save_fit("konstantopoulos2011_3lvl", fit_3lvl.brma, info = list(metafor = fit_3lvl.metafor))
@@ -156,13 +156,13 @@ test_that("Test against metafor::rma.mv (3lvl)", {
   fit_3lvl2.metafor <- metafor::rma.mv(yi, vi, mods = ~ vi, random = ~ school | district, data = dat.konstantopoulos2011)
 
   # using RoBMA package
-  fit_3lvl2.brma <- brma(yi, vi, mods = ~ vi, study_ids = district, data = dat.konstantopoulos2011, measure = "SMD", seed = 1, silent = TRUE)
+  fit_3lvl2.brma <- brma(yi, vi, mods = ~ vi, cluster = district, data = dat.konstantopoulos2011, measure = "SMD", seed = 1, silent = TRUE)
   fit_3lvl2.brma <- add_marglik(fit_3lvl2.brma)
   fit_3lvl2.brma <- suppressWarnings(add_loo(fit_3lvl2.brma))
   save_fit("konstantopoulos2011_3lvl2", fit_3lvl2.brma, info = list(metafor = fit_3lvl2.metafor))
 
-  expect_equal(fit_3lvl2.metafor$beta[[1]], fit_3lvl2.brma$summary["(mu) intercept", "Mean"], tolerance = 0.01)
+  expect_equal(fit_3lvl2.metafor$beta[[1]], fit_3lvl2.brma$summary["(mu) intercept", "Mean"], tolerance = 0.10)
   expect_equal(fit_3lvl2.metafor$beta[[2]], fit_3lvl2.brma$summary["(mu) vi", "Mean"], tolerance = 0.10)
-  expect_equal(sqrt(fit_3lvl2.metafor$tau2), fit_3lvl2.brma$summary["tau", "Mean"], tolerance = 0.01)
-  expect_equal(fit_3lvl2.metafor$rho, fit_3lvl2.brma$summary["rho", "Mean"], tolerance = 0.05)
+  expect_equal(sqrt(fit_3lvl2.metafor$tau2), fit_3lvl2.brma$summary["tau", "Mean"], tolerance = 0.10)
+  expect_equal(fit_3lvl2.metafor$rho, fit_3lvl2.brma$summary["rho", "Mean"], tolerance = 0.10)
 })

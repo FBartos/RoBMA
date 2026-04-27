@@ -18,8 +18,16 @@ Model fitting is slow. The caching system lets you run the full suite once and r
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `ROBMA_TEST_FILES_DIR` | Cache directory location | `../temp/RoBMA_test_files` |
-| `ROBMA_TEST_SKIP_REFIT` | Skip fitting if cache exists | TRUE |
+| `ROBMA_TEST_FILES_DIR` | Cache directory location | `tests/testthat/test_files` locally, tempdir on CRAN |
+| `ROBMA_TEST_SKIP_REFIT` | Skip fitting if a valid cache exists | TRUE |
+| `ROBMA_TEST_FORCE_REFIT` | Force refitting even if a valid cache exists | FALSE |
+| `ROBMA_TEST_FULL_DIAGNOSTICS` | Run extended redundant residual/influence diagnostics | FALSE |
+
+Cached fits are validated against `fit_catalog()` in `common-functions.R`.
+The cache metadata records source file hashes and expected LOO/WAIC/marglik/metafor availability.
+Group calls such as `skip_refit_if_cached("brma.norm")` skip only when all cataloged fits for that group are valid.
+`list_fits()` uses metadata-only validation by default; use `validate_cached_fit(name, deep = TRUE)` only for explicit cache-integrity checks.
+Extended diagnostic tests use `skip_if_not_full_diagnostics()` when they duplicate core coverage or lack a stable oracle; set `ROBMA_TEST_FULL_DIAGNOSTICS=TRUE` to run them.
 
 ### Recommended TDD Workflow
 
@@ -45,8 +53,11 @@ Clear with `clean_cached_fits()` when
 
 ### Model Fitting
 
-- **Only `test-01-*`** fits models and computes marginal likelihoods
-- Other tests load with `list_fits(name = )`, `load_info(name = )`, `load_marglik(name = )`
+- **Only `test-01-*`** fits models and computes LOO/marglik when expected by `fit_catalog()`
+- Other tests discover with `list_fits()` and usually use `lazy_fits()` / `lazy_infos()`
+- Avoid top-level eager loading of all cached fits unless the test genuinely needs every object
+- `RoBMA`, `BMA.norm`, and `BMA.glmm` product-space fits must not cache marginal likelihoods
+- Add every new cached fit to `fit_catalog()` in the same change
 
 
 ### Skip Conditions
@@ -54,6 +65,8 @@ Clear with `clean_cached_fits()` when
 | Condition | When to Use |
 |-----------|-------------|
 | `skip_if_no_fits()` | Test loads pre-fitted models |
+| `skip_if_missing_fits(names)` | Test requires specific cached models |
+| `skip_if_not_full_diagnostics(reason)` | Extended residual/influence diagnostic duplicates core coverage |
 
 ### Helper Functions (common-functions.R)
 

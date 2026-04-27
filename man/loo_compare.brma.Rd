@@ -4,12 +4,14 @@
 \alias{loo_compare.brma}
 \title{Compare brma Models Using LOO}
 \usage{
-\method{loo_compare}{brma}(x, ...)
+\method{loo_compare}{brma}(x, ..., unit = "estimate")
 }
 \arguments{
 \item{x}{a brma model object (the first model to compare).}
 
 \item{...}{additional brma model objects or \code{loo} objects to compare.}
+
+\item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
 A matrix of class \code{"compare.loo"} as returned by
@@ -27,12 +29,14 @@ predictive performance (ELPD).
 \code{\link[loo]{loo_compare}}, the selection is based on expected
 out-of-sample predictive performance. This evaluates how well models predict
 \emph{new} observations, not how well they fit the observed data.
+RoBMA rejects comparisons with different \code{yi}/\code{sei} targets,
+\code{unit}, or implied \code{conditioning_depth}.
 }
 \examples{
 \dontrun{
 # Fit models with and without publication bias adjustment
-fit_bias <- brma(yi = yi, sei = sei, data = dat)
-fit_nobias <- brma(yi = yi, sei = sei, data = dat, priors_bias = NULL)
+fit_bias <- RoBMA(yi = yi, sei = sei, data = dat)
+fit_nobias <- BMA(yi = yi, sei = sei, data = dat)
 
 # Add LOO to both models
 fit_bias <- add_loo(fit_bias)

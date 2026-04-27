@@ -70,7 +70,7 @@
 #' bias adjustment, \code{prior_none()}.
 #' @param priors_hierarchical list of prior distributions for the correlation of random effects
 #' (\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-#' users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+#' users to fit a hierarchical (three-level) meta-analysis when \code{cluster} are supplied.
 #' Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 #' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
 #' @param priors_hierarchical_null list of prior distributions for the correlation of random effects
@@ -199,7 +199,7 @@
 RoBMA_old <- function(
   # data specification
   d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
-  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
+  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, cluster = NULL,
   data = NULL, weight = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
@@ -233,7 +233,7 @@ RoBMA_old <- function(
     object$data <- data
   }else{
     object$data <- combine_data(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI,
-                                study_names = study_names, study_ids = study_ids, weight = weight, data = data, transformation = transformation)
+                                study_names = study_names, cluster = cluster, weight = weight, data = data, transformation = transformation)
   }
 
   # switch between multivariate and weighted models
@@ -397,7 +397,7 @@ RoBMA_old <- function(
 #' Defaults to \code{NULL}.
 #' @param prior_hierarchical prior distribution for the correlation of random effects
 #' (\code{rho}) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-#' users to fit a hierarchical (three-level) meta-analysis when \code{study_ids} are supplied.
+#' users to fit a hierarchical (three-level) meta-analysis when \code{cluster} are supplied.
 #' Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 #' \code{prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))}.
 #' @param prior_hierarchical_null prior distribution for the correlation of random effects

@@ -41,3 +41,20 @@ test_that("Test against metafor::rma.uni with mods = ~ sei (with negative effect
   expect_equal(sqrt(fit_PET.metafor$tau2), fit.bPET$summary["tau", "Mean"], tolerance = 0.05)
   expect_equal(fit_PET.metafor$beta[[2]], -fit.bPET$summary["PET", "Mean"], tolerance = 0.20) # the PET prior regularizes the estimate a bit (and bPET keeps it positive)
 })
+
+test_that("PET with meta-regression", {
+  ### fit PET model
+  data(dat.lehmann2018, package = "metadat")
+  fit_PET.metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi) + Preregistered, data = dat.lehmann2018)
+
+  # using RoBMA package
+  fit.bPET <- bPET(yi, vi, mods = ~ Preregistered, data = dat.lehmann2018, measure = "SMD", seed = 1, silent = TRUE)
+  fit.bPET <- add_marglik(fit.bPET)
+  fit.bPET <- suppressWarnings(add_loo(fit.bPET))
+  save_fit("dat.lehmann2018-PETreg", fit.bPET, info = list(metafor = fit_PET.metafor, mods = "Preregistered"))
+
+  expect_equal(fit_PET.metafor$beta[[1]], fit.bPET$summary["(mu) intercept", "Mean"], tolerance = 0.05)
+  expect_equal(fit_PET.metafor$beta[[3]], fit.bPET$summary["(mu) Preregistered[Pre-Registered]", "Mean"], tolerance = 0.05)
+  expect_equal(fit_PET.metafor$beta[[2]], fit.bPET$summary["PET", "Mean"], tolerance = 0.20) # the PET prior regularizes the estimate a bit
+  expect_equal(sqrt(fit_PET.metafor$tau2), fit.bPET$summary["tau", "Mean"], tolerance = 0.05)
+})

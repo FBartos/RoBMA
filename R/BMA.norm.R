@@ -19,14 +19,14 @@
 #'
 #' @return \code{BMA.norm} returns an object of class \code{"BMA.norm"}.
 #'
-#' @seealso [RoBMA()] [brma.norm()] [summary.brma()] [plot.brma()]
+#' @seealso [RoBMA()] [brma()] [summary.brma()] [plot.brma()]
 #'
 #' @export BMA.norm
 #' @export
 BMA <- BMA.norm <- function(
   # input specification
   yi, vi, sei, weights, ni,
-  mods, scale, study_ids,
+  mods, scale, cluster,
   data, slab, subset,
   measure = "GEN",
 

@@ -4,20 +4,22 @@
 \alias{rstandard.brma}
 \title{Internally Standardized Residuals for brma Objects}
 \usage{
-\method{rstandard}{brma}(model, type = "marginal", ...)
+\method{rstandard}{brma}(model, unit = "estimate", conditioning_depth = "marginal", ...)
 }
 \arguments{
-\item{model}{a fitted brma object}
+\item{model}{a fitted brma object.}
 
-\item{type}{the type of residuals to compute. Options are:
+\item{unit}{output unit. Only \code{"estimate"} is implemented currently.}
+
+\item{conditioning_depth}{conditioning depth. Options are:
 \itemize{
 \item \code{"marginal"} (default): Residuals from fixed effects predictions
 (observed - Xβ).
-\item \code{"study"}: Residuals from study-level predictions (observed -
+\item \code{"cluster"}: Residuals from cluster-level predictions (observed -
 (Xβ + gamma)). Only available for multilevel (3-level) models.
-\item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs,
+\item \code{"estimate"}: Residuals from BLUPs,
 i.e., deviations of the observed effect sizes from the best linear
-unbiased predictions of the study-specific true effects (observed - theta).
+unbiased predictions of the estimate-specific true effects (observed - theta).
 }}
 
 \item{...}{additional arguments (currently ignored)}
@@ -63,7 +65,7 @@ fit <- brma(yi ~ 1, sei = sei, data = dat)
 rstandard(fit)
 
 # get estimate-level (BLUP-based) residuals
-rstandard(fit, type = "estimate")
+rstandard(fit, conditioning_depth = "estimate")
 }
 
 }

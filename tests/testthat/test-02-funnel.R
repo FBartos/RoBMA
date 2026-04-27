@@ -3,13 +3,12 @@ context("Funnel plot")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 
 # ============================================================================ #
@@ -48,7 +47,6 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
   )
 })
 
-
 # ============================================================================ #
 # Test: Meta-Regression Funnel Plot
 # ============================================================================ #
@@ -85,6 +83,32 @@ test_that("Funnel plot for meta-regression works correctly", {
   )
 })
 
+test_that("Funnel plot for meta-regression with interaction works correctly", {
+
+  name        <- "bcg_meta-regression4"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Visual comparison: side-by-side plots
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_regression4_comparison-standard", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    metafor::funnel(fit_metafor, main = "metafor", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstandard")
+    suppressWarnings(funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstandard"))
+  })
+
+  vdiffr::expect_doppelganger("funnel_regression4_comparison-rstudent", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    metafor::funnel(fit_metafor, main = "metafor", ylim = c(0, 1.2), xlim = c(-2, 2), type = "rstudent")
+    suppressWarnings(funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 1.2), xlim = c(-2, 2), type = "rstudent"))
+  })
+})
 
 # ============================================================================ #
 # Test: Location-Scale Model Funnel Plot
@@ -113,7 +137,6 @@ test_that("Funnel plot for location-scale model works correctly", {
     funnel(fit_brma, plot_type = "ggplot")
   )
 })
-
 
 # ============================================================================ #
 # Test: 3-Level Model Funnel Plot
@@ -146,6 +169,32 @@ test_that("Funnel plot for 3-level model works correctly", {
   )
 })
 
+test_that("Funnel plot for 3-level meta-regression works correctly", {
+
+  name <- "konstantopoulos2011_3lvl2"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Visual comparison: side-by-side plots
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_3lvl2_comparison", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    metafor::funnel(fit_metafor, main = "metafor", xlim = c(-1, 1.5), ylim = c(0.5, 0), type = "rstandard")
+    suppressWarnings(suppressWarnings(funnel(fit_brma, plot_type = "base", type = "rstandard", conditioning_depth = "marginal", main = "brma", sampling_heterogeneity = FALSE, xlim = c(-1, 1.5), ylim = c(0.5, 0))))
+  })
+
+  # TODO:
+  # add cluster-level residuals once implemented
+
+  vdiffr::expect_doppelganger(
+    "funnel_3lvl2_brma_ggplot",
+    suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
+  )
+})
 
 # ============================================================================ #
 # Test: GLMM Model Funnel Plot
@@ -163,12 +212,23 @@ test_that("Funnel plot for GLMM model works correctly", {
   )
 })
 
+test_that("Funnel plot for GLMM meta-regression works correctly", {
+
+  name <- "bcg_glmm_reg"
+  fit_brma <- fits[[name]]
+
+  # there is no funnel plot for metafor
+  vdiffr::expect_doppelganger(
+    "funnel_glmm_reg_ggplot",
+    suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
+  )
+})
 
 # ============================================================================ #
-# Test: Selection Model Funnel Plot (Positive Effects)
+# Test: Selection Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for selection model (positive) works correctly", {
+test_that("Funnel plot for selection model works correctly", {
 
   name <- "dat.lehmann2018-3PSM"
   fit_metafor <- info[[name]][["metafor"]]
@@ -186,17 +246,31 @@ test_that("Funnel plot for selection model (positive) works correctly", {
     funnel(fit_brma, plot_type = "base", main = "brma", xlim = c(-2, 2), ylim = c(0.8, 0), sampling_bias = FALSE, sampling_heterogeneity = FALSE)
   })
 
-  # HERE
   vdiffr::expect_doppelganger(
     "funnel_selmodel_pos_brma_ggplot",
-    funnel(fit_brma, plot_type = "ggplot")
+    funnel(fit_brma, plot_type = "ggplot", sampling_bias = TRUE, sampling_heterogeneity = TRUE, xlim = c(-2, 2))
   )
 })
 
+test_that("Funnel plot for selection meta-regression works correctly", {
 
-# ============================================================================ #
-# Test: Selection Model Funnel Plot (Negative Effects)
-# ============================================================================ #
+  name <- "dat.lehmann2018-3PSMreg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Visual comparison: side-by-side plots
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_selmodelreg_comparison", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    # not available for metafor
+    # par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    # metafor::funnel(fit_metafor, main = "metafor", xlim = c(-2, 2), ylim = c(0.8, 0))
+    suppressWarnings(funnel(fit_brma, plot_type = "base", main = "brma", xlim = c(-2, 2), ylim = c(0.8, 0), sampling_bias = FALSE, sampling_heterogeneity = FALSE))
+  })
+})
 
 test_that("Funnel plot for selection model (negative) works correctly", {
 
@@ -215,19 +289,13 @@ test_that("Funnel plot for selection model (negative) works correctly", {
     metafor::funnel(fit_metafor, main = "metafor", xlim = c(-2, 2), ylim = c(0.8, 0))
     funnel(fit_brma, plot_type = "base", main = "brma", xlim = c(-2, 2), ylim = c(0.8, 0), sampling_bias = FALSE, sampling_heterogeneity = FALSE)
   })
-
-  vdiffr::expect_doppelganger(
-    "funnel_selmodel_neg_brma_ggplot",
-    funnel(fit_brma, plot_type = "ggplot")
-  )
 })
 
-
 # ============================================================================ #
-# Test: PET Model Funnel Plot (Positive Effects)
+# Test: PET Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for PET model (positive) works correctly", {
+test_that("Funnel plot for PET model works correctly", {
 
   name <- "dat.lehmann2018-PET"
   fit_metafor <- info[[name]][["metafor"]]
@@ -252,10 +320,25 @@ test_that("Funnel plot for PET model (positive) works correctly", {
   )
 })
 
+test_that("Funnel plot for PET meta-regression works correctly", {
 
-# ============================================================================ #
-# Test: PET Model Funnel Plot (Negative Effects)
-# ============================================================================ #
+  name <- "dat.lehmann2018-PETreg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+
+  # --------------------------------------------------
+  # Visual comparison: side-by-side plots
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("funnel_PETreg_comparison", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    # the residuals need to be selected specifically because bPET is not treated as a regression
+    metafor::funnel(fit_metafor, main = "metafor", xlim = c(-2, 2), ylim = c(0.8, 0), type = "rstudent")
+    suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0)))
+  })
+})
 
 test_that("Funnel plot for PET model (negative) works correctly", {
 
@@ -282,6 +365,67 @@ test_that("Funnel plot for PET model (negative) works correctly", {
   )
 })
 
+# ============================================================================ #
+# Test: BMA.norm Model Funnel Plot
+# ============================================================================ #
+
+test_that("Funnel plot for BMA.norm model works correctly", {
+
+  name     <- "dat.lehmann2018_BMA.norm"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("funnel_BMA", function() {
+    suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE))
+  })
+})
+
+test_that("Funnel plot for BMA.norm meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018_BMA.norm_mods"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("funnel_BMAreg", function() {
+    suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE))
+  })
+})
+
+# ============================================================================ #
+# Test: BMA.glmm Model Funnel Plot
+# ============================================================================ #
+
+test_that("Funnel plot for BMA.glmm model works correctly", {
+
+  name     <- "bcg_BMA.glmm_3lvl_location_scale"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("funnel_BMA.glmm", function() {
+    suppressWarnings(funnel(fit_brma, plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: RoBMA Model Funnel Plot
+# ============================================================================ #
+
+test_that("Funnel plot for RoBMA model works correctly", {
+
+  name     <- "dat.lehmann2018_RoBMA"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("funnel_RoBMA", function() {
+    suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE, sampling_bias = TRUE))
+  })
+})
+
+test_that("Funnel plot for RoBMA meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("funnel_RoBMA_complex", function() {
+    suppressWarnings(funnel(fit_brma, plot_type = "base", type = "LOO-PIT"))
+  })
+})
 
 # ============================================================================ #
 # Test: Funnel Plot Options
@@ -340,7 +484,6 @@ test_that("Funnel plot has correct interface", {
     info = "should error on invalid sampling_heterogeneity"
   )
 })
-
 
 # ============================================================================ #
 # Test: Funnel Plot Customization

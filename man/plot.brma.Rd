@@ -10,6 +10,7 @@
   parameter_mods,
   parameter_scale,
   prior = FALSE,
+  standardized_coefficients = FALSE,
   plot_type = "base",
   dots_prior = NULL,
   ...

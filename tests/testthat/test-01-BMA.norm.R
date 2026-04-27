@@ -7,14 +7,14 @@ skip_refit_if_cached("BMA.norm")
 
 
 test_that("BMA.norm handles default model", {
-  data(Bem2011, package = "RoBMA")
-
+  data(dat.lehmann2018, package = "metadat")
   fit <- BMA.norm(
-    yi = d, sei = se,
-    data = Bem2011, measure = "SMD",
+    yi = yi, vi = vi,
+    data = dat.lehmann2018, measure = "SMD",
     seed = 1, silent = TRUE
   )
-  save_fit("bem2011_BMA.norm", fit)
+  fit <- suppressWarnings(add_loo(fit))
+  save_fit("dat.lehmann2018_BMA.norm", fit)
 
   ## simple quick consistency checks
   # check that the model fits and has expected class
@@ -32,18 +32,18 @@ test_that("BMA.norm handles default model", {
 })
 
 test_that("BMA.norm handles custom priors", {
-  data(Bem2011, package = "RoBMA")
-
+  data(dat.lehmann2018, package = "metadat")
   fit <- BMA.norm(
-    yi = d, sei = se,
-    data = Bem2011, measure = "SMD",
+    yi = yi, vi = vi,
+    data = dat.lehmann2018, measure = "SMD",
     prior_effect = prior("normal", list(mean = 0, sd = 0.5)),
     prior_effect_null = prior("spike", list(location = 0)),
     prior_heterogeneity = prior("normal", list(mean = 0, sd = 0.25), truncation = list(lower = 0)),
     prior_heterogeneity_null = NULL,  # no null hypothesis for heterogeneity
     seed = 1, silent = TRUE
   )
-  save_fit("bem2011_BMA.norm_custom", fit)
+  fit <- suppressWarnings(add_loo(fit))
+  save_fit("dat.lehmann2018_BMA.norm_custom", fit)
 
   ## simple quick consistency checks
   # check that the model fits and has expected class
@@ -57,14 +57,14 @@ test_that("BMA.norm handles custom priors", {
 })
 
 test_that("BMA.norm handles meta-regression", {
-  data(Bem2011, package = "RoBMA")
-
+  data(dat.lehmann2018, package = "metadat")
   fit <- BMA.norm(
-    yi = d, sei = se, mods = ~ se,
-    data = Bem2011, measure = "SMD",
+    yi = yi, vi = vi, mods = ~ Preregistered,
+    data = dat.lehmann2018, measure = "SMD",
     seed = 1, silent = TRUE
   )
-  save_fit("bem2011_BMA.norm_mods", fit)
+  fit <- suppressWarnings(add_loo(fit))
+  save_fit("dat.lehmann2018_BMA.norm_mods", fit, info = list(mods = c("Preregistered")))
 
   ## simple quick consistency checks
   # check that the model fits and has expected class
@@ -75,14 +75,14 @@ test_that("BMA.norm handles meta-regression", {
 })
 
 test_that("BMA.norm handles scale-regression", {
-  data(Bem2011, package = "RoBMA")
-  # TODO: fix error
+  data(dat.lehmann2018, package = "metadat")
   fit <- suppressWarnings(BMA.norm(
-    yi = d, sei = se, scale = ~ se,
-    data = Bem2011, measure = "SMD",
+    yi = yi, vi = vi, scale = ~ Preregistered,
+    data = dat.lehmann2018, measure = "SMD",
     seed = 1, silent = TRUE
   )) # suppress warning about removing spike at heterogeneity
-  save_fit("bem2011_BMA.norm_scale", fit)
+  fit <- suppressWarnings(add_loo(fit))
+  save_fit("dat.lehmann2018_BMA.norm_scale", fit, info = list(scale = c("Preregistered")))
 
   ## simple quick consistency checks
   # check that the model fits and has expected class

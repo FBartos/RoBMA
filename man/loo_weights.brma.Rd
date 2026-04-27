@@ -4,10 +4,12 @@
 \alias{loo_weights.brma}
 \title{Extract Normalized PSIS Weights from brma Object}
 \usage{
-\method{loo_weights}{brma}(object, ...)
+\method{loo_weights}{brma}(object, unit = "estimate", ...)
 }
 \arguments{
 \item{object}{a brma model object.}
+
+\item{unit}{output/deletion unit. See \code{\link{add_loo}}.}
 
 \item{...}{currently unused.}
 }

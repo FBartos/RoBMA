@@ -600,7 +600,7 @@ funnel.RoBMA <- function(x, conditional = FALSE, plot_type = "base", output_scal
 
     # compute quantiles under samples from adjusted/unadjusted models
     # similar to the predict/zcurve functions
-    # required for study ids / crit_x values in selection models
+    # required for cluster ids / crit_x values in selection models
     steps  <- BayesTools::weightfunctions_mapping(priors[["bias"]][sapply(priors[["bias"]], is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
     steps  <- rev(steps)[c(-1, -length(steps))]
 

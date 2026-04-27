@@ -98,13 +98,13 @@ test_that("Input works with optional arguments", {
 
   skip_on_cran()
 
-  # With slab and study_ids
+  # With slab and cluster
   result <- brma.norm(
     yi        = effect,
     sei       = std_err,
     ni        = n,
     slab      = study,
-    study_ids = cluster,
+    cluster   = cluster,
     data      = test_data,
     only_data = TRUE
   )[["data"]]
@@ -112,7 +112,7 @@ test_that("Input works with optional arguments", {
   expect_type(result, "list")
   expect_equal(nrow(result$outcome), 5)
   expect_equal(result$outcome$slab, test_data$study)
-  expect_equal(result$outcome$study_ids, as.numeric(as.factor(test_data$cluster)))
+  expect_equal(result$outcome$cluster, as.numeric(as.factor(test_data$cluster)))
   expect_equal(result$outcome$ni, test_data$n)
 })
 
@@ -1312,27 +1312,31 @@ test_that("NAs across outcome, mods, and scale are all handled", {
 })
 
 
-test_that("NA in ni, weights, study_ids does NOT drop rows", {
+test_that("NA in weights or cluster throws error instead of dropping rows", {
 
   skip_on_cran()
 
-  # Data with NA in optional columns (these should be preserved)
-  expect_silent(
+  # Data with NA in weights
+  expect_error(
     result <- brma.norm(
       yi        = c(0.10, 0.25, 0.15, 0.30, 0.05),
       sei       = c(0.20, 0.24, 0.22, 0.28, 0.17),
-      ni        = c(50L, NA, 60L, 40L, 90L),
       weights   = c(1.0, 1.5, NA, 0.8, 1.3),
-      study_ids = c("g1", NA, "g2", "g2", "g3"),
+      cluster   = c("g1", "g1", "g2", "g2", "g3"),
       only_data = TRUE
-    )[["data"]]
+    )[["data"]], regexp = "argument must not contain missing values"
   )
 
-  # All rows should be preserved
-
-  expect_equal(nrow(result$outcome), 5)
-  expect_true(is.na(result$outcome$ni[2]))
-  expect_true(is.na(result$outcome$weights[3]))
+  # Data with NA in cluster
+  expect_error(
+    result <- brma.norm(
+      yi        = c(0.10, 0.25, 0.15, 0.30, 0.05),
+      sei       = c(0.20, 0.24, 0.22, 0.28, 0.17),
+      weights   = c(1.0, 1.5, 1, 0.8, 1.3),
+      cluster   = c("g1", NA, "g2", "g2", "g3"),
+      only_data = TRUE
+    )[["data"]], regexp = "argument must not contain missing values"
+  )
 })
 
 
@@ -1355,24 +1359,24 @@ test_that("Default slab is generated after NA dropping", {
 })
 
 
-test_that("study_ids are processed after NA dropping", {
+test_that("cluster is processed after NA dropping", {
 
   skip_on_cran()
 
-  # Data with NA in yi (row 2) - study_ids should be renumbered after dropping
+  # Data with NA in yi (row 2) - cluster should be renumbered after dropping
   expect_warning(
     result <- brma.norm(
       yi        = c(NA, NA, 0.15, 0.30, 0.05),
       sei       = c(0.20, 0.24, 0.22, 0.28, 0.17),
-      study_ids = c("g1", "g1", "g2", "g2", "g3"),
+      cluster   = c("g1", "g1", "g2", "g2", "g3"),
       only_data = TRUE
     )[["data"]],
     regexp = "2 observation.*removed due to missing"
   )
 
-  # After dropping row 2, study_ids should be g2, g2, g3
+  # After dropping row 2, cluster should be g2, g2, g3
   # These should be converted to numeric: 1, 1, 2
-  expect_equal(result$outcome$study_ids, c(1, 1, 2))
+  expect_equal(result$outcome$cluster, c(1, 1, 2))
 })
 
 

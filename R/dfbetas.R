@@ -22,8 +22,9 @@
 #'
 #' @param model a fitted brma object.
 #' @param type type of parameters to be summarized. Defaults to \code{"mods"}
-#' (for the effect size and meta-regression coefficients). The other option is
-#' \code{"scale"} (for the heterogeneity and scale-regression coefficients).
+#' (for the effect size and meta-regression coefficients). The other options are
+#' \code{"scale"} (for the heterogeneity and scale-regression coefficients) and
+#' \code{"bias"} (for omega, PET, and PEESE publication-bias parameters).
 #' @param standardized_coefficients whether to show standardized meta-regression coefficients.
 #' Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
 #' coefficients are returned for the intercept and continuous predictors. These coefficients
@@ -53,12 +54,15 @@
 #'
 #' This approximation allows computing influence statistics without refitting
 #' the model \eqn{K} times, making it computationally efficient.
+#' For \code{type = "bias"}, fixed identification parameters (e.g., the reference
+#' \eqn{\omega = 1} interval) are omitted because their LOO posterior standard
+#' deviation is zero.
 #'
 #' Note: This function requires that LOO-CV has been computed for the model
 #' using \code{\link{add_loo}}.
 #'
 #' @return A data frame with \eqn{K} rows (observations) and \eqn{P} columns
-#' (coefficients), containing the DFBETAS values. Row names correspond to
+#' (parameters), containing the DFBETAS values. Row names correspond to
 #' study labels (if available) or indices.
 #'
 #' @examples \dontrun{
@@ -77,7 +81,7 @@
 #' @exportS3Method
 dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE, transform_factors = TRUE, return_loo_estimates = FALSE, ...) {
 
-  BayesTools::check_char(type, "type", allow_values = c("mods", "scale"))
+  BayesTools::check_char(type, "type", allow_values = c("mods", "scale", "bias"))
 
   # get PSIS weights (S x K matrix)
   weights <- loo_weights(model)
@@ -85,6 +89,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
   is_mods  <- .is_mods(model)
   is_scale <- .is_scale(model)
+  is_bias  <- .is_bias(model)
 
   if (type == "mods") {
     if (is_mods) {
@@ -128,12 +133,35 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
         return_samples     = TRUE
       )
     }
+  } else if (type == "bias") {
+    if (!is_bias) {
+      stop("type = 'bias' is only available for models with publication bias adjustment.", call. = FALSE)
+    }
+
+    samples_table <- .dfbetas_bias_samples(model)
   }
 
 
   # samples_table is a flattened data frame (S rows x P columns)
   # ensure it's a matrix for computation
   samples_mat <- as.matrix(samples_table)
+
+  if (ncol(samples_mat) == 0) {
+    stop("No parameters available for DFBETAS with the requested type.", call. = FALSE)
+  }
+
+  if (type == "bias") {
+    varying <- apply(
+      samples_mat,
+      2,
+      function(x) diff(range(x, na.rm = TRUE)) > sqrt(.Machine$double.eps)
+    )
+    samples_mat <- samples_mat[, varying, drop = FALSE]
+
+    if (ncol(samples_mat) == 0) {
+      stop("No varying publication bias parameters available for DFBETAS.", call. = FALSE)
+    }
+  }
 
   # dimensions
   S <- nrow(samples_mat) # number of samples
@@ -200,4 +228,37 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   colnames(dfbetas_df) <- colnames(samples_mat)
 
   return(dfbetas_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .dfbetas_bias_samples
+# ---------------------------------------------------------------------------- #
+#
+# Extract publication-bias posterior samples without using JAGS_estimates_table.
+# BayesTools summary tables always run formula/factor post-processing, which can
+# fail for RoBMA mixture-prior objects when we only need raw omega/PET/PEESE draws.
+#
+# ---------------------------------------------------------------------------- #
+.dfbetas_bias_samples <- function(model) {
+
+  posterior_samples <- .get_posterior_samples(model[["fit"]])
+  bias_samples      <- list()
+  omega_cols        <- grep("^omega(\\[|$)", colnames(posterior_samples), value = TRUE)
+
+  if (length(omega_cols) > 0L) {
+    bias_samples[["omega"]] <- .extract_omega_samples(posterior_samples)
+  }
+
+  for (par in c("PET", "PEESE")) {
+    if (par %in% colnames(posterior_samples)) {
+      bias_samples[[par]] <- as.matrix(posterior_samples[, par, drop = FALSE])
+    }
+  }
+
+  if (length(bias_samples) == 0L) {
+    return(matrix(nrow = nrow(posterior_samples), ncol = 0))
+  }
+
+  return(do.call(cbind, bias_samples))
 }

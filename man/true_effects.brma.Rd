@@ -2,7 +2,7 @@
 % Please edit documentation in R/wrappers.R
 \name{true_effects.brma}
 \alias{true_effects.brma}
-\title{True Study Effects for brma Objects}
+\title{True Effects for brma Objects}
 \usage{
 \method{true_effects}{brma}(object, bias_adjusted = FALSE, probs = c(0.025, 0.975), ...)
 }
@@ -21,12 +21,12 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples with one
-column per study. When printed, displays a summary table. Use \code{summary()}
+column per estimate. When printed, displays a summary table. Use \code{summary()}
 to obtain the summary table directly. The samples can be converted to
 \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
-Computes the estimated true study effects (theta) for a
+Computes the estimated true effects (theta) for a
 fitted brma object. This is an alias for \code{\link{blup.brma}}.
 }
 \details{

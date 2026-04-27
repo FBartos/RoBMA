@@ -16,6 +16,17 @@
     if(!"RoBMA" %in% rjags::list.modules()){
       warning('The RoBMA module could not be loaded.', call. = FALSE)
     }
+
+    tryCatch(
+      {
+        if(!is.loaded("RoBMA_wnorm_mix_logpdf_matrix", PACKAGE = pkgname)){
+          library.dynam("RoBMA", pkgname, libname)
+        }
+      },
+      error = function(e){
+        warning('The RoBMA native routines could not be loaded.', call. = FALSE)
+      }
+    )
   }
 
   RoBMA.private$module_location <- module_location

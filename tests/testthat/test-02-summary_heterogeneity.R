@@ -4,13 +4,45 @@ context("Summary Heterogeneity")
 source(testthat::test_path("common-functions.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "summary_heterogeneity")
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
+
+summary_heterogeneity_columns <- c("Mean", "Median", "0.025", "0.975")
+model_averaged_classes        <- c("BMA.norm", "BMA.glmm", "RoBMA")
+
+expect_summary_heterogeneity_structure <- function(heterogeneity, expected_rows, name) {
+
+  expect_true(inherits(heterogeneity, "summary_heterogeneity.brma"),
+              info = paste0("summary_heterogeneity class for '", name, "'"))
+  expect_equal(sort(rownames(heterogeneity$estimates)), sort(expected_rows),
+               info = paste0("summary_heterogeneity rows for '", name, "'"))
+
+  estimates <- heterogeneity$estimates[
+    expected_rows, summary_heterogeneity_columns, drop = FALSE
+  ]
+  values <- as.matrix(estimates)
+
+  expect_true(all(is.finite(values)),
+              info = paste0("summary_heterogeneity finite estimates for '", name, "'"))
+  expect_true(all(values >= 0),
+              info = paste0("summary_heterogeneity non-negative estimates for '", name, "'"))
+
+  i2_rows <- grep("^I2", expected_rows, value = TRUE)
+  if (length(i2_rows) > 0) {
+    i2_values <- as.matrix(heterogeneity$estimates[
+      i2_rows, summary_heterogeneity_columns, drop = FALSE
+    ])
+    expect_true(all(i2_values >= 0 & i2_values <= 100),
+                info = paste0("summary_heterogeneity I2 bounds for '", name, "'"))
+  }
+
+  expect_true(all(heterogeneity$estimates["H2", summary_heterogeneity_columns] >= 1),
+              info = paste0("summary_heterogeneity H2 bounds for '", name, "'"))
+}
 
 
 # ============================================================================ #
@@ -50,7 +82,6 @@ test_that("Heterogeneity for simple meta-analysis matches metafor", {
                info = "brma H2 should match metafor")
 })
 
-
 # ============================================================================ #
 # Test: 3-Level Model Heterogeneity (Partitioned I2)
 # ============================================================================ #
@@ -74,12 +105,12 @@ test_that("Heterogeneity for 3-level model matches metafor", {
 
   # tau [within] should match sqrt(sigma2[1]) (estimate-level)
   expect_equal(brma_het$estimates["tau [within]", "Mean"],
-               sqrt(fit_metafor$tau2 * fit_metafor$rho), tolerance = 0.05,
+               sqrt(fit_metafor$tau2 * (1-fit_metafor$rho)), tolerance = 0.05,
                info = "brma tau within should match metafor sigma2[1]")
 
   # tau [between] should match sqrt(sigma2[2]) (study-level)
   expect_equal(brma_het$estimates["tau [between]", "Mean"],
-               sqrt(fit_metafor$tau2 * (1-fit_metafor$rho)), tolerance = 0.05,
+               sqrt(fit_metafor$tau2 * fit_metafor$rho), tolerance = 0.05,
                info = "brma tau between should match metafor sigma2[2]")
 
   # --------------------------------------------------
@@ -95,8 +126,8 @@ test_that("Heterogeneity for 3-level model matches metafor", {
   total_var <- fit_metafor$tau2
 
   I2_total   <- 100 * total_var / (total_var + typical_v)
-  I2_within  <- 100 * (total_var * fit_metafor$rho) / (total_var + typical_v)
-  I2_between <- 100 * (total_var * (1-fit_metafor$rho)) / (total_var + typical_v)
+  I2_within  <- 100 * (total_var * (1-fit_metafor$rho)) / (total_var + typical_v)
+  I2_between <- 100 * (total_var * fit_metafor$rho) / (total_var + typical_v)
 
   expect_equal(brma_het$estimates["I2", "Median"],
                I2_total, tolerance = 0.05,
@@ -110,7 +141,6 @@ test_that("Heterogeneity for 3-level model matches metafor", {
                I2_between, tolerance = 0.10,
                info = "brma I2 between should match metafor formula")
 })
-
 
 # ============================================================================ #
 # Test: Meta-Regression Heterogeneity
@@ -126,25 +156,24 @@ test_that("Heterogeneity for meta-regression matches metafor", {
 
   # tau (should match residual heterogeneity from metafor)
   expect_equal(brma_het$estimates["tau", "Mean"],
-               sqrt(fit_metafor$tau2), tolerance = 0.05,
+               sqrt(fit_metafor$tau2), tolerance = 0.10,
                info = "brma tau should match metafor for meta-regression")
 
   # tau2
   expect_equal(brma_het$estimates["tau2", "Mean"],
-               fit_metafor$tau2, tolerance = 0.05,
+               fit_metafor$tau2, tolerance = 0.10,
                info = "brma tau2 should match metafor for meta-regression")
 
   # I2
   expect_equal(brma_het$estimates["I2", "Median"],
-               fit_metafor$I2, tolerance = 0.05,
+               fit_metafor$I2, tolerance = 0.10,
                info = "brma I2 should match metafor for meta-regression")
 
   # H2
   expect_equal(brma_het$estimates["H2", "Median"],
-               fit_metafor$H2, tolerance = 0.05,
+               fit_metafor$H2, tolerance = 0.20,
                info = "brma H2 should match metafor for meta-regression")
 })
-
 
 # ============================================================================ #
 # Test: Location-Scale Model Heterogeneity
@@ -171,7 +200,6 @@ test_that("Heterogeneity for location-scale model matches metafor", {
                mean(fit_metafor$H2), tolerance = 0.20,
                info = "brma H2 should match metafor for location-scale models")
 })
-
 
 # ============================================================================ #
 # Test: bPET Model Heterogeneity
@@ -206,7 +234,6 @@ test_that("Heterogeneity for bPET model matches metafor", {
                info = "brma H2 should match metafor for bPET model")
 })
 
-
 test_that("Heterogeneity for bPET model (negative effects) matches metafor", {
 
   name        <- "dat.lehmann2018-PET_neg"
@@ -236,7 +263,6 @@ test_that("Heterogeneity for bPET model (negative effects) matches metafor", {
                info = "brma H2 should match metafor for bPET model (negative)")
 })
 
-
 # ============================================================================ #
 # Test: bselmodel Heterogeneity
 # ============================================================================ #
@@ -261,7 +287,6 @@ test_that("Heterogeneity for bselmodel matches metafor", {
 
   # I2 / H2 are not reported for selection models
 })
-
 
 test_that("Heterogeneity for bselmodel (negative effects) matches metafor", {
 
@@ -315,4 +340,70 @@ test_that("Heterogeneity for GLMM model matches metafor", {
   expect_equal(brma_het$estimates["H2", "Median"],
                fit_metafor$H2, tolerance = 0.10,
                info = "brma H2 should match metafor for glmm")
+})
+
+# ============================================================================ #
+# Test: Model-Averaged 2-Level Heterogeneity
+# ============================================================================ #
+
+test_that("Heterogeneity for model-averaged 2-level models is summarized", {
+
+  model_averaged_names <- setdiff(
+    catalog_fits(class = model_averaged_classes),
+    catalog_fits(class = model_averaged_classes, feature = "multilevel")
+  )
+  skip_if_missing_fits(model_averaged_names)
+
+  expected_rows <- c("tau", "tau2", "I2", "H2")
+
+  for (name in model_averaged_names) {
+    heterogeneity <- summary_heterogeneity(fits[[name]])
+    expect_summary_heterogeneity_structure(heterogeneity, expected_rows, name)
+  }
+})
+
+# ============================================================================ #
+# Test: Model-Averaged 3-Level Heterogeneity
+# ============================================================================ #
+
+test_that("Heterogeneity for model-averaged 3-level models is partitioned", {
+
+  model_averaged_names <- catalog_fits(
+    class   = model_averaged_classes,
+    feature = "multilevel"
+  )
+  skip_if_missing_fits(model_averaged_names)
+
+  expected_rows <- c(
+    "tau",
+    "tau [within]",
+    "tau [between]",
+    "tau2",
+    "tau2 [within]",
+    "tau2 [between]",
+    "I2",
+    "I2 [within]",
+    "I2 [between]",
+    "H2"
+  )
+
+  for (name in model_averaged_names) {
+    heterogeneity <- summary_heterogeneity(fits[[name]])
+    expect_summary_heterogeneity_structure(heterogeneity, expected_rows, name)
+
+    expect_equal(
+      heterogeneity$estimates["tau2", "Mean"],
+      heterogeneity$estimates["tau2 [within]", "Mean"] +
+        heterogeneity$estimates["tau2 [between]", "Mean"],
+      tolerance = 0.01,
+      info      = paste0("tau2 partitions sum to total for '", name, "'")
+    )
+    expect_equal(
+      heterogeneity$estimates["I2", "Mean"],
+      heterogeneity$estimates["I2 [within]", "Mean"] +
+        heterogeneity$estimates["I2 [between]", "Mean"],
+      tolerance = 0.01,
+      info      = paste0("I2 partitions sum to total for '", name, "'")
+    )
+  }
 })

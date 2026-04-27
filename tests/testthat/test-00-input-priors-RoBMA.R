@@ -361,14 +361,72 @@ test_that("prior_bias_null = NULL omits null bias hypothesis", {
 })
 
 
+test_that("Bias presets only require UISD when PEESE is present", {
+
+  custom_effect <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.5))
+  custom_het    <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.3), truncation = list(0, Inf))
+
+  expect_no_error(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "GEN", model_type = "6w",
+      prior_effect = custom_effect, prior_heterogeneity = custom_het,
+      only_priors = TRUE
+    )
+  )
+})
+
+
+test_that("Partial bias customization respects model_type alternatives", {
+
+  result <- RoBMA(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", model_type = "PP",
+    prior_bias_null = NULL, only_priors = TRUE
+  )[["priors"]]
+
+  has_wf    <- sapply(result$outcome$bias, BayesTools::is.prior.weightfunction)
+  has_pet   <- sapply(result$outcome$bias, BayesTools::is.prior.PET)
+  has_peese <- sapply(result$outcome$bias, BayesTools::is.prior.PEESE)
+
+  expect_equal(sum(has_wf), 0)
+  expect_equal(sum(has_pet), 1)
+  expect_equal(sum(has_peese), 1)
+})
+
+
+test_that("Empty top-level mixtures throw clear errors", {
+
+  expect_error(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "SMD",
+      prior_effect = NULL, prior_effect_null = NULL,
+      only_priors = TRUE
+    ),
+    regexp = "effect"
+  )
+
+  expect_error(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "SMD",
+      prior_bias = NULL, prior_bias_null = NULL,
+      only_priors = TRUE
+    ),
+    regexp = "bias"
+  )
+})
+
+
 # ============================================================================
 # Tests for heterogeneity allocation mixture (multilevel models)
 # ============================================================================
 
-test_that("Heterogeneity allocation creates mixture with study_ids", {
+test_that("Heterogeneity allocation creates mixture with cluster", {
 
   result <- RoBMA(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     measure = "SMD", only_priors = TRUE
   )[["priors"]]
 
@@ -391,7 +449,7 @@ test_that("Custom prior_heterogeneity_allocation works", {
   custom_prior <- BayesTools::prior("beta", parameters = list(alpha = 2, beta = 2))
 
   result <- RoBMA(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     prior_heterogeneity_allocation = custom_prior,
     measure = "SMD", only_priors = TRUE
   )[["priors"]]
@@ -406,7 +464,7 @@ test_that("prior_heterogeneity_allocation_null adds null hypothesis", {
   null_prior <- BayesTools::prior("spike", parameters = list(location = 0.5))
 
   result <- RoBMA(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     prior_heterogeneity_allocation_null = null_prior,
     measure = "SMD", only_priors = TRUE
   )[["priors"]]
@@ -594,10 +652,10 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
 
 test_that("Scale priors create mixture with intercept from heterogeneity prior", {
 
-  result <- RoBMA(
+  result <- suppressWarnings(RoBMA(
     yi = effect, sei = std_err, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )[["priors"]])
 
   expect_true(!is.null(result$scale))
   expect_true("intercept" %in% names(result$scale))
@@ -621,10 +679,10 @@ test_that("Scale term priors are mixture priors (same as mods)", {
   # Scale terms use .assign_prior_list.terms_mixture() like mods
   # returning mixture priors for model-averaging
 
-  result <- RoBMA(
+  result <- suppressWarnings(RoBMA(
     yi = effect, sei = std_err, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )[["priors"]])
 
   # scale_var should be a mixture prior (like mods terms)
   expect_true(BayesTools::is.prior.mixture(result$scale$scale_var))
@@ -639,10 +697,10 @@ test_that("Custom prior_scale replaces alternative for scale terms", {
 
   custom_scale <- list(scale_var = BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.4)))
 
-  result <- RoBMA(
+  result <- suppressWarnings( RoBMA(
     yi = effect, sei = std_err, scale = ~ scale_var,
     prior_scale = custom_scale, data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )[["priors"]])
 
   # Result should be a mixture
   expect_true(BayesTools::is.prior.mixture(result$scale$scale_var))
@@ -841,7 +899,7 @@ test_that("List of heterogeneity allocation priors creates mixture", {
   )
 
   result <- RoBMA(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     prior_heterogeneity_allocation = rho_priors,
     measure = "SMD", only_priors = TRUE
   )[["priors"]]
@@ -861,7 +919,7 @@ test_that("Heterogeneity allocation with both null and alternative lists", {
   null_priors <- list(BayesTools::prior("spike", parameters = list(location = 0.5)))
 
   result <- RoBMA(
-    yi = effect, sei = std_err, study_ids = cluster, data = test_data,
+    yi = effect, sei = std_err, cluster = cluster, data = test_data,
     prior_heterogeneity_allocation = alt_priors,
     prior_heterogeneity_allocation_null = null_priors,
     measure = "SMD", only_priors = TRUE
@@ -910,11 +968,11 @@ test_that("Effect prior mixture is correctly forwarded to mods intercept", {
   custom_effect <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.8))
   custom_null   <- BayesTools::prior("spike", parameters = list(location = 0.1))
 
-  result <- RoBMA(
+  result <- suppressWarnings(RoBMA(
     yi = effect, sei = std_err, mods = ~ mod_cont,
     prior_effect = custom_effect, prior_effect_null = custom_null,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )[["priors"]])
 
   # Intercept should have the custom priors
   expect_true(BayesTools::is.prior.mixture(result$mods$intercept))
@@ -930,10 +988,10 @@ test_that("Effect prior mixture is correctly forwarded to mods intercept", {
 
 test_that("Both mods and scale work together with mixtures", {
 
-  result <- RoBMA(
+  result <- suppressWarnings(RoBMA(
     yi = effect, sei = std_err, mods = ~ mod_cont, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )[["priors"]])
 
   expect_true(!is.null(result$mods))
   expect_true(!is.null(result$scale))

@@ -52,10 +52,10 @@ influence.brma <- function(model, ...) {
   # Hat Matrix Samples (S x K)
   if (outcome_type == "norm" && !is_weightfunction) {
     hat_res <- .compute_hat_matrix_samples(
-      object        = model,
-      type          = "marginal",
-      return_full_H = FALSE,
-      return_se     = FALSE
+      object             = model,
+      conditioning_depth = "marginal",
+      return_full_H      = FALSE,
+      return_se          = FALSE
     )
     hat_samples <- hat_res[["H_diag"]]
 

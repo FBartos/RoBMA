@@ -2,7 +2,7 @@
 % Please edit documentation in R/wrappers.R
 \name{true_effects}
 \alias{true_effects}
-\title{True Study Effects}
+\title{True Effects}
 \usage{
 true_effects(object, ...)
 }
@@ -13,10 +13,10 @@ true_effects(object, ...)
 }
 \value{
 Method-specific return value, typically a summary table or
-posterior samples of the true study effects.
+posterior samples of the true effects.
 }
 \description{
-Computes the estimated true study effects (theta) from a
+Computes the estimated true effects (theta) from a
 fitted model. This is an alias for \code{\link{blup}}.
 }
 \seealso{

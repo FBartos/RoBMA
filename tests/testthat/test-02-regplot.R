@@ -3,32 +3,18 @@ context("Regression plot (bubble plot)")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
-
-# TODO:
-# - missing border of the shade (no shade deletes everything)
-# - the predicticted line and bands should extend all the way to the end of plotting range
-# - remove these warning messages:
-# - should use the quantile function (as the funnel plot) instead of doing random simulation via predict
-# ```
-# Warning messages:
-#  1: In data.frame(x = c(at_pred, rev(at_pred)), y = c(pred_lower, rev(pred_upper)),  :
-#  row names were found from a short variable and have been discarded
-#  2: In data.frame(x = c(at_pred, rev(at_pred)), y = c(pi_lower, rev(pi_upper)),  :
-#  row names were found from a short variable and have been discarded
-# ```
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 # ============================================================================ #
 # Test: Continuous Moderator Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for continuous moderator matches metafor structure", {
+test_that("Regression plot for continuous moderator matches metafor", {
 
   name        <- "bcg_meta-regression"
   fit_metafor <- info[[name]][["metafor"]]
@@ -52,11 +38,6 @@ test_that("Regression plot for continuous moderator matches metafor structure", 
   )
 })
 
-
-# ============================================================================ #
-# Test: Continuous Moderator with Prediction Intervals
-# ============================================================================ #
-
 test_that("Regression plot with prediction intervals works", {
 
   name     <- "bcg_meta-regression"
@@ -76,31 +57,16 @@ test_that("Regression plot with prediction intervals works", {
   )
 })
 
+test_that("Regression plot for categorical (dummy) moderator works", {
 
-# ============================================================================ #
-# Test: Categorical Moderator Regression Plot
-# ============================================================================ #
-
-test_that("Regression plot for categorical moderator works", {
-
-  name        <- "bcg_meta-regression-categorical"
+  name        <- "bcg_meta-regression2"
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
-  # TODO: implement
-  # skip if this fit doesn't exist
-  skip("Categorical meta-regression fit not added yet")
-
-  # --------------------------------------------------
-  # Visual comparison: side-by-side plots
-  # --------------------------------------------------
-
-  vdiffr::expect_doppelganger("regplot_categorical_comparison", function() {
+  vdiffr::expect_doppelganger("regplot_categorical_brma", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
-    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    metafor::regplot(fit_metafor, mod = "year", main = "metafor")
-    regplot(fit_brma, mod = "year", plot_type = "base", main = "brma")
+    regplot(fit_brma, mod = "alloc", plot_type = "base", main = "brma")
   })
 
   vdiffr::expect_doppelganger(
@@ -109,6 +75,38 @@ test_that("Regression plot for categorical moderator works", {
   )
 })
 
+test_that("Regression plot for categorical moderator with different coding works", {
+
+  fit_brma1 <- fits[["bcg_meta-regression2"]]
+  fit_brma2 <- fits[["bcg_meta-regression2b"]]
+
+  vdiffr::expect_doppelganger("regplot_categorical_coding_comparison", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    regplot(fit_brma1, mod = "alloc", plot_type = "base", main = "brma", si = TRUE)
+    regplot(fit_brma2, mod = "alloc", plot_type = "base", main = "brma", si = TRUE)
+  })
+})
+
+test_that("Regression plot for interaction works", {
+
+  fit_brma3 <- fits[["bcg_meta-regression3"]]
+  fit_brma4 <- fits[["bcg_meta-regression4"]]
+
+  vdiffr::expect_doppelganger("regplot_interaction_coding_comparison", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    regplot(fit_brma3, mod = "year",            plot_type = "base", by = "alloc")
+    regplot(fit_brma4, mod = "year_before1969", plot_type = "base", by = "alloc")
+  })
+
+  vdiffr::expect_doppelganger(
+    "regplot_interaction_coding_ggplot",
+    regplot(fit_brma4, mod = "year_before1969", plot_type = "ggplot", by = "alloc")
+  )
+})
 
 # ============================================================================ #
 # Test: Location-Scale Model Regression Plot
@@ -138,6 +136,113 @@ test_that("Regression plot for location-scale model works", {
   )
 })
 
+# ============================================================================ #
+# Test: 3-Level Model Regression Plot
+# ============================================================================ #
+
+test_that("Regression plot for multilevel model works", {
+
+  name        <- "konstantopoulos2011_3lvl2"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+  mod         <- "vi"
+
+  expect_no_error({
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    metafor::regplot(fit_metafor, mod = mod, main = "metafor", ylim = c(-1, 1.5))
+    regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+  })
+
+  expect_s3_class(regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+})
+
+# ============================================================================ #
+# Test: Selection Regression Plot
+# ============================================================================ #
+
+test_that("Regression plot for selection model works", {
+
+  name        <- "dat.lehmann2018-3PSMreg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+  mod         <- "Preregistered"
+
+  expect_no_error({
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    metafor::regplot(fit_metafor, mod = mod, main = "metafor", ylim = c(-1, 1.5))
+    regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+  })
+
+  expect_s3_class(regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+})
+
+# ============================================================================ #
+# Test: PET Model Regression Plot
+# ============================================================================ #
+
+test_that("Regression plot for PET model works", {
+
+  name        <- "dat.lehmann2018-PETreg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+  mod         <- "Preregistered"
+
+  expect_no_error({
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    metafor::regplot(fit_metafor, mod = mod, main = "metafor", ylim = c(-1, 1.5))
+    regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+  })
+
+  expect_s3_class(regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+})
+
+# ============================================================================ #
+# Test: BMA.norm Model Regression Plot
+# ============================================================================ #
+
+test_that("Regression plot for BMA.norm meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018_BMA.norm_mods"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("regplot_BMAreg", function() {
+    suppressWarnings(regplot(fit_brma, plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: BMA.glmm Model Regression Plot
+# ============================================================================ #
+
+test_that("Regression plot for BMA.glmm model works correctly", {
+
+  name     <- "bcg_BMA.glmm_3lvl_location_scale"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("regplot_BMA.glmm", function() {
+    suppressWarnings(regplot(fit_brma, mod = "year", plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: RoBMA Model Regression Plot
+# ============================================================================ #
+
+test_that("Regression plot for RoBMA meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("regplot_RoBMA_complex", function() {
+    suppressWarnings(regplot(fit_brma, mod = "Preregistered", plot_type = "base"))
+  })
+})
 
 # ============================================================================ #
 # Test: Regression Plot Options
@@ -152,7 +257,7 @@ test_that("Regression plot has correct interface", {
   # Test as_data = TRUE returns list with expected components
   # --------------------------------------------------
 
-  regplot_data <- regplot(fit_brma, mod = "year", as_data = TRUE)
+  regplot_data <- regplot(fit_brma, mod = "year", pi = TRUE, si = TRUE, as_data = TRUE)
 
   expect_true(is.list(regplot_data),
     info = "as_data = TRUE should return a list"
@@ -220,7 +325,6 @@ test_that("Regression plot has correct interface", {
     info = "should error on invalid plot_type"
   )
 })
-
 
 # ============================================================================ #
 # Test: Regression Plot Customization
@@ -332,7 +436,6 @@ test_that("Regression plot customization works", {
   })
 })
 
-
 # ============================================================================ #
 # Test: Regression Plot Confidence Level
 # ============================================================================ #
@@ -353,4 +456,73 @@ test_that("Regression plot confidence level works", {
   vdiffr::expect_doppelganger("regplot_level_99_base", function() {
     regplot(fit_brma, mod = "ablat", plot_type = "base", level = 99, main = "99% CI")
   })
+})
+
+test_that("native regplot mixture intervals match R fallback", {
+
+  skip_if_not(RoBMA:::.has_native_regplot_mixture())
+
+  set.seed(1024)
+
+  S     <- 200
+  K     <- 4
+  probs <- c(.025, .975)
+
+  mean_samples <- matrix(stats::rnorm(S * K), nrow = S, ncol = K)
+  sd_samples   <- matrix(stats::runif(S * K, .05, 1.25), nrow = S, ncol = K)
+
+  expected <- RoBMA:::.regplot_mixture_interval_quantiles_r(
+    mean_samples = mean_samples,
+    sd_samples   = sd_samples,
+    probs        = probs
+  )
+  actual <- RoBMA:::.regplot_mixture_interval_quantiles(
+    mean_samples = mean_samples,
+    sd_samples   = sd_samples,
+    probs        = probs
+  )
+
+  expect_equal(actual, expected, tolerance = 1e-4)
+
+  crit_yi             <- matrix(c(1, 2), ncol = 1)
+  crit_yi_mapping     <- matrix(c(1, 2, 1, 2), nrow = 2, ncol = 2)
+  crit_yi_mapping_max <- c(2L, 2L)
+  omega               <- matrix(stats::runif(S * 3, .25, 1), nrow = S, ncol = 3)
+  bias_indicator      <- sample.int(2, S, replace = TRUE)
+  is_weightfunction   <- sample(c(TRUE, FALSE), S, replace = TRUE)
+  setup <- list(
+    omega             = omega,
+    bias_indicator    = bias_indicator,
+    is_weightfunction = is_weightfunction,
+    selection         = list(
+      steps                = stats::pnorm(as.numeric(crit_yi), lower.tail = FALSE),
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max
+    )
+  )
+
+  expected <- RoBMA:::.regplot_weighted_mixture_interval_quantiles_r(
+    mean_samples     = mean_samples,
+    sd_samples       = sd_samples,
+    se               = 1,
+    probs            = probs,
+    setup            = setup,
+    effect_direction = "positive"
+  )
+  actual <- .Call(
+    "RoBMA_regplot_weighted_mixture_interval",
+    mean_samples,
+    sd_samples,
+    probs,
+    omega,
+    as.integer(bias_indicator),
+    is_weightfunction,
+    crit_yi,
+    crit_yi_mapping,
+    as.integer(crit_yi_mapping_max),
+    "positive",
+    PACKAGE = "RoBMA"
+  )
+
+  expect_equal(actual, expected, tolerance = 1e-4)
 })

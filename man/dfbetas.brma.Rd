@@ -17,8 +17,9 @@
 \item{model}{a fitted brma object.}
 
 \item{type}{type of parameters to be summarized. Defaults to \code{"mods"}
-(for the effect size and meta-regression coefficients). The other option is
-\code{"scale"} (for the heterogeneity and scale-regression coefficients).}
+(for the effect size and meta-regression coefficients). The other options are
+\code{"scale"} (for the heterogeneity and scale-regression coefficients) and
+\code{"bias"} (for omega, PET, and PEESE publication-bias parameters).}
 
 \item{standardized_coefficients}{whether to show standardized meta-regression coefficients.
 Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
@@ -33,7 +34,7 @@ Defaults to \code{TRUE}.}
 }
 \value{
 A data frame with \eqn{K} rows (observations) and \eqn{P} columns
-(coefficients), containing the DFBETAS values. Row names correspond to
+(parameters), containing the DFBETAS values. Row names correspond to
 study labels (if available) or indices.
 }
 \description{
@@ -63,6 +64,9 @@ weighted standard deviation of the posterior samples.
 
 This approximation allows computing influence statistics without refitting
 the model \eqn{K} times, making it computationally efficient.
+For \code{type = "bias"}, fixed identification parameters (e.g., the reference
+\eqn{\omega = 1} interval) are omitted because their LOO posterior standard
+deviation is zero.
 
 Note: This function requires that LOO-CV has been computed for the model
 using \code{\link{add_loo}}.

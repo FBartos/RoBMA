@@ -812,43 +812,43 @@
   effect_measure   <- attr(data, "effect_measure")
 
   fit_data <- list()
-  data     <- data[order(data[,"study_ids"]),]
+  data     <- data[order(data[,"cluster"]),]
 
   ### deal with the univariate data
   # change the effect size direction (important for one-sided selection and PET/PEESE)
-  if(any(is.na(data[,"study_ids"]))){
+  if(any(is.na(data[,"cluster"]))){
     if(effect_direction == "negative"){
-      fit_data$y <- - data[is.na(data[,"study_ids"]),"y"]
+      fit_data$y <- - data[is.na(data[,"cluster"]),"y"]
     }else{
-      fit_data$y <- data[is.na(data[,"study_ids"]),"y"]
+      fit_data$y <- data[is.na(data[,"cluster"]),"y"]
     }
-    fit_data$se <- data[is.na(data[,"study_ids"]),"se"]
+    fit_data$se <- data[is.na(data[,"cluster"]),"se"]
     fit_data$K  <- length(fit_data[["y"]])
 
     # add critical y-values
     if(!is.null(priors[["omega"]])){
-      fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure[is.na(data[,"study_ids"])], effect_measure))
+      fit_data$crit_y  <- t(.get_cutoffs(fit_data[["y"]], fit_data[["se"]], priors[["omega"]], original_measure[is.na(data[,"cluster"])], effect_measure))
     }
   }
 
 
   ### add the multivariate part
   if(effect_direction == "negative"){
-    fit_data$y_v <- - data[!is.na(data[,"study_ids"]),"y"]
+    fit_data$y_v <- - data[!is.na(data[,"cluster"]),"y"]
   }else{
-    fit_data$y_v <- data[!is.na(data[,"study_ids"]),"y"]
+    fit_data$y_v <- data[!is.na(data[,"cluster"]),"y"]
   }
-  fit_data$se2_v <- data[!is.na(data[,"study_ids"]),"se"]^2
+  fit_data$se2_v <- data[!is.na(data[,"cluster"]),"se"]^2
   fit_data$K_v   <- length(fit_data[["y_v"]])
 
   # add critical y-values
   if(!is.null(priors[["omega"]])){
-    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], data[!is.na(data[,"study_ids"]),"se"], priors[["omega"]], original_measure[!is.na(data[,"study_ids"])], effect_measure))
+    fit_data$crit_y_v  <- t(.get_cutoffs(fit_data[["y_v"]], data[!is.na(data[,"cluster"]),"se"], priors[["omega"]], original_measure[!is.na(data[,"cluster"])], effect_measure))
   }else if(!is.null(priors[["PET"]])){
-    fit_data$se_v  <- data[!is.na(data[,"study_ids"]),"se"]
+    fit_data$se_v  <- data[!is.na(data[,"cluster"]),"se"]
   }
 
-  fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"study_ids"]),"study_ids"])][-1] - 1, fit_data[["K_v"]])
+  fit_data$indx_v <- c((1:fit_data[["K_v"]])[!duplicated(data[!is.na(data[,"cluster"]),"cluster"])][-1] - 1, fit_data[["K_v"]])
 
   return(fit_data)
 }
@@ -869,8 +869,8 @@
 
   if(multivariate){
     # rewritting ids as previous formating used NAs for unique ones
-    data[,"study_ids"][is.na(data[,"study_ids"])] <- (max(data[,"study_ids"], na.rm = TRUE) + 1):(max(data[,"study_ids"], na.rm = TRUE) + sum(is.na(data[,"study_ids"])))
-    fit_data$study_ids <- data[,"study_ids"]
+    data[,"cluster"][is.na(data[,"cluster"])] <- (max(data[,"cluster"], na.rm = TRUE) + 1):(max(data[,"cluster"], na.rm = TRUE) + sum(is.na(data[,"cluster"])))
+    fit_data$cluster <- data[,"cluster"]
   }
 
   return(fit_data)
@@ -926,8 +926,8 @@
 
   if(multivariate){
     # rewritting ids as previous formating used NAs for unique ones
-    data[,"study_ids"][is.na(data[,"study_ids"])] <- (max(data[,"study_ids"], na.rm = TRUE) + 1):(max(data[,"study_ids"], na.rm = TRUE) + sum(is.na(data[,"study_ids"])))
-    fit_data$study_ids <- data[,"study_ids"]
+    data[,"cluster"][is.na(data[,"cluster"])] <- (max(data[,"cluster"], na.rm = TRUE) + 1):(max(data[,"cluster"], na.rm = TRUE) + sum(is.na(data[,"cluster"])))
+    fit_data$cluster <- data[,"cluster"]
   }
 
   return(fit_data)
@@ -936,9 +936,9 @@
   # prepares data in a better order for the subsequent vectorization of multivariate distributions
 
   if(regression){
-    ids <- data[["outcome"]]$study_ids
+    ids <- data[["outcome"]]$cluster
   }else{
-    ids <- data$study_ids
+    ids <- data$cluster
   }
 
   # first independent and then dependent estimates
@@ -1051,7 +1051,7 @@
 
 
   ### deal with the univariate data
-  if(any(is.na(data[,"study_ids"]))){
+  if(any(is.na(data[,"cluster"]))){
 
     # marginalized random effects and the effect size
     prec     <- "1 / ( pow(se[i],2) + pow(tau_transformed,2) )"
@@ -1137,11 +1137,11 @@
     eff <- "mu"
   }
   if(random && multivariate){
-    eff <- paste0(eff, " + epsilon[study_ids[i]] * tau_within + gamma[i] * tau_between")
+    eff <- paste0(eff, " + epsilon[cluster[i]] * tau_within + gamma[i] * tau_between")
   }else if(random && !multivariate){
     eff <- paste0(eff, " + gamma[i] * tau")
   }else if(!random && multivariate){
-    eff <- paste0(eff, " + epsilon[study_ids[i]] * tau")
+    eff <- paste0(eff, " + epsilon[cluster[i]] * tau")
   }
 
   # transform the parameters to the probability scale
@@ -1250,7 +1250,7 @@
 
   # add hierarchical
   if(multivariate){
-    eff <- paste0(eff, " + gamma[study_ids[i]] * tau_within_transformed")
+    eff <- paste0(eff, " + gamma[cluster[i]] * tau_within_transformed")
   }
 
   if(any(is_weightfunction)){
@@ -1615,17 +1615,17 @@
     weight <- data[,"weight"]
   }else{
     ids_weight <- data.frame(
-      id     = names(table(data[,"study_ids"])),
+      id     = names(table(data[,"cluster"])),
       weight = switch(
         type,
-        "inverse"      = 1/as.vector(table(data[,"study_ids"])),
-        "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"study_ids"])))
+        "inverse"      = 1/as.vector(table(data[,"cluster"])),
+        "inverse_sqrt" = 1/sqrt(as.vector(table(data[,"cluster"])))
       )
     )
 
     # fill their weights
     for(i in seq_along(ids_weight$id)){
-      weight[!is.na(data[,"study_ids"]) & data[,"study_ids"] == ids_weight$id[i]] <- ids_weight$weight[ids_weight$id == ids_weight$id[i]]
+      weight[!is.na(data[,"cluster"]) & data[,"cluster"] == ids_weight$id[i]] <- ids_weight$weight[ids_weight$id == ids_weight$id[i]]
     }
 
     # assign all remaining studies weight 1

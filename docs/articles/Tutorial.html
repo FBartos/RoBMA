@@ -201,7 +201,7 @@ Fisher’s <em>z</em> transformation of the correlation coefficient and
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dfz</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_data.html">combine_data</a></span><span class="op">(</span>r <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">r</span>, n <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">n</span>, study_names <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">study</span>, transformation <span class="op">=</span> <span class="st">"fishers_z"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">dfz</span><span class="op">)</span></span>
-<span><span class="co">#&gt;           y         se             study_names study_ids weight</span></span>
+<span><span class="co">#&gt;           y         se             study_names cluster weight</span></span>
 <span><span class="co">#&gt; 1 0.2131713 0.09449112 Ahn, Kim, &amp; Park (2008)        NA     NA</span></span>
 <span><span class="co">#&gt; 2 0.2985663 0.05976143   Basanez et al. (2013)        NA     NA</span></span>
 <span><span class="co">#&gt; 3 0.2236561 0.11396058         Bounkeua (2007)        NA     NA</span></span>
@@ -214,7 +214,7 @@ models).</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dfd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_data.html">combine_data</a></span><span class="op">(</span>r <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">r</span>, n <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">n</span>, study_names <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">study</span>, transformation <span class="op">=</span> <span class="st">"cohens_d"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">dfd</span><span class="op">)</span></span>
-<span><span class="co">#&gt;           y        se             study_names study_ids weight</span></span>
+<span><span class="co">#&gt;           y        se             study_names cluster weight</span></span>
 <span><span class="co">#&gt; 1 0.4295790 0.1886397 Ahn, Kim, &amp; Park (2008)        NA     NA</span></span>
 <span><span class="co">#&gt; 2 0.6060437 0.1215862   Basanez et al. (2013)        NA     NA</span></span>
 <span><span class="co">#&gt; 3 0.4510508 0.2264322         Bounkeua (2007)        NA     NA</span></span>

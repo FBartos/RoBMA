@@ -53,6 +53,17 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' @exportS3Method
 dffits.brma <- function(model, ...) {
 
+    # the function relies on the normal-normal hat matrix
+    outcome_type      <- .outcome_type(model)
+    is_weightfunction <- .is_weightfunction(model)
+
+    if (outcome_type != "norm") {
+      stop("dffits is only available for normal outcome models.", call. = FALSE)
+    }
+    if (is_weightfunction) {
+      stop("dffits is not available for selection models (weightfunction).", call. = FALSE)
+    }
+
     # 1. Get rstudent (LOO-PIT residuals) - Vector of length K
     # We use the "z" column (standardized residuals)
     r_res <- rstudent(model)
@@ -61,10 +72,10 @@ dffits.brma <- function(model, ...) {
     # 2. Get hat matrix samples (S x K)
     # returns list(H_diag, ...)
     hat_res <- .compute_hat_matrix_samples(
-        object    = model,
-        type      = "marginal",
-        return_full_H = FALSE,
-        return_se = FALSE
+        object             = model,
+        conditioning_depth = "marginal",
+        return_full_H      = FALSE,
+        return_se          = FALSE
     )
     hat_samples <- hat_res[["H_diag"]]
     
@@ -83,9 +94,10 @@ dffits.brma <- function(model, ...) {
     # to match hat_samples.
     rstudent_mat <- matrix(rstudent_vec, nrow = S, ncol = K, byrow = TRUE)
 
-    # Safety Clip: Create a temporary version of hat_samples where values are capped at 0.9999
-    # to prevent division by zero or infinity.
-    hat_samples_safe <- pmin(hat_samples, 0.9999)
+    # Leverage-one cases do not have a defined linear-model deletion diagnostic:
+    # deleting the point removes the information that identifies its fitted cell.
+    hat_samples_safe <- pmax(hat_samples, 0)
+    hat_samples_safe[hat_samples_safe >= 1 - sqrt(.Machine$double.eps)] <- NA_real_
 
     # Calculate Leverage Factor
     # factor_{s,i} = sqrt(h_{s,i} / (1 - h_{s,i}))
@@ -96,7 +108,7 @@ dffits.brma <- function(model, ...) {
     dffits_samples <- rstudent_mat * factor_mat
 
     # Aggregate: Compute column means to return a vector of length K
-    dffits_vec <- colMeans(dffits_samples)
+    dffits_vec <- colMeans(dffits_samples, na.rm = FALSE)
     names(dffits_vec) <- names(rstudent_vec)
     
     return(dffits_vec)

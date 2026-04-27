@@ -13,7 +13,7 @@ RoBMA vignettes are R Markdown documents that demonstrate package functionality 
 3. **MetaRegression.Rmd** - `RoBMA.reg()` with moderators
 4. **HierarchicalRoBMA.Rmd** - Multilevel RoBMA
 5. **HierarchicalRoBMARegression.Rmd** - Multilevel RoBMA with moderators
-6. **HierarchicalBMA.Rmd** - Simpler multilevel models via `study_ids`
+6. **HierarchicalBMA.Rmd** - Simpler multilevel models via `cluster`
 7. **MedicineBMA.Rmd** - Informed priors for medical meta-analysis
 8. **MedicineBiBMA.Rmd** - Informed priors for binary outcomes
 9. **CustomEnsembles.Rmd** - Advanced ensemble customization

@@ -18,7 +18,7 @@ BMA.glmm(
   weights,
   mods,
   scale,
-  study_ids,
+  cluster,
   data,
   slab,
   subset,
@@ -85,7 +85,7 @@ moderators (or meta-regressors).}
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
 scale predictors (for location-scale models).}
 
-\item{study_ids}{an optional vector of study identifiers (used for clustering).}
+\item{cluster}{an optional vector of cluster identifiers.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -97,6 +97,53 @@ data to be used.}
 \item{measure}{a character string specifying the effect size measure.
 Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR"}, \code{"RD"},
 \code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
+
+\item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
+(the intercept). If omitted, a default prior is constructed. In single-model
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+
+\item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
+parameter. If omitted, a default prior is constructed. In single-model
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+
+\item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
+A single prior applies to all terms; a named list can specify term-specific
+priors. If omitted or \code{NULL}, default priors are used.}
+
+\item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
+A single prior applies to all terms; a named list can specify term-specific
+priors. If omitted or \code{NULL}, default priors are used.}
+
+\item{prior_heterogeneity_allocation}{prior distribution for the fraction of
+heterogeneity allocated to the cluster-level component in multilevel models
+(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
+
+\item{prior_baserate}{prior distribution for the estimate-specific base-rate
+probability in binomial GLMM models. If omitted or \code{NULL}, defaults to
+independent \code{Beta(1, 1)} priors.}
+
+\item{prior_lograte}{prior distribution for the estimate-specific log-rate in
+Poisson GLMM models. If omitted or \code{NULL}, a data-based unit-information normal
+prior is used.}
+
+\item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
+Defaults to \code{TRUE}.}
+
+\item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
+Defaults to \code{"treatment"}.}
+
+\item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
+Cannot be used together with \code{prior_informed_field}.}
+
+\item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
+Point and none priors are unchanged; publication-bias priors are not rescaled
+except for the default PEESE prior's UISD adjustment. Defaults to 1.}
+
+\item{prior_informed_field}{character. The field of the informed prior distributions.
+Defaults to \code{NULL}.}
+
+\item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
+Defaults to \code{NULL}.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 

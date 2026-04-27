@@ -15,7 +15,7 @@
 #' moderators (or meta-regressors).
 #' @param scale an optional vector, matrix, data.frame, or formula specifying
 #' scale predictors (for location-scale models).
-#' @param study_ids an optional vector of study identifiers (used for clustering).
+#' @param cluster an optional vector of cluster identifiers.
 #' @param data an optional data frame containing the variables.
 #' @param slab an optional vector of study labels.
 #' @param subset an optional logical or numeric vector specifying a subset of
@@ -109,7 +109,7 @@ NULL
 
 
 # Internal function to extract common optional variables shared by all outcome handlers
-# Handles weights, study_ids, and slab extraction and validation
+# Handles weights, cluster, and slab extraction and validation
 #
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
@@ -119,29 +119,33 @@ NULL
 #
 # @return A list with:
 #   - weights: numeric vector or NULL
-#   - study_ids: vector or NULL
+#   - cluster: vector or NULL
 #   - slab: character vector or NULL
 #   - slab_provided: logical
-#   - study_ids_provided: logical
+#   - cluster_provided: logical
 .check_and_list_data.optional_vars <- function(.call, data, .envir, k, primary_var) {
 
   # Extract optional variables
   weights   <- .get_variable(.call, data, .envir, "weights",   allow_NULL = TRUE)
-  study_ids <- .get_variable(.call, data, .envir, "study_ids", allow_NULL = TRUE)
+  cluster   <- .get_variable(.call, data, .envir, "cluster",   allow_NULL = TRUE)
   slab      <- .get_variable(.call, data, .envir, "slab",      allow_NULL = TRUE)
 
   # Track which optional fields were provided
   weights_provided   <- !is.null(weights)
   slab_provided      <- !is.null(slab)
-  study_ids_provided <- !is.null(study_ids)
+  cluster_provided   <- !is.null(cluster)
 
   # Validate weights
+  if (!is.null(weights) && anyNA(weights))
+    stop("The 'weights' argument must not contain missing values.", call. = FALSE)
   if (!is.null(weights))
-    BayesTools::check_real(weights, "weights", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = FALSE)
+    BayesTools::check_real(weights, "weights", check_length = k, allow_NULL = TRUE, allow_NA = FALSE, lower = 0, allow_bound = FALSE)
 
-  # Validate study_ids
-  if (!is.null(study_ids) && length(study_ids) != k)
-    stop(paste0("The 'study_ids' argument must have length ", k, " (same as '", primary_var, "')."), call. = FALSE)
+  # Validate cluster
+  if (!is.null(cluster) && length(cluster) != k)
+    stop(paste0("The 'cluster' argument must have length ", k, " (same as '", primary_var, "')."), call. = FALSE)
+  if (!is.null(cluster) && anyNA(cluster))
+    stop("The 'cluster' argument must not contain missing values.", call. = FALSE)
 
   # Validate slab (study labels)
   if (!is.null(slab) && length(slab) != k)
@@ -149,11 +153,11 @@ NULL
 
   return(list(
     weights            = weights,
-    study_ids          = study_ids,
+    cluster            = cluster,
     slab               = slab,
     weights_provided   = weights_provided,
     slab_provided      = slab_provided,
-    study_ids_provided = study_ids_provided
+    cluster_provided   = cluster_provided
   ))
 }
 
@@ -210,7 +214,7 @@ NULL
   formula_yi         <- outcome_result$formula_yi
   weights_provided   <- outcome_result$weights_provided
   slab_provided      <- outcome_result$slab_provided
-  study_ids_provided <- outcome_result$study_ids_provided
+  cluster_provided   <- outcome_result$cluster_provided
   na_check_cols      <- outcome_result$na_check_cols
   outcome_type       <- outcome_result$outcome_type
   effect_direction   <- outcome_result$effect_direction
@@ -300,9 +304,15 @@ NULL
     data_outcome$slab <- paste0("Study ", seq_len(k_final))
   }
 
-  # Convert study_ids to numeric factor for use as indices in fitting (after NA dropping)
-  if (study_ids_provided) {
-    data_outcome[["study_ids"]] <- as.numeric(as.factor(data_outcome[["study_ids"]]))
+  # Convert cluster to numeric factor for use as indices in fitting (after NA dropping)
+  if (cluster_provided) {
+    if (anyNA(data_outcome[["cluster"]])) {
+      stop("The 'cluster' argument must not contain missing values.", call. = FALSE)
+    }
+
+    cluster_factor <- factor(data_outcome[["cluster"]], levels = unique(data_outcome[["cluster"]]))
+    data_outcome[["cluster_label"]] <- as.character(cluster_factor)
+    data_outcome[["cluster"]]       <- as.integer(cluster_factor)
   }
 
   ### Create output object
@@ -321,7 +331,7 @@ NULL
   attr(data_list, "scale")                              <- !is.null(data_scale)
   attr(data_list, "weights")                            <- weights_provided
   attr(data_list, "slab")                               <- slab_provided
-  attr(data_list, "study_ids")                          <- study_ids_provided
+  attr(data_list, "cluster")                            <- cluster_provided
   attr(data_list, "standardize_continuous_predictors")  <- standardize_continuous_predictors
   attr(data_list, "set_contrast_factor_predictors")     <- set_contrast_factor_predictors
   attr(data_list, "effect_direction")                   <- effect_direction
@@ -330,7 +340,7 @@ NULL
 
 
 # Internal function to extract and validate outcome variables for normal likelihood models
-# Handles yi, vi/sei, ni, weights, study_ids, slab, and yi as formula
+# Handles yi, vi/sei, ni, weights, cluster, slab, and yi as formula
 #
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
@@ -340,12 +350,12 @@ NULL
 #        When TRUE, allows sei/vi/ni = 0 (useful for prediction at zero SE).
 #
 # @return A list with:
-#   - data_outcome: data.frame with yi, sei, ni, study_ids, slab, weights
+#   - data_outcome: data.frame with yi, sei, ni, cluster, slab, weights
 #   - k: number of observations
 #   - mods_from_yi: moderators extracted from yi formula (or NULL)
 #   - formula_yi: the original yi formula (or NULL)
 #   - slab_provided: logical, whether slab was provided by user
-#   - study_ids_provided: logical, whether study_ids was provided by user
+#   - cluster_provided: logical, whether cluster was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
 .check_and_list_data.outcome.norm <- function(.call, data, .envir, effect_direction, skip_validation = FALSE) {
 
@@ -427,17 +437,18 @@ NULL
   if (!is.null(ni))
     BayesTools::check_real(ni, "ni", check_length = k, allow_NULL = TRUE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
-  # Extract and validate common optional variables (weights, study_ids, slab)
+  # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "yi")
 
   ### Construct output data frame
   data_outcome <- data.frame(
-    yi        = yi,
-    sei       = sei,
-    ni        = if (!is.null(ni))                  ni                  else rep(NA_integer_, k),
-    study_ids = if (!is.null(optional$study_ids))  optional$study_ids  else rep(NA_character_, k),
-    slab      = if (!is.null(optional$slab))       optional$slab       else rep(NA_character_, k),
-    weights   = if (!is.null(optional$weights))    optional$weights    else rep(NA, k),
+    yi            = yi,
+    sei           = sei,
+    ni            = if (!is.null(ni))                  ni               else rep(NA_integer_, k),
+    cluster       = if (!is.null(optional$cluster))    optional$cluster else rep(NA_character_, k),
+    cluster_label = if (!is.null(optional$cluster))    as.character(optional$cluster) else rep(NA_character_, k),
+    slab          = if (!is.null(optional$slab))       optional$slab    else rep(NA_character_, k),
+    weights       = if (!is.null(optional$weights))    optional$weights else rep(NA, k),
     stringsAsFactors = FALSE
   )
 
@@ -453,7 +464,7 @@ NULL
     formula_yi         = formula_yi,
     weights_provided   = optional$weights_provided,
     slab_provided      = optional$slab_provided,
-    study_ids_provided = optional$study_ids_provided,
+    cluster_provided   = optional$cluster_provided,
     na_check_cols      = c("yi", "sei"),  # Only check these columns for NAs
     effect_direction   = effect_direction,
     outcome_type       = "norm"
@@ -462,19 +473,19 @@ NULL
 
 
 # Internal function to extract and validate outcome variables for binomial GLMM models
-# Handles ai, bi, ci, di, n1i, n2i, weights, study_ids, slab (for measure = "OR")
+# Handles ai, bi, ci, di, n1i, n2i, weights, cluster, slab (for measure = "OR")
 #
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
 # @param .envir The enclosing environment
 #
 # @return A list with:
-#   - data_outcome: data.frame with ai, ci, n1i, n2i, study_ids, slab, weights
+#   - data_outcome: data.frame with ai, ci, n1i, n2i, cluster, slab, weights
 #   - k: number of observations
 #   - mods_from_yi: NULL (GLMM does not support formula syntax for outcome)
 #   - formula_yi: NULL
 #   - slab_provided: logical, whether slab was provided by user
-#   - study_ids_provided: logical, whether study_ids was provided by user
+#   - cluster_provided: logical, whether cluster was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
 # @param skip_validation Whether to skip strict validation checks (for newdata).
 .check_and_list_data.outcome.bin <- function(.call, data, .envir, skip_validation = FALSE) {
@@ -534,18 +545,19 @@ NULL
       stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
   }
 
-  # Extract and validate common optional variables (weights, study_ids, slab)
+  # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "ai")
 
   ### Construct output data frame
   data_outcome <- data.frame(
-    ai        = ai,
-    ci        = ci,
-    n1i       = n1i,
-    n2i       = n2i,
-    study_ids = if (!is.null(optional$study_ids)) optional$study_ids else rep(NA_character_, k),
-    slab      = if (!is.null(optional$slab))      optional$slab      else rep(NA_character_, k),
-    weights   = if (!is.null(optional$weights))   optional$weights   else rep(NA, k),
+    ai            = ai,
+    ci            = ci,
+    n1i           = n1i,
+    n2i           = n2i,
+    cluster       = if (!is.null(optional$cluster)) optional$cluster else rep(NA_character_, k),
+    cluster_label = if (!is.null(optional$cluster)) as.character(optional$cluster) else rep(NA_character_, k),
+    slab          = if (!is.null(optional$slab))      optional$slab      else rep(NA_character_, k),
+    weights       = if (!is.null(optional$weights))   optional$weights   else rep(NA, k),
     stringsAsFactors = FALSE
   )
 
@@ -556,7 +568,7 @@ NULL
     formula_yi         = NULL,
     weights_provided   = optional$weights_provided,
     slab_provided      = optional$slab_provided,
-    study_ids_provided = optional$study_ids_provided,
+    cluster_provided   = optional$cluster_provided,
     na_check_cols      = c("ai", "ci", "n1i", "n2i"),  # Check cell counts for NAs
     effect_direction   = "positive", # Non-consequential, for consistency with .norm
     outcome_type       = "bin"
@@ -565,7 +577,7 @@ NULL
 
 
 # Internal function to extract and validate outcome variables for Poisson GLMM models
-# Handles x1i, x2i, t1i, t2i, weights, study_ids, slab (for measure = "IRR")
+# Handles x1i, x2i, t1i, t2i, weights, cluster, slab (for measure = "IRR")
 #
 # @param .call Matched call from the calling function
 # @param data The data frame (can be NULL)
@@ -574,12 +586,12 @@ NULL
 #        When TRUE, allows t1i/t2i = 0 (useful for prediction).
 #
 # @return A list with:
-#   - data_outcome: data.frame with x1i, x2i, t1i, t2i, study_ids, slab, weights
+#   - data_outcome: data.frame with x1i, x2i, t1i, t2i, cluster, slab, weights
 #   - k: number of observations
 #   - mods_from_yi: NULL (GLMM does not support formula syntax for outcome)
 #   - formula_yi: NULL
 #   - slab_provided: logical, whether slab was provided by user
-#   - study_ids_provided: logical, whether study_ids was provided by user
+#   - cluster_provided: logical, whether cluster was provided by user
 #   - na_check_cols: character vector of column names to check for NAs
 .check_and_list_data.outcome.pois <- function(.call, data, .envir, skip_validation = FALSE) {
 
@@ -612,18 +624,19 @@ NULL
   # When skip_validation = TRUE (newdata), allow t2i = 0
   BayesTools::check_real(t2i, "t2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0, allow_bound = skip_validation)
 
-  # Extract and validate common optional variables (weights, study_ids, slab)
+  # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "x1i")
 
   ### Construct output data frame
   data_outcome <- data.frame(
-    x1i       = x1i,
-    x2i       = x2i,
-    t1i       = t1i,
-    t2i       = t2i,
-    study_ids = if (!is.null(optional$study_ids)) optional$study_ids else rep(NA_character_, k),
-    slab      = if (!is.null(optional$slab))      optional$slab      else rep(NA_character_, k),
-    weights   = if (!is.null(optional$weights))   optional$weights   else rep(NA, k),
+    x1i           = x1i,
+    x2i           = x2i,
+    t1i           = t1i,
+    t2i           = t2i,
+    cluster       = if (!is.null(optional$cluster)) optional$cluster else rep(NA_character_, k),
+    cluster_label = if (!is.null(optional$cluster)) as.character(optional$cluster) else rep(NA_character_, k),
+    slab          = if (!is.null(optional$slab))      optional$slab      else rep(NA_character_, k),
+    weights       = if (!is.null(optional$weights))   optional$weights   else rep(NA, k),
     stringsAsFactors = FALSE
   )
 
@@ -634,7 +647,7 @@ NULL
     formula_yi         = NULL,
     weights_provided   = optional$weights_provided,
     slab_provided      = optional$slab_provided,
-    study_ids_provided = optional$study_ids_provided,
+    cluster_provided   = optional$cluster_provided,
     na_check_cols      = c("x1i", "x2i", "t1i", "t2i"),  # Check Poisson data for NAs
     effect_direction   = "positive", # Non-consequential, for consistency with .norm
     outcome_type       = "pois"
@@ -1068,6 +1081,17 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   # add scale formula if present
   if (.is_scale(object)) {
     call_args[["scale"]] <- attr(original_data[["scale"]], "formula")
+  }
+
+  # add cluster structure for multilevel predictions
+  if (.is_multilevel(object)) {
+    if ("cluster" %in% names(newdata)) {
+      call_args[["cluster"]] <- quote(cluster)
+    } else {
+      n_new <- if (is.data.frame(newdata)) nrow(newdata) else length(newdata[[names(newdata)[1]]])
+      newdata[[".RoBMA_cluster"]] <- seq_len(n_new)
+      call_args[["cluster"]] <- quote(.RoBMA_cluster)
+    }
   }
 
   # construct the call object

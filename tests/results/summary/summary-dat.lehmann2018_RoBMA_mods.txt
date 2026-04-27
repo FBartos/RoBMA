@@ -1,0 +1,29 @@
+
+Bayesian Mixed-Effect Model (k = 81)
+
+Model Results (Common Estimates):
+                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau (inclusion) 1.000    NA    NA    NA    NA          NA             NA   NA    NA
+tau             0.301 0.042 0.224 0.299 0.389     0.00054          0.013 6479 1.001
+
+Model Results (Meta-Regression):
+                                         Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept (inclusion)                   0.166    NA     NA     NA    NA          NA             NA   NA    NA
+intercept                               0.007 0.051 -0.083  0.000 0.165     0.00158          0.031 1072 1.004
+Preregistered (inclusion)               0.728    NA     NA     NA    NA          NA             NA   NA    NA
+Preregistered[dif: Not Pre-Registered]  0.106 0.085  0.000  0.112 0.256     0.00379          0.045  517 1.003
+Preregistered[dif: Pre-Registered]     -0.106 0.085 -0.256 -0.112 0.000     0.00379          0.045  517 1.003
+
+Model Results (Publication Bias):
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+bias (inclusion)  0.839    NA    NA    NA    NA          NA             NA   NA    NA
+PET               0.354 0.420 0.000 0.000 1.183     0.01376          0.033  999 1.001
+PEESE             0.470 0.884 0.000 0.000 2.800     0.01786          0.020 2517 1.000
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,0.05] 0.984 0.076 0.715 1.000 1.000     0.00093          0.012 6969 1.004
+omega[0.05,0.5]   0.959 0.134 0.458 1.000 1.000     0.00184          0.014 5341 1.003
+omega[0.5,0.95]   0.948 0.164 0.352 1.000 1.000     0.00236          0.014 4822 1.001
+omega[0.95,0.975] 0.948 0.164 0.352 1.000 1.000     0.00236          0.014 4822 1.001
+omega[0.975,1]    0.949 0.163 0.352 1.000 1.000     0.00236          0.014 4807 1.002
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

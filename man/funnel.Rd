@@ -8,6 +8,8 @@
   x,
   residual,
   type = "LOO-PIT",
+  unit = "estimate",
+  conditioning_depth = "marginal",
   sampling_heterogeneity = TRUE,
   sampling_bias = TRUE,
   plot_type = "base",
@@ -41,6 +43,12 @@ probability integral transform residuals returned by
 \code{\link{residuals.brma}} with \code{type = "outcome"}.
 }
 Only used when funnel is in residual mode.}
+
+\item{unit}{output unit for residual mode. Only \code{"estimate"} is
+implemented in this pass.}
+
+\item{conditioning_depth}{residual conditioning depth for residual mode.
+Options are \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.}
 
 \item{sampling_heterogeneity}{whether heterogeneity should be incorporated
 into the sampling distribution funnel. Defaults to \code{TRUE}. Only used
@@ -111,8 +119,12 @@ and publication bias.
 \strong{Residual mode} (models with moderators or scale regression):
 Displays residuals on the x-axis and standard errors on the
 y-axis. The funnel region represents the central 95\\% region of
-\eqn{N(0, \mathrm{SE}^2)}. With \code{type = "LOO-PIT"} or
-\code{"rstandard"}, these are standardized residual diagnostics. With
+\eqn{N(0, \mathrm{SE}^2)}. With \code{type = "LOO-PIT"}, the plotted
+residuals and standard errors are the raw-scale LOO predictive companions
+returned by \code{\link{rstudent.brma}}; the PIT-normalized \code{z} values
+are used by \code{\link{qqnorm.brma}} and influence diagnostics. With
+\code{type = "rstandard"}, the plotted values are internally standardized
+residual companions from \code{\link{rstandard.brma}}. With
 \code{type = "outcome"}, these are raw outcome residuals. Under a correctly
 specified model, most points should fall within this region.
 

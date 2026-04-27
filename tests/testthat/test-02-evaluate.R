@@ -3,8 +3,8 @@ context("Evaluate posterior samples")
 # test-02-evaluate.R
 # ============================================================================ #
 #
-# Unit and integration tests for .evaluate.brma.* helper functions
-# defined in R/brma.evaluate.R
+# Unit and integration tests for evaluate.R helper functions
+# defined in R/evaluate.R
 #
 # Structure:
 # 1. Unit tests: Mock posterior matrices (no JAGS fit needed)
@@ -76,6 +76,43 @@ test_that(".evaluate.brma.true_effects.norm computes correct BLUPs", {
   expect_equal(theta, expected_theta, tolerance = 1e-10)
 })
 
+test_that(".evaluate.brma.true_effects.norm subtracts posterior-row bias offsets", {
+
+  mu_samples <- matrix(
+    c(
+      0.0,  0.0,
+      0.1, -0.1
+    ),
+    nrow = 2,
+    byrow = TRUE
+  )
+  tau_within <- matrix(1, nrow = 2, ncol = 2)
+  yi          <- c(0.4, -0.2)
+  sei         <- c(1, 2)
+  bias_offset <- matrix(
+    c(
+       0.2, -0.1,
+      -0.3,  0.4
+    ),
+    nrow = 2,
+    byrow = TRUE
+  )
+
+  theta <- .evaluate.brma.true_effects.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    sei         = sei,
+    same_data   = TRUE,
+    bias_offset = bias_offset
+  )
+
+  yi_samples     <- matrix(yi, nrow = 2, ncol = 2, byrow = TRUE)
+  lambda         <- tau_within^2 / sweep(tau_within^2, 2, sei^2, "+")
+  expected_theta <- mu_samples + lambda * (yi_samples - bias_offset - mu_samples)
+
+  expect_equal(theta, expected_theta, tolerance = 1e-12)
+})
 
 test_that(".evaluate.brma.true_effects.norm samples from marginal with same_data = FALSE", {
 
@@ -113,7 +150,6 @@ test_that(".evaluate.brma.true_effects.norm samples from marginal with same_data
   }
 })
 
-
 test_that(".outcome_rng.norm has correct sampling variance", {
 
   # create mock data
@@ -147,8 +183,7 @@ test_that(".outcome_rng.norm has correct sampling variance", {
   }
 })
 
-
-test_that(".evaluate.brma.study_effects returns contribution matrix for new data", {
+test_that(".evaluate.brma.cluster_effects returns contribution matrix for new data", {
 
   S <- 10000  # many samples
   K <- 3
@@ -156,13 +191,13 @@ test_that(".evaluate.brma.study_effects returns contribution matrix for new data
   set.seed(222)
   tau_between <- matrix(0.3, nrow = S, ncol = K)  # constant tau_between
 
-  # for new data, gamma ~ N(0,1) is sampled, so contribution = gamma * tau_between
+  # for new data, gamma ~ N(0,1) is sampled per cluster, so contribution = gamma * tau_between
   # expected variance = tau_between^2 = 0.09
-  contribution <- .evaluate.brma.study_effects(
+  contribution <- .evaluate.brma.cluster_effects(
     fit              = NULL,
     tau_between      = tau_between,
-    study_ids        = c(1, 1, 2),  # ignored for new data
-    same_data        = FALSE,       # triggers new gamma sampling
+    cluster          = c(1, 1, 2),
+    same_data        = FALSE,
     effect_direction = "positive"
   )
 
@@ -173,8 +208,122 @@ test_that(".evaluate.brma.study_effects returns contribution matrix for new data
     expect_equal(var(contribution[, k]), 0.3^2, tolerance = 0.01,
                  info = paste("Variance for observation", k))
   }
+
+  expect_equal(contribution[, 1], contribution[, 2])
 })
 
+test_that(".evaluate.brma.multilevel_blup.norm matches full covariance solve", {
+
+  S       <- 8
+  K       <- 5
+  cluster <- c(1, 1, 2, 2, 2)
+
+  set.seed(333)
+  mu_samples  <- matrix(rnorm(S * K, mean = 0.2, sd = 0.1), nrow = S, ncol = K)
+  tau_within  <- matrix(runif(S * K, min = 0.05, max = 0.25), nrow = S, ncol = K)
+  tau_between <- matrix(runif(S * K, min = 0.05, max = 0.20), nrow = S, ncol = K)
+  yi          <- c(0.10, 0.25, -0.10, 0.05, 0.30)
+  vi          <- c(0.02, 0.03, 0.01, 0.04, 0.02)
+
+  result <- .evaluate.brma.multilevel_blup.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    tau_between = tau_between,
+    yi          = yi,
+    vi          = vi,
+    cluster     = cluster
+  )
+
+  block_indices     <- .get_multilevel_block_indices(cluster)
+  expected_cluster  <- matrix(0, nrow = S, ncol = K)
+  expected_estimate <- matrix(0, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    covariance <- .build_multilevel_marginal_covariance(
+      tau_within    = tau_within[s, ],
+      tau_between   = tau_between[s, ],
+      vi            = vi,
+      block_indices = block_indices
+    )
+    weighted_residual <- as.vector(chol2inv(chol(covariance)) %*%
+      (yi - mu_samples[s, ]))
+
+    expected_estimate[s, ] <- tau_within[s, ]^2 * weighted_residual
+
+    for (idx in block_indices) {
+      cluster_scale <- sum(tau_between[s, idx] * weighted_residual[idx])
+      expected_cluster[s, idx] <- tau_between[s, idx] * cluster_scale
+    }
+  }
+
+  expect_equal(result[["cluster"]], expected_cluster, tolerance = 1e-12)
+  expect_equal(result[["estimate"]], expected_estimate, tolerance = 1e-12)
+})
+
+test_that(".evaluate.brma.multilevel_blup.norm subtracts posterior-row bias offsets", {
+
+  S       <- 3
+  K       <- 4
+  cluster <- c(1, 1, 2, 2)
+
+  mu_samples <- matrix(
+    c(
+      0.00, 0.10, 0.20, 0.30,
+      0.05, 0.15, 0.25, 0.35,
+      0.10, 0.20, 0.30, 0.40
+    ),
+    nrow = S,
+    byrow = TRUE
+  )
+  tau_within  <- matrix(0.20, nrow = S, ncol = K)
+  tau_between <- matrix(0.15, nrow = S, ncol = K)
+  yi          <- c(0.30, 0.10, 0.50, 0.20)
+  vi          <- c(0.02, 0.03, 0.02, 0.04)
+  bias_offset <- matrix(
+    c(
+       0.05,  0.00, 0.10, 0.00,
+      -0.05,  0.03, 0.00, 0.08,
+       0.02, -0.04, 0.05, 0.01
+    ),
+    nrow = S,
+    byrow = TRUE
+  )
+
+  result <- .evaluate.brma.multilevel_blup.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    tau_between = tau_between,
+    yi          = yi,
+    vi          = vi,
+    cluster     = cluster,
+    bias_offset = bias_offset
+  )
+
+  block_indices     <- .get_multilevel_block_indices(cluster)
+  expected_cluster  <- matrix(0, nrow = S, ncol = K)
+  expected_estimate <- matrix(0, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    covariance <- .build_multilevel_marginal_covariance(
+      tau_within    = tau_within[s, ],
+      tau_between   = tau_between[s, ],
+      vi            = vi,
+      block_indices = block_indices
+    )
+    residual <- yi - bias_offset[s, ] - mu_samples[s, ]
+    weighted_residual <- as.vector(chol2inv(chol(covariance)) %*% residual)
+
+    expected_estimate[s, ] <- tau_within[s, ]^2 * weighted_residual
+
+    for (idx in block_indices) {
+      cluster_scale <- sum(tau_between[s, idx] * weighted_residual[idx])
+      expected_cluster[s, idx] <- tau_between[s, idx] * cluster_scale
+    }
+  }
+
+  expect_equal(result[["cluster"]], expected_cluster, tolerance = 1e-12)
+  expect_equal(result[["estimate"]], expected_estimate, tolerance = 1e-12)
+})
 
 test_that("variance ordering: mu < theta < response", {
 
@@ -226,11 +375,9 @@ test_that("variance ordering: mu < theta < response", {
 # ============================================================================ #
 
 skip_if_no_fits()
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
-
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 test_that(".evaluate.brma.tau returns correct structure", {
 
@@ -286,7 +433,6 @@ test_that(".evaluate.brma.tau returns correct structure", {
   }
 })
 
-
 test_that(".evaluate.brma.mu returns correct dimensions", {
 
   for (name in names(fits)) {
@@ -330,7 +476,6 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
   }
 })
 
-
 test_that("vectorized PET/PEESE matches loop implementation", {
 
   # test that outer() produces same results as the original loop
@@ -372,6 +517,44 @@ test_that("vectorized PET/PEESE matches loop implementation", {
                info = "Vectorized outer() should match loop for PEESE")
 })
 
+test_that(".evaluate.brma.bias_offset handles PET/PEESE and effect direction", {
+
+  posterior_samples <- matrix(
+    c(
+      0.50, 1.00,
+      0.25, 2.00
+    ),
+    nrow = 2,
+    byrow = TRUE
+  )
+  colnames(posterior_samples) <- c("PET", "PEESE")
+
+  outcome_data <- data.frame(sei = c(0.10, 0.20, 0.30))
+  expected_positive <- outer(posterior_samples[, "PET"], outcome_data[["sei"]]) +
+    outer(posterior_samples[, "PEESE"], outcome_data[["sei"]]^2)
+
+  offset_positive <- .evaluate.brma.bias_offset(
+    fit               = NULL,
+    outcome_data      = outcome_data,
+    is_PET            = TRUE,
+    is_PEESE          = TRUE,
+    effect_direction  = "positive",
+    K                 = 3,
+    posterior_samples = posterior_samples
+  )
+  offset_negative <- .evaluate.brma.bias_offset(
+    fit               = NULL,
+    outcome_data      = outcome_data,
+    is_PET            = TRUE,
+    is_PEESE          = TRUE,
+    effect_direction  = "negative",
+    K                 = 3,
+    posterior_samples = posterior_samples
+  )
+
+  expect_equal(offset_positive, expected_positive, tolerance = 1e-12)
+  expect_equal(offset_negative, -expected_positive, tolerance = 1e-12)
+})
 
 test_that("rho clamping handles boundary values", {
 
@@ -385,8 +568,8 @@ test_that("rho clamping handles boundary values", {
 
   # verify tau decomposition is valid after clamping
   tau <- 0.3
-  tau_within  <- tau * sqrt(rho_clamped)
-  tau_between <- tau * sqrt(1 - rho_clamped)
+  tau_within  <- tau * sqrt(1 - rho_clamped)
+  tau_between <- tau * sqrt(rho_clamped)
 
   # all values should be non-negative
   expect_true(all(tau_within >= 0))
@@ -397,6 +580,41 @@ test_that("rho clamping handles boundary values", {
   expect_equal(tau_reconstructed, rep(tau, length(rho)), tolerance = 1e-10)
 })
 
+test_that("GLMM posterior extraction helpers are vectorized correctly", {
+
+  posterior_samples <- matrix(
+    c(
+      0.25, 0.75, -1.0, 1.0, 0.10, -0.20,
+      0.40, 0.60, -0.5, 0.5, 0.30,  0.40
+    ),
+    nrow = 2,
+    byrow = TRUE
+  )
+  colnames(posterior_samples) <- c(
+    "pi[1]", "pi[2]", "phi[1]", "phi[2]", "theta[1]", "theta[2]"
+  )
+
+  tau_within <- matrix(c(0.2, 0.3, 0.4, 0.5), nrow = 2, byrow = TRUE)
+
+  expect_equal(
+    .evaluate.brma.baserate(fit = NULL, K = 2, posterior_samples = posterior_samples),
+    stats::qlogis(posterior_samples[, c("pi[1]", "pi[2]")])
+  )
+  expect_equal(
+    .evaluate.brma.lograte(fit = NULL, K = 2, posterior_samples = posterior_samples),
+    posterior_samples[, c("phi[1]", "phi[2]")]
+  )
+  expect_equal(
+    .evaluate.brma.theta.glmm(
+      fit               = NULL,
+      tau_within        = tau_within,
+      same_data         = TRUE,
+      K                 = 2,
+      posterior_samples = posterior_samples
+    ),
+    posterior_samples[, c("theta[1]", "theta[2]")] * tau_within
+  )
+})
 
 test_that("matrix replication patterns are correct", {
 
@@ -428,7 +646,6 @@ test_that("matrix replication patterns are correct", {
   }
 })
 
-
 # ============================================================================ #
 # SECTION 3: Unit Tests for Aggregated Predictions (newdata = TRUE)
 # ============================================================================ #
@@ -459,7 +676,6 @@ test_that("aggregation via rowMeans produces correct results", {
   expect_equal(mu_aggregated, expected_aggregated, tolerance = 1e-14)
 })
 
-
 test_that("aggregation is no-op for identical columns (non-mods/scale models)", {
 
   # for models without moderators/scale, all columns are identical
@@ -477,7 +693,6 @@ test_that("aggregation is no-op for identical columns (non-mods/scale models)", 
   # should be identical to original column
   expect_equal(mu_aggregated[, 1], mu_values, tolerance = 1e-14)
 })
-
 
 test_that("aggregated true effects have correct variance", {
 
@@ -547,7 +762,6 @@ test_that("predict.brma with newdata = TRUE returns single aggregated prediction
   }
 })
 
-
 test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
 
   for (name in names(fits)) {
@@ -584,7 +798,6 @@ test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
   }
 })
 
-
 test_that("predict.brma with newdata = TRUE and type = 'response' throws error", {
 
   for (name in names(fits)) {
@@ -602,7 +815,6 @@ test_that("predict.brma with newdata = TRUE and type = 'response' throws error",
     )
   }
 })
-
 
 test_that("aggregated mu equals rowMeans of non-aggregated mu", {
 
@@ -627,7 +839,6 @@ test_that("aggregated mu equals rowMeans of non-aggregated mu", {
                  info = paste(name, ": aggregated mu should equal rowMeans of full mu"))
   }
 })
-
 
 test_that("aggregated tau equals rowMeans of non-aggregated tau", {
 
@@ -661,6 +872,23 @@ test_that("aggregated tau equals rowMeans of non-aggregated tau", {
 # that identifies which posterior samples use weightfunction vs normal path
 # ============================================================================ #
 
+test_that(".extract_omega_samples orders indexed omega columns", {
+
+  posterior_samples <- matrix(
+    seq_len(12),
+    nrow = 3,
+    ncol = 4
+  )
+  colnames(posterior_samples) <- c("omega[10]", "mu", "omega[2]", "omega[1]")
+
+  omega <- .extract_omega_samples(posterior_samples)
+
+  expect_equal(colnames(omega), c("omega[1]", "omega[2]", "omega[10]"))
+  expect_equal(omega[, 1], posterior_samples[, "omega[1]"])
+  expect_equal(omega[, 2], posterior_samples[, "omega[2]"])
+  expect_equal(omega[, 3], posterior_samples[, "omega[10]"])
+})
+
 test_that(".extract_use_normal returns correct structure for brma without bias", {
 
   for (name in names(fits)) {
@@ -687,7 +915,6 @@ test_that(".extract_use_normal returns correct structure for brma without bias",
                 info = paste(name, ": brma without bias should have all use_normal = TRUE"))
   }
 })
-
 
 test_that(".extract_use_normal returns correct structure for brma with weightfunction", {
 
@@ -717,7 +944,6 @@ test_that(".extract_use_normal returns correct structure for brma with weightfun
   }
 })
 
-
 test_that(".extract_use_normal returns correct structure for brma with PET", {
 
   for (name in names(fits)) {
@@ -746,7 +972,6 @@ test_that(".extract_use_normal returns correct structure for brma with PET", {
                 info = paste(name, ": brma with PET should have all use_normal = TRUE"))
   }
 })
-
 
 test_that(".extract_use_normal returns correct structure for RoBMA", {
 
@@ -829,7 +1054,6 @@ test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", 
                  info = paste(name, ": ncol should match number of observations"))
   }
 })
-
 
 test_that(".cdf.brma returns valid CDF values for weightfunction models", {
 

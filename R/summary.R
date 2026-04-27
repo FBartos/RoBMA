@@ -20,7 +20,7 @@
 #' }
 #'
 #'
-#' @seealso [brma.norm()], [brma.glmm()]
+#' @seealso [brma()], [brma.glmm()]
 #' @export
 summary.brma       <- function(
     object, probs = c(.025, .50, .975),
@@ -40,17 +40,18 @@ summary.brma       <- function(
   }
 
   ### provide common estimates
-  estimates_common <- BayesTools::JAGS_estimates_table(
-    fit                = object[["fit"]],
-    transform_factors  = TRUE,
-    transform_scaled   = !standardized_coefficients,
-    remove_diagnostics = !include_MCMC_diagnostics,
-    keep_parameters    = c("mu", "tau", "rho"),
-    probs              = probs,
-    title              = if (is_mods || is_scale) "Model Results (Common Estimates):" else "Model Results:"
-  )
-
-  if (nrow(estimates_common) == 0) {
+  common_parameters <- intersect(c("mu", "tau", "rho"), names(attr(object[["fit"]], "prior_list")))
+  if (length(common_parameters) > 0) {
+    estimates_common <- BayesTools::JAGS_estimates_table(
+      fit                = object[["fit"]],
+      transform_factors  = TRUE,
+      transform_scaled   = !standardized_coefficients,
+      remove_diagnostics = !include_MCMC_diagnostics,
+      keep_parameters    = common_parameters,
+      probs              = probs,
+      title              = if (is_mods || is_scale) "Model Results (Common Estimates):" else "Model Results:"
+    )
+  } else {
     estimates_common <- list()
   }
 
@@ -174,7 +175,7 @@ print.brma <- function(x, ...) {
 
   model_name <- paste(model_name, "Model")
   if (is_multilevel) {
-    model_name <- paste(model_name, sprintf("(k = %1$i, lvls = %2$i)", nrow(object[["data"]][["outcome"]]), length(unique(object[["data"]][["outcome"]][["study_ids"]]))))
+    model_name <- paste(model_name, sprintf("(k = %1$i, lvls = %2$i)", nrow(object[["data"]][["outcome"]]), length(unique(object[["data"]][["outcome"]][["cluster"]]))))
   } else {
     model_name <- paste(model_name, sprintf("(k = %1$i)", nrow(object[["data"]][["outcome"]])))
   }

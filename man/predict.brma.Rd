@@ -35,9 +35,9 @@ must correspond to the format and naming used in the original fit.}
 \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
 Produces the mean effect size estimate at the given predictor levels,
 not accounting for random effects.}
-\item{\code{"study"}: Fixed effects plus study-level random effects (mu + gamma).
+\item{\code{"cluster"}: Fixed effects plus cluster-level random effects (mu + gamma).
 Only available for multilevel (3-level) models.}
-\item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True study
+\item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
 effects (mu + gamma + theta). Incorporates all random effects including estimate-level
 heterogeneity. For existing data, returns BLUPs (empirical Bayes estimates).}
 \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
@@ -87,7 +87,7 @@ to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 \strong{Type hierarchy:}
 \itemize{
 \item{\code{"terms"}: mu (fixed effects only)}
-\item{\code{"study"}: mu + gamma (adds study-level random effect)}
+\item{\code{"cluster"}: mu + gamma (adds cluster-level random effect)}
 \item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
 \item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
 }
@@ -95,7 +95,7 @@ to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 predictions for the new effect size estimates. To obtain results corresponding to
 metafor's predict function, use \code{type = "terms"} for the mean effect size
-and \code{type = "estimate"} for true study effects (prediction interval).
+and \code{type = "estimate"} for true effects (prediction interval).
 }
 \examples{
 \dontrun{

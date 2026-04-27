@@ -4,11 +4,10 @@ context("Summary")
 source(testthat::test_path("common-functions.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "summary")
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
 
 
 test_that("Model summary", {

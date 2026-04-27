@@ -4,10 +4,12 @@
 \alias{loo.brma}
 \title{LOO-PSIS for brma Objects}
 \usage{
-\method{loo}{brma}(x, ...)
+\method{loo}{brma}(x, unit = "estimate", ...)
 }
 \arguments{
 \item{x}{a brma model object.}
+
+\item{unit}{output/deletion unit. See \code{\link{add_loo}}.}
 
 \item{...}{additional arguments (currently unused).}
 }

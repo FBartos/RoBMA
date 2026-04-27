@@ -4,10 +4,12 @@
 \alias{add_waic.brma}
 \title{Add WAIC to brma Objects}
 \usage{
-\method{add_waic}{brma}(object, ...)
+\method{add_waic}{brma}(object, unit = "estimate", ...)
 }
 \arguments{
 \item{object}{a brma model object.}
+
+\item{unit}{output/deletion unit. See \code{\link{add_loo}}.}
 
 \item{...}{additional arguments passed to \code{\link[loo]{waic}}.}
 }

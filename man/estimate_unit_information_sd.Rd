@@ -30,7 +30,7 @@ for each study.
 
 This function is useful when you want to compute the UISD once and pass it
 to multiple analyses via the \code{prior_unit_information_sd} argument in
-\code{\link[=brma.norm]{brma.norm()}} or related functions. This ensures consistent prior scaling
+\code{\link[=brma]{brma()}} or related functions. This ensures consistent prior scaling
 across analyses performed on different subsets of the same data.
 }
 \examples{

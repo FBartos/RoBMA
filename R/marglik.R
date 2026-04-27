@@ -7,7 +7,7 @@
 # comparison via Bayes factors.
 #
 # The implementation reuses the evaluate and pdf helper functions from
-# brma.evaluate.R and brma.pdf.R by converting single-sample parameters
+# evaluate.R and pdf.R by converting single-sample parameters
 # to 1-row matrices.
 #
 # ============================================================================ #
@@ -145,8 +145,7 @@ add_marglik.brma <- function(object, ...) {
 # posterior sample during bridge sampling.
 #
 # The function converts single-sample parameters to 1-row matrices to reuse
-# the existing evaluate and pdf helper functions from brma.evaluate.R and
-# brma.pdf.R.
+# the existing evaluate and pdf helper functions from evaluate.R and pdf.R.
 # (in contrast to .pdf.brma, this function does not add likelihood contributions from 
 #  estimate-level effects / baserate/ lograte for GLMMs since those are automatically 
 #  handled via JAGS_bridgesampling function -- i.e., all parameters generated directly 
@@ -158,7 +157,7 @@ add_marglik.brma <- function(object, ...) {
 #                         - tau: scalar (no scale regression)
 #                         - log_tau: vector of length K (scale regression)
 #                         - rho: scalar (if multilevel)
-#                         - gamma: vector of length n_studies (if multilevel)
+#                         - gamma: vector of length n_clusters (if multilevel)
 #                         - PET: scalar (if PET model)
 #                         - PEESE: scalar (if PEESE model)
 #                         - omega: vector of weights (if weightfunction)
@@ -216,15 +215,15 @@ add_marglik.brma <- function(object, ...) {
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
 
-  ### add study-level (gamma) contribution for multilevel models
+  ### add cluster-level (gamma) contribution for multilevel models
   if (is_multilevel) {
-    study_contribution <- .marglik_get_study_effects(
+    cluster_contribution <- .marglik_get_cluster_effects(
       parameters       = parameters,
       tau_between      = tau_between_samples,
-      study_ids        = data[["study_ids"]],
+      cluster          = data[["cluster"]],
       effect_direction = effect_direction
     )
-    mu_samples <- mu_samples + study_contribution
+    mu_samples <- mu_samples + cluster_contribution
   }
 
   ### dispatch to appropriate log-likelihood computation based on outcome type
@@ -246,7 +245,10 @@ add_marglik.brma <- function(object, ...) {
         tau_within = tau_within_samples,
         sei        = data[["sei"]],
         omega      = .marglik_get_omega_samples(parameters),
-        crit_yi    = data[["crit_yi"]]
+        crit_yi    = data[["crit_yi"]],
+        bias_indicator      = .marglik_get_bias_indicator(parameters, data),
+        crit_yi_mapping     = data[["crit_yi_mapping"]],
+        crit_yi_mapping_max = data[["crit_yi_mapping_max"]]
       )
 
     } else {
@@ -277,7 +279,7 @@ add_marglik.brma <- function(object, ...) {
       K          = K
     )
 
-    log_lik <- .outcome_pdf.binom(
+    log_lik <- .outcome_pdf.binom_conditional(
       ai             = data[["ai"]],
       ci             = data[["ci"]],
       n1i            = data[["n1i"]],
@@ -302,7 +304,7 @@ add_marglik.brma <- function(object, ...) {
       K          = K
     )
 
-    log_lik <- .outcome_pdf.pois(
+    log_lik <- .outcome_pdf.pois_conditional(
       x1i        = data[["x1i"]],
       x2i        = data[["x2i"]],
       t1i        = data[["t1i"]],
@@ -311,6 +313,10 @@ add_marglik.brma <- function(object, ...) {
       log_phi    = log_phi
     )
 
+  }
+
+  if (is_weights) {
+    log_lik <- .apply_log_lik_weights(log_lik, data[["weight"]])
   }
 
   ### return sum of log-likelihoods (scalar)
@@ -371,16 +377,16 @@ add_marglik.brma <- function(object, ...) {
 
   # split tau into within/between components for multilevel models
   if (is_multilevel) {
-    # extract rho (proportion of variance at estimate-level)
+    # extract rho (proportion of variance at cluster-level)
     rho <- parameters[["rho"]]
 
     # clamp rho to [0, 1] to handle numerical precision issues
     rho <- min(max(rho, 0), 1)
 
-    # tau_within  = tau * sqrt(rho)       (estimate-level heterogeneity)
-    # tau_between = tau * sqrt(1 - rho)  (study-level heterogeneity)
-    tau_within_samples  <- tau_samples * sqrt(rho)
-    tau_between_samples <- tau_samples * sqrt(1 - rho)
+    # tau_within  = tau * sqrt(1 - rho)  (estimate-level heterogeneity)
+    # tau_between = tau * sqrt(rho)      (cluster-level heterogeneity)
+    tau_within_samples  <- tau_samples * sqrt(1 - rho)
+    tau_between_samples <- tau_samples * sqrt(rho)
 
   } else {
 
@@ -391,6 +397,7 @@ add_marglik.brma <- function(object, ...) {
   }
 
   return(list(
+    tau_total   = tau_samples,
     tau_within  = tau_within_samples,
     tau_between = tau_between_samples
   ))
@@ -398,20 +405,20 @@ add_marglik.brma <- function(object, ...) {
 
 
 #' @keywords internal
-.marglik_get_study_effects <- function(parameters, tau_between, study_ids,
-                                       effect_direction) {
+.marglik_get_cluster_effects <- function(parameters, tau_between, cluster,
+                                         effect_direction) {
 
   K <- ncol(tau_between)
 
-  # extract gamma samples (vector of length n_studies)
+  # extract gamma samples (vector of length n_clusters)
   # BayesTools returns gamma as a vector
   gamma <- parameters[["gamma"]]
 
-  # gamma[study_ids] maps each observation to its study-level effect
+  # gamma[cluster] maps each observation to its cluster-level effect
   # multiply by tau_between to get the contribution
-  study_contribution <- matrix(gamma[study_ids] * tau_between, nrow = 1, ncol = K)
+  cluster_contribution <- matrix(gamma[cluster] * tau_between, nrow = 1, ncol = K)
 
-  return(study_contribution)
+  return(cluster_contribution)
 }
 
 
@@ -422,6 +429,16 @@ add_marglik.brma <- function(object, ...) {
   # convert to 1 x W matrix for compatibility with .dwnorm_fast.ss.matrix
   omega <- parameters[["omega"]]
   return(matrix(omega, nrow = 1))
+}
+
+.marglik_get_bias_indicator <- function(parameters, data) {
+  if (!is.null(parameters[["bias_indicator"]])) {
+    return(as.integer(parameters[["bias_indicator"]]))
+  }
+  if (!is.null(data[["bias_indicator"]])) {
+    return(as.integer(data[["bias_indicator"]]))
+  }
+  return(1L)
 }
 
 

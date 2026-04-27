@@ -3,13 +3,12 @@ context("Radial (Galbraith) plot")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 
 # ============================================================================ #
@@ -53,7 +52,6 @@ test_that("Radial plot for simple meta-analysis matches metafor structure", {
   )
 })
 
-
 # ============================================================================ #
 # Test: 3-Level Model Radial Plot
 # ============================================================================ #
@@ -75,7 +73,6 @@ test_that("Radial plot for 3-level model works correctly", {
   )
 })
 
-
 # ============================================================================ #
 # Test: GLMM Model Radial Plot
 # ============================================================================ #
@@ -94,7 +91,6 @@ test_that("Radial plot for GLMM model works correctly", {
     radial(fit_brma, plot_type = "ggplot")
   )
 })
-
 
 # ============================================================================ #
 # Test: Selection Model Radial Plot
@@ -115,7 +111,6 @@ test_that("Radial plot for selection model works correctly", {
   )
 })
 
-
 # ============================================================================ #
 # Test: PET Model Radial Plot
 # ============================================================================ #
@@ -135,6 +130,47 @@ test_that("Radial plot for PET model works correctly", {
   )
 })
 
+# ============================================================================ #
+# Test: BMA.norm Model Radial Plot
+# ============================================================================ #
+
+test_that("Radial plot for BMA.norm model works correctly", {
+
+  name     <- "dat.lehmann2018_BMA.norm"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("radial_BMA", function() {
+    suppressWarnings(radial(fit_brma, plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: BMA.glmm Model Radial Plot
+# ============================================================================ #
+
+test_that("Radial plot for BMA.glmm model works correctly", {
+
+  name     <- "bcg_BMA.glmm"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("radial_BMA.glmm", function() {
+    suppressWarnings(radial(fit_brma, plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: RoBMA Model Radial Plot
+# ============================================================================ #
+
+test_that("Radial plot for RoBMA model works correctly", {
+
+  name     <- "dat.lehmann2018_RoBMA"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("radial_RoBMA", function() {
+    suppressWarnings(radial(fit_brma, plot_type = "base"))
+  })
+})
 
 # ============================================================================ #
 # Test: Error on Unsupported Models

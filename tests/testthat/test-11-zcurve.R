@@ -102,7 +102,7 @@ test_that("zcurve functions function works", {
     capture_output_lines(suppressWarnings(summary(zfit18)), print = TRUE, width = 150),
     c(
       "Call:"                                                                                           ,
-      "as_zcurve: RoBMA(d = d, se = d_se, study_ids = c(1, 1, 2), algorithm = \"ss\", "                 ,
+      "as_zcurve: RoBMA(d = d, se = d_se, cluster = c(1, 1, 2), algorithm = \"ss\", "                 ,
       "    chains = 1, sample = 500, burnin = 250, adapt = 100, thin = 2, "                             ,
       "    parallel = TRUE, autofit = FALSE, convergence_checks = set_convergence_checks(max_Rhat = 2, ",
       "        min_ESS = 10, max_error = 1, max_SD_error = 1), seed = 1)"                               ,

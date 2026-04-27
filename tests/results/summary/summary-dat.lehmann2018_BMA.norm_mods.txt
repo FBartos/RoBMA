@@ -1,0 +1,16 @@
+
+Bayesian Mixed-Effect Model (k = 81)
+
+Model Results (Common Estimates):
+                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau (inclusion) 1.000    NA    NA    NA    NA          NA             NA   NA    NA
+tau             0.316 0.042 0.240 0.314 0.403     0.00047          0.011 8144 1.000
+
+Model Results (Meta-Regression):
+                                         Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept (inclusion)                   0.344    NA     NA     NA    NA          NA             NA   NA    NA
+intercept                               0.045 0.076  0.000  0.000 0.240     0.00250          0.033  927 1.001
+Preregistered (inclusion)               0.910    NA     NA     NA    NA          NA             NA   NA    NA
+Preregistered[dif: Not Pre-Registered]  0.178 0.080  0.000  0.194 0.296     0.00250          0.031 1016 1.001
+Preregistered[dif: Pre-Registered]     -0.178 0.080 -0.296 -0.194 0.000     0.00250          0.031 1016 1.001
+

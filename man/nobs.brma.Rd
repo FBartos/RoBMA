@@ -19,5 +19,5 @@ Extract the number of observations (studies/estimates) from
 a fitted brma object.
 }
 \seealso{
-\code{\link[=brma.norm]{brma.norm()}}, \code{\link[=brma.glmm]{brma.glmm()}}
+\code{\link[=brma]{brma()}}, \code{\link[=brma.glmm]{brma.glmm()}}
 }

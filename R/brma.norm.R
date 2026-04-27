@@ -3,9 +3,6 @@
 #' @description Function for fitting random-effects, meta-regression, multilevel,
 #' and location-scale meta-analytic models.
 #'
-#' @description
-#'
-#'
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
@@ -81,7 +78,7 @@
 #'
 #' Note that the manually specified `prior_unit_information_sd` takes precedence over
 #' the estimated `UISD` from `ni` (section (2)) and the known `UISD` from `measure`
-#' (section (1)).
+#' (section (1)). It cannot be combined with `prior_informed_field`.
 #'
 #' ### (4) Specifying informed empirical prior distributions
 #' Informed prior distributions can be specified via the `prior_informed_field` and
@@ -115,10 +112,10 @@
 #' or related functions (e.g., `prior_factor()`).
 #'
 #' ### Rescaling prior distributions
-#' The `rescale_priors` argument allows rescaling of all prior distributions by a
+#' The `rescale_priors` argument allows rescaling supported prior distributions by a
 #' multiplicative factor. For example, `rescale_priors = 2` doubles the standard
-#' deviations/scales of all prior distributions, making them more diffuse. This applies
-#' regardless of how the priors were specified.
+#' deviations/scales of normal, Cauchy, t, and inverse-gamma prior distributions,
+#' making them more diffuse. Point and none priors are unchanged.
 #'
 #' ### Handling of continuous and factor predictors
 #' TODO: explain `standardize_continuous_predictors` and `set_contrast_factor_predictors`
@@ -130,7 +127,7 @@
 brma <- brma.norm <- function(
     # input specification
     yi, vi, sei, weights, ni,
-    mods, scale, study_ids,
+    mods, scale, cluster,
     data, slab, subset,
     measure = "GEN",
 

@@ -10,18 +10,18 @@
 #' Model for odds ratios (`measure = "OR"`) corresponds to Model 4 described in
 #' \insertCite{jackson2018comparison;textual}{RoBMA}.
 #' `prior_baserate` defines the estimate-specific prior distribution on the base-rate
-#' probability
+#' probability.
 #'
 #' Model for incidence rate ratios (`measure = "IRR"`) corresponds to
 #' \insertCite{bagos2009mixed;textual}{RoBMA}.
-#' `prior_baserate` defines the estimate-specific prior distribution on the log-rate
-#' probability. If unspecified, an unit information prior is based on the data.
+#' `prior_lograte` defines the estimate-specific prior distribution on the log-rate.
+#' If unspecified, a unit-information prior is based on the data.
 #'
 #' @export
 brma.glmm <- function(
   # input specification
   ai, bi, ci, di, n1i, n2i, x1i, x2i, t1i, t2i, weights,
-  mods, scale, study_ids,
+  mods, scale, cluster,
   data, slab, subset,
   measure = "OR",
 

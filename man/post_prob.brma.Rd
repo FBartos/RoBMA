@@ -29,6 +29,7 @@ likelihoods of brma models.
 }
 \details{
 The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
+All models must be fitted to the same \code{yi}/\code{sei} target.
 }
 \examples{
 \dontrun{

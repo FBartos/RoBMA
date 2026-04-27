@@ -4,7 +4,14 @@
 \alias{residuals.brma}
 \title{Residuals for brma Objects}
 \usage{
-\method{residuals}{brma}(object, type = "outcome", bias_adjusted = FALSE, ...)
+\method{residuals}{brma}(
+  object,
+  type = "outcome",
+  unit = "estimate",
+  conditioning_depth = "marginal",
+  bias_adjusted = FALSE,
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -32,6 +39,13 @@ types. Note: This requires that the loo has been computed previously (see
 \code{\link[=add_loo]{add_loo()}} function).
 }}
 
+\item{unit}{output unit. Only \code{"estimate"} is implemented currently..}
+
+\item{conditioning_depth}{conditioning depth for non-LOO residuals. \code{"marginal"}
+uses fixed effects only, \code{"cluster"} conditions on cluster-level random
+effects, and \code{"estimate"} conditions on the full estimate-level fitted
+value. LOO-PIT residuals always use the estimate-unit LOO target.}
+
 \item{bias_adjusted}{whether residuals should be computed from bias-adjusted
 fitted values. Defaults to \code{FALSE}, which means residuals are computed
 as the difference between observed values and raw (biased) predictions
@@ -42,7 +56,7 @@ that the bias adjustment residuals are not residuals in the traditional sense.}
 \item{...}{additional arguments.}
 }
 \value{
-A numeric vector of residual means, one per observation.
+A numeric vector of residual means, one per estimate.
 }
 \description{
 Computes residuals (observed minus fitted values) from a
@@ -58,7 +72,7 @@ Pearson residuals (\code{type = "pearson"}) divide raw residuals by the
 marginal standard error:
 \deqn{r_i^{Pearson} = \frac{e_i}{\sqrt{v_i + \tau^2}}}
 where \eqn{v_i} is the sampling variance and \eqn{\tau^2} is the
-between-study heterogeneity. Only available for normal outcome models
+relevant heterogeneity component. Only available for normal outcome models
 without selection (weightfunction) bias adjustment.
 
 Standardized residuals (\code{type = "rstandard"}) use the hat matrix to
@@ -76,12 +90,12 @@ are computed via leave-one-out probability integral transformation:
 \deqn{r_i = \Phi^{-1}(u_i)}
 where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
 value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
-cumulative distribution function of the marginal distribution. Under a
-correctly specified model, LOO-PIT residuals should follow a standard
-normal distribution. Unlike traditional standardized residuals, LOO-PIT
-residuals properly account for estimation uncertainty and leverage without
-requiring a hat matrix. This is the recommended method for standardized
-residuals in Bayesian meta-analysis.
+cumulative distribution function of the estimate-unit predictive
+distribution used by LOO. Under a correctly specified model, LOO-PIT
+residuals should follow a standard normal distribution. Unlike traditional
+standardized residuals, LOO-PIT residuals properly account for estimation
+uncertainty and leverage without requiring a hat matrix. This is the
+recommended method for standardized residuals in Bayesian meta-analysis.
 
 For meta-regression models, fitted values incorporate moderator effects.
 For models without moderators, all fitted values equal the pooled effect.

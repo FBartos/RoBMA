@@ -65,10 +65,10 @@ cooks.distance.brma <- function(model, ...) {
 
   # 3. Get hat matrix samples (S x K)
   hat_res <- .compute_hat_matrix_samples(
-    object    = model,
-    type      = "marginal",
-    return_full_H = FALSE,
-    return_se = FALSE
+    object             = model,
+    conditioning_depth = "marginal",
+    return_full_H      = FALSE,
+    return_se          = FALSE
   )
   hat_samples <- hat_res[["H_diag"]]
 
@@ -87,8 +87,10 @@ cooks.distance.brma <- function(model, ...) {
   # Broadcast rstudent squared
   rstudent_sq_mat <- matrix(rstudent_vec^2, nrow = S, ncol = K, byrow = TRUE)
 
-  # Safety Clip Hat Values
-  hat_samples_safe <- pmin(hat_samples, 0.9999)
+  # Leverage-one cases do not have a defined linear-model deletion diagnostic:
+  # deleting the point removes the information that identifies its fitted cell.
+  hat_samples_safe <- pmax(hat_samples, 0)
+  hat_samples_safe[hat_samples_safe >= 1 - sqrt(.Machine$double.eps)] <- NA_real_
 
   # Calculate D samples:
   # D_{s,i} = (rstudent_i^2 / P) * (h_{s,i} / (1 - h_{s,i}))
@@ -97,7 +99,7 @@ cooks.distance.brma <- function(model, ...) {
   d_samples <- (rstudent_sq_mat / P) * factor_mat
 
   # 5. Aggregate: Compute column means
-  d_vec <- colMeans(d_samples)
+  d_vec <- colMeans(d_samples, na.rm = FALSE)
   names(d_vec) <- names(rstudent_vec)
 
   return(d_vec)

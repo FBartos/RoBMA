@@ -174,7 +174,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
         standardize_predictors = FALSE,
         transformation         = .transformation_invar(model_scale),
         study_names            = NULL,
-        study_ids              = NULL
+        cluster              = NULL
       )
       RoBMA.options(check_scaling = TRUE)
 
@@ -196,7 +196,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
       newdata.outcome <- combine_data(d = newdata[["d"]], r = newdata[["r"]], z = newdata[["z"]], logOR = newdata[["logOR"]],
                                       OR = newdata[["OR"]], t = newdata[["t"]], y = newdata[["y"]], se = newdata[["se"]],
                                       v = newdata[["v"]], n = newdata[["n"]], lCI = newdata[["lCI"]], uCI = newdata[["uCI"]],
-                                      study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = .transformation_invar(model_scale))
+                                      study_names = NULL, cluster = NULL, weight = NULL, data = NULL, transformation = .transformation_invar(model_scale))
 
     }
   }
@@ -296,7 +296,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
 
     }else{
 
-      # required for study ids / crit_x values in selection models
+      # required for cluster ids / crit_x values in selection models
       fit_data <- .fit_data_ss(
         data             = newdata.outcome,
         priors           = priors,
@@ -329,7 +329,7 @@ predict.RoBMA <- function(object, newdata = NULL, type = "response",
         # either estimated for prediction on the same data or integrated over for new data
         if(same_data){
           for(i in seq_len(nrow(newdata.outcome))){
-            mu_samples[,i] <- mu_samples[,i] + gamma_samples[,fit_data$study_ids[i]] * tau_within_samples
+            mu_samples[,i] <- mu_samples[,i] + gamma_samples[,fit_data$cluster[i]] * tau_within_samples
           }
         }else{
           for(i in seq_len(nrow(newdata.outcome))){

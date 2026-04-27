@@ -145,7 +145,7 @@ test_that("GLMM input works with optional arguments", {
     ci        = ci,
     di        = di,
     weights   = wgt,
-    study_ids = cluster,
+    cluster   = cluster,
     slab      = study,
     data      = test_data_glmm,
     only_data = TRUE
@@ -153,8 +153,8 @@ test_that("GLMM input works with optional arguments", {
 
   expect_equal(result$outcome$weights, test_data_glmm$wgt)
   expect_equal(result$outcome$slab, test_data_glmm$study)
-  # study_ids should be converted to numeric factor
-  expect_true(is.numeric(result$outcome$study_ids))
+  # cluster should be converted to numeric factor
+  expect_true(is.numeric(result$outcome$cluster))
 })
 
 
@@ -175,7 +175,7 @@ test_that("GLMM generates default slab when not provided", {
 })
 
 
-test_that("GLMM correctly handles study_ids", {
+test_that("GLMM correctly handles cluster", {
 
   skip_on_cran()
 
@@ -184,15 +184,15 @@ test_that("GLMM correctly handles study_ids", {
     bi        = bi,
     ci        = ci,
     di        = di,
-    study_ids = cluster,
+    cluster   = cluster,
     data      = test_data_glmm,
     only_data = TRUE
   )[["data"]]
 
-  # study_ids should be converted to numeric indices
-  expect_true(is.numeric(result$outcome$study_ids))
+  # cluster should be converted to numeric indices
+  expect_true(is.numeric(result$outcome$cluster))
   # g1, g1, g2, g2, g3 should become 1, 1, 2, 2, 3
-  expect_equal(result$outcome$study_ids, c(1, 1, 2, 2, 3))
+  expect_equal(result$outcome$cluster, c(1, 1, 2, 2, 3))
 })
 
 
@@ -456,7 +456,7 @@ test_that("GLMM regenerates slab after NA dropping", {
 })
 
 
-test_that("GLMM renumbers study_ids after NA dropping", {
+test_that("GLMM renumbers cluster after NA dropping", {
 
   skip_on_cran()
 
@@ -475,19 +475,19 @@ test_that("GLMM renumbers study_ids after NA dropping", {
       bi        = bi,
       ci        = ci,
       di        = di,
-      study_ids = cluster,
+      cluster   = cluster,
       data      = test_data_na,
       only_data = TRUE
     )[["data"]],
     regexp = "removed"
   )
 
-  # study_ids should be renumbered: g1, g2, g2 -> 1, 2, 2
-  expect_equal(result$outcome$study_ids, c(1, 2, 2))
+  # cluster should be renumbered: g1, g2, g2 -> 1, 2, 2
+  expect_equal(result$outcome$cluster, c(1, 2, 2))
 })
 
 
-test_that("GLMM does not drop rows with NA in weights/study_ids/slab", {
+test_that("GLMM rejects NA in weights or cluster, but preserves NA slab", {
 
   skip_on_cran()
 
@@ -496,22 +496,58 @@ test_that("GLMM does not drop rows with NA in weights/study_ids/slab", {
     bi      = c(40L, 35L, 38L, 42L),
     ci      = c(5L, 10L, 8L, 4L),
     di      = c(45L, 40L, 42L, 46L),
-    wgt     = c(1.0, NA, 1.2, 0.8)
+    wgt     = c(1.0, NA, 1.2, 0.8),
+    cluster = c("g1", "g1", "g2", "g3"),
+    slab    = c("A", NA, "C", "D")
   )
 
-  # Should not trigger warning about NA removal
+  expect_error(
+    brma.glmm(
+      ai        = ai,
+      bi        = bi,
+      ci        = ci,
+      di        = di,
+      weights   = wgt,
+      cluster   = cluster,
+      data      = test_data_na,
+      only_data = TRUE
+    ),
+    regexp = "argument must not contain missing values"
+  )
+
+  test_data_na[["wgt"]][2]     <- 1.1
+  test_data_na[["cluster"]][2] <- NA_character_
+
+  expect_error(
+    brma.glmm(
+      ai        = ai,
+      bi        = bi,
+      ci        = ci,
+      di        = di,
+      weights   = wgt,
+      cluster   = cluster,
+      data      = test_data_na,
+      only_data = TRUE
+    ),
+    regexp = "argument must not contain missing values"
+  )
+
+  test_data_na[["cluster"]][2] <- "g1"
+
   result <- brma.glmm(
-    ai      = ai,
-    bi      = bi,
-    ci      = ci,
-    di      = di,
-    weights = wgt,
-    data    = test_data_na,
+    ai        = ai,
+    bi        = bi,
+    ci        = ci,
+    di        = di,
+    weights   = wgt,
+    cluster   = cluster,
+    slab      = slab,
+    data      = test_data_na,
     only_data = TRUE
   )[["data"]]
 
   expect_equal(nrow(result$outcome), 4)
-  expect_true(is.na(result$outcome$weights[2]))
+  expect_true(is.na(result$outcome$slab[2]))
 })
 
 
@@ -744,7 +780,7 @@ test_that("GLMM returns RoBMA_data class with correct attributes", {
     ci        = ci,
     di        = di,
     weights   = wgt,
-    study_ids = cluster,
+    cluster   = cluster,
     slab      = study,
     data      = test_data_glmm,
     only_data = TRUE
@@ -757,7 +793,7 @@ test_that("GLMM returns RoBMA_data class with correct attributes", {
   expect_false(attr(result, "scale"))
   expect_true(attr(result, "weights"))
   expect_true(attr(result, "slab"))
-  expect_true(attr(result, "study_ids"))
+  expect_true(attr(result, "cluster"))
 })
 
 

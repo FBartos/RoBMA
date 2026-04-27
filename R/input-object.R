@@ -91,7 +91,7 @@ NULL
     transform_scaled  = TRUE,
     remove_parameters = c(
       "theta", # remove random-effects (estimate-level)
-      "gamma", # remove random-effects (study-level)
+      "gamma", # remove random-effects (cluster-level)
       "pi",    # remove baserate for OR models
       "phi"    # remove lograte for IRR models
     )

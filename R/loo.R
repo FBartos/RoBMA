@@ -5,10 +5,8 @@
 # This file implements LOO-PSIS (Leave-One-Out Cross-Validation via Pareto
 # Smoothed Importance Sampling) diagnostics for brma class objects.
 #
-# The LOO is computed at the estimate level: each effect size estimate (or
-# pair of counts for binomial/Poisson models) is treated as one observation.
-# For multilevel models, the LOO conditions on the fitted study-level random
-# effects.
+# LOO can be computed at the estimate unit or, for multilevel models, at the
+# cluster unit.
 #
 # Important: LOO-PSIS evaluates how well the model predicts new observations.
 # This is different from evaluating how well the model fits the observed data.
@@ -33,6 +31,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' and store the result in the object.
 #'
 #' @param object a brma model object.
+#' @param unit output/deletion unit. \code{"estimate"} computes one contribution
+#' per effect-size estimate. \code{"cluster"} computes one contribution per
+#' cluster.
 #' @param r_eff optional vector of relative effective sample sizes. If not
 #' provided, it is computed from the log-likelihood values.
 #' @param parallel Logical. If \code{TRUE} computations are parallelized and
@@ -40,19 +41,23 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \code{FALSE} computations are run on a single core.
 #'
 #' @details
-#' LOO-CV is computed at the estimate level: for binomial and Poisson models,
-#' each pair of counts (ai/ci or x1i/x2i) that defines a single effect size
-#' estimate is treated as one observation.
+#' With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
+#' effect-size estimate. For binomial and Poisson models, each pair of counts
+#' (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
+#' one contribution.
 #'
-#' For multilevel models, the LOO conditions on the fitted study-level random
-#' effects (gamma). This means the LOO evaluates prediction of new estimates
-#' within studies, not prediction of new studies.
+#' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
+#' per cluster. For unweighted normal models without selection this uses the
+#' analytic cluster block covariance. Selection, weighted normal, and GLMM
+#' models integrate the held-out cluster effect with Gauss-Hermite quadrature.
 #'
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
 #'
 #' The PSIS object is essential for model comparison via
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
+#' RoBMA stores target metadata so comparisons can reject mismatched data,
+#' unit, or conditioning-depth targets.
 #'
 #' \strong{Important for model comparison:} When comparing models via
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
@@ -84,11 +89,21 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \insertCite{vehtari2024pareto}{RoBMA}
 #'
 #' @export
-add_loo.brma <- function(object, r_eff = NULL, parallel = FALSE) {
+add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FALSE) {
+  unit <- .normalize_unit(unit)
   BayesTools::check_bool(parallel, "parallel")
 
+  conditioning_depth <- .loo_conditioning_depth_from_unit(unit)
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "add_loo()"
+  )
+
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .pdf.brma(object)
+  log_lik <- .log_lik.brma(object, unit = unit)
+  target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
 
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
@@ -96,22 +111,63 @@ add_loo.brma <- function(object, r_eff = NULL, parallel = FALSE) {
   # compute relative effective sample sizes if not provided
   if (is.null(r_eff)) {
     # loo::relative_eff expects exp(log_lik) with chain_id for matrix input
-    # Get chain / iteration information directly from the runjags fit
-    n_chains <- length(object[["fit"]][["mcmc"]])
-    n_iter <- object[["fit"]][["sample"]]
-
-    chain_id <- rep(seq_len(n_chains), each = n_iter)
+    chain_id <- .loo_chain_id(object[["fit"]], n_samples = nrow(log_lik))
 
     r_eff <- loo::relative_eff(exp(log_lik), chain_id = chain_id, cores = cores)
   }
 
   # call loo on the log-likelihood matrix
   loo_result <- loo::loo(log_lik, r_eff = r_eff, save_psis = TRUE, cores = cores)
+  loo_result <- .add_loo_target_metadata(
+    object             = loo_result,
+    unit               = target[["unit"]],
+    conditioning_depth = .get_target_conditioning_depth(target),
+    targets            = target[["targets"]],
+    data_hash          = target[["data_hash"]]
+  )
 
   # store in object and return
-
-  object[["loo"]] <- loo_result
+  if (is.null(object[["loo"]])) {
+    object[["loo"]] <- list()
+  }
+  object[["loo"]][[unit]] <- loo_result
   return(object)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .loo_chain_id
+# ---------------------------------------------------------------------------- #
+#
+# Derive chain IDs from the retained MCMC samples.
+#
+# @param fit       runjags fit object.
+# @param n_samples integer; expected number of posterior rows.
+#
+# @return integer vector of length n_samples.
+#
+# ---------------------------------------------------------------------------- #
+.loo_chain_id <- function(fit, n_samples) {
+
+  if (!is.null(fit[["mcmc"]])) {
+    chain_lengths <- vapply(fit[["mcmc"]], NROW, integer(1))
+    chain_id      <- rep(seq_along(chain_lengths), times = chain_lengths)
+  } else {
+    n_chains <- length(fit[["mcmc"]])
+    n_iter   <- fit[["sample"]]
+    chain_id <- rep(seq_len(n_chains), each = n_iter)
+  }
+
+  if (length(chain_id) != n_samples) {
+    stop(
+      "Could not derive valid chain IDs for relative_eff(): expected ",
+      n_samples, " posterior rows but got ", length(chain_id), ". ",
+      "Supply 'r_eff' explicitly.",
+      call. = FALSE
+    )
+  }
+
+  return(chain_id)
 }
 
 
@@ -129,6 +185,7 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' for brma model objects and store the result in the object.
 #'
 #' @param object a brma model object.
+#' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... additional arguments passed to \code{\link[loo]{waic}}.
 #'
 #' @details
@@ -145,15 +202,35 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' @seealso \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}
 #'
 #' @export
-add_waic.brma <- function(object, ...) {
+add_waic.brma <- function(object, unit = "estimate", ...) {
+  unit <- .normalize_unit(unit)
+  conditioning_depth <- .loo_conditioning_depth_from_unit(unit)
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "add_waic()"
+  )
+
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .pdf.brma(object)
+  log_lik <- .log_lik.brma(object, unit = unit)
+  target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
 
   # call waic on the log-likelihood matrix
   waic_result <- loo::waic(log_lik, ...)
+  waic_result <- .add_loo_target_metadata(
+    object             = waic_result,
+    unit               = target[["unit"]],
+    conditioning_depth = .get_target_conditioning_depth(target),
+    targets            = target[["targets"]],
+    data_hash          = target[["data_hash"]]
+  )
 
   # store in object and return
-  object[["waic"]] <- waic_result
+  if (is.null(object[["waic"]])) {
+    object[["waic"]] <- list()
+  }
+  object[["waic"]][[unit]] <- waic_result
   return(object)
 }
 
@@ -172,6 +249,7 @@ loo <- function(x, ...) UseMethod("loo")
 #' The LOO must first be computed using \code{\link{add_loo}}.
 #'
 #' @param x a brma model object.
+#' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
@@ -198,26 +276,22 @@ loo <- function(x, ...) UseMethod("loo")
 #' }
 #'
 #' @export
-loo.brma <- function(x, ...) {
-  if (is.null(x[["loo"]])) {
-    stop("LOO has not been computed. Call 'object <- add_loo(object)' first.",
-      call. = FALSE
-    )
-  }
-
-  return(x[["loo"]])
+loo.brma <- function(x, unit = "estimate", ...) {
+  return(.check_loo_target(x, unit = unit))
 }
 
 
 #' @title Extract Log-Likelihood Matrix from brma Object
 #'
 #' @description Extract the pointwise log-likelihood matrix from a brma model
-#' object. This is an S x K matrix where S is the number of posterior samples
-#' and K is the number of observations. This method implements the S3
+#' object. This is an S x K or S x G matrix where S is the number of posterior
+#' samples, K is the number of estimates, and G is the number of clusters.
+#' This method implements the S3
 #' \'logLik\' generic for \code{brma} objects and returns the matrix of
 #' pointwise log-likelihoods (one column per observation, one row per sample).
 #'
 #' @param object a brma model object.
+#' @param unit output unit. See \code{\link{add_loo}}.
 #' @param ... currently unused.
 #'
 #' @details
@@ -225,13 +299,13 @@ loo.brma <- function(x, ...) {
 #' For binomial and Poisson models, each observation consists of a pair of
 #' counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
 #'
-#' @return An S x K matrix of log-likelihood values.
+#' @return An S x K or S x G matrix of log-likelihood values.
 #'
 #' @seealso \code{\link{loo.brma}}
 #'
 #' @export
-logLik.brma <- function(object, ...) {
-  out <- .pdf.brma(object)
+logLik.brma <- function(object, unit = "estimate", ...) {
+  out <- .log_lik.brma(object, unit = unit)
   class(out) <- c("logLik.brma", class(out))
   return(out)
 }
@@ -261,6 +335,7 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #'
 #' @param x a brma model object (the first model to compare).
 #' @param ... additional brma model objects or \code{loo} objects to compare.
+#' @param unit output/deletion unit used when extracting LOO from brma objects.
 #'
 #' @details
 #' This function compares models based on their expected out-of-sample
@@ -270,6 +345,8 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
 #' out-of-sample predictive performance. This evaluates how well models predict
 #' \emph{new} observations, not how well they fit the observed data.
+#' RoBMA rejects comparisons with different \code{yi}/\code{sei} targets,
+#' \code{unit}, or implied \code{conditioning_depth}.
 #'
 #' @return A matrix of class \code{"compare.loo"} as returned by
 #' \code{\link[loo]{loo_compare}}.
@@ -278,8 +355,8 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #'
 #' @examples \dontrun{
 #' # Fit models with and without publication bias adjustment
-#' fit_bias <- brma(yi = yi, sei = sei, data = dat)
-#' fit_nobias <- brma(yi = yi, sei = sei, data = dat, priors_bias = NULL)
+#' fit_bias <- RoBMA(yi = yi, sei = sei, data = dat)
+#' fit_nobias <- BMA(yi = yi, sei = sei, data = dat)
 #'
 #' # Add LOO to both models
 #' fit_bias <- add_loo(fit_bias)
@@ -293,7 +370,9 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' }
 #'
 #' @export
-loo_compare.brma <- function(x, ...) {
+loo_compare.brma <- function(x, ..., unit = "estimate") {
+  unit <- .normalize_unit(unit)
+
   # collect all models: x plus any in ...
   models <- c(list(x), list(...))
 
@@ -304,7 +383,7 @@ loo_compare.brma <- function(x, ...) {
   # convert brma objects to loo objects if necessary
   loo_objects <- lapply(models, function(m) {
     if (inherits(m, "brma")) {
-      loo.brma(m)
+      loo.brma(m, unit = unit)
     } else if (inherits(m, "loo")) {
       m
     } else {
@@ -313,6 +392,7 @@ loo_compare.brma <- function(x, ...) {
   })
 
   # call the 'loo' package's default implementation to avoid dispatch recursion
+  .check_loo_compare_targets(loo_objects)
   loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
   result <- do.call(loo_compare_fun, loo_objects)
 
@@ -326,6 +406,7 @@ loo_compare.brma <- function(x, ...) {
 #'
 #' @param x a loo object (the first model to compare).
 #' @param ... additional loo or brma objects to compare.
+#' @param unit output/deletion unit used when extracting LOO from brma objects.
 #'
 #' @return A matrix of class \code{"compare.loo"} as returned by
 #' \code{\link[loo]{loo_compare}}.
@@ -333,7 +414,9 @@ loo_compare.brma <- function(x, ...) {
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}
 #'
 #' @export
-loo_compare.loo <- function(x, ...) {
+loo_compare.loo <- function(x, ..., unit = "estimate") {
+  unit <- .normalize_unit(unit)
+
   # collect all models: x plus any in ...
   models <- c(list(x), list(...))
 
@@ -344,7 +427,7 @@ loo_compare.loo <- function(x, ...) {
   # convert brma objects to loo objects if necessary
   loo_objects <- lapply(models, function(m) {
     if (inherits(m, "brma")) {
-      loo.brma(m)
+      loo.brma(m, unit = unit)
     } else if (inherits(m, "loo")) {
       m
     } else {
@@ -353,6 +436,7 @@ loo_compare.loo <- function(x, ...) {
   })
 
   # call the 'loo' package's default implementation to avoid dispatch recursion
+  .check_loo_compare_targets(loo_objects)
   loo_compare_fun <- get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE)
   result <- do.call(loo_compare_fun, loo_objects)
 
@@ -374,6 +458,7 @@ waic <- function(x, ...) UseMethod("waic")
 #' The WAIC must first be computed using \code{\link{add_waic}}.
 #'
 #' @param x a brma model object.
+#' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
@@ -391,14 +476,8 @@ waic <- function(x, ...) UseMethod("waic")
 #' @seealso \code{\link{add_waic}}, \code{\link{loo.brma}}, \code{\link[loo]{waic}}
 #'
 #' @export
-waic.brma <- function(x, ...) {
-  if (is.null(x[["waic"]])) {
-    stop("WAIC has not been computed. Call 'object <- add_waic(object)' first.",
-      call. = FALSE
-    )
-  }
-
-  return(x[["waic"]])
+waic.brma <- function(x, unit = "estimate", ...) {
+  return(.check_waic_target(x, unit = unit))
 }
 
 
@@ -416,14 +495,15 @@ loo_weights <- function(object, ...) UseMethod("loo_weights")
 #' (PSIS) weights from a brma model object.
 #'
 #' @param object a brma model object.
+#' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... currently unused.
 #'
 #' @return A matrix of normalized PSIS weights.
 #'
 #' @exportS3Method
-loo_weights.brma <- function(object, ...) {
+loo_weights.brma <- function(object, unit = "estimate", ...) {
   # extract loo
-  loo_result <- loo.brma(object)
+  loo_result <- loo.brma(object, unit = unit)
 
   # extract PSIS object and get normalized weights
   psis_object <- loo_result[["psis_object"]]
@@ -452,9 +532,10 @@ check_loo <- function(object, ...) UseMethod("check_loo")
 #' @return NULL (throws warning if diagnostics are unreliable).
 #'
 #' @exportS3Method
-check_loo.brma <- function(object, ...) {
+check_loo.brma <- function(object, unit = "estimate", ...) {
   # extract loo
-  loo_result <- loo.brma(object)
+  unit       <- .normalize_unit(unit)
+  loo_result <- loo.brma(object, unit = unit)
 
   # check Pareto k diagnostics and warn if unreliable
   pareto_k <- loo_result[["diagnostics"]][["pareto_k"]]
@@ -462,7 +543,7 @@ check_loo.brma <- function(object, ...) {
   if (length(bad_k) > 0) {
     warning(
       "Some Pareto k values are high (> 0.7), indicating potentially unreliable ",
-      "LOO-PIT residuals for observations: ", paste(bad_k, collapse = ", "), ". ",
+      "LOO diagnostics for ", unit, "s: ", paste(bad_k, collapse = ", "), ". ",
       "Inspect the loo fit by using loo(object).",
       call. = FALSE
     )

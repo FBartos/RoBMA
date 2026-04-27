@@ -51,15 +51,60 @@ devtools::test()
 ### How It Works
 
 - Fitted models are saved to `ROBMA_TEST_FILES_DIR`
-- Subdirectories: `fits/`, `margliks/`, `info/`, `temp/`
-- Cache persists across R sessions
+- Default local cache: `tests/testthat/test_files`
+- CRAN cache: `tempdir()/RoBMA_test_files`
+- Subdirectories: `fits/`, `info/`, `metadata/`, `temp/`
+- Cache persists across R sessions by default in local development
 
 ### Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
 | `ROBMA_TEST_FILES_DIR` | Cache directory location |
-| `ROBMA_TEST_SKIP_REFIT` | Skip fitting if cache exists |
+| `ROBMA_TEST_SKIP_REFIT` | Skip fitting if a valid cache exists; defaults to `TRUE` |
+| `ROBMA_TEST_FORCE_REFIT` | Force refitting even if a valid cache exists |
+| `ROBMA_TEST_FULL_DIAGNOSTICS` | Run extended redundant residual/influence diagnostics skipped by default |
+
+### Cache Validation
+
+`save_fit()` writes the fit, info object, and metadata. Metadata records the test file hash and whether the object contains LOO, WAIC, marginal likelihood, and metafor info.
+
+`skip_refit_if_cached("brma.norm")` and similar group calls skip a whole `test-01-*` file only when all cataloged fits for that group are valid.
+
+`list_fits(validate = TRUE)` performs metadata-only validation so test setup stays fast. `load_fit()` validates the requested fit and memoizes it within the test file. Use `validate_cached_fit(name, deep = TRUE)` only in dedicated cache-integrity tests because it reads the full fit object.
+
+A cached fit is stale if:
+
+- its `test-01-*` source file changed
+- metadata is missing
+- required LOO/marglik/metafor info is missing
+- forbidden fields are present, e.g. marginal likelihood for product-space `RoBMA`, `BMA.norm`, or `BMA.glmm`
+
+Use `list_fits(validate = FALSE)` only when inspecting raw cache files.
+
+Some residual and influence tests are intentionally gated with
+`skip_if_not_full_diagnostics()`. They duplicate core metafor/model-family
+coverage or have no stable oracle, but remain available by setting
+`ROBMA_TEST_FULL_DIAGNOSTICS=TRUE`.
+
+### Fit Catalog
+
+`fit_catalog()` in `common-functions.R` is the source of truth for cached test fits. It records:
+
+- expected class and likelihood family
+- source `test-01-*` file
+- availability of metafor reference, LOO, WAIC, and marginal likelihood
+- test tier and feature tags
+
+Use catalog filters instead of ad hoc hard-coded model lists when possible:
+
+```r
+list_fits(has_marglik = TRUE)
+list_fits(has_metafor = TRUE, feature = "mods")
+catalog_fits(class = "RoBMA")
+```
+
+When adding a new cached fit in `test-01-*`, add it to `fit_catalog()` in the same change.
 
 ### When to Clear Cache
 
@@ -83,13 +128,10 @@ clean_cached_fits()
 # At the top of test file
 source(testthat::test_path("common-functions.R"))
 
-# Load pre-fitted models
-fits <- list()
-info <- list()
-for (name in list_fits()) {
-  fits[[name]] <- load_fit(name)
-  info[[name]] <- load_info(name)
-}
+# Create lazy fit stores; individual RDS files load on first `[[name]]`.
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 # Skip if no fits available
 test_that("My test uses cached fits", {
@@ -135,9 +177,19 @@ test_that("Fit my new model type", {
 |----------|---------|
 | `load_fit(name)` | Load cached brma fit |
 | `load_info(name)` | Load associated metadata (e.g., metafor reference fit) |
-| `list_fits()` | List all available cached model names |
+| `lazy_fits(names)` | Create a lazy cached-fit store |
+| `lazy_infos(names)` | Create a lazy cached-info store |
+| `load_fits(names)` | Eagerly load a named fit subset |
+| `load_infos(names)` | Eagerly load a named info subset |
+| `load_fit_metadata(name)` | Load cache metadata |
+| `list_fits()` | List valid cached model names |
+| `list_fits(validate = FALSE)` | List raw cached model names |
+| `catalog_fits()` | List cataloged model names matching feature filters |
+| `fit_catalog()` | Full cached-fit catalog |
+| `validate_cached_fit(name)` | Return cache validation problems |
 | `save_fit(name, fit, info)` | Save model to cache |
 | `skip_if_no_fits()` | Skip test if cache is empty |
+| `skip_if_missing_fits(names)` | Skip test if required cached fits are missing/stale |
 | `skip_refit_if_cached(name)` | Skip model fitting if already cached |
 | `clean_cached_fits()` | Clear entire cache |
 | `clean_cached_fits(name)` | Clear specific model from cache |
@@ -171,13 +223,12 @@ context("DFBETAS")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 ```
 
 ### Tolerance Guidelines
@@ -210,8 +261,8 @@ Never update visual comparisons automatically. Ask the user to manually verify u
 ## Agent Protocol
 
 1. **Always source common-functions.R** at the top of test files
-2. **Check `list_fits()`** to see available cached models before writing tests
+2. **Check `fit_catalog()` / `list_fits()`** to see available cached models before writing tests
 3. **Never fit models** outside `test-01-*` files
-4. **Reuse existing cached models** - check `test-01-*.R` for available model types
+4. **Reuse existing cached models** - check `fit_catalog()` and `test-01-*.R` for available model types
 5. **Use appropriate tolerances** for MCMC-based comparisons
 6. **Never modify `GENERATE_REFERENCE_FILES`** flag (maintainer only)

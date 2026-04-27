@@ -3,12 +3,11 @@ context("Z-curve plot")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 
 # ============================================================================ #
@@ -129,6 +128,59 @@ test_that("Z-curve plot for selection model (negative) works", {
     suppressMessages(plot(zc, plot_type = "base", main = "Selection Model (Neg) Z-Curve"))
   })
 
+})
+
+test_that("Z-curve handles RoBMA bias-mixture branches", {
+
+  name <- "dat.lehmann2018_RoBMA"
+  skip_if_not(name %in% names(fits), "RoBMA cached fit not available.")
+
+  fit               <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit[["fit"]])
+  if (nrow(posterior_samples) > 50) {
+    selected_ind      <- round(seq(from = 1, to = nrow(posterior_samples), length.out = 50))
+    posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
+  }
+  selection         <- .zcurve_selection_context(
+    object            = fit,
+    data              = fit[["data"]],
+    priors            = fit[["priors"]],
+    posterior_samples = posterior_samples,
+    is_weightfunction = .is_weightfunction(fit)
+  )
+  weighted_rows <- which(!selection[["use_normal"]])
+  skip_if_not(length(weighted_rows) > 0, "No weightfunction posterior rows in cached fit.")
+
+  selection_args <- .zcurve_selection_args(
+    selection = selection,
+    row       = weighted_rows[1],
+    estimate  = 1,
+    n         = 3
+  )
+  branch      <- selection[["bias_indicator"]][weighted_rows[1]]
+  active_cuts <- selection[["fit_data"]][["crit_yi_mapping_max"]][branch]
+
+  expect_equal(nrow(selection_args[["omega"]]), 3)
+  expect_equal(ncol(selection_args[["omega"]]), active_cuts + 1)
+  expect_length(selection_args[["crit_yi"]], active_cuts)
+
+  zc <- as_zcurve(fit, max_samples = 50)
+  expect_true(all(is.finite(zc[["zcurve"]][["estimates"]][["EDR"]])))
+  expect_true(all(zc[["zcurve"]][["estimates"]][["EDR"]] >= 0))
+  expect_true(all(zc[["zcurve"]][["estimates"]][["EDR"]] <= 1))
+  expect_true(all(is.finite(zc[["zcurve"]][["estimates"]][["weights"]])))
+
+  fitted_density <- lines(
+    zc, as_data = TRUE, max_samples = 50, plot_CI = FALSE,
+    extrapolate = FALSE, length.out = 25
+  )
+  extrapolated_density <- lines(
+    zc, as_data = TRUE, max_samples = 50, plot_CI = FALSE,
+    extrapolate = TRUE, length.out = 25
+  )
+
+  expect_true(all(is.finite(unlist(fitted_density[c("y", "y_lCI", "y_uCI")]))))
+  expect_true(all(is.finite(unlist(extrapolated_density[c("y", "y_lCI", "y_uCI")]))))
 })
 
 # ============================================================================ #

@@ -2,6 +2,9 @@
 ### Features
 - adds interface to the `posterior` package via the `as_draws` functions for all fitted models
 
+### Changes
+- renames the multilevel clustering argument to `cluster`
+
 
 
 
@@ -34,14 +37,14 @@
 
 ## version 3.5
 ### Features
-- approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `study_ids` argument when using `algorithm = "ss"`
-- 3lvl binomial-normal models for binary data via the `BiBMA` and `BiBMA.reg` functions with the `study_ids` argument when using `algorithm = "ss"`
+- approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `cluster` argument when using `algorithm = "ss"`
+- 3lvl binomial-normal models for binary data via the `BiBMA` and `BiBMA.reg` functions with the `cluster` argument when using `algorithm = "ss"`
 - `pooled_effect()` function to compute the pooled effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 - `adjusted_effect()` function to compute the adjusted effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 - enables `summary_heterogeneity()` for BiBMA models
 
 ### Fixes
-- passing and checks of the `study_ids` and `study_labels` arguments
+- passing and checks of the `cluster` and `study_labels` arguments
 - PEESE prior distribution now scale as 1/scale instead of 1/scale^2 with the `rescale_priors` argument  
 - the conditional prediction interval based on `summary_heterogeneity()` is now conditional on the presence of the effect
 - additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specified etc)
@@ -120,7 +123,7 @@
 
 ## version 2.3
 ### Features
-- weighted meta-analysis by specifying `study_ids` argument in `RoBMA()` and setting `weighted = TRUE`. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.
+- weighted meta-analysis by specifying `cluster` argument in `RoBMA()` and setting `weighted = TRUE`. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.
 
 ## version 2.2.3
 ### Fixes
@@ -137,7 +140,7 @@
 
 ## version 2.2
 ### Features
-- three-level meta-analysis by specifying `study_ids` argument in `RoBMA`. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).
+- three-level meta-analysis by specifying `cluster` argument in `RoBMA`. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).
 
 ## version 2.1.2
 ### Fixes

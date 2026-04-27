@@ -21,7 +21,7 @@ moderators (or meta-regressors).}
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
 scale predictors (for location-scale models).}
 
-\item{study_ids}{an optional vector of study identifiers (used for clustering).}
+\item{cluster}{an optional vector of cluster identifiers.}
 
 \item{data}{an optional data frame containing the variables.}
 

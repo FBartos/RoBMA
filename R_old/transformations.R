@@ -22,7 +22,7 @@
 #' @param lCI a vector of lower bounds of confidence intervals
 #' @param uCI a vector of upper bounds of confidence intervals
 #' @param study_names an optional argument with the names of the studies
-#' @param study_ids an optional argument specifying dependency between the
+#' @param cluster an optional argument specifying dependency between the
 #' studies (for using a multilevel model). Defaults to \code{NULL} for
 #' studies being independent.
 #' @param data a data frame with column names corresponding to the
@@ -70,7 +70,7 @@
 #' @seealso [RoBMA()], [check_setup()], [effect_sizes()], [standard_errors()], and [sample_sizes()]
 #' @export
 combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL, t = NULL, y = NULL, se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL,
-                          study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
+                          study_names = NULL, cluster = NULL, weight = NULL, data = NULL, transformation = "fishers_z", return_all = FALSE, ...){
 
   # settings & input  check
   BayesTools::check_char(transformation, "transformation")
@@ -101,7 +101,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     original_measure <- NULL
   }
 
-  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "study_ids", "weight")
+  input_variables <- c("d", "r", "z", "logOR", "OR", "y", "se", "v", "n", "lCI", "uCI", "t", "study_names", "cluster", "weight")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -110,7 +110,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, study_ids = study_ids, weight = weight)))
+    data <- data.frame(do.call(cbind, list(d = d, r = r, z = z, logOR = logOR, OR = OR, t = t, y = y, se = se, v = v, n = n, lCI = lCI, uCI = uCI, study_names = study_names, cluster = cluster, weight = weight)))
   }
 
   if(is.null(original_measure)){
@@ -135,7 +135,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     y  = rep(NA, nrow(data)),
     se = rep(NA, nrow(data)),
     study_names = rep(NA, nrow(data)),
-    study_ids   = rep(NA, nrow(data)),
+    cluster   = rep(NA, nrow(data)),
     weight      = rep(NA, nrow(data))
   )
 
@@ -197,10 +197,10 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 
   # 3. Process study dependencies for multilevel modeling
-  # Remove study_ids for studies that appear only once (independent studies)
-  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
-  # Convert remaining study_ids to consecutive integers for JAGS
-  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
+  # Remove cluster for studies that appear only once (independent studies)
+  data[,"cluster"][!data[,"cluster"] %in% data[,"cluster"][duplicated(data[,"cluster"])]] <- NA
+  # Convert remaining cluster to consecutive integers for JAGS
+  data[,"cluster"] <- as.integer(as.factor(data[,"cluster"]))
 
   # add weights if missing
   if(all(is.na(data[,"weight"]))){
@@ -229,11 +229,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       output$y  <- data[,"y"]
       output$se <- data[,"se"]
       output$study_names <- data[,"study_names"]
-      output$study_ids   <- data[,"study_ids"]
+      output$cluster   <- data[,"cluster"]
       output$weight      <- data[,"weight"]
       attr(output, "effect_measure")   <- transformation
       attr(output, "original_measure") <- original_measure
-      attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+      attr(output, "all_independent")  <- all(is.na(data[,"cluster"]))
       attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
       class(output) <- c(class(output), "data.RoBMA")
 
@@ -420,11 +420,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     output$y           <- data[,transformation]
     output$se          <- data[,"se"]
     output$study_names <- data[,"study_names"]
-    output$study_ids   <- data[,"study_ids"]
+    output$cluster   <- data[,"cluster"]
     output$weight      <- data[,"weight"]
     attr(output, "effect_measure")   <- transformation
     attr(output, "original_measure") <- original_measure
-    attr(output, "all_independent")  <- all(is.na(data[,"study_ids"]))
+    attr(output, "all_independent")  <- all(is.na(data[,"cluster"]))
     attr(output, "weighted")         <- !all(is.na(data[,"weight"]))
     class(output) <- c(class(output), "data.RoBMA")
 
@@ -451,7 +451,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 # return_all: if TRUE, applies zero-cell correction and calls combine_data()
 #
 # Returns: data.BiBMA object with frequency data, or transformed effect sizes via combine_data()
-.combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, study_ids = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
+.combine_data_bi        <- function(x1 = NULL, x2 = NULL, n1 = NULL, n2 = NULL, study_names = NULL, cluster = NULL, weight = NULL, data = NULL, transformation = "logOR", return_all = FALSE, ...){
 
   # Input validation for binomial data
   BayesTools::check_char(transformation, "transformation")
@@ -461,14 +461,14 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   BayesTools::check_int(n1[!is.na(n1)], "n1", allow_NULL = TRUE, check_length = FALSE, lower = 0)
   BayesTools::check_int(n2[!is.na(n2)], "n2", allow_NULL = TRUE, check_length = FALSE, lower = 0)
   BayesTools::check_char(study_names, "study_names", allow_NULL = TRUE, check_length = FALSE)
-  BayesTools::check_char(study_names, "study_ids",   allow_NULL = TRUE, check_length = FALSE)
+  BayesTools::check_char(study_names, "cluster",   allow_NULL = TRUE, check_length = FALSE)
   BayesTools::check_real(weight[!is.na(weight)], "weight", allow_NULL = TRUE, check_length = FALSE, lower = 0, allow_bound = FALSE)
 
-  # check study_names and study_ids
-  if (!(length(study_ids) == 0 ||
-    (length(data) != 0 && length(study_ids) == nrow(data)) ||
-    (length(data) == 0 && length(x1) != 0 && length(study_ids) == length(x1)))) {
-    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  # check study_names and cluster
+  if (!(length(cluster) == 0 ||
+    (length(data) != 0 && length(cluster) == nrow(data)) ||
+    (length(data) == 0 && length(x1) != 0 && length(cluster) == length(x1)))) {
+    stop("The 'cluster' must be of a column name in `data` or a vector of the same length as the data.")
   }
   if (!(length(study_names) == 0 ||
         (length(data) != 0 && length(study_names) == nrow(data)) ||
@@ -479,7 +479,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   dots <- list(...)
   transformation <- .transformation_var(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]])
 
-  input_variables <- c("x1", "x2", "n1", "n2", "study_names", "study_ids", "weight")
+  input_variables <- c("x1", "x2", "n1", "n2", "study_names", "cluster", "weight")
 
   if(!is.null(data)){
     if(!is.data.frame(data))
@@ -488,7 +488,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
       stop(paste0("The following variables do not correspond to any effect size/variability measure: ", paste(colnames(data)[!colnames(data) %in% input_variables], collapse = ", ")))
     data <- data[,colnames(data) %in% input_variables]
   }else{
-    data <- data.frame(do.call(cbind, list(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, study_ids = study_ids, weight = weight)))
+    data <- data.frame(do.call(cbind, list(x1 = x1, x2 = x2, n1 = n1, n2 = n2, study_names = study_names, cluster = cluster, weight = weight)))
   }
 
   ### add the remaining columns
@@ -516,9 +516,9 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   }
 
   # remove indicators from independent studies
-  data[,"study_ids"][!data[,"study_ids"] %in% data[,"study_ids"][duplicated(data[,"study_ids"])]] <- NA
+  data[,"cluster"][!data[,"cluster"] %in% data[,"cluster"][duplicated(data[,"cluster"])]] <- NA
   # assign factor levels
-  data[,"study_ids"] <- as.integer(as.factor(data[,"study_ids"]))
+  data[,"cluster"] <- as.integer(as.factor(data[,"cluster"]))
 
   # add weights if missing
   if(all(is.na(data[,"weight"]))){
@@ -537,13 +537,13 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     logORse  <- sqrt( 1/data$x1 + 1/data$x2 + 1/(data$n1 - data$x1) + 1/(data$n2 - data$x2) )
 
     # Delegate to standard combine_data() for further transformations
-    return(combine_data(logOR = logOR, se = logORse, study_names = study_names, study_ids = study_ids, weight = weight,
+    return(combine_data(logOR = logOR, se = logORse, study_names = study_names, cluster = cluster, weight = weight,
                         transformation = .transformation_invar(transformation, estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]]), estimation = if(is.null(dots[["estimation"]])) FALSE else dots[["estimation"]], return_all = return_all))
   }
 
   attr(data, "effect_measure")   <- "freq"
   attr(data, "outcome")          <- "freq"
-  attr(data, "all_independent")  <- all(is.na(data[,"study_ids"]))
+  attr(data, "all_independent")  <- all(is.na(data[,"cluster"]))
   attr(data, "weighted")         <- !all(is.na(data[,"weight"]))
   class(data) <- c(class(data), "data.BiBMA")
 
@@ -675,7 +675,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
   return(data_predictors)
 }
 
-.combine_data.reg       <- function(formula, data, standardize_predictors, transformation, study_names, study_ids){
+.combine_data.reg       <- function(formula, data, standardize_predictors, transformation, study_names, cluster){
 
   if(!is.language(formula))
     stop("The 'formula' is not specidied as a formula.")
@@ -683,11 +683,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("'data' must be an object of type data.frame.")
   BayesTools::check_bool(standardize_predictors, "standardize_predictors")
 
-  # dispatch study_names and study_ids
-  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
-    study_ids <- data[[study_ids]]
-  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
-    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  # dispatch study_names and cluster
+  if (length(cluster) == 1 && cluster %in% colnames(data)){
+    cluster <- data[[cluster]]
+  } else if (!(length(cluster) == nrow(data) || length(cluster) == 0)) {
+    stop("The 'cluster' must be of a column name in `data` or a vector of the same length as the data.")
   }
   if (length(study_names) == 1 && study_names %in% colnames(data)){
     study_names <- data[[study_names]]
@@ -711,7 +711,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     uCI    = if("uCI"    %in%  colnames(data)) data[,"uCI"],
     weight = if("weight" %in%  colnames(data)) data[,"weight"],
     study_names    = study_names,
-    study_ids      = study_ids,
+    cluster      = cluster,
     transformation = transformation,
     return_all     = FALSE)
 
@@ -729,7 +729,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
 
   return(output)
 }
-.combine_data_bi.reg    <- function(formula, data, standardize_predictors, study_names, study_ids){
+.combine_data_bi.reg    <- function(formula, data, standardize_predictors, study_names, cluster){
 
   if(!is.language(formula))
     stop("The 'formula' is not specidied as a formula.")
@@ -737,11 +737,11 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     stop("'data' must be an object of type data.frame.")
   BayesTools::check_bool(standardize_predictors, "standardize_predictors")
 
-  # dispatch study_names and study_ids
-  if (length(study_ids) == 1 && study_ids %in% colnames(data)){
-    study_ids <- data[[study_ids]]
-  } else if (!(length(study_ids) == nrow(data) || length(study_ids) == 0)) {
-    stop("The 'study_ids' must be of a column name in `data` or a vector of the same length as the data.")
+  # dispatch study_names and cluster
+  if (length(cluster) == 1 && cluster %in% colnames(data)){
+    cluster <- data[[cluster]]
+  } else if (!(length(cluster) == nrow(data) || length(cluster) == 0)) {
+    stop("The 'cluster' must be of a column name in `data` or a vector of the same length as the data.")
   }
   if (length(study_names) == 1 && study_names %in% colnames(data)){
     study_names <- data[[study_names]]
@@ -757,7 +757,7 @@ combine_data  <- function(d = NULL, r = NULL, z = NULL, logOR = NULL, OR = NULL,
     n2     = if("n2" %in%  colnames(data)) data[,"n2"],
     weight = if("weight" %in%  colnames(data)) data[,"weight"],
     study_names    = study_names,
-    study_ids      = study_ids,
+    cluster      = cluster,
     return_all     = FALSE)
 
   ### obtain the predictors part

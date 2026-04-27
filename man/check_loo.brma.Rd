@@ -4,7 +4,7 @@
 \alias{check_loo.brma}
 \title{Check LOO Diagnostics for brma Objects}
 \usage{
-\method{check_loo}{brma}(object, ...)
+\method{check_loo}{brma}(object, unit = "estimate", ...)
 }
 \arguments{
 \item{object}{a brma model object.}

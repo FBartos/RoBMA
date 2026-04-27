@@ -7,8 +7,10 @@
 \method{qqnorm}{brma}(
   y,
   type = "rstudent",
+  unit = "estimate",
+  conditioning_depth = "marginal",
   envelope = TRUE,
-  level = 95,
+  conf_level = 95,
   bonferroni = FALSE,
   reps = 1000,
   smooth = TRUE,
@@ -36,12 +38,17 @@ matrix. Only available for normal outcome models without selection
 (weightfunction) bias adjustment.
 }}
 
+\item{unit}{output unit. Only \code{"estimate"} is implemented currently.}
+
+\item{conditioning_depth}{residual conditioning depth. Options are
+\code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.}
+
 \item{envelope}{logical indicating whether to add a pseudo confidence
 envelope to the plot. The envelope is created by simulating sets of
 standard normal quantiles, providing a reference for the expected variability
 under a correctly specified model. Defaults to \code{TRUE}.}
 
-\item{level}{numeric value between 0 and 100 specifying the confidence level
+\item{conf_level}{numeric value between 0 and 100 specifying the confidence level
 for the envelope bounds. Defaults to \code{95}.}
 
 \item{bonferroni}{logical indicating whether to apply Bonferroni correction
@@ -105,7 +112,7 @@ approximately along the diagonal reference line.
 \details{
 The normal QQ plot is a diagnostic tool for assessing whether the
 standardized residuals follow a standard normal distribution, as expected
-under a correctly specified model. Each point represents one study,
+under a correctly specified model. Each point represents one estimate,
 plotted at coordinates \eqn{(\Phi^{-1}(p_i), z_{(i)})} where
 \eqn{p_i} are the plotting positions and \eqn{z_{(i)}} are the sorted
 standardized residuals.

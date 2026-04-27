@@ -81,7 +81,10 @@ variance.}
 Defaults to \code{c(0.5, 3)}.}
 
 \item{by}{character; name of a moderator variable to use for separate
-lines/colors. Defaults to \code{NULL}.}
+lines/colors. Defaults to \code{NULL}. If omitted and the selected
+moderator enters exactly one two-way interaction, the other variable in the
+interaction is used automatically. Continuous \code{by} moderators are shown
+at mean - SD, mean, and mean + SD.}
 
 \item{legend}{logical; whether to show legend when \code{by} is specified.
 Defaults to \code{TRUE}.}
@@ -122,6 +125,7 @@ creating plot. Defaults to \code{FALSE}.}
 \item{alpha.pi}{PI band transparency (default: 0.2)}
 \item{alpha.si}{SI band transparency (default: 0.15)}
 \item{jitter}{jitter amount for categorical moderators (default: 0.2)}
+\item{box.width}{box width for categorical interval summaries (default: 0.5)}
 }}
 }
 \value{

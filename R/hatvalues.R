@@ -51,10 +51,10 @@ hatvalues.brma <- function(model, ...) {
   # returns list(H_diag, M_diag, ...)
   # we only need H_diag
   res <- .compute_hat_matrix_samples(
-    object        = model,
-    type          = "marginal",
-    return_full_H = FALSE,
-    return_se     = FALSE
+    object             = model,
+    conditioning_depth = "marginal",
+    return_full_H      = FALSE,
+    return_se          = FALSE
   )
 
   # extract the diagonal

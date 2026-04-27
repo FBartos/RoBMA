@@ -1,0 +1,22 @@
+
+Bayesian Mixed-Effect Model (k = 13)
+
+Model Results (Common Estimates):
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.750 0.274 0.381 0.695 1.430     0.00562          0.020 2391 1.002
+
+Model Results (Meta-Regression):
+                                                     Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+intercept                                          -0.726 0.274 -1.275 -0.727 -0.162     0.00285          0.010  9259 1.001
+alloc[dif: alternate]                               0.221 0.425 -0.640  0.220  1.074     0.00399          0.009 11359 1.000
+alloc[dif: random]                                 -0.247 0.330 -0.923 -0.241  0.395     0.00328          0.010 10150 1.001
+alloc[dif: systematic]                              0.026 0.391 -0.746  0.017  0.828     0.00381          0.010 10553 1.000
+year_before1969[dif: FALSE]                         0.320 0.273 -0.227  0.320  0.868     0.00289          0.011  8941 1.001
+year_before1969[dif: TRUE]                         -0.320 0.273 -0.868 -0.320  0.227     0.00289          0.011  8941 1.001
+alloc[dif: alternate]:year_before1969[dif: FALSE]  -0.039 0.424 -0.893 -0.038  0.809     0.00386          0.009 12175 1.000
+alloc[dif: random]:year_before1969[dif: FALSE]     -0.275 0.333 -0.936 -0.273  0.395     0.00337          0.010  9742 1.000
+alloc[dif: systematic]:year_before1969[dif: FALSE]  0.314 0.387 -0.473  0.317  1.084     0.00369          0.010 11024 1.000
+alloc[dif: alternate]:year_before1969[dif: TRUE]    0.039 0.424 -0.809  0.038  0.893     0.00386          0.009 12175 1.000
+alloc[dif: random]:year_before1969[dif: TRUE]       0.275 0.333 -0.395  0.273  0.936     0.00337          0.010  9742 1.000
+alloc[dif: systematic]:year_before1969[dif: TRUE]  -0.314 0.387 -1.084 -0.317  0.473     0.00369          0.010 11024 1.000
+

@@ -12,7 +12,7 @@ BMA(
   ni,
   mods,
   scale,
-  study_ids,
+  cluster,
   data,
   slab,
   subset,
@@ -65,7 +65,7 @@ moderators (or meta-regressors).}
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
 scale predictors (for location-scale models).}
 
-\item{study_ids}{an optional vector of study identifiers (used for clustering).}
+\item{cluster}{an optional vector of cluster identifiers.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -121,5 +121,5 @@ It is equivalent to calling \code{\link{RoBMA}} without specifying \code{prior_b
 For publication bias adjusted meta-analysis, use \code{\link{RoBMA}} directly.
 }
 \seealso{
-\code{\link[=RoBMA]{RoBMA()}} \code{\link[=brma.norm]{brma.norm()}} \code{\link[=summary.brma]{summary.brma()}} \code{\link[=plot.brma]{plot.brma()}}
+\code{\link[=RoBMA]{RoBMA()}} \code{\link[=brma]{brma()}} \code{\link[=summary.brma]{summary.brma()}} \code{\link[=plot.brma]{plot.brma()}}
 }

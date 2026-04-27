@@ -15,10 +15,10 @@
     attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
   }
 
-  # add study-level indicators
+  # add cluster-level indicators
   if (.is_data_multilevel(data)) {
     # encode number of levels for the random-effects prior
-    attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["study_ids"]]))
+    attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["cluster"]]))
   }
 
   ### deal with non-prior mixture distributions (bPET, bPEESE, and bselmodel)
@@ -115,14 +115,14 @@
   # add number of estimates
   fit_data[["K"]] <- nrow(data[["outcome"]])
 
-  # add study_ids for 3lvl models
+  # add cluster for 3lvl models
   if (.is_data_multilevel(data)) {
-    fit_data[["study_ids"]] <- data[["outcome"]][["study_ids"]]
+    fit_data[["cluster"]] <- data[["outcome"]][["cluster"]]
   }
 
   # add weights for weighted models
   if (.is_data_weights(data)) {
-    fit_data[["weights"]] <- data[["outcome"]][["study_ids"]]
+    fit_data[["weight"]] <- data[["outcome"]][["weights"]]
   }
 
 
@@ -183,12 +183,20 @@
 
   ### prepare multilevel heterogeneity parameter (non-regression = defined outside of the for loop)
   # for multilevel: specify heterogeneity allocation
-  # tau_within  - within-study variance (estimate-level variance)
-  # tau_between - between-study variance (study-level variance)
+  # tau_within  - within-cluster variance (estimate-level variance)
+  # tau_between - between-cluster variance (cluster-level variance)
   if (is_multilevel & !is_scale) {
     model_syntax <- paste0(model_syntax, "tau_within  = tau * sqrt(1-rho)\n")
     model_syntax <- paste0(model_syntax, "tau_between = tau * sqrt(rho)\n")
   }
+
+  tau_total_node   <- if (is_scale) "tau[i]" else "tau"
+  tau_within_node  <- if (is_multilevel) {
+    if (is_scale) "tau_within[i]" else "tau_within"
+  } else {
+    tau_total_node
+  }
+  tau_between_node <- if (is_scale) "tau_between[i]" else "tau_between"
 
   ### enter the main block
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
@@ -201,9 +209,9 @@
   } else {
     mu_estimate <- ifelse(effect_direction == "negative", "- mu", "mu")
   }
-  # add study-level effects
+  # add cluster-level effects
   if (is_multilevel) {
-    mu_estimate <- paste0(mu_estimate, ifelse(effect_direction == "negative", " - ", " + "),  "gamma[study_ids[i]] * tau_between")
+    mu_estimate <- paste0(mu_estimate, ifelse(effect_direction == "negative", " - ", " + "),  "gamma[cluster[i]] * ", tau_between_node)
   }
   # add PET/PEESE
   if (is_PET) {
@@ -223,24 +231,20 @@
     model_syntax <- paste0(model_syntax, "  tau[i] = exp(log_tau[i])\n")
   }
   # for multilevel: specify heterogeneity allocation & dispatch estimate-specific/common parameter
-  # tau_within  - within-study variance (estimate-level variance)
-  # tau_between - between-study variance (study-level variance)
+  # tau_within  - within-cluster variance (estimate-level variance)
+  # tau_between - between-cluster variance (cluster-level variance)
   # for rest: dispatch estimate-specific/common parameter
   if (is_multilevel) {
     if (is_scale) {
       model_syntax <- paste0(model_syntax, "  tau_within[i]  = tau[i] * sqrt(1-rho)\n")
       model_syntax <- paste0(model_syntax, "  tau_between[i] = tau[i] * sqrt(rho)\n")
-      tau_estimate <- "tau_within[i]"
+      tau_estimate <- tau_within_node
     } else {
       # the variance allocation performed outside of the loop
-      tau_estimate <- "tau_within"
+      tau_estimate <- tau_within_node
     }
   } else {
-    if (is_scale) {
-      tau_estimate <- "tau[i]"
-    } else {
-      tau_estimate <- "tau"
-    }
+    tau_estimate <- tau_total_node
   }
   # compute the total variance of the estimate
   tau2_estimate <- paste0("( pow(sei[i],2) + pow(",tau_estimate,",2) )")
@@ -273,11 +277,7 @@
   } else if (outcome_type %in% c("bin", "pois")) {
 
     # estimate-level variance is not marginalized in binomial-normal/poisson-normal models
-    if (is_multilevel) {
-      mu_estimate <- paste0(mu_estimate, " + theta[i] * tau_within")
-    } else {
-      mu_estimate <- paste0(mu_estimate, " + theta[i] * tau")
-    }
+    mu_estimate <- paste0(mu_estimate, " + theta[i] * ", tau_estimate)
 
     # specify appropriate link for each type of outcome
     if (outcome_type == "bin") {
@@ -365,7 +365,7 @@
   model_syntax <- .create_model_syntax(data = data, priors = priors)
 
   ### fit the model
-  if (!extend || length(model[["fit"]]) == 0) {
+  if (!extend || length(object[["fit"]]) == 0) {
 
     fit <- BayesTools::JAGS_fit(
       model_syntax          = model_syntax,
@@ -498,16 +498,16 @@
   return(.is_priors_PET(priors) || .is_priors_PEESE(priors) || .is_priors_weightfunction(priors))
 }
 .is_data_multilevel       <- function(data) {
-  return(attr(data, "study_ids"))
+  return(isTRUE(attr(data, "cluster")))
 }
 .is_data_mods             <- function(data) {
-  return(attr(data, "mods"))
+  return(isTRUE(attr(data, "mods")))
 }
 .is_data_scale            <- function(data) {
-  return(attr(data, "scale"))
+  return(isTRUE(attr(data, "scale")))
 }
 .is_data_weights          <- function(data) {
-  return(attr(data, "weights"))
+  return(isTRUE(attr(data, "weights")))
 }
 .data_outcome_type        <- function(data) {
   return(attr(data, "outcome_type"))

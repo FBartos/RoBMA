@@ -140,6 +140,7 @@ logml.brma <- function(x, ...) {
 #'
 #' @details
 #' The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
+#' All models must be fitted to the same \code{yi}/\code{sei} target.
 #'
 #' @return A named numeric vector with posterior model probabilities
 #' (i.e., which sum to one).
@@ -176,6 +177,8 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
   if (sum(modb) != length(dots)) {
     warning("Objects not of class 'brma' are ignored.", call. = FALSE)
   }
+  models <- c(list(x), dots[modb])
+  .check_brma_compare_targets(models, "post_prob()")
 
   # get model names
   if (is.null(model_names)) {
@@ -188,7 +191,7 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
   # compute log marginal likelihoods (this will error if add_marglik not called)
   logml_values <- c(
     bridge_sampler.brma(x)$logml,
-    vapply(dots[modb], function(obj) bridge_sampler.brma(obj)$logml, 0)
+    vapply(models[-1], function(obj) bridge_sampler.brma(obj)$logml, 0)
   )
 
   # delegate to bridgesampling's implementation
@@ -213,7 +216,8 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 #' @details
 #' Computes the Bayes factor in favor of the model \code{x1} over the
 #' model \code{x2}. The marginal likelihoods must first be computed using
-#' \code{\link{add_marglik}}.
+#' \code{\link{add_marglik}}. Both models must be fitted to the same
+#' \code{yi}/\code{sei} target.
 #'
 #' @return A list of class \code{"bf_default"} with components:
 #' \itemize{
@@ -247,6 +251,7 @@ bf.brma <- function(x1, x2, log = FALSE, ...) {
   if (!inherits(x2, "brma")) {
     stop("x2 needs to be of class 'brma'.", call. = FALSE)
   }
+  .check_brma_compare_targets(list(x1, x2), "bf()")
 
   # compute log marginal likelihoods and delegate to bridgesampling
   logml1 <- bridge_sampler.brma(x1)$logml

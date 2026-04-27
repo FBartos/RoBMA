@@ -21,12 +21,12 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples with one
-column per study. When printed, displays a summary table. Use \code{summary()}
+column per estimate. When printed, displays a summary table. Use \code{summary()}
 to obtain the summary table directly. The samples can be converted to
 \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
-Computes the estimated true study effects (theta) for a
+Computes the estimated true effects (theta) for a
 fitted brma object. These correspond to Best Linear Unbiased Predictions
 (BLUPs) or empirical Bayes estimates.
 }
@@ -42,14 +42,14 @@ For GLMM models (binomial, Poisson), the estimate-level random effects
 are extracted directly from the posterior samples.
 
 For multilevel (3-level) models, the true effects incorporate both
-study-level (\eqn{\gamma}) and estimate-level random effects.
+cluster-level (\eqn{\gamma}) and estimate-level random effects.
 }
 \examples{
 \dontrun{
 # fit a brma model
 fit <- brma(yi ~ 1, sei = sei, data = dat)
 
-# get BLUPs (true study effects)
+# get BLUPs (true effects)
 blup(fit)
 }
 

@@ -91,7 +91,7 @@
 #' @seealso [BiBMA()] [summary.RoBMA()], [update.BiBMA()], [check_setup.reg()]
 #' @export
 BiBMA.reg <- function(
-    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, cluster = NULL,
     standardize_predictors = TRUE,
 
     # prior specification
@@ -125,7 +125,7 @@ BiBMA.reg <- function(
 
 
   ### prepare & check the data
-  object$data    <- .combine_data_bi.reg(formula, data, standardize_predictors, study_names, study_ids)
+  object$data    <- .combine_data_bi.reg(formula, data, standardize_predictors, study_names, cluster)
   object$formula <- formula
 
   # switch between multivariate and weighted models

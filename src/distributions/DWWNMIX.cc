@@ -50,23 +50,10 @@ double DWWNMIX::logDensity(double const *x, unsigned int length, PDFType type,
 
     double log_lik;
 
-    if (crit_y_mapping_max == 0) {
-        log_lik = dnorm(*x, *mu, *sigma, true) * weight;
-    } else {
-        // Map the input crit_y and omega to the actual crit_yalpha
-        std::vector<double> crit_y(crit_y_mapping_max);
-        std::vector<double> omega(crit_y_mapping_max + 1);
-        const int J = crit_y_mapping_max + 1;
-
-        // use first weight and each weight after the treshold change
-        omega[0] = omega_all[0];
-        for (int i = 0; i < crit_y_mapping_max; ++i) {
-            crit_y[i] = crit_y_all[ static_cast<int>(crit_y_mapping[i]) - 1 ];
-            omega[i + 1] = omega_all[ static_cast<int>(crit_y_mapping[i]) ];
-        }
-
-        log_lik = cpp_wnorm_1s_lpdf(x, mu, sigma, &crit_y[0], &omega[0], J) * weight;
-    }
+    log_lik = cpp_wnorm_mix_lpdf(
+      *x, *mu, *sigma, crit_y_all, omega_all, crit_y_mapping,
+      static_cast<int>(crit_y_mapping_max)
+    ) * weight;
 
     return log_lik;
 }

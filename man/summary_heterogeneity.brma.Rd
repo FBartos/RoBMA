@@ -34,12 +34,12 @@ For standard (2-level) random-effects models, the function reports:
 }
 
 For multilevel (3-level) models with nested effects, the function additionally
-partitions heterogeneity into within-study and between-study components:
+partitions heterogeneity into estimate-level and cluster-level components:
 \itemize{
-\item \code{tau [within]}: Estimate-level (within-study) standard deviation
-\item \code{tau [between]}: Study-level (between-study) standard deviation
-\item \code{I2 [within]}: Percentage of variance due to within-study heterogeneity
-\item \code{I2 [between]}: Percentage of variance due to between-study heterogeneity
+\item \code{tau [within]}: Estimate-level standard deviation
+\item \code{tau [between]}: Cluster-level standard deviation
+\item \code{I2 [within]}: Percentage of variance due to estimate-level heterogeneity
+\item \code{I2 [between]}: Percentage of variance due to cluster-level heterogeneity
 }
 
 The I^2 and H^2 statistics are computed following the metafor package

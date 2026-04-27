@@ -3,13 +3,12 @@ context("nobs and coef")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 
 # ============================================================================ #
@@ -37,7 +36,6 @@ test_that("nobs works across model types", {
                 info = paste0("nobs should be a positive number for '", name, "'"))
   }
 })
-
 
 # ============================================================================ #
 # Test: coef

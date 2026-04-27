@@ -11,20 +11,35 @@
 #' distributions for the scale regression coefficients are required.
 #'
 #' @param prior_effect prior distribution for the effect size (\eqn{\mu}) parameter
-#' (the intercept). Defaults to `NULL`.
+#' (the intercept). If omitted, a default prior is constructed. In single-model
+#' functions, explicit `NULL` or `FALSE` sets a spike at zero.
 #' @param prior_heterogeneity prior distribution for the heterogeneity (\eqn{\tau})
-#' parameter. Defaults to `NULL`.
+#' parameter. If omitted, a default prior is constructed. In single-model
+#' functions, explicit `NULL` or `FALSE` sets a spike at zero.
 #' @param prior_mods prior distribution for the moderators (\eqn{\beta}) parameters.
-#' Defaults to `NULL`.
+#' A single prior applies to all terms; a named list can specify term-specific
+#' priors. If omitted or `NULL`, default priors are used.
 #' @param prior_scale prior distribution for the scale (\eqn{\delta}) parameters.
-#' Defaults to `NULL`.
-#' @param prior_heterogeneity_allocation prior distribution for the fraction of variance
-#' explained by the moderators across studies (\eqn{\nu}). Defaults to `NULL`.
+#' A single prior applies to all terms; a named list can specify term-specific
+#' priors. If omitted or `NULL`, default priors are used.
+#' @param prior_heterogeneity_allocation prior distribution for the fraction of
+#' heterogeneity allocated to the cluster-level component in multilevel models
+#' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`.
 #' @param prior_bias prior distribution for the publication bias adjustment parameters
-#' (selection models) or the publication bias indicator (PET-PEESE). Defaults to `NULL`.
+#' (selection models) or the publication bias indicator (PET-PEESE). For
+#' `bselmodel()`, `bPET()`, and `bPEESE()`, omitted or `NULL` uses the
+#' corresponding default bias prior.
+#' @param prior_baserate prior distribution for the estimate-specific base-rate
+#' probability in binomial GLMM models. If omitted or `NULL`, defaults to
+#' independent `Beta(1, 1)` priors.
+#' @param prior_lograte prior distribution for the estimate-specific log-rate in
+#' Poisson GLMM models. If omitted or `NULL`, a data-based unit-information normal
+#' prior is used.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
-#' Defaults to `NULL`.
-#' @param rescale_priors numeric. A scaling factor for the prior distributions. Defaults to 1.
+#' Cannot be used together with `prior_informed_field`.
+#' @param rescale_priors numeric. A scaling factor for supported prior distributions.
+#' Point and none priors are unchanged; publication-bias priors are not rescaled
+#' except for the default PEESE prior's UISD adjustment. Defaults to 1.
 #' @param standardize_continuous_predictors logical. Whether to standardize continuous predictors.
 #' Defaults to `TRUE`.
 #' @param set_contrast_factor_predictors character. How to set contrast for factor predictors.
@@ -97,7 +112,7 @@
 #'
 #' Note that the manually specified `prior_unit_information_sd` takes precedence over
 #' the estimated `UISD` from `ni` (section (2)) and the known `UISD` from `measure`
-#' (section (1)).
+#' (section (1)). It cannot be combined with `prior_informed_field`.
 #'
 #' ### (4) Specifying informed empirical prior distributions
 #' Informed prior distributions can be specified via the `prior_informed_field` and
@@ -131,10 +146,12 @@
 #' or related functions (e.g., `prior_factor()`).
 #'
 #' ### Rescaling prior distributions
-#' The `rescale_priors` argument allows rescaling of all prior distributions by a
+#' The `rescale_priors` argument allows rescaling supported prior distributions by a
 #' multiplicative factor. For example, `rescale_priors = 2` doubles the standard
-#' deviations/scales of all prior distributions, making them more diffuse. This applies
-#' regardless of how the priors were specified.
+#' deviations/scales of normal, Cauchy, t, and inverse-gamma prior distributions,
+#' making them more diffuse. Point and none priors are unchanged. Publication-bias
+#' priors are not rescaled by this argument, except for the default PEESE prior's
+#' UISD adjustment.
 #'
 #' @references
 #' \insertAllCited{}
@@ -180,7 +197,9 @@ NULL
 #'   \item `"2w"`: Two weight function models 
 #'   \item `"PP"`: PET-PEESE models only
 #' }
-#' Custom `prior_bias` and `prior_bias_null` override this setting.
+#' Custom `prior_bias` replaces the preset alternative bias components. If
+#' `prior_bias` is omitted, `model_type` determines the default alternatives even
+#' when `prior_bias_null` is customized or omitted.
 #'
 #' @details
 #' ## The product space method for model-averaging
@@ -245,18 +264,23 @@ NULL
 #'
 #' ### Omitting hypothesis components
 #'
-#' Setting a prior argument to `NULL` or `FALSE` removes that hypothesis component:
+#' For top-level mixture components, setting a prior argument to `NULL` or `FALSE`
+#' removes that hypothesis component:
 #' \itemize{
 #'   \item `prior_effect_null = NULL`: No null hypothesis for effect (assumes effect exists)
 #'   \item `prior_effect = NULL`: No alternative hypothesis (assumes no effect)
 #'   \item `prior_bias_null = NULL`: No "no bias" model (assumes some bias mechanism)
 #'   \item `prior_bias = NULL`: No bias model (assumes no bias mechanism)
 #' }
+#' For moderator and scale regression terms, an omitted or whole-argument `NULL`
+#' `prior_mods` / `prior_scale` means "use defaults". To omit a component for a
+#' specific term, use a named list entry such as `prior_mods_null = list(x1 = NULL)`.
 #'
 #' ### Parameter-specific customization for moderators
 #'
 #' For moderator priors (`prior_mods`, `prior_mods_null`), you can specify different
-#' priors for different predictors using named lists:
+#' priors for different predictors using named lists. A single prior object applies
+#' to all moderator terms:
 #' \preformatted{
 #' RoBMA(...,
 #'   mods = ~ x1 + x2,
@@ -299,12 +323,14 @@ NULL
 #'
 #' ### Heterogeneity allocation (\eqn{\rho}) for multilevel models
 #'
-#' When `study_ids` is specified, \eqn{\rho} controls the within-study vs. between-study
-#' variance allocation. By default, only an alternative (Beta(1,1)) is specified,
-#' but null hypotheses can be added:
+#' When `cluster` is specified, \eqn{\rho} controls the cluster-level variance
+#' allocation. The decomposition is
+#' \eqn{\tau_{between} = \tau\sqrt{\rho}} and
+#' \eqn{\tau_{within} = \tau\sqrt{1 - \rho}}. By default, only an alternative
+#' (Beta(1,1)) is specified, but null hypotheses can be added:
 #' \preformatted{
 #' RoBMA(...,
-#'   study_ids = study,
+#'   cluster = study,
 #'   prior_heterogeneity_allocation_null = prior("spike", list(location = 0.5))
 #' )
 #' }
@@ -364,7 +390,7 @@ NULL
 #' )
 #'
 #' # Multilevel model with custom rho prior
-#' fit5 <- RoBMA(yi = effect, sei = se, study_ids = study, data = dat,
+#' fit5 <- RoBMA(yi = effect, sei = se, cluster = study, data = dat,
 #'   prior_heterogeneity_allocation = prior("beta", list(alpha = 2, beta = 2)),
 #'   prior_heterogeneity_allocation_null = prior("spike", list(location = 0.5))
 #' )
@@ -473,7 +499,7 @@ NULL
 #'
 #' This function is useful when you want to compute the UISD once and pass it
 #' to multiple analyses via the `prior_unit_information_sd` argument in
-#' [brma.norm()] or related functions. This ensures consistent prior scaling
+#' [brma()] or related functions. This ensures consistent prior scaling
 #' across analyses performed on different subsets of the same data.
 #'
 #' @references
@@ -544,6 +570,9 @@ estimate_unit_information_sd <- function(sei, ni) {
         "rd"    = "RD",
         "hr"    = "logHR"
       )
+      if (is.null(type)) {
+        stop("Informed medicine priors are only available for measures 'SMD', 'OR', 'RR', 'RD', and 'HR'.", call. = FALSE)
+      }
 
       # simple informed priors from BayesTools package
       prior <- BayesTools::prior_informed(prior_name, parameter = parameter, type = type)
@@ -582,7 +611,7 @@ estimate_unit_information_sd <- function(sei, ni) {
 .assign_prior.heterogeneity_allocation <- function(prior) {
 
   # use default settings if prior distribution is not specified
-  if (missing(prior)) {
+  if (missing(prior) || is.null(prior)) {
     prior <- BayesTools::prior("beta", parameters = list("alpha" = 1, "beta" = 1))
     return(prior)
   }
@@ -595,7 +624,7 @@ estimate_unit_information_sd <- function(sei, ni) {
 .assign_prior.baserate                 <- function(prior) {
 
   # use default settings if prior distribution is not specified
-  if (missing(prior)) {
+  if (missing(prior) || is.null(prior)) {
     prior <- BayesTools::prior_factor("beta", parameters = list("alpha" = 1, "beta" = 1), contrast = "independent")
     return(prior)
   }
@@ -612,7 +641,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   # an uninformative prior distribution is not possible in JAGS (the log-rate is unbounded)
   # therefore, we set independent unit information priors on the log-rate if user unspecified
 
-  if (missing(prior)) {
+  if (missing(prior) || is.null(prior)) {
     return(.get_unit_information_lograte_prior(
       x1i = data[["outcome"]][["x1i"]],
       x2i = data[["outcome"]][["x2i"]],
@@ -626,6 +655,17 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   return(prior)
 }
+.get_PEESE_UISD_ratio                  <- function(measure, data, prior_unit_information_sd) {
+
+  UISD_SMD <- .get_unit_information_sd.known("SMD")
+  if (missing(prior_unit_information_sd)) {
+    UISD_measure <- .get_unit_information_sd(data = data, measure = measure)
+  } else {
+    UISD_measure <- prior_unit_information_sd
+  }
+
+  return(UISD_SMD / UISD_measure)
+}
 .assign_prior.bias                     <- function(prior, measure, data, prior_unit_information_sd, bias_type, steps) {
 
   # assigns either a weight function or PET/PEESE model based on bias_type
@@ -635,9 +675,9 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (bias_type == "selmodel") {
 
     # specify default settings / check the prior distribution
-    if (missing(prior) && missing(steps)) {
+    if ((missing(prior) || is.null(prior)) && missing(steps)) {
       prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = c(0.025), "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), 2)))
-    } else if (missing(prior) && !missing(steps)) {
+    } else if ((missing(prior) || is.null(prior)) && !missing(steps)) {
       prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = steps, "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps) + 1)))
     } else if (!BayesTools::is.prior.weightfunction(prior)) {
       stop("'prior_bias' must be a `prior_weightfunction` object", call. = FALSE)
@@ -649,7 +689,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (bias_type == "PET") {
 
     # specify default settings / check the prior distribution
-    if (missing(prior)) {
+    if (missing(prior) || is.null(prior)) {
       # PET prior is invariant to different effect size types
       prior <- BayesTools::prior_PET("cauchy", parameters = list("location" = 0, "scale" = RoBMA.get_option("default_bias_PET.scale")), truncation = list(0, Inf))
     } else if (!BayesTools::is.prior.PET(prior)) {
@@ -662,13 +702,12 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (bias_type == "PEESE") {
 
     # specify default settings / check the prior distribution
-    if (missing(prior)) {
+    if (missing(prior) || is.null(prior)) {
       ### PEESE prior is inversely related to the specified effect size
       # for SMD we use Cauchy with scale 1
       # for other effect sizes, we re-scale by the corresponding UISD
-      UISD_SMD     <- .get_unit_information_sd(measure = "SMD")
-      UISD_measure <- .get_unit_information_sd(data = data, measure = measure)
-      UISD_ratio   <- UISD_SMD / UISD_measure
+      UISD_ratio <- .get_PEESE_UISD_ratio(
+        measure = measure, data = data, prior_unit_information_sd = prior_unit_information_sd)
       prior <- BayesTools::prior_PEESE("cauchy", parameters = list("location" = 0, "scale" = RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf))
     } else if (!BayesTools::is.prior.PEESE(prior)) {
       stop("'prior_bias' must be a `prior_PEESE` object", call. = FALSE)
@@ -681,6 +720,41 @@ estimate_unit_information_sd <- function(sei, ni) {
     # for simplified handling in RoBMA
     return(prior)
   }
+}
+.term_default_continuous_prior         <- function(prior) {
+
+  if (!BayesTools::is.prior.factor(prior)) {
+    return(prior)
+  }
+
+  distribution <- prior[["distribution"]]
+  if (distribution %in% c("mnormal", "mcauchy", "mt")) {
+    distribution <- substring(distribution, 2)
+  }
+
+  return(BayesTools::prior(
+    distribution = distribution,
+    parameters   = prior[["parameters"]],
+    truncation   = prior[["truncation"]]
+  ))
+}
+.term_default_factor_prior             <- function(prior, contrast) {
+
+  if (BayesTools::is.prior.factor(prior)) {
+    return(prior)
+  }
+
+  distribution <- prior[["distribution"]]
+  if (contrast != "treatment" && !distribution %in% c("spike", "mnormal", "mcauchy", "mt")) {
+    distribution <- paste0("m", distribution)
+  }
+
+  return(BayesTools::prior_factor(
+    distribution = distribution,
+    parameters   = prior[["parameters"]],
+    truncation   = prior[["truncation"]],
+    contrast     = contrast
+  ))
 }
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
@@ -699,7 +773,14 @@ estimate_unit_information_sd <- function(sei, ni) {
   }
 
   ### check the user-specified priors
-  if (!missing(prior_list)) {
+  user_default_prior <- NULL
+  if (!missing(prior_list) && BayesTools::is.prior(prior_list)) {
+    .check_prior.term(prior_list)
+    user_default_prior <- prior_list
+    prior_list         <- list()
+  } else if (!missing(prior_list) && is.null(prior_list)) {
+    prior_list <- list()
+  } else if (!missing(prior_list)) {
     # check the priors and apply rescaling if specified
     for (i in seq_along(prior_list)) {
       .check_prior.term(prior_list[[i]])
@@ -745,6 +826,9 @@ estimate_unit_information_sd <- function(sei, ni) {
         "rd"    = "RD",
         "hr"    = "logHR"
       )
+      if (is.null(type)) {
+        stop("Informed medicine priors are only available for measures 'SMD', 'OR', 'RR', 'RD', and 'HR'.", call. = FALSE)
+      }
 
       if (parameter == "mods") {
         # treat moderators by scaling them according to 1/2 of the effect
@@ -752,7 +836,7 @@ estimate_unit_information_sd <- function(sei, ni) {
         default_prior_continuous <- .rescale_prior_object(default_prior_continuous, RoBMA.get_option("default_informed_priors.mods"))
       } else if (parameter == "scale") {
         # scale parameters use the default scaling (no informed priors exist)
-        default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = .rescale_prior_object(prior, RoBMA.get_option("default_informed_priors.scale"))))
+        default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = RoBMA.get_option("default_informed_priors.scale")))
       }
 
       # transform the continuous prior distributions into prior distributions for factors
@@ -803,6 +887,14 @@ estimate_unit_information_sd <- function(sei, ni) {
     }
   }
 
+  if (!is.null(user_default_prior)) {
+    default_prior_continuous <- .term_default_continuous_prior(user_default_prior)
+    default_prior_factor     <- .term_default_factor_prior(
+      prior    = user_default_prior,
+      contrast = attr(data, "set_contrast_factor_predictors")
+    )
+  }
+
   # apply rescaling if specified
   default_prior_continuous <- .rescale_prior_object(default_prior_continuous, rescale_priors)
   default_prior_factor     <- .rescale_prior_object(default_prior_factor, rescale_priors)
@@ -825,6 +917,50 @@ estimate_unit_information_sd <- function(sei, ni) {
   )
 
   return(prior_list)
+}
+
+# Remove invalid fixed-effect heterogeneity components for scale regression.
+.remove_zero_scale_intercept_prior <- function(prior_intercept) {
+
+  is_zero_point <- function(prior) {
+    BayesTools::is.prior.point(prior) && mean(prior) == 0
+  }
+
+  if (!BayesTools::is.prior.mixture(prior_intercept)) {
+    if (is_zero_point(prior_intercept)) {
+      stop(
+        "At least one non-zero between-study heterogeneity prior must be defined for scale regression.",
+        call. = FALSE
+      )
+    }
+    return(prior_intercept)
+  }
+
+  keep <- !vapply(prior_intercept, is_zero_point, logical(1))
+
+  if (all(keep))
+    return(prior_intercept)
+
+  warning(
+    "Spike(0) prior distribution for between-study heterogeneity tau was removed since scale regression requires non-zero between-study heterogeneity.",
+    immediate. = TRUE
+  )
+
+  if (!any(keep)) {
+    stop(
+      "At least one non-zero between-study heterogeneity prior must be defined for scale regression.",
+      call. = FALSE
+    )
+  }
+
+  components <- attr(prior_intercept, "components")
+  prior_list <- prior_intercept[keep]
+  attributes(prior_list) <- NULL
+
+  return(BayesTools::prior_mixture(
+    prior_list = prior_list,
+    components = components[keep]
+  ))
 }
 ### assign mixture prior distributions
 .assign_prior.simple_mixture                   <- function(
@@ -895,6 +1031,10 @@ estimate_unit_information_sd <- function(sei, ni) {
     stop(gettextf("The 'prior_%1$s_null' must be either prior distribution or a list of prior distributions.", parameter), call. = FALSE)
   }
 
+  if (length(priors_null) + length(priors_alt) == 0) {
+    stop(gettextf("At least one prior distribution needs to be defined for '%1$s'.", parameter), call. = FALSE)
+  }
+
   ### specify the corresponding mixture prior
   prior <- BayesTools::prior_mixture(
     prior_list = c(priors_null, priors_alt),
@@ -902,6 +1042,47 @@ estimate_unit_information_sd <- function(sei, ni) {
   )
 
   return(prior)
+}
+.default_prior.bias_alt                         <- function(model_type, measure, data, prior_unit_information_sd) {
+
+  if (model_type == "2w") {
+    return(list(
+      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),       prior_weights = 1/2),
+      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)), prior_weights = 1/2)
+    ))
+  }
+
+  if (model_type == "6w") {
+    return(list(
+      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
+      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/6),
+      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
+      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/6),
+      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/6),
+      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/6)
+    ))
+  }
+
+  UISD_ratio <- .get_PEESE_UISD_ratio(
+    measure = measure, data = data, prior_unit_information_sd = prior_unit_information_sd)
+
+  if (model_type == "PP") {
+    return(list(
+      BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf), prior_weights = 1/2),
+      BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf), prior_weights = 1/2)
+    ))
+  }
+
+  return(list(
+    BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
+    BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
+    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
+    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
+    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
+    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
+    BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf), prior_weights = 1/4),
+    BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf), prior_weights = 1/4)
+  ))
 }
 .assign_prior.bias_mixture                     <- function(
     prior, prior_null, measure, data, prior_unit_information_sd, model_type) {
@@ -911,62 +1092,15 @@ estimate_unit_information_sd <- function(sei, ni) {
   # there is no scaling of the publication bias priors based on rescale_priors
   # (only PEESE prior is rescaled to the match the UISD of the measure)
 
-  ### PEESE prior is inversely related to the specified effect size
-  # for SMD we use Cauchy with scale 1
-  # for other effect sizes, we re-scale by the corresponding UISD
-  UISD_SMD <- .get_unit_information_sd(measure = "SMD")
-  if (missing(prior_unit_information_sd)) {
-    UISD_measure <- .get_unit_information_sd(data = data, measure = measure)
-  } else {
-    UISD_measure <- prior_unit_information_sd
-  }
-  UISD_ratio <- UISD_SMD / UISD_measure
-
   if (missing(prior) && missing(prior_null)) {
-
-    if (model_type == "2w") {
-      # prior based on Maier 2022 original RoBMA article
-      prior <- BayesTools::prior_mixture(list(
-        BayesTools::prior_none(prior_weights = 1),
-        BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/2),
-        BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/2)
-      ), is_null = c(TRUE, rep(FALSE, 2))
-      )
-    } else if (model_type == "6w") {
-      # subset of selection models used in Bartos 2022 extended RoBMA article
-      prior <- BayesTools::prior_mixture(list(
-        BayesTools::prior_none(prior_weights = 1),
-        BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
-        BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/6),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/6),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/6),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/6)
-      ), is_null = c(TRUE, rep(FALSE, 6))
-      )
-    } else if (model_type == "PP") {
-      # subset of PET-PEESE models used in Bartos 2022 extended RoBMA article
-      prior <- BayesTools::prior_mixture(list(
-        BayesTools::prior_none(prior_weights = 1),
-        BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf),   prior_weights = 1/2),
-        BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf),   prior_weights = 1/2)
-      ), is_null = c(TRUE, rep(FALSE, 2))
-      )
-    } else if (model_type == "PSMA") {
-      # all models used in Bartos 2022 extended RoBMA article
-      prior <- BayesTools::prior_mixture(list(
-        BayesTools::prior_none(prior_weights = 1),
-        BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-        BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
-        BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-        BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf),   prior_weights = 1/4),
-        BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf),   prior_weights = 1/4)
-      ), is_null = c(TRUE, rep(FALSE, 8))
-      )
-    }
+    priors_null <- list(BayesTools::prior_none(prior_weights = 1))
+    priors_alt  <- .default_prior.bias_alt(
+      model_type = model_type, measure = measure, data = data,
+      prior_unit_information_sd = prior_unit_information_sd)
+    prior <- BayesTools::prior_mixture(
+      prior_list = c(priors_null, priors_alt),
+      is_null    = c(TRUE, rep(FALSE, length(priors_alt)))
+    )
 
     return(prior)
   }
@@ -983,16 +1117,9 @@ estimate_unit_information_sd <- function(sei, ni) {
   # each of these prior distributions needs to satisfy the same properties as in brma
   # if only a single distribution is specified, place it in a list for a simpler treatment
   if (missing(prior)) {
-    priors_alt <- list(
-      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-      BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf),   prior_weights = 1/4),
-      BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf),   prior_weights = 1/4)
-    )
+    priors_alt <- .default_prior.bias_alt(
+      model_type = model_type, measure = measure, data = data,
+      prior_unit_information_sd = prior_unit_information_sd)
   } else if (is.null(prior) || isFALSE(prior)) {
     priors_alt <- list()
   } else if (BayesTools::is.prior(prior)) {
@@ -1035,6 +1162,10 @@ estimate_unit_information_sd <- function(sei, ni) {
     }
   } else {
     stop("The 'prior_bias_null' must be either prior distribution or a list of prior distributions.", call. = FALSE)
+  }
+
+  if (length(priors_null) + length(priors_alt) == 0) {
+    stop("At least one prior distribution needs to be defined for 'bias'.", call. = FALSE)
   }
 
   ### specify the corresponding mixture prior
@@ -1089,6 +1220,10 @@ estimate_unit_information_sd <- function(sei, ni) {
     stop("The 'prior_heterogeneity_allocation_null' must be either prior distribution or a list of prior distributions.", call. = FALSE)
   }
 
+  if (length(priors_null) + length(priors_alt) == 0) {
+    stop("At least one prior distribution needs to be defined for 'heterogeneity_allocation'.", call. = FALSE)
+  }
+
   ### specify the corresponding mixture prior
   prior <- BayesTools::prior_mixture(
     prior_list = c(priors_null, priors_alt),
@@ -1110,14 +1245,14 @@ estimate_unit_information_sd <- function(sei, ni) {
   # we want to allow NULL/FALSE to omit prior distribution for a given component, .assign_prior_list.terms
   # fills all missing prior distributions with default priors
   # as such, we store names of parameters that should be omited and remove them manually
-  if (!missing(prior_list) && length(prior_list) > 0 && is.list(prior_list)) {
+  if (!missing(prior_list) && !BayesTools::is.prior(prior_list) && length(prior_list) > 0 && is.list(prior_list)) {
     par_alt_omit <- names(prior_list)[sapply(prior_list, function(x) is.null(x) || isFALSE(x))]
     # filter out NULL/FALSE values before passing to .assign_prior_list.terms
     prior_list <- prior_list[!sapply(prior_list, function(x) is.null(x) || isFALSE(x))]
   } else {
     par_alt_omit <- NULL
   }
-  if (!missing(prior_list_null) && length(prior_list_null) > 0 && is.list(prior_list_null)) {
+  if (!missing(prior_list_null) && !BayesTools::is.prior(prior_list_null) && length(prior_list_null) > 0 && is.list(prior_list_null)) {
     par_null_omit <- names(prior_list_null)[sapply(prior_list_null, function(x) is.null(x) || isFALSE(x))]
     # filter out NULL/FALSE values before passing to .assign_prior_list.terms
     prior_list_null <- prior_list_null[!sapply(prior_list_null, function(x) is.null(x) || isFALSE(x))]
@@ -1129,13 +1264,8 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (parameter == "scale") {
     # in the case of scale moderation, spike at zero prior (i.e., fixed-effect model) is not possible since the intercept
     # is on a log scale
-    # go over the prior and remove any spike(0) priors & throw a warning
-    for (i in rev(seq_along(prior_intercept))) {
-      if (BayesTools::is.prior.point(prior_intercept[[i]]) && mean(prior_intercept[[i]]) == 0) {
-        prior_intercept[[i]] <- NULL
-        warning("Spike(0) prior distribution for between-study heterogeneity tau was removed since scale regression requires non-zero between-study heterogeneity.", immediate. = TRUE)
-      }
-    }
+    # remove spike(0) priors and rebuild mixture metadata
+    prior_intercept <- .remove_zero_scale_intercept_prior(prior_intercept)
   }
 
   prior_list_alt <- .assign_prior_list.terms(
@@ -1148,7 +1278,7 @@ estimate_unit_information_sd <- function(sei, ni) {
     prior_list = prior_list_null, prior_intercept = prior_intercept, parameter = parameter,
     measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-    rescale_priors = rescale_priors)
+    rescale_priors = rescale_priors, set_default_spike = TRUE)
 
   ### initiate the list of prior mixtures with the intercept
   prior_list <- list(intercept = prior_intercept)
@@ -1183,7 +1313,73 @@ estimate_unit_information_sd <- function(sei, ni) {
     )
   }
 
+  prior_list <- .repair_formula_prior_list(
+    prior_list = prior_list,
+    parameter  = switch(parameter, "mods" = "mu", "scale" = "log_tau")
+  )
+
   return(prior_list)
+}
+
+# Restore BayesTools formula metadata lost when formula prior mixtures are rebuilt.
+.repair_formula_prior_list <- function(prior_list, parameter) {
+
+  if (is.null(prior_list)) {
+    return(prior_list)
+  }
+
+  for (i in seq_along(prior_list)) {
+    prior_list[[i]] <- .repair_formula_prior(
+      prior    = prior_list[[i]],
+      parameter = parameter
+    )
+  }
+
+  return(prior_list)
+}
+.repair_formula_prior <- function(prior, parameter) {
+
+  attr(prior, "parameter") <- parameter
+
+  formula_attributes <- c(
+    "interaction", "interaction_terms", "levels", "level_names",
+    "term_components", "factor_terms", "factor_contrasts",
+    "factor_design", "factor_cell_names", "multiply_by"
+  )
+
+  if (.has_formula_prior_components(prior)) {
+    source_attributes <- NULL
+    for (i in seq_along(prior)) {
+      if (!is.null(attr(prior[[i]], "parameter"))) {
+        source_attributes <- attributes(prior[[i]])
+        break
+      }
+    }
+
+    if (!is.null(source_attributes)) {
+      for (attribute in formula_attributes) {
+        if (is.null(attr(prior, attribute)) && !is.null(source_attributes[[attribute]])) {
+          attr(prior, attribute) <- source_attributes[[attribute]]
+        }
+      }
+    }
+
+    for (i in seq_along(prior)) {
+      attr(prior[[i]], "parameter") <- parameter
+      for (attribute in formula_attributes) {
+        if (is.null(attr(prior[[i]], attribute)) && !is.null(attr(prior, attribute))) {
+          attr(prior[[i]], attribute) <- attr(prior, attribute)
+        }
+      }
+    }
+  }
+
+  return(prior)
+}
+.has_formula_prior_components <- function(prior) {
+
+  return(BayesTools::is.prior.mixture(prior) ||
+    BayesTools::is.prior.spike_and_slab(prior))
 }
 ### check specified prior distributions whether they follow basic requirements
 .check_prior.effect                   <- function(prior) {
@@ -1205,6 +1401,9 @@ estimate_unit_information_sd <- function(sei, ni) {
     stop("The 'prior_heterogeneity' argument must be a either a simple or point prior distribution.", call. = FALSE)
 
   # check range restriction
+  if (BayesTools::is.prior.point(prior) && mean(prior) < 0) {
+    stop("Point prior distribution for 'prior_heterogeneity' must be at least 0.", call. = FALSE)
+  }
   if (prior[["truncation"]][["lower"]] < 0) {
     warning("Lower truncation point for 'prior_heterogeneity' prior distribution must be at least 0. The prior distribution was modified.",
             immediate. = TRUE, call. = FALSE)
@@ -1222,6 +1421,9 @@ estimate_unit_information_sd <- function(sei, ni) {
     stop(sprintf("The '%s' argument must be a either a simple or point prior distribution.", prior_name), call. = FALSE)
 
   # check range restriction
+  if (BayesTools::is.prior.point(prior) && (mean(prior) < 0 || mean(prior) > 1)) {
+    stop(sprintf("Point prior distribution for '%s' must be within [0, 1].", prior_name), call. = FALSE)
+  }
   if (prior[["truncation"]][["lower"]] < 0) {
     warning(sprintf("Lower truncation point for '%s' prior distribution must be at least 0. The prior distribution was modified.", prior_name),
             immediate. = TRUE, call. = FALSE)
@@ -1368,7 +1570,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   # only for multilevel models
   if (.is_data_multilevel(data)) {
     prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation(prior = prior_heterogeneity_allocation)
-    # gamma is an auxiliary parameter for non-centered random-effects parameterization (for study-level)
+    # gamma is an auxiliary parameter for non-centered random-effects parameterization (cluster-level)
     prior_outcome[["gamma"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for glmm models of OR
@@ -1469,7 +1671,7 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (.is_data_multilevel(data)) {
     prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation_mixture(
       prior = prior_heterogeneity_allocation, prior_null = prior_heterogeneity_allocation_null)
-    # gamma is an auxiliary parameter for non-centered random-effects parameterization (for study-level)
+    # gamma is an auxiliary parameter for non-centered random-effects parameterization (cluster-level)
     prior_outcome[["gamma"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for glmm models of OR

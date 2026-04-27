@@ -32,7 +32,7 @@
 NoBMA <- function(
     # data specification
   d = NULL, r = NULL, logOR = NULL, OR = NULL, z = NULL, y = NULL,
-  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, study_ids = NULL,
+  se = NULL, v = NULL, n = NULL, lCI = NULL, uCI = NULL, t = NULL, study_names = NULL, cluster = NULL,
   data = NULL, weight = NULL,
   transformation   = if(is.null(y)) "fishers_z" else "none",
   prior_scale      = if(is.null(y)) "cohens_d"  else "none",
@@ -57,7 +57,7 @@ NoBMA <- function(
   object <- RoBMA(
     # data specification
     d = d, r = r, logOR = logOR, OR = OR, z = z, y = y,
-    se = se, v = v, n = n, lCI = lCI, uCI = uCI, t = t, study_names = study_names, study_ids = study_ids,
+    se = se, v = v, n = n, lCI = lCI, uCI = uCI, t = t, study_names = study_names, cluster = cluster,
     data = data,
     transformation   = transformation,
     prior_scale      = prior_scale,
@@ -108,7 +108,7 @@ NoBMA <- function(
 #' @seealso [RoBMA()], [RoBMA.reg()], [summary.RoBMA()], [update.RoBMA()], [check_setup()]
 #' @export
 NoBMA.reg <- function(
-    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, cluster = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -135,7 +135,7 @@ NoBMA.reg <- function(
     save = "all", seed = NULL, silent = TRUE, ...){
 
   object <- RoBMA.reg(
-    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, study_ids = study_ids,
+    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, cluster = cluster,
     transformation     = transformation,
     prior_scale        = prior_scale,
     standardize_predictors = standardize_predictors,

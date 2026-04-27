@@ -4,20 +4,23 @@
 \alias{logLik.brma}
 \title{Extract Log-Likelihood Matrix from brma Object}
 \usage{
-\method{logLik}{brma}(object, ...)
+\method{logLik}{brma}(object, unit = "estimate", ...)
 }
 \arguments{
 \item{object}{a brma model object.}
 
+\item{unit}{output unit. See \code{\link{add_loo}}.}
+
 \item{...}{currently unused.}
 }
 \value{
-An S x K matrix of log-likelihood values.
+An S x K or S x G matrix of log-likelihood values.
 }
 \description{
 Extract the pointwise log-likelihood matrix from a brma model
-object. This is an S x K matrix where S is the number of posterior samples
-and K is the number of observations. This method implements the S3
+object. This is an S x K or S x G matrix where S is the number of posterior
+samples, K is the number of estimates, and G is the number of clusters.
+This method implements the S3
 \'logLik\' generic for \code{brma} objects and returns the matrix of
 pointwise log-likelihoods (one column per observation, one row per sample).
 }

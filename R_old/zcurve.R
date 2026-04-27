@@ -996,7 +996,7 @@ print.zcurve_RoBMA <- function(x, ...){
 
   }else{
 
-    # required for study ids / crit_x values in selection models
+    # required for cluster ids / crit_x values in selection models
     fit_data <- .fit_data_ss(
       data             = newdata.outcome,
       priors           = priors,
@@ -1028,7 +1028,7 @@ print.zcurve_RoBMA <- function(x, ...){
       # incorporate within study heterogeneity into the predictor
       # either estimated for prediction on the same data or integrated over for new data
       for(i in seq_len(nrow(newdata.outcome))){
-        mu_samples[,i] <- mu_samples[,i] + gamma_samples[,fit_data$study_ids[i]] * tau_within_samples
+        mu_samples[,i] <- mu_samples[,i] + gamma_samples[,fit_data$cluster[i]] * tau_within_samples
       }
 
       # tau_between samples work as tau for the final sampling step

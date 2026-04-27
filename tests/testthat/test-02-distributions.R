@@ -3,6 +3,20 @@ skip_on_cran()
 
 # TODO: to be updated
 
+test_that(".rowLogSumExps handles all -Inf rows", {
+
+  x <- matrix(c(-Inf, -Inf, -1000, -1001), nrow = 2, byrow = TRUE)
+
+  expect_equal(.rowLogSumExps(x)[1], -Inf)
+  expect_equal(.rowLogSumExps(x)[2], -1000 + log1p(exp(-1)))
+})
+
+test_that(".subset_if_vector subsets vectors and keeps scalars", {
+
+  expect_equal(.subset_if_vector(1, c(TRUE, FALSE, TRUE)), 1)
+  expect_equal(.subset_if_vector(1:3, c(TRUE, FALSE, TRUE)), c(1L, 3L))
+})
+
 ### weighted normal distributions ----
 test_that("Input checks work", {
 
@@ -1077,6 +1091,340 @@ test_that(".dwnorm_fast.ss.matrix handles edge cases", {
 })
 
 
+test_that("mapped weighted-normal native paths match R reference", {
+
+  set.seed(909)
+  S <- 60
+  K <- 5
+  B <- 4
+  W <- 5
+
+  yi          <- rnorm(K, 0.1, 0.6)
+  mu_samples  <- matrix(rnorm(S * K, 0.2, 0.4), nrow = S, ncol = K)
+  tau_within  <- matrix(runif(S * K, 0.2, 1.0), nrow = S, ncol = K)
+  sei         <- rep(0, K)
+  omega       <- matrix(runif(S * W, 0.1, 1.0), nrow = S, ncol = W)
+  crit_yi     <- matrix(NA_real_, nrow = W - 1, ncol = K)
+  bias_indicator <- sample(seq_len(B), S, replace = TRUE)
+
+  for (k in seq_len(K)) {
+    crit_yi[, k] <- sort(runif(W - 1, -0.4, 1.6))
+  }
+
+  crit_yi_mapping <- matrix(0, nrow = W - 1, ncol = B)
+  crit_yi_mapping[seq_len(2), 2] <- c(1, 3)
+  crit_yi_mapping[seq_len(3), 3] <- c(1, 2, 4)
+  crit_yi_mapping[seq_len(4), 4] <- c(1, 2, 3, 4)
+  crit_yi_mapping_max <- c(0L, 2L, 3L, 4L)
+
+  ref_pdf       <- matrix(NA_real_, nrow = S, ncol = K)
+  ref_cdf       <- matrix(NA_real_, nrow = S, ncol = K)
+  ref_cdf_upper <- matrix(NA_real_, nrow = S, ncol = K)
+  ref_log_norm  <- matrix(NA_real_, nrow = S, ncol = K)
+  ref_mean      <- matrix(NA_real_, nrow = S, ncol = K)
+  ref_second    <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (k in seq_len(K)) {
+    ref_pdf[, k] <- .selection_branch_apply(
+      S                   = S,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      normal_fun = function(rows) {
+        stats::dnorm(yi[k], mean = mu_samples[rows, k],
+                     sd = tau_within[rows, k], log = TRUE)
+      },
+      weighted_fun = function(rows, map_idx) {
+        .dwnorm_fast.ss.matrix(
+          x      = yi[k],
+          mean   = mu_samples[rows, k],
+          sd     = tau_within[rows, k],
+          omega  = .selection_active_omega(omega, rows, map_idx),
+          crit_x = crit_yi[map_idx, k],
+          log    = TRUE
+        )
+      }
+    )
+
+    ref_cdf[, k] <- .selection_branch_apply(
+      S                   = S,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      normal_fun = function(rows) {
+        stats::pnorm(yi[k], mean = mu_samples[rows, k],
+                     sd = tau_within[rows, k])
+      },
+      weighted_fun = function(rows, map_idx) {
+        .pwnorm_fast.ss(
+          q      = rep(yi[k], length(rows)),
+          mean   = mu_samples[rows, k],
+          sd     = tau_within[rows, k],
+          omega  = .selection_active_omega(omega, rows, map_idx),
+          crit_x = crit_yi[map_idx, k]
+        )
+      }
+    )
+
+    ref_cdf_upper[, k] <- .selection_branch_apply(
+      S                   = S,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max,
+      normal_fun = function(rows) {
+        stats::pnorm(yi[k], mean = mu_samples[rows, k],
+                     sd = tau_within[rows, k], lower.tail = FALSE)
+      },
+      weighted_fun = function(rows, map_idx) {
+        .pwnorm_fast.ss(
+          q          = rep(yi[k], length(rows)),
+          mean       = mu_samples[rows, k],
+          sd         = tau_within[rows, k],
+          omega      = .selection_active_omega(omega, rows, map_idx),
+          crit_x     = crit_yi[map_idx, k],
+          lower.tail = FALSE
+        )
+      }
+    )
+
+    for (branch in sort(unique(bias_indicator))) {
+      rows        <- which(bias_indicator == branch)
+      mapping_max <- crit_yi_mapping_max[branch]
+
+      if (mapping_max == 0L) {
+        ref_mean[rows, k]   <- mu_samples[rows, k]
+        ref_second[rows, k] <- mu_samples[rows, k]^2 + tau_within[rows, k]^2
+        ref_log_norm[rows, k] <- 0
+      } else {
+        map_idx <- as.integer(crit_yi_mapping[seq_len(mapping_max), branch])
+        moments <- .wnorm_moments_fast.ss.matrix(
+          mean   = mu_samples[rows, k],
+          sd     = tau_within[rows, k],
+          omega  = .selection_active_omega(omega, rows, map_idx),
+          crit_x = crit_yi[map_idx, k]
+        )
+        ref_mean[rows, k]   <- moments[["mean"]]
+        ref_second[rows, k] <- moments[["second"]]
+
+        dens <- .dwnorm_fast.ss(
+          x               = rep(0, length(rows)),
+          mean            = mu_samples[rows, k],
+          sd              = tau_within[rows, k],
+          omega           = .selection_active_omega(omega, rows, map_idx),
+          crit_x          = crit_yi[map_idx, k],
+          log             = TRUE,
+          attach_constant = TRUE
+        )
+        ref_log_norm[rows, k] <- attr(dens, "constant")
+      }
+    }
+  }
+
+  new_pdf <- .outcome_pdf.wnorm(
+    yi                  = yi,
+    mu_samples          = mu_samples,
+    tau_within          = tau_within,
+    sei                 = sei,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  )
+
+  new_cdf <- .outcome_cdf.wnorm(
+    yi                  = yi,
+    mu_samples          = mu_samples,
+    tau_within          = tau_within,
+    sei                 = sei,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  )
+
+  new_cdf_upper <- .outcome_cdf.wnorm(
+    yi                  = yi,
+    mu_samples          = mu_samples,
+    tau_within          = tau_within,
+    sei                 = sei,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max,
+    lower.tail          = FALSE
+  )
+
+  new_moments <- .outcome_moments.wnorm(
+    mu_samples          = mu_samples,
+    tau_within          = tau_within,
+    sei                 = sei,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  )
+
+  new_log_cdf <- .wnorm_mix_cdf_matrix(
+    q                   = yi,
+    mean                = mu_samples,
+    sd                  = tau_within,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max,
+    log.p               = TRUE
+  )
+
+  new_log_norm <- .wnorm_mix_log_norm_matrix(
+    mean                = mu_samples,
+    sd                  = tau_within,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  )
+  new_pdf_precomp <- .wnorm_mix_logpdf_precomp_matrix(
+    yi                  = yi,
+    mean                = mu_samples,
+    sd                  = tau_within,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max,
+    log_norm            = new_log_norm
+  )
+  new_cdf_precomp <- .wnorm_mix_cdf_precomp_matrix(
+    q                   = yi,
+    mean                = mu_samples,
+    sd                  = tau_within,
+    omega               = omega,
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max,
+    log_norm            = new_log_norm
+  )
+
+  expect_equal(new_pdf, ref_pdf, tolerance = 1e-10)
+  expect_equal(new_cdf, ref_cdf, tolerance = 1e-10)
+  expect_equal(new_cdf_upper, ref_cdf_upper, tolerance = 1e-10)
+  expect_equal(new_moments[["mean"]], ref_mean, tolerance = 1e-10)
+  expect_equal(new_moments[["second"]], ref_second, tolerance = 1e-10)
+  expect_equal(new_log_cdf, log(ref_cdf), tolerance = 1e-10)
+  expect_equal(new_log_norm, ref_log_norm, tolerance = 1e-10)
+  expect_equal(new_pdf_precomp, ref_pdf, tolerance = 1e-10)
+  expect_equal(new_cdf_precomp, ref_cdf, tolerance = 1e-10)
+  expect_error(.wnorm_mix_log_norm_matrix(
+    mean                = mu_samples,
+    sd                  = tau_within,
+    omega               = omega[, -ncol(omega)],
+    crit_yi             = crit_yi,
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  ))
+})
+
+test_that("zcurve vectorized selection paths match scalar reference", {
+
+  set.seed(911)
+  S <- 10
+  K <- 4
+  W <- 4
+
+  mu_samples <- matrix(rnorm(S * K, 0.1, 0.4), nrow = S, ncol = K)
+  tau_within <- matrix(runif(S * K, 0.05, 0.5), nrow = S, ncol = K)
+  sei        <- runif(K, 0.1, 0.4)
+  omega      <- matrix(runif(S * W, 0.2, 1), nrow = S, ncol = W)
+  crit_yi    <- matrix(NA_real_, nrow = W - 1, ncol = K)
+
+  for (k in seq_len(K)) {
+    crit_yi[, k] <- sort(runif(W - 1, 0.05, 1.4))
+  }
+
+  bias_indicator <- c(1L, 2L, 3L, 2L, 1L, 3L, 2L, 3L, 1L, 2L)
+  crit_yi_mapping <- matrix(0L, nrow = 3, ncol = 3)
+  crit_yi_mapping[seq_len(2), 2] <- c(1L, 3L)
+  crit_yi_mapping[seq_len(3), 3] <- c(1L, 2L, 3L)
+  selection <- list(
+    fit_data = list(
+      crit_yi             = crit_yi,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = c(0L, 2L, 3L)
+    ),
+    omega          = omega,
+    use_normal     = bias_indicator == 1L,
+    bias_indicator = bias_indicator
+  )
+
+  threshold <- .zcurve_threshold_vectorized(
+    z_threshold      = 1.96,
+    mu_samples       = mu_samples,
+    tau_within       = tau_within,
+    sei              = sei,
+    selection        = selection,
+    extrapolate      = FALSE,
+    effect_direction = "positive"
+  )
+
+  threshold_ref <- rep(NA_real_, S)
+  weights_ref   <- rep(NA_real_, S)
+  for (j in seq_len(S)) {
+    temp_thresholds <- rep(NA_real_, K)
+    temp_weights    <- rep(NA_real_, K)
+    for (i in seq_len(K)) {
+      total_sd <- sqrt(tau_within[j, i]^2 + sei[i]^2)
+      if (selection[["use_normal"]][j]) {
+        temp_thresholds[i] <-
+          stats::pnorm(1.96 * sei[i], mu_samples[j, i], total_sd, lower.tail = FALSE) +
+          stats::pnorm(-1.96 * sei[i], mu_samples[j, i], total_sd, lower.tail = TRUE)
+        temp_weights[i] <- 1
+      } else {
+        selection_args <- .zcurve_selection_args(selection, j, i)
+        prob_upper <- .pwnorm_fast.ss(
+          q          = 1.96 * sei[i],
+          mean       = mu_samples[j, i],
+          sd         = total_sd,
+          omega      = selection_args[["omega"]],
+          crit_x     = selection_args[["crit_yi"]],
+          lower.tail = FALSE
+        )
+        prob_lower <- .pwnorm_fast.ss(
+          q          = -1.96 * sei[i],
+          mean       = mu_samples[j, i],
+          sd         = total_sd,
+          omega      = selection_args[["omega"]],
+          crit_x     = selection_args[["crit_yi"]],
+          lower.tail = TRUE
+        )
+        temp_const <- .dwnorm_fast.ss(
+          x               = 0,
+          mean            = mu_samples[j, i],
+          sd              = total_sd,
+          omega           = selection_args[["omega"]],
+          crit_x          = selection_args[["crit_yi"]],
+          attach_constant = TRUE
+        )
+        temp_thresholds[i] <- prob_upper + prob_lower
+        temp_weights[i]    <- 1 / attr(temp_const, "constant")
+      }
+    }
+    threshold_ref[j] <- stats::weighted.mean(temp_thresholds, temp_weights)
+    weights_ref[j]   <- mean(temp_weights)
+  }
+
+  expect_equal(threshold[["EDR"]], threshold_ref, tolerance = 1e-10)
+  expect_equal(threshold[["weights"]], weights_ref, tolerance = 1e-10)
+})
+
+
 ### use_normal fast-path tests ----
 # These tests verify that the use_normal parameter provides correct results
 # by subdispatching to normal path for samples with omega = all 1s
@@ -1186,6 +1534,114 @@ test_that(".pwnorm_fast.ss with use_normal produces correct results", {
   # last 50 should match full computation
   expect_equal(result_subdispatch[51:100], result_full[51:100], tolerance = 1e-10,
                info = "use_normal=FALSE samples should match full weighted computation")
+})
+
+
+test_that(".wnorm_moments_fast.ss.matrix returns normal moments for uniform weights", {
+
+  set.seed(212)
+  S <- 50
+  mean_vals <- rnorm(S, 0.2, 0.3)
+  sd_vals   <- runif(S, 0.1, 0.4)
+  omega     <- matrix(1, nrow = S, ncol = 3)
+  crit_x    <- c(0.5, 1.0)
+
+  moments <- RoBMA:::.wnorm_moments_fast.ss.matrix(
+    mean   = mean_vals,
+    sd     = sd_vals,
+    omega  = omega,
+    crit_x = crit_x
+  )
+
+  expect_equal(moments[["mean"]], mean_vals, tolerance = 1e-10)
+  expect_equal(moments[["second"]], mean_vals^2 + sd_vals^2, tolerance = 1e-10)
+})
+
+
+test_that(".wnorm_moments_fast.ss.matrix matches weighted density integrals", {
+
+  mean_val <- 0.2
+  sd_val   <- 0.9
+  omega    <- matrix(c(0.25, 0.7, 1), nrow = 1)
+  crit_x   <- c(-0.1, 0.8)
+
+  moments <- RoBMA:::.wnorm_moments_fast.ss.matrix(
+    mean   = mean_val,
+    sd     = sd_val,
+    omega  = omega,
+    crit_x = crit_x
+  )
+
+  density_fun <- function(x) {
+    vapply(
+      x,
+      function(xx) {
+        RoBMA:::.dwnorm_fast.ss(
+          x      = xx,
+          mean   = mean_val,
+          sd     = sd_val,
+          omega  = omega,
+          crit_x = crit_x,
+          log    = FALSE
+        )
+      },
+      numeric(1)
+    )
+  }
+
+  expected_mean <- stats::integrate(
+    f          = function(x) x * density_fun(x),
+    lower      = -Inf,
+    upper      = Inf,
+    rel.tol    = 1e-10,
+    subdivisions = 200L
+  )[["value"]]
+
+  expected_second <- stats::integrate(
+    f          = function(x) x^2 * density_fun(x),
+    lower      = -Inf,
+    upper      = Inf,
+    rel.tol    = 1e-10,
+    subdivisions = 200L
+  )[["value"]]
+
+  expect_equal(moments[["mean"]], expected_mean, tolerance = 1e-8)
+  expect_equal(moments[["second"]], expected_second, tolerance = 1e-8)
+})
+
+
+test_that(".wnorm_moments_fast.ss.matrix with use_normal subdispatch is correct", {
+
+  set.seed(213)
+  S <- 100
+  mean_vals <- rnorm(S, 0.2, 0.1)
+  sd_vals   <- runif(S, 0.1, 0.3)
+  omega <- rbind(
+    matrix(1, nrow = 50, ncol = 3),
+    matrix(c(0.3, 0.6, 1), nrow = 50, ncol = 3, byrow = TRUE)
+  )
+  crit_x     <- c(0.5, 1.0)
+  use_normal <- c(rep(TRUE, 50), rep(FALSE, 50))
+
+  result_subdispatch <- RoBMA:::.wnorm_moments_fast.ss.matrix(
+    mean       = mean_vals,
+    sd         = sd_vals,
+    omega      = omega,
+    crit_x     = crit_x,
+    use_normal = use_normal
+  )
+
+  result_full <- RoBMA:::.wnorm_moments_fast.ss.matrix(
+    mean   = mean_vals,
+    sd     = sd_vals,
+    omega  = omega,
+    crit_x = crit_x
+  )
+
+  expect_equal(result_subdispatch[["mean"]][1:50], mean_vals[1:50], tolerance = 1e-10)
+  expect_equal(result_subdispatch[["second"]][1:50], mean_vals[1:50]^2 + sd_vals[1:50]^2, tolerance = 1e-10)
+  expect_equal(result_subdispatch[["mean"]][51:100], result_full[["mean"]][51:100], tolerance = 1e-10)
+  expect_equal(result_subdispatch[["second"]][51:100], result_full[["second"]][51:100], tolerance = 1e-10)
 })
 
 

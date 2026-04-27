@@ -5,6 +5,7 @@
 ^do-not-share$
 ^models$
 ^tests/results$
+^tests/testthat/test_files$
 ^tests/testthat/_snaps$
 tests/testthat/test-01-load.R
 tests/testthat/test-02-distributions.R

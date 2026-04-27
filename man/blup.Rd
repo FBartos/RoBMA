@@ -13,10 +13,10 @@ blup(object, ...)
 }
 \value{
 Method-specific return value, typically a summary table or
-posterior samples of the true study effects.
+posterior samples of the true effects.
 }
 \description{
-Computes the estimated true study effects (theta) from a
+Computes the estimated true effects (theta) from a
 fitted model. These correspond to Best Linear Unbiased Predictions (BLUPs)
 or empirical Bayes estimates.
 }

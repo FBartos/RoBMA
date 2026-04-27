@@ -28,7 +28,9 @@ ensembles. One of:
 \item \code{"2w"}: Two weight function models
 \item \code{"PP"}: PET-PEESE models only
 }
-Custom \code{prior_bias} and \code{prior_bias_null} override this setting.}
+Custom \code{prior_bias} replaces the preset alternative bias components. If
+\code{prior_bias} is omitted, \code{model_type} determines the default alternatives even
+when \code{prior_bias_null} is customized or omitted.}
 }
 \description{
 The \code{\link{RoBMA}} function extends the prior specification described in
@@ -102,19 +104,24 @@ inference about which specific prior specification is most supported by the data
 
 \subsection{Omitting hypothesis components}{
 
-Setting a prior argument to \code{NULL} or \code{FALSE} removes that hypothesis component:
+For top-level mixture components, setting a prior argument to \code{NULL} or \code{FALSE}
+removes that hypothesis component:
 \itemize{
 \item \code{prior_effect_null = NULL}: No null hypothesis for effect (assumes effect exists)
 \item \code{prior_effect = NULL}: No alternative hypothesis (assumes no effect)
 \item \code{prior_bias_null = NULL}: No "no bias" model (assumes some bias mechanism)
 \item \code{prior_bias = NULL}: No bias model (assumes no bias mechanism)
 }
+For moderator and scale regression terms, an omitted or whole-argument \code{NULL}
+\code{prior_mods} / \code{prior_scale} means "use defaults". To omit a component for a
+specific term, use a named list entry such as \code{prior_mods_null = list(x1 = NULL)}.
 }
 
 \subsection{Parameter-specific customization for moderators}{
 
 For moderator priors (\code{prior_mods}, \code{prior_mods_null}), you can specify different
-priors for different predictors using named lists:
+priors for different predictors using named lists. A single prior object applies
+to all moderator terms:
 \preformatted{
 RoBMA(...,
   mods = ~ x1 + x2,
@@ -161,12 +168,14 @@ RoBMA(..., model_type = "PP")    # Only PET-PEESE models
 
 \subsection{Heterogeneity allocation (\eqn{\rho}) for multilevel models}{
 
-When \code{study_ids} is specified, \eqn{\rho} controls the within-study vs. between-study
-variance allocation. By default, only an alternative (Beta(1,1)) is specified,
-but null hypotheses can be added:
+When \code{cluster} is specified, \eqn{\rho} controls the cluster-level variance
+allocation. The decomposition is
+\eqn{\tau_{between} = \tau\sqrt{\rho}} and
+\eqn{\tau_{within} = \tau\sqrt{1 - \rho}}. By default, only an alternative
+(Beta(1,1)) is specified, but null hypotheses can be added:
 \preformatted{
 RoBMA(...,
-  study_ids = study,
+  cluster = study,
   prior_heterogeneity_allocation_null = prior("spike", list(location = 0.5))
 )
 }
@@ -223,7 +232,7 @@ fit4 <- RoBMA(yi = effect, sei = se, data = dat,
 )
 
 # Multilevel model with custom rho prior
-fit5 <- RoBMA(yi = effect, sei = se, study_ids = study, data = dat,
+fit5 <- RoBMA(yi = effect, sei = se, cluster = study, data = dat,
   prior_heterogeneity_allocation = prior("beta", list(alpha = 2, beta = 2)),
   prior_heterogeneity_allocation_null = prior("spike", list(location = 0.5))
 )

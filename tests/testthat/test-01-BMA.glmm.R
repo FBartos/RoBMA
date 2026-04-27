@@ -15,6 +15,7 @@ test_that("BMA.glmm fits binomial model (OR)", {
     data = dat.bcg, measure = "OR",
     seed = 1, silent = TRUE
   )
+  fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm", fit)
 
   # check that the model fits and has the expected class
@@ -44,6 +45,7 @@ test_that("BMA.glmm handles custom priors", {
     prior_heterogeneity_null = NULL,  # no null hypothesis for heterogeneity
     seed = 1, silent = TRUE
   )
+  fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm_custom", fit)
 
   # check that custom priors are applied
@@ -54,5 +56,27 @@ test_that("BMA.glmm handles custom priors", {
   expect_equal(length(fit$priors$outcome$tau), 1)
 })
 
-# TODO: add single group models
+test_that("BMA.glmm handles 3lvl location-scale meta-regression", {
+  data(dat.bcg, package = "metadat")
+
+  fit <- BMA.glmm(
+    ai = tpos, bi = tneg, ci = cpos, di = cneg,
+    mods = ~ year, scale = ~ year, cluster = alloc,
+    data = dat.bcg, measure = "OR",
+    prior_effect = prior("normal", list(mean = 0, sd = 1)),
+    prior_effect_null = prior("spike", list(location = 0)),
+    prior_heterogeneity = prior("normal", list(mean = 0, sd = 0.5), truncation = list(lower = 0)),
+    prior_heterogeneity_null = NULL,  # no null hypothesis for heterogeneity
+    seed = 1, silent = TRUE
+  )
+  fit <- suppressWarnings(add_loo(fit))
+  save_fit("bcg_BMA.glmm_3lvl_location_scale", fit, info = list(mods = "year", scale = "year"))
+
+  # tau mixture should only have alternative (no null)
+  expect_equal(length(fit$priors$outcome$rho), 1)
+  expect_equal(length(fit$priors$mods), 2)
+  expect_equal(length(fit$priors$scale), 2)
+})
+
+
 # TODO: add single group models

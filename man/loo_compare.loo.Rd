@@ -4,12 +4,14 @@
 \alias{loo_compare.loo}
 \title{Compare loo Objects Using LOO}
 \usage{
-\method{loo_compare}{loo}(x, ...)
+\method{loo_compare}{loo}(x, ..., unit = "estimate")
 }
 \arguments{
 \item{x}{a loo object (the first model to compare).}
 
 \item{...}{additional loo or brma objects to compare.}
+
+\item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
 A matrix of class \code{"compare.loo"} as returned by

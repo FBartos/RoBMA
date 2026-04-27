@@ -41,6 +41,11 @@
 #'     types. Note: This requires that the loo has been computed previously (see
 #'     [add_loo()] function).
 #' }
+#' @param unit output unit. Only \code{"estimate"} is implemented currently..
+#' @param conditioning_depth conditioning depth for non-LOO residuals. \code{"marginal"}
+#' uses fixed effects only, \code{"cluster"} conditions on cluster-level random
+#' effects, and \code{"estimate"} conditions on the full estimate-level fitted
+#' value. LOO-PIT residuals always use the estimate-unit LOO target.
 #' @param bias_adjusted whether residuals should be computed from bias-adjusted
 #' fitted values. Defaults to \code{FALSE}, which means residuals are computed
 #' as the difference between observed values and raw (biased) predictions
@@ -59,7 +64,7 @@
 #' marginal standard error:
 #' \deqn{r_i^{Pearson} = \frac{e_i}{\sqrt{v_i + \tau^2}}}
 #' where \eqn{v_i} is the sampling variance and \eqn{\tau^2} is the
-#' between-study heterogeneity. Only available for normal outcome models
+#' relevant heterogeneity component. Only available for normal outcome models
 #' without selection (weightfunction) bias adjustment.
 #'
 #' Standardized residuals (\code{type = "rstandard"}) use the hat matrix to
@@ -77,12 +82,12 @@
 #' \deqn{r_i = \Phi^{-1}(u_i)}
 #' where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
 #' value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
-#' cumulative distribution function of the marginal distribution. Under a
-#' correctly specified model, LOO-PIT residuals should follow a standard
-#' normal distribution. Unlike traditional standardized residuals, LOO-PIT
-#' residuals properly account for estimation uncertainty and leverage without
-#' requiring a hat matrix. This is the recommended method for standardized
-#' residuals in Bayesian meta-analysis.
+#' cumulative distribution function of the estimate-unit predictive
+#' distribution used by LOO. Under a correctly specified model, LOO-PIT
+#' residuals should follow a standard normal distribution. Unlike traditional
+#' standardized residuals, LOO-PIT residuals properly account for estimation
+#' uncertainty and leverage without requiring a hat matrix. This is the
+#' recommended method for standardized residuals in Bayesian meta-analysis.
 #'
 #' For meta-regression models, fitted values incorporate moderator effects.
 #' For models without moderators, all fitted values equal the pooled effect.
@@ -95,7 +100,7 @@
 #' The residuals are computed separately for each posterior sample,
 #' naturally propagating uncertainty in model parameters to the residuals.
 #'
-#' @return A numeric vector of residual means, one per observation.
+#' @return A numeric vector of residual means, one per estimate.
 #'
 #' @examples \dontrun{
 #' # fit a brma model
@@ -127,11 +132,38 @@
 #'
 #' @seealso [predict.brma()], [blup.brma()], [pooled_effect()], [rstandard.brma()], [rstudent.brma()]
 #' @exportS3Method
-residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...) {
+residuals.brma <- function(object, type = "outcome", unit = "estimate",
+                           conditioning_depth = "marginal",
+                           bias_adjusted = FALSE, ...) {
 
   # input validation
+  dots                         <- list(...)
+  conditioning_depth_specified <- !missing(conditioning_depth)
+  .check_legacy_level_arg(dots, "residuals()")
+
   BayesTools::check_char(type, "type", allow_values = c("outcome", "pearson", "rstandard", "rstudent", "LOO-PIT"))
+  unit                         <- .normalize_unit(unit)
+  conditioning_depth           <- .normalize_conditioning_depth(conditioning_depth)
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+
+  if (is.element(type, c("LOO-PIT", "rstudent")) && conditioning_depth_specified) {
+    stop(
+      "LOO-PIT residuals use the estimate-unit LOO target; ",
+      "do not set 'conditioning_depth'.",
+      call. = FALSE
+    )
+  }
+
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "residuals()"
+  )
+
+  if (unit == "cluster") {
+    .check_cluster_unit_deferred("residuals()")
+  }
 
   # extract model characteristics for error checking
   outcome_type      <- .outcome_type(object)
@@ -140,62 +172,122 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
   # check for unsupported type/model combinations
   .check_residual_type_availability(type, outcome_type, is_weightfunction)
 
-  # dispatch to LOO-PIT method (separate path due to different computation)
-  if (is.element(type, c("LOO-PIT", "rstudent"))) {
-    out <- .standardized_residuals_loopit(object)
-  } else {
-    # get fitted values (mu predictions for each observation)
-    # type = "terms" gives fixed effects predictions estimate-level random effects
-    fitted_samples <- predict.brma(
-      object        = object,
-      newdata       = NULL,
-      type          = "terms",
-      bias_adjusted = bias_adjusted,
-      quiet         = TRUE
-    )
-
-    # get observed effect sizes
-    yi <- .outcome_data_yi(object)
-    K  <- length(yi)
-
-    # compute raw residuals: yi - fitted
-    # fitted_samples is S x K matrix, yi is vector of length K
-    # replicate yi across samples for vectorized subtraction
-    S <- nrow(fitted_samples)
-    yi_mat        <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
-    resid_samples <- yi_mat - fitted_samples
-
-    # standardize residuals if requested
-    if (type == "pearson" || type == "rstandard") {
-
-      if (type == "rstandard") {
-        # use hat matrix SE
-        hat_res       <- .compute_hat_matrix_samples(object, type = "marginal", return_se = TRUE)
-        se_samples    <- hat_res[["se"]]
-        resid_samples <- resid_samples / se_samples
-      } else if (type == "pearson") {
-        # use marginal SE without hat matrix
-        # SE = sqrt(vi + tau_total^2)
-        vi <- .outcome_data_vi(object)
-        tau_samples <- predict.brma(
-          object     = object,
-          newdata    = NULL,
-          type       = "terms.scale",
-          quiet      = TRUE
-        )
-        vi_mat        <- matrix(vi, nrow = S, ncol = K, byrow = TRUE)
-        se_samples    <- sqrt(vi_mat + tau_samples^2)
-        resid_samples <- resid_samples / se_samples
-      }
-    }
-
-    # compute posterior mean residuals
-    out <- colMeans(resid_samples)
-  }
+  out <- .residuals_estimate.brma(
+    object             = object,
+    type               = type,
+    conditioning_depth = conditioning_depth,
+    bias_adjusted      = bias_adjusted
+  )
 
   # clean names
-  names(out) <- NULL
+  if (!is.data.frame(out)) {
+    names(out) <- NULL
+  }
   return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .residuals_estimate.brma
+# ---------------------------------------------------------------------------- #
+#
+# Estimate-unit residuals, one value per effect-size estimate.
+#
+# @param object        brma object.
+# @param type          character; residual type.
+# @param conditioning_depth character; conditioning depth.
+# @param bias_adjusted      logical; whether PET/PEESE bias adjustments are removed.
+#
+# @return numeric vector of residuals or standardized residuals.
+#
+# ---------------------------------------------------------------------------- #
+.residuals_estimate.brma <- function(object, type, conditioning_depth,
+                                     bias_adjusted) {
+
+  if (is.element(type, c("LOO-PIT", "rstudent"))) {
+    return(.standardized_residuals_loopit(object))
+  }
+
+  if (type == "rstandard") {
+    return(rstandard.brma(
+      model              = object,
+      unit               = "estimate",
+      conditioning_depth = conditioning_depth
+    )[["z"]])
+  }
+
+  pred_type <- switch(conditioning_depth,
+    "marginal" = "terms",
+    "cluster"  = "cluster",
+    "estimate" = "estimate"
+  )
+
+  fitted_samples <- predict.brma(
+    object        = object,
+    newdata       = NULL,
+    type          = pred_type,
+    bias_adjusted = bias_adjusted,
+    quiet         = TRUE
+  )
+
+  yi <- .outcome_data_yi(object)
+  K  <- length(yi)
+  S  <- nrow(fitted_samples)
+
+  yi_mat        <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
+  resid_samples <- yi_mat - fitted_samples
+
+  if (type == "pearson") {
+    se_samples    <- .pearson_residual_se_samples(
+      object             = object,
+      conditioning_depth = conditioning_depth
+    )
+    resid_samples <- resid_samples / se_samples
+  }
+
+  return(colMeans(resid_samples))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .pearson_residual_se_samples
+# ---------------------------------------------------------------------------- #
+#
+# Compute posterior samples of Pearson residual standard errors.
+#
+# @param object brma object.
+# @param conditioning_depth character; conditioning depth.
+#
+# @return S x K matrix of standard errors.
+#
+# ---------------------------------------------------------------------------- #
+.pearson_residual_se_samples <- function(object, conditioning_depth) {
+
+  is_multilevel <- .is_multilevel(object)
+  is_scale      <- .is_scale(object)
+  priors        <- object[["priors"]]
+  vi            <- .outcome_data_vi(object)
+  K             <- length(vi)
+
+  tau_result <- .evaluate.brma.tau(
+    fit           = object[["fit"]],
+    scale_data    = object[["data"]][["scale"]],
+    scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
+    scale_priors  = priors[["scale"]],
+    is_scale      = is_scale,
+    is_multilevel = is_multilevel,
+    K             = K
+  )
+
+  tau_samples <- switch(conditioning_depth,
+    "marginal" = tau_result[["tau_total"]],
+    "cluster"  = tau_result[["tau_within"]],
+    "estimate" = matrix(0, nrow = nrow(tau_result[["tau_total"]]), ncol = K)
+  )
+
+  vi_mat <- matrix(vi, nrow = nrow(tau_samples), ncol = K, byrow = TRUE)
+
+  return(sqrt(vi_mat + tau_samples^2))
 }
 
 
@@ -206,16 +298,17 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
 #' standard errors, and standardized residuals (z-values). Available for normal
 #' outcome models only.
 #'
-#' @param model a fitted brma object
-#' @param type the type of residuals to compute. Options are:
+#' @param model a fitted brma object.
+#' @param unit output unit. Only \code{"estimate"} is implemented currently.
+#' @param conditioning_depth conditioning depth. Options are:
 #' \itemize{
 #'   \item \code{"marginal"} (default): Residuals from fixed effects predictions
 #'     (observed - Xβ).
-#'   \item \code{"study"}: Residuals from study-level predictions (observed -
+#'   \item \code{"cluster"}: Residuals from cluster-level predictions (observed -
 #'     (Xβ + gamma)). Only available for multilevel (3-level) models.
-#'   \item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs,
+#'   \item \code{"estimate"}: Residuals from BLUPs,
 #'     i.e., deviations of the observed effect sizes from the best linear
-#'     unbiased predictions of the study-specific true effects (observed - theta).
+#'     unbiased predictions of the estimate-specific true effects (observed - theta).
 #' }
 #' @param ... additional arguments (currently ignored)
 #'
@@ -243,7 +336,6 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
 #'   \item \code{se}: Standard errors of the residuals
 #'   \item \code{z}: Standardized residuals
 #' }
-#'
 #' @examples \dontrun{
 #' # fit a brma model
 #' fit <- brma(yi ~ 1, sei = sei, data = dat)
@@ -252,23 +344,33 @@ residuals.brma <- function(object, type = "outcome", bias_adjusted = FALSE, ...)
 #' rstandard(fit)
 #'
 #' # get estimate-level (BLUP-based) residuals
-#' rstandard(fit, type = "estimate")
+#' rstandard(fit, conditioning_depth = "estimate")
 #' }
 #'
 #' @seealso [rstudent.brma()], [residuals.brma()], [blup.brma()], [predict.brma()]
 #' @exportS3Method
-rstandard.brma <- function(model, type = "marginal", ...) {
+rstandard.brma <- function(model, unit = "estimate",
+                           conditioning_depth = "marginal", ...) {
 
-  # normalize type alias
-  type <- match.arg(type, c("marginal", "study", "estimate", "conditional"))
-  if (type == "conditional") {
-    type <- "estimate"
+  dots <- list(...)
+  .check_legacy_level_arg(dots, "rstandard()")
+
+  unit               <- .normalize_unit(unit)
+  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+  .check_unit_conditioning_depth(
+    object             = model,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "rstandard()"
+  )
+
+  if (unit == "cluster") {
+    .check_cluster_unit_deferred("rstandard()")
   }
 
   # check model type availability
-  outcome_type <- .outcome_type(model)
+  outcome_type      <- .outcome_type(model)
   is_weightfunction <- .is_weightfunction(model)
-  is_multilevel <- .is_multilevel(model)
 
   if (outcome_type != "norm") {
     stop(
@@ -284,56 +386,20 @@ rstandard.brma <- function(model, type = "marginal", ...) {
       call. = FALSE
     )
   }
-  if (type == "study" && !is_multilevel) {
-    stop(
-      "type = 'study' is only available for multilevel (3-level) models.",
-      call. = FALSE
-    )
-  }
-
-  # get observed effect sizes
-  yi <- .outcome_data_yi(model)
-  K  <- length(yi)
-
-  # map type to predict.brma type
-  pred_type <- switch(type,
-    "marginal" = "terms",
-    "study"    = "study",
-    "estimate" = "estimate"
-  )
-
-  # get fitted values via predict.brma
-  fitted_samples <- predict.brma(
-    object  = model,
-    newdata = NULL,
-    type    = pred_type,
-    quiet   = TRUE
-  )
-
-  # compute raw residuals: yi - fitted
-  S <- nrow(fitted_samples)
-  yi_mat <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
-  resid_samples <- yi_mat - fitted_samples
-
-  # compute standard errors using hat matrix helper
+  # compute residuals and standard errors using the same GLS projection
   hat_res <- .compute_hat_matrix_samples(
-    object    = model,
-    type      = type,
-    return_se = TRUE
+    object             = model,
+    conditioning_depth = conditioning_depth,
+    return_se          = TRUE,
+    return_resid       = TRUE,
+    summarize          = TRUE
   )
-  se_samples <- hat_res[["se"]]
-
-  # compute standardized residuals
-  z_samples <- resid_samples / se_samples
-
-  resid <- colMeans(resid_samples)
-  se    <- colMeans(se_samples)
 
   # construct output data frame matching metafor::rstandard format
   out <- data.frame(
-    resid = resid,
-    se    = se,
-    z     = colMeans(z_samples)
+    resid = hat_res[["resid"]],
+    se    = hat_res[["se"]],
+    z     = hat_res[["z"]]
   )
   rownames(out) <- NULL
 
@@ -349,26 +415,19 @@ rstandard.brma <- function(model, type = "marginal", ...) {
 #' Returns a data frame with raw residuals, standard errors, and standardized
 #' residuals (z-values).
 #'
-#' @param model a fitted brma object
-#' @param type the type of residuals to compute. Options are:
-#' \itemize{
-#'   \item \code{"marginal"} (default): Residuals from marginal (fixed effects)
-#'     predictions (observed - Xβ).
-#'   \item \code{"study"}: Residuals from study-level predictions (observed -
-#'     (Xβ + gamma)). Only available for multilevel (3-level) models.
-#'   \item \code{"estimate"} (alias: \code{"conditional"}): Residuals from BLUPs
-#'     (observed - theta). Note that these residuals are conceptually
-#'     questionable since it would be impossible to retain the true study effect
-#'     had the study been ommited.
-#' }
+#' @param model a fitted brma object.
+#' @param unit output unit. Only \code{"estimate"} is available for LOO-PIT
+#' residuals.
+#' @param conditioning_depth unused for LOO-PIT residuals. LOO-PIT residuals
+#' always use the estimate-unit LOO target.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
 #' This function returns a data frame with three columns matching the output
 #' of \code{metafor::rstudent}:
 #' \itemize{
-#'   \item \code{resid}: Raw residuals (observed - fitted values)
-#'   \item \code{se}: Standard errors of the residuals (back-computed from z)
+#'   \item \code{resid}: LOO predictive residuals (observed - fitted values)
+#'   \item \code{se}: LOO predictive standard errors when available
 #'   \item \code{z}: Externally standardized residuals (LOO-PIT transformed)
 #' }
 #'
@@ -381,6 +440,13 @@ rstandard.brma <- function(model, type = "marginal", ...) {
 #' Under a correctly specified model, LOO-PIT residuals should follow a
 #' standard normal distribution. Large absolute values may indicate outliers
 #' or model misspecification.
+#'
+#' The \code{z} column is the primary standardized diagnostic. The \code{resid}
+#' and \code{se} columns are raw-scale companions computed from LOO predictive
+#' moments using the normalized PSIS weights. For selection models, these moments
+#' are computed from the fitted weighted-normal predictive distribution. For
+#' GLMMs, they are computed on the approximate effect-size scale used by the
+#' LOO-PIT diagnostic.
 #'
 #' Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 #' residuals properly account for estimation uncertainty and leverage without
@@ -399,11 +465,8 @@ rstandard.brma <- function(model, type = "marginal", ...) {
 #' fit <- brma(yi ~ 1, sei = sei, data = dat)
 #' fit <- add_loo(fit)
 #'
-#' # get marginal externally standardized residuals (default)
+#' # get externally standardized residuals
 #' rstudent(fit)
-#'
-#' # get estimate-level (BLUP-based) residuals
-#' rstudent(fit, type = "estimate")
 #'
 #' # check LOO diagnostics
 #' loo_obj <- loo(fit)
@@ -412,58 +475,66 @@ rstandard.brma <- function(model, type = "marginal", ...) {
 #'
 #' @seealso [rstandard.brma()], [residuals.brma()], [loo.brma()], [blup.brma()]
 #' @exportS3Method
-rstudent.brma <- function(model, type = "marginal", ...) {
-  # normalize type alias
-  type <- match.arg(type, c("marginal", "study", "estimate", "conditional"))
-  if (type == "conditional") type <- "estimate"
+rstudent.brma <- function(model, unit = "estimate",
+                          conditioning_depth = "marginal", ...) {
 
-  # check model type availability
-  is_multilevel <- .is_multilevel(model)
+  dots                         <- list(...)
+  conditioning_depth_specified <- !missing(conditioning_depth)
+  .check_legacy_level_arg(dots, "rstudent()")
 
-  # study type requires multilevel model
-  if (type == "study" && !is_multilevel) {
-    stop("type = 'study' is only available for multilevel (3-level) models.", call. = FALSE)
+  unit <- .normalize_unit(unit)
+
+  if (unit == "cluster") {
+    stop(
+      "Cluster-unit rstudent residuals are not available because multivariate ",
+      "LOO-PIT residuals are not unique. Use unit = 'estimate'.",
+      call. = FALSE
+    )
   }
 
-  # get observed effect sizes
-  yi <- .outcome_data_yi(model)
-  K  <- length(yi)
+  if (conditioning_depth_specified) {
+    stop(
+      "LOO-PIT residuals use the estimate-unit LOO target; ",
+      "do not set 'conditioning_depth'.",
+      call. = FALSE
+    )
+  }
 
-  # map type to predict.brma type
-  pred_type <- switch(type,
-    "marginal" = "terms",
-    "study"    = "study",
-    "estimate" = "estimate"
+  .check_unit_conditioning_depth(
+    object             = model,
+    unit               = unit,
+    conditioning_depth = "estimate",
+    caller             = "rstudent()"
   )
 
-  # get fitted values via predict.brma
-  fitted_samples <- predict.brma(
-    object  = model,
-    newdata = NULL,
-    type    = pred_type,
-    quiet   = TRUE
+  setup <- .estimate_likelihood_setup.brma(model)
+
+  # extract PSIS object once and reuse it for PIT and LOO expectations
+  loo_result   <- loo.brma(model, unit = "estimate")
+  psis_object  <- loo_result[["psis_object"]]
+  psis_weights <- loo::weights.importance_sampling(
+    psis_object,
+    log       = FALSE,
+    normalize = TRUE
   )
 
-  # compute raw residuals: yi - fitted
-  S <- nrow(fitted_samples)
-  yi_mat <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
-  resid_samples <- yi_mat - fitted_samples
+  # get LOO-PIT z values using the estimate-unit LOO target
+  check_loo(model, unit = "estimate")
+  z <- .standardized_residuals_loopit(
+    object       = model,
+    psis_weights = psis_weights,
+    check        = FALSE
+  )
 
-  # extract PSIS object and get normalized weights
-  # (PSIS warning is done within .standardized_residuals_loopit)
-  psis_weights <- loo_weights(model)
+  moments <- .loo_predictive_moments_estimate(
+    object       = model,
+    setup        = setup,
+    psis_object  = psis_object,
+    psis_weights = psis_weights
+  )
 
-  # compute LOO-weighted residuals for each observation
-  resid <- colSums(psis_weights * resid_samples)
-
-  # get LOO-PIT z values using the specified type
-  z <- .standardized_residuals_loopit(model, type = type)
-
-  # back-compute SE from z and resid: se = resid / z
-  # handle zero z values to avoid division by zero
-  se <- abs(resid / z)
-  se[!is.finite(se)] <- NA
-  # TODO: implement a workaround by using posterior sd?
+  resid <- moments[["resid"]]
+  se    <- moments[["se"]]
 
   # construct output data frame matching metafor::rstudent format
   out <- data.frame(
@@ -474,6 +545,186 @@ rstudent.brma <- function(model, type = "marginal", ...) {
   rownames(out) <- NULL
 
   return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .loo_predictive_moments_estimate
+# ---------------------------------------------------------------------------- #
+#
+# Estimate-unit LOO predictive residual mean and standard deviation.
+#
+# The LOO-PIT z-value is the primary standardized residual. These moments provide
+# raw-scale companions for the output table and residual funnel. The aggregation
+# uses normalized PSIS weights on analytic predictive first and second moments,
+# matching loo::E_loo(..., type = "mean") values without recomputing Pareto k.
+#
+# @param object       brma object.
+# @param setup        output from .estimate_likelihood_setup.brma().
+# @param psis_object  PSIS object from loo.
+# @param psis_weights optional normalized PSIS weights.
+#
+# @return list with numeric vectors resid and se.
+#
+# ---------------------------------------------------------------------------- #
+.loo_predictive_moments_estimate <- function(object, setup, psis_object,
+                                             psis_weights = NULL) {
+
+  yi                <- setup[["yi"]]
+  sei               <- setup[["sei"]]
+  K                 <- setup[["K"]]
+  mu_samples        <- setup[["mu"]]
+  tau_within        <- setup[["tau_within"]]
+  outcome_type      <- setup[["outcome_type"]]
+  is_weightfunction <- setup[["is_weightfunction"]]
+  effect_direction  <- setup[["effect_direction"]]
+
+  sei_mat <- matrix(sei, nrow = nrow(mu_samples), ncol = K, byrow = TRUE)
+
+  if (outcome_type == "norm" && is_weightfunction) {
+    posterior_samples <- setup[["posterior_samples"]]
+    omega_samples     <- .extract_omega_samples(posterior_samples)
+
+    if (effect_direction == "negative") {
+      mu_moments <- -mu_samples
+    } else {
+      mu_moments <- mu_samples
+    }
+
+    moments <- .outcome_moments.wnorm(
+      mu_samples          = mu_moments,
+      tau_within          = tau_within,
+      sei                 = sei,
+      omega               = omega_samples,
+      crit_yi             = setup[["fit_data"]][["crit_yi"]],
+      use_normal          = .extract_use_normal(object, posterior_samples = posterior_samples),
+      bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
+      crit_yi_mapping     = setup[["fit_data"]][["crit_yi_mapping"]],
+      crit_yi_mapping_max = setup[["fit_data"]][["crit_yi_mapping_max"]]
+    )
+
+    mean_samples   <- moments[["mean"]]
+    second_samples <- moments[["second"]]
+
+    if (effect_direction == "negative") {
+      mean_samples <- -mean_samples
+    }
+  } else {
+    pred_var       <- tau_within^2 + sei_mat^2
+    mean_samples   <- mu_samples
+    second_samples <- pred_var + mu_samples^2
+  }
+
+  mean_samples   <- as.matrix(mean_samples)
+  second_samples <- as.matrix(second_samples)
+
+  if (is.null(psis_weights)) {
+    psis_weights <- loo::weights.importance_sampling(
+      psis_object,
+      log       = FALSE,
+      normalize = TRUE
+    )
+  }
+
+  pred_mean   <- colSums(psis_weights * mean_samples)
+  pred_second <- colSums(psis_weights * second_samples)
+
+  resid <- yi - pred_mean
+  se    <- sqrt(pmax(pred_second - pred_mean^2, 0))
+
+  return(list(
+    resid = resid,
+    se    = se
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .outcome_moments.wnorm
+# ---------------------------------------------------------------------------- #
+#
+# Per-posterior-sample first and second predictive moments for selection models.
+#
+# @param mu_samples       S x K matrix of location samples in selection space.
+# @param tau_within       S x K matrix of estimate-level heterogeneity samples.
+# @param sei              numeric vector of length K.
+# @param omega            S x W matrix of omega samples.
+# @param crit_yi          W - 1 x K matrix of selection cutoffs.
+# @param use_normal       optional logical vector for normal fast path.
+# @param bias_indicator   optional posterior branch indicator.
+# @param crit_yi_mapping  optional branch-specific cutoff mapping.
+# @param crit_yi_mapping_max optional active cutoff count per branch.
+#
+# @return list with S x K matrices mean and second.
+#
+# ---------------------------------------------------------------------------- #
+.outcome_moments.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi,
+                                   use_normal = NULL, bias_indicator = NULL,
+                                   crit_yi_mapping = NULL,
+                                   crit_yi_mapping_max = NULL) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+
+  mean_samples   <- matrix(NA_real_, nrow = S, ncol = K)
+  second_samples <- matrix(NA_real_, nrow = S, ncol = K)
+
+  has_mapping <- .selection_has_mapping(
+    bias_indicator      = bias_indicator,
+    crit_yi_mapping     = crit_yi_mapping,
+    crit_yi_mapping_max = crit_yi_mapping_max
+  )
+
+  if (has_mapping) {
+    return(.wnorm_mix_moments_matrix(
+      mean                = mu_samples,
+      sd                  = total_sd,
+      omega               = omega,
+      crit_yi             = crit_yi,
+      bias_indicator      = bias_indicator,
+      crit_yi_mapping     = crit_yi_mapping,
+      crit_yi_mapping_max = crit_yi_mapping_max
+    ))
+  }
+
+  for (k in seq_len(K)) {
+    moments <- .wnorm_moments_fast.ss.matrix(
+      mean       = mu_samples[, k],
+      sd         = total_sd[, k],
+      omega      = omega,
+      crit_x     = crit_yi[, k],
+      use_normal = use_normal
+    )
+    mean_samples[, k]   <- moments[["mean"]]
+    second_samples[, k] <- moments[["second"]]
+  }
+
+  return(list(
+    mean   = mean_samples,
+    second = second_samples
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .residuals_cluster.brma
+# ---------------------------------------------------------------------------- #
+#
+# Deferred cluster-unit residual diagnostics.
+#
+# @param object brma object.
+# @param type   character; residual type requested by the public caller.
+# @param conditioning_depth character; conditioning depth.
+#
+# @return stops with a deferred-design error.
+#
+# ---------------------------------------------------------------------------- #
+.residuals_cluster.brma <- function(object, type, conditioning_depth) {
+
+  .check_cluster_unit_deferred("residuals()")
 }
 
 
@@ -622,7 +873,7 @@ rstudent.brma <- function(model, type = "marginal", ...) {
 # The algorithm:
 # 1. Compute LOO via PSIS (reusing loo.brma)
 # 2. Extract normalized PSIS weights (S x K matrix)
-# 3. Compute CDF matrix F(yi | theta^(s)) (S x K matrix) for the specified type
+# 3. Compute CDF matrix F(yi | parameters^(s)) (S x K matrix) for the LOO target
 # 4. For each observation i, compute LOO-weighted CDF:
 #    u_i = sum_s w_{is} * F(yi | theta^(s))
 # 5. Transform to standard normal: r_i = qnorm(u_i)
@@ -632,28 +883,29 @@ rstudent.brma <- function(model, type = "marginal", ...) {
 # - Account for leverage (PSIS effectively removes yi from posterior)
 # - Work for all model types (selection models, GLMMs)
 #
-# @param object   brma object
-# @param type     character; type of CDF to use:
-#                 - "marginal" (default): marginal CDF yi ~ N(mu_i, tau^2 + se_i^2)
-#                 - "study": conditional CDF yi ~ N(theta_i + gamma_j, se_i^2)
-#                 - "estimate": conditional CDF yi ~ N(theta_i, se_i^2)
+# @param object brma object.
 #
 # @return If loo_only = TRUE, returns the psis_loo object.
 #         Otherwise, returns numeric vector of LOO-PIT residuals.
 #
 # ---------------------------------------------------------------------------- #
-.standardized_residuals_loopit <- function(object, type = "marginal") {
+.standardized_residuals_loopit <- function(object, psis_weights = NULL, check = TRUE) {
+
   # extract PSIS object and get normalized weights
-  psis_weights <- loo_weights(object)
+  if (is.null(psis_weights)) {
+    psis_weights <- loo_weights(object, unit = "estimate")
+  }
 
   # check Pareto k diagnostics and warn if unreliable
-  check_loo(object)
+  if (check) {
+    check_loo(object, unit = "estimate")
+  }
 
-  # compute CDF matrix (S x K) for the specified type
-  cdf_matrix <- .cdf.brma(object, type = type)
+  # compute CDF matrix (S x K) for the estimate-unit LOO target
+  cdf_matrix <- .cdf_lik_estimate.brma(object)
 
   # compute LOO-weighted CDF for each observation
-  # u_i = sum_s w_{is} * F(yi | theta^(s))
+# u_i = sum_s w_{is} * F(yi | parameters^(s))
   # this is a weighted average across posterior samples
   u_values <- colSums(psis_weights * cdf_matrix)
 
@@ -734,24 +986,39 @@ rstudent.brma <- function(model, type = "marginal", ...) {
 # ---------------------------------------------------------------------------- #
 .get_model_matrix <- function(object) {
   # check if there are moderators
-  is_mods <- .is_mods(object)
+  is_mods  <- .is_mods(object)
+  is_PET   <- .is_PET(object)
+  is_PEESE <- .is_PEESE(object)
 
   if (!is_mods) {
     # intercept-only model: X is a column of 1s
     K <- nrow(object[["data"]][["outcome"]])
-    return(matrix(1, nrow = K, ncol = 1))
+    X <- matrix(1, nrow = K, ncol = 1)
+    colnames(X) <- "(Intercept)"
+  } else {
+    # for models with moderators, reconstruct the model matrix
+    # from the stored data and formula
+
+    # TODO: use BayesTools to obtain the actual adjusted model matrix
+    # (i.e., for handling different factor contrasts, etc.)
+    mods_data    <- object[["data"]][["mods"]]
+    mods_formula <- attr(mods_data, "formula")
+
+    # create the model matrix
+    X <- model.matrix(mods_formula, data = mods_data)
   }
 
-  # for models with moderators, reconstruct the model matrix
-  # from the stored data and formula
+  if (is_PET || is_PEESE) {
+    outcome_data <- object[["data"]][["outcome"]]
+    direction    <- if (.effect_direction(object) == "negative") -1 else 1
 
-  # TODO: use BayesTools to obtain the actual adjusted model matrix
-  # (i.e., for handling different factor contrasts, etc.)
-  mods_data <- object[["data"]][["mods"]]
-  mods_formula <- attr(mods_data, "formula")
-
-  # create the model matrix
-  X <- model.matrix(mods_formula, data = mods_data)
+    if (is_PET) {
+      X <- cbind(X, PET = direction * outcome_data[["sei"]])
+    }
+    if (is_PEESE) {
+      X <- cbind(X, PEESE = direction * outcome_data[["sei"]]^2)
+    }
+  }
 
   return(X)
 }

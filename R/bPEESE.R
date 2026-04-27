@@ -10,7 +10,7 @@
 bPEESE <- function(
     # input specification
   yi, vi, sei, weights, ni,
-  mods, scale, study_ids,
+  mods, scale, cluster,
   data, slab, subset,
   measure = "GEN",
 

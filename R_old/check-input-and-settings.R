@@ -194,7 +194,7 @@ check_setup.RoBMA <- check_setup
 #'                 prior_weight = 2))
 #' @export
 check_setup.reg <- function(
-    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, cluster = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -232,7 +232,7 @@ check_setup.reg <- function(
   # use 'do_not_fit' with RoBMA.reg
   object <- RoBMA.reg(
     ### passed arguments
-    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, study_ids = study_ids,
+    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, cluster = cluster,
     transformation     = transformation,
     prior_scale        = prior_scale,
     standardize_predictors = standardize_predictors,
@@ -566,7 +566,7 @@ check_setup.BiBMA <- function(
 #' @seealso [check_setup()] [RoBMA.reg()]
 #' @export
 check_setup.reg <- function(
-    formula, data, test_predictors = TRUE, study_names = NULL, study_ids = NULL,
+    formula, data, test_predictors = TRUE, study_names = NULL, cluster = NULL,
     transformation     = if(any(colnames(data) != "y")) "fishers_z" else "none",
     prior_scale        = if(any(colnames(data) != "y")) "cohens_d"  else "none",
     standardize_predictors = TRUE,
@@ -604,7 +604,7 @@ check_setup.reg <- function(
   # use 'do_not_fit' with RoBMA.reg
   object <- RoBMA.reg(
     ### passed arguments
-    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, study_ids = study_ids,
+    formula = formula, data = data, test_predictors = test_predictors, study_names = study_names, cluster = cluster,
     transformation     = transformation,
     prior_scale        = prior_scale,
     standardize_predictors = standardize_predictors,

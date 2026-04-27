@@ -8,6 +8,7 @@
 #'
 #' @inheritParams data_input
 #' @inheritParams RoBMA_prior_specification
+#' @inheritParams prior_specification
 #' @inheritParams fitting_specification
 #'
 #' @details
@@ -27,7 +28,7 @@
 BMA.glmm <- function(
   # input specification
   ai, bi, ci, di, n1i, n2i, x1i, x2i, t1i, t2i, weights,
-  mods, scale, study_ids,
+  mods, scale, cluster,
   data, slab, subset,
   measure = "OR",
 

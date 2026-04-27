@@ -3,13 +3,12 @@ context("QQ Normal plot")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 
 
 # ============================================================================ #
@@ -49,7 +48,6 @@ test_that("QQ plot for simple meta-analysis matches metafor structure", {
   )
 })
 
-
 # ============================================================================ #
 # Test: Meta-Regression QQ Plot
 # ============================================================================ #
@@ -79,6 +77,30 @@ test_that("QQ plot for meta-regression works correctly", {
   )
 })
 
+test_that("QQ plot for meta-regression with interaction works correctly", {
+
+  name        <- "bcg_meta-regression4"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+  set.seed(1)
+
+  # --------------------------------------------------
+  # Visual comparison: side-by-side (rstandard for comparability)
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("qqnorm_regression4_comparison_rstandard", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    qqnorm(fit_metafor, main = "metafor", type = "rstandard", ylim = c(-3, 3))
+    qqnorm(fit_brma, plot_type = "base", main = "brma", type = "rstandard", ylim = c(-3, 3))
+  })
+
+  vdiffr::expect_doppelganger(
+    "qqnorm_regression4_rstudent_ggplot",
+    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  )
+})
 
 # ============================================================================ #
 # Test: Location-Scale Model QQ Plot
@@ -100,7 +122,6 @@ test_that("QQ plot for location-scale model works correctly", {
   )
 })
 
-
 # ============================================================================ #
 # Test: 3-Level Model QQ Plot
 # ============================================================================ #
@@ -121,6 +142,21 @@ test_that("QQ plot for 3-level model works correctly", {
   )
 })
 
+test_that("QQ plot for 3-level meta-regression works correctly", {
+
+  name     <- "konstantopoulos2011_3lvl2"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_3lvl2_base", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+
+  vdiffr::expect_doppelganger(
+    "qqnorm_3lvl2_ggplot",
+    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  )
+})
 
 # ============================================================================ #
 # Test: GLMM Model QQ Plot
@@ -149,6 +185,28 @@ test_that("QQ plot for GLMM model works correctly", {
   )
 })
 
+test_that("QQ plot for GLMM meta-regression works correctly", {
+
+  name     <- "bcg_glmm_reg"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  # rstudent only (rstandard not available for GLMM)
+  vdiffr::expect_doppelganger("qqnorm_glmm_reg_base", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+
+  vdiffr::expect_doppelganger(
+    "qqnorm_glmm_reg_ggplot",
+    suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  )
+
+  # rstandard should error for GLMM models
+  expect_error(
+    qqnorm(fit_brma, type = "rstandard"),
+    info = "rstandard should error for GLMM models"
+  )
+})
 
 # ============================================================================ #
 # Test: PET Model QQ Plot
@@ -166,6 +224,26 @@ test_that("QQ plot for PET works correctly", {
   # --------------------------------------------------
 
   vdiffr::expect_doppelganger("qqnorm_PET_base", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    qqnorm(fit_metafor, main = "metafor", type = "rstudent", ylim = c(-3, 3))
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base", main = "brma", type = "rstudent", ylim = c(-3, 3)))
+  })
+})
+
+test_that("QQ plot for PET regression works correctly", {
+
+  name        <- "dat.lehmann2018-PETreg"
+  fit_metafor <- info[[name]][["metafor"]]
+  fit_brma    <- fits[[name]]
+  set.seed(1)
+
+  # --------------------------------------------------
+  # Visual comparison: side-by-side (rstandard for comparability)
+  # --------------------------------------------------
+
+  vdiffr::expect_doppelganger("qqnorm_PETreg_base", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -199,6 +277,96 @@ test_that("QQ plot for selection model works correctly", {
     qqnorm(fit_brma, type = "rstandard"),
     info = "rstandard should error for selection models"
   )
+})
+
+test_that("QQ plot for selection meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018-3PSMreg"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_selmodel_reg_base", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+
+  # skip the ggplot version for to save test time
+  # vdiffr::expect_doppelganger(
+  #   "qqnorm_selmodel_ggplot",
+  #   suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
+  # )
+
+  # rstandard should error for selection models
+  expect_error(
+    qqnorm(fit_brma, type = "rstandard"),
+    info = "rstandard should error for selection models"
+  )
+})
+
+# ============================================================================ #
+# Test: BMA.norm Model QQ Plot
+# ============================================================================ #
+
+test_that("QQ plot for BMA.norm model works correctly", {
+
+  name     <- "dat.lehmann2018_BMA.norm"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_BMA", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+})
+
+test_that("QQ plot for BMA.norm meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018_BMA.norm_mods"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_BMAreg", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: BMA.glmm Model QQ Plot
+# ============================================================================ #
+
+test_that("QQ plot for BMA.glmm model works correctly", {
+
+  name     <- "bcg_BMA.glmm_3lvl_location_scale"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_BMA.glmm", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+})
+
+# ============================================================================ #
+# Test: RoBMA Model QQ Plot
+# ============================================================================ #
+
+test_that("QQ plot for RoBMA model works correctly", {
+
+  name     <- "dat.lehmann2018_RoBMA"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_RoBMA", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
+  })
+})
+
+test_that("QQ plot for RoBMA meta-regression works correctly", {
+
+  name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+  fit_brma <- fits[[name]]
+  set.seed(1)
+
+  vdiffr::expect_doppelganger("qqnorm_RoBMA_complex", function() {
+    suppressWarnings(qqnorm(fit_brma, plot_type = "base", type = "LOO-PIT"))
+  })
 })
 
 
@@ -290,7 +458,6 @@ test_that("QQ plot has correct interface", {
     info = "should error on invalid type"
   )
 })
-
 
 # ============================================================================ #
 # Test: QQ Plot Customization

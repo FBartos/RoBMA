@@ -12,13 +12,10 @@ skip_on_cran()
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 
-# load cached fits (marglik is now stored in fit objects)
-fits <- list()
-info <- list()
-for (name in list_fits()) {
-  fits[[name]] <- load_fit(name)
-  info[[name]] <- load_info(name)
-}
+# list cached marginal-likelihood fits lazily
+marglik_names <- list_fits(has_marglik = TRUE)
+fits          <- lazy_fits(marglik_names, validate = FALSE)
+info          <- lazy_infos(marglik_names, validate = FALSE)
 
 # ---------------------------------------------------------------------------- #
 # bridge_sampler function works with all model types
@@ -26,9 +23,17 @@ for (name in list_fits()) {
 
 test_that("bridge_sampler extracts bridge sampling object", {
 
-  for (name in list_fits()) {
+  for (name in marglik_names) {
     # the marginal likelihood inherits the correct class
     expect_s3_class(bridge_sampler(fits[[name]]), "bridge")
+  }
+})
+
+test_that("bridge sampling marginal likelihood is close to BIC for metafor-reference fits", {
+
+  metafor_names <- list_fits(has_marglik = TRUE, has_metafor = TRUE)
+
+  for (name in metafor_names) {
 
     # the marginal likelihood and BIC-based marglik are close
     # (the analyses don't use unit information priors but the
@@ -50,6 +55,13 @@ test_that("bridge_sampler extracts bridge sampling object", {
 # ---------------------------------------------------------------------------- #
 
 test_that("simple comparisons", {
+
+  skip_if_missing_fits(c(
+    "bcg_meta-analysis", "bcg_meta-regression",
+    "dat.lehmann2018-PET", "dat.lehmann2018-PET_neg",
+    "dat.lehmann2018-3PSM", "dat.lehmann2018-3PSM_neg"
+  ))
+
   ### there should be evidence for meta-regression
   fit1 <- fits[["bcg_meta-analysis"]]
   fit2 <- fits[["bcg_meta-regression"]]
@@ -75,6 +87,8 @@ test_that("simple comparisons", {
 
 test_that("logml returns scalar log marginal likelihood, can be applied to both bridge and brma", {
 
+  skip_if_missing_fits("bcg_meta-analysis")
+
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]
 
@@ -91,6 +105,8 @@ test_that("logml returns scalar log marginal likelihood, can be applied to both 
 # ---------------------------------------------------------------------------- #
 
 test_that("bf computes Bayes factor between two models, can be applied to both bridge and brma", {
+
+  skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression"))
 
   fit_brma1 <- fits[["bcg_meta-analysis"]]
   fit_brma2 <- fits[["bcg_meta-regression"]]
@@ -113,6 +129,8 @@ test_that("bf computes Bayes factor between two models, can be applied to both b
 
 test_that("post_prob computes posterior model probabilities", {
 
+  skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression"))
+
   fit_brma1 <- fits[["bcg_meta-analysis"]]
   fit_brma2 <- fits[["bcg_meta-regression"]]
 
@@ -125,6 +143,8 @@ test_that("post_prob computes posterior model probabilities", {
 
 
 test_that("post_prob respects prior model probabilities", {
+
+  skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression"))
 
   fit_brma  <- fits[["bcg_meta-analysis"]]
   fit_brma2 <- fits[["bcg_meta-regression"]]
@@ -147,6 +167,8 @@ test_that("post_prob respects prior model probabilities", {
 
 test_that("bf errors with non-brma object", {
 
+  skip_if_missing_fits("bcg_meta-analysis")
+
   fit_brma <- fits[["bcg_meta-analysis"]]
   expect_error(
     bf(fit_brma, "not a brma"),
@@ -157,6 +179,8 @@ test_that("bf errors with non-brma object", {
 
 test_that("post_prob errors with single model", {
 
+  skip_if_missing_fits("bcg_meta-analysis")
+
   fit_brma <- fits[["bcg_meta-analysis"]]
   expect_error(
     post_prob(fit_brma),
@@ -166,6 +190,8 @@ test_that("post_prob errors with single model", {
 
 
 test_that("bridge_sampler errors if marglik not computed", {
+
+  skip_if_missing_fits("bcg_meta-analysis")
 
   # create a fit without marglik
   fit_brma <- fits[["bcg_meta-analysis"]]

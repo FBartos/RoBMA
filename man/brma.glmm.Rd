@@ -18,7 +18,7 @@ brma.glmm(
   weights,
   mods,
   scale,
-  study_ids,
+  cluster,
   data,
   slab,
   subset,
@@ -80,7 +80,7 @@ moderators (or meta-regressors).}
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
 scale predictors (for location-scale models).}
 
-\item{study_ids}{an optional vector of study identifiers (used for clustering).}
+\item{cluster}{an optional vector of cluster identifiers.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -94,19 +94,32 @@ Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR
 \code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
 
 \item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
-(the intercept). Defaults to \code{NULL}.}
+(the intercept). If omitted, a default prior is constructed. In single-model
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
-parameter. Defaults to \code{NULL}.}
+parameter. If omitted, a default prior is constructed. In single-model
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
-Defaults to \code{NULL}.}
+A single prior applies to all terms; a named list can specify term-specific
+priors. If omitted or \code{NULL}, default priors are used.}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
-Defaults to \code{NULL}.}
+A single prior applies to all terms; a named list can specify term-specific
+priors. If omitted or \code{NULL}, default priors are used.}
 
-\item{prior_heterogeneity_allocation}{prior distribution for the fraction of variance
-explained by the moderators across studies (\eqn{\nu}). Defaults to \code{NULL}.}
+\item{prior_heterogeneity_allocation}{prior distribution for the fraction of
+heterogeneity allocated to the cluster-level component in multilevel models
+(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
+
+\item{prior_baserate}{prior distribution for the estimate-specific base-rate
+probability in binomial GLMM models. If omitted or \code{NULL}, defaults to
+independent \code{Beta(1, 1)} priors.}
+
+\item{prior_lograte}{prior distribution for the estimate-specific log-rate in
+Poisson GLMM models. If omitted or \code{NULL}, a data-based unit-information normal
+prior is used.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
@@ -115,9 +128,11 @@ Defaults to \code{TRUE}.}
 Defaults to \code{"treatment"}.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
-Defaults to \code{NULL}.}
+Cannot be used together with \code{prior_informed_field}.}
 
-\item{rescale_priors}{numeric. A scaling factor for the prior distributions. Defaults to 1.}
+\item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
+Point and none priors are unchanged; publication-bias priors are not rescaled
+except for the default PEESE prior's UISD adjustment. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Defaults to \code{NULL}.}
@@ -158,10 +173,10 @@ and location-scale meta-analytic models directly to either binary or count data.
 Model for odds ratios (\code{measure = "OR"}) corresponds to Model 4 described in
 \insertCite{jackson2018comparison;textual}{RoBMA}.
 \code{prior_baserate} defines the estimate-specific prior distribution on the base-rate
-probability
+probability.
 
 Model for incidence rate ratios (\code{measure = "IRR"}) corresponds to
 \insertCite{bagos2009mixed;textual}{RoBMA}.
-\code{prior_baserate} defines the estimate-specific prior distribution on the log-rate
-probability. If unspecified, an unit information prior is based on the data.
+\code{prior_lograte} defines the estimate-specific prior distribution on the log-rate.
+If unspecified, a unit-information prior is based on the data.
 }

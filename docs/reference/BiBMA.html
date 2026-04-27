@@ -65,7 +65,7 @@ for each component.</p>
 <span>  <span class="va">n1</span>,</span>
 <span>  <span class="va">n2</span>,</span>
 <span>  study_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  study_ids <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cluster <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  rescale_priors <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  priors_effect <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"effect"</span>, rescale <span class="op">=</span> <span class="va">rescale_priors</span><span class="op">)</span>,</span>
 <span>  priors_heterogeneity <span class="op">=</span> <span class="fu"><a href="set_default_binomial_priors.html">set_default_binomial_priors</a></span><span class="op">(</span><span class="st">"heterogeneity"</span>, rescale <span class="op">=</span></span>
@@ -117,7 +117,7 @@ for each component.</p>
 <dd><p>an optional argument with the names of the studies</p></dd>
 
 
-<dt id="arg-study-ids">study_ids<a class="anchor" aria-label="anchor" href="#arg-study-ids"></a></dt>
+<dt id="arg-cluster">cluster<a class="anchor" aria-label="anchor" href="#arg-cluster"></a></dt>
 <dd><p>an optional argument specifying dependency between the
 studies (for using a multilevel model). Defaults to <code>NULL</code> for
 studies being independent.</p></dd>
@@ -163,7 +163,7 @@ a point null hypotheses at zero (a fixed effect meta-analytic models),
 <dt id="arg-priors-hierarchical">priors_hierarchical<a class="anchor" aria-label="anchor" href="#arg-priors-hierarchical"></a></dt>
 <dd><p>list of prior distributions for the correlation of random effects
 (<code>rho</code>) parameter that will be treated as belonging to the alternative hypothesis. This setting allows
-users to fit a hierarchical (three-level) meta-analysis when <code>study_ids</code> are supplied.
+users to fit a hierarchical (three-level) meta-analysis when <code>cluster</code> are supplied.
 Note that this is an experimental feature and see News for more details. Defaults to a beta distribution
 <code>prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))</code>.</p></dd>
 

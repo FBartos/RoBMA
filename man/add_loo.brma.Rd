@@ -4,10 +4,14 @@
 \alias{add_loo.brma}
 \title{Add LOO-PSIS to brma Objects}
 \usage{
-\method{add_loo}{brma}(object, r_eff = NULL, parallel = FALSE)
+\method{add_loo}{brma}(object, unit = "estimate", r_eff = NULL, parallel = FALSE)
 }
 \arguments{
 \item{object}{a brma model object.}
+
+\item{unit}{output/deletion unit. \code{"estimate"} computes one contribution
+per effect-size estimate. \code{"cluster"} computes one contribution per
+cluster.}
 
 \item{r_eff}{optional vector of relative effective sample sizes. If not
 provided, it is computed from the log-likelihood values.}
@@ -25,19 +29,23 @@ using Pareto smoothed importance sampling (PSIS) for brma model objects
 and store the result in the object.
 }
 \details{
-LOO-CV is computed at the estimate level: for binomial and Poisson models,
-each pair of counts (ai/ci or x1i/x2i) that defines a single effect size
-estimate is treated as one observation.
+With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
+effect-size estimate. For binomial and Poisson models, each pair of counts
+(ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
+one contribution.
 
-For multilevel models, the LOO conditions on the fitted study-level random
-effects (gamma). This means the LOO evaluates prediction of new estimates
-within studies, not prediction of new studies.
+With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
+per cluster. For unweighted normal models without selection this uses the
+analytic cluster block covariance. Selection, weighted normal, and GLMM
+models integrate the held-out cluster effect with Gauss-Hermite quadrature.
 
 For selection models, the LOO evaluates the weighted likelihood, conditioning
 on the posterior omega samples.
 
 The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
+RoBMA stores target metadata so comparisons can reject mismatched data,
+unit, or conditioning-depth targets.
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected

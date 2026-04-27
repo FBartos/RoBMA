@@ -1,0 +1,37 @@
+
+Bayesian Mixed-Effect Model (k = 81)
+
+Model Results (Common Estimates):
+                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau (inclusion) 1.000    NA    NA    NA    NA          NA             NA   NA    NA
+tau             0.300 0.041 0.223 0.298 0.385     0.00054          0.013 6223 1.001
+
+Model Results (Meta-Regression):
+                                                              Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept (inclusion)                                        0.148    NA     NA     NA    NA          NA             NA   NA    NA
+intercept                                                    0.004 0.045 -0.085  0.000 0.137     0.00131          0.029 1223 1.009
+Preregistered (inclusion)                                    0.681    NA     NA     NA    NA          NA             NA   NA    NA
+Preregistered[dif: Not Pre-Registered]                       0.093 0.083  0.000  0.094 0.252     0.00341          0.041  593 1.009
+Preregistered[dif: Pre-Registered]                          -0.093 0.083 -0.252 -0.094 0.000     0.00341          0.041  593 1.009
+Gender (inclusion)                                           0.190    NA     NA     NA    NA          NA             NA   NA    NA
+Gender[dif: Females]                                        -0.009 0.028 -0.100  0.000 0.003     0.00074          0.026 1625 1.014
+Gender[dif: Males]                                           0.009 0.028 -0.003  0.000 0.100     0.00074          0.026 1625 1.014
+Preregistered:Gender (inclusion)                             0.116    NA     NA     NA    NA          NA             NA   NA    NA
+Preregistered[dif: Not Pre-Registered]:Gender[dif: Females]  0.001 0.019 -0.038  0.000 0.045     0.00047          0.024 2689 1.001
+Preregistered[dif: Pre-Registered]:Gender[dif: Females]     -0.001 0.019 -0.045  0.000 0.038     0.00047          0.024 2689 1.001
+Preregistered[dif: Not Pre-Registered]:Gender[dif: Males]   -0.001 0.019 -0.045  0.000 0.038     0.00047          0.024 2689 1.001
+Preregistered[dif: Pre-Registered]:Gender[dif: Males]        0.001 0.019 -0.038  0.000 0.045     0.00047          0.024 2689 1.001
+
+Model Results (Publication Bias):
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+bias (inclusion)  0.870    NA    NA    NA    NA          NA             NA   NA    NA
+PET               0.403 0.436 0.000 0.276 1.213     0.01522          0.035  820 1.004
+PEESE             0.460 0.888 0.000 0.000 2.834     0.02139          0.024 1907 1.002
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,0.05] 0.982 0.081 0.685 1.000 1.000     0.00128          0.016 4363 1.005
+omega[0.05,0.5]   0.956 0.143 0.428 1.000 1.000     0.00258          0.018 3429 1.001
+omega[0.5,0.95]   0.943 0.175 0.324 1.000 1.000     0.00311          0.018 3492 1.002
+omega[0.95,0.975] 0.943 0.175 0.324 1.000 1.000     0.00311          0.018 3497 1.002
+omega[0.975,1]    0.944 0.175 0.324 1.000 1.000     0.00302          0.017 3786 1.002
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+
