@@ -1,0 +1,222 @@
+---
+title: "Location-Scale Meta-Analysis"
+author: "František Bartoš"
+date: "28th of April 2026"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Location-Scale Meta-Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+source("vignette-cache.R", local = knitr::knit_global())
+
+cached_fits <- vignette_cache(
+  name     = "12-metafor-parity-location-scale",
+  objects  = c("fit1_brma", "fit2_brma", "fit3_brma"),
+  packages = c("metafor", "metadat")
+)
+
+knitr::opts_chunk$set(
+  collapse    = TRUE,
+  comment     = "#>",
+  eval        = vignette_cache_eval(cached_fits),
+  message     = FALSE,
+  warning     = FALSE,
+  fig.width   = 7,
+  fig.height  = 3.5,
+  dev         = "png",
+  fig.retina  = 3
+)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+```{r load-models, include = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.bangertdrowns2004", package = "metadat")
+dat <- dat.bangertdrowns2004
+dat$ni100 <- dat$ni / 100
+dat$meta  <- as.factor(dat$meta)
+dat$imag  <- as.factor(dat$imag)
+
+vignette_cache_load(cached_fits)
+```
+
+```{r precompute-models, include = FALSE, eval = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.bangertdrowns2004", package = "metadat")
+dat <- dat.bangertdrowns2004
+dat$ni100 <- dat$ni / 100
+dat$meta  <- as.factor(dat$meta)
+dat$imag  <- as.factor(dat$imag)
+
+fit1_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+
+fit2_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  mods  = ~ ni100,
+  scale = ~ ni100,
+  data = dat, seed = 1
+)
+
+fit3_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  mods  = ~ ni100 + meta,
+  scale = ~ ni100 + imag,
+  data = dat, seed = 1
+)
+
+vignette_cache_save(cached_fits)
+```
+
+This vignette illustrates how to fit location-scale meta-analytic models with `RoBMA` package [@RoBMA].
+It walks through the writing-to-learn dataset (`dat.bangertdrowns2004` in `metadat`), showing the `brma()` call with the `scale = ~ ...` argument alongside its `metafor::rma()` counterpart [@metafor], and builds from a simple random-effects model up to a model with different predictors in the location and scale parts.
+
+A location-scale model parameterizes the between-study heterogeneity $\tau$ as a regression on study-level covariates, allowing $\tau$ to vary across subgroups or as a function of continuous moderators.
+The location side is the usual meta-regression on the effect.
+
+All `brma()` calls keep the default priors; see the [*Prior Distributions*](01-prior-distributions.html) vignette for the prior definitions and customization options.
+For the non-location-scale workflow showing more features (also applicable to location-scale models) see the [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) vignette.
+
+## Random-Effects Model
+
+The writing-to-learn dataset contains 48 standardized mean differences from studies on the effectiveness of school-based writing interventions on academic achievement.
+Effect sizes `yi` and sampling variances `vi` are already provided.
+
+```{r data}
+data("dat.bangertdrowns2004", package = "metadat")
+dat <- dat.bangertdrowns2004
+dat$ni100 <- dat$ni / 100
+dat$meta  <- as.factor(dat$meta)
+dat$imag  <- as.factor(dat$imag)
+```
+
+We start from a standard random-effects model with no scale predictor.
+
+```{r fit1-metafor}
+fit1_metafor <- metafor::rma(yi, vi, data = dat)
+fit1_metafor
+```
+
+```{r fit1-brma, eval = FALSE}
+fit1_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+```
+```{r fit1-brma-summary}
+summary(fit1_brma, include_MCMC_diagnostics = FALSE)
+```
+
+The pooled effect and the single heterogeneity parameter `tau` track the REML estimates from `metafor`.
+
+## Adding a Scale Predictor
+
+Sample size is a natural candidate for explaining heterogeneity: smaller studies often produce more variable estimates than larger ones.
+We add the rescaled total sample size (`ni100 = ni / 100`) on both the location and the scale side.
+
+```{r fit2-metafor}
+fit2_metafor <- suppressWarnings(metafor::rma(
+  yi, vi,
+  mods  = ~ ni100,
+  scale = ~ ni100,
+  data = dat
+))
+fit2_metafor
+```
+
+```{r fit2-brma, eval = FALSE}
+fit2_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  mods  = ~ ni100,
+  scale = ~ ni100,
+  data = dat, seed = 1
+)
+```
+```{r fit2-brma-summary}
+summary(fit2_brma, include_MCMC_diagnostics = FALSE)
+```
+
+The location coefficient on `ni100` matches the REML estimate from `metafor`.
+The scale block reports `exp(intercept)`, which is the baseline between-study heterogeneity $\tau$, and a multiplicative log-scale coefficient on `ni100`.
+Note that `metafor::rma()` regresses $\log(\tau^2)$ while `brma()` regresses $\log(\tau)$, so each metafor scale coefficient is exactly twice the matching `brma()` coefficient.
+
+`regplot()` with `pi = TRUE` overlays the prediction interval on the bubble plot.
+Because $\tau$ varies with `ni100`, the `brma()` prediction band narrows toward larger sample sizes, where the model expects less between-study heterogeneity.
+`metafor::regplot()` does not cuurently draw a prediction interval for location-scale models, so only the regression line and confidence band appear in the left panel.
+
+```{r regplot-pi, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+metafor::regplot(fit2_metafor, mod = "ni100", pi = TRUE,
+                 main = "metafor", xlim = c(0, 6), ylim = c(-1, 2))
+regplot(fit2_brma, mod = "ni100", pi = TRUE,
+        main = "RoBMA",   xlim = c(0, 6), ylim = c(-1, 2))
+```
+
+## Different Variables in Location and Scale
+
+Variables in the location and scale parts can differ.
+The next fit adds metacognitive reflection (`meta`) on the location side and imaginative-component coding (`imag`) on the scale side.
+
+```{r fit3-metafor}
+fit3_metafor <- suppressWarnings(metafor::rma(
+  yi, vi,
+  mods  = ~ ni100 + meta,
+  scale = ~ ni100 + imag,
+  data = dat
+))
+fit3_metafor
+```
+
+```{r fit3-brma, eval = FALSE}
+fit3_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  mods  = ~ ni100 + meta,
+  scale = ~ ni100 + imag,
+  data = dat, seed = 1
+)
+```
+```{r fit3-brma-summary}
+summary(fit3_brma, include_MCMC_diagnostics = FALSE)
+```
+
+Each scale coefficient is again roughly half of its metafor counterpart, with `brma()` shrinking the larger metafor estimates more strongly because of the weakly informative default prior.
+
+## Scale Predictor Priors
+
+Scale regression coefficients are not on the effect-size scale: they describe multiplicative changes in $\tau$ on the log scale and are therefore scale-free.
+The default prior is `Normal(0, 0.5)`, which corresponds to a weakly informative prior on the multiplicative effect.
+A coefficient of $\pm 0.5$ corresponds to roughly $\exp(\pm 0.5) \approx 0.6$ or $1.65$, i.e., a $40\%$ decrease or $65\%$ increase in $\tau$ per unit change in the predictor; values past $\pm 1$ correspond to a halving or doubling, which the prior treats as extreme.
+
+`plot()` with `prior = TRUE` overlays the prior on the posterior so the shift is visible.
+`parameter_scale = "ni100"` selects the scale-side coefficient (the analogous selector on the location side is `parameter_mods = "ni100"`).
+
+```{r scale-posterior, fig.width = 5, fig.height = 3.5}
+par(mar = c(4, 4, 1, 1))
+plot(fit2_brma, parameter_scale = "ni100", prior = TRUE, xlim = c(-2, 2))
+```
+
+## Other Inference Helpers
+
+All inference helpers available for any other `brma()` fit work the same way for the location-scale fit specified via `scale = ~ ...`.
+This includes meta-regression bubble plots, marginal means, model comparison via Bayes factors, multilevel structures via `cluster`, and the full set of model-fit diagnostics.
+See the [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) vignette for more details.
+
+
+## References
