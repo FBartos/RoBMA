@@ -226,6 +226,23 @@ plot_weightfunction(fit_selmodel_brma, prior = TRUE, main = "Weight-function")
 
 The bias-corrected `mu` posterior is shifted toward zero relative to a `brma()` random-effects fit, with the magnitude of the shift driven by the gap between the prior and posterior of `omega[0.025, 1]`.
 
+## Asymmetric Sampling Funnels
+
+`funnel()` extends the standard funnel plot by drawing the *full sampling distribution implied by the fitted model*, including the publication-bias adjustment.
+With a no-bias `brma()` fit the funnel is symmetric; with a bias-adjustment model the funnel becomes asymmetric in the direction the model identifies as suppressed.
+Comparing the three fits side by side shows how each adjustment encodes a different mechanism.
+
+```{r funnel-plots, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 3), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+funnel(fit_PET_brma,      main = "PET",      xlim = c(-2, 2.5), ylim = c(0, 0.8))
+funnel(fit_PEESE_brma,    main = "PEESE",    xlim = c(-2, 2.5), ylim = c(0, 0.8))
+funnel(fit_selmodel_brma, main = "Sel. Mod.", xlim = c(-2, 2.5), ylim = c(0, 0.8))
+```
+
+PET tilts the funnel by adding a linear effect of the standard error, so the centerline shifts away from zero in the direction of the dominant effect as precision drops.
+PEESE produces the same kind of shift but curved (quadratic in standard error), so the displacement grows faster for imprecise studies and the funnel walls bow outward.
+The selection-model funnel keeps the centerline on the random-effects `mu`, but the implied sampling density on each side of the $p < 0.025$ contour differs: the non-significant region is down-weighted by `omega[0.025, 1]`, so non-significant studies are predicted to appear less often than significant ones at the same precision.
+
 ## Other Inference Helpers
 
 `bPET()`, `bPEESE()`, and `bselmodel()` accept the same `mods`, `scale`, and `cluster` arguments as `brma()`, so meta-regression, location-scale, and multilevel publication-bias models are directly available. The fits are also `brma` objects, so all summaries, plots, predictions, and diagnostics examined in the [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) vignette work the same way here.
