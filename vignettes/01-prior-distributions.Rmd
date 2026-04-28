@@ -134,8 +134,8 @@ Values larger than one make the priors wider; values smaller than one make them 
 ```{r bcg-rescale, eval = has_bcg}
 bcg_wider_priors <- brma(
   yi = yi, vi = vi, measure = "RR",
-  data = bcg, only_priors = TRUE,
-  rescale_priors = 2
+  rescale_priors = 2,
+  data = bcg, only_priors = TRUE
 )
 
 print_prior(bcg_wider_priors)
@@ -211,8 +211,8 @@ The UISD can also be set directly when sample sizes are unavailable, when an alt
 ```{r Havrankova-manual-uisd}
 Havrankova_manual_priors <- brma(
   yi = y, sei = se, measure = "GEN",
-  data = Havrankova2025, only_priors = TRUE,
-  prior_unit_information_sd = 10
+  prior_unit_information_sd = 10,
+  data = Havrankova2025, only_priors = TRUE
 )
 
 print_prior(Havrankova_manual_priors)

@@ -1,356 +1,255 @@
 ---
-description: 'Vignette writing: Guidance for writting vignette documentation.'
+description: 'Vignette writing: Guidance for writing vignette documentation.'
 applyTo: "**/vignettes/*.Rmd"
 ---
 
 # Vignette Writing Instructions for RoBMA
 
-This document provides guidance for writing and maintaining vignettes in the RoBMA package.
+Reference for writing vignettes in `vignettes/`. The canonical reference vignette is `vignettes/01-prior-distributions.Rmd`; mirror its conventions whenever uncertain.
 
-## Overview
+## Filename and Ordering
 
-RoBMA vignettes are R Markdown documents that demonstrate package functionality with real-world examples. They are pre-computed and cached to avoid CRAN check timeouts, as Bayesian model fitting is computationally intensive.
+Vignettes are ordered alphabetically by filename in `browseVignettes()`, on the CRAN page, and in pkgdown. We use a tiered numeric prefix with gaps so new vignettes can be inserted without renumbering:
 
-## Vignette Structure
+- `0X` — Foundations (`00-introduction.Rmd`, `01-prior-distributions.Rmd`, `02-bayesian-meta-analysis.Rmd`)
+- `1X` — Correspondence with `metafor` (`10-metafor-parity-multilevel.Rmd`, ...)
+- `2X` — Bayesian Model Averaging (`20-bayesian-model-averaging.Rmd`, `21-publication-bias-adjustment.Rmd`)
+- `3X` — Paper companions (`30-tutorial.Rmd`, `31-meta-regression.Rmd`, ...)
 
-### Current Vignettes
-1. **Tutorial.Rmd** - Introduction to RoBMA-PSMA (publication bias adjustment)
-2. **ReproducingBMA.Rmd** - Classic Bayesian model-averaged meta-analysis (no publication bias)
-3. **MetaRegression.Rmd** - `RoBMA.reg()` with moderators
-4. **HierarchicalRoBMA.Rmd** - Multilevel RoBMA
-5. **HierarchicalRoBMARegression.Rmd** - Multilevel RoBMA with moderators
-6. **HierarchicalBMA.Rmd** - Simpler multilevel models via `study_ids`
-7. **MedicineBMA.Rmd** - Informed priors for medical meta-analysis (continuous outcomes)
-8. **MedicineBiBMA.Rmd** - Informed priors for binary outcomes (log OR, RR, RD, HR)
-9. **CustomEnsembles.Rmd** - Advanced ensemble customization
-10. **FastRoBMA.Rmd** - Spike-and-slab algorithm (`algorithm = "ss"`)
-11. **ZCurveDiagnostics.Rmd** - Meta-analytic z-curve publication bias diagnostics
+Filenames are lowercase with hyphens. The YAML `title:` is the clean human-readable name, without the prefix.
 
-## Standard YAML Header
+When a vignette caches model fits, the cache directory under `models/` MUST match the filename without `.Rmd`. For example, `02-bayesian-meta-analysis.Rmd` caches into `models/02-bayesian-meta-analysis/`. The cache `name` argument inside the vignette must use the same string.
+
+## YAML Header
 
 ```yaml
 ---
-title: "Your Vignette Title"
-author: "Author Name(s)"
-date: "`r Sys.Date()`"  # or fixed year for published papers
+title: "Vignette Title"
+author: "Author Name"
+date: "27th of April 2026"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
 bibliography: ../inst/REFERENCES.bib
 csl: ../inst/apa.csl
+link-citations: true
 vignette: >
-  %\VignetteIndexEntry{Your Vignette Title}
+  %\VignetteIndexEntry{Vignette Title}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
 ```
 
-**Important**: Use `../inst/REFERENCES.bib` (relative path) for bibliography, not absolute paths.
+Use a spelled date, not `\`r Sys.Date()\``. `link-citations: true` and the `_notangle` engine line are required.
 
-## Code Chunk Strategy (Pre-computation Pattern)
+## Setup Chunk
 
-All vignettes follow a **three-chunk pattern** to handle computationally expensive model fitting:
+For prior-only or display-only vignettes (no MCMC fits), the setup is minimal:
 
-### Chunk 1: Setup & Check Detection
 ```r
-```{r setup, include = FALSE}
-is_check <- ("CheckExEnv" %in% search()) ||
-              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
-              !file.exists("../models/YourVignette/your_model.RDS")
+{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse  = TRUE,
-  comment   = "#>",
-  eval      = !is_check,
-  dev       = "png")
-if(.Platform$OS.type == "windows"){
-  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
-}
-```
-```
+  collapse   = TRUE,
+  comment    = "#>",
+  message    = FALSE,
+  warning    = FALSE,
+  fig.width  = 6,
+  fig.height = 4
+)
 
-**Purpose**: Detect CRAN checks or missing cached models and disable evaluation to avoid timeouts.
-
-### Chunk 2: Load Pre-computed Models
-```r
-```{r include = FALSE}
-library(RoBMA)
-# Pre-load fitted models to avoid re-fitting during vignette build
-fit_model <- readRDS(file = "../models/YourVignette/your_model.RDS")
-```
-```
-
-**Purpose**: Load cached model results silently (not shown to user).
-
-### Chunk 3: Model Fitting Code (Not Evaluated)
-```r
-```{r include = FALSE, eval = FALSE}
-# R package version updating
 library(RoBMA)
 
-# Actual model fitting code that was used to create cached models
-fit_model <- RoBMA(d = data$d, se = data$se, seed = 1, parallel = TRUE)
-
-# Save for future vignette builds
-saveRDS(fit_model, file = "../models/YourVignette/your_model.RDS")
-```
+has_metafor <- requireNamespace("metafor", quietly = TRUE)
+has_bcg     <- has_metafor && requireNamespace("metadat", quietly = TRUE)
 ```
 
-**Purpose**: Document the exact code used to generate cached models. This is **never evaluated** during package checks but serves as a record for updating models when package versions change.
+Vertically align `=` in both `opts_chunk$set()` and the `requireNamespace` flag block. Gate any chunk that depends on a Suggests-only package via `eval = has_<flag>`.
 
-### Why This Pattern?
+## Caching (only when vignettes fit MCMC models)
 
-- **CRAN compliance**: Vignettes must build in < 10 minutes; MCMC fitting takes much longer
-- **Reproducibility**: Exact fitting code is preserved but not executed
-- **Version tracking**: When RoBMA updates, re-run chunk 3 to regenerate all cached models
-- **User clarity**: Users see the actual fitting code in chunk 3 (via `include = FALSE` it doesn't clutter output)
+When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cache `name` MUST match the vignette filename without `.Rmd`. The pattern is three chunks: setup with cache → load cached fits → re-fit code with `eval = FALSE`.
 
-## Model Caching Location
+`vignettes/02-bayesian-meta-analysis.Rmd` and `vignettes/30-tutorial.Rmd` are working examples. If the vignette only assembles priors (`only_priors = TRUE`) or otherwise runs cheaply, skip caching entirely — see `01-prior-distributions.Rmd`.
 
-All pre-computed models are stored in `models/` directory:
-```
-models/
-  Tutorial/
-    fit_RoBMA_Lui2015.RDS
-  ReproducingBMA/
-    PowerPoseTest.RDS
-  MetaRegression/
-    fit_RoBMA.RDS
-  ...
-```
+## Section Structure
 
-- **Naming convention**: Use descriptive names (dataset + model type)
-- **Compression**: Use `compress = "xz"` for large models: `saveRDS(fit, file = "path.RDS", compress = "xz")`
-- **Git tracking**: Models are committed to the repository (not gitignored)
-
-## Code Presentation for Users
-
-Code that **users should see and run** goes in regular chunks:
-
-```r
-```{r}
-library(RoBMA)
-data("Lui2015", package = "RoBMA")
-head(Lui2015)
-```
-```
-
-**Never show** the model loading code (`readRDS()`) to users. They should see the fitting code from chunk 3.
-
-## Displaying Pre-computed Results
-
-After loading cached models with `readRDS()`, display them normally:
-
-```r
-```{r}
-# This uses the pre-loaded fit_model from chunk 2
-summary(fit_model)
-plot(fit_model, parameter = "mu")
-```
-```
-
-Users see the output without knowing it came from cache.
+- **Lede.** One to three short paragraphs before the first heading. Open with what the topic is. If the topic has a substantive asymmetry or tension (e.g., priors behave differently in estimation vs. testing/BMA), state it up front so the rest of the vignette has a frame. Cite the umbrella reference at the end of the lede.
+- **Headings.** `##` for top-level sections, `###` for subsections. Inside a subsection, finer divisions use bolded sentence-leading paragraphs like `**Categorical moderators.**` — not `####`.
+- **Closer.** Substantive vignettes end with a short *General Considerations and Reporting* (or analogous) section that re-iterates the main framing and gives reporting guidance, in bolded principle paragraphs.
+- **References.** `## References` is the final heading; the bibliography is auto-rendered.
 
 ## Citations
 
-Use `\insertCite{key}{RoBMA}` for inline citations:
-- `\insertCite{bartos2021no}{RoBMA}` → (Bartoš et al., 2021)
-- `\insertCite{bartos2021no;textual}{RoBMA}` → Bartoš et al. (2021)
+Pandoc syntax, not `\insertCite{}`:
 
-Add new references to `inst/REFERENCES.bib`. The bibliography is automatically rendered at the end.
+- `[@bartos2021no]` → (Bartoš et al., 2021)
+- `@bartos2021no` → Bartoš et al. (2021)
+- `[@key1; @key2]` for multiple keys
 
-## Code Style in Vignettes
+Always check `inst/REFERENCES.bib` before citing. Don't invent keys; if the desired entry is missing, add it to the bib file or drop the citation.
 
-- **Function calls**: Use full argument names for clarity (no abbreviations)
-- **Seeds**: Always set `seed = 1` (or another fixed value) for reproducibility
-- **Parallel processing**: Use `parallel = TRUE` when fitting to speed up model generation
-- **Save argument**: Consider `save = "min"` to reduce model size if posterior samples aren't needed
+## Code Chunk Style
 
-### Example
+The single most important convention is the **argument layout in fitting calls**. The user has spent considerable time tuning this; respect it.
+
+### Argument layout: highlight the demonstrated arg, suppress the boilerplate
+
+`data` and `only_priors` are *boilerplate*: they appear in nearly every call and carry no per-example information. They are crammed onto a single line and always go at the bottom of the call. The arguments that this particular example is *demonstrating* get their own line above the boilerplate so the reader's eye lands on them.
+
+The order of arguments inside the call is always:
+
+1. **Input** — outcome variables and effect-size spec (`yi`, `vi`/`sei`, `ni`, `measure`).
+2. **Formulas** — `mods`, scale formulas, etc.
+3. **Other important arguments** — the per-example highlights: `rescale_priors`, `prior_unit_information_sd`, `set_contrast_factor_predictors`, `prior_effect`, `prior_informed_field`, `model_type`, custom `prior_*` lists.
+4. **Boilerplate** — `data` and fitting-control args (`only_priors`, `seed`, `parallel`, ...). Always last.
+
+**Basic call (input + boilerplate only):**
+
 ```r
-fit <- RoBMA(
-  d       = data$effectSize,
-  se      = data$SE,
-  seed    = 1,
-  parallel = TRUE,
-  save    = "min"  # Reduces file size
+bcg_priors <- brma(
+  yi = yi, vi = vi, measure = "RR",
+  data = bcg, only_priors = TRUE
 )
 ```
 
-## Figures
-
-- **Captions**: Use `fig.cap` for meaningful captions
-  ```r
-  ```{r, fig.cap="Forest Plot of Effect Sizes"}
-  forest(fit_model)
-  ```
-  ```
-- **Size**: Let knitr use defaults; override only if necessary
-- **Device**: The setup chunk handles Windows Cairo device automatically
-
-## Updating Vignettes for New Package Versions
-
-When RoBMA is updated and model structures change:
-
-1. **Identify affected vignettes** (check NEWS.md for breaking changes)
-2. **Re-run chunk 3** in each affected vignette:
-   ```r
-   # Set eval = TRUE temporarily in chunk 3 header
-   ```{r include = FALSE, eval = TRUE}
-   ```
-3. **Verify outputs** match expectations
-4. **Commit updated .RDS files** to `models/`
-5. **Reset chunk 3** back to `eval = FALSE`
-6. **Rebuild vignettes**: `devtools::build_vignettes()`
-
-## Testing Vignettes Locally
+**One demonstrated argument (a tweak / decoration):**
 
 ```r
-# Build all vignettes
-devtools::build_vignettes()
-
-# Preview specific vignette
-rmarkdown::render("vignettes/Tutorial.Rmd")
-
-# Check if vignettes build during R CMD check
-devtools::check()
+bcg_wider_priors <- brma(
+  yi = yi, vi = vi, measure = "RR",
+  rescale_priors = 2,
+  data = bcg, only_priors = TRUE
+)
 ```
+
+```r
+Havrankova_manual_priors <- brma(
+  yi = y, sei = se, measure = "GEN",
+  prior_unit_information_sd = 10,
+  data = Havrankova2025, only_priors = TRUE
+)
+```
+
+**Formula plus a structural argument:**
+
+```r
+Havrankova_treatment <- brma(
+  yi = y, sei = se, ni = N, measure = "GEN",
+  mods = ~ facing_customer + N,
+  set_contrast_factor_predictors = "treatment",
+  data = Havrankova2025, only_priors = TRUE
+)
+```
+
+**Multiple structural overrides:**
+
+```r
+bcg_informed_priors <- brma(
+  yi = yi, vi = vi, measure = "RR",
+  prior_informed_field    = "medicine",
+  prior_informed_subfield = "Cochrane",
+  data = bcg, only_priors = TRUE
+)
+```
+
+### Vertical `=` alignment within multi-line blocks
+
+When a run of single-line named arguments sits at the same indentation level, align the `=`:
+
+```r
+prior_informed_field    = "medicine",
+prior_informed_subfield = "Cochrane",
+```
+
+```r
+prior_effect        = prior_informed("Oosterwijk"),
+prior_heterogeneity = prior_informed("van Erp", parameter = "heterogeneity"),
+```
+
+Do not align across blocks separated by multi-line `prior(...)` constructs. Inside a `prior(...)` call, do not align — the args read naturally without it.
+
+### Named arguments in `prior()`, `prior_factor()`, etc.
+
+Always pass `distribution = "..."` explicitly. Don't rely on positional matching:
+
+```r
+prior(
+  distribution = "normal",
+  parameters = list(mean = 0, sd = 0.5)
+)
+
+prior_factor(
+  distribution = "mnormal",
+  parameters = list(mean = 0, sd = 5),
+  contrast   = "meandif"
+)
+```
+
+### Effect-size input
+
+Prefer `vi = vi` over `sei = sqrt(vi)` when `escalc()` has already produced `vi`. Use `sei = se` only when the dataset stores SE directly (e.g., Havrankova2025).
+
+### `print_prior()` and `plot_prior()`
+
+Default to the unargumented form for general inspection:
+
+```r
+print_prior(fit)
+```
+
+This prints all priors and is the right call after a fit when the whole model is interesting. Use the focused forms only when comparing one specific component or moderator across fits:
+
+```r
+print_prior(fit, parameter      = "mu")          # focus on a single component
+print_prior(fit, parameter      = "bias")        # focus on bias-adjustment priors
+print_prior(fit, parameter_mods = "x")           # focus on one moderator
+```
+
+For continuous-moderator priors on both scales, use two `plot_prior()` calls:
+
+```r
+plot_prior(fit, parameter_mods = "x")
+plot_prior(fit, parameter_mods = "x",
+  standardized_coefficients = FALSE)
+```
+
+`print_prior()` does not support `standardized_coefficients`; use `plot_prior()` for that toggle.
+
+### `escalc()`
+
+Group the count/rate input variables on one line, then put `measure` and `data` on the next:
+
+```r
+bcg <- metafor::escalc(
+  ai = tpos, bi = tneg, ci = cpos, di = cneg,
+  measure = "RR", data = dat.bcg
+)
+
+Kroupova2021 <- metafor::escalc(
+  ri = r, ni = sample_size, measure = "ZCOR",
+  data = Kroupova2021
+)
+```
+
+## Prose Style
+
+- Concise and direct. Simple sentences. No flowery or marketing language.
+- One sentence per markdown line (soft wrap). Paragraphs are separated by blank lines.
+- **Avoid em dashes.** Use commas, colons, parentheses, or sentence breaks.
+- Avoid prescriptive "you want to..." or "What X buys you" framings; prefer neutral descriptions.
+- Tables: neutral column headers (e.g., *Approach* / *Description* / *Main arguments*). Don't include "Use when" columns.
+- Cross-reference subsections by their human-readable title in italics (`see *Per-moderator overrides* below`), not by filename or numeric prefix.
+- Bolded sentence-leading paragraphs are the right format for re-iterating principles or warning notes (`**Wide priors are not "uninformative" in testing or model averaging.**`).
+- For tone, the lede should establish the asymmetry that motivates the rest of the vignette (e.g., the role of priors differs between estimation and hypothesis testing). Re-iterate the same point in the closing section.
 
 ## Common Pitfalls
 
-❌ **Don't** use `library()` or `require()` in package functions (only in vignettes is OK)
-❌ **Don't** use absolute paths (`C:/Users/...`)
-❌ **Don't** commit temporary files (`.html` vignette outputs go to `doc/`)
-❌ **Don't** use `eval = TRUE` in chunk 3 (model fitting) unless intentionally regenerating
-✅ **Do** use relative paths (`../models/`, `../inst/`)
-✅ **Do** compress models (`compress = "xz"`)
-✅ **Do** test that vignettes build with `is_check = TRUE` condition (simulates CRAN)
-
-## Example Vignette Skeleton
-
-```rmd
----
-title: "My New RoBMA Vignette"
-author: "Your Name"
-date: "`r Sys.Date()`"
-output:
-  rmarkdown::html_vignette:
-    self_contained: yes
-bibliography: ../inst/REFERENCES.bib
-csl: ../inst/apa.csl
-vignette: >
-  %\VignetteIndexEntry{My New RoBMA Vignette}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
----
-
-```{r setup, include = FALSE}
-is_check <- ("CheckExEnv" %in% search()) ||
-              any(c("_R_CHECK_TIMINGS_", "_R_CHECK_LICENSE_") %in% names(Sys.getenv())) ||
-              !file.exists("../models/MyVignette/my_model.RDS")
-knitr::opts_chunk$set(
-  collapse  = TRUE,
-  comment   = "#>",
-  eval      = !is_check,
-  dev       = "png")
-if(.Platform$OS.type == "windows"){
-  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
-}
-```
-
-```{r include = FALSE}
-library(RoBMA)
-my_model <- readRDS(file = "../models/MyVignette/my_model.RDS")
-```
-
-```{r include = FALSE, eval = FALSE}
-library(RoBMA)
-data("MyData", package = "RoBMA")
-
-my_model <- RoBMA(d = MyData$d, se = MyData$se, seed = 1, parallel = TRUE)
-saveRDS(my_model, file = "../models/MyVignette/my_model.RDS")
-```
-
-## Introduction
-
-This vignette demonstrates...
-
-```{r}
-library(RoBMA)
-data("MyData", package = "RoBMA")
-head(MyData)
-```
-
-## Analysis
-
-```{r}
-summary(my_model)
-```
-
-## References
-```
-
-## Prose Editing Guidelines
-
-When editing vignette prose, follow the Eric-Jan Wagenmakers style: concise, direct, and logically structured. Clarify meaning, tighten flow, and preserve all scientific content.
-
-### Writing Style & Formatting
-- **Concise and Direct**: Use simple sentences to describe outputs. Avoid flowery language or filler phrases.
-- **No Excessive Bold**: Use bold text sparingly. Do not bold every list item or emphasis point. Use it only for headers or defining key terms.
-- **Flowing Text**: Prefer paragraphs over bulleted lists when describing plots or outputs. Integrate the description into a narrative flow.
-- **Interpretation Focused**: Focus on what the output *means* (interpretation) rather than just listing what is displayed.
-- **Concrete Examples**: Use specific values from the example to illustrate points (e.g., "In our example, we find...").
-- **Technical but Accessible**: Use correct terminology (e.g., "heterogeneity allocation parameter") but explain it simply.
-
-### Non-Negotiables
-- **Do not** add/remove references, change results, mathematical notation, or variable names
-- **Preserve UI specifics exactly**: argument names like `priors_effect`, function names like `RoBMA.reg()`, parameter names like `mu`, `tau`, `omega`
-- **Keep defined abbreviations**; spell out on first use (e.g., "Markov Chain Monte Carlo (MCMC)")
-- **Prefer full terms**: "prior distributions" over "priors"; spell out "null hypothesis" and "alternative hypothesis"
-- **Do not omit technical details**: exact argument labels, full file paths, figure references
-
-### Voice & Rhythm
-- **Prefer passive tense** for objectivity, but use collaborative first-person plural ("we set...", "we estimate...") when it improves flow
-- **Avoid "we... we..." runs**: vary sentence structure to maintain rhythm
-- **Keep tone precise and readable**: cut redundancy, avoid filler phrases, use commas for disambiguation only
-
-### Editing Passes (Apply in Order)
-
-1. **Meaning**: Remove clutter; define key terms briefly when first introduced; add a concrete example if needed for clarity
-2. **Structure**: Smooth transitions between paragraphs; align parallel or contrasting ideas; keep section logic tight
-3. **Emphasis & Rhythm**: Place key words in strong positions (sentence start/end); use light anaphora/epistrophe only if it clarifies
-4. **Style**: One tasteful rhetorical device per sentence at most (e.g., parallelism, anticipating objections); maintain EJW tone
-5. **Polish**: Fix punctuation for disambiguation; correct typos quietly
-
-### Clarity Techniques (Use Sparingly)
-- **Parallelism**: Align list items or related sentences for easier comparison
-- **Procatalepsis**: Anticipate and answer likely reader objections in one sentence when helpful
-- **Selective repetition**: Repeat key terms for emphasis, but avoid redundancy
-
-### Examples
-
-❌ **Verbose**: "In this section, we are going to discuss how to fit models using the RoBMA package"
-✅ **Concise**: "We fit models using the `RoBMA()` function"
-
-❌ **Vague**: "We can use different priors for the analysis"
-✅ **Specific**: "We specify prior distributions via the `priors_effect` and `priors_heterogeneity` arguments"
-
-❌ **Redundant**: "The results show that the effect is significant and statistically significant"
-✅ **Tight**: "The effect is statistically significant"
-
-❌ **Cluttered**: "We can see from the output that..."
-✅ **Direct**: "The output shows..."
-
-❌ **Excessive Bold/Lists**:
-> This plot displays:
-> - **x-axis**: One-sided *p*-value cutoffs
-> - **y-axis**: Relative probability of publication
-
-✅ **Flowing Description**:
-> The plot displays one-sided *p*-value cutoffs (x-axis) against relative publication probability (y-axis).
-
-## Additional Resources
-
-- [R Markdown Guide](https://rmarkdown.rstudio.com/articles_intro.html)
-- [Vignette Best Practices](https://r-pkgs.org/vignettes.html)
-- RoBMA paper: \insertCite{bartos2022adjusting}{RoBMA}
+- Do not use absolute paths.
+- Do not use `library()` in package R/ source; vignettes can use it.
+- Do not use `\insertCite{}`; use Pandoc `[@key]` syntax.
+- Do not align `=` across blocks separated by multi-line constructs.
+- Do not use em dashes in prose.
+- Do not invent citation keys; check `inst/REFERENCES.bib` first.
+- Do not use `\`r Sys.Date()\`` in the YAML date; use a spelled date.
+- Do not let the cache `name` and the vignette filename drift apart.
