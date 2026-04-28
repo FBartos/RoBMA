@@ -1,0 +1,9 @@
+
+Model-Averaged Marginal Means:
+                                    Mean Median  0.025 0.975 Inclusion BF
+intercept                          0.007  0.000 -0.083 0.165        0.194
+Preregistered[Not Pre-Registered]  0.113  0.118 -0.011 0.273        0.946
+Preregistered[Pre-Registered]     -0.099 -0.109 -0.278 0.148        0.826
+[0;31mmu_Preregistered[Not Pre-Registered]: There is a considerable point mass in the prior at the exact null hypothesis value. The Savage-Dickey density ratio is likely to be invalid.[0m
+[0;31mmu_Preregistered[Pre-Registered]: There is a considerable point mass in the prior at the exact null hypothesis value. The Savage-Dickey density ratio is likely to be invalid.[0m
+

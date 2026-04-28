@@ -11,6 +11,8 @@
   parameter_scale,
   prior = FALSE,
   standardized_coefficients = FALSE,
+  output_measure = NULL,
+  transform = NULL,
   plot_type = "base",
   dots_prior = NULL,
   ...
@@ -27,6 +29,17 @@ or \code{"PET-PEESE"} (for the PET-PEESE regression).}
 
 \item{prior}{whether prior distribution should be added to
 figure. Defaults to \code{FALSE}.}
+
+\item{output_measure}{effect-size measure for location/effect predictions.
+Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
+\code{"COR"}, \code{"ZCOR"}, and \code{"OR"}; \code{"RR"}, \code{"HR"},
+\code{"IRR"}, \code{"RD"}, and \code{"GEN"} can only be returned on their
+fitted measure. Use \code{transform = "EXP"} for ratio-scale output from
+log-scale measures.}
+
+\item{transform}{optional display transformation. Currently \code{"EXP"}
+exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
+and \code{"IRR"}.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to

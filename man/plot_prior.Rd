@@ -16,6 +16,8 @@ plot_prior(x, ...)
   parameter_mods,
   parameter_scale,
   standardized_coefficients = TRUE,
+  output_measure = NULL,
+  transform = NULL,
   plot_type = "base",
   ...
 )
@@ -44,6 +46,17 @@ Use \code{"intercept"} for the heterogeneity intercept in location-scale models.
 priors on the standardized predictor scale. Defaults to \code{TRUE}, which
 shows the priors as specified. Set to \code{FALSE} to transform them to the
 original predictor scale when continuous predictors were standardized.}
+
+\item{output_measure}{effect-size measure for location/effect predictions.
+Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
+\code{"COR"}, \code{"ZCOR"}, and \code{"OR"}; \code{"RR"}, \code{"HR"},
+\code{"IRR"}, \code{"RD"}, and \code{"GEN"} can only be returned on their
+fitted measure. Use \code{transform = "EXP"} for ratio-scale output from
+log-scale measures.}
+
+\item{transform}{optional display transformation. Currently \code{"EXP"}
+exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
+and \code{"IRR"}.}
 }
 \value{
 \code{plot_prior} returns either \code{NULL} invisibly if

@@ -27,15 +27,15 @@
 </defs>
 <g clip-path='url(#cpMzguMTd8NzE0LjUyfDIyLjc4fDU0NS4xMQ==)'>
 <rect x='38.17' y='22.78' width='676.35' height='522.33' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
-<polygon points='120.15,61.75 120.15,416.52 222.63,416.52 222.63,61.75 120.15,61.75 ' style='stroke-width: 0.75; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter; fill: #B3B3B3; fill-opacity: 0.40;' />
-<polygon points='325.11,210.98 325.11,443.57 427.58,443.57 427.58,210.98 325.11,210.98 ' style='stroke-width: 0.75; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter; fill: #B3B3B3; fill-opacity: 0.40;' />
-<polygon points='530.06,74.57 530.06,372.27 632.54,372.27 632.54,74.57 530.06,74.57 ' style='stroke-width: 0.75; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter; fill: #B3B3B3; fill-opacity: 0.40;' />
-<line x1='120.15' y1='241.27' x2='222.63' y2='241.27' style='stroke-width: 1.87; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter;' />
-<line x1='325.11' y1='324.57' x2='427.58' y2='324.57' style='stroke-width: 1.87; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter;' />
-<line x1='530.06' y1='222.59' x2='632.54' y2='222.59' style='stroke-width: 1.87; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter;' />
-<polygon points='166.77,241.27 171.39,236.65 176.01,241.27 171.39,245.89 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
-<polygon points='371.72,324.57 376.34,319.95 380.97,324.57 376.34,329.19 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
-<polygon points='576.68,222.59 581.30,217.97 585.92,222.59 581.30,227.21 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
+<polygon points='120.15,146.36 120.15,352.71 222.63,352.71 222.63,146.36 120.15,146.36 ' style='stroke-width: 0.75; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter; fill: #B3B3B3; fill-opacity: 0.40;' />
+<polygon points='325.11,217.63 325.11,395.76 427.58,395.76 427.58,217.63 325.11,217.63 ' style='stroke-width: 0.75; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter; fill: #B3B3B3; fill-opacity: 0.40;' />
+<polygon points='530.06,121.61 530.06,342.77 632.54,342.77 632.54,121.61 530.06,121.61 ' style='stroke-width: 0.75; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter; fill: #B3B3B3; fill-opacity: 0.40;' />
+<line x1='120.15' y1='249.12' x2='222.63' y2='249.12' style='stroke-width: 1.87; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter;' />
+<line x1='325.11' y1='306.67' x2='427.58' y2='306.67' style='stroke-width: 1.87; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter;' />
+<line x1='530.06' y1='232.23' x2='632.54' y2='232.23' style='stroke-width: 1.87; stroke: #B3B3B3; stroke-linecap: butt; stroke-linejoin: miter;' />
+<polygon points='166.77,249.12 171.39,244.49 176.01,249.12 171.39,253.74 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
+<polygon points='371.72,306.67 376.34,302.05 380.97,306.67 376.34,311.30 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
+<polygon points='576.68,232.23 581.30,227.61 585.92,232.23 581.30,236.85 ' style='stroke-width: 0.71; stroke: none; fill: #000000;' />
 <circle cx='410.35' cy='310.41' r='0.90' style='stroke-width: 0.71; fill: #BEBEBE;' />
 <circle cx='412.18' cy='442.62' r='0.92' style='stroke-width: 0.71; fill: #BEBEBE;' />
 <circle cx='358.81' cy='397.54' r='0.89' style='stroke-width: 0.71; fill: #BEBEBE;' />

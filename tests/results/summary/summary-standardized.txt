@@ -1,15 +1,15 @@
 
 Bayesian Location-Scale Model (k = 46)
 
-Model Results (Location):
+Location
             Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept  0.159 0.055  0.052  0.159  0.268     0.00078          0.014 4975 1.001
-meta[1]    0.185 0.079  0.036  0.183  0.346     0.00104          0.013 5696 1.000
-ni100     -0.070 0.028 -0.128 -0.070 -0.018     0.00032          0.011 7617 1.000
+intercept  0.161 0.055  0.054  0.161  0.267     0.00076          0.014 5260 1.000
+meta[1]    0.183 0.078  0.037  0.182  0.340     0.00096          0.012 6576 1.000
+ni100     -0.071 0.028 -0.128 -0.070 -0.019     0.00032          0.011 7700 1.000
 
-Model Results (Scale):
+Scale
             Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept  0.195 0.055  0.083  0.195 0.305     0.00066          0.012 6942 1.001
-ni100     -0.392 0.291 -1.004 -0.381 0.149     0.00382          0.013 5802 1.000
+intercept  0.195 0.054  0.088  0.194 0.303     0.00064          0.012 7194 1.001
+ni100     -0.399 0.291 -1.028 -0.384 0.138     0.00367          0.013 6301 1.001
 exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
 

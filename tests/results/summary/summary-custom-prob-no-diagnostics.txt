@@ -1,8 +1,8 @@
 
 Bayesian Random-Effects Model (k = 13)
 
-Model Results:
+Estimates
       Mean    SD   0.01   0.99
-mu  -0.685 0.181 -1.123 -0.260
-tau  0.570 0.147  0.315  1.015
+mu  -0.687 0.183 -1.127 -0.256
+tau  0.572 0.147  0.319  1.010
 

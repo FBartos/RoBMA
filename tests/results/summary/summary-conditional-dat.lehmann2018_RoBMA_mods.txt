@@ -1,0 +1,57 @@
+
+Robust Bayesian Model-Averaged Mixed-Effect Model (k = 81)
+
+Component Inclusion
+                 Prior prob. Post. prob. Inclusion BF
+Effect                 0.500       0.166        0.199
+Heterogeneity          0.500       1.000          Inf
+Publication Bias       0.500       0.839        5.221
+
+Meta-Regression Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Preregistered       0.500       0.728        2.671
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.301 0.042 0.224 0.299 0.389     0.00054          0.013 6479 1.001
+
+Conditional Common Estimates
+     Mean    SD 0.025   0.5 0.975
+tau 0.301 0.042 0.224 0.299 0.389
+
+Meta-Regression
+                                         Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept                               0.007 0.051 -0.083  0.000 0.165     0.00158          0.031 1072 1.004
+Preregistered[dif: Not Pre-Registered]  0.106 0.085  0.000  0.112 0.256     0.00379          0.045  517 1.003
+Preregistered[dif: Pre-Registered]     -0.106 0.085 -0.256 -0.112 0.000     0.00379          0.045  517 1.003
+
+Conditional Meta-Regression
+                                         Mean    SD  0.025    0.5  0.975
+intercept                               0.041 0.119 -0.213  0.046  0.245
+Preregistered[dif: Not Pre-Registered]  0.146 0.064  0.024  0.142  0.270
+Preregistered[dif: Pre-Registered]     -0.146 0.064 -0.270 -0.142 -0.024
+
+Publication Bias
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+PET               0.354 0.420 0.000 0.000 1.183     0.01376          0.033  999 1.001
+PEESE             0.470 0.884 0.000 0.000 2.800     0.01786          0.020 2517 1.000
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,0.05] 0.984 0.076 0.715 1.000 1.000     0.00093          0.012 6969 1.004
+omega[0.05,0.5]   0.959 0.134 0.458 1.000 1.000     0.00184          0.014 5341 1.003
+omega[0.5,0.95]   0.948 0.164 0.352 1.000 1.000     0.00236          0.014 4822 1.001
+omega[0.95,0.975] 0.948 0.164 0.352 1.000 1.000     0.00236          0.014 4822 1.001
+omega[0.975,1]    0.949 0.163 0.352 1.000 1.000     0.00236          0.014 4807 1.002
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+
+Conditional Publication Bias
+                   Mean    SD 0.025   0.5 0.975
+PET               0.735 0.292 0.188 0.739 1.305
+PEESE             1.862 0.709 0.515 1.839 3.300
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000
+omega[0.025,0.05] 0.849 0.187 0.401 0.943 1.000
+omega[0.05,0.5]   0.615 0.191 0.274 0.606 0.964
+omega[0.5,0.95]   0.508 0.191 0.203 0.484 0.917
+omega[0.95,0.975] 0.508 0.192 0.203 0.484 0.924
+omega[0.975,1]    0.516 0.204 0.203 0.485 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

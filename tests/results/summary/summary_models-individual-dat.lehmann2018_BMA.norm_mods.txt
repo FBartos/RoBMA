@@ -1,0 +1,12 @@
+
+Individual Models
+ Effect          Location: Preregistered                    Heterogeneity           Prior prob. Post. prob. Inclusion BF
+ Spike(0)        mean difference contrast: mSpike(0)        Spike(0)                      0.125       0.000        0.000
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        Spike(0)                      0.125       0.000        0.000
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) Spike(0)                      0.125       0.000        0.000
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) Spike(0)                      0.125       0.000        0.000
+ Spike(0)        mean difference contrast: mSpike(0)        Normal(0, 0.35)[0, Inf]       0.125       0.000        0.000
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        Normal(0, 0.35)[0, Inf]       0.125       0.090        0.691
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) Normal(0, 0.35)[0, Inf]       0.125       0.656       13.361
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) Normal(0, 0.35)[0, Inf]       0.125       0.254        2.383
+

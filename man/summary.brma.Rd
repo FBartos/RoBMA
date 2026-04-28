@@ -9,6 +9,7 @@
   probs = c(0.025, 0.5, 0.975),
   include_MCMC_diagnostics = TRUE,
   standardized_coefficients = FALSE,
+  conditional = FALSE,
   ...
 )
 }
@@ -26,6 +27,9 @@ Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
 coefficients are returned for the intercept and continuous predictors. These coefficients
 correspond to the standardized scale on which prior distributions are specified by default
 (i.e., \code{standardize_continuous_predictors = TRUE}).}
+
+\item{conditional}{whether to include conditional estimates for RoBMA
+product-space objects. Defaults to \code{FALSE}.}
 
 \item{...}{additional arguments}
 }

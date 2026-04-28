@@ -10,7 +10,7 @@ print_prior(x, ...)
 
 \method{print_prior}{prior}(x, ...)
 
-\method{print_prior}{brma}(x, parameter = "mu", parameter_mods, parameter_scale, ...)
+\method{print_prior}{brma}(x, parameter, parameter_mods, parameter_scale, ...)
 }
 \arguments{
 \item{x}{a \code{brma}, \code{BMA}, or \code{RoBMA} object, or a prior
@@ -18,7 +18,8 @@ distribution object.}
 
 \item{...}{additional arguments passed to the prior printing method.}
 
-\item{parameter}{character. Base parameter to print. Defaults to \code{"mu"}.
+\item{parameter}{character. Base parameter to print. If omitted, all stored
+prior distributions are printed.
 Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
 \code{"PEESE"}, \code{"omega"}, and \code{"bias"}. Moderator and scale
 terms can also be selected by name when unambiguous.}
@@ -43,6 +44,7 @@ from the internal \code{$priors} list.
 \examples{
 \dontrun{
 priors <- BMA(yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE)
+print_prior(priors)
 print_prior(priors, parameter = "mu")
 print_prior(priors, parameter = "tau")
 print_prior(priors, parameter_mods = "x")

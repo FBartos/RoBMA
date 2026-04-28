@@ -1,0 +1,40 @@
+
+Individual Models
+ Effect          Heterogeneity           Publication Bias                Prior prob. Post. prob. Inclusion BF
+ Spike(0)        Spike(0)                None                                  0.125       0.000        0.000
+ Normal(0, 0.71) Spike(0)                None                                  0.125       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] None                                  0.125       0.000        0.000
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] None                                  0.125       0.041        0.302
+ Spike(0)        Spike(0)                omega[two-sided: .05]                 0.010       0.000        0.000
+ Normal(0, 0.71) Spike(0)                omega[two-sided: .05]                 0.010       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.010       0.000        0.000
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.010       0.001        0.114
+ Spike(0)        Spike(0)                omega[two-sided: .1, .05]             0.010       0.000        0.000
+ Normal(0, 0.71) Spike(0)                omega[two-sided: .1, .05]             0.010       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] omega[two-sided: .1, .05]             0.010       0.000        0.000
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] omega[two-sided: .1, .05]             0.010       0.000        0.032
+ Spike(0)        Spike(0)                omega[one-sided: .05]                 0.010       0.000        0.000
+ Normal(0, 0.71) Spike(0)                omega[one-sided: .05]                 0.010       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] omega[one-sided: .05]                 0.010       0.002        0.178
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] omega[one-sided: .05]                 0.010       0.003        0.324
+ Spike(0)        Spike(0)                omega[one-sided: .05, .025]           0.010       0.000        0.000
+ Normal(0, 0.71) Spike(0)                omega[one-sided: .05, .025]           0.010       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] omega[one-sided: .05, .025]           0.010       0.004        0.356
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] omega[one-sided: .05, .025]           0.010       0.003        0.324
+ Spike(0)        Spike(0)                omega[one-sided: .5, .05]             0.010       0.000        0.000
+ Normal(0, 0.71) Spike(0)                omega[one-sided: .5, .05]             0.010       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] omega[one-sided: .5, .05]             0.010       0.010        0.973
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] omega[one-sided: .5, .05]             0.010       0.004        0.343
+ Spike(0)        Spike(0)                omega[one-sided: .5, .05, .025]       0.010       0.000        0.000
+ Normal(0, 0.71) Spike(0)                omega[one-sided: .5, .05, .025]       0.010       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] omega[one-sided: .5, .05, .025]       0.010       0.025        2.389
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] omega[one-sided: .5, .05, .025]       0.010       0.004        0.388
+ Spike(0)        Spike(0)                PET                                   0.031       0.000        0.000
+ Normal(0, 0.71) Spike(0)                PET                                   0.031       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] PET                                   0.031       0.661       60.445
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] PET                                   0.031       0.095        3.259
+ Spike(0)        Spike(0)                PEESE                                 0.031       0.000        0.000
+ Normal(0, 0.71) Spike(0)                PEESE                                 0.031       0.000        0.000
+ Spike(0)        Normal(0, 0.35)[0, Inf] PEESE                                 0.031       0.117        4.110
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] PEESE                                 0.031       0.029        0.930
+

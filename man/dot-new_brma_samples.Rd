@@ -10,7 +10,8 @@
   n_iter,
   title,
   probs = c(0.025, 0.975),
-  data = NULL
+  data = NULL,
+  effect_transform = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@
 
 \item{data}{optional data associated with the predictions (e.g., for
 non-aggregated predictions)}
+
+\item{effect_transform}{optional effect-size transformation metadata}
 }
 \value{
 An object of class \code{brma_samples} which inherits from

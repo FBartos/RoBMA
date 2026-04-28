@@ -9,6 +9,8 @@
   newdata = NULL,
   type = "terms",
   as_measure = TRUE,
+  output_measure = NULL,
+  transform = NULL,
   probs = c(0.025, 0.975),
   bias_adjusted = FALSE,
   quiet = FALSE,
@@ -50,6 +52,17 @@ regression if present.}
 effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
 \code{TRUE}. Only relevant for GLMM models with \code{type = "response"}.
 When \code{FALSE}, returns raw frequency data (counts).}
+
+\item{output_measure}{effect-size measure for location/effect predictions.
+Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
+\code{"COR"}, \code{"ZCOR"}, and \code{"OR"}; \code{"RR"}, \code{"HR"},
+\code{"IRR"}, \code{"RD"}, and \code{"GEN"} can only be returned on their
+fitted measure. Use \code{transform = "EXP"} for ratio-scale output from
+log-scale measures.}
+
+\item{transform}{optional display transformation. Currently \code{"EXP"}
+exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
+and \code{"IRR"}.}
 
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .50, .975)}}

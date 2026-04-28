@@ -1,3 +1,5 @@
 url: 'https://https://fbartos.github.io/RoBMA/'
 template:
   bootstrap: 5
+redirects:
+  - ["articles/Tutorial.html", "articles/30-tutorial.html"]

@@ -4,7 +4,14 @@
 \alias{true_effects.brma}
 \title{True Effects for brma Objects}
 \usage{
-\method{true_effects}{brma}(object, bias_adjusted = FALSE, probs = c(0.025, 0.975), ...)
+\method{true_effects}{brma}(
+  object,
+  bias_adjusted = FALSE,
+  output_measure = NULL,
+  transform = NULL,
+  probs = c(0.025, 0.975),
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -13,6 +20,17 @@
 \code{FALSE}, which returns estimates including publication bias effects
 (i.e., what we expect the true effects to be given the biased observations).
 Set to \code{TRUE} to obtain bias-corrected estimates.}
+
+\item{output_measure}{effect-size measure for location/effect predictions.
+Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
+\code{"COR"}, \code{"ZCOR"}, and \code{"OR"}; \code{"RR"}, \code{"HR"},
+\code{"IRR"}, \code{"RD"}, and \code{"GEN"} can only be returned on their
+fitted measure. Use \code{transform = "EXP"} for ratio-scale output from
+log-scale measures.}
+
+\item{transform}{optional display transformation. Currently \code{"EXP"}
+exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
+and \code{"IRR"}.}
 
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
