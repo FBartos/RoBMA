@@ -1,0 +1,235 @@
+---
+title: "Publication-Bias Adjustment"
+author: "František Bartoš"
+date: "28th of April 2026"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Publication-Bias Adjustment}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+source("vignette-cache.R", local = knitr::knit_global())
+
+cached_fits <- vignette_cache(
+  name     = "11-metafor-parity-publication-bias",
+  objects  = c("fit_PET_brma", "fit_PEESE_brma", "fit_selmodel_brma"),
+  packages = c("metafor", "metadat")
+)
+
+knitr::opts_chunk$set(
+  collapse    = TRUE,
+  comment     = "#>",
+  eval        = vignette_cache_eval(cached_fits),
+  message     = FALSE,
+  warning     = FALSE,
+  fig.width   = 7,
+  fig.height  = 3.5,
+  dev         = "png",
+  fig.retina  = 3
+)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+```{r load-models, include = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.lehmann2018", package = "metadat")
+dat <- dat.lehmann2018
+
+vignette_cache_load(cached_fits)
+```
+
+```{r precompute-models, include = FALSE, eval = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.lehmann2018", package = "metadat")
+dat <- dat.lehmann2018
+
+fit_PET_brma <- bPET(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+
+fit_PEESE_brma <- bPEESE(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+
+fit_selmodel_brma <- bselmodel(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+
+vignette_cache_save(cached_fits)
+```
+
+This vignette illustrates how to use `RoBMA` package [@RoBMA] for single-model publication-bias adjustment.
+It walks through the ego-depletion dataset from `metadat`, fitting three single-model bias adjustments alongside their `metafor` counterparts [@metafor]: PET and PEESE [@stanley2014meta], and a weight-function selection model [@vevea1995general].
+All of the models could also be combined with Bayesian model-averaging into a Robust Bayesian meta-analysis as described in another vignette (TODO: add link).
+
+All `bPET()`, `bPEESE()`, and `bselmodel()` calls keep the default priors; see the [*Prior Distributions*](01-prior-distributions.html) vignette for the prior definitions and customization options.
+For the non-bias-adjusted workflow showing more features (also applicable to the publication-bias models) see the [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) vignette.
+
+## Default Bias-Adjustment Priors
+
+The three model types use a separate prior on the bias-adjustment parameter, independent of the priors on `mu`, `tau`, and the meta-regression coefficients.
+
+| Model         | Bias parameter | Default prior |
+|:--------|:---------------|:------------------------------------------------------------------|
+| `bPET()`      | `PET`   | Cauchy($0$, $1$), truncated to $[0, \infty)$ |
+| `bPEESE()`    | `PEESE` | Cauchy($0$, $5 \cdot \text{UISD}_{\text{ratio}}$), truncated to $[0, \infty)$ |
+| `bselmodel()` | `omega` | one-sided weight function with `steps = c(0.025)` and `alpha = c(1, 1)` |
+
+The PET prior is invariant to the effect-size measure.
+The PEESE scale is rescaled by $\text{UISD}_{\text{ratio}} = \text{UISD}_{\text{SMD}} / \text{UISD}_{\text{measure}}$ so the prior describes a comparable bias on each scale; the ratio is $1$ for `measure = "SMD"`.
+The weight-function default specifies a Dirichlet prior on the relative publication probabilities of one-sided $p$-values below and above $0.025$, equivalent to a three-parameter selection model (3PSM).
+Unlike the meta-analytic priors, the bias-adjustment priors are not affected by `rescale_priors`; they can be replaced via `prior_bias`, and the weight-function `steps` can be changed directly via the `steps` argument.
+
+These priors corresponds to the default settings tested in the larger RoBMA-PSMA ensemble in @bartos2021no.
+Note that the default priors are restricted in a way that the no publication bias case is on the parameter space boundary. 
+This is not an issue for the RoBMA ensemble that includes models assuming absence of publication bias; however, these simple models might tend to produce slight downward bias if publication bias is absent.  
+
+The publication bias adjustment models rely on the `effect_direction` argument.
+Selection models penalize one-sided $p$-values evaluated against the expected sign of the effect, and the truncated PET and PEESE priors constrain the small-study coefficient to pull the estimate toward zero from the dominant direction.
+The `effect_direction` argument tells the model which side that is.
+The default `effect_direction = "detect"` infers the direction from the median of `yi` (positive median yields `"positive"`, negative median yields `"negative"`).
+Set `effect_direction = "positive"` or `effect_direction = "negative"` explicitly when the dominant direction is known a priori.
+
+The `dat.lehmann2018` dataset from `metadat` collects 81 standardized mean differences from the ego-depletion meta-analysis.
+Effect sizes `yi` and sampling variances `vi` are already provided.
+
+```{r data}
+data("dat.lehmann2018", package = "metadat")
+dat <- dat.lehmann2018
+```
+
+## PET
+
+The PET model regresses effect sizes on the standard error.
+With `metafor::rma()` it is fit by passing `mods = ~ sqrt(vi)`; the slope on `sqrt(vi)` is the PET coefficient.
+
+```{r fit-PET-metafor}
+fit_PET_metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat)
+fit_PET_metafor
+```
+
+`bPET()` fits the same model with the default Cauchy prior on the (positive) PET coefficient.
+`measure = "SMD"` selects the default priors for standardized mean differences.
+
+```{r fit-PET-brma, eval = FALSE}
+fit_PET_brma <- bPET(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+```
+```{r fit-PET-brma-summary}
+summary(fit_PET_brma, include_MCMC_diagnostics = FALSE)
+```
+
+The posterior mean of `mu` is the bias-corrected average effect; the `PET` coefficient quantifies how strongly small studies pull the meta-analytic mean.
+The left panel shows the prior and posterior of the `PET` coefficient with `prior = TRUE` overlaying the prior; the right panel shows the implied PET regression of effect on standard error from `plot_PETPEESE()`, with the prior band overlaid.
+
+```{r PET-posterior, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+plot(fit_PET_brma,        parameter = "PET", prior = TRUE, main = "PET coefficient", xlim = c(0, 4))
+plot_PETPEESE(fit_PET_brma,                  prior = TRUE, main = "PET regression")
+```
+
+The half-Cauchy prior on `PET` is wide; the posterior concentrates near $1$, broadly consistent with the metafor estimate but pulled toward zero by the prior.
+The implied regression line intersects the distribution of effect sizes and standard errors.
+
+## PEESE
+
+The PEESE model regresses effect sizes on the sampling variance instead of the standard error.
+With `metafor::rma()` it is fit by passing `mods = ~ vi`; the slope on `vi` is the PEESE coefficient.
+
+```{r fit-PEESE-metafor}
+fit_PEESE_metafor <- metafor::rma(yi, vi, mods = ~ vi, data = dat)
+fit_PEESE_metafor
+```
+
+`bPEESE()` fits the same model with the default Cauchy prior on the (positive) PEESE coefficient, with the prior scale rescaled to the effect-size measure.
+
+```{r fit-PEESE-brma, eval = FALSE}
+fit_PEESE_brma <- bPEESE(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+```
+
+```{r fit-PEESE-brma-summary}
+summary(fit_PEESE_brma, include_MCMC_diagnostics = FALSE)
+```
+
+As for PET, the left panel shows the prior and posterior of the `PEESE` coefficient and the right panel shows the implied PEESE regression of effect on sampling variance.
+
+```{r PEESE-posterior, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+plot(fit_PEESE_brma,        parameter = "PEESE", prior = TRUE, main = "PEESE coefficient", xlim = c(0, 8))
+plot_PETPEESE(fit_PEESE_brma,                    prior = TRUE, main = "PEESE regression")
+```
+
+The bias-corrected effect under PEESE is also closer to zero than the random-effects estimate due to the weakly informative priors.
+
+## Weight Function Selection Model
+
+The selection model multiplies the likelihood of each study by a $p$-value-dependent publication probability.
+With `metafor`, a one-sided three-parameter model is fit by passing the random-effects fit to `metafor::selmodel()`.
+
+```{r fit-selmodel-metafor}
+fit_rma_metafor      <- metafor::rma(yi, vi, data = dat, method = "ML")
+fit_selmodel_metafor <- metafor::selmodel(fit_rma_metafor, type = "stepfun", steps = .025)
+fit_selmodel_metafor
+```
+
+`bselmodel()` fits the same model in one call.
+The default weight function uses a single one-sided cutoff at $0.025$.
+Pass `steps = c(0.025, 0.5)` (or any other vector) to specify a finer step function; the prior on the omega vector is uniform across the implied intervals.
+
+```{r fit-selmodel-brma, eval = FALSE}
+fit_selmodel_brma <- bselmodel(
+  yi = yi, vi = vi, measure = "SMD",
+  data = dat, seed = 1
+)
+```
+```{r fit-selmodel-brma-summary}
+summary(fit_selmodel_brma, include_MCMC_diagnostics = FALSE)
+```
+
+The omega vector is reported with `omega[0, 0.025]` fixed to $1$ as the reference interval; `omega[0.025, 1]` is the publication probability of one-sided $p$-values above $0.025$ relative to the significant interval.
+Values below $1$ indicate that non-significant studies are reported less often than significant ones.
+
+The omega vector has one panel per interval (the reference $[0, 0.025]$ panel shows the spike at $1$).
+`plot_weightfunction()` then visualizes the same weights as a step function over the one-sided $p$-value scale, with the prior band overlaid.
+
+```{r selmodel-omega, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+plot(fit_selmodel_brma, parameter = "omega", prior = TRUE, xlim = c(0, 1))
+```
+
+```{r selmodel-weightfunction, fig.width = 4.5, fig.height = 3.2}
+par(mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+plot_weightfunction(fit_selmodel_brma, prior = TRUE, main = "Weight-function")
+```
+
+The bias-corrected `mu` posterior is shifted toward zero relative to a `brma()` random-effects fit, with the magnitude of the shift driven by the gap between the prior and posterior of `omega[0.025, 1]`.
+
+## Other Inference Helpers
+
+`bPET()`, `bPEESE()`, and `bselmodel()` accept the same `mods`, `scale`, and `cluster` arguments as `brma()`, so meta-regression, location-scale, and multilevel publication-bias models are directly available. The fits are also `brma` objects, so all summaries, plots, predictions, and diagnostics examined in the [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) vignette work the same way here.
+
+To average across publication-bias models rather than commit to a single one, use `RoBMA()`; see the [*Introduction to RoBMA*](00-introduction.html) vignette for an overview of the model-averaged workflow and the available `model_type` presets.
+
+## References
