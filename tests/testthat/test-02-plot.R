@@ -160,8 +160,8 @@ test_that("Prior and posterior distributions for BMA.norm objects", {
   vdiffr::expect_doppelganger(paste0(name, "-mu_ggplot_pp_prior"), plot(temp_fit, "mu", prior = TRUE, plot_type = "ggplot"))
 
   # moderation
-  vdiffr::expect_doppelganger(paste0(name, "-mu_ggplot_pp_no_prior"), plot(temp_fit, parameter_mods = "Preregistered", prior = FALSE, plot_type = "ggplot"))
-  vdiffr::expect_doppelganger(paste0(name, "-mu_ggplot_pp_prior"), plot(temp_fit, parameter_mods = "Preregistered", prior = TRUE, plot_type = "ggplot"))
+  vdiffr::expect_doppelganger(paste0(name, "-mods_ggplot_pp_no_prior"), plot(temp_fit, parameter_mods = "Preregistered", prior = FALSE, plot_type = "ggplot"))
+  vdiffr::expect_doppelganger(paste0(name, "-mods_ggplot_pp_prior"), plot(temp_fit, parameter_mods = "Preregistered", prior = TRUE, plot_type = "ggplot"))
 
   # heterogeneity
   vdiffr::expect_doppelganger(paste0(name, "-tau_baseplot_pp_no_prior"), function() plot(temp_fit, "tau", prior = FALSE))
@@ -185,6 +185,6 @@ test_that("Prior and posterior distributions for RoBMA objects", {
 
   # heterogeneity
   vdiffr::expect_doppelganger(paste0(name, "-tau_baseplot_pp_no_prior"), function() plot(temp_fit, "tau", prior = TRUE))
-  vdiffr::expect_doppelganger(paste0(name, "-tau_baseplot_pp_no_prior"), function() plot(temp_fit, "rho", prior = TRUE))
+  vdiffr::expect_doppelganger(paste0(name, "-rho_baseplot_pp_no_prior"), function() plot(temp_fit, "rho", prior = TRUE))
 
 })

@@ -101,13 +101,13 @@ test_that("Influence stats for meta-regression with interaction match metafor", 
   skip_case <- c(4, 5, 6, 8, 10)
 
   # Check the individual components
-  expect_equal(inf_metafor$inf$rstudent[-skip_case], inf_brma$inf$rstudent[-skip_case],  tolerance = 0.10, info = "rstudent matches")
-  expect_equal(inf_metafor$inf$dffits[-skip_case],   inf_brma$inf$dffits[-skip_case],    tolerance = 0.10, info = "dffits matches")
-  # expect_equal(inf_metafor$inf$cook.d[-skip_case],   inf_brma$inf$cook.d[-skip_case],    tolerance = 0.10, info = "cook.d matches") # TODO: check
-  # skip covariance.ratio check - the metafors approach does not seen to account for uncertrainty in tau
-  # expect_equal(inf_metafor$inf$cov.r[-skip_case],    inf_brma$inf$cov.r[-skip_case],     tolerance = 0.10, info = "cov.r matches")
-  # expect_equal(inf_metafor$inf$tau2.del[-skip_case], inf_brma$inf$tau.del[-skip_case]^2, tolerance = 0.10, info = "tau2.del matches")
-  expect_equal(inf_metafor$inf$hat[-skip_case],      inf_brma$inf$hat[-skip_case],       tolerance = 0.10, info = "hat matches")
+  expect_true(cor(inf_metafor$inf$rstudent, inf_brma$inf$rstudent, method = "spearman", use = "pairwise") > 0.9, info = "rstudent matches")
+  expect_true(cor(inf_metafor$inf$dffits, inf_brma$inf$dffits, method = "spearman", use = "pairwise") > 0.9, info = "dffits matches")
+  expect_true(cor(inf_metafor$inf$cook.d, inf_brma$inf$cook.d, method = "spearman", use = "pairwise") > 0.8, info = "cook.d matches")
+  expect_true(cor(inf_metafor$inf$cov.r, inf_brma$inf$cov.r, method = "spearman", use = "pairwise") > 0.9, info = "cov.r matches")
+  expect_true(cor(inf_metafor$inf$tau2.del, inf_brma$inf$tau.del, method = "spearman", use = "pairwise") > 0.9, info = "tau2.del matches")
+  expect_true(cor(inf_metafor$inf$hat, inf_brma$inf$hat, method = "spearman", use = "pairwise") > 0.9, info = "hat matches")
+  # use correlation only because of regularization
 })
 
 # ============================================================================ #

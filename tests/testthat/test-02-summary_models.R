@@ -54,3 +54,22 @@ test_that("summary_models is RoBMA-only", {
     "RoBMA objects"
   )
 })
+
+test_that("summary_models decodes interaction labels", {
+
+  skip_if_missing_fits("dat.lehmann2018_RoBMA_mods2")
+
+  marginal_output <- capture.output(print(summary_models(
+    fits[["dat.lehmann2018_RoBMA_mods2"]],
+    type = "marginal"
+  )))
+  individual_output <- capture.output(print(summary_models(
+    fits[["dat.lehmann2018_RoBMA_mods2"]],
+    type = "individual"
+  )))
+
+  expect_false(any(grepl("__xXx__", marginal_output, fixed = TRUE)))
+  expect_false(any(grepl("__xXx__", individual_output, fixed = TRUE)))
+  expect_true(any(grepl("Preregistered:Gender", marginal_output, fixed = TRUE)))
+  expect_true(any(grepl("Preregistered:Gender", individual_output, fixed = TRUE)))
+})

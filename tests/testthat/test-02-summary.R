@@ -31,3 +31,19 @@ test_that("Model summary", {
                        paste0("summary-print.txt"), paste0("Summary table for '", name, "' mismatch"))
 
 })
+
+test_that("RoBMA conditional summary", {
+
+  skip_if_missing_fits(c("bcg_meta-analysis", "dat.lehmann2018_RoBMA_mods"))
+
+  test_reference_table(
+    summary(fits[["dat.lehmann2018_RoBMA_mods"]], conditional = TRUE),
+    "summary-conditional-dat.lehmann2018_RoBMA_mods.txt",
+    "Conditional RoBMA summary mismatch"
+  )
+
+  expect_error(
+    summary(fits[["bcg_meta-analysis"]], conditional = TRUE),
+    "RoBMA objects"
+  )
+})

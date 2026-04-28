@@ -132,9 +132,22 @@ test_that("print_prior prints selected priors", {
   expect_true(BayesTools::is.prior(print_prior(priors, parameter_mods = "mod_cont", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "mod_factor", silent = TRUE)))
 
+  full_output <- capture.output(full_selected <- print_prior(priors, silent = TRUE))
+  expect_identical(full_output, character(0))
+  expect_named(full_selected, c("mu_intercept", "mu_mod_cont", "mu_mod_factor", "tau"))
+  expect_true(all(vapply(full_selected, BayesTools::is.prior, logical(1))))
+
+  full_printed   <- capture.output(print_prior(priors))
+  parameter_rows <- grep("^(mu_|tau:)", full_printed, value = TRUE)
+  expect_equal(sub(":.*$", "", parameter_rows), names(full_selected))
+
   printed <- capture.output(print_prior(priors, parameter = "tau"))
-  expect_match(paste(printed, collapse = "\n"), "tau")
-  expect_match(paste(printed, collapse = "\n"), "Normal")
+  expect_equal(printed[1:3], c(
+    "tau:",
+    "  alternative:",
+    "    (1/2) * Normal(0, 0.35)[0, Inf]"
+  ))
+  expect_true("  null:" %in% printed)
 
   selected <- print_prior(priors, parameter = c("mu", "tau"), silent = TRUE)
   expect_named(selected, c("mu", "tau"))
@@ -164,4 +177,25 @@ test_that("plot_prior handles publication-bias prior components", {
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "bias",  silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "omega", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "PET",   silent = TRUE)))
+})
+
+test_that("only_priors objects print and plot via prior methods", {
+
+  skip_on_cran()
+
+  priors <- RoBMA(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", model_type = "PP", only_priors = TRUE
+  )
+
+  expect_s3_class(priors, "only_priors.brma")
+
+  printed <- capture.output(print(priors))
+  expect_true(any(grepl("^mu:", printed)))
+  expect_true(any(grepl("^bias:", printed)))
+
+  .with_temp_plot_device(
+    expect_silent(plot(priors))
+  )
+  expect_true(.is_ggplot(plot(priors, plot_type = "ggplot")))
 })

@@ -33,7 +33,7 @@ test_that("autocompute options work for brma()", {
   expect_true(!is.null(fit_auto$waic))
   expect_true(!is.null(fit_auto$marglik))
 
-  expect_s3_class(fit_auto$loo, "loo")
-  expect_s3_class(fit_auto$waic, "waic")
+  expect_s3_class(fit_auto$loo$estimate, "loo")
+  expect_s3_class(fit_auto$waic$estimate, "waic")
   expect_s3_class(fit_auto$marglik, "bridge")
 })

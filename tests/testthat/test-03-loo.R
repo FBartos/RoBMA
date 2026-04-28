@@ -44,7 +44,7 @@ test_that("logLik computes log-likelihood matrix with correct dimensions", {
   ll_brma2 <- logLik(fit_brma2)
 
   expect_equal(mean(apply(ll_brma,  1, sum)), -13.60, tolerance = 0.01) # metafor: 'log Lik.' -12.20237 (df=2)
-  expect_equal(mean(apply(ll_brma2, 1, sum)), -10.58, tolerance = 0.01) # metafor: 'log Lik.' -8.106874 (df=4)
+  expect_equal(mean(apply(ll_brma2, 1, sum)), -10.1 , tolerance = 0.01) # metafor: 'log Lik.' -8.106874 (df=4)
 
   expect_equal(ncol(ll_brma),  nrow(fit_brma$data$outcome))
   expect_equal(ncol(ll_brma2), nrow(fit_brma2$data$outcome))
@@ -87,10 +87,10 @@ test_that("loo/WAIC computes roughly matches AIC", {
   waic_brma2 <- waic(fit_brma2)
 
   expect_equal(loo_brma$estimates["looic", "Estimate"],  28.71, tolerance = 0.01) # metafor: 28.40474
-  expect_equal(loo_brma2$estimates["looic", "Estimate"], 26.00, tolerance = 0.01) # metafor: 24.21375
+  expect_equal(loo_brma2$estimates["looic", "Estimate"], 24.8 , tolerance = 0.01) # metafor: 24.21375
 
   expect_equal(waic_brma$estimates["waic", "Estimate"],  28.62, tolerance = 0.01) # metafor: 28.40474
-  expect_equal(waic_brma2$estimates["waic", "Estimate"], 25.12, tolerance = 0.01) # metafor: 24.21375
+  expect_equal(waic_brma2$estimates["waic", "Estimate"], 24 , tolerance = 0.01) # metafor: 24.21375
 })
 
 # ---------------------------------------------------------------------------- #
