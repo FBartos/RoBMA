@@ -101,10 +101,14 @@ print.summary_models.RoBMA <- function(x, ...) {
   location_parameters <- grep("^mu_", names(prior_list), value = TRUE)
   location_parameters <- location_parameters[location_parameters != "mu_intercept"]
   for (parameter in location_parameters) {
+    component <- paste0(
+      "Location: ",
+      .summary_parameter_label(sub("^mu_", "", parameter))
+    )
     components <- .summary_models_add_component(
       components = components,
       prior_list = prior_list,
-      component  = paste0("Location: ", sub("^mu_", "", parameter)),
+      component  = component,
       parameter  = parameter
     )
   }
@@ -120,10 +124,14 @@ print.summary_models.RoBMA <- function(x, ...) {
   scale_parameters <- grep("^log_tau_", names(prior_list), value = TRUE)
   scale_parameters <- scale_parameters[scale_parameters != "log_tau_intercept"]
   for (parameter in scale_parameters) {
+    component <- paste0(
+      "Scale: ",
+      .summary_parameter_label(sub("^log_tau_", "", parameter))
+    )
     components <- .summary_models_add_component(
       components = components,
       prior_list = prior_list,
-      component  = paste0("Scale: ", sub("^log_tau_", "", parameter)),
+      component  = component,
       parameter  = parameter
     )
   }

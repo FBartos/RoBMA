@@ -78,6 +78,13 @@ NULL
   return(object)
 }
 
+.set_only_priors_class <- function(object) {
+
+  class(object) <- unique(c("only_priors.brma", class(object)))
+
+  return(object)
+}
+
 .check_unused_dots <- function(dots, allowed, caller) {
 
   if (length(dots) == 0L) {

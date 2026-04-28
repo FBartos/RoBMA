@@ -175,7 +175,7 @@ test_that("Predictions for meta-regression with interaction match metafor", {
   brma_fitted <- summary(brma_pred_terms)[, "Mean"]
 
   # comparison (moderator regression can have larger deviations)
-  expect_equal(cor(brma_fitted, metafor_fitted) > 0.90,
+  expect_true(cor(brma_fitted, metafor_fitted) > 0.90,
               info = "brma per-study predictions should match metafor fitted values")
 
   # --------------------------------------------------
@@ -1119,7 +1119,7 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
     n_studies <- nobs(fit_brma)
     out       <- ranef(fit_brma)
 
-    expect_type(out, "list", info = name)
+    expect_type(out, "list")
     expect_equal(names(out), c("cluster", "estimate"), info = name)
     .expect_brma_samples_matrix(out[["cluster"]], n_studies, paste(name, "cluster ranef"))
     .expect_brma_samples_matrix(out[["estimate"]], n_studies, paste(name, "estimate ranef"))

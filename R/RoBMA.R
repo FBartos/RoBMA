@@ -59,7 +59,7 @@ RoBMA <- function(
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]], model_type = model_type)
   if (isTRUE(dots[["only_priors"]]))
-    return(object)
+    return(.set_only_priors_class(object))
 
   ### fit the model
   object$fit <- .fit(object)

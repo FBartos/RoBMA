@@ -65,7 +65,7 @@ bPEESE <- function(
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]], bias_type = "PEESE")
   if (isTRUE(dots[["only_priors"]]))
-    return(object)
+    return(.set_only_priors_class(object))
 
   ### fit the model
   object$fit <- .fit(object)

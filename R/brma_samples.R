@@ -32,32 +32,39 @@
 #' \code{c(.025, .975)}
 #' @param data optional data associated with the predictions (e.g., for
 #' non-aggregated predictions)
+#' @param effect_transform optional effect-size transformation metadata
 #'
 #' @return An object of class \code{brma_samples} which inherits from
 #' \code{matrix}.
 #'
 #' @keywords internal
 .new_brma_samples <- function(samples, n_chains, n_iter, title,
-                              probs = c(.025, .975), data = NULL) {
+                              probs = c(.025, .975), data = NULL,
+                              effect_transform = NULL) {
 
- # ensure samples is a matrix with proper column names
- if (!is.matrix(samples)) {
-   samples <- as.matrix(samples)
- }
+  # ensure samples is a matrix with proper column names
+  if (!is.matrix(samples)) {
+    samples <- as.matrix(samples)
+  }
 
- # add attributes for MCMC structure
- attr(samples, "nchains") <- n_chains
- attr(samples, "niter")   <- n_iter
+  # add attributes for MCMC structure
+  attr(samples, "nchains") <- n_chains
+  attr(samples, "niter")   <- n_iter
 
- # add attributes for display
- attr(samples, "title")    <- title
- attr(samples, "probs")    <- probs
- attr(samples, "data")     <- data
+  # add attributes for display
+  attr(samples, "title")    <- title
+  attr(samples, "probs")    <- probs
+  attr(samples, "data")     <- data
 
- # set class (inherits from matrix for backward compatibility)
- class(samples) <- c("brma_samples", "matrix", "array")
+  if (!is.null(effect_transform)) {
+    attr(samples, "effect_transform") <- effect_transform
+    attr(samples, "footnotes")        <- effect_transform[["note"]]
+  }
 
- return(samples)
+  # set class (inherits from matrix for backward compatibility)
+  class(samples) <- c("brma_samples", "matrix", "array")
+
+  return(samples)
 }
 
 
@@ -114,13 +121,23 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
     probs <- attr(object, "probs")
   }
 
+  dots <- list(...)
+  if (is.null(dots[["footnotes"]]) && !is.null(attr(object, "footnotes"))) {
+    dots[["footnotes"]] <- attr(object, "footnotes")
+  }
+
   # create summary table
-  summary_table <- BayesTools::ensemble_estimates_table(
-    samples    = asplit(object, 2),
-    parameters = colnames(object),
-    probs      = probs,
-    title      = attr(object, "title"),
-    ...
+  summary_table <- do.call(
+    BayesTools::ensemble_estimates_table,
+    c(
+      list(
+        samples    = asplit(object, 2),
+        parameters = colnames(object),
+        probs      = probs,
+        title      = attr(object, "title")
+      ),
+      dots
+    )
   )
 
   class(summary_table) <- c("summary.brma_samples", class(summary_table))

@@ -93,7 +93,7 @@ BMA.glmm <- function(
     data = object[["data"]]
   )
   if (isTRUE(dots[["only_priors"]]))
-    return(object)
+    return(.set_only_priors_class(object))
 
   ### fit the model
   object$fit <- .fit(object)
