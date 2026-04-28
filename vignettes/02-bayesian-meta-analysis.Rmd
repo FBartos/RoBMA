@@ -25,14 +25,15 @@ cached_fits <- vignette_cache(
 )
 
 knitr::opts_chunk$set(
-  collapse   = TRUE,
-  comment    = "#>",
-  eval       = vignette_cache_eval(cached_fits),
-  message    = FALSE,
-  warning    = FALSE,
-  fig.width  = 7,
-  fig.height = 3.5,
-  dev        = "png"
+  collapse    = TRUE,
+  comment     = "#>",
+  eval        = vignette_cache_eval(cached_fits),
+  message     = FALSE,
+  warning     = FALSE,
+  fig.width   = 7,
+  fig.height  = 3.5,
+  dev         = "png",
+  fig.retina  = 3
 )
 if (.Platform$OS.type == "windows") {
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
@@ -90,12 +91,11 @@ fit3_brma <- add_marglik(fit3_brma)
 vignette_cache_save(cached_fits)
 ```
 
-A Bayesian random-effects meta-analysis with `brma()` mirrors `metafor`'s `rma()` in interface: the same effect-size, moderator, and meta-regression specifications drop in unchanged.
-The model output is a posterior distribution; credible intervals, Bayes factors, and leave-one-out predictive scores follow from the same fit.
+This vignette is a starting point for using `RoBMA` [@RoBMA].
+It walks through the BCG vaccine dataset from `metafor` [@metafor], showing each `brma()` call alongside its `metafor::rma()` counterpart and building from a simple random-effects model up to meta-regression with a continuous and a categorical moderator.
+The interface is intentionally close to `metafor`: the same effect-size columns, moderator formulas, and standard plotting and diagnostic functions apply.
 
-This vignette walks through the BCG vaccine examples from `metafor` [@metafor] alongside their `brma()` counterparts [@RoBMA], one model at a time.
-All `brma()` calls keep the default priors; see the *Prior Distributions* vignette for the prior definitions and customization options.
-The outcome is the log risk ratio (`measure = "RR"`); for the broader Bayesian framework, see @bartos2025bayesian.
+All `brma()` calls keep the default priors; see the [*Prior Distributions*](01-prior-distributions.html) vignette for the prior definitions and customization options.
 
 ## Random-Effects Model
 
@@ -120,7 +120,7 @@ fit1_metafor
 
 The matching Bayesian fit reuses the same effect-size columns.
 `measure = "RR"` tells `brma()` to use the default priors for log risk ratios.
-The defaults are weakly informative and provide slight regularization toward zero; see the *Prior Distributions* vignette for the prior definitions and rescaling options.
+The default prior distributions are weakly informative and provide slight regularization toward zero.
 
 ```{r fit1-brma, eval = FALSE}
 fit1_brma <- brma(
@@ -137,21 +137,22 @@ summary(fit1_brma, include_MCMC_diagnostics = FALSE)
 ```
 
 The posterior mean for the log risk ratio is close to the REML estimate from `metafor`; the slight pull toward zero reflects the default `Normal(0, 1)` prior.
-`pooled_effect()` returns the same summary on the natural risk-ratio scale via `transform = "EXP"`:
+`pooled_effect()` returns the same summary, backtransformed to the risk-ratio scale via `transform = "EXP"`:
 
 ```{r fit1-brma-pooled}
 pooled_effect(fit1_brma, transform = "EXP")
 ```
 
-`plot()` visualizes the posterior, and `prior = TRUE` overlays the prior so the shift from prior to posterior is visible.
+`plot()` visualizes the posterior distribution, and `prior = TRUE` overlays the prior so the shift from prior to posterior is visible.
 
 ```{r fit1-brma-plot, fig.width = 5, fig.height = 3.5}
-plot(fit1_brma, parameter = "mu", prior = TRUE, transform = "EXP")
+par(mar = c(4, 4, 1, 1))
+plot(fit1_brma, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 ```
 
 ## Heterogeneity
 
-`metafor::confint()` reports profile-likelihood confidence intervals for `tau^2`, `tau`, `I^2`, and `H^2` [@higgins2002quantifying].
+`metafor::confint()` reports profile-likelihood confidence intervals for `tau^2`, `tau`, `I^2`, and `H^2`.
 `summary_heterogeneity()` is the Bayesian counterpart, returning posterior summaries of the same quantities.
 
 ```{r heterogeneity-confint}
@@ -165,18 +166,17 @@ summary_heterogeneity(fit1_brma)
 ## Funnel Plot
 
 `funnel()` plots observed effect sizes against the fitted sampling distribution.
-The `RoBMA` output is intentionally close to `metafor::funnel()`.
+We turn off the `sampling_heterogeneity` argument, since RoBMA shows the full sampling distribution under the model by default.
 
 ```{r funnel-plot, fig.width = 7, fig.height = 3.2}
-op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-metafor::funnel(fit1_metafor, main = "metafor")
-funnel(fit1_brma, main = "RoBMA")
-par(op)
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+metafor::funnel(fit1_metafor, main = "metafor", xlim = c(-2, 1), ylim = c(0, 0.8))
+funnel(fit1_brma, main = "RoBMA", xlim = c(-2, 1), ylim = c(0, 0.8), sampling_heterogeneity = FALSE)
 ```
 
 ## Meta-Regression with a Continuous Moderator
 
-A continuous moderator is added with the standard formula syntax.
+A continuous moderator can added with the standard formula syntax via the `mods` argument.
 `ablat` is the absolute latitude of the trial, frequently used to explain BCG effect-size variation.
 
 ```{r fit2-metafor}
@@ -191,7 +191,6 @@ fit2_brma <- brma(
   data = dat, seed = 1
 )
 ```
-
 ```{r fit2-brma-summary}
 summary(fit2_brma, include_MCMC_diagnostics = FALSE)
 ```
@@ -199,39 +198,33 @@ summary(fit2_brma, include_MCMC_diagnostics = FALSE)
 `regplot()` produces the familiar bubble plot with the fitted regression line.
 
 ```{r regplot-continuous, fig.width = 7, fig.height = 3.2}
-op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-metafor::regplot(fit2_metafor, main = "metafor")
-regplot(fit2_brma, main = "RoBMA")
-par(op)
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+metafor::regplot(fit2_metafor, main = "metafor", xlim = c(10, 60), ylim = c(-2, 0.5))
+regplot(fit2_brma, main = "RoBMA", xlim = c(10, 60), ylim = c(-2, 0.5))
 ```
 
 `predict()` returns posterior summaries for user-specified moderator values.
-The `yi` and `vi` columns in `newdata` are required by input validation and are not used for `type = "terms"`.
 
 ```{r fit2-predict}
-new_data <- data.frame(
-  ablat = c(15, 35, 55),
-  yi    = 0,
-  vi    = 1
-)
+new_data <- data.frame(ablat = c(15, 35, 55))
 predict(fit2_brma, newdata = new_data, type = "terms")
 ```
 
 ## Comparing Models with Bayes Factors
 
-Marginal likelihoods enable model comparison via Bayes factors [@kass1995bayes], with no direct analogue in `metafor`.
+Marginal likelihoods enable model comparison via Bayes factors [@kass1995bayes].
 After attaching marginal likelihoods to both fits with `add_marglik()`, `bf()` returns the Bayes factor for one model against another.
 
 ```{r add-marglik, eval = FALSE}
 fit1_brma <- add_marglik(fit1_brma)
 fit2_brma <- add_marglik(fit2_brma)
 ```
-
 ```{r bayes-factor}
 bf(fit2_brma, fit1_brma)
 ```
 
 The Bayes factor quantifies how much the data shift the relative predictive support between the two models.
+Here we obtain strong evidence in favor of the model including the `ablat` predictor.
 
 ## Adding a Categorical Moderator
 
@@ -249,19 +242,17 @@ fit3_brma <- brma(
   data = dat, seed = 1
 )
 ```
-
 ```{r fit3-brma-summary}
 summary(fit3_brma, include_MCMC_diagnostics = FALSE)
 ```
 
-`metafor::regplot()` plots categorical moderators by selecting one dummy column.
-`RoBMA::regplot()` plots the factor as a single moderator while still adjusting for the other moderators in the fit.
+RoBMA also allows direct visualization of categorical moderators in the bubble plot
+(metafor only supports a single dummy coefficent at the moment).
 
 ```{r regplot-categorical, fig.width = 7, fig.height = 3.2}
-op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-metafor::regplot(fit3_metafor, mod = "allocrandom", main = "metafor: random dummy")
-regplot(fit3_brma, mod = "alloc", main = "RoBMA: alloc factor")
-par(op)
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+metafor::regplot(fit3_metafor, mod = "allocrandom", main = "metafor: random dummy", ylim = c(-2, 0.5))
+regplot(fit3_brma, mod = "alloc", main = "RoBMA: alloc factor", ylim = c(-2, 0.5))
 ```
 
 `marginal_means()` computes estimated marginal means for each moderator term, averaging over the other moderators in the fit.
@@ -272,20 +263,24 @@ emm <- marginal_means(fit3_brma)
 summary(emm)
 ```
 
-```{r marginal-means-plot, fig.width = 5, fig.height = 3.5}
-plot(emm, parameter = "alloc")
+`plot` functions visualized the posterior distribution of the estimated marginal means.
+
+```{r marginal-means-plot, fig.width = 4.5, fig.height = 3.25}
+par(mar = c(4, 4, 1, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+plot(emm, parameter = "alloc", xlim = c(-2, 0.5), lwd = 2)
 ```
 
 ## Model Diagnostics
 
+RoBMA contains a rich set of model fit diagnostics. Here, we highlight only a few of them. 
+
 `metafor::rstudent()` returns frequentist studentized residuals computed by deletion;
 `RoBMA::rstudent()` returns LOO-PIT residuals, which propagate posterior uncertainty and leverage through leave-one-out prediction.
-The two definitions are comparable but not identical, and both require `add_loo()` on the Bayesian side.
+The two definitions are comparable but not identical, RoBMA's LOO-PIT residuals first require loo computation via `add_loo()`.
 
 ```{r add-loo, eval = FALSE}
 fit3_brma <- add_loo(fit3_brma)
 ```
-
 ```{r residuals}
 head(rstudent(fit3_metafor)$z)
 head(rstudent(fit3_brma)$z)
@@ -294,10 +289,9 @@ head(rstudent(fit3_brma)$z)
 `qqnorm()` checks the residuals against a standard normal reference.
 
 ```{r qqplot, fig.width = 7, fig.height = 3.2}
-op <- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-qqnorm(fit3_metafor, main = "metafor: studentized")
-qqnorm(fit3_brma, main = "RoBMA: LOO-PIT", reps = 500)
-par(op)
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+qqnorm(fit3_metafor, main = "metafor: studentized", xlim = c(-1.5, 1.5), ylim = c(-3, 3))
+qqnorm(fit3_brma, main = "RoBMA: LOO-PIT", xlim = c(-1.5, 1.5), ylim = c(-3, 3))
 ```
 
 `influence()` collects DFFITS, Cook's distance, COVRATIO, leverage, and DFBETAS where the diagnostic is available.
@@ -310,23 +304,8 @@ head(inf_brma$inf)
 The Bayesian framework adds Pareto-k diagnostics from the `loo` object, flagging studies for which the LOO approximation is unreliable [@vehtari2024pareto].
 
 ```{r loo-plot, fig.width = 4.5, fig.height = 3.5}
+par(cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(loo(fit3_brma))
 ```
-
-## General Considerations and Reporting
-
-`brma()` and `metafor::rma()` share an interface, but the inferences they support diverge once the fit is in hand.
-
-**Posterior summaries replace point estimates.**
-Report the posterior mean (or median) together with the credible interval, not just a single value.
-A Bayesian credible interval is a probability statement about the parameter conditional on the data and the prior, which is not the same as a frequentist confidence interval.
-
-**Bayes factors and posterior probabilities depend on the prior.**
-The Bayes factor and posterior model probabilities are functions of the priors under each model, not of the data alone.
-Report the priors used (or refer to the *Prior Distributions* vignette when the defaults apply) and run a prior sensitivity analysis when conclusions are close to a decision threshold.
-
-**Inspect Pareto-k for LOO-based diagnostics.**
-LOO-PIT residuals, model comparison via PSIS-LOO [@vehtari2017practical], and the Pareto-k diagnostic all rely on the same leave-one-out approximation.
-Report any studies whose Pareto-k values exceed the diagnostic threshold; a small number of high-k points signals that LOO is unreliable for those studies.
 
 ## References
