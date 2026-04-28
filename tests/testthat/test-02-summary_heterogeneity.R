@@ -407,3 +407,12 @@ test_that("Heterogeneity for model-averaged 3-level models is partitioned", {
     )
   }
 })
+
+test_that("summary_heterogeneity print keeps leading blank line", {
+
+  skip_if_missing_fits("bcg_meta-analysis")
+
+  output <- capture.output(print(summary_heterogeneity(fits[["bcg_meta-analysis"]])))
+
+  expect_equal(output[[1]], "")
+})

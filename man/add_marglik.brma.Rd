@@ -23,6 +23,10 @@ bridge sampling and store the result in the object.
 The marginal likelihood is computed using the \code{bridgesampling} package
 via the \code{BayesTools::JAGS_bridgesampling} wrapper. The result is stored
 in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
+
+Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
+and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
+use predictive comparison methods such as \code{\link{loo.brma}} instead.
 }
 \examples{
 \dontrun{

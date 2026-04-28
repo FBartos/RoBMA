@@ -78,6 +78,31 @@ NULL
   return(object)
 }
 
+.check_unused_dots <- function(dots, allowed, caller) {
+
+  if (length(dots) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    dot_names <- rep("", length(dots))
+  }
+
+  unused <- dot_names[!nzchar(dot_names) | !dot_names %in% allowed]
+  if (length(unused) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  unused[!nzchar(unused)] <- "<unnamed>"
+  stop(
+    "Unused argument", if (length(unused) > 1L) "s" else "",
+    " in ", caller, ": ",
+    paste0("'", unused, "'", collapse = ", "),
+    call. = FALSE
+  )
+}
+
 
 ### object tools options
 # add simple summary and model coefficients to the object

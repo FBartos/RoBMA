@@ -1036,6 +1036,96 @@ test_that("Wrapper functions have correct interface", {
 
 })
 
+.expect_brma_samples_matrix <- function(x, n_col, info) {
+
+  expect_s3_class(x, "brma_samples")
+  expect_true(is.matrix(x), info = info)
+  expect_equal(ncol(x), n_col, info = info)
+  expect_true(all(is.finite(unclass(x))), info = info)
+}
+
+test_that("Model-averaged predictions work for BMA.norm, BMA.glmm, and RoBMA", {
+
+  product_names <- c(
+    "dat.lehmann2018_BMA.norm",
+    "bcg_BMA.glmm",
+    "dat.lehmann2018_RoBMA"
+  )
+  skip_if_missing_fits(product_names)
+
+  for (name in product_names) {
+
+    fit_brma  <- fits[[name]]
+    n_studies <- nobs(fit_brma)
+
+    terms <- predict(fit_brma, type = "terms")
+    scale <- predict(fit_brma, type = "terms.scale")
+    effect <- predict(fit_brma, type = "effect")
+    set.seed(1)
+    response <- predict(fit_brma, type = "response")
+
+    .expect_brma_samples_matrix(terms, n_studies, paste(name, "terms"))
+    .expect_brma_samples_matrix(scale, n_studies, paste(name, "terms.scale"))
+    .expect_brma_samples_matrix(effect, n_studies, paste(name, "effect"))
+    .expect_brma_samples_matrix(response, n_studies, paste(name, "response"))
+
+    pooled <- pooled_effect(fit_brma)
+    pooled_predict <- predict(
+      fit_brma,
+      newdata       = TRUE,
+      type          = "terms",
+      bias_adjusted = TRUE,
+      quiet         = TRUE
+    )
+    .expect_brma_samples_matrix(pooled, 1, paste(name, "pooled_effect"))
+    expect_equal(unname(as.matrix(pooled)), unname(as.matrix(pooled_predict)))
+
+    pooled_het <- pooled_heterogeneity(fit_brma)
+    pooled_het_predict <- predict(
+      fit_brma,
+      newdata = TRUE,
+      type    = "terms.scale",
+      quiet   = TRUE
+    )
+    .expect_brma_samples_matrix(pooled_het, 1, paste(name, "pooled_heterogeneity"))
+    expect_equal(unname(as.matrix(pooled_het)), unname(as.matrix(pooled_het_predict)))
+
+    blup_samples <- blup(fit_brma)
+    true_samples <- true_effects(fit_brma)
+    .expect_brma_samples_matrix(blup_samples, n_studies, paste(name, "blup"))
+    .expect_brma_samples_matrix(true_samples, n_studies, paste(name, "true_effects"))
+    expect_equal(unname(as.matrix(blup_samples)), unname(as.matrix(true_samples)))
+
+    ranef_samples <- ranef(fit_brma)
+    .expect_brma_samples_matrix(ranef_samples, n_studies, paste(name, "ranef"))
+    expect_equal(
+      unname(as.matrix(ranef_samples)),
+      unname(as.matrix(blup_samples) - as.matrix(terms))
+    )
+  }
+})
+
+test_that("Model-averaged multilevel ranef decomposes cluster and estimate effects", {
+
+  product_names <- c(
+    "bcg_BMA.glmm_3lvl_location_scale",
+    "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+  )
+  skip_if_missing_fits(product_names)
+
+  for (name in product_names) {
+
+    fit_brma  <- fits[[name]]
+    n_studies <- nobs(fit_brma)
+    out       <- ranef(fit_brma)
+
+    expect_type(out, "list", info = name)
+    expect_equal(names(out), c("cluster", "estimate"), info = name)
+    .expect_brma_samples_matrix(out[["cluster"]], n_studies, paste(name, "cluster ranef"))
+    .expect_brma_samples_matrix(out[["estimate"]], n_studies, paste(name, "estimate ranef"))
+  }
+})
+
 # ============================================================================ #
 # Test: Quiet Operation of Wrappers
 # ============================================================================ #

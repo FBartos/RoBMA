@@ -1,0 +1,22 @@
+
+Individual Models
+ Effect         Heterogeneity           Publication Bias                Prior prob. Post. prob. Inclusion BF
+ Spike(0)       Normal(0, 0.25)[0, Inf] None                                  0.250       0.000        0.000
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] None                                  0.250       0.044        0.139
+ Spike(0)       Normal(0, 0.25)[0, Inf] omega[two-sided: .05]                 0.021       0.000        0.000
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] omega[two-sided: .05]                 0.021       0.001        0.069
+ Spike(0)       Normal(0, 0.25)[0, Inf] omega[two-sided: .1, .05]             0.021       0.000        0.000
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] omega[two-sided: .1, .05]             0.021       0.000        0.019
+ Spike(0)       Normal(0, 0.25)[0, Inf] omega[one-sided: .05]                 0.021       0.001        0.050
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] omega[one-sided: .05]                 0.021       0.004        0.170
+ Spike(0)       Normal(0, 0.25)[0, Inf] omega[one-sided: .05, .025]           0.021       0.004        0.176
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] omega[one-sided: .05, .025]           0.021       0.004        0.173
+ Spike(0)       Normal(0, 0.25)[0, Inf] omega[one-sided: .5, .05]             0.021       0.007        0.331
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] omega[one-sided: .5, .05]             0.021       0.004        0.186
+ Spike(0)       Normal(0, 0.25)[0, Inf] omega[one-sided: .5, .05, .025]       0.021       0.019        0.904
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] omega[one-sided: .5, .05, .025]       0.021       0.006        0.300
+ Spike(0)       Normal(0, 0.25)[0, Inf] PET                                   0.062       0.607       23.136
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] PET                                   0.062       0.122        2.087
+ Spike(0)       Normal(0, 0.25)[0, Inf] PEESE                                 0.062       0.131        2.253
+ Normal(0, 0.5) Normal(0, 0.25)[0, Inf] PEESE                                 0.062       0.046        0.725
+

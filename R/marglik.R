@@ -37,6 +37,10 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' via the \code{BayesTools::JAGS_bridgesampling} wrapper. The result is stored
 #' in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
 #'
+#' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
+#' and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
+#' use predictive comparison methods such as \code{\link{loo.brma}} instead.
+#'
 #' @return The brma object with the marginal likelihood result stored in
 #' \code{object[["marglik"]]}.
 #'
@@ -60,6 +64,14 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #'
 #' @export
 add_marglik.brma <- function(object, ...) {
+  if (inherits(object, "RoBMA")) {
+    stop(
+      "Marginal likelihood is not available for product-space ",
+      "model-averaging objects (BMA.norm, BMA.glmm, RoBMA).",
+      call. = FALSE
+    )
+  }
+
   marglik <- .marglik(object)
   object[["marglik"]] <- marglik
   return(object)

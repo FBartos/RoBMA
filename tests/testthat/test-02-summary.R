@@ -12,7 +12,7 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 
 test_that("Model summary", {
 
-  ### default summary for all models
+  ### default summary for single models
   for (name in names(fits)) {
     test_reference_table(summary(fits[[name]]), paste0("summary-", name, ".txt"), paste0("Summary table for '", name, "' mismatch"))
   }

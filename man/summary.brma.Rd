@@ -31,7 +31,8 @@ correspond to the standardized scale on which prior distributions are specified 
 }
 \description{
 \code{summary.brma} creates summary tables for a
-brma object.
+brma object. For RoBMA objects, inclusion summaries are printed before
+parameter estimates.
 }
 \examples{
 \dontrun{

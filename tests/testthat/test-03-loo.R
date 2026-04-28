@@ -141,6 +141,58 @@ test_that("loo_compare errors with < 2 models", {
   expect_error(loo_compare(fit_brma, "At least two models"))
 })
 
+test_that("logLik, LOO, weights, diagnostics, and WAIC work for product-space fits", {
+
+  product_names <- c(
+    "dat.lehmann2018_BMA.norm",
+    "bcg_BMA.glmm",
+    "dat.lehmann2018_RoBMA"
+  )
+
+  for (name in product_names) {
+
+    fit_brma <- fits[[name]]
+
+    log_lik <- logLik(fit_brma)
+    expect_s3_class(log_lik, "logLik.brma")
+    expect_true(is.matrix(log_lik), info = name)
+    expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
+    expect_true(all(is.finite(log_lik)), info = name)
+
+    loo_result <- loo(fit_brma)
+    expect_s3_class(loo_result, "loo")
+
+    weights <- loo_weights(fit_brma)
+    expect_true(is.matrix(weights), info = name)
+    expect_equal(dim(weights), dim(log_lik), info = name)
+    expect_equal(colSums(weights), rep(1, ncol(weights)), tolerance = 1e-10,
+                 info = name)
+
+    expect_no_error(suppressWarnings(check_loo(fit_brma)))
+
+    fit_waic <- fit_brma
+    fit_waic[["waic"]] <- NULL
+    fit_waic <- suppressWarnings(add_waic(fit_waic))
+    waic_result <- waic(fit_waic)
+    expect_s3_class(waic_result, "waic")
+  }
+})
+
+test_that("loo_compare compares BMA and RoBMA product-space fits on the same data", {
+
+  product_names <- c("dat.lehmann2018_BMA.norm", "dat.lehmann2018_RoBMA")
+
+  out <- suppressWarnings(loo_compare(
+    fits[["dat.lehmann2018_BMA.norm"]],
+    fits[["dat.lehmann2018_RoBMA"]]
+  ))
+
+  expect_true(is.matrix(out))
+  expect_equal(nrow(out), 2)
+  expect_true("elpd_diff" %in% colnames(out))
+  expect_true("se_diff" %in% colnames(out))
+})
+
 
 # ---------------------------------------------------------------------------- #
 # Outcome type specific tests
@@ -444,3 +496,4 @@ test_that("loo_weights and check_loo work correctly", {
   fit_bad[["loo"]][["estimate"]][["diagnostics"]][["pareto_k"]][1] <- 0.8
   expect_warning(check_loo(fit_bad), "Some Pareto k values are high")
 })
+

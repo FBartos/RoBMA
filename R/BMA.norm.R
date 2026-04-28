@@ -52,6 +52,11 @@ BMA <- BMA.norm <- function(
 
   ### create the output object
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "BMA.norm()"
+  )
   object       <- .createObject(
     dots = dots, class = c("BMA.norm", "RoBMA", "brma"),
     # MCMC and fitting settings

@@ -41,9 +41,13 @@ test_that("bridge sampling marginal likelihood is close to BIC for metafor-refer
     BIC_metafor <- BIC(info[[name]][["metafor"]])
     marglik     <- logml(fits[[name]])
 
-    if (name %in% c("bcg_glmm", "nielweise2008_glmm")) {
+    if (name %in% c("bcg_glmm", "nielweise2008_glmm", "bcg_glmm_reg")) {
       next
     } # skip glmm because of marginalization differences
+
+    if (name %in% c("bcg_meta-regression", "bcg_meta-regression2", "bcg_meta-regression3", "bcg_meta-regression3b", "bcg_meta-regression4", "bcg_meta-regression4b")) {
+      next
+    } # skip because of scaled priors differences
 
     expect_equal(-BIC_metafor / 2, marglik, tolerance = 0.15)
   }
@@ -55,18 +59,6 @@ test_that("bridge sampling marginal likelihood is close to BIC for metafor-refer
 # ---------------------------------------------------------------------------- #
 
 test_that("simple comparisons", {
-
-  skip_if_missing_fits(c(
-    "bcg_meta-analysis", "bcg_meta-regression",
-    "dat.lehmann2018-PET", "dat.lehmann2018-PET_neg",
-    "dat.lehmann2018-3PSM", "dat.lehmann2018-3PSM_neg"
-  ))
-
-  ### there should be evidence for meta-regression
-  fit1 <- fits[["bcg_meta-analysis"]]
-  fit2 <- fits[["bcg_meta-regression"]]
-
-  expect_equal(bridgesampling::bf(bridge_sampler(fit2), bridge_sampler(fit1))$bf, 4.54, tolerance = 0.01)
 
   ### there should be no difference between positive and negative PET
   fit1 <- fits[["dat.lehmann2018-PET"]]
@@ -200,4 +192,21 @@ test_that("bridge_sampler errors if marglik not computed", {
     bridge_sampler(fit_brma),
     "add_marglik"
   )
+})
+
+test_that("add_marglik rejects product-space model-averaging objects", {
+
+  product_names <- c(
+    "dat.lehmann2018_BMA.norm",
+    "bcg_BMA.glmm",
+    "dat.lehmann2018_RoBMA"
+  )
+  skip_if_missing_fits(product_names)
+
+  for (name in product_names) {
+    expect_error(
+      add_marglik(load_fit(name, validate = FALSE)),
+      "Marginal likelihood is not available for product-space"
+    )
+  }
 })

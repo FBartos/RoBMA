@@ -1,12 +1,12 @@
 
 Bayesian Random-Effects Selection Model (k = 81)
 
-Model Results:
+Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 mu  0.142 0.056 0.033 0.143 0.249     0.00096          0.017 3394 1.000
 tau 0.293 0.044 0.212 0.291 0.385     0.00058          0.013 5675 1.000
 
-Model Results (Publication Bias):
+Publication Bias
                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
 omega[0.025,1] 0.623 0.195 0.274 0.617 0.973     0.00349          0.018 3114 1.000

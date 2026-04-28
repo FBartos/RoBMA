@@ -215,11 +215,12 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 
   for (k in seq_len(n_terms)) {
 
-    cols <- which(assign == terms_unique[k])
-    m    <- length(cols)
+    term_index <- terms_unique[k]
+    cols       <- which(assign == term_index)
+    m          <- length(cols)
 
     df_values[k]  <- m
-    term_names[k] <- if (k <= length(term_labels)) term_labels[k] else colnames(vcov)[cols[1]]
+    term_names[k] <- if (term_index <= length(term_labels)) term_labels[term_index] else colnames(vcov)[cols[1]]
 
     if (p <= 1 || m == p) {
       # single predictor or all columns belong to one term

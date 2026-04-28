@@ -995,6 +995,7 @@ rstudent.brma <- function(model, unit = "estimate",
     K <- nrow(object[["data"]][["outcome"]])
     X <- matrix(1, nrow = K, ncol = 1)
     colnames(X) <- "(Intercept)"
+    attr(X, "assign") <- 0L
   } else {
     # for models with moderators, reconstruct the model matrix
     # from the stored data and formula
@@ -1011,13 +1012,21 @@ rstudent.brma <- function(model, unit = "estimate",
   if (is_PET || is_PEESE) {
     outcome_data <- object[["data"]][["outcome"]]
     direction    <- if (.effect_direction(object) == "negative") -1 else 1
+    assign       <- attr(X, "assign")
+    next_assign  <- max(assign) + 1L
 
     if (is_PET) {
-      X <- cbind(X, PET = direction * outcome_data[["sei"]])
+      X           <- cbind(X, PET = direction * outcome_data[["sei"]])
+      assign      <- c(assign, next_assign)
+      next_assign <- next_assign + 1L
     }
     if (is_PEESE) {
-      X <- cbind(X, PEESE = direction * outcome_data[["sei"]]^2)
+      X           <- cbind(X, PEESE = direction * outcome_data[["sei"]]^2)
+      assign      <- c(assign, next_assign)
+      next_assign <- next_assign + 1L
     }
+
+    attr(X, "assign") <- assign
   }
 
   return(X)

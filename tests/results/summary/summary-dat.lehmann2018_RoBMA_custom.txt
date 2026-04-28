@@ -1,16 +1,19 @@
 
-Bayesian Random-Effects Model (k = 81)
+Robust Bayesian Model-Averaged Random-Effects Model (k = 81)
 
-Model Results:
-                 Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu (inclusion)  0.232    NA     NA    NA    NA          NA             NA   NA    NA
-mu              0.015 0.059 -0.079 0.000 0.204     0.00202          0.034  924 1.005
-tau (inclusion) 1.000    NA     NA    NA    NA          NA             NA   NA    NA
-tau             0.301 0.040  0.229 0.299 0.386     0.00044          0.011 8457 1.000
+Component Inclusion
+                 Prior prob. Post. prob. Inclusion BF
+Effect                 0.500       0.232        0.302
+Heterogeneity          1.000       1.000          Inf
+Publication Bias       0.500       0.956       21.523
 
-Model Results (Publication Bias):
+Estimates
+     Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.015 0.059 -0.079 0.000 0.204     0.00202          0.034  924 1.005
+tau 0.301 0.040  0.229 0.299 0.386     0.00044          0.011 8457 1.000
+
+Publication Bias
                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-bias (inclusion)  0.956    NA    NA    NA    NA          NA             NA   NA    NA
 PET               0.667 0.448 0.000 0.821 1.318     0.01353          0.030 1125 1.006
 PEESE             0.439 0.989 0.000 0.000 3.156     0.02628          0.027 1436 1.007
 omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
