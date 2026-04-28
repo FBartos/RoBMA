@@ -406,6 +406,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   bg   <- dots[["bg"]]
   cex  <- dots[["cex"]]
   main <- dots[["main"]]
+  las  <- dots[["las"]]
 
   # set up empty plot
   graphics::plot(
@@ -415,7 +416,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     xlab = data$xlab,
     ylab = data$ylab,
     main = if (!is.null(main)) main else "",
-    bty  = "l"
+    bty  = "l",
+    las  = las
   )
 
   # draw envelope (if present)
@@ -568,6 +570,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 
   # title
   if (is.null(dots[["main"]])) dots[["main"]] <- NULL
+  if (is.null(dots[["las"]]))  dots[["las"]]  <- 1
 
   # data return flag
   if (is.null(dots[["as_data"]])) dots[["as_data"]] <- FALSE

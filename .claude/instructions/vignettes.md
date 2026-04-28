@@ -1,6 +1,11 @@
 # Vignette Writing Instructions
 
-Reference for writing vignettes in `vignettes/`. The canonical reference vignette is `vignettes/01-prior-distributions.Rmd`; mirror its conventions whenever uncertain.
+Reference for writing vignettes in `vignettes/`. Two canonical references depending on vignette type:
+
+- **Methodological / display-only vignettes** (priors, distributions, theory): `vignettes/01-prior-distributions.Rmd`. Lede establishes the conceptual asymmetry/tension.
+- **Getting-started / `metafor` parity / paper-companion vignettes**: `vignettes/02-bayesian-meta-analysis.Rmd`. Lede positions the vignette as a starting point and uses side-by-side comparison with `metafor` as the pedagogical device.
+
+Mirror the matching reference whenever uncertain.
 
 ## Filename and Ordering
 
@@ -61,6 +66,31 @@ has_bcg     <- has_metafor && requireNamespace("metadat", quietly = TRUE)
 
 Vertically align `=` in both `opts_chunk$set()` and the `requireNamespace` flag block. Gate any chunk that depends on a Suggests-only package via `eval = has_<flag>`.
 
+### Figures
+
+For vignettes that render plots (most non-display-only vignettes), use `fig.retina = 3` and the cairo device on Windows:
+
+```r
+{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse    = TRUE,
+  comment     = "#>",
+  message     = FALSE,
+  warning     = FALSE,
+  fig.width   = 7,
+  fig.height  = 3.5,
+  dev         = "png",
+  fig.retina  = 3
+)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+`fig.retina = 3` saves PNGs at 3× pixel density and inserts the `<img>` tag at the original CSS width, giving sharp figures on retina/high-DPI screens at the same physical display size as the default. **Do not bump `dpi`** to improve quality: `dpi` scales both the file resolution *and* the displayed CSS size, so the figures grow on the page. Use `fig.retina` for resolution; use per-chunk `out.width` only when explicitly needed.
+
+The global `fig.height = 3.5` is for single-panel chunks. Override per chunk for double-column comparison plots (see *Side-by-Side `metafor` Parity* below).
+
 ## Caching (only when vignettes fit MCMC models)
 
 When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cache `name` MUST match the vignette filename without `.Rmd`. The pattern is three chunks: setup with cache → load cached fits → re-fit code with `eval = FALSE`.
@@ -69,7 +99,10 @@ When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cac
 
 ## Section Structure
 
-- **Lede.** One to three short paragraphs before the first heading. Open with what the topic is. If the topic has a substantive asymmetry or tension (e.g., priors behave differently in estimation vs. testing/BMA), state it up front so the rest of the vignette has a frame. Cite the umbrella reference at the end of the lede.
+- **Lede.** One to three short paragraphs before the first heading. Two patterns depending on vignette type:
+  - *Methodological framing* (priors, distributions, theory). Open with what the topic is. If the topic has a substantive asymmetry or tension (e.g., priors behave differently in estimation vs. testing/BMA), state it up front so the rest of the vignette has a frame. Cite the umbrella reference at the end of the lede.
+  - *Getting-started framing* (`metafor` parity, paper companions, tutorials). Open with "this vignette is a starting point for ...". Name the example dataset, the side-by-side device, and the simple-to-complex arc in one sentence. Cite the package and the comparison reference (e.g., `[@RoBMA]`, `[@metafor]`).
+  - In both patterns, avoid hype-ish framings: do not list features as a "toolkit", do not write "what changes is X" sentences, do not use marketing language.
 - **Headings.** `##` for top-level sections, `###` for subsections. Inside a subsection, finer divisions use bolded sentence-leading paragraphs like `**Categorical moderators.**` — not `####`.
 - **Closer.** Substantive vignettes end with a short *General Considerations and Reporting* (or analogous) section that re-iterates the main framing and gives reporting guidance, in bolded principle paragraphs.
 - **References.** `## References` is the final heading; the bibliography is auto-rendered.
@@ -83,6 +116,16 @@ Pandoc syntax, not `\insertCite{}`:
 - `[@key1; @key2]` for multiple keys
 
 Always check `inst/REFERENCES.bib` before citing. Don't invent keys and don't add keys to `inst/REFERENCES.bib`; ask the user to add the keys manually!
+
+## Cross-vignette links
+
+Reference other vignettes as clickable links to their rendered HTML, not as plain italics:
+
+```markdown
+see the [*Prior Distributions*](01-prior-distributions.html) vignette
+```
+
+This works in both pkgdown sites and `browseVignettes()` HTML. The path is relative to the rendered HTML of the current vignette (same directory). Keep the title italicized inside the link text.
 
 ## Code Chunk Style
 
@@ -227,6 +270,81 @@ Kroupova2021 <- metafor::escalc(
 )
 ```
 
+## Side-by-Side `metafor` Parity
+
+A `metafor`-parity (or getting-started) vignette pairs each `metafor::rma()` call with the matching `brma()` call, building from a simple random-effects model up to meta-regression with a categorical moderator. Do not dump all `brma()` fits in one chunk; introduce one model per section, each with its own summary, plot, and diagnostic before moving on.
+
+**Do not duplicate generic inference helpers across parity vignettes.** A specialized parity vignette (multilevel, GLMM, publication-bias) should only walk through the features that are *specific* to the model class it covers — for the multilevel vignette, that is `cluster`, the `tau`/`rho` parameterization, and `summary_heterogeneity()`'s within/between decomposition. Generic helpers that work the same way for any `brma()` fit (`mods`, `regplot()`, `predict()`, `bf()` / `loo_compare()`, `rstudent()`, `qqnorm()`, `plot(loo(fit))`) belong in `02-bayesian-meta-analysis.Rmd`. Close the specialized vignette with a short *Other Inference Helpers* section that points back to `02-bayesian-meta-analysis.html` and notes that the only thing that changes is the new structural argument.
+
+### Per-section pattern
+
+1. **Lead with the metafor call**, evaluated inline (cheap, no caching):
+
+```{r fit1-metafor}
+fit1_metafor <- metafor::rma(yi, vi, data = dat, method = "REML")
+fit1_metafor
+```
+
+2. **Then the brma counterpart**, displayed with `eval = FALSE`. The cached fit is loaded by the hidden `load-models` chunk, so all subsequent computation uses it:
+
+```{r fit1-brma, eval = FALSE}
+fit1_brma <- brma(
+  yi = yi, vi = vi, measure = "RR",
+  data = dat, seed = 1
+)
+```
+
+3. **Then the summaries, plots, and diagnostics**, regular eval, using the cached fit:
+
+```{r fit1-brma-summary}
+summary(fit1_brma, include_MCMC_diagnostics = FALSE)
+```
+
+`add_loo()` and `add_marglik()` are also displayed with `eval = FALSE` at the point they're discussed (the cached fits already have them attached, so subsequent `loo()` / `bf()` calls work).
+
+### Function pairings
+
+Make the metafor ↔ RoBMA correspondence explicit when introducing each one:
+
+| metafor | RoBMA | Notes |
+|:--|:--|:--|
+| `confint(fit)` | `summary_heterogeneity(fit)` | profile-likelihood vs posterior summaries for `tau`, `tau^2`, `I^2`, `H^2` |
+| `funnel(fit)` | `funnel(fit, sampling_heterogeneity = FALSE)` | RoBMA shows the full sampling distribution under the model by default; turn it off to match metafor |
+| `regplot(fit, mod = "...")` | `regplot(fit, mod = "...")` | RoBMA plots a categorical moderator as a single factor, not by dummy column |
+| `predict(fit, newmods = ...)` | `predict(fit, newdata = data.frame(...), type = "terms")` | brma takes a data frame on the original moderator scale |
+| `rstudent(fit)` | `rstudent(fit)` | metafor: studentized (deletion); RoBMA: LOO-PIT (requires `add_loo()`) |
+| `qqnorm(fit)` | `qqnorm(fit)` | match `xlim` / `ylim` between panels for direct visual comparison |
+| `influence(fit)` | `influence(fit)` | DFFITS, Cook's distance, COVRATIO, leverage, DFBETAS where available |
+| `AIC(fit1, fit2)` | `loo_compare(fit1, fit2)` | requires `add_loo()` on every fit being compared |
+| (no analogue) | `bf(fit2, fit1)` | Bayes factor; requires `add_marglik()` on both fits |
+| (no analogue) | `marginal_means(fit)` | estimated marginal means averaged over other moderators |
+| (no analogue) | `pooled_effect(fit, transform = "EXP")` | natural-scale (RR / OR / IRR / HR) effect summary |
+| (no analogue) | `plot(fit, parameter = "mu", prior = TRUE)` | posterior with prior overlay |
+
+### Side-by-side plots: `par()` recipe
+
+Double-column comparison plots use tuned `par()` settings so axis tick labels, axis titles, and panel titles fit the smaller panels:
+
+```{r regplot-continuous, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+metafor::regplot(fit2_metafor, main = "metafor", xlim = c(10, 60), ylim = c(-2, 0.5))
+regplot(fit2_brma,             main = "RoBMA",   xlim = c(10, 60), ylim = c(-2, 0.5))
+```
+
+Conventions:
+
+- Set `fig.width = 7, fig.height = 3.2` per chunk; the global default `fig.height = 3.5` is for single-panel chunks.
+- `cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75` keeps tick labels, axis titles, and panel titles legible without dominating the plotting area.
+- Match `xlim` and `ylim` across both panels so visual differences come from the models, not the axis ranges.
+- Panel titles are `main = "metafor"` and `main = "RoBMA"`. Expand only when the panel needs disambiguation, e.g., `"metafor: random dummy"` / `"RoBMA: alloc factor"`.
+
+For single-panel posterior plots (e.g., `plot(fit, parameter = "mu", prior = TRUE)`), tighten margins instead of using the double-column recipe:
+
+```r
+par(mar = c(4, 4, 1, 1))
+plot(fit, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
+```
+
 ## Prose Style
 
 - Concise and direct. Simple sentences. No flowery or marketing language.
@@ -248,3 +366,7 @@ Kroupova2021 <- metafor::escalc(
 - Do not invent citation keys; check `inst/REFERENCES.bib` first.
 - Do not use `\`r Sys.Date()\`` in the YAML date; use a spelled date.
 - Do not let the cache `name` and the vignette filename drift apart.
+- Do not bump `dpi` to improve figure quality. Use `fig.retina = 3` instead. `dpi` scales both file resolution and displayed CSS size, so the figures grow on the page.
+- Do not list features as a "toolkit" or use "what changes is X" framings in the lede.
+- Do not reference other vignettes as plain italics; use `[*Title*](filename.html)` so the link is clickable.
+- Do not put all `brma()` fits in one chunk in `metafor`-parity vignettes. Build models step by step, one section per added complexity (intercept-only → continuous moderator → categorical moderator).

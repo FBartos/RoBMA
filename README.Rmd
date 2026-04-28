@@ -53,7 +53,7 @@ See our manuscripts for technical details and examples:
 
 We also prepared multiple vignettes that illustrate functionality of the package. See the [Guide to RoBMA Vignettes](https://fbartos.github.io/RoBMA/articles/Explanation.html) for an overview or explore them directly:
 
- - [Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
+ - [Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/30-tutorial.html)
  - [Reproducing Bayesian model-averaged meta-analysis (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
  - [Robust Bayesian model-averaged meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
  - [Multilevel Robust Bayesian Meta-Analysis](https://fbartos.github.io/RoBMA/articles/MultilevelRoBMA.html)

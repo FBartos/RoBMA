@@ -1,9 +1,7 @@
 
 Conditional Marginal Means:
-                                    Mean Median  0.025 0.975 Inclusion BF
-intercept                          0.041  0.046 -0.213 0.245        0.194
-Preregistered[Not Pre-Registered]  0.143  0.144 -0.029 0.280        0.946
-Preregistered[Pre-Registered]     -0.126 -0.135 -0.288 0.168        0.826
-[0;31mmu_Preregistered[Not Pre-Registered]: There is a considerable point mass in the prior at the exact null hypothesis value. The Savage-Dickey density ratio is likely to be invalid.[0m
-[0;31mmu_Preregistered[Pre-Registered]: There is a considerable point mass in the prior at the exact null hypothesis value. The Savage-Dickey density ratio is likely to be invalid.[0m
+                                    Mean    SD  0.025    0.5 0.975 Inclusion BF
+intercept                          0.041 0.119 -0.213  0.046 0.245        0.194
+Preregistered[Not Pre-Registered]  0.143 0.079 -0.029  0.144 0.280        1.261
+Preregistered[Pre-Registered]     -0.126 0.104 -0.288 -0.135 0.168        1.101
 

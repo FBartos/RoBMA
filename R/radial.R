@@ -472,6 +472,7 @@ galbraith.brma <- function(x, ...) {
   cex  <- dots[["cex"]]
   back <- dots[["back"]]
   main <- dots[["main"]]
+  las  <- dots[["las"]]
 
   # extract data components
   df_points  <- data$points
@@ -518,7 +519,8 @@ galbraith.brma <- function(x, ...) {
     xlab = xlab,
     ylab = "",
     xaxs = "i",
-    yaxs = "i"
+    yaxs = "i",
+    las  = las
   )
 
   # title
@@ -556,9 +558,9 @@ galbraith.brma <- function(x, ...) {
   )
 
   # ---- axes (manual) ----
-  graphics::axis(side = 1)
+  graphics::axis(side = 1, las = las)
 
-  graphics::axis(side = 2, at = atz, labels = atz, las = 1)
+  graphics::axis(side = 2, at = atz, labels = atz, las = las)
 
   # z-axis label via mtext (fraction expression renders properly)
   if (zlab_auto) {
@@ -940,6 +942,7 @@ galbraith.brma <- function(x, ...) {
 
   # title
   if (is.null(dots[["main"]])) dots[["main"]] <- NULL
+  if (is.null(dots[["las"]]))  dots[["las"]]  <- 1
 
   # data return flag
   if (is.null(dots[["as_data"]])) dots[["as_data"]] <- FALSE

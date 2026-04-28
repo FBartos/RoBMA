@@ -64,7 +64,7 @@ for an overview or explore them directly:
 
 - [Tutorial: Adjusting for publication bias in JASP and R - Selection
   models, PET-PEESE, and Robust Bayesian
-  meta-analysis](https://fbartos.github.io/RoBMA/articles/Tutorial.html)
+  meta-analysis](https://fbartos.github.io/RoBMA/articles/30-tutorial.html)
 - [Reproducing Bayesian model-averaged meta-analysis
   (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
 - [Robust Bayesian model-averaged

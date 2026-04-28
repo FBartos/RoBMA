@@ -1006,27 +1006,192 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 }
 
 
+# Internal helper to normalize data.frame/list newdata inputs.
+.prepare_newdata_as_data_frame <- function(newdata) {
+
+  if (is.list(newdata) && !is.data.frame(newdata)) {
+    newdata <- as.data.frame(newdata, stringsAsFactors = FALSE)
+  }
+
+  return(newdata)
+}
+
+
+# Internal helper to report missing newdata columns.
+.prepare_newdata_stop_missing <- function(newdata, cols) {
+
+  missing_cols <- setdiff(cols, names(newdata))
+  if (length(missing_cols) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  stop(
+    "The 'newdata' must contain columns: ",
+    paste(missing_cols, collapse = ", "), ".",
+    call. = FALSE
+  )
+}
+
+
+# Internal helper to add placeholder columns that are not used by prediction.
+.prepare_newdata_add_missing <- function(newdata, cols, value, n) {
+
+  for (col in cols) {
+    if (!col %in% names(newdata)) {
+      newdata[[col]] <- rep(value, n)
+    }
+  }
+
+  return(newdata)
+}
+
+
+# Internal helper to decide whether normal newdata needs sampling SE.
+.prepare_newdata_needs_norm_sei <- function(object, type, bias_adjusted) {
+
+  return(
+    type == "response" ||
+      (
+        !bias_adjusted &&
+          type %in% c("terms", "cluster", "estimate") &&
+          (.is_PET(object) || .is_PEESE(object))
+      )
+  )
+}
+
+
+# Internal helper to add outcome placeholders for the shared data parser.
+.prepare_newdata_outcome <- function(object, newdata, type, bias_adjusted) {
+
+  outcome_type <- .outcome_type(object)
+  n_new        <- nrow(newdata)
+
+  if (outcome_type == "norm") {
+    newdata <- .prepare_newdata_add_missing(
+      newdata = newdata,
+      cols    = "yi",
+      value   = 0,
+      n       = n_new
+    )
+
+    if (!("sei" %in% names(newdata) || "vi" %in% names(newdata))) {
+      if (.prepare_newdata_needs_norm_sei(object, type, bias_adjusted)) {
+        stop(
+          "The 'newdata' must contain either 'sei' (standard error) or ",
+          "'vi' (variance) column.",
+          call. = FALSE
+        )
+      }
+      newdata[["sei"]] <- rep(0, n_new)
+    }
+
+  } else if (outcome_type == "bin") {
+    if (type == "response") {
+      .prepare_newdata_stop_missing(newdata, c("n1i", "n2i"))
+    }
+    newdata <- .prepare_newdata_add_missing(
+      newdata = newdata,
+      cols    = c("ai", "ci", "n1i", "n2i"),
+      value   = 0L,
+      n       = n_new
+    )
+
+  } else if (outcome_type == "pois") {
+    if (type == "response") {
+      .prepare_newdata_stop_missing(newdata, c("t1i", "t2i"))
+    }
+    newdata <- .prepare_newdata_add_missing(
+      newdata = newdata,
+      cols    = c("x1i", "x2i", "t1i", "t2i"),
+      value   = 0,
+      n       = n_new
+    )
+  }
+
+  return(newdata)
+}
+
+
+# Internal helper to construct outcome arguments for `.check_and_list_data`.
+.prepare_newdata_outcome_call_args <- function(outcome_type, newdata) {
+
+  if (outcome_type == "norm") {
+    call_args <- list(yi = quote(yi))
+
+    if ("sei" %in% names(newdata)) {
+      call_args[["sei"]] <- quote(sei)
+    } else {
+      call_args[["vi"]] <- quote(vi)
+    }
+
+  } else if (outcome_type == "bin") {
+    call_args <- list(
+      ai  = quote(ai),
+      ci  = quote(ci),
+      n1i = quote(n1i),
+      n2i = quote(n2i)
+    )
+
+  } else if (outcome_type == "pois") {
+    call_args <- list(
+      x1i = quote(x1i),
+      x2i = quote(x2i),
+      t1i = quote(t1i),
+      t2i = quote(t2i)
+    )
+  }
+
+  return(call_args)
+}
+
+
+# Internal helper to validate formula variables before evaluation.
+.prepare_newdata_validate_formula_vars <- function(newdata, formula, label) {
+
+  missing_vars <- setdiff(all.vars(formula), names(newdata))
+  if (length(missing_vars) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  stop(
+    "The 'newdata' must contain all ", label, " variables. Missing: ",
+    paste(missing_vars, collapse = ", "), ".",
+    call. = FALSE
+  )
+}
+
+
 # Internal helper function to prepare newdata for prediction
 # Reuses `.check_and_list_data` by constructing appropriate call and environment
 #
-# The newdata data.frame must always contain all variables used in the original model:
-# - Outcome variables (yi + sei/vi for norm; ai, ci, n1i, n2i for bin; x1i, x2i, t1i, t2i for pois)
-# - All moderator variables referenced in the mods formula (if regression)
-# - All scale predictor variables referenced in the scale formula (if present)
+# The newdata data.frame must contain all variables used by the requested
+# prediction. Moderator and scale variables are always required when referenced
+# by the fitted formulas. Outcome columns are required only when the requested
+# prediction uses the sampling distribution or PET/PEESE bias terms; otherwise
+# internal dummy values are inserted to keep the shared parser path.
 #
 # @param object A fitted brma object
-# @param newdata A data.frame with new data for prediction (must contain all model variables)
+# @param newdata A data.frame with new data for prediction.
 # @param type Prediction type: "terms", "effect", or "response"
+# @param bias_adjusted Whether PET/PEESE terms should be omitted.
 #
 # @return A data list equivalent to `object[["data"]]` but for `newdata`
-.prepare_newdata <- function(object, newdata, type) {
+.prepare_newdata <- function(object, newdata, type, bias_adjusted = FALSE) {
 
- # extract settings from the original fitted object's data attributes
+  # extract settings from the original fitted object's data attributes
   original_data <- object[["data"]]
   set_contrast_factor_predictors    <- attr(original_data, "set_contrast_factor_predictors")
   standardize_continuous_predictors <- attr(original_data, "standardize_continuous_predictors")
   effect_direction                  <- .effect_direction(object)
   outcome_type                      <- .outcome_type(object)
+
+  newdata <- .prepare_newdata_as_data_frame(newdata)
+  newdata <- .prepare_newdata_outcome(
+    object        = object,
+    newdata       = newdata,
+    type          = type,
+    bias_adjusted = bias_adjusted
+  )
 
   # build the synthetic call expression
   # start with the base call structure
@@ -1036,42 +1201,10 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   call_args[["data"]] <- quote(data)
 
   # add outcome arguments based on outcome_type
-  # newdata must always contain the required outcome columns
-  if (outcome_type == "norm") {
-    # require yi and either sei or vi
-    if (!"yi" %in% names(newdata)) {
-      stop("The 'newdata' must contain a 'yi' (effect size) column.", call. = FALSE)
-    }
-    call_args[["yi"]] <- quote(yi)
-
-    if ("sei" %in% names(newdata)) {
-      call_args[["sei"]] <- quote(sei)
-    } else if ("vi" %in% names(newdata)) {
-      call_args[["vi"]] <- quote(vi)
-    } else {
-      stop("The 'newdata' must contain either 'sei' (standard error) or 'vi' (variance) column.", call. = FALSE)
-    }
-  } else if (outcome_type == "bin") {
-    # require ai, ci, n1i, n2i for binomial models
-    missing_cols <- setdiff(c("ai", "ci", "n1i", "n2i"), names(newdata))
-    if (length(missing_cols) > 0) {
-      stop("The 'newdata' must contain columns: ", paste(missing_cols, collapse = ", "), ".", call. = FALSE)
-    }
-    call_args[["ai"]]  <- quote(ai)
-    call_args[["ci"]]  <- quote(ci)
-    call_args[["n1i"]] <- quote(n1i)
-    call_args[["n2i"]] <- quote(n2i)
-  } else if (outcome_type == "pois") {
-    # require x1i, x2i, t1i, t2i for Poisson models
-    missing_cols <- setdiff(c("x1i", "x2i", "t1i", "t2i"), names(newdata))
-    if (length(missing_cols) > 0) {
-      stop("The 'newdata' must contain columns: ", paste(missing_cols, collapse = ", "), ".", call. = FALSE)
-    }
-    call_args[["x1i"]] <- quote(x1i)
-    call_args[["x2i"]] <- quote(x2i)
-    call_args[["t1i"]] <- quote(t1i)
-    call_args[["t2i"]] <- quote(t2i)
-  }
+  call_args <- c(
+    call_args,
+    .prepare_newdata_outcome_call_args(outcome_type, newdata)
+  )
 
   # add mods formula if this is a regression model
   if (.is_mods(object)) {
@@ -1088,7 +1221,7 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     if ("cluster" %in% names(newdata)) {
       call_args[["cluster"]] <- quote(cluster)
     } else {
-      n_new <- if (is.data.frame(newdata)) nrow(newdata) else length(newdata[[names(newdata)[1]]])
+      n_new <- nrow(newdata)
       newdata[[".RoBMA_cluster"]] <- seq_len(n_new)
       call_args[["cluster"]] <- quote(.RoBMA_cluster)
     }
@@ -1101,22 +1234,12 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   # this prevents formulas from finding variables in parent environments
   if (.is_mods(object)) {
     mods_formula <- attr(original_data[["mods"]], "formula")
-    mods_vars    <- all.vars(mods_formula)
-    missing_mods <- setdiff(mods_vars, names(newdata))
-    if (length(missing_mods) > 0) {
-      stop("The 'newdata' must contain all moderator variables. Missing: ",
-           paste(missing_mods, collapse = ", "), ".", call. = FALSE)
-    }
+    .prepare_newdata_validate_formula_vars(newdata, mods_formula, "moderator")
   }
 
   if (.is_scale(object)) {
     scale_formula <- attr(original_data[["scale"]], "formula")
-    scale_vars    <- all.vars(scale_formula)
-    missing_scale <- setdiff(scale_vars, names(newdata))
-    if (length(missing_scale) > 0) {
-      stop("The 'newdata' must contain all scale variables. Missing: ",
-           paste(missing_scale, collapse = ", "), ".", call. = FALSE)
-    }
+    .prepare_newdata_validate_formula_vars(newdata, scale_formula, "scale")
   }
 
   # create environment with newdata as "data"

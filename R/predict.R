@@ -12,7 +12,9 @@
 #'   since observation-level sampling variance is required.}
 #'   \item{A data.frame (for meta-regression) or a named list with effect size
 #'   measure and variability metrics (for meta-analysis) for new studies. The input
-#'   must correspond to the format and naming used in the original fit.}
+#'   must contain the variables used by the requested prediction type. Outcome
+#'   columns are optional for \code{type = "terms"} unless PET/PEESE bias terms
+#'   are included via \code{bias_adjusted = FALSE}.}
 #' }
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
@@ -33,6 +35,15 @@
 #' effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
 #' \code{TRUE}. Only relevant for GLMM models with \code{type = "response"}.
 #' When \code{FALSE}, returns raw frequency data (counts).
+#' @param output_measure effect-size measure for location/effect predictions.
+#' Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
+#' \code{"COR"}, \code{"ZCOR"}, and \code{"OR"}; \code{"RR"}, \code{"HR"},
+#' \code{"IRR"}, \code{"RD"}, and \code{"GEN"} can only be returned on their
+#' fitted measure. Use \code{transform = "EXP"} for ratio-scale output from
+#' log-scale measures.
+#' @param transform optional display transformation. Currently \code{"EXP"}
+#' exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
+#' and \code{"IRR"}.
 #' @param bias_adjusted whether predictions should adjust for publication bias.
 #' Defaults to \code{FALSE}. When \code{TRUE}:
 #' \itemize{
@@ -77,6 +88,8 @@
 predict.brma <- function(object, newdata = NULL,
                          type = "terms",
                          as_measure = TRUE,
+                         output_measure = NULL,
+                         transform = NULL,
                          probs = c(.025, .975),
                          bias_adjusted = FALSE,
                          quiet = FALSE,
@@ -146,7 +159,8 @@ predict.brma <- function(object, newdata = NULL,
     new_data  <- .prepare_newdata(
       object        = object,
       newdata       = newdata,
-      type          = type
+      type          = type,
+      bias_adjusted = bias_adjusted
     )
 
   }
@@ -163,6 +177,27 @@ predict.brma <- function(object, newdata = NULL,
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
   posterior_samples <- .get_posterior_samples(object[["fit"]])
+  effect_transform  <- .effect_output_setup(
+    object         = object,
+    output_measure = output_measure,
+    transform      = transform
+  )
+
+  if (type == "terms.scale" && .effect_output_requested(effect_transform)) {
+    stop(
+      "'output_measure' and 'transform' are only available for effect-size ",
+      "predictions, not for type = 'terms.scale'.",
+      call. = FALSE
+    )
+  }
+  if (type == "response" && !isTRUE(as_measure) &&
+      .effect_output_requested(effect_transform)) {
+    stop(
+      "'output_measure' and 'transform' require type = 'response' predictions ",
+      "to be returned as effect-size measures (as_measure = TRUE).",
+      call. = FALSE
+    )
+  }
 
   # check: cluster type requires multilevel model
   if (type == "cluster" && !is_multilevel) {
@@ -268,13 +303,14 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(mu_samples) <- if (aggregate) "mu" else paste0("mu[", seq_len(K), "]")
 
-    return(.new_brma_samples(
-      samples  = mu_samples,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:",
-      probs    = probs,
-      data     = if (aggregate) NULL else new_data
+    return(.new_effect_brma_samples(
+      samples          = mu_samples,
+      n_chains         = n_chains,
+      n_iter           = n_iter,
+      title            = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:",
+      probs            = probs,
+      data             = if (aggregate) NULL else new_data,
+      effect_transform = effect_transform
     ))
   }
 
@@ -346,13 +382,14 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(mu_samples) <- if (aggregate) "mu_cluster" else paste0("mu_cluster[", seq_len(K), "]")
 
-    return(.new_brma_samples(
-      samples  = mu_samples,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = if (aggregate) "Aggregated Cluster-Level Posterior Prediction:" else "Cluster-Level Posterior Prediction:",
-      probs    = probs,
-      data     = if (aggregate) NULL else new_data
+    return(.new_effect_brma_samples(
+      samples          = mu_samples,
+      n_chains         = n_chains,
+      n_iter           = n_iter,
+      title            = if (aggregate) "Aggregated Cluster-Level Posterior Prediction:" else "Cluster-Level Posterior Prediction:",
+      probs            = probs,
+      data             = if (aggregate) NULL else new_data,
+      effect_transform = effect_transform
     ))
   }
 
@@ -388,13 +425,14 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(true_effects_samples) <- if (aggregate) "theta" else paste0("theta[", seq_len(K), "]")
 
-    return(.new_brma_samples(
-      samples  = true_effects_samples,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = if (aggregate) "Aggregated True Effect Posterior Prediction:" else "True Effect Posterior Prediction:",
-      probs    = probs,
-      data     = if (aggregate) NULL else new_data
+    return(.new_effect_brma_samples(
+      samples          = true_effects_samples,
+      n_chains         = n_chains,
+      n_iter           = n_iter,
+      title            = if (aggregate) "Aggregated True Effect Posterior Prediction:" else "True Effect Posterior Prediction:",
+      probs            = probs,
+      data             = if (aggregate) NULL else new_data,
+      effect_transform = effect_transform
     ))
 
   }
@@ -582,13 +620,14 @@ predict.brma <- function(object, newdata = NULL,
       colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
     }
 
-    return(.new_brma_samples(
-      samples  = outcome_samples,
-      n_chains = n_chains,
-      n_iter   = n_iter,
-      title    = "Observations Posterior Prediction:",
-      probs    = probs,
-      data     = new_data
+    return(.new_effect_brma_samples(
+      samples          = outcome_samples,
+      n_chains         = n_chains,
+      n_iter           = n_iter,
+      title            = "Observations Posterior Prediction:",
+      probs            = probs,
+      data             = new_data,
+      effect_transform = effect_transform
     ))
   }
 }

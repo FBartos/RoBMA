@@ -385,7 +385,7 @@ test_that(".prepare_newdata works with brma.glmm and mods", {
 # Input validation tests - missing columns
 # ============================================================================
 
-test_that(".prepare_newdata throws error when yi is missing", {
+test_that(".prepare_newdata inserts dummy yi when yi is unused", {
 
   skip_on_cran()
 
@@ -396,21 +396,46 @@ test_that(".prepare_newdata throws error when yi is missing", {
     only_data = TRUE
   )
 
-  # newdata without yi
-  bad_df <- data.frame(sei = c(0.1, 0.2))
+  new_df <- data.frame(sei = c(0.1, 0.2))
 
-  expect_error(
-    RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = bad_df,
-      type    = "terms"
-    ),
-    regexp = "yi"
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "response"
   )
+
+  expect_equal(result[["outcome"]][["yi"]], c(0, 0))
+  expect_equal(result[["outcome"]][["sei"]], new_df[["sei"]])
 })
 
 
-test_that(".prepare_newdata throws error when sei/vi is missing", {
+test_that(".prepare_newdata accepts moderator-only terms newdata", {
+
+  skip_on_cran()
+
+  fit <-  brma.norm(
+    yi   = yi,
+    sei  = sei,
+    mods = ~ mod_cont,
+    data = test_data_norm,
+    only_data = TRUE
+  )
+
+  new_df <- data.frame(mod_cont = c(1.2, 2.4))
+
+  result <- RoBMA:::.prepare_newdata(
+    object  = fit,
+    newdata = new_df,
+    type    = "terms"
+  )
+
+  expect_equal(nrow(result[["outcome"]]), 2L)
+  expect_equal(result[["outcome"]][["yi"]], c(0, 0))
+  expect_equal(result[["outcome"]][["sei"]], c(0, 0))
+})
+
+
+test_that(".prepare_newdata requires sei/vi for normal response newdata", {
 
   skip_on_cran()
 
@@ -421,16 +446,56 @@ test_that(".prepare_newdata throws error when sei/vi is missing", {
     only_data = TRUE
   )
 
-  # newdata without sei or vi
   bad_df <- data.frame(yi = c(0.1, 0.2))
 
   expect_error(
     RoBMA:::.prepare_newdata(
       object  = fit,
       newdata = bad_df,
+      type    = "response"
+    ),
+    regexp = "sei.*vi"
+  )
+})
+
+
+test_that(".prepare_newdata requires sei/vi for biased PET/PEESE terms", {
+
+  skip_on_cran()
+
+  fit <- bPET(
+    yi   = yi,
+    sei  = sei,
+    data = test_data_norm,
+    only_data = TRUE
+  )
+  fit[["priors"]] <- list(
+    outcome = list(
+      bias = BayesTools::prior_PET(
+        distribution = "normal",
+        parameters   = list(mean = 0, sd = 1)
+      )
+    )
+  )
+
+  new_df <- data.frame(row = 1:2)
+
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = new_df,
       type    = "terms"
     ),
     regexp = "sei.*vi"
+  )
+
+  expect_no_error(
+    RoBMA:::.prepare_newdata(
+      object        = fit,
+      newdata       = new_df,
+      type          = "terms",
+      bias_adjusted = TRUE
+    )
   )
 })
 
@@ -494,7 +559,7 @@ test_that(".prepare_newdata throws error when scale variables are missing", {
 })
 
 
-test_that(".prepare_newdata throws error when GLMM columns are missing", {
+test_that(".prepare_newdata throws error when GLMM response sizes are missing", {
 
   skip_on_cran()
 
@@ -518,7 +583,7 @@ test_that(".prepare_newdata throws error when GLMM columns are missing", {
     RoBMA:::.prepare_newdata(
       object  = fit,
       newdata = bad_df,
-      type    = "terms"
+      type    = "response"
     ),
     regexp = "n2i"
   )

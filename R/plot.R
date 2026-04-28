@@ -22,6 +22,7 @@
 #' \code{lty}, \code{col}, and \code{col.fill}, to adjust
 #' the line thickness, line type, line color, and fill color
 #' of the prior distribution respectively.
+#' @inheritParams predict.brma
 #' @param ... list of additional graphical arguments
 #' to be passed to the plotting function. Supported arguments
 #' are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
@@ -41,7 +42,9 @@
 #' @export
 plot.brma  <- function(
     x, parameter, parameter_mods, parameter_scale,
-    prior = FALSE, standardized_coefficients = FALSE, plot_type = "base", dots_prior = NULL, ...) {
+    prior = FALSE, standardized_coefficients = FALSE,
+    output_measure = NULL, transform = NULL,
+    plot_type = "base", dots_prior = NULL, ...) {
 
 
   ### check user input
@@ -56,6 +59,19 @@ plot.brma  <- function(
     parameter_scale = parameter_scale,
     object          = x
   )
+  effect_transform <- .effect_output_setup(
+    object         = x,
+    output_measure = output_measure,
+    transform      = transform
+  )
+  if (.effect_output_requested(effect_transform) &&
+      !.is_effect_location_parameter(parameter)) {
+    stop(
+      "'output_measure' and 'transform' are only available for effect-size ",
+      "location parameters ('mu' or the meta-regression intercept).",
+      call. = FALSE
+    )
+  }
 
   ### obtain posterior samples in the plotting format
   samples <- BayesTools::as_mixed_posteriors(
@@ -68,6 +84,9 @@ plot.brma  <- function(
   n_levels   <- .get_samples_n_levels(samples, parameter)
   dots       <- .set_dots_plot(..., n_levels = n_levels)
   dots_prior <- .set_dots_prior(dots_prior)
+  if (is.null(dots[["par_name"]])) {
+    dots[["par_name"]] <- .plot_parameter_label(parameter, effect_transform)
+  }
 
   # prepare the argument call
   args                          <- dots
@@ -81,6 +100,11 @@ plot.brma  <- function(
   args$dots_prior               <- dots_prior
   args$individual               <- TRUE
   args$show_figures             <- NULL
+  if (.effect_output_requested(effect_transform)) {
+    args$transformation           <- .effect_plot_transformation(effect_transform)
+    args$transformation_arguments <- NULL
+    args$transformation_settings  <- FALSE
+  }
 
   # suppress messages about transformations
   plot <- suppressMessages(do.call(BayesTools::plot_posterior, args))
@@ -114,6 +138,7 @@ plot.brma  <- function(
 #' priors on the standardized predictor scale. Defaults to \code{TRUE}, which
 #' shows the priors as specified. Set to \code{FALSE} to transform them to the
 #' original predictor scale when continuous predictors were standardized.
+#' @inheritParams predict.brma
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
 #' \code{"ggplot"} for plotting. Defaults to \code{"base"}.
 #' @param ... additional arguments passed to the prior plotting method.
@@ -153,7 +178,9 @@ plot_prior.prior <- function(x, plot_type = "base", ...) {
 #' @rdname plot_prior
 plot_prior.brma <- function(
     x, parameter = "mu", parameter_mods, parameter_scale,
-    standardized_coefficients = TRUE, plot_type = "base", ...) {
+    standardized_coefficients = TRUE,
+    output_measure = NULL, transform = NULL,
+    plot_type = "base", ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
@@ -181,6 +208,8 @@ plot_prior.brma <- function(
         x                         = x,
         parameter                 = parameter_i,
         standardized_coefficients = standardized_coefficients,
+        output_measure            = output_measure,
+        transform                 = transform,
         plot_type                 = plot_type,
         ...
       )
@@ -200,10 +229,31 @@ plot_prior.brma <- function(
     parameter_mods  = if (has_parameter_mods) parameter_mods else NULL,
     parameter_scale = if (has_parameter_scale) parameter_scale else NULL
   )
+  effect_transform <- .effect_output_setup(
+    object         = x,
+    output_measure = output_measure,
+    transform      = transform
+  )
+  if (.effect_output_requested(effect_transform) &&
+      !.is_effect_location_parameter(selected[["label"]])) {
+    stop(
+      "'output_measure' and 'transform' are only available for effect-size ",
+      "location priors ('mu' or the meta-regression intercept).",
+      call. = FALSE
+    )
+  }
 
   dots <- list(...)
   if (is.null(dots[["par_name"]])) {
     dots[["par_name"]] <- selected[["label"]]
+  }
+  if (.effect_output_requested(effect_transform)) {
+    dots[["transformation"]]           <- .effect_plot_transformation(effect_transform)
+    dots[["transformation_arguments"]] <- NULL
+    dots[["transformation_settings"]]  <- FALSE
+    if (.effect_output_active(effect_transform)) {
+      dots[["par_name"]] <- effect_transform[["label"]]
+    }
   }
 
   if (!standardized_coefficients) {
@@ -247,6 +297,12 @@ plot_prior.brma <- function(
   }
 }
 
+#' @export
+plot.only_priors.brma <- function(x, ...) {
+
+  plot_prior.brma(x = x, ...)
+}
+
 
 #' @title Print Prior Distributions
 #'
@@ -257,7 +313,8 @@ plot_prior.brma <- function(
 #'
 #' @param x a \code{brma}, \code{BMA}, or \code{RoBMA} object, or a prior
 #' distribution object.
-#' @param parameter character. Base parameter to print. Defaults to \code{"mu"}.
+#' @param parameter character. Base parameter to print. If omitted, all stored
+#' prior distributions are printed.
 #' Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
 #' \code{"PEESE"}, \code{"omega"}, and \code{"bias"}. Moderator and scale
 #' terms can also be selected by name when unambiguous.
@@ -273,6 +330,7 @@ plot_prior.brma <- function(
 #'
 #' @examples \dontrun{
 #' priors <- BMA(yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE)
+#' print_prior(priors)
 #' print_prior(priors, parameter = "mu")
 #' print_prior(priors, parameter = "tau")
 #' print_prior(priors, parameter_mods = "x")
@@ -294,19 +352,32 @@ print_prior.prior <- function(x, ...) {
 #' @export
 #' @rdname print_prior
 print_prior.brma <- function(
-    x, parameter = "mu", parameter_mods, parameter_scale, ...) {
+    x, parameter, parameter_mods, parameter_scale, ...) {
 
   if (is.null(x[["priors"]])) {
     stop("The object does not contain prior distributions.", call. = FALSE)
   }
 
-  has_parameter       <- !missing(parameter)       && !is.null(parameter)
+  parameter_missing   <- missing(parameter)
+  has_parameter       <- !parameter_missing        && !is.null(parameter)
   has_parameter_mods  <- !missing(parameter_mods)  && !is.null(parameter_mods)
   has_parameter_scale <- !missing(parameter_scale) && !is.null(parameter_scale)
 
   n_specified <- sum(c(has_parameter, has_parameter_mods, has_parameter_scale))
   if (n_specified > 1) {
     stop("Only one of 'parameter', 'parameter_mods', or 'parameter_scale' can be specified.", call. = FALSE)
+  }
+
+  if (parameter_missing && !has_parameter_mods && !has_parameter_scale) {
+    selected <- .select_print_prior_all(x)
+    priors   <- lapply(selected, `[[`, "prior")
+    names(priors) <- vapply(selected, `[[`, character(1), "label")
+
+    for (i in seq_along(selected)) {
+      .print_prior_object(priors[[i]], label = names(priors)[i], ...)
+    }
+
+    return(invisible(priors))
   }
 
   if (has_parameter && length(parameter) > 1) {
@@ -344,6 +415,12 @@ print_prior.brma <- function(
   .print_prior_object(selected[["prior"]], label = selected[["label"]], ...)
 
   return(invisible(selected[["prior"]]))
+}
+
+#' @export
+print.only_priors.brma <- function(x, ...) {
+
+  print_prior.brma(x = x, ...)
 }
 
 
@@ -881,6 +958,41 @@ diagnostic_plots_density.brma         <- function(x, parameter = NULL, plot_type
   return(n_levels)
 }
 
+.plot_parameter_label <- function(parameter, effect_transform = NULL) {
+
+  if (.is_effect_location_parameter(parameter)) {
+    if (.effect_output_active(effect_transform)) {
+      return(paste0("Effect Size (", effect_transform[["label"]], ")"))
+    }
+
+    return("Effect Size")
+  }
+
+  if (grepl("^mu_", parameter)) {
+    return(paste0("Effect Size: ", .summary_parameter_label(sub("^mu_", "", parameter))))
+  }
+
+  if (parameter %in% c("tau", "log_tau_intercept")) {
+    return("Heterogeneity")
+  }
+
+  if (grepl("^log_tau_", parameter)) {
+    return(paste0("Heterogeneity: ", .summary_parameter_label(sub("^log_tau_", "", parameter))))
+  }
+
+  label <- switch(
+    parameter,
+    "rho"   = "Heterogeneity Allocation",
+    "PET"   = "PET",
+    "PEESE" = "PEESE",
+    "omega" = "Publication Bias",
+    "bias"  = "Publication Bias",
+    parameter
+  )
+
+  return(label)
+}
+
 .select_plot_prior_parameter <- function(
     object, parameter, parameter_mods, parameter_scale, allow_mixed_bias = FALSE) {
 
@@ -1069,6 +1181,100 @@ diagnostic_plots_density.brma         <- function(x, parameter = NULL, plot_type
   return(selected)
 }
 
+.append_print_prior_selection <- function(selected, prior, label, source, term) {
+
+  if (is.null(prior)) {
+    return(selected)
+  }
+
+  selected[[label]] <- list(
+    prior  = prior,
+    label  = label,
+    source = source,
+    term   = term
+  )
+
+  return(selected)
+}
+
+.select_print_prior_all <- function(object) {
+
+  priors  <- object[["priors"]]
+  outcome <- priors[["outcome"]]
+  mods    <- priors[["mods"]]
+  scale   <- priors[["scale"]]
+
+  selected <- list()
+
+  selected <- .append_print_prior_selection(
+    selected = selected,
+    prior    = outcome[["mu"]],
+    label    = "mu",
+    source   = "outcome",
+    term     = "mu"
+  )
+
+  if (!is.null(mods)) {
+    selected <- .append_print_prior_selection(
+      selected = selected,
+      prior    = mods[["intercept"]],
+      label    = "mu_intercept",
+      source   = "mods",
+      term     = "intercept"
+    )
+
+    for (term in setdiff(names(mods), "intercept")) {
+      selected <- .append_print_prior_selection(
+        selected = selected,
+        prior    = mods[[term]],
+        label    = paste0("mu_", term),
+        source   = "mods",
+        term     = term
+      )
+    }
+  }
+
+  selected <- .append_print_prior_selection(
+    selected = selected,
+    prior    = outcome[["tau"]],
+    label    = "tau",
+    source   = "outcome",
+    term     = "tau"
+  )
+
+  if (!is.null(scale)) {
+    selected <- .append_print_prior_selection(
+      selected = selected,
+      prior    = scale[["intercept"]],
+      label    = "log_tau_intercept",
+      source   = "scale",
+      term     = "intercept"
+    )
+
+    for (term in setdiff(names(scale), "intercept")) {
+      selected <- .append_print_prior_selection(
+        selected = selected,
+        prior    = scale[[term]],
+        label    = paste0("log_tau_", term),
+        source   = "scale",
+        term     = term
+      )
+    }
+  }
+
+  for (parameter in setdiff(names(outcome), c("mu", "tau"))) {
+    selected <- .append_print_prior_selection(
+      selected = selected,
+      prior    = outcome[[parameter]],
+      label    = parameter,
+      source   = if (parameter == "bias") "bias" else "outcome",
+      term     = parameter
+    )
+  }
+
+  return(selected)
+}
+
 .print_prior_object <- function(x, label = NULL, ...) {
 
   dots <- list(...)
@@ -1079,7 +1285,11 @@ diagnostic_plots_density.brma         <- function(x, parameter = NULL, plot_type
 
   if (!silent) {
     if (!is.null(label)) {
-      cat(label, ": ", sep = "")
+      output <- paste(output, collapse = "\n")
+      output <- unlist(strsplit(output, "\n", fixed = TRUE), use.names = FALSE)
+      output <- paste0("  ", output)
+      output <- paste(output, collapse = "\n")
+      cat(label, ":\n", sep = "")
     }
     cat(output, "\n", sep = "")
   }

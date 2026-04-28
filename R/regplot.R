@@ -616,7 +616,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # .regplot_add_dummy_outcome
 # ---------------------------------------------------------------------------- #
 #
-# Add outcome columns required by predict.brma() for formula validation.
+# Add outcome columns for prediction paths that use sampling bias inputs.
 #
 # ---------------------------------------------------------------------------- #
 .regplot_add_dummy_outcome <- function(x, newdata, n_pred, sei) {
@@ -1589,6 +1589,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   jitter_am <- dots[["jitter"]]
   box_width <- dots[["box.width"]]
   dodge_w   <- dots[["dodge.width"]]
+  las       <- dots[["las"]]
 
   df_points  <- data$points
   df_pred    <- data$pred
@@ -1626,9 +1627,15 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       ylab = data$ylab,
       main = main,
       type = "n",
-      xaxt = "n"
+      xaxt = "n",
+      las  = las
     )
-    graphics::axis(1, at = seq_along(data$levels), labels = data$levels)
+    graphics::axis(
+      1,
+      at     = seq_along(data$levels),
+      labels = data$levels,
+      las    = las
+    )
   } else {
     graphics::plot(
       NA, NA,
@@ -1637,7 +1644,8 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       xlab = data$xlab,
       ylab = data$ylab,
       main = main,
-      type = "n"
+      type = "n",
+      las  = las
     )
   }
 
@@ -1989,6 +1997,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
   # title (NULL = no title by default)
   if (is.null(dots[["main"]]))     dots[["main"]]     <- NULL
+  if (is.null(dots[["las"]]))      dots[["las"]]      <- 1
 
   return(dots)
 }

@@ -1,8 +1,8 @@
 
 Marginal Means:
-                    Mean Median  0.025  0.975 Inclusion BF
-intercept         -0.567 -0.568 -1.112 -0.026        2.269
-alloc[alternate]  -0.567 -0.568 -1.112 -0.026        2.269
-alloc[random]     -0.870 -0.867 -1.339 -0.401       47.542
-alloc[systematic] -0.478 -0.478 -1.060  0.105        1.056
+                    Mean    SD  0.025    0.5  0.975
+intercept         -0.567 0.278 -1.112 -0.568 -0.026
+alloc[alternate]  -0.567 0.278 -1.112 -0.568 -0.026
+alloc[random]     -0.870 0.239 -1.339 -0.867 -0.401
+alloc[systematic] -0.478 0.294 -1.060 -0.478  0.105
 

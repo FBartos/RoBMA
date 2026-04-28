@@ -582,6 +582,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   col_line <- dots[["col.line"]]
   col_refline <- dots[["col.refline"]]
   main <- dots[["main"]]
+  las  <- dots[["las"]]
 
   # extract data components
   df_points <- data$points
@@ -621,10 +622,11 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     ylab = ylab,
     main = main,
     type = "n",
-    axes = FALSE
+    axes = FALSE,
+    las  = las
   )
-   graphics::axis(1, at = x_ticks)
-   graphics::axis(2, at = rev(y_ticks), las = 1)
+  graphics::axis(1, at = x_ticks, las = las)
+  graphics::axis(2, at = rev(y_ticks), las = las)
 
   # draw background polygon (if not suppressed)
   if (!is.na(back)) {
@@ -1566,6 +1568,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   # axis labels (now set separately in data functions)
   # main title (NULL = no title by default)
   if (is.null(dots[["main"]])) dots[["main"]] <- NULL
+  if (is.null(dots[["las"]]))  dots[["las"]]  <- 1
 
   # axis limits (NULL = auto)
   # xlim and ylim are left as NULL if not provided (auto-computed)

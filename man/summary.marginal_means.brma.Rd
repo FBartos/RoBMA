@@ -7,9 +7,10 @@
 \method{summary}{marginal_means.brma}(
   object,
   type = NULL,
-  probs = c(0.025, 0.975),
+  probs = c(0.025, 0.5, 0.975),
   logBF = FALSE,
   BF01 = FALSE,
+  bf = NULL,
   output_measure,
   transform,
   ...
@@ -24,13 +25,16 @@ marginal means. Defaults to \code{"averaged"} and is available only for
 RoBMA marginal means.}
 
 \item{probs}{quantiles of the posterior distribution to be displayed.
-Defaults to \code{c(.025, .975)}.}
+Defaults to \code{c(.025, .50, .975)}.}
 
 \item{logBF}{whether to show inclusion Bayes factors on the log scale.
 Defaults to \code{FALSE}.}
 
 \item{BF01}{whether to show inverse inclusion Bayes factors. Defaults to
 \code{FALSE}.}
+
+\item{bf}{whether to show inclusion Bayes factors. Defaults to the setting
+stored by \code{marginal_means()}.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.
 Defaults to the fitted measure. Supported conversions are among \code{"SMD"},

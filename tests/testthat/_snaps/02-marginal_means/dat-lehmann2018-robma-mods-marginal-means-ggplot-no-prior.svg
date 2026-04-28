@@ -77,14 +77,15 @@
 <text x='396.98' y='556.75' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.2</text>
 <text x='482.86' y='556.75' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.4</text>
 <text x='568.75' y='556.75' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='13.90px' lengthAdjust='spacingAndGlyphs'>0.6</text>
-<text x='311.09' y='568.44' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='60.04px' lengthAdjust='spacingAndGlyphs'>Preregistered</text>
+<text x='311.09' y='568.44' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='47.81px' lengthAdjust='spacingAndGlyphs'>Effect Size</text>
 <text transform='translate(12.36,283.32) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
-<rect x='605.47' y='260.56' width='109.05' height='45.52' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
-<rect x='610.95' y='266.04' width='17.28' height='17.28' style='stroke-width: 1.07; stroke: none; fill: #EBEBEB;' />
-<line x1='612.68' y1='274.68' x2='626.50' y2='274.68' style='stroke-width: 2.13; stroke: #E69F00; stroke-linecap: butt;' />
-<rect x='610.95' y='283.32' width='17.28' height='17.28' style='stroke-width: 1.07; stroke: none; fill: #EBEBEB;' />
-<line x1='612.68' y1='291.96' x2='626.50' y2='291.96' style='stroke-width: 2.13; stroke: #56B4E9; stroke-linecap: butt;' />
-<text x='633.71' y='277.71' style='font-size: 8.80px; font-family: sans;' textLength='75.33px' lengthAdjust='spacingAndGlyphs'>Not Pre-Registered</text>
-<text x='633.71' y='294.99' style='font-size: 8.80px; font-family: sans;' textLength='59.19px' lengthAdjust='spacingAndGlyphs'>Pre-Registered</text>
+<rect x='605.47' y='253.34' width='109.05' height='59.96' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
+<text x='610.95' y='266.74' style='font-size: 10.00px; font-family: sans;' textLength='60.04px' lengthAdjust='spacingAndGlyphs'>Preregistered</text>
+<rect x='610.95' y='273.26' width='17.28' height='17.28' style='stroke-width: 1.07; stroke: none; fill: #EBEBEB;' />
+<line x1='612.68' y1='281.90' x2='626.50' y2='281.90' style='stroke-width: 2.13; stroke: #E69F00; stroke-linecap: butt;' />
+<rect x='610.95' y='290.54' width='17.28' height='17.28' style='stroke-width: 1.07; stroke: none; fill: #EBEBEB;' />
+<line x1='612.68' y1='299.18' x2='626.50' y2='299.18' style='stroke-width: 2.13; stroke: #56B4E9; stroke-linecap: butt;' />
+<text x='633.71' y='284.93' style='font-size: 8.80px; font-family: sans;' textLength='75.33px' lengthAdjust='spacingAndGlyphs'>Not Pre-Registered</text>
+<text x='633.71' y='302.21' style='font-size: 8.80px; font-family: sans;' textLength='59.19px' lengthAdjust='spacingAndGlyphs'>Pre-Registered</text>
 </g>
 </svg>

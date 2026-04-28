@@ -9,6 +9,30 @@ fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 
 
+test_that("plot.brma uses parameter x-axis labels by default", {
+
+  temp_fit <- fits[["bcg_meta-analysis"]]
+
+  x_label <- function(plot) {
+
+    return(plot$scales$get_scales("x")$name)
+  }
+
+  expect_identical(
+    x_label(plot(temp_fit, "mu", plot_type = "ggplot")),
+    "Effect Size"
+  )
+  expect_identical(
+    x_label(plot(temp_fit, "tau", plot_type = "ggplot")),
+    "Heterogeneity"
+  )
+  expect_identical(
+    x_label(plot(temp_fit, "mu", plot_type = "ggplot", xlab = "Custom Label")),
+    "Custom Label"
+  )
+})
+
+
 test_that("Prior and posterior distributions for brma.norm models", {
 
   ### simple meta-analysis ----
@@ -98,6 +122,20 @@ test_that("Prior and posterior distributions for brma.norm models", {
 
   vdiffr::expect_doppelganger(paste0(name, "-rho_baseplot"), function() plot(temp_fit, parameter = "rho", prior = TRUE))
   vdiffr::expect_doppelganger(paste0(name, "-tau_baseplot"), function() plot(temp_fit, parameter = "tau", prior = TRUE))
+})
+
+test_that("Prior and posterior plots transform effect-size axis", {
+
+  name     <- "bcg_meta-analysis"
+  temp_fit <- fits[[name]]
+
+  vdiffr::expect_doppelganger(paste0(name, "-mu_transform_exp_comparison"), function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    plot(temp_fit, "mu", plot_type = "base", main = "log RR")
+    plot(temp_fit, "mu", transform = "EXP", plot_type = "base", main = "RR")
+  })
 })
 
 test_that("Prior and posterior distributions for bPET / bPEESE objects", {

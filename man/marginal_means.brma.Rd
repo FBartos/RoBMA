@@ -11,6 +11,7 @@
   n_samples = 10000,
   output_measure = NULL,
   transform = NULL,
+  bf = NULL,
   ...
 )
 }
@@ -36,6 +37,10 @@ log-scale measures.}
 \item{transform}{optional display transformation. Currently \code{"EXP"}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
+
+\item{bf}{whether inclusion Bayes factors should be shown by default in
+summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
+for single-model \code{brma} objects.}
 
 \item{...}{additional arguments (currently ignored).}
 }

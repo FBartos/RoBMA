@@ -63,7 +63,7 @@ fit1_brma <- brma.glmm(
 vignette_cache_save(cached_fits)
 ```
 
-This vignette illustrates how to use `RoBMA` [@RoBMA] when the outcome is a count rather than an effect-size estimate.
+This vignette illustrates how to use `RoBMA` package [@RoBMA] when the outcome is a count rather than an effect-size estimate.
 It walks through the BCG vaccine dataset from `metafor` [@metafor], showing the `brma.glmm()` call alongside its `metafor::rma.glmm()` counterpart for log odds ratios.
 The interface mirrors `metafor::rma.glmm()`: counts (`ai`, `bi`, `ci`, `di`) are passed in directly, and no `escalc()` step is needed.
 

@@ -29,7 +29,9 @@ model matrix for regression models). Not available for \code{type = "response"}
 since observation-level sampling variance is required.}
 \item{A data.frame (for meta-regression) or a named list with effect size
 measure and variability metrics (for meta-analysis) for new studies. The input
-must correspond to the format and naming used in the original fit.}
+must contain the variables used by the requested prediction type. Outcome
+columns are optional for \code{type = "terms"} unless PET/PEESE bias terms
+are included via \code{bias_adjusted = FALSE}.}
 }}
 
 \item{type}{type of prediction to be performed. Options are:

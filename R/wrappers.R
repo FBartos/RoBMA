@@ -89,6 +89,7 @@ pooled_effect <- function(object, ...) {
 #' to obtain estimates that include publication bias effects.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
+#' @inheritParams predict.brma
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -117,17 +118,23 @@ pooled_effect <- function(object, ...) {
 #' @seealso [predict.brma()], [pooled_heterogeneity()], [blup()]
 #' @export
 pooled_effect.brma <- function(object, bias_adjusted = TRUE,
+                               output_measure = NULL, transform = NULL,
                                probs = c(.025, .975), ...) {
   out <- predict.brma(
-    object        = object,
-    newdata       = TRUE,
-    type          = "terms",
-    probs         = probs,
-    bias_adjusted = bias_adjusted,
-    quiet         = TRUE,
+    object         = object,
+    newdata        = TRUE,
+    type           = "terms",
+    output_measure = output_measure,
+    transform      = transform,
+    probs          = probs,
+    bias_adjusted  = bias_adjusted,
+    quiet          = TRUE,
     ...
   )
-  attr(out, "title") <- "Pooled Effect Size"
+  attr(out, "title") <- .effect_output_title(
+    title            = "Pooled Effect Size",
+    effect_transform = attr(out, "effect_transform")
+  )
   return(out)
 }
 
@@ -241,6 +248,7 @@ blup <- function(object, ...) {
 #' Set to \code{TRUE} to obtain bias-corrected estimates.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
+#' @inheritParams predict.brma
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -274,17 +282,23 @@ blup <- function(object, ...) {
 #' [true_effects()]
 #' @export
 blup.brma <- function(object, bias_adjusted = FALSE,
+                      output_measure = NULL, transform = NULL,
                       probs = c(.025, .975), ...) {
   out <- predict.brma(
-    object        = object,
-    newdata       = NULL,
-    type          = "effect",
-    probs         = probs,
-    bias_adjusted = bias_adjusted,
-    quiet         = TRUE,
+    object         = object,
+    newdata        = NULL,
+    type           = "effect",
+    output_measure = output_measure,
+    transform      = transform,
+    probs          = probs,
+    bias_adjusted  = bias_adjusted,
+    quiet          = TRUE,
     ...
   )
-  attr(out, "title") <- "True Effects (BLUPs)"
+  attr(out, "title") <- .effect_output_title(
+    title            = "True Effects (BLUPs)",
+    effect_transform = attr(out, "effect_transform")
+  )
   return(out)
 }
 
@@ -339,11 +353,14 @@ true_effects <- function(object, ...) {
 #' [pooled_heterogeneity()]
 #' @export
 true_effects.brma <- function(object, bias_adjusted = FALSE,
+                              output_measure = NULL, transform = NULL,
                               probs = c(.025, .975), ...) {
   blup.brma(
-    object        = object,
-    bias_adjusted = bias_adjusted,
-    probs         = probs,
+    object         = object,
+    bias_adjusted  = bias_adjusted,
+    output_measure = output_measure,
+    transform      = transform,
+    probs          = probs,
     ...
   )
 }
@@ -418,6 +435,15 @@ ranef <- function(object, ...) {
 #' @export
 ranef.brma <- function(object, bias_adjusted = FALSE,
                        probs = c(.025, .975), ...) {
+
+  dots <- list(...)
+  if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
+    stop(
+      "'output_measure' and 'transform' are not available for random-effect ",
+      "deviations.",
+      call. = FALSE
+    )
+  }
 
   is_multilevel <- .is_multilevel(object)
 

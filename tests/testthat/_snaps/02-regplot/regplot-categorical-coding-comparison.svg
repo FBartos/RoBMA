@@ -27,14 +27,14 @@
 <line x1='57.60' y1='176.46' x2='50.40' y2='176.46' style='stroke-width: 0.75;' />
 <line x1='57.60' y1='111.70' x2='50.40' y2='111.70' style='stroke-width: 0.75;' />
 <line x1='57.60' y1='46.93' x2='50.40' y2='46.93' style='stroke-width: 0.75;' />
-<text transform='translate(40.32,500.27) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-2.5</text>
-<text transform='translate(40.32,435.50) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-2.0</text>
-<text transform='translate(40.32,370.74) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-1.5</text>
-<text transform='translate(40.32,305.98) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-1.0</text>
-<text transform='translate(40.32,241.22) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-0.5</text>
-<text transform='translate(40.32,176.46) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.0</text>
-<text transform='translate(40.32,111.70) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.5</text>
-<text transform='translate(40.32,46.93) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
+<text x='43.20' y='504.40' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-2.5</text>
+<text x='43.20' y='439.63' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-2.0</text>
+<text x='43.20' y='374.87' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-1.5</text>
+<text x='43.20' y='310.11' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-1.0</text>
+<text x='43.20' y='245.35' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='20.68px' lengthAdjust='spacingAndGlyphs'>-0.5</text>
+<text x='43.20' y='180.59' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.0</text>
+<text x='43.20' y='115.82' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>0.5</text>
+<text x='43.20' y='51.06' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='16.68px' lengthAdjust='spacingAndGlyphs'>1.0</text>
 <polygon points='57.60,518.40 345.60,518.40 345.60,28.80 57.60,28.80 ' style='stroke-width: 0.75; fill: none;' />
 </g>
 <defs>
@@ -106,12 +106,12 @@
 <line x1='417.60' y1='228.27' x2='410.40' y2='228.27' style='stroke-width: 0.75;' />
 <line x1='417.60' y1='137.60' x2='410.40' y2='137.60' style='stroke-width: 0.75;' />
 <line x1='417.60' y1='46.93' x2='410.40' y2='46.93' style='stroke-width: 0.75;' />
-<text transform='translate(400.32,500.27) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-3</text>
-<text transform='translate(400.32,409.60) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-2</text>
-<text transform='translate(400.32,318.93) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-1</text>
-<text transform='translate(400.32,228.27) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>0</text>
-<text transform='translate(400.32,137.60) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>1</text>
-<text transform='translate(400.32,46.93) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>2</text>
+<text x='403.20' y='504.40' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-3</text>
+<text x='403.20' y='413.73' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-2</text>
+<text x='403.20' y='323.06' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-1</text>
+<text x='403.20' y='232.40' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='403.20' y='141.73' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>1</text>
+<text x='403.20' y='51.06' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>2</text>
 <polygon points='417.60,518.40 705.60,518.40 705.60,28.80 417.60,28.80 ' style='stroke-width: 0.75; fill: none;' />
 </g>
 <defs>

@@ -30,7 +30,7 @@ fits <- lazy_fits(fit_names, validate = FALSE)
 
 marginal_means_expected_stats <- function(emm, type = "averaged",
                                           effect_transform = emm[["effect_transform"]],
-                                          probs = c(.025, .975)) {
+                                          probs = c(.025, .50, .975)) {
 
   samples <- .transform_marginal_samples_effect(
     samples          = emm[["inference"]][[type]],
@@ -43,15 +43,15 @@ marginal_means_expected_stats <- function(emm, type = "averaged",
 
       draws <- as.numeric(draws)
       c(
-        Mean   = mean(draws),
-        Median = stats::median(draws),
+        Mean = mean(draws),
+        SD   = stats::sd(draws),
         stats::quantile(draws, probs = probs, names = FALSE)
       )
     })
   }), recursive = FALSE)
 
   stats <- do.call(rbind, stats)
-  colnames(stats) <- c("Mean", "Median", as.character(probs))
+  colnames(stats) <- c("Mean", "SD", as.character(probs))
 
   return(stats)
 }
@@ -68,6 +68,31 @@ test_that("marginal_means stores BayesTools marginal inference", {
 })
 
 
+test_that("marginal_means hides BFs for non-RoBMA fits by default", {
+
+  emm_brma <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  emm_brma_bf <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples = 1000,
+    bf        = TRUE
+  )
+  emm_robma <- marginal_means(
+    fits[["dat.lehmann2018_RoBMA_mods"]],
+    n_samples = 1000
+  )
+
+  expect_false("inclusion_BF" %in% attr(summary(emm_brma), "type"))
+  expect_false(any(grepl(
+    "Savage-Dickey",
+    attr(summary(emm_brma), "warnings"),
+    fixed = TRUE
+  )))
+  expect_true("inclusion_BF" %in% attr(summary(emm_brma_bf), "type"))
+  expect_true("inclusion_BF" %in% attr(summary(emm_brma, bf = TRUE), "type"))
+  expect_true("inclusion_BF" %in% attr(summary(emm_robma), "type"))
+})
+
+
 test_that("marginal_means plot errors show formula terms", {
 
   emm <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
@@ -79,6 +104,37 @@ test_that("marginal_means plot errors show formula terms", {
   expect_error(
     plot(emm, parameter = "missing"),
     "^Unknown marginal means parameter 'missing'\\. Available terms are: 'intercept', 'alloc'\\.$"
+  )
+})
+
+
+test_that("marginal_means plot labels effect axis and term legend", {
+
+  emm  <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
+  plot <- plot(emm, parameter = "alloc", plot_type = "ggplot")
+
+  expect_identical(
+    plot[["scales"]][["get_scales"]]("x")[["name"]],
+    "Effect Size"
+  )
+  expect_identical(
+    plot[["guides"]][["guides"]][["colour"]][["params"]][["title"]],
+    "alloc"
+  )
+  expect_identical(
+    plot[["guides"]][["guides"]][["linetype"]][["params"]][["title"]],
+    "alloc"
+  )
+
+  plot_custom <- plot(
+    emm,
+    parameter = "alloc",
+    plot_type = "ggplot",
+    xlab      = "Custom Label"
+  )
+  expect_identical(
+    plot_custom[["scales"]][["get_scales"]]("x")[["name"]],
+    "Custom Label"
   )
 })
 

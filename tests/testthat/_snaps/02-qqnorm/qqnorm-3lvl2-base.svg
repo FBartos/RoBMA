@@ -33,9 +33,9 @@
 <line x1='59.04' y1='393.46' x2='51.84' y2='393.46' style='stroke-width: 0.75;' />
 <line x1='59.04' y1='279.48' x2='51.84' y2='279.48' style='stroke-width: 0.75;' />
 <line x1='59.04' y1='165.49' x2='51.84' y2='165.49' style='stroke-width: 0.75;' />
-<text transform='translate(41.76,393.46) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-2</text>
-<text transform='translate(41.76,279.48) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>0</text>
-<text transform='translate(41.76,165.49) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>2</text>
+<text x='44.64' y='397.59' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='10.67px' lengthAdjust='spacingAndGlyphs'>-2</text>
+<text x='44.64' y='283.60' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='44.64' y='169.62' text-anchor='end' style='font-size: 12.00px; font-family: sans;' textLength='6.67px' lengthAdjust='spacingAndGlyphs'>2</text>
 <polyline points='59.04,59.04 59.04,502.56 689.76,502.56 ' style='stroke-width: 0.75;' />
 <text x='374.40' y='557.28' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='113.40px' lengthAdjust='spacingAndGlyphs'>Theoretical Quantiles</text>
 <text transform='translate(12.96,280.80) rotate(-90)' text-anchor='middle' style='font-size: 12.00px; font-family: sans;' textLength='94.73px' lengthAdjust='spacingAndGlyphs'>Sample Quantiles</text>

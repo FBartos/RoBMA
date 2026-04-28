@@ -15,6 +15,8 @@
 #' coefficients are returned for the intercept and continuous predictors. These coefficients
 #' correspond to the standardized scale on which prior distributions are specified by default
 #' (i.e., `standardize_continuous_predictors = TRUE`).
+#' @param conditional whether to include conditional estimates for RoBMA
+#'   product-space objects. Defaults to \code{FALSE}.
 #' @param ... additional arguments
 #'
 #' @examples \dontrun{
@@ -25,7 +27,8 @@
 #' @export
 summary.brma       <- function(
     object, probs = c(.025, .50, .975),
-    include_MCMC_diagnostics = TRUE, standardized_coefficients = FALSE, ...) {
+    include_MCMC_diagnostics = TRUE, standardized_coefficients = FALSE,
+    conditional              = FALSE, ...) {
 
   ### model information
   is_mods       <- .is_mods(object)
@@ -35,6 +38,12 @@ summary.brma       <- function(
   is_robma      <- .is_RoBMA(object)
   outcome_type  <- .outcome_type(object)
 
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !is_robma) {
+    stop("'conditional' summaries are available only for RoBMA objects.",
+         call. = FALSE)
+  }
+
   ### special cases handling
   # deal with `only_data` fit
   if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
@@ -42,7 +51,10 @@ summary.brma       <- function(
   }
 
   ### provide common estimates
-  common_parameters <- intersect(c("mu", "tau", "rho"), names(attr(object[["fit"]], "prior_list")))
+  common_parameters <- intersect(
+    c("mu", "tau", "rho"),
+    names(attr(object[["fit"]], "prior_list"))
+  )
   if (length(common_parameters) > 0) {
     estimates_common <- BayesTools::JAGS_estimates_table(
       fit                = object[["fit"]],
@@ -54,8 +66,28 @@ summary.brma       <- function(
       probs              = probs,
       title              = if (is_mods || is_scale) "Common Estimates" else "Estimates"
     )
+    if (conditional) {
+      estimates_common_conditional <- BayesTools::JAGS_estimates_table(
+        fit                = object[["fit"]],
+        conditional        = TRUE,
+        transform_factors  = TRUE,
+        transform_scaled   = !standardized_coefficients,
+        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_inclusion   = TRUE,
+        keep_parameters    = common_parameters,
+        probs              = probs,
+        title              = if (is_mods || is_scale) {
+          "Conditional Common Estimates"
+        } else {
+          "Conditional Estimates"
+        }
+      )
+    } else {
+      estimates_common_conditional <- list()
+    }
   } else {
-    estimates_common <- list()
+    estimates_common             <- list()
+    estimates_common_conditional <- list()
   }
 
   ### provide regression estimates for the effect size meta-regression
@@ -71,8 +103,29 @@ summary.brma       <- function(
       formula_prefix     = FALSE,
       title              = if (is_scale) "Location" else "Meta-Regression"
     )
+    if (conditional) {
+      estimates_mods_conditional <- BayesTools::JAGS_estimates_table(
+        fit                = object[["fit"]],
+        conditional        = TRUE,
+        transform_factors  = TRUE,
+        transform_scaled   = !standardized_coefficients,
+        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_inclusion   = TRUE,
+        keep_formulas      = "mu",
+        probs              = probs,
+        formula_prefix     = FALSE,
+        title              = if (is_scale) {
+          "Conditional Location"
+        } else {
+          "Conditional Meta-Regression"
+        }
+      )
+    } else {
+      estimates_mods_conditional <- list()
+    }
   } else {
-    estimates_mods <- list()
+    estimates_mods             <- list()
+    estimates_mods_conditional <- list()
   }
 
   ### provide regression estimates for the scale meta-regression
@@ -89,8 +142,26 @@ summary.brma       <- function(
       title              = "Scale",
       footnotes          = "exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale."
     )
+    if (conditional) {
+      estimates_scale_conditional <- BayesTools::JAGS_estimates_table(
+        fit                = object[["fit"]],
+        conditional        = TRUE,
+        transform_factors  = TRUE,
+        transform_scaled   = !standardized_coefficients,
+        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_inclusion   = TRUE,
+        keep_formulas      = "log_tau",
+        probs              = probs,
+        formula_prefix     = FALSE,
+        title              = "Conditional Scale",
+        footnotes          = "exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale."
+      )
+    } else {
+      estimates_scale_conditional <- list()
+    }
   } else {
-    estimates_scale <- list()
+    estimates_scale             <- list()
+    estimates_scale_conditional <- list()
   }
 
   ### provide publication bias estimates
@@ -104,8 +175,23 @@ summary.brma       <- function(
       title              = "Publication Bias",
       footnotes          = if (.is_weightfunction(object)) "P-value intervals for publication bias weights omega correspond to one-sided p-values."
     )
+    if (conditional) {
+      estimates_bias_conditional <- BayesTools::JAGS_estimates_table(
+        fit                = object[["fit"]],
+        conditional        = TRUE,
+        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_inclusion   = TRUE,
+        keep_parameters    = c("bias", "omega", "PET", "PEESE"),
+        probs              = probs,
+        title              = "Conditional Publication Bias",
+        footnotes          = if (.is_weightfunction(object)) "P-value intervals for publication bias weights omega correspond to one-sided p-values."
+      )
+    } else {
+      estimates_bias_conditional <- list()
+    }
   } else {
-    estimates_bias <- list()
+    estimates_bias             <- list()
+    estimates_bias_conditional <- list()
   }
 
   ### provide RoBMA inclusion summaries
@@ -120,14 +206,18 @@ summary.brma       <- function(
   }
 
   out <- list(
-    name                 = .summary.brma_model_names(object),
-    inclusion_components = inclusion[["inclusion_components"]],
-    inclusion_mods       = inclusion[["inclusion_mods"]],
-    inclusion_scale      = inclusion[["inclusion_scale"]],
-    estimates            = estimates_common,
-    estimates_mods       = estimates_mods,
-    estimates_scale      = estimates_scale,
-    estimates_bias       = estimates_bias
+    name                        = .summary.brma_model_names(object),
+    inclusion_components        = inclusion[["inclusion_components"]],
+    inclusion_mods              = inclusion[["inclusion_mods"]],
+    inclusion_scale             = inclusion[["inclusion_scale"]],
+    estimates                   = estimates_common,
+    estimates_conditional       = estimates_common_conditional,
+    estimates_mods              = estimates_mods,
+    estimates_mods_conditional  = estimates_mods_conditional,
+    estimates_scale             = estimates_scale,
+    estimates_scale_conditional = estimates_scale_conditional,
+    estimates_bias              = estimates_bias,
+    estimates_bias_conditional  = estimates_bias_conditional
   )
 
   class(out) <- "summary.brma"
@@ -150,7 +240,10 @@ print.summary.brma <- function(x, ...) {
 
   for (type in c(
     "inclusion_components", "inclusion_mods", "inclusion_scale",
-    "estimates", "estimates_mods", "estimates_scale", "estimates_bias"
+    "estimates", "estimates_conditional",
+    "estimates_mods", "estimates_mods_conditional",
+    "estimates_scale", "estimates_scale_conditional",
+    "estimates_bias", "estimates_bias_conditional"
   )) {
     if (length(x[[type]]) > 0) {
       cat("\n")
@@ -250,7 +343,9 @@ print.brma <- function(x, ...) {
     inclusion_mods = .summary.inclusion_subtable(
       table      = inclusion,
       indices    = mods_indices,
-      row_labels = sub("^\\(mu\\) ", "", row_labels[mods_indices]),
+      row_labels = .summary_parameter_label(
+        sub("^\\(mu\\) ", "", row_labels[mods_indices])
+      ),
       title      = if (.is_scale(object)) {
         "Location Inclusion"
       } else {
@@ -260,12 +355,20 @@ print.brma <- function(x, ...) {
     inclusion_scale = .summary.inclusion_subtable(
       table      = inclusion,
       indices    = scale_indices,
-      row_labels = sub("^\\(log_tau\\) ", "", row_labels[scale_indices]),
+      row_labels = .summary_parameter_label(
+        sub("^\\(log_tau\\) ", "", row_labels[scale_indices])
+      ),
       title      = "Scale Inclusion"
     )
   )
 
   return(output)
+}
+
+# Convert internal interaction separators back to formula syntax.
+.summary_parameter_label <- function(label) {
+
+  return(gsub("__xXx__", ":", label, fixed = TRUE))
 }
 
 # Create a labelled BayesTools inclusion subtable.

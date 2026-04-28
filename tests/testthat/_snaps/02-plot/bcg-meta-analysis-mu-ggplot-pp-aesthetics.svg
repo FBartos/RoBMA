@@ -81,6 +81,7 @@
 <text x='478.07' y='556.75' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>1</text>
 <text x='580.87' y='556.75' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>2</text>
 <text x='683.68' y='556.75' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>3</text>
+<text x='375.27' y='568.44' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='47.81px' lengthAdjust='spacingAndGlyphs'>Effect Size</text>
 <text transform='translate(12.36,283.32) rotate(-90)' text-anchor='middle' style='font-size: 10.00px; font-family: sans;' textLength='33.35px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 </svg>

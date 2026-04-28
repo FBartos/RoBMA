@@ -95,6 +95,7 @@ The Bayesian meta-analysis vignette walks through the BCG-vaccine example from `
 |:--------------------------------------------------|:-----------------------------------------------------|
 | Multilevel Meta-Analysis                          | `brma()` with `cluster` ↔ `metafor::rma.mv()` for 3-level data |
 | Publication-Bias Adjustment                       | `bselmodel()` / `bPET()` / `bPEESE()` ↔ `metafor::selmodel()` |
+| Location-Scale Models                             | `brma()` with `scale` ↔ `metafor::rma.ls()`          |
 | Generalized Linear Mixed-Effects Meta-Analysis    | `brma.glmm()` ↔ `metafor::rma.glmm()` for binomial and Poisson outcomes |
 
 Each vignette starts from a `metafor` analysis and shows the matching `RoBMA` syntax, output, and diagnostics.

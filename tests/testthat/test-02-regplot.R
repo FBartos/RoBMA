@@ -326,6 +326,20 @@ test_that("Regression plot has correct interface", {
   )
 })
 
+test_that("Regression plot transforms effect-size data", {
+
+  name     <- "bcg_meta-regression"
+  fit_brma <- fits[[name]]
+
+  vdiffr::expect_doppelganger("regplot_transform_exp_comparison", function() {
+    oldpar <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
+    par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+    regplot(fit_brma, mod = "year", plot_type = "base", main = "log RR")
+    regplot(fit_brma, mod = "year", transf = exp, plot_type = "base", main = "RR")
+  })
+})
+
 # ============================================================================ #
 # Test: Regression Plot Customization
 # ============================================================================ #

@@ -520,7 +520,6 @@ hist.zcurve_brma <- function(x, plot_type = "base",
       graphics::plot(
         z_hist,
         freq   = FALSE,
-        las    = 1,
         border = dots_hist_params$border,
         col    = dots_hist_params$col,
         xlab   = dots_hist_params$xlab,
@@ -528,7 +527,8 @@ hist.zcurve_brma <- function(x, plot_type = "base",
         main   = dots_hist_params$main,
         ylim   = dots_hist_params$ylim,
         xaxt   = dots_hist_params$xaxt,
-        yaxt   = dots_hist_params$yaxt
+        yaxt   = dots_hist_params$yaxt,
+        las    = dots_hist_params$las
       )
     }
   }
@@ -1347,7 +1347,8 @@ lines.zcurve_brma <- function(x, plot_type = "base",
       main   = if (!is.null(dots[["main"]]))   dots[["main"]]   else "",
       ylim   = ylim,
       xaxt   = if (!is.null(dots[["xaxt"]]))   dots[["xaxt"]]   else "s",
-      yaxt   = if (!is.null(dots[["yaxt"]]))   dots[["yaxt"]]   else "s"
+      yaxt   = if (!is.null(dots[["yaxt"]]))   dots[["yaxt"]]   else "s",
+      las    = if (!is.null(dots[["las"]]))    dots[["las"]]    else 1
     )
   } else if (plot_type == "ggplot") {
     hist_dots <- list(
