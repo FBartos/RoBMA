@@ -55,13 +55,13 @@ namespace jags {
 
       bool tau2_OK  = true;  // check that tau2 is a positive double
       bool rho_OK   = true;  // check that rho  is between 0 and 1
-      bool omega_OK = true;  // check that omega is between 0 and 1
+      bool omega_OK = true;  // check that omega is non-negative
 
       tau2_OK = *tau2 >= 0;
       rho_OK  = *rho  >= 0 && *rho <= 1;
 
       for(int i = 0; i < J; i++){
-        omega_OK = omega_OK && omega[i] >= 0 && omega[i] <= 1;
+        omega_OK = omega_OK && omega[i] >= 0;
       }
 
       return tau2_OK && rho_OK  && omega_OK;

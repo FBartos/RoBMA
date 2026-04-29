@@ -51,7 +51,7 @@ namespace jags {
       const int J = dims[3][0];
 
       bool sigma_OK = true;  // check that sigma is symmetric and positive (not that it is semidefinite)
-      bool omega_OK = true;  // check that omega is between 0 and 1
+      bool omega_OK = true;  // check that omega is non-negative
 
       for(int i = 0; i < K; i++){
         for(int j = 0; j < K && j <= i; j++){
@@ -60,7 +60,7 @@ namespace jags {
       }
 
       for(int i = 0; i < J; i++){
-        omega_OK = omega_OK && omega[i] >= 0 && omega[i] <= 1;
+        omega_OK = omega_OK && omega[i] >= 0;
       }
 
       return sigma_OK && omega_OK;

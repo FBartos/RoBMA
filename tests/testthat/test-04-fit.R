@@ -114,7 +114,7 @@ test_that("RoBMA-PP works", {
 test_that("Custom models - only alternative", {
   fit7 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
                 priors_bias = list(
-                  prior_weightfunction("one-sided", list(c(0.10), c(1, 1))),
+                  prior_weightfunction("one-sided", c(0.10), wf_cumulative(c(1, 1))),
                   prior_PET("normal", list(0, 1))
                 ),
                 priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE,
@@ -140,7 +140,7 @@ test_that("Custom models - only null (non-point)", {
                 priors_effect_null = prior("normal", list(0, 1)),
                 priors_heterogeneity_null = prior("invgamma", list(1, 0.15)),
                 priors_bias_null = list(
-                  prior_weightfunction("one-sided", list(c(0.10), c(1, 1))),
+                  prior_weightfunction("one-sided", c(0.10), wf_cumulative(c(1, 1))),
                   prior_PET("normal", list(0, 1))
                 ),
                 priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL, parallel = TRUE,
@@ -153,7 +153,7 @@ test_that("Custom models - only null (non-point)", {
 
 test_that("Custom models - fixed weightfunctions", {
   fit10 <- try_parallel(RoBMA(d = d, se = d_se, seed = 1,
-                priors_bias = prior_weightfunction("one-sided.fixed", list(c(0.10), c(1, .5))),
+                priors_bias = prior_weightfunction("one-sided", c(0.10), wf_fixed(c(1, .5))),
                 priors_effect_null = NULL, priors_heterogeneity_null = NULL, priors_bias_null = NULL, parallel = TRUE,
                 sample = 500, burnin = 250, adapt = 100, chains = 2, autofit = FALSE,
                 convergence_checks = set_convergence_checks(max_Rhat = 2, min_ESS = 10, max_error = 1, max_SD_error = 1)))
@@ -165,7 +165,7 @@ test_that("Custom models - fixed weightfunctions", {
 test_that("Custom models - unknown effect size", {
   fit11 <- try_parallel(RoBMA(y = d, se = d_se, seed = 1,
                 priors_bias = list(
-                  prior_weightfunction("two-sided", list(c(0.10), c(1, 1))),
+                  prior_weightfunction("two-sided", c(0.10), wf_cumulative(c(1, 1))),
                   prior_PET("normal", list(0, 1))
                 ), parallel = TRUE,
                 sample = 2500, burnin = 1000, adapt = 500, chains = 2, autofit = FALSE, algorithm = "ss",
@@ -292,7 +292,7 @@ test_that("RoBMA (simplified) regression with custom priors work", {
                                                     priors_effect_null   = NULL,
                                                     priors_heterogeneity = NULL,
                                                     priors_bias          = list(
-                                                      prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/2),
+                                                      prior_weightfunction("two-sided", c(0.05), wf_cumulative(c(1, 1)), prior_weights = 1/2),
                                                       prior_PET(distribution = "Cauchy", parameters = list(0, 1), truncation = list(0, Inf), prior_weights = 1/2)
                                                     ),
                                                     seed = 1, parallel = TRUE,

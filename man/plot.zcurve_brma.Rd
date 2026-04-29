@@ -11,7 +11,7 @@
   max_samples = 500,
   plot_fit = TRUE,
   plot_extrapolation = TRUE,
-  plot_CI = TRUE,
+  plot_ci = TRUE,
   plot_thresholds = TRUE,
   from = -6,
   to = 6,
@@ -43,7 +43,7 @@ Defaults to \code{TRUE}.}
 \item{plot_extrapolation}{whether to show extrapolated density (bias removed).
 Defaults to \code{TRUE}.}
 
-\item{plot_CI}{whether to show credible interval bands. Defaults to \code{TRUE}.}
+\item{plot_ci}{whether to show credible interval bands. Defaults to \code{TRUE}.}
 
 \item{plot_thresholds}{whether to show significance threshold lines.
 Defaults to \code{TRUE}.}

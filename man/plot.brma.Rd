@@ -11,6 +11,7 @@
   parameter_scale,
   prior = FALSE,
   standardized_coefficients = FALSE,
+  conditional = FALSE,
   output_measure = NULL,
   transform = NULL,
   plot_type = "base",
@@ -29,6 +30,9 @@ or \code{"PET-PEESE"} (for the PET-PEESE regression).}
 
 \item{prior}{whether prior distribution should be added to
 figure. Defaults to \code{FALSE}.}
+
+\item{conditional}{whether to plot the conditional posterior distribution
+for RoBMA product-space objects. Defaults to \code{FALSE}.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.
 Defaults to the fitted measure. Supported conversions are among \code{"SMD"},

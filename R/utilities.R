@@ -371,10 +371,18 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
 
 ### TODO: save helpers
-.get_one_sided_cuts          <- function(prior){
-  steps <- prior[["parameters"]][["steps"]]
-  if (grepl("two.sided", prior[["distribution"]])) {
-    return(c(1-rev(steps/2), steps/2))
+.get_one_sided_cuts          <- function(prior) {
+
+  if (BayesTools::is.prior.weightfunction(prior)) {
+    steps <- prior[["steps"]]
+    side  <- prior[["side"]]
+  } else {
+    steps <- prior[["parameters"]][["steps"]]
+    side  <- gsub("\\.", "-", prior[["distribution"]])
+  }
+
+  if (side == "two-sided") {
+    return(c(1 - rev(steps / 2), steps / 2))
   } else {
     return(steps)
   }

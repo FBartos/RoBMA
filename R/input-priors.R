@@ -675,10 +675,17 @@ estimate_unit_information_sd <- function(sei, ni) {
   if (bias_type == "selmodel") {
 
     # specify default settings / check the prior distribution
-    if ((missing(prior) || is.null(prior)) && missing(steps)) {
-      prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = c(0.025), "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), 2)))
-    } else if ((missing(prior) || is.null(prior)) && !missing(steps)) {
-      prior <- BayesTools::prior_weightfunction("one-sided", parameters = list("steps" = steps, "alpha" = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps) + 1)))
+    if (missing(prior) || is.null(prior)) {
+      if (missing(steps)) {
+        steps <- c(0.025)
+      }
+      prior <- BayesTools::prior_weightfunction(
+        "one-sided",
+        steps   = steps,
+        weights = BayesTools::wf_cumulative(
+          alpha = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps) + 1)
+        )
+      )
     } else if (!BayesTools::is.prior.weightfunction(prior)) {
       stop("'prior_bias' must be a `prior_weightfunction` object", call. = FALSE)
     }
@@ -1047,19 +1054,19 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   if (model_type == "2w") {
     return(list(
-      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),       prior_weights = 1/2),
-      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)), prior_weights = 1/2)
+      BayesTools::prior_weightfunction("two-sided", c(0.05),       BayesTools::wf_cumulative(c(1, 1)),    prior_weights = 1/2),
+      BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10), BayesTools::wf_cumulative(c(1, 1, 1)), prior_weights = 1/2)
     ))
   }
 
   if (model_type == "6w") {
     return(list(
-      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
-      BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/6),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/6),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/6),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/6),
-      BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/6)
+      BayesTools::prior_weightfunction("two-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/6),
+      BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10),       BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05),      BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.05, 0.5),        BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/6),
+      BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05, 0.5), BayesTools::wf_cumulative(c(1, 1, 1, 1)), prior_weights = 1/6)
     ))
   }
 
@@ -1074,12 +1081,12 @@ estimate_unit_information_sd <- function(sei, ni) {
   }
 
   return(list(
-    BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-    BayesTools::prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),       prior_weights = 1/12),
-    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
-    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
-    BayesTools::prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
+    BayesTools::prior_weightfunction("two-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/12),
+    BayesTools::prior_weightfunction("two-sided", c(0.05, 0.10),       BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.05),             BayesTools::wf_cumulative(c(1, 1)),       prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05),      BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.05, 0.5),        BayesTools::wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+    BayesTools::prior_weightfunction("one-sided", c(0.025, 0.05, 0.5), BayesTools::wf_cumulative(c(1, 1, 1, 1)), prior_weights = 1/12),
     BayesTools::prior_PET(distribution = "Cauchy",   parameters = list(0, RoBMA.get_option("default_bias_PET.scale")),                truncation = list(0, Inf), prior_weights = 1/4),
     BayesTools::prior_PEESE(distribution = "Cauchy", parameters = list(0, RoBMA.get_option("default_bias_PEESE.scale") * UISD_ratio), truncation = list(0, Inf), prior_weights = 1/4)
   ))

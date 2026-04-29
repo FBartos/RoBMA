@@ -1,0 +1,259 @@
+---
+title: "Feature Coverage"
+author: "Frantisek Bartos"
+date: "29th of April 2026"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Feature Coverage}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  message  = FALSE,
+  warning  = FALSE
+)
+
+tick    <- '<span class="yes">&#10003;</span>'
+limited <- '<span class="limited">limited</span>'
+no      <- '<span class="no">No</span>'
+na_cell <- '<span class="na-cell">n/a</span>'
+
+model_columns <- c(
+  "brma.norm", "brma.glmm", "bselmodel", "bPET/bPEESE",
+  "BMA.norm", "BMA.glmm", "RoBMA"
+)
+
+status_map <- c(
+  Y = tick,
+  L = limited,
+  N = no,
+  A = na_cell
+)
+
+feature_row <- function(topic, feature, pattern) {
+
+  values <- strsplit(pattern, "", fixed = TRUE)[[1]]
+  if (length(values) != length(model_columns)) {
+    stop("Status pattern has wrong length: ", pattern, call. = FALSE)
+  }
+
+  out <- c(
+    list(Topic = topic, Feature = feature),
+    stats::setNames(as.list(status_map[values]), model_columns)
+  )
+
+  return(out)
+}
+
+feature_table <- function(rows) {
+
+  rows <- as.data.frame(do.call(rbind, rows), stringsAsFactors = FALSE, check.names = FALSE)
+  rows[] <- lapply(rows, function(x) {
+
+    if (is.list(x)) {
+      return(vapply(x, function(y) paste0(as.character(y), collapse = ""), character(1)))
+    }
+    return(as.character(x))
+  })
+
+  cat('
+<style>
+.feature-matrix {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.84em;
+}
+.feature-matrix th,
+.feature-matrix td {
+  border: 1px solid #d0d7de;
+  padding: 4px 6px;
+  vertical-align: top;
+}
+.feature-matrix th {
+  background: #f6f8fa;
+}
+.feature-matrix .topic-head {
+  min-width: 38px;
+  width: 38px;
+}
+.feature-matrix .feature-head {
+  min-width: 25em;
+}
+.feature-matrix .model-head {
+  height: 118px;
+  min-width: 34px;
+  max-width: 34px;
+  width: 34px;
+  padding: 0;
+  vertical-align: bottom;
+}
+.feature-matrix .rotated-header {
+  display: inline-block;
+  transform: rotate(-90deg);
+  transform-origin: 18px 18px;
+  white-space: nowrap;
+  width: 110px;
+}
+.feature-matrix .topic-cell {
+  background: #f6f8fa;
+  min-width: 38px;
+  width: 38px;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+.feature-matrix .topic-cell span {
+  display: inline-block;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-weight: 700;
+}
+.feature-matrix .feature-cell {
+  min-width: 25em;
+}
+.feature-matrix .status-cell {
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: 34px;
+}
+.feature-matrix .yes {
+  color: #1a7f37;
+  font-weight: 700;
+}
+.feature-matrix .limited {
+  color: #9a6700;
+}
+.feature-matrix .no,
+.feature-matrix .na-cell {
+  color: #6e7781;
+}
+</style>
+')
+
+  escape_html <- function(x) {
+
+    x <- as.character(x)
+    x <- gsub("&", "&amp;", x, fixed = TRUE)
+    x <- gsub("<", "&lt;", x, fixed = TRUE)
+    x <- gsub(">", "&gt;", x, fixed = TRUE)
+    x <- gsub('"', "&quot;", x, fixed = TRUE)
+    x <- gsub("`([^`]+)`", "<code>\\1</code>", x, perl = TRUE)
+    return(x)
+  }
+
+  topic_runs <- rle(rows$Topic)
+  topic_start <- cumsum(c(1L, head(topic_runs$lengths, -1L)))
+  topic_span <- rep(0L, nrow(rows))
+  topic_span[topic_start] <- topic_runs$lengths
+
+  cat('<div style="overflow-x: auto;">\n')
+  cat('<table class="feature-matrix">\n')
+  cat("<thead><tr>")
+  cat('<th class="topic-head">Topic</th>')
+  cat('<th class="feature-head">Feature</th>')
+  for (model_column in model_columns) {
+    cat('<th class="model-head"><span class="rotated-header">', model_column, "</span></th>", sep = "")
+  }
+  cat("</tr></thead>\n")
+  cat("<tbody>\n")
+  for (i in seq_len(nrow(rows))) {
+    cat("<tr>")
+    if (topic_span[i] > 0L) {
+      cat(
+        '<td class="topic-cell" rowspan="', topic_span[i], '"><span>',
+        escape_html(rows$Topic[i]),
+        "</span></td>",
+        sep = ""
+      )
+    }
+    cat('<td class="feature-cell">', escape_html(rows$Feature[i]), "</td>", sep = "")
+    for (model_column in model_columns) {
+      cat('<td class="status-cell">', rows[[model_column]][i], "</td>", sep = "")
+    }
+    cat("</tr>\n")
+  }
+  cat("</tbody>\n")
+  cat("</table>\n")
+  cat("</div>\n")
+}
+```
+
+This vignette is a development snapshot of the current `RoBMA` feature surface [@RoBMA].
+The table is organized by substantive capability.
+Rows that name broader `metafor` capabilities are included only as reference points for users moving between packages, not as requirements that `RoBMA` must mirror exactly [@metafor].
+
+The `brma.norm` column refers to `brma()`, the normal likelihood interface with class `"brma.norm"`.
+The `bPET/bPEESE` column summarizes both small-study-effect regression wrappers.
+The `BMA.norm` column also covers the exported `BMA()` alias.
+Green ticks mark available features.
+Cells marked `limited` mean the feature exists, but with narrower model coverage or a different Bayesian implementation.
+
+```{r feature-matrix, echo = FALSE, results = "asis"}
+rows <- list(
+  feature_row("Model / Structure", "Fixed- and random-effects models", "YYYYYYY"),
+  feature_row("Model / Structure", "Moderation (`mods`)", "YYYYYYY"),
+  feature_row("Model / Structure", "Location-scale models (`scale`)", "YYYYYYY"),
+  feature_row("Model / Structure", "Multilevel models (`cluster`)", "YYYYYYY"),
+  feature_row("Model / Structure", "Model averaging", "NNNNYYY"),
+  feature_row("Model / Structure", "Inclusion Bayes factors", "NNNNYYY"),
+  feature_row("Model / Structure", "General multivariate / covariance structures", "NNNNNNN"),
+  feature_row("Model / Structure", "Robust / sandwich inference", "NNNNNNN"),
+
+  feature_row("Priors", "Default Bayesian priors", "YYYYYYY"),
+  feature_row("Priors", "Custom parameter priors", "YYYYYYY"),
+  feature_row("Priors", "Informed priors", "YLYYYLY"),
+  feature_row("Priors", "Prior-only inspection", "YYYYYYY"),
+
+  feature_row("Publication Bias", "Selection models", "NNYNNNY"),
+  feature_row("Publication Bias", "PET / PEESE models", "NNNYNNY"),
+  feature_row("Publication Bias", "Model averaging over bias models", "NNNNNNY"),
+  feature_row("Publication Bias", "Bias-adjusted summaries / predictions", "NNYYNNY"),
+  feature_row("Publication Bias", "Classical bias tests / trim-fill / fail-safe N", "NNNNNNN"),
+
+  feature_row("Prediction", "Pooled effect / heterogeneity summaries", "YYYYYYY"),
+  feature_row("Prediction", "Prediction for new covariate values", "YYYYYYY"),
+  feature_row("Prediction", "Posterior predictive response summaries", "YYYYYYY"),
+  feature_row("Prediction", "True effects / BLUPs / random effects", "YYYYYYY"),
+  feature_row("Prediction", "Estimated marginal means", "YYYYYYY"),
+  feature_row("Prediction", "Fitted-value extraction with `fitted()`", "NNNNNNN"),
+
+  feature_row("Residuals / Diagnostics", "Raw residuals", "YYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Pearson / standardized residuals", "YNNYYNL"),
+  feature_row("Residuals / Diagnostics", "LOO-PIT / studentized residuals", "YYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Influence diagnostics", "YLLYYLL"),
+  feature_row("Residuals / Diagnostics", "LOO / WAIC diagnostics", "YYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Moderator collinearity diagnostics", "YYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Refit leave-one-out / permutation tests", "NNNNNNN"),
+
+  feature_row("Comparison", "LOO / WAIC comparison", "YYYYYYY"),
+  feature_row("Comparison", "Bayes factors", "YYYYYYY"),
+  feature_row("Comparison", "Frequentist LRT / omnibus tests", "NNNNNNN"),
+  feature_row("Comparison", "AIC / BIC workflows", "NNNNNNN"),
+
+  feature_row("Plots", "Posterior / prior plots", "YYYYYYY"),
+  feature_row("Plots", "Funnel plots", "YYYYYYY"),
+  feature_row("Plots", "Regression plots", "YYYYYYY"),
+  feature_row("Plots", "Radial / Galbraith plots", "YLYYYLY"),
+  feature_row("Plots", "MCMC diagnostic plots", "YYYYYYY"),
+  feature_row("Plots", "Bias-model plots", "NNYYNNY"),
+  feature_row("Plots", "Forest / profile / Baujat / GOSH / L'Abbe plots", "NNNNNNN"),
+
+  feature_row("Extraction", "Posterior draw extraction", "YYYYYYY"),
+  feature_row("Extraction", "Classical extraction generics (`vcov`, `confint`, `weights`, `simulate`)", "NNNNNNN")
+)
+
+feature_table(rows)
+```
+
+## References

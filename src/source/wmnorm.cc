@@ -13,9 +13,6 @@ namespace {
 
 double clamp_weight(double w)
 {
-  if (w > 1) {
-    return 1;
-  }
   if (w < 0) {
     return 0;
   }

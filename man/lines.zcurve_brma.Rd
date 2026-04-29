@@ -9,7 +9,7 @@
   plot_type = "base",
   probs = c(0.025, 0.975),
   max_samples = 500,
-  plot_CI = TRUE,
+  plot_ci = TRUE,
   extrapolate = FALSE,
   from = -6,
   to = 6,
@@ -30,7 +30,7 @@ Defaults to \code{"base"}.}
 
 \item{max_samples}{maximum posterior samples for density. Defaults to 500.}
 
-\item{plot_CI}{whether to show credible interval bands. Defaults to \code{TRUE}.}
+\item{plot_ci}{whether to show credible interval bands. Defaults to \code{TRUE}.}
 
 \item{extrapolate}{whether to remove bias adjustments. Defaults to \code{FALSE}.}
 

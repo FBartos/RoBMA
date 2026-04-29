@@ -455,11 +455,9 @@ bcg_custom_bias_priors <- RoBMA(
   prior_bias_null = prior_none(),
   prior_bias      = list(
     prior_weightfunction(
-      distribution = "one.sided",
-      parameters = list(
-        steps = c(0.025, 0.05),
-        alpha = c(1, 1, 1)
-      )
+      "one-sided",
+      steps   = c(0.025, 0.05),
+      weights = wf_cumulative(c(1, 1, 1))
     ),
     prior_PET(
       distribution = "cauchy",

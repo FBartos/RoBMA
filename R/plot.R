@@ -16,6 +16,8 @@
 #' \code{"base"}.
 #' @param prior whether prior distribution should be added to
 #' figure. Defaults to \code{FALSE}.
+#' @param conditional whether to plot the conditional posterior distribution
+#' for RoBMA product-space objects. Defaults to \code{FALSE}.
 #' @param dots_prior list of additional graphical arguments
 #' to be passed to the plotting function of the prior
 #' distribution. Supported arguments are \code{lwd},
@@ -43,6 +45,7 @@
 plot.brma  <- function(
     x, parameter, parameter_mods, parameter_scale,
     prior = FALSE, standardized_coefficients = FALSE,
+    conditional = FALSE,
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL, ...) {
 
@@ -51,6 +54,10 @@ plot.brma  <- function(
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !.is_RoBMA(x)) {
+    stop("'conditional' plots are available only for RoBMA objects.", call. = FALSE)
+  }
 
   ### select and validate the parameter to be plotted
   parameter <- .check_and_select_plot_parameter(
@@ -77,6 +84,7 @@ plot.brma  <- function(
   samples <- BayesTools::as_mixed_posteriors(
     model            = x[["fit"]],
     parameters       = parameter,
+    conditional      = if (conditional) parameter else NULL,
     transform_scaled = !standardized_coefficients
   )
 

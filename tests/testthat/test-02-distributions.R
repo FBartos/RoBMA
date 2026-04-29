@@ -24,7 +24,7 @@ test_that("Input checks work", {
   expect_error(dwnorm(x, 0, -1, steps = c(.5), omega = c(1, 1), type = "one.sided"), "The 'sd' must be equal or higher than 0.")
   expect_error(dwnorm(x, 0,  1, steps = c(1), omega = c(1, 1), type = "one.sided"), "The 'steps' must be lower than 1.")
   expect_error(dwnorm(x, 0,  1, steps = c(0), omega = c(1, 1), type = "one.sided"), "The 'steps' must be higher than 0.")
-  expect_error(dwnorm(x, 0,  1, steps = c(.5), omega = c(2, 1), type = "one.sided"), "The 'omega' must be equal or lower than 1.")
+  expect_no_error(dwnorm(x, 0,  1, steps = c(.5), omega = c(2, 1), type = "one.sided"))
   expect_error(dwnorm(x, 0,  1, steps = c(.5), omega = c(-1, 1), type = "one.sided"), "The 'omega' must be equal or higher than 0.")
   expect_error(dwnorm(x, 0,  1, steps = c(.05, .10), omega = c(1, 1), type = "one.sided"), "'omega' argument must have one more weight than the number of defined steps with 'steps'/'crit_x' argument.")
   expect_error(dwnorm(x, 0,  1, steps = c(.10, .05), omega = c(1, 1, 1), type = "one.sided"), "'steps'/'crit_x' argument must be inreasing.")
@@ -50,6 +50,7 @@ test_that("Density function works", {
 
   # verify that the distributions integrate to 1 (up to some tolerance)
   expect_equal(integrate(function(x)dwnorm(x, 0, 1, steps = c(.50), omega = c(1, .5), type = "one.sided"), lower = -Inf, upper = Inf)$value, 1, tolerance = 1e-5)
+  expect_equal(integrate(function(x)dwnorm(x, 0, 1, steps = c(.50), omega = c(2, 1), type = "one.sided"), lower = -Inf, upper = Inf)$value, 1, tolerance = 1e-5)
   expect_equal(integrate(function(x)dwnorm(x, 1, 2, steps = c(.10, .50), omega = c(1, .2, .5), type = "one.sided"), lower = -Inf, upper = Inf)$value, 1, tolerance = 1e-5)
   expect_equal(integrate(function(x)dwnorm(x, 0, 1, steps = c(.5), omega = c(1, .5), type = "two.sided"), lower = -Inf, upper = Inf)$value, 1, tolerance = 1e-5)
   expect_equal(integrate(function(x)dwnorm(x, 0.5, 1, steps = c(.05, .10), omega = c(1, .5, .1), type = "two.sided"), lower = -Inf, upper = Inf)$value, 1, tolerance = 1e-4)

@@ -61,12 +61,12 @@ prepare_30_tutorial <- function(envir = parent.frame()) {
   prior_effect_361        <- prior("normal", list(mean = 0, sd = 0.5))
   prior_heterogeneity_361 <- prior("invgamma", list(shape = 1, scale = 0.075))
   prior_bias_361          <- list(
-    prior_weightfunction("two.sided", list(alpha = c(1, 1),       steps = c(0.05)),              prior_weights = 1/12),
-    prior_weightfunction("two.sided", list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),        prior_weights = 1/12),
-    prior_weightfunction("one.sided", list(alpha = c(1, 1),       steps = c(0.05)),              prior_weights = 1/12),
-    prior_weightfunction("one.sided", list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),       prior_weights = 1/12),
-    prior_weightfunction("one.sided", list(alpha = c(1, 1, 1),    steps = c(0.05, 0.50)),        prior_weights = 1/12),
-    prior_weightfunction("one.sided", list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.50)), prior_weights = 1/12),
+    prior_weightfunction("two-sided", c(0.05),             wf_cumulative(c(1, 1)),       prior_weights = 1/12),
+    prior_weightfunction("two-sided", c(0.05, 0.10),       wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+    prior_weightfunction("one-sided", c(0.05),             wf_cumulative(c(1, 1)),       prior_weights = 1/12),
+    prior_weightfunction("one-sided", c(0.025, 0.05),      wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+    prior_weightfunction("one-sided", c(0.05, 0.50),       wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+    prior_weightfunction("one-sided", c(0.025, 0.05, 0.50), wf_cumulative(c(1, 1, 1, 1)), prior_weights = 1/12),
     prior_PET("Cauchy",   list(location = 0, scale = 1),  truncation = list(0, Inf), prior_weights = 1/4),
     prior_PEESE("Cauchy", list(location = 0, scale = 10), truncation = list(0, Inf), prior_weights = 1/4)
   )
@@ -279,12 +279,12 @@ The defaults changed after version 3.6.1, so we specify the priors explicitly.
 prior_effect_361        <- prior("normal", list(mean = 0, sd = 0.5))
 prior_heterogeneity_361 <- prior("invgamma", list(shape = 1, scale = 0.075))
 prior_bias_361          <- list(
-  prior_weightfunction("two.sided", list(alpha = c(1, 1),       steps = c(0.05)),              prior_weights = 1/12),
-  prior_weightfunction("two.sided", list(alpha = c(1, 1, 1),    steps = c(0.05, 0.10)),        prior_weights = 1/12),
-  prior_weightfunction("one.sided", list(alpha = c(1, 1),       steps = c(0.05)),              prior_weights = 1/12),
-  prior_weightfunction("one.sided", list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),       prior_weights = 1/12),
-  prior_weightfunction("one.sided", list(alpha = c(1, 1, 1),    steps = c(0.05, 0.50)),        prior_weights = 1/12),
-  prior_weightfunction("one.sided", list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.50)), prior_weights = 1/12),
+  prior_weightfunction("two-sided", c(0.05),             wf_cumulative(c(1, 1)),       prior_weights = 1/12),
+  prior_weightfunction("two-sided", c(0.05, 0.10),       wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+  prior_weightfunction("one-sided", c(0.05),             wf_cumulative(c(1, 1)),       prior_weights = 1/12),
+  prior_weightfunction("one-sided", c(0.025, 0.05),      wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+  prior_weightfunction("one-sided", c(0.05, 0.50),       wf_cumulative(c(1, 1, 1)),    prior_weights = 1/12),
+  prior_weightfunction("one-sided", c(0.025, 0.05, 0.50), wf_cumulative(c(1, 1, 1, 1)), prior_weights = 1/12),
   prior_PET("Cauchy",   list(location = 0, scale = 1),  truncation = list(0, Inf), prior_weights = 1/4),
   prior_PEESE("Cauchy", list(location = 0, scale = 10), truncation = list(0, Inf), prior_weights = 1/4)
 )

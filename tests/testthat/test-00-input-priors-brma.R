@@ -180,6 +180,32 @@ test_that("Explicit NULL prior_bias uses defaults for single bias models", {
   expect_true(BayesTools::is.prior.PET(result_pet$outcome$bias))
 })
 
+test_that("bselmodel keeps only steps shortcut for default weightfunction", {
+
+  skip_on_cran()
+
+  result <- bselmodel(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", steps = c(0.05, 0.10), only_priors = TRUE
+  )[["priors"]]
+
+  expect_true(BayesTools::is.prior.weightfunction(result$outcome$bias))
+  expect_equal(result$outcome$bias$side, "one-sided")
+  expect_equal(result$outcome$bias$steps, c(0.05, 0.10))
+  expect_equal(result$outcome$bias$weights$type, "cumulative")
+  expect_equal(result$outcome$bias$weights$alpha, rep(RoBMA.get_option("default_bias_weightfunction.alpha"), 3))
+
+  prior_bias <- prior_weightfunction("two-sided", c(0.05), wf_fixed(c(1, 0.5)))
+  result <- bselmodel(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", prior_bias = prior_bias, only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(result$outcome$bias$side, "two-sided")
+  expect_equal(result$outcome$bias$weights$type, "fixed")
+  expect_equal(result$outcome$bias$weights$omega, c(1, 0.5))
+})
+
 
 test_that("bPEESE default respects manual prior_unit_information_sd", {
 

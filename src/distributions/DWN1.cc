@@ -35,9 +35,9 @@ bool DWN1::checkParameterValue(std::vector<double const *> const &par,
 {
   bool omega_OK  = true;
 
-  // all omegas are within [0, 1]
-  for(unsigned j = 0; j < (n_omega(len)-1); ++j){
-    omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
+  // all omegas are non-negative
+  for(unsigned j = 0; j < n_omega(len); ++j){
+    omega_OK = omega_OK && ( omega(par)[j] >= 0.0 );
   }
 
   // var is positive

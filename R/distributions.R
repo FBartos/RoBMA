@@ -429,7 +429,7 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
 
   BayesTools::check_real(mean, "mean", check_length = FALSE)
   BayesTools::check_real(sd, "sd", lower = 0, check_length = FALSE)
-  BayesTools::check_real(as.vector(omega), "omega", lower = 0, upper = 1, check_length = FALSE)
+  BayesTools::check_real(as.vector(omega), "omega", lower = 0, check_length = FALSE)
   BayesTools::check_real(as.vector(steps), "steps", allow_NULL = !is.null(crit_x), lower = 0, upper = 1, check_length = FALSE, allow_bound = FALSE)
   BayesTools::check_char(type, "type", allow_values = c("two.sided", "one.sided"))
   BayesTools::check_real(as.vector(crit_x), "crit_x", allow_NULL = !is.null(steps), lower = if(type == "two.sided") 0 else -Inf, check_length = FALSE)
@@ -1478,7 +1478,6 @@ rwnorm <- function(n, mean, sd, steps = if(!is.null(crit_x)) NULL, omega, crit_x
     stop("'crit_x' must have one fewer value than columns in 'omega'.", call. = FALSE)
   }
 
-  omega[omega > 1] <- 1
   omega[omega < 0] <- 0
 
   moment_mean   <- mean
@@ -2198,7 +2197,7 @@ NULL
 #   if(!is.numeric(df) | !is.vector(df))stop("'df' must be a numeric vector.")
 #   if(any(df <= 0))stop("'df' must be positive.")
 #   if(!is.numeric(omega)  | !is.matrix(omega))stop("'omega' must be numeric")
-#   if(any(omega < 0) | any(omega > 1))stop("all 'omega' must be between 0 and 1")
+#   if(any(omega < 0))stop("all 'omega' must be non-negative")
 #   if(ncol(crit_t) != ncol(omega) - 1)stop("'omega' is not specified properly - there must be N + 1 weights for N cutoffs")
 #
 # }

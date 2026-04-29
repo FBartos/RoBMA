@@ -2,61 +2,52 @@
 % Please edit documentation in R/priors.R
 \name{prior_weightfunction}
 \alias{prior_weightfunction}
-\title{Creates a prior distribution for a weight function}
+\alias{wf_cumulative}
+\alias{wf_fixed}
+\alias{wf_independent}
+\title{Weightfunction Prior}
 \usage{
-prior_weightfunction(distribution, parameters, prior_weights = 1)
+prior_weightfunction(
+  side = "one-sided",
+  steps = c(0.025, 0.05),
+  weights = wf_cumulative(),
+  reference = "most_significant",
+  prior_weights = 1
+)
+
+wf_cumulative(alpha = NULL)
+
+wf_fixed(omega)
+
+wf_independent(prior, scale = "omega")
 }
 \arguments{
-\item{distribution}{name of the prior distribution. The
-possible options are
-\describe{
-\item{\code{"two.sided"}}{for a two-sided weight function
-characterized by a vector \code{steps} and vector \code{alpha}
-parameters. The \code{alpha} parameter determines an alpha
-parameter of Dirichlet distribution which cumulative sum
-is used for the weights omega.}
-\item{\code{"one.sided"}}{for a one-sided weight function
-characterized by either a vector \code{steps} and vector
-\code{alpha} parameter, leading to a monotonic one-sided
-function, or by a vector \code{steps}, vector \code{alpha1},
-and vector \code{alpha2} parameters leading non-monotonic
-one-sided weight function. The \code{alpha} / \code{alpha1} and
-\code{alpha2} parameters determine an alpha parameter of
-Dirichlet distribution which cumulative sum is used for
-the weights omega.}
-}}
+\item{side}{character. Either \code{"one-sided"} or \code{"two-sided"}.}
 
-\item{parameters}{list of appropriate parameters for a given
-\code{distribution}.}
+\item{steps}{numeric vector of p-value cut points.}
 
-\item{prior_weights}{prior odds associated with a given distribution.
-The model fitting function usually creates models corresponding to
-all combinations of prior distributions for each of the model
-parameters, and sets the model priors odds to the product of
-its prior distributions.}
+\item{weights}{a weight-prior object created by \code{wf_cumulative()},
+\code{wf_fixed()}, or \code{wf_independent()}.}
+
+\item{reference}{character. Reference bin, currently
+\code{"most_significant"}.}
+
+\item{prior_weights}{numeric prior model weight.}
+
+\item{alpha}{positive cumulative-Dirichlet concentration parameters.}
+
+\item{omega}{fixed publication weights, one per bin.}
+
+\item{prior}{prior distribution for each non-reference weight.}
+
+\item{scale}{latent scale for independent weights; either \code{"omega"},
+\code{"log_omega"}, or the \code{"log"} alias.}
 }
 \value{
-\code{prior_weightfunction} returns an object of class 'prior'.
+\code{prior_weightfunction()} returns an object of class
+\code{prior}; the \code{wf_*()} helpers return weight-prior objects.
 }
 \description{
-\code{prior_weightfunction} creates a prior distribution for fitting
-a RoBMA selection model. The prior can be visualized by the \code{plot} function.
-}
-\details{
-Constrained cases of weight functions can be specified by adding
-".fixed" after the distribution name, i.e., \code{"two.sided.fixed"} and
-\code{"one.sided.fixed"}. In these cases, the functions are specified using
-\code{steps} and \code{omega} parameters, where the \code{omega} parameter
-is a vector of weights that corresponds to the relative publication probability
-(i.e., no parameters are estimated).
-}
-\examples{
-p1 <- prior_weightfunction("one-sided", parameters = list(steps = c(.05, .10), alpha = c(1, 1, 1)))
-
-# the prior distribution can be visualized using the plot function
-# (see ?plot.prior for all options)
-plot(p1)
-}
-\seealso{
-\code{\link[BayesTools:plot.prior]{plot.prior()}}
+Thin re-export of \code{\link[BayesTools]{prior_weightfunction}}
+and its weight-prior helper constructors.
 }

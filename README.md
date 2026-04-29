@@ -131,9 +131,8 @@ The 2.0 version brought several updates to the package:
   `priors_effect`, `priors_tau` -\> `priors_heterogeneity`, and
   `priors_omega` -\> `priors_bias`),
 - prior distributions for specifying weight functions now use a
-  dedicated function
-  (`prior(distribution = "two.sided", parameters = ...)` -\>
-  `prior_weightfunction(distribution = "two.sided", parameters = ...)`),
+  dedicated function with separate weight-prior helpers
+  (`prior_weightfunction("two-sided", steps, wf_cumulative(alpha))`),
 - new dedicated function for specifying no publication bias adjustment
   component / no heterogeneity component (`prior_none()`),
 - new dedicated functions for specifying models with the PET and PEESE

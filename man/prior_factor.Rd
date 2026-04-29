@@ -2,7 +2,7 @@
 % Please edit documentation in R/priors.R
 \name{prior_factor}
 \alias{prior_factor}
-\title{Creates a prior distribution for factors}
+\title{Factor Prior}
 \usage{
 prior_factor(
   distribution,
@@ -13,87 +13,20 @@ prior_factor(
 )
 }
 \arguments{
-\item{distribution}{name of the prior distribution. The
-possible options are
-\describe{
-\item{\code{"point"}}{for a point density characterized by a
-\code{location} parameter.}
-\item{\code{"normal"}}{for a normal distribution characterized
-by a \code{mean} and \code{sd} parameters.}
-\item{\code{"lognormal"}}{for a lognormal distribution characterized
-by a \code{meanlog} and \code{sdlog} parameters.}
-\item{\code{"cauchy"}}{for a Cauchy distribution characterized
-by a \code{location} and \code{scale} parameters. Internally
-converted into a generalized t-distribution with \code{df = 1}.}
-\item{\code{"t"}}{for a generalized t-distribution characterized
-by a \code{location}, \code{scale}, and \code{df} parameters.}
-\item{\code{"gamma"}}{for a gamma distribution characterized
-by either \code{shape} and \code{rate}, or \code{shape} and
-\code{scale} parameters. The later is internally converted to
-the \code{shape} and \code{rate} parametrization}
-\item{\code{"invgamma"}}{for an inverse-gamma distribution
-characterized by a \code{shape} and \code{scale} parameters. The
-JAGS part uses a 1/gamma distribution with a shape and rate
-parameter.}
-\item{\code{"beta"}}{for a beta distribution
-characterized by an \code{alpha} and \code{beta} parameters.}
-\item{\code{"exp"}}{for an exponential distribution
-characterized by either \code{rate} or \code{scale}
-parameter. The later is internally converted to
-\code{rate}.}
-\item{\code{"uniform"}}{for a uniform distribution defined on a
-range from \code{a} to \code{b}}
-}}
+\item{distribution}{character. Prior distribution name.}
 
-\item{parameters}{list of appropriate parameters for a given
-\code{distribution}.}
+\item{parameters}{list. Distribution parameters.}
 
-\item{truncation}{list with two elements, \code{lower} and
-\code{upper}, that define the lower and upper truncation of the
-distribution. Defaults to \code{list(lower = -Inf, upper = Inf)}.
-The truncation is automatically set to the bounds of the support.}
+\item{truncation}{list with \code{lower} and \code{upper} truncation bounds.}
 
-\item{prior_weights}{prior odds associated with a given distribution.
-The value is passed into the model fitting function, which creates models
-corresponding to all combinations of prior distributions for each of
-the model parameters and sets the model priors odds to the product
-of its prior distributions.}
+\item{prior_weights}{numeric prior model weight.}
 
-\item{contrast}{type of contrast for the prior distribution. The possible options are
-\describe{
-\item{\code{"meandif"}}{for contrast centered around the grand mean
-with equal marginal distributions, making the prior distribution exchangeable
-across factor levels. In contrast to \code{"orthonormal"}, the marginal distributions
-are identical regardless of the number of factor levels and the specified prior
-distribution corresponds to the difference from grand mean for each factor level.
-Only supports \code{distribution = "mnormal"} and \code{distribution = "mt"}
-which generates the corresponding multivariate normal/t distributions.}
-\item{\code{"orthonormal"}}{for contrast centered around the grand mean
-with equal marginal distributions, making the prior distribution exchangeable
-across factor levels. Only supports \code{distribution = "mnormal"} and
-\code{distribution = "mt"} which generates the corresponding multivariate normal/t
-distributions.}
-\item{\code{"treatment"}}{for contrasts using the first level as a comparison
-group and setting equal prior distribution on differences between the individual
-factor levels and the comparison level.}
-\item{\code{"independent"}}{for contrasts specifying dependent prior distribution
-for each factor level (note that this leads to an overparameterized model if the
-intercept is included).}
-}}
+\item{contrast}{character. Contrast coding used for factor levels.}
 }
 \value{
-return an object of class 'prior'.
+An object of class \code{prior}.
 }
 \description{
-\code{prior_factor} creates a prior distribution for fitting
-models with factor predictors. (Note that results across different operating
-systems might vary due to differences in JAGS numerical precision.)
-}
-\examples{
-# create an orthonormal prior distribution
-p1 <- prior_factor(distribution = "mnormal", contrast = "orthonormal",
-                   parameters = list(mean = 0, sd = 1))
-}
-\seealso{
-\code{\link[BayesTools:prior]{prior()}}
+Thin re-export of \code{\link[BayesTools]{prior_factor}} for
+creating priors on factor contrasts.
 }

@@ -73,7 +73,7 @@
       # create the weightfunction mapping for effect size thresholds
       steps   <- BayesTools::weightfunctions_mapping(priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
       steps   <- rev(steps)[c(-1, -length(steps))]
-      crit_yi <- .create_yi_cutoffs(fit_data[["yi"]], fit_data[["sei"]], list(distribution = "one.sided", parameters = list(steps = steps)))
+      crit_yi <- .create_yi_cutoffs(fit_data[["yi"]], fit_data[["sei"]], list(side = "one-sided", steps = steps))
 
       # create the weightfunction mapping to weights (transform all weight functions to one-sided)
       crit_yi_mapping     <- matrix(0, nrow = length(priors_bias), ncol = ncol(crit_yi))
@@ -449,11 +449,26 @@
   # get a matrix of test-statistics for the critical values
   crit_zi <- matrix(ncol = 0, nrow = length(yi))
 
+  if (BayesTools::is.prior.weightfunction(prior)) {
+    side  <- prior[["side"]]
+    steps <- prior[["steps"]]
+  } else {
+    side  <- prior[["side"]]
+    steps <- prior[["steps"]]
+    if (is.null(side)) {
+      side <- prior[["distribution"]]
+    }
+    if (is.null(steps)) {
+      steps <- prior[["parameters"]][["steps"]]
+    }
+    side <- gsub("\\.", "-", side)
+  }
+
   # compute the thresholds
-  for(step in prior$parameters$steps){
-    if(prior$distribution == "one.sided"){
+  for (step in steps) {
+    if (side == "one-sided") {
       crit_zi <- cbind(crit_zi, stats::qnorm(step,   lower.tail = FALSE))
-    }else if(prior$distribution == "two.sided"){
+    } else if (side == "two-sided") {
       crit_zi <- cbind(crit_zi, stats::qnorm(step/2, lower.tail = FALSE))
     }
   }

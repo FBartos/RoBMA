@@ -42,9 +42,9 @@ bool DWWN2::checkParameterValue(std::vector<double const *> const &par,
     crit_x_OK = crit_x_OK && ( crit_x(par)[i] >= 0.0 );
   }
 
-  // all omegas are within [0, 1]
-  for(unsigned j = 0; j < (n_omega(len)-1); ++j){
-    omega_OK = omega_OK && ( omega(par)[j] >= 0.0 ) && ( omega(par)[j] <= 1.0 );
+  // all omegas are non-negative
+  for(unsigned j = 0; j < n_omega(len); ++j){
+    omega_OK = omega_OK && ( omega(par)[j] >= 0.0 );
   }
 
   // var and weight is positive

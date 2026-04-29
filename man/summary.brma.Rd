@@ -7,7 +7,7 @@
 \method{summary}{brma}(
   object,
   probs = c(0.025, 0.5, 0.975),
-  include_MCMC_diagnostics = TRUE,
+  include_mcmc_diagnostics = TRUE,
   standardized_coefficients = FALSE,
   conditional = FALSE,
   ...
@@ -19,7 +19,7 @@
 \item{probs}{quantiles of the posterior samples to be displayed.
 Defaults to \code{c(.025, .50, .975)}}
 
-\item{include_MCMC_diagnostics}{whether to include MCMC diagnostics in the output.
+\item{include_mcmc_diagnostics}{whether to include MCMC diagnostics in the output.
 Defaults to \code{TRUE}.}
 
 \item{standardized_coefficients}{whether to show standardized meta-regression coefficients.

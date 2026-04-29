@@ -1,35 +1,114 @@
-#' @name prior
-#' @inherit BayesTools::prior
+#' @title Prior Distribution
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior}} for creating
+#' prior distribution objects.
+#'
+#' @param distribution character. Prior distribution name.
+#' @param parameters list. Distribution parameters.
+#' @param truncation list with \code{lower} and \code{upper} truncation bounds.
+#' @param prior_weights numeric prior model weight.
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @export
 prior <- BayesTools::prior
 
-#' @name prior_none
-#' @inherit BayesTools::prior_none
+#' @title Empty Prior
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior_none}} for
+#' omitting a model component.
+#'
+#' @inheritParams prior
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @export
 prior_none <- BayesTools::prior_none
 
-#' @name prior_factor
-#' @inherit BayesTools::prior_factor
+#' @title Factor Prior
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior_factor}} for
+#' creating priors on factor contrasts.
+#'
+#' @inheritParams prior
+#' @param contrast character. Contrast coding used for factor levels.
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @export
 prior_factor <- BayesTools::prior_factor
 
-#' @name prior_PET
-#' @inherit BayesTools::prior_PET
+#' @title PET Prior
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior_PET}} for PET
+#' publication-bias regression priors.
+#'
+#' @inheritParams prior
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @export
 prior_PET  <- BayesTools::prior_PET
 
-#' @name prior_PEESE
-#' @inherit BayesTools::prior_PEESE
+#' @title PEESE Prior
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior_PEESE}} for
+#' PEESE publication-bias regression priors.
+#'
+#' @inheritParams prior
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @export
 prior_PEESE <- BayesTools::prior_PEESE
 
-#' @name prior_weightfunction
-#' @inherit BayesTools::prior_weightfunction
+#' @title Weightfunction Prior
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior_weightfunction}}
+#' and its weight-prior helper constructors.
+#'
+#' @param side character. Either \code{"one-sided"} or \code{"two-sided"}.
+#' @param steps numeric vector of p-value cut points.
+#' @param weights a weight-prior object created by \code{wf_cumulative()},
+#' \code{wf_fixed()}, or \code{wf_independent()}.
+#' @param reference character. Reference bin, currently
+#' \code{"most_significant"}.
+#' @inheritParams prior
+#'
+#' @return \code{prior_weightfunction()} returns an object of class
+#' \code{prior}; the \code{wf_*()} helpers return weight-prior objects.
+#'
 #' @export
 prior_weightfunction <- BayesTools::prior_weightfunction
 
-#' @name prior_informed
-#' @inherit BayesTools::prior_informed
+#' @rdname prior_weightfunction
+#' @param alpha positive cumulative-Dirichlet concentration parameters.
+#' @export
+wf_cumulative <- BayesTools::wf_cumulative
+
+#' @rdname prior_weightfunction
+#' @param omega fixed publication weights, one per bin.
+#' @export
+wf_fixed <- BayesTools::wf_fixed
+
+#' @rdname prior_weightfunction
+#' @param prior prior distribution for each non-reference weight.
+#' @param scale latent scale for independent weights; either \code{"omega"},
+#' \code{"log_omega"}, or the \code{"log"} alias.
+#' @export
+wf_independent <- BayesTools::wf_independent
+
+#' @title Informed Prior
+#'
+#' @description Thin re-export of \code{\link[BayesTools]{prior_informed}} for
+#' empirical informed prior distributions.
+#'
+#' @param name character. Informed prior name.
+#' @param parameter character. Optional parameter subset.
+#' @param type character. Effect-size type.
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @details Further details can be found in \insertCite{erp2017estimates;textual}{RoBMA},
 #' \insertCite{gronau2017bayesian;textual}{RoBMA}, and
 #' \insertCite{bartos2021bayesian;textual}{RoBMA}.

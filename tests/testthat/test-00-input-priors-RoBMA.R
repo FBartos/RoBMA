@@ -326,8 +326,9 @@ test_that("model_type 'PSMA' creates correct bias mixture", {
 test_that("Custom prior_bias and prior_bias_null override model_type", {
 
   custom_bias <- BayesTools::prior_weightfunction(
-    distribution = "two.sided",
-    parameters = list(alpha = c(1, 1), steps = c(0.05))
+    side    = "two-sided",
+    steps   = c(0.05),
+    weights = BayesTools::wf_cumulative(c(1, 1))
   )
 
   result <- RoBMA(
@@ -346,8 +347,9 @@ test_that("Custom prior_bias and prior_bias_null override model_type", {
 test_that("prior_bias_null = NULL omits null bias hypothesis", {
 
   custom_bias <- BayesTools::prior_weightfunction(
-    distribution = "two.sided",
-    parameters = list(alpha = c(1, 1), steps = c(0.05))
+    side    = "two-sided",
+    steps   = c(0.05),
+    weights = BayesTools::wf_cumulative(c(1, 1))
   )
 
   result <- RoBMA(
@@ -866,7 +868,7 @@ test_that("Different moderators can have different alternative specifications", 
 test_that("List of bias priors creates mixture with multiple alternatives", {
 
   bias_priors <- list(
-    BayesTools::prior_weightfunction("two.sided", parameters = list(alpha = c(1, 1), steps = c(0.05))),
+    BayesTools::prior_weightfunction("two-sided", c(0.05), BayesTools::wf_cumulative(c(1, 1))),
     BayesTools::prior_PET("normal", parameters = list(mean = 0, sd = 1))
   )
 
