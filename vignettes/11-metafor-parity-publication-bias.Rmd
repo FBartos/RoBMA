@@ -119,6 +119,7 @@ dat <- dat.lehmann2018
 
 The PET model regresses effect sizes on the standard error.
 With `metafor::rma()` it is fit by passing `mods = ~ sqrt(vi)`; the slope on `sqrt(vi)` is the PET coefficient.
+RoBMA implements PET as a meta-regression (with a random-effects heterogeneity component) rather than the UWLS variant, for consistency with the rest of the RoBMA framework.
 
 ```{r fit-PET-metafor}
 fit_PET_metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat)
@@ -154,6 +155,7 @@ The implied regression line intersects the distribution of effect sizes and stan
 
 The PEESE model regresses effect sizes on the sampling variance instead of the standard error.
 With `metafor::rma()` it is fit by passing `mods = ~ vi`; the slope on `vi` is the PEESE coefficient.
+As with PET, RoBMA's PEESE is the meta-regression version (retaining the heterogeneity component), not the UWLS variant.
 
 ```{r fit-PEESE-metafor}
 fit_PEESE_metafor <- metafor::rma(yi, vi, mods = ~ vi, data = dat)
@@ -190,13 +192,14 @@ With `metafor`, a one-sided three-parameter model is fit by passing the random-e
 
 ```{r fit-selmodel-metafor}
 fit_rma_metafor      <- metafor::rma(yi, vi, data = dat, method = "ML")
-fit_selmodel_metafor <- metafor::selmodel(fit_rma_metafor, type = "stepfun", steps = .025)
+fit_selmodel_metafor <- metafor::selmodel(fit_rma_metafor, type = "stepfun", steps = .025, decreasing = TRUE)
 fit_selmodel_metafor
 ```
 
 `bselmodel()` fits the same model in one call.
 The default weight function uses a single one-sided cutoff at $0.025$.
 Pass `steps = c(0.025, 0.5)` (or any other vector) to specify a finer step function; the prior on the omega vector is uniform across the implied intervals.
+RoBMA's default Dirichlet prior on `omega` enforces a monotonically decreasing weight function (non-significant intervals cannot exceed the reference interval), which matches `metafor::selmodel(..., decreasing = TRUE)` above.
 
 ```{r fit-selmodel-brma, eval = FALSE}
 fit_selmodel_brma <- bselmodel(
