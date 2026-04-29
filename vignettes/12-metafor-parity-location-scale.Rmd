@@ -121,7 +121,7 @@ fit1_brma <- brma(
 )
 ```
 ```{r fit1-brma-summary}
-summary(fit1_brma, include_MCMC_diagnostics = FALSE)
+summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The pooled effect and the single heterogeneity parameter `tau` track the REML estimates from `metafor`.
@@ -150,7 +150,7 @@ fit2_brma <- brma(
 )
 ```
 ```{r fit2-brma-summary}
-summary(fit2_brma, include_MCMC_diagnostics = FALSE)
+summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The location coefficient on `ni100` matches the REML estimate from `metafor`.
@@ -193,7 +193,7 @@ fit3_brma <- brma(
 )
 ```
 ```{r fit3-brma-summary}
-summary(fit3_brma, include_MCMC_diagnostics = FALSE)
+summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 Each scale coefficient is again roughly half of its metafor counterpart, with `brma()` shrinking the larger metafor estimates more strongly because of the weakly informative default prior.

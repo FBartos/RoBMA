@@ -130,10 +130,10 @@ fit1_brma <- brma(
 ```
 
 `summary()` reports posterior means, credible intervals, and (suppressed here) MCMC convergence diagnostics.
-Convergence diagnostics are included by default; chain-level visual diagnostics are available via `diagnostic_plots_trace()`, `diagnostic_plots_density()`, and `diagnostic_plots_autocorrelation()`.
+Convergence diagnostics are included by default; chain-level visual diagnostics are available via `plot_diagnostic_trace()`, `plot_diagnostic_density()`, and `plot_diagnostic_autocorrelation()`.
 
 ```{r fit1-brma-summary}
-summary(fit1_brma, include_MCMC_diagnostics = FALSE)
+summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The posterior mean for the log risk ratio is close to the REML estimate from `metafor`; the slight pull toward zero reflects the default `Normal(0, 1)` prior.
@@ -192,7 +192,7 @@ fit2_brma <- brma(
 )
 ```
 ```{r fit2-brma-summary}
-summary(fit2_brma, include_MCMC_diagnostics = FALSE)
+summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 `regplot()` produces the familiar bubble plot with the fitted regression line.
@@ -243,7 +243,7 @@ fit3_brma <- brma(
 )
 ```
 ```{r fit3-brma-summary}
-summary(fit3_brma, include_MCMC_diagnostics = FALSE)
+summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 RoBMA also allows direct visualization of categorical moderators in the bubble plot

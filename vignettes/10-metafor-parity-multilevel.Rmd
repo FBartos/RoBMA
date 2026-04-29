@@ -107,7 +107,7 @@ fit1_brma <- brma(
 `summary()` reports posterior means, credible intervals, and (suppressed here) MCMC convergence diagnostics for `mu`, `tau`, and `rho`.
 
 ```{r fit1-brma-summary}
-summary(fit1_brma, include_MCMC_diagnostics = FALSE)
+summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The posterior mean for the pooled effect tracks the REML estimate from `metafor`, with comparable cluster-level allocation `rho` and total heterogeneity `tau`.

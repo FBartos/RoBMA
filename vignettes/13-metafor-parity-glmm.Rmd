@@ -105,7 +105,7 @@ fit1_brma <- brma.glmm(
 `summary()` reports posterior means, credible intervals, and (suppressed here) MCMC convergence diagnostics for the pooled log odds ratio `mu` and the heterogeneity `tau`.
 
 ```{r fit1-brma-summary}
-summary(fit1_brma, include_MCMC_diagnostics = FALSE)
+summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The posterior mean for `mu` tracks the maximum-likelihood estimate from `metafor`, with comparable heterogeneity `tau`.

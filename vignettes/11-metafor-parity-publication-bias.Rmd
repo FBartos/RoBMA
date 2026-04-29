@@ -136,16 +136,16 @@ fit_PET_brma <- bPET(
 )
 ```
 ```{r fit-PET-brma-summary}
-summary(fit_PET_brma, include_MCMC_diagnostics = FALSE)
+summary(fit_PET_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The posterior mean of `mu` is the bias-corrected average effect; the `PET` coefficient quantifies how strongly small studies pull the meta-analytic mean.
-The left panel shows the prior and posterior of the `PET` coefficient with `prior = TRUE` overlaying the prior; the right panel shows the implied PET regression of effect on standard error from `plot_PETPEESE()`, with the prior band overlaid.
+The left panel shows the prior and posterior of the `PET` coefficient with `prior = TRUE` overlaying the prior; the right panel shows the implied PET regression of effect on standard error from `plot_pet_peese()`, with the prior band overlaid.
 
 ```{r PET-posterior, fig.width = 7, fig.height = 3.2}
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(fit_PET_brma,        parameter = "PET", prior = TRUE, main = "PET coefficient", xlim = c(0, 4))
-plot_PETPEESE(fit_PET_brma,                  prior = TRUE, main = "PET regression")
+plot_pet_peese(fit_PET_brma,                  prior = TRUE, main = "PET regression")
 ```
 
 The half-Cauchy prior on `PET` is wide; the posterior concentrates near $1$, broadly consistent with the metafor estimate but pulled toward zero by the prior.
@@ -172,7 +172,7 @@ fit_PEESE_brma <- bPEESE(
 ```
 
 ```{r fit-PEESE-brma-summary}
-summary(fit_PEESE_brma, include_MCMC_diagnostics = FALSE)
+summary(fit_PEESE_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 As for PET, the left panel shows the prior and posterior of the `PEESE` coefficient and the right panel shows the implied PEESE regression of effect on sampling variance.
@@ -180,7 +180,7 @@ As for PET, the left panel shows the prior and posterior of the `PEESE` coeffici
 ```{r PEESE-posterior, fig.width = 7, fig.height = 3.2}
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(fit_PEESE_brma,        parameter = "PEESE", prior = TRUE, main = "PEESE coefficient", xlim = c(0, 8))
-plot_PETPEESE(fit_PEESE_brma,                    prior = TRUE, main = "PEESE regression")
+plot_pet_peese(fit_PEESE_brma,                    prior = TRUE, main = "PEESE regression")
 ```
 
 The bias-corrected effect under PEESE is also closer to zero than the random-effects estimate due to the weakly informative priors.
@@ -208,7 +208,7 @@ fit_selmodel_brma <- bselmodel(
 )
 ```
 ```{r fit-selmodel-brma-summary}
-summary(fit_selmodel_brma, include_MCMC_diagnostics = FALSE)
+summary(fit_selmodel_brma, include_mcmc_diagnostics = FALSE)
 ```
 
 The omega vector is reported with `omega[0, 0.025]` fixed to $1$ as the reference interval; `omega[0.025, 1]` is the publication probability of one-sided $p$-values above $0.025$ relative to the significant interval.
