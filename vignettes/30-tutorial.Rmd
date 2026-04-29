@@ -329,10 +329,10 @@ We can also obtain summary information about the individual models with `summary
 summary_models(fit_RoBMA, type = "individual")
 ```
 
-MCMC diagnostics are included in the summary output. Visual diagnostics can be requested with `diagnostic_plots_trace()`, `diagnostic_plots_density()`, and `diagnostic_plots_autocorrelation()`.
+MCMC diagnostics are included in the summary output. Visual diagnostics can be requested with `plot_diagnostic_trace()`, `plot_diagnostic_density()`, and `plot_diagnostic_autocorrelation()`.
 
 ```{r}
-diagnostic_plots_trace(fit_RoBMA, parameter = "mu")
+plot_diagnostic_trace(fit_RoBMA, parameter = "mu")
 ```
 
 Finally, we can also plot the model-averaged posterior distribution with the `plot()` function. We set the `prior = TRUE` argument to include the prior distribution as a grey line (and arrow for the point density at zero) and `output_measure = "COR"` to transform the posterior distribution to the correlation scale. (The `par(mar = c(4, 4, 1, 4))` call increases the left margin of the figure, so the secondary y-axis text is not cut off.)
