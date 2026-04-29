@@ -8,7 +8,7 @@
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior samples to be displayed.
 #' Defaults to \code{c(.025, .50, .975)}
-#' @param include_MCMC_diagnostics whether to include MCMC diagnostics in the output.
+#' @param include_mcmc_diagnostics whether to include MCMC diagnostics in the output.
 #' Defaults to \code{TRUE}.
 #' @param standardized_coefficients whether to show standardized meta-regression coefficients.
 #' Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
@@ -27,8 +27,9 @@
 #' @export
 summary.brma       <- function(
     object, probs = c(.025, .50, .975),
-    include_MCMC_diagnostics = TRUE, standardized_coefficients = FALSE,
-    conditional              = FALSE, ...) {
+    include_mcmc_diagnostics  = TRUE,
+    standardized_coefficients = FALSE,
+    conditional               = FALSE, ...) {
 
   ### model information
   is_mods       <- .is_mods(object)
@@ -60,7 +61,7 @@ summary.brma       <- function(
       fit                = object[["fit"]],
       transform_factors  = TRUE,
       transform_scaled   = !standardized_coefficients,
-      remove_diagnostics = !include_MCMC_diagnostics,
+      remove_diagnostics = !include_mcmc_diagnostics,
       remove_inclusion   = is_robma,
       keep_parameters    = common_parameters,
       probs              = probs,
@@ -72,7 +73,7 @@ summary.brma       <- function(
         conditional        = TRUE,
         transform_factors  = TRUE,
         transform_scaled   = !standardized_coefficients,
-        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_diagnostics = !include_mcmc_diagnostics,
         remove_inclusion   = TRUE,
         keep_parameters    = common_parameters,
         probs              = probs,
@@ -96,7 +97,7 @@ summary.brma       <- function(
       fit                = object[["fit"]],
       transform_factors  = TRUE,
       transform_scaled   = !standardized_coefficients,
-      remove_diagnostics = !include_MCMC_diagnostics,
+      remove_diagnostics = !include_mcmc_diagnostics,
       remove_inclusion   = is_robma,
       keep_formulas      = "mu",
       probs              = probs,
@@ -109,7 +110,7 @@ summary.brma       <- function(
         conditional        = TRUE,
         transform_factors  = TRUE,
         transform_scaled   = !standardized_coefficients,
-        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_diagnostics = !include_mcmc_diagnostics,
         remove_inclusion   = TRUE,
         keep_formulas      = "mu",
         probs              = probs,
@@ -134,7 +135,7 @@ summary.brma       <- function(
       fit                = object[["fit"]],
       transform_factors  = TRUE,
       transform_scaled   = !standardized_coefficients,
-      remove_diagnostics = !include_MCMC_diagnostics,
+      remove_diagnostics = !include_mcmc_diagnostics,
       remove_inclusion   = is_robma,
       keep_formulas      = "log_tau",
       probs              = probs,
@@ -148,7 +149,7 @@ summary.brma       <- function(
         conditional        = TRUE,
         transform_factors  = TRUE,
         transform_scaled   = !standardized_coefficients,
-        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_diagnostics = !include_mcmc_diagnostics,
         remove_inclusion   = TRUE,
         keep_formulas      = "log_tau",
         probs              = probs,
@@ -168,7 +169,7 @@ summary.brma       <- function(
   if (is_bias) {
     estimates_bias <- BayesTools::JAGS_estimates_table(
       fit                = object[["fit"]],
-      remove_diagnostics = !include_MCMC_diagnostics,
+      remove_diagnostics = !include_mcmc_diagnostics,
       remove_inclusion   = is_robma,
       keep_parameters    = c("bias", "omega", "PET", "PEESE"),
       probs              = probs,
@@ -179,7 +180,7 @@ summary.brma       <- function(
       estimates_bias_conditional <- BayesTools::JAGS_estimates_table(
         fit                = object[["fit"]],
         conditional        = TRUE,
-        remove_diagnostics = !include_MCMC_diagnostics,
+        remove_diagnostics = !include_mcmc_diagnostics,
         remove_inclusion   = TRUE,
         keep_parameters    = c("bias", "omega", "PET", "PEESE"),
         probs              = probs,

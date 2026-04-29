@@ -146,17 +146,17 @@ test_that("Prior and posterior distributions for bPET / bPEESE objects", {
   set.seed(1)
 
   # no prior
-  vdiffr::expect_doppelganger("baseplot_pp_PETPEESE_no_prior", function() plot_PETPEESE(temp_fit, prior = FALSE))
-  vdiffr::expect_doppelganger("ggplot_pp_PETPEESE_no_prior", plot_PETPEESE(temp_fit, prior = FALSE, plot_type = "ggplot"))
+  vdiffr::expect_doppelganger("baseplot_pp_PETPEESE_no_prior", function() plot_pet_peese(temp_fit, prior = FALSE))
+  vdiffr::expect_doppelganger("ggplot_pp_PETPEESE_no_prior", plot_pet_peese(temp_fit, prior = FALSE, plot_type = "ggplot"))
 
   # change range
-  vdiffr::expect_doppelganger("baseplot_pp_PETPEESE_range", function() plot_PETPEESE(temp_fit, prior = TRUE, xlim = c(0, 0.5), ylim = c(-3, 3)))
-  vdiffr::expect_doppelganger("ggplot_pp_PETPEESE_range", plot_PETPEESE(temp_fit, prior = TRUE, plot_type = "ggplot", xlim = c(0, 0.5), ylim = c(-3, 3)))
+  vdiffr::expect_doppelganger("baseplot_pp_PETPEESE_range", function() plot_pet_peese(temp_fit, prior = TRUE, xlim = c(0, 0.5), ylim = c(-3, 3)))
+  vdiffr::expect_doppelganger("ggplot_pp_PETPEESE_range", plot_pet_peese(temp_fit, prior = TRUE, plot_type = "ggplot", xlim = c(0, 0.5), ylim = c(-3, 3)))
 
   # change aesthetics
-  vdiffr::expect_doppelganger("baseplot_pp_PETPEESE_aesthetics", function() plot_PETPEESE(temp_fit, prior = TRUE, lwd = 3, lty = 3, col = "blue", col.fill = scales::alpha("blue", 0.20),
+  vdiffr::expect_doppelganger("baseplot_pp_PETPEESE_aesthetics", function() plot_pet_peese(temp_fit, prior = TRUE, lwd = 3, lty = 3, col = "blue", col.fill = scales::alpha("blue", 0.20),
                                                                                           dots_prior = list(lwd = 3, lty = 1, col = "red", col.fill = scales::alpha("red", 0.20))))
-  vdiffr::expect_doppelganger("ggplot_pp_PETPEESE_aesthetics", plot_PETPEESE(temp_fit, prior = TRUE, plot_type = "ggplot", lwd = 2, lty = 3, col = "blue", col.fill = scales::alpha("blue", 0.20),
+  vdiffr::expect_doppelganger("ggplot_pp_PETPEESE_aesthetics", plot_pet_peese(temp_fit, prior = TRUE, plot_type = "ggplot", lwd = 2, lty = 3, col = "blue", col.fill = scales::alpha("blue", 0.20),
                                                                              dots_prior = list(lwd = 3, lty = 1, col = "red", col.fill = scales::alpha("red", 0.20))))
 
 })

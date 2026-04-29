@@ -222,7 +222,7 @@ print.zcurve_brma <- function(x, ...) {
 #' Defaults to \code{TRUE}.
 #' @param plot_extrapolation whether to show extrapolated density (bias removed).
 #' Defaults to \code{TRUE}.
-#' @param plot_CI whether to show credible interval bands. Defaults to \code{TRUE}.
+#' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param plot_thresholds whether to show significance threshold lines.
 #' Defaults to \code{TRUE}.
 #' @param from,to z-value range for plotting. Defaults to \code{-6} and \code{6}.
@@ -255,7 +255,7 @@ print.zcurve_brma <- function(x, ...) {
 plot.zcurve_brma <- function(x, plot_type = "base",
                              probs = c(.025, .975), max_samples = 500,
                              plot_fit = TRUE, plot_extrapolation = TRUE,
-                             plot_CI = TRUE, plot_thresholds = TRUE,
+                             plot_ci = TRUE, plot_thresholds = TRUE,
                              from = -6, to = 6,
                              by.hist = 0.5, length.out.hist = NULL,
                              by.lines = 0.05, length.out.lines = NULL,
@@ -265,7 +265,7 @@ plot.zcurve_brma <- function(x, plot_type = "base",
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(plot_fit, "plot_fit")
   BayesTools::check_bool(plot_extrapolation, "plot_extrapolation")
-  BayesTools::check_bool(plot_CI, "plot_CI")
+  BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
 
@@ -279,11 +279,11 @@ plot.zcurve_brma <- function(x, plot_type = "base",
     dots_fit <- if(!is.null(dots_fit)) dots_fit else list()
     lines_fit <- do.call(lines.zcurve_brma, c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
-           extrapolate = FALSE, plot_CI = plot_CI, from = from, to = to,
+           extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE),
       dots_fit, dots
     ))
-    ymax <- max(c(ymax, lines_fit$y, if (plot_CI) lines_fit$y_uCI))
+    ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
   }
 
   # 2. Extrapolation lines (Unbiased model - "True" z-curve)
@@ -292,12 +292,12 @@ plot.zcurve_brma <- function(x, plot_type = "base",
     dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
     lines_extrapolation <- do.call(lines.zcurve_brma, c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
-           extrapolate = TRUE, plot_CI = plot_CI, from = from, to = to,
+           extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            col = "blue"), # default color if not in dots
       dots_extrapolation, dots
     ))
-    ymax <- max(c(ymax, lines_extrapolation$y, if (plot_CI) lines_extrapolation$y_uCI))
+    ymax <- max(c(ymax, lines_extrapolation$y, if (plot_ci) lines_extrapolation$y_uCI))
   }
 
   # 3. Create histogram base
@@ -320,7 +320,7 @@ plot.zcurve_brma <- function(x, plot_type = "base",
     dots_fit_lines <- .get_dots_lines_zcurve(c(dots, dots_fit), plot_type = plot_type)
 
     if (plot_type == "base") {
-      if (plot_CI) {
+      if (plot_ci) {
         graphics::polygon(
           c(lines_fit$x, rev(lines_fit$x)),
           c(lines_fit$y_lCI, rev(lines_fit$y_uCI)),
@@ -335,7 +335,7 @@ plot.zcurve_brma <- function(x, plot_type = "base",
         lty = dots_fit_lines$lty
       )
     } else if (plot_type == "ggplot") {
-      if (plot_CI) {
+      if (plot_ci) {
         plot <- plot + ggplot2::geom_ribbon(
           ggplot2::aes(
             x    = lines_fit$x,
@@ -363,7 +363,7 @@ plot.zcurve_brma <- function(x, plot_type = "base",
      dots_ext_lines <- .get_dots_lines_zcurve(c(dots, dots_extrapolation), plot_type = plot_type, col = "blue")
 
     if (plot_type == "base") {
-      if (plot_CI) {
+      if (plot_ci) {
         graphics::polygon(
           c(lines_extrapolation$x, rev(lines_extrapolation$x)),
           c(lines_extrapolation$y_lCI, rev(lines_extrapolation$y_uCI)),
@@ -378,7 +378,7 @@ plot.zcurve_brma <- function(x, plot_type = "base",
         lty = dots_ext_lines$lty
       )
     } else if (plot_type == "ggplot") {
-      if (plot_CI) {
+      if (plot_ci) {
         plot <- plot + ggplot2::geom_ribbon(
           ggplot2::aes(
             x    = lines_extrapolation$x,
@@ -580,7 +580,7 @@ hist.zcurve_brma <- function(x, plot_type = "base",
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
 #' @param max_samples maximum posterior samples for density. Defaults to 500.
-#' @param plot_CI whether to show credible interval bands. Defaults to \code{TRUE}.
+#' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
 #' @param from,to z-value range for density. Defaults to \code{-6} and \code{6}.
 #' @param by step size for density points. Defaults to 0.05.
@@ -604,14 +604,14 @@ hist.zcurve_brma <- function(x, plot_type = "base",
 #' @export
 lines.zcurve_brma <- function(x, plot_type = "base",
                               probs = c(.025, .975), max_samples = 500,
-                              plot_CI = TRUE, extrapolate = FALSE,
+                              plot_ci = TRUE, extrapolate = FALSE,
                               from = -6, to = 6, by = 0.05, length.out = NULL,
                               col = "black", as_data = FALSE, ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
   BayesTools::check_int(max_samples, "max_samples", lower = 10)
-  BayesTools::check_bool(plot_CI, "plot_CI")
+  BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(extrapolate, "extrapolate")
   BayesTools::check_real(from, "from")
   BayesTools::check_real(to, "to")
@@ -648,7 +648,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
   if (plot_type == "ggplot") {
     out <- list()
-    if (plot_CI) {
+    if (plot_ci) {
       out[[1]] <- ggplot2::geom_ribbon(
         ggplot2::aes(
           x    = df_density$x,
@@ -669,7 +669,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
       linetype  = dots_lines$linetype
     )
   } else {
-    if (plot_CI) {
+    if (plot_ci) {
       graphics::polygon(
         c(df_density$x, rev(df_density$x)),
         c(df_density$y_lCI, rev(df_density$y_uCI)),

@@ -19,7 +19,7 @@ test_that("Model summary", {
 
   ### custom settings
   # custom probability & remove diagnostics
-  test_reference_table(summary(fits[["bcg_meta-analysis"]], probs = c(0.01, 0.99), include_MCMC_diagnostics = FALSE),
+  test_reference_table(summary(fits[["bcg_meta-analysis"]], probs = c(0.01, 0.99), include_mcmc_diagnostics = FALSE),
                        paste0("summary-custom-prob-no-diagnostics.txt"), paste0("Summary table for '", name, "' mismatch"))
 
   # de-standardize coefficients

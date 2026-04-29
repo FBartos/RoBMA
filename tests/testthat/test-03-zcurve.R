@@ -51,7 +51,7 @@ test_that("Z-curve plot customization works", {
   vdiffr::expect_doppelganger("zcurve_custom_base", function() {
     suppressMessages(plot(
       zc, plot_type = "base",
-      plot_fit = TRUE, plot_CI = TRUE,
+      plot_fit = TRUE, plot_ci = TRUE,
       lwd = 2, lty = 2,           # line args
       dots_hist = list(col = "lightblue"),
       main = "Custom Z-Curve"
@@ -171,11 +171,11 @@ test_that("Z-curve handles RoBMA bias-mixture branches", {
   expect_true(all(is.finite(zc[["zcurve"]][["estimates"]][["weights"]])))
 
   fitted_density <- lines(
-    zc, as_data = TRUE, max_samples = 50, plot_CI = FALSE,
+    zc, as_data = TRUE, max_samples = 50, plot_ci = FALSE,
     extrapolate = FALSE, length.out = 25
   )
   extrapolated_density <- lines(
-    zc, as_data = TRUE, max_samples = 50, plot_CI = FALSE,
+    zc, as_data = TRUE, max_samples = 50, plot_ci = FALSE,
     extrapolate = TRUE, length.out = 25
   )
 

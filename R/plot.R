@@ -511,9 +511,9 @@ plot_weightfunction.brma  <- function(
 }
 
 
-#' @title Plots PET-PEESE Fit of brma Object
+#' @title Plot PET-PEESE Fit of brma Object
 #'
-#' @description \code{plot.brma} visualizes posterior
+#' @description \code{plot_pet_peese} visualizes posterior
 #' (and prior) PET-PEESE fit of a brma object.
 #'
 #' @param x a fitted RoBMA object
@@ -542,16 +542,17 @@ plot_weightfunction.brma  <- function(
 #' }
 #'
 #'
-#' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#' @return \code{plot_pet_peese} returns either \code{NULL} invisibly if
+#' \code{plot_type = "base"} or a ggplot2 object if
+#' \code{plot_type = "ggplot"}.
 #'
 #' @seealso [RoBMA()]
 #' @export
-plot_PETPEESE <- function(x, ...)  UseMethod("plot_PETPEESE")
+plot_pet_peese <- function(x, ...)  UseMethod("plot_pet_peese")
 
 #' @export
-#' @rdname plot_PETPEESE
-plot_PETPEESE.brma  <- function(
+#' @rdname plot_pet_peese
+plot_pet_peese.brma  <- function(
     x, show_data = TRUE,
     prior = FALSE, plot_type = "base", dots_prior = NULL, ...) {
 
@@ -562,7 +563,7 @@ plot_PETPEESE.brma  <- function(
   BayesTools::check_bool(show_data, "show_data")
 
   if (!(.is_PET(x) || .is_PEESE(x))) {
-    stop("'plot_PETPEESE' is available only for models with a PET or PEESE component.", call. = FALSE)
+    stop("'plot_pet_peese' is available only for models with a PET or PEESE component.", call. = FALSE)
   }
 
   ### obtain posterior samples in the plotting format
@@ -645,12 +646,38 @@ plot_PETPEESE.brma  <- function(
 
 ### basic MCMC diagnostics functions ----
 
+#' @title Plot MCMC Diagnostics
+#'
+#' @description \code{plot_diagnostic} creates visual MCMC diagnostics for a
+#' fitted brma object. Convenience wrappers are available for trace, density,
+#' and autocorrelation plots.
+#'
+#' @param x a fitted brma object
+#' @param parameter base parameter to plot. Defaults to \code{NULL}, which lets
+#'   the plotting helper select the default parameter.
+#' @param parameter_mods moderator parameter for location regression.
+#' @param parameter_scale moderator parameter for scale regression.
+#' @param type diagnostic plot type. Options are \code{"trace"},
+#'   \code{"density"}, and \code{"autocorrelation"}.
+#' @param plot_type whether to use a base plot \code{"base"} or ggplot2
+#'   \code{"ggplot"} for plotting. Defaults to \code{"base"}.
+#' @param lags number of lags for autocorrelation plots. Defaults to 30.
+#' @param ... additional graphical arguments passed to
+#'   \code{BayesTools::JAGS_diagnostics()}.
+#'
+#' @return \code{plot_diagnostic} returns the object returned by
+#'   \code{BayesTools::JAGS_diagnostics()}, invisibly for base graphics.
+#'
+#' @seealso [summary.brma()]
+#'
 #' @export
-diagnostic_plots <- function(x, ...) UseMethod("diagnostic_plots")
+plot_diagnostic <- function(x, ...) UseMethod("plot_diagnostic")
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots.brma <- function(x, parameter, parameter_mods, parameter_scale, type, plot_type = "base", lags = 30, ...){
+#' @rdname plot_diagnostic
+plot_diagnostic.brma <- function(
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    type, plot_type = "base", lags = 30, ...) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -694,33 +721,33 @@ diagnostic_plots.brma <- function(x, parameter, parameter_mods, parameter_scale,
 }
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots_autocorrelation <- function(x, ...) UseMethod("diagnostic_plots_autocorrelation")
+#' @rdname plot_diagnostic
+plot_diagnostic_autocorrelation <- function(x, ...) UseMethod("plot_diagnostic_autocorrelation")
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots_autocorrelation.brma <- function(x, parameter = NULL, plot_type = "base", lags = 30, ...) {
-  diagnostic_plots(x = x, parameter = parameter, type = "autocorrelation", plot_type = plot_type, lags = lags, ...)
+#' @rdname plot_diagnostic
+plot_diagnostic_autocorrelation.brma <- function(x, parameter = NULL, plot_type = "base", lags = 30, ...) {
+  plot_diagnostic(x = x, parameter = parameter, type = "autocorrelation", plot_type = plot_type, lags = lags, ...)
 }
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots_trace <- function(x, ...) UseMethod("diagnostic_plots_trace")
+#' @rdname plot_diagnostic
+plot_diagnostic_trace <- function(x, ...) UseMethod("plot_diagnostic_trace")
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots_trace.brma           <- function(x, parameter = NULL, plot_type = "base", ...) {
-  diagnostic_plots(x = x, parameter = parameter, type = "trace", plot_type = plot_type, ...)
+#' @rdname plot_diagnostic
+plot_diagnostic_trace.brma           <- function(x, parameter = NULL, plot_type = "base", ...) {
+  plot_diagnostic(x = x, parameter = parameter, type = "trace", plot_type = plot_type, ...)
 }
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots_density <- function(x, ...) UseMethod("diagnostic_plots_density")
+#' @rdname plot_diagnostic
+plot_diagnostic_density <- function(x, ...) UseMethod("plot_diagnostic_density")
 
 #' @export
-#' @rdname diagnostic_plots
-diagnostic_plots_density.brma         <- function(x, parameter = NULL, plot_type = "base", ...) {
-  diagnostic_plots(x = x, parameter = parameter, type = "density", plot_type = plot_type, ...)
+#' @rdname plot_diagnostic
+plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type = "base", ...) {
+  plot_diagnostic(x = x, parameter = parameter, type = "density", plot_type = plot_type, ...)
 }
 
 

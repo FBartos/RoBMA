@@ -199,13 +199,13 @@ test_that("Parameter plots work", {
       next
     }
 
-    vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE1_",i), plot(fits[[i]], "PETPEESE", plot_type = "ggplot"))
+    vdiffr::expect_doppelganger(paste0("ggplot_pet_peese1_",i), plot(fits[[i]], "PETPEESE", plot_type = "ggplot"))
 
     if(fits[[i]]$add_info$algorithm == "ss"){
       expect_error(plot(fits[[i]], "PETPEESE", prior = TRUE, plot_type = "ggplot"),
                    "The prior and posterior distribution for the PET-PEESE regression cannot be plotted for the ss algorithm.")
     }else{
-      vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE2_",i), plot(fits[[i]], "PETPEESE", prior = TRUE, plot_type = "ggplot"))
+      vdiffr::expect_doppelganger(paste0("ggplot_pet_peese2_",i), plot(fits[[i]], "PETPEESE", prior = TRUE, plot_type = "ggplot"))
     }
 
     if(i %in% PETPEESE){
@@ -213,8 +213,8 @@ test_that("Parameter plots work", {
         expect_error(plot(fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"),
                      "The conditional distribution for the PET-PEESE regression cannot be plotted for the ss algorithm.")
       }else{
-        vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE3_",i), plot(fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"))
-        vdiffr::expect_doppelganger(paste0("ggplot_PETPEESE4_",i), plot(fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
+        vdiffr::expect_doppelganger(paste0("ggplot_pet_peese3_",i), plot(fits[[i]], "PETPEESE", conditional = TRUE, plot_type = "ggplot"))
+        vdiffr::expect_doppelganger(paste0("ggplot_pet_peese4_",i), plot(fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE, plot_type = "ggplot"))
       }
 
     }else{
@@ -226,14 +226,14 @@ test_that("Parameter plots work", {
   # default base plot
   i <- 1
   set.seed(1)
-  vdiffr::expect_doppelganger(paste0("plot_PETPEESE1_",i), function()plot(fits[[i]], "PETPEESE"))
-  vdiffr::expect_doppelganger(paste0("plot_PETPEESE2_",i), function()plot(fits[[i]], "PETPEESE", prior = TRUE))
-  vdiffr::expect_doppelganger(paste0("plot_PETPEESE3_",i), function()plot(fits[[i]], "PETPEESE", conditional = TRUE))
-  vdiffr::expect_doppelganger(paste0("plot_PETPEESE4_",i), function()plot(fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE))
+  vdiffr::expect_doppelganger(paste0("plot_pet_peese1_",i), function()plot(fits[[i]], "PETPEESE"))
+  vdiffr::expect_doppelganger(paste0("plot_pet_peese2_",i), function()plot(fits[[i]], "PETPEESE", prior = TRUE))
+  vdiffr::expect_doppelganger(paste0("plot_pet_peese3_",i), function()plot(fits[[i]], "PETPEESE", conditional = TRUE))
+  vdiffr::expect_doppelganger(paste0("plot_pet_peese4_",i), function()plot(fits[[i]], "PETPEESE", conditional = TRUE, prior = TRUE))
 
   # transformation
-  vdiffr::expect_doppelganger(paste0("plot_PETPEESE5_",i), function()plot(fits[[i]], "PETPEESE", output_scale = "logOR"))
-  vdiffr::expect_doppelganger(paste0("plot_PETPEESE6_",i), function()plot(fits[[i]], "PETPEESE", output_scale = "r", prior = TRUE))
+  vdiffr::expect_doppelganger(paste0("plot_pet_peese5_",i), function()plot(fits[[i]], "PETPEESE", output_scale = "logOR"))
+  vdiffr::expect_doppelganger(paste0("plot_pet_peese6_",i), function()plot(fits[[i]], "PETPEESE", output_scale = "r", prior = TRUE))
 
   ### 3-level structure
   vdiffr::expect_doppelganger(paste0("plot_rho_",13),  function()plot(fits[["fit_13"]], "rho"))

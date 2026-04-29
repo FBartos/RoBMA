@@ -122,7 +122,7 @@ test_that("zcurve functions function works", {
   vdiffr::expect_doppelganger(paste0("plot_zcurve_",2), function() plot(zfit4, by.hist = 1))
   vdiffr::expect_doppelganger(paste0("plot_zcurve_",3), function() plot(zfit6, by.hist = 1))
   vdiffr::expect_doppelganger(paste0("plot_zcurve_",4), function() plot(zfit6, plot_fit = FALSE))
-  vdiffr::expect_doppelganger(paste0("plot_zcurve_",5), function() plot(zfit6, by.hist = 0.5, conditional = TRUE, plot_CI = FALSE, plot_extrapolation = FALSE, plot_thresholds = FALSE))
+  vdiffr::expect_doppelganger(paste0("plot_zcurve_",5), function() plot(zfit6, by.hist = 0.5, conditional = TRUE, plot_ci = FALSE, plot_extrapolation = FALSE, plot_thresholds = FALSE))
   vdiffr::expect_doppelganger(paste0("plot_zcurve_",6), suppressMessages(plot(zfit15, by.hist = 0.5, plot_type = "ggplot")))
 
   vdiffr::expect_doppelganger(paste0("plot_zcurve_",7), function() hist(zfit4))
