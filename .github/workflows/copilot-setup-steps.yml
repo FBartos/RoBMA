@@ -1,21 +1,14 @@
 name: "Copilot Setup Steps"
 
-# Allow testing of the setup steps from your repository's "Actions" tab.
 on: workflow_dispatch
 
 jobs:
-  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     runs-on: ubuntu-latest
-
-    # Set the permissions to the lowest permissions possible needed for your steps.
-    # Copilot will be given its own token for its operations.
+    timeout-minutes: 120
     permissions:
-      # If you want to clone the repository as part of your setup steps, for example to install dependencies, you'll need the `contents: read` permission. If you don't clone the repository in your setup steps, Copilot will do this for you automatically after the steps complete.
       contents: read
 
-    # You can define any steps you want, and they will run before the agent starts.
-    # If you do not check out your code, Copilot will do this for you.
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,70 +16,24 @@ jobs:
       - name: Set up R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: 'release'
+          r-version: '4.6'
 
-      # Cache R packages
-      - name: Cache R packages
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-release-${{ hashFiles('**/DESCRIPTION') }}
-          restore-keys: |
-            ${{ runner.os }}-r-release-
-            ${{ runner.os }}-r-
-
-      # Cache system dependencies
-      - name: Cache system dependencies
-        uses: actions/cache@v3
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/copilot-setup-steps.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
-
-      # Install system dependencies matching R-CMD-tests workflow
-      - name: Install system dependencies
+      - name: Install JAGS and system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libssl-dev \
-            libcurl4-openssl-dev \
-            libxml2-dev \
-            libfontconfig1-dev \
-            libharfbuzz-dev \
-            libfribidi-dev \
-            libfreetype6-dev \
-            libpng-dev \
-            libtiff5-dev \
-            libjpeg-dev \
-            libcairo2-dev \
-            jags
+          sudo apt-get install -y jags
 
-      # Install packages matching R-CMD-tests workflow
-      - name: Install R packages
-        run: |
-          options(repos = c(CRAN = "https://cloud.r-project.org"))
-
-          # Check if packages are already installed before installing
-          core_packages <- c('devtools', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc')
-          dev_packages <- c('roxygen2', 'pkgdown', 'rcmdcheck', 'rjags', 'runjags', 'BayesTools', 'coda', 'bridgesampling', 'mvtnorm', 'extraDistr', 'ggplot2', 'scales', 'checkmate')
-          all_packages <- c(core_packages, dev_packages)
-
-          missing_packages <- all_packages[!sapply(all_packages, requireNamespace, quietly = TRUE)]
-
-          if (length(missing_packages) > 0) {
-            cat("Installing missing packages:", paste(missing_packages, collapse = ", "), "\n")
-            install.packages(missing_packages)
-          } else {
-            cat("All required packages are already installed\n")
-          }
-        shell: Rscript {0}
-
-      # Install the RoBMA package
-      - name: Install RoBMA package
-        run: |
-          devtools::install()
-        shell: Rscript {0}
+      - name: Install R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"all"'
+          cache-version: 3
+          extra-packages: |
+            any::devtools
+            any::pkgdown
+            any::rcmdcheck
+            any::posterior
+            local::.
 
       - name: Verify JAGS installation
         run: |
@@ -97,16 +44,14 @@ jobs:
         run: |
           cat('R version:', R.version.string, '\n')
 
-          # Test rjags connection
-          if (require(rjags, quietly = TRUE)) {
+          if (requireNamespace("rjags", quietly = TRUE)) {
             cat('rjags loaded successfully\n')
             tryCatch({
-              # Simple JAGS model test
               model_string <- "
               model {
                 x ~ dnorm(0, 1)
               }"
-              model <- jags.model(textConnection(model_string), n.chains = 1, quiet = TRUE)
+              model <- rjags::jags.model(textConnection(model_string), n.chains = 1, quiet = TRUE)
               cat('JAGS model creation successful\n')
             }, error = function(e) {
               cat('JAGS model creation failed:', e$message, '\n')
@@ -118,14 +63,11 @@ jobs:
 
       - name: Test RoBMA package functionality
         run: |
-          # Basic functionality test
           cat('Testing basic RoBMA functionality...\n')
           tryCatch({
-            # Load example data
             data("Anderson2010", package = "RoBMA")
             cat('Example data loaded successfully\n')
 
-            # Test basic package loading
             library(RoBMA)
             cat('RoBMA package loaded successfully\n')
           }, error = function(e) {
@@ -134,7 +76,8 @@ jobs:
         shell: Rscript {0}
 
       - name: Run basic tests
+        env:
+          NOT_CRAN: "true"
         run: |
-          # Run tests matching R-CMD-tests workflow
-          devtools::test()
+          devtools::test(stop_on_failure = TRUE)
         shell: Rscript {0}
