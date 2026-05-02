@@ -23,12 +23,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jags
 
+      - name: Resolve BayesTools source
+        id: bayestools
+        run: Rscript .github/scripts/resolve-bayestools-source.R
+
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           dependencies: '"all"'
           cache-version: 3
           extra-packages: |
+            ${{ steps.bayestools.outputs.pak_spec }}
             any::devtools
             any::pkgdown
             any::rcmdcheck

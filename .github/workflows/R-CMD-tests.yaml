@@ -60,12 +60,17 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
 
+      - name: Resolve BayesTools source
+        id: bayestools
+        run: Rscript .github/scripts/resolve-bayestools-source.R
+
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           dependencies: '"all"'
           cache-version: 3
           extra-packages: |
+            ${{ steps.bayestools.outputs.pak_spec }}
             any::devtools
             any::posterior
 
