@@ -464,6 +464,187 @@ expect_prediction_matches_metafor <- function(case) {
   stop(paste0("Unknown prediction case kind '", kind, "'."), call. = FALSE)
 }
 
+.metafor_linear_predictor <- function(fit_metafor, formula, newdata) {
+
+  x_new <- stats::model.matrix(formula, newdata)
+  return(as.vector(x_new %*% fit_metafor[["beta"]]))
+}
+
+.newdata_factor <- function(fit_brma, variable, values = NULL) {
+
+  levels_variable <- levels(fit_brma[["data"]][["mods"]][[variable]])
+  if (is.null(values)) {
+    values <- levels_variable
+  }
+
+  return(factor(values, levels = levels_variable))
+}
+
+.newdata_prediction_case_data <- function(kind, fit_brma) {
+
+  if (kind == "normal_continuous") {
+    return(data.frame(
+      ablat = c(10, 40, 70),
+      year  = c(1950, 1968, 1980)
+    ))
+  }
+
+  if (kind == "normal_factor") {
+    alloc <- .newdata_factor(
+      fit_brma,
+      "alloc",
+      values = c("random", "alternate", "systematic")
+    )
+    return(data.frame(alloc = alloc))
+  }
+
+  if (kind == "location_scale") {
+    meta_levels <- levels(fit_brma[["data"]][["mods"]][["meta"]])
+    return(data.frame(
+      meta  = factor(c(meta_levels[1], meta_levels[2], meta_levels[1]),
+                     levels = meta_levels),
+      ni100 = c(0.5, 1.0, 2.0)
+    ))
+  }
+
+  if (kind == "multilevel_mod") {
+    return(data.frame(vi = c(0.02, 0.08, 0.20)))
+  }
+
+  if (kind == "glmm_factor") {
+    alloc <- .newdata_factor(fit_brma, "alloc")
+    return(data.frame(alloc = alloc))
+  }
+
+  if (kind == "pet_reg") {
+    preregistered <- .newdata_factor(fit_brma, "Preregistered")
+    return(data.frame(
+      Preregistered = preregistered,
+      sei           = c(0.10, 0.20),
+      vi            = c(0.01, 0.04)
+    ))
+  }
+
+  if (kind == "selection_reg") {
+    preregistered <- .newdata_factor(fit_brma, "Preregistered")
+    return(data.frame(Preregistered = preregistered))
+  }
+
+  stop(paste0("Unknown newdata prediction case kind '", kind, "'."), call. = FALSE)
+}
+
+.metafor_newdata_location <- function(kind, fit_metafor, newdata,
+                                      bias_adjusted = FALSE) {
+
+  if (kind == "normal_continuous") {
+    return(.metafor_linear_predictor(fit_metafor, ~ ablat + year, newdata))
+  }
+
+  if (kind %in% c("normal_factor", "glmm_factor")) {
+    return(.metafor_linear_predictor(fit_metafor, ~ alloc, newdata))
+  }
+
+  if (kind == "location_scale") {
+    return(.metafor_linear_predictor(fit_metafor, ~ meta + ni100, newdata))
+  }
+
+  if (kind == "multilevel_mod") {
+    return(.metafor_linear_predictor(fit_metafor, ~ vi, newdata))
+  }
+
+  if (kind == "pet_reg") {
+    metafor_newdata <- newdata
+    if (bias_adjusted) {
+      metafor_newdata[["vi"]] <- 0
+    }
+    return(.metafor_linear_predictor(
+      fit_metafor,
+      ~ sqrt(vi) + Preregistered,
+      metafor_newdata
+    ))
+  }
+
+  if (kind == "selection_reg") {
+    return(.metafor_linear_predictor(fit_metafor, ~ Preregistered, newdata))
+  }
+
+  stop(paste0("Unknown newdata prediction case kind '", kind, "'."), call. = FALSE)
+}
+
+.metafor_newdata_tau <- function(kind, fit_metafor, newdata) {
+
+  if (kind == "location_scale") {
+    z_new <- stats::model.matrix(~ ni100, newdata)
+    return(sqrt(as.vector(exp(z_new %*% fit_metafor[["alpha"]]))))
+  }
+
+  return(NULL)
+}
+
+expect_newdata_prediction_matches_metafor <- function(case) {
+
+  name        <- case_name(case)
+  fit_brma    <- .case_fit(case)
+  fit_metafor <- .case_metafor(case)
+  kind        <- case_value(case, "kind")
+  tolerance   <- case_value(case, "tolerance", 0.05)
+  tau_tol     <- case_value(case, "tau_tolerance", tolerance)
+  newdata     <- .newdata_prediction_case_data(kind, fit_brma)
+
+  brma_terms <- .sample_means(predict(
+    fit_brma,
+    newdata = newdata,
+    type    = "terms",
+    quiet   = TRUE
+  ))
+  metafor_terms <- .metafor_newdata_location(kind, fit_metafor, newdata)
+
+  testthat::expect_equal(
+    brma_terms,
+    metafor_terms,
+    tolerance = tolerance,
+    info      = paste(name, "newdata location predictions match metafor")
+  )
+
+  if (kind == "pet_reg") {
+    brma_adjusted <- .sample_means(predict(
+      fit_brma,
+      newdata       = newdata,
+      type          = "terms",
+      bias_adjusted = TRUE,
+      quiet         = TRUE
+    ))
+    metafor_adjusted <- .metafor_newdata_location(
+      kind          = kind,
+      fit_metafor   = fit_metafor,
+      newdata       = newdata,
+      bias_adjusted = TRUE
+    )
+    testthat::expect_equal(
+      brma_adjusted,
+      metafor_adjusted,
+      tolerance = tolerance,
+      info      = paste(name, "bias-adjusted newdata predictions match metafor")
+    )
+  }
+
+  metafor_tau <- .metafor_newdata_tau(kind, fit_metafor, newdata)
+  if (!is.null(metafor_tau)) {
+    brma_tau <- .sample_means(predict(
+      fit_brma,
+      newdata = newdata,
+      type    = "terms.scale",
+      quiet   = TRUE
+    ))
+    testthat::expect_equal(
+      brma_tau,
+      metafor_tau,
+      tolerance = tau_tol,
+      info      = paste(name, "newdata scale predictions match metafor")
+    )
+  }
+}
+
 expect_hatvalues_match_metafor <- function(case) {
 
   name        <- case_name(case)

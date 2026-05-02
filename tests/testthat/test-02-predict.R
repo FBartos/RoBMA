@@ -20,6 +20,12 @@ for_each_case(prediction_metafor_cases(), function(case) {
   })
 })
 
+for_each_case(prediction_newdata_metafor_cases(), function(case) {
+  test_that_case("Newdata predictions match metafor", case, {
+    expect_newdata_prediction_matches_metafor(case)
+  })
+})
+
 test_that("Predictions for equivalent interaction parameterizations match", {
 
   model_names <- c("bcg_meta-regression4", "bcg_meta-regression4b")

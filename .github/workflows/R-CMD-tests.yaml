@@ -69,6 +69,7 @@ jobs:
         with:
           dependencies: '"all"'
           cache-version: 3
+          install-pandoc: false
           extra-packages: |
             ${{ steps.bayestools.outputs.pak_spec }}
             any::devtools

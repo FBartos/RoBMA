@@ -374,6 +374,43 @@ prediction_metafor_cases <- function() {
   )
 }
 
+prediction_newdata_metafor_cases <- function() {
+
+  data.frame(
+    name = c(
+      "bcg_meta-regression",
+      "bcg_meta-regression2",
+      "bangertdrowns2004_location-scale",
+      "konstantopoulos2011_3lvl2",
+      "bcg_glmm_reg",
+      "dat.lehmann2018-PETreg",
+      "dat.lehmann2018-3PSMreg"
+    ),
+    label = c(
+      "normal continuous moderators",
+      "normal factor moderator",
+      "normal location-scale",
+      "normal multilevel moderator",
+      "GLMM factor moderator",
+      "PET moderator",
+      "selection moderator"
+    ),
+    kind = c(
+      "normal_continuous",
+      "normal_factor",
+      "location_scale",
+      "multilevel_mod",
+      "glmm_factor",
+      "pet_reg",
+      "selection_reg"
+    ),
+    tolerance = c(0.10, 0.10, 0.05, 0.05, 0.10, 0.07, 0.05),
+    tau_tolerance = c(NA, NA, 0.05, NA, NA, NA, NA),
+    tier = c("core", "core", "core", "extended", "core", "core", "extended"),
+    stringsAsFactors = FALSE
+  )
+}
+
 marginal_means_cases <- function() {
 
   data.frame(
