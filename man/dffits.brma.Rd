@@ -21,20 +21,16 @@ fitted brma object. DFFITS measures how much the fitted value for observation
 estimated standard error of the fit.
 }
 \details{
-DFFITS values are computed using a hybrid Bayesian approach. Since the leverage
-(hat values) is uncertain in Bayesian models (depending on \eqn{\tau^2}),
-we calculate the distribution of DFFITS values across posterior samples and
-report the posterior mean.
+DFFITS values are computed as a PSIS leave-one-out deletion diagnostic. For
+each observation \eqn{i}, the leave-one-out posterior mean fitted value at
+that observation is estimated with normalized PSIS weights and compared to
+the full-posterior fitted value:
+\deqn{DFFITS_i =
+  \frac{\hat{\mu}_i - \hat{\mu}_{i(-i)}}{SD_{(-i)}(\mu_i)}}
 
-The computation uses the LOO-PIT residuals (which account for estimation
-uncertainty and leverage) combined with the full posterior distribution of
-the hat matrix diagonals.
-
-\deqn{DFFITS_i = r_i \times \sqrt{\frac{h_i}{1 - h_i}}}
-
-where \eqn{r_i} is the LOO-PIT residual (Studentized residual) and \eqn{h_i}
-is the hat value (leverage). In the Bayesian implementation, this is averaged
-over the posterior samples of \eqn{h_i}.
+This targets deletion influence on fitted values directly. It does not use
+LOO-PIT residuals, which are predictive outlier diagnostics rather than
+fitted-value deletion diagnostics.
 }
 \examples{
 \dontrun{

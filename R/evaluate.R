@@ -64,6 +64,53 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .extract_indexed_parameter_samples
+# ---------------------------------------------------------------------------- #
+#
+# Extract scalar/vectorized posterior parameter columns, sorting fully indexed
+# names such as `omega[10]` by numeric index instead of column order.
+#
+# ---------------------------------------------------------------------------- #
+.extract_indexed_parameter_samples <- function(posterior_samples, parameter,
+                                               n_expected = NULL,
+                                               required = TRUE) {
+
+  parameter_pattern <- gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", parameter)
+  parameter_cols    <- grep(
+    paste0("^", parameter_pattern, "(\\[|$)"),
+    colnames(posterior_samples),
+    value = TRUE
+  )
+
+  if (length(parameter_cols) == 0L) {
+    if (required) {
+      stop("Missing posterior ", parameter, " columns.", call. = FALSE)
+    }
+    return(NULL)
+  }
+
+  parameter_index <- suppressWarnings(as.integer(sub(
+    paste0("^", parameter_pattern, "\\[([0-9]+)\\]$"),
+    "\\1",
+    parameter_cols
+  )))
+  if (all(!is.na(parameter_index))) {
+    parameter_cols <- parameter_cols[order(parameter_index)]
+  }
+
+  if (!is.null(n_expected) && length(parameter_cols) != n_expected) {
+    stop(
+      "Expected ", n_expected, " posterior ", parameter, " column(s), found ",
+      length(parameter_cols), ".",
+      call. = FALSE
+    )
+  }
+
+  return(as.matrix(posterior_samples[, parameter_cols, drop = FALSE]))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .extract_omega_samples
 # ---------------------------------------------------------------------------- #
 #
@@ -76,21 +123,7 @@
 # ---------------------------------------------------------------------------- #
 .extract_omega_samples <- function(posterior_samples) {
 
-  omega_cols <- grep("^omega(\\[|$)", colnames(posterior_samples), value = TRUE)
-
-  if (length(omega_cols) == 0L) {
-    stop("Missing posterior omega columns.", call. = FALSE)
-  }
-
-  omega_index <- suppressWarnings(as.integer(
-    sub("^omega\\[([0-9]+)\\]$", "\\1", omega_cols)
-  ))
-
-  if (all(!is.na(omega_index))) {
-    omega_cols <- omega_cols[order(omega_index)]
-  }
-
-  return(as.matrix(posterior_samples[, omega_cols, drop = FALSE]))
+  return(.extract_indexed_parameter_samples(posterior_samples, "omega"))
 }
 
 
@@ -575,12 +608,13 @@
 # .evaluate.brma.true_effects.norm
 # ---------------------------------------------------------------------------- #
 #
-# Compute posterior samples of true effects (theta) for normal models.
+# Compute posterior samples of true-effect summaries for normal models.
 # For same-data selection models, the selection weight is constant after
 # conditioning on yi, so the estimate-level shrinkage remains Gaussian
 # conditional on the fitted location and heterogeneity draw.
 #
-# For same_data = TRUE: Uses empirical Bayes shrinkage (BLUP) to estimate true effects:
+# For same_data = TRUE: Uses empirical Bayes shrinkage to return the
+# conditional BLUP mean, E(theta_i | y_i, mu_i, tau_i), for each posterior row:
 #   theta_i = lambda_i * y_i + (1 - lambda_i) * mu_i
 # where:
 #   lambda_i = tau_within^2 / (tau_within^2 + se_i^2)
@@ -604,7 +638,7 @@
 # @param bias_offset      optional S x K matrix of PET/PEESE offsets to subtract
 #                         from yi before BLUP shrinkage.
 #
-# @return S x K matrix of true effect (theta) posterior samples
+# @return S x K matrix of true-effect BLUP means or new-effect posterior samples
 #
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.true_effects.norm <- function(mu_samples, tau_within, yi, sei,
@@ -615,7 +649,7 @@
 
   if (same_data) {
 
-    # BLUP: empirical Bayes shrinkage estimates for existing observations
+    # BLUP: empirical Bayes conditional means for existing observations
     # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage)
     # to 1 (weak shrinkage).
     lambda <- tau_within^2
@@ -901,7 +935,7 @@
 # This function is used for performance optimization in PDF/CDF/RNG functions.
 # When `use_normal[i] = TRUE`, the sample uses a non-weightfunction bias model
 # (PET, PEESE, or no bias), so the fast normal path can be used instead of
-# the expensive weighted normal computation.
+# the selected-normal computation.
 #
 # @param object brma or RoBMA object.
 # @param posterior_samples optional posterior sample matrix; avoids repeated
@@ -934,8 +968,8 @@
       priors_bias <- list(priors_bias)
     }
 
-    # identify which bias priors are weightfunctions
-    weightfunction_indices <- which(sapply(priors_bias, BayesTools::is.prior.weightfunction))
+    # identify which bias priors use selection kernels
+    weightfunction_indices <- which(sapply(priors_bias, .prior_is_selection_kernel))
 
     # use_normal = TRUE for samples NOT from weightfunction priors
     use_normal <- !(bias_indicator %in% weightfunction_indices)

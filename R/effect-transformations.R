@@ -472,23 +472,6 @@
   ))
 }
 
-.transform_brma_samples_effect <- function(x, effect_transform) {
-
-  samples <- as.matrix(x)
-  samples <- .transform_effect_matrix(samples, effect_transform)
-  title   <- .effect_output_title(attr(x, "title"), effect_transform)
-
-  return(.new_brma_samples(
-    samples          = samples,
-    n_chains         = attr(x, "nchains"),
-    n_iter           = attr(x, "niter"),
-    title            = title,
-    probs            = attr(x, "probs"),
-    data             = attr(x, "data"),
-    effect_transform = effect_transform
-  ))
-}
-
 .transform_marginal_samples_effect <- function(samples, effect_transform) {
 
   if (!.effect_output_active(effect_transform)) {

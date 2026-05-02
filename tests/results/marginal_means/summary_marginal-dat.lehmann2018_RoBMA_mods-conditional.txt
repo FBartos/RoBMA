@@ -1,7 +1,7 @@
 
 Conditional Marginal Means:
                                     Mean    SD  0.025    0.5 0.975 Inclusion BF
-intercept                          0.041 0.119 -0.213  0.046 0.245        0.194
-Preregistered[Not Pre-Registered]  0.143 0.079 -0.029  0.144 0.280        1.261
-Preregistered[Pre-Registered]     -0.126 0.104 -0.288 -0.135 0.168        1.101
+intercept                          0.037 0.110 -0.190  0.041 0.232        0.178
+Preregistered[Not Pre-Registered]  0.139 0.075 -0.015  0.139 0.283        1.009
+Preregistered[Pre-Registered]     -0.123 0.097 -0.284 -0.132 0.145        0.975
 

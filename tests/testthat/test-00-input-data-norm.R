@@ -1,5 +1,7 @@
 context("Input handling for brma.norm")
 
+source(testthat::test_path("helper-contracts.R"))
+
 # Test data for input specification tests
 test_data <- data.frame(
   effect    = c(0.10, 0.25, 0.15, 0.30, 0.05),
@@ -12,124 +14,122 @@ test_data <- data.frame(
   stringsAsFactors = FALSE
 )
 
-
-test_that("Input works with direct vectors", {
-
-  skip_on_cran()
-
-  # Direct vector specification
-  result <- brma.norm(
-    yi  = c(0.10, 0.25, 0.15),
-    sei = c(0.20, 0.24, 0.22),
-    only_data = TRUE
-  )[["data"]]
+expect_norm_outcome <- function(result, n, yi, sei = NULL, ni = NULL,
+                                weights = NULL, slab = NULL, cluster = NULL) {
 
   expect_type(result, "list")
   expect_true("outcome" %in% names(result))
-  expect_equal(nrow(result$outcome), 3)
-  expect_equal(result$outcome$yi, c(0.10, 0.25, 0.15))
-  expect_equal(result$outcome$sei, c(0.20, 0.24, 0.22))
-})
+  expect_equal(nrow(result$outcome), n)
+  expect_equal(result$outcome$yi, yi)
+
+  if (!is.null(sei)) {
+    expect_equal(result$outcome$sei, sei, tolerance = 1e-10)
+  }
+  if (!is.null(ni)) {
+    expect_equal(result$outcome$ni, ni)
+  }
+  if (!is.null(weights)) {
+    expect_equal(result$outcome$weights, weights)
+  }
+  if (!is.null(slab)) {
+    expect_equal(result$outcome$slab, slab)
+  }
+  if (!is.null(cluster)) {
+    expect_equal(result$outcome$cluster, cluster)
+  }
+}
+
+formula_text <- function(x) {
+
+  return(paste0(as.character(attr(x, "formula")), collapse = " "))
+}
 
 
-test_that("Input works with unquoted column names from data", {
-
-  skip_on_cran()
-
-  # Unquoted column name specification
-  result <- brma.norm(
-    yi   = effect,
-    vi   = variance,
-    data = test_data,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_type(result, "list")
-  expect_equal(nrow(result$outcome), 5)
-  expect_equal(result$outcome$yi, test_data$effect)
-  expect_equal(result$outcome$sei, sqrt(test_data$variance), tolerance = 1e-6)
-})
-
-
-test_that("Input works with quoted string column names from data", {
-
-  skip_on_cran()
-
-  # Quoted string column name specification
-  result <- brma.norm(
-    yi   = "effect",
-    sei  = "std_err",
-    data = test_data,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_type(result, "list")
-  expect_equal(nrow(result$outcome), 5)
-  expect_equal(result$outcome$yi, test_data$effect)
-  expect_equal(result$outcome$sei, test_data$std_err, tolerance = 1e-6)
-})
-
-
-test_that("Input works with mixed specification styles", {
+test_that("Input accepts supported outcome specifications", {
 
   skip_on_cran()
 
-  # Mix of direct vectors and column references
   external_weights <- c(2, 2, 2, 2, 2)
 
-  result <- brma.norm(
-    yi      = effect,       # unquoted column name
-    vi      = "variance",   # quoted string column name
-    ni      = n,            # unquoted column name
-    weights = external_weights,  # direct vector from environment
-    data    = test_data,
-    only_data = TRUE
-  )[["data"]]
+  input_cases <- list(
+    list(
+      expr = quote(brma.norm(
+        yi        = c(0.10, 0.25, 0.15),
+        sei       = c(0.20, 0.24, 0.22),
+        only_data = TRUE
+      )[["data"]]),
+      n    = 3,
+      yi   = c(0.10, 0.25, 0.15),
+      sei  = c(0.20, 0.24, 0.22)
+    ),
+    list(
+      expr = quote(brma.norm(
+        yi        = effect,
+        vi        = variance,
+        data      = test_data,
+        only_data = TRUE
+      )[["data"]]),
+      n    = 5,
+      yi   = test_data$effect,
+      sei  = sqrt(test_data$variance)
+    ),
+    list(
+      expr = quote(brma.norm(
+        yi        = "effect",
+        sei       = "std_err",
+        data      = test_data,
+        only_data = TRUE
+      )[["data"]]),
+      n    = 5,
+      yi   = test_data$effect,
+      sei  = test_data$std_err
+    ),
+    list(
+      expr = quote(brma.norm(
+        yi        = effect,
+        vi        = "variance",
+        ni        = n,
+        weights   = external_weights,
+        data      = test_data,
+        only_data = TRUE
+      )[["data"]]),
+      n       = 5,
+      yi      = test_data$effect,
+      sei     = sqrt(test_data$variance),
+      ni      = test_data$n,
+      weights = external_weights
+    ),
+    list(
+      expr = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        ni        = n,
+        slab      = study,
+        cluster   = cluster,
+        data      = test_data,
+        only_data = TRUE
+      )[["data"]]),
+      n       = 5,
+      yi      = test_data$effect,
+      sei     = test_data$std_err,
+      ni      = test_data$n,
+      slab    = test_data$study,
+      cluster = as.numeric(as.factor(test_data$cluster))
+    )
+  )
 
-  expect_type(result, "list")
-  expect_equal(nrow(result$outcome), 5)
-  expect_equal(result$outcome$yi, test_data$effect)
-  expect_equal(result$outcome$ni, test_data$n)
-  expect_equal(result$outcome$weights, external_weights)
-})
-
-
-test_that("Input works with optional arguments", {
-
-  skip_on_cran()
-
-  # With slab and cluster
-  result <- brma.norm(
-    yi        = effect,
-    sei       = std_err,
-    ni        = n,
-    slab      = study,
-    cluster   = cluster,
-    data      = test_data,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_type(result, "list")
-  expect_equal(nrow(result$outcome), 5)
-  expect_equal(result$outcome$slab, test_data$study)
-  expect_equal(result$outcome$cluster, as.numeric(as.factor(test_data$cluster)))
-  expect_equal(result$outcome$ni, test_data$n)
-})
-
-
-test_that("Input converts vi to sei correctly", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    yi   = effect,
-    vi   = variance,
-    data = test_data,
-    only_data = TRUE
-  )[["data"]]
-
-  expected_sei <- sqrt(test_data$variance)
-  expect_equal(result$outcome$sei, expected_sei, tolerance = 1e-10)
+  for (case in input_cases) {
+    expect_norm_outcome(
+      eval(case$expr),
+      n       = case$n,
+      yi      = case$yi,
+      sei     = case$sei,
+      ni      = case$ni,
+      weights = case$weights,
+      slab    = case$slab,
+      cluster = case$cluster
+    )
+  }
 })
 
 
@@ -147,7 +147,7 @@ test_that("Input generates default slab when not provided", {
 })
 
 
-test_that("Input handles subset argument correctly", {
+test_that("Input handles subset argument", {
 
   skip_on_cran()
 
@@ -177,62 +177,95 @@ test_that("Input handles subset argument correctly", {
 })
 
 
-test_that("Input throws error when yi is missing", {
+test_that("Effect direction is passed and detected after final row selection", {
 
   skip_on_cran()
 
-  expect_error(
-    brma.norm(
-      sei = c(0.1, 0.2),
-      only_data = TRUE
-    ),
-    regexp = "yi"
+  result_explicit <- RoBMA(
+    yi               = c(-0.10, -0.20, -0.30),
+    sei              = c(0.10, 0.10, 0.10),
+    effect_direction = "negative",
+    only_data        = TRUE
+  )[["data"]]
+
+  expect_equal(attr(result_explicit, "effect_direction"), "negative")
+
+  result_robma_detect <- RoBMA(
+    yi               = c(-0.10, -0.20, -0.30),
+    sei              = c(0.10, 0.10, 0.10),
+    effect_direction = "detect",
+    only_data        = TRUE
+  )[["data"]]
+
+  expect_equal(attr(result_robma_detect, "effect_direction"), "negative")
+
+  result_subset <- bselmodel(
+    yi               = c(100, 90, -1, -2),
+    sei              = c(0.10, 0.10, 0.10, 0.10),
+    subset           = 3:4,
+    effect_direction = "detect",
+    only_data        = TRUE
+  )[["data"]]
+
+  expect_equal(attr(result_subset, "effect_direction"), "negative")
+
+  data_na_direction <- data.frame(
+    yi  = c(100, 90, 80, -1, -2),
+    sei = c(0.10, 0.10, 0.10, 0.10, 0.10),
+    mod = c(NA, NA, NA, 1, 2)
   )
+
+  expect_warning(
+    result_na <- bselmodel(
+      yi               = yi,
+      sei              = sei,
+      mods             = ~ mod,
+      data             = data_na_direction,
+      effect_direction = "detect",
+      only_data        = TRUE
+    )[["data"]],
+    regexp = "3 observation.*removed due to missing"
+  )
+
+  expect_equal(attr(result_na, "effect_direction"), "negative")
 })
 
 
-test_that("Input throws error when neither vi nor sei is provided", {
+test_that("Input rejects invalid outcome specifications", {
 
   skip_on_cran()
 
-  expect_error(
-    brma.norm(
-      yi = c(0.1, 0.2),
-      only_data = TRUE
+  expect_error_cases(list(
+    list(
+      label  = "missing yi",
+      expr   = quote(brma.norm(sei = c(0.1, 0.2), only_data = TRUE)),
+      regexp = "yi"
     ),
-    regexp = "vi|sei|variance|standard error"
-  )
-})
-
-
-test_that("Input throws error for length mismatch", {
-
-  skip_on_cran()
-
-  expect_error(
-    brma.norm(
-      yi  = c(0.1, 0.2, 0.3),
-      sei = c(0.1, 0.2),  # wrong length
-      only_data = TRUE
+    list(
+      label  = "missing variance",
+      expr   = quote(brma.norm(yi = c(0.1, 0.2), only_data = TRUE)),
+      regexp = "vi|sei|variance|standard error"
     ),
-    regexp = "length"
-  )
-})
-
-
-test_that("Input throws error for invalid column reference", {
-
-  skip_on_cran()
-
-  expect_error(
-    brma.norm(
-      yi   = nonexistent_column,
-      sei  = std_err,
-      data = test_data,
-      only_data = TRUE
+    list(
+      label  = "length mismatch",
+      expr   = quote(brma.norm(
+        yi        = c(0.1, 0.2, 0.3),
+        sei       = c(0.1, 0.2),
+        only_data = TRUE
+      )),
+      regexp = "length"
     ),
-    regexp = "nonexistent_column|Cannot find"
-  )
+    list(
+      label  = "invalid column reference",
+      expr   = quote(brma.norm(
+        yi        = nonexistent_column,
+        sei       = std_err,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "nonexistent_column|Cannot find"
+    )
+  ))
 })
 
 
@@ -258,7 +291,7 @@ test_that("Input handles variables from calling environment", {
 })
 
 
-test_that("Input works when called from within a function with direct column references", {
+test_that("Input resolves direct column references inside functions", {
 
   skip_on_cran()
 
@@ -302,7 +335,7 @@ test_data_mods <- data.frame(
 )
 
 
-test_that("Mods works with formula using column names from data", {
+test_that("Moderator formulas preserve data columns, types, and formula metadata", {
 
   skip_on_cran()
 
@@ -318,26 +351,20 @@ test_that("Mods works with formula using column names from data", {
   expect_true(!is.null(result$mods))
   expect_true(is.data.frame(result$mods))
   expect_equal(nrow(result$mods), 5)
-  expect_true("mod_cont" %in% names(result$mods))
-  expect_true("mod_factor" %in% names(result$mods))
-
-  # Check that types are preserved
+  expect_true(all(c("mod_cont", "mod_factor") %in% names(result$mods)))
+  expect_equal(result$mods$mod_cont, test_data_mods$mod_cont)
   expect_type(result$mods$mod_cont, "double")
   expect_s3_class(result$mods$mod_factor, "factor")
-
-  # Check formula attribute
+  expect_equal(levels(result$mods$mod_factor), levels(test_data_mods$mod_factor))
   expect_s3_class(attr(result$mods, "formula"), "formula")
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ mod_cont + mod_factor")
+  expect_equal(formula_text(result$mods), "~ mod_cont + mod_factor")
 })
 
 
-test_that("Mods works with formula using vectors from environment", {
+test_that("Mods accepts formula using vectors from environment", {
 
   skip_on_cran()
 
-  # Create vectors in the current environment
   env_mod1 <- c(10, 20, 30, 40, 50)
   env_mod2 <- factor(c("X", "Y", "X", "Y", "X"))
 
@@ -354,51 +381,18 @@ test_that("Mods works with formula using vectors from environment", {
   expect_true("env_mod1" %in% names(result$mods))
   expect_true("env_mod2" %in% names(result$mods))
   expect_equal(result$mods$env_mod1, env_mod1)
+  expect_equal(formula_text(result$mods), "~ env_mod1 + env_mod2")
 
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ env_mod1 + env_mod2")
-
-  # Verify formula can be used with the returned data.frame
   mf_check <- stats::model.frame(attr(result$mods, "formula"), data = result$mods)
   expect_equal(nrow(mf_check), 5)
 })
 
 
-test_that("Mods preserves factor levels and numeric types", {
+test_that("Mods and scale apply logical and numeric subsets", {
 
   skip_on_cran()
 
-  result <- brma.norm(
-    yi   = effect,
-    sei  = std_err,
-    mods = ~ mod_cont + mod_factor,
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
-
-  # Check numeric is preserved
-  expect_type(result$mods$mod_cont, "double")
-  expect_equal(result$mods$mod_cont, test_data_mods$mod_cont)
-
-  # Check factor is preserved with levels
-  expect_s3_class(result$mods$mod_factor, "factor")
-  expect_equal(levels(result$mods$mod_factor), levels(test_data_mods$mod_factor))
-
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ mod_cont + mod_factor")
-})
-
-
-test_that("Mods applies subset correctly", {
-
-  skip_on_cran()
-
-  # Test with logical subset that keeps both factor levels
-  result <- brma.norm(
+  result_logical <- brma.norm(
     yi     = effect,
     sei    = std_err,
     mods   = ~ mod_cont + mod_factor,
@@ -407,25 +401,7 @@ test_that("Mods applies subset correctly", {
     only_data = TRUE
   )[["data"]]
 
-  expect_equal(nrow(result$mods), 3)
-  expect_equal(result$mods$mod_cont, test_data_mods$mod_cont[c(1, 2, 4)])
-
-  # Verify that both factor levels are kept
-
-  expect_equal(levels(result$mods$mod_factor), c("A", "B"))
-
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ mod_cont + mod_factor")
-})
-
-
-test_that("Mods applies numeric subset correctly", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
+  result_numeric <- brma.norm(
     yi     = effect,
     sei    = std_err,
     mods   = ~ mod_cont,
@@ -434,46 +410,42 @@ test_that("Mods applies numeric subset correctly", {
     only_data = TRUE
   )[["data"]]
 
-  expect_equal(nrow(result$mods), 2)
-  expect_equal(result$mods$mod_cont, test_data_mods$mod_cont[c(2, 4)])
-
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ mod_cont")
-})
-
-
-test_that("Scale works with formula using column names from data", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    yi    = effect,
-    sei   = std_err,
-    scale = ~ scale_var,
-    data  = test_data_mods,
+  result_scale <- brma.norm(
+    yi        = effect,
+    sei       = std_err,
+    scale     = ~ scale_var,
+    subset    = c(1, 3, 5),
+    data      = test_data_mods,
     only_data = TRUE
   )[["data"]]
 
-  expect_true(!is.null(result$scale))
-  expect_true(is.data.frame(result$scale))
-  expect_equal(nrow(result$scale), 5)
-  expect_true("scale_var" %in% names(result$scale))
-  expect_equal(result$scale$scale_var, test_data_mods$scale_var)
+  expect_equal(nrow(result_logical$mods), 3)
+  expect_equal(result_logical$mods$mod_cont, test_data_mods$mod_cont[c(1, 2, 4)])
+  expect_equal(levels(result_logical$mods$mod_factor), c("A", "B"))
+  expect_equal(formula_text(result_logical$mods), "~ mod_cont + mod_factor")
 
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$scale, "formula")), collapse = " "),
-    "~ scale_var")
+  expect_equal(nrow(result_numeric$mods), 2)
+  expect_equal(result_numeric$mods$mod_cont, test_data_mods$mod_cont[c(2, 4)])
+  expect_equal(formula_text(result_numeric$mods), "~ mod_cont")
+
+  expect_equal(nrow(result_scale$scale), 3)
+  expect_equal(result_scale$scale$scale_var, test_data_mods$scale_var[c(1, 3, 5)])
 })
 
 
-test_that("Both mods and scale can be specified together", {
+test_that("Scale formulas are accepted alone and with moderators", {
 
   skip_on_cran()
 
-  result <- brma.norm(
+  scale_result <- brma.norm(
+    yi        = effect,
+    sei       = std_err,
+    scale     = ~ scale_var,
+    data      = test_data_mods,
+    only_data = TRUE
+  )[["data"]]
+
+  joint_result <- brma.norm(
     yi    = effect,
     sei   = std_err,
     mods  = ~ mod_cont + mod_factor,
@@ -482,22 +454,22 @@ test_that("Both mods and scale can be specified together", {
     only_data = TRUE
   )[["data"]]
 
-  expect_true(!is.null(result$mods))
-  expect_true(!is.null(result$scale))
-  expect_equal(nrow(result$mods), 5)
-  expect_equal(nrow(result$scale), 5)
+  expect_true(is.data.frame(scale_result$scale))
+  expect_equal(nrow(scale_result$scale), 5)
+  expect_true("scale_var" %in% names(scale_result$scale))
+  expect_equal(scale_result$scale$scale_var, test_data_mods$scale_var)
+  expect_equal(formula_text(scale_result$scale), "~ scale_var")
 
-  # Check formula attributes
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ mod_cont + mod_factor")
-  expect_equal(
-    paste0(as.character(attr(result$scale, "formula")), collapse = " "),
-    "~ scale_var")
+  expect_true(!is.null(joint_result$mods))
+  expect_true(!is.null(joint_result$scale))
+  expect_equal(nrow(joint_result$mods), 5)
+  expect_equal(nrow(joint_result$scale), 5)
+  expect_equal(formula_text(joint_result$mods), "~ mod_cont + mod_factor")
+  expect_equal(formula_text(joint_result$scale), "~ scale_var")
 })
 
 
-test_that("Mods throws error for length mismatch", {
+test_that("Mods rejects length mismatch", {
 
   skip_on_cran()
 
@@ -516,7 +488,7 @@ test_that("Mods throws error for length mismatch", {
 })
 
 
-test_that("Mods works with matrix input", {
+test_that("Mods accepts matrix input", {
 
   skip_on_cran()
 
@@ -543,7 +515,7 @@ test_that("Mods works with matrix input", {
 })
 
 
-test_that("Mods works with data.frame input", {
+test_that("Mods accepts data.frame input", {
 
   skip_on_cran()
 
@@ -630,25 +602,7 @@ test_that("Mods handles formula with LHS (with warning)", {
 })
 
 
-test_that("Scale applies subset correctly", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    yi     = effect,
-    sei    = std_err,
-    scale  = ~ scale_var,
-    subset = c(1, 3, 5),
-    data   = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_equal(nrow(result$scale), 3)
-  expect_equal(result$scale$scale_var, test_data_mods$scale_var[c(1, 3, 5)])
-})
-
-
-test_that("Mods works with inline transformations in formula", {
+test_that("Mods accepts inline transformations in formula", {
 
   skip_on_cran()
 
@@ -674,7 +628,7 @@ test_that("Mods works with inline transformations in formula", {
 })
 
 
-test_that("Mods works with interaction terms in formula", {
+test_that("Mods accepts interaction terms in formula", {
 
   skip_on_cran()
 
@@ -736,7 +690,7 @@ test_that("yi formula auto-converts character moderators to factor", {
 })
 
 
-test_that("Mods works with data$column syntax", {
+test_that("Mods accepts data$column syntax", {
 
   skip_on_cran()
 
@@ -778,92 +732,77 @@ test_that("NULL mods and scale return NULL", {
 # Tests for predictor validation (constant variables and single-level factors)
 # ============================================================================
 
-test_that("Constant mods variable throws error", {
+test_that("Degenerate moderator and scale designs are rejected", {
 
   skip_on_cran()
 
   test_data_const <- data.frame(
     effect    = c(0.10, 0.25, 0.15),
     std_err   = c(0.2, 0.25, 0.22),
-    const_var = c(5, 5, 5)  # No variation
+    const_var = c(5, 5, 5)
   )
-
-  expect_error(
-    brma.norm(
-      yi   = effect,
-      sei  = std_err,
-      mods = ~ const_var,
-      data = test_data_const,
-      only_data = TRUE
-    ),
-    regexp = "zero variance"
-  )
-})
-
-
-test_that("Single-level factor in mods throws error", {
-
-  skip_on_cran()
 
   test_data_single <- data.frame(
     effect     = c(0.10, 0.25, 0.15),
     std_err    = c(0.2, 0.25, 0.22),
-    single_fac = factor(c("A", "A", "A"))  # Only one level
+    single_fac = factor(c("A", "A", "A"))
   )
 
-  expect_error(
-    brma.norm(
-      yi   = effect,
-      sei  = std_err,
-      mods = ~ single_fac,
-      data = test_data_single,
-      only_data = TRUE
-    ),
-    regexp = "only one level"
-  )
-})
-
-
-test_that("Subset that reduces factor to single level throws error", {
-
-  skip_on_cran()
-
-  expect_error(
-    brma.norm(
-      yi     = effect,
-      sei    = std_err,
-      mods   = ~ mod_factor,
-      subset = c(TRUE, FALSE, TRUE, FALSE, TRUE),  # Only level "A" remains
-      data   = test_data_mods,
-      only_data = TRUE
-    ),
-    regexp = "only one level"
-  )
-})
-
-
-test_that("Constant scale variable throws error", {
-
-  skip_on_cran()
-
-  test_data_const <- data.frame(
+  test_data_const_scale <- data.frame(
     effect     = c(0.10, 0.25, 0.15),
     std_err    = c(0.2, 0.25, 0.22),
     mod_cont   = c(1.5, 2.3, 1.8),
-    const_scale = c(1, 1, 1)  # No variation
+    const_scale = c(1, 1, 1)
   )
 
-  expect_error(
-    brma.norm(
-      yi    = effect,
-      sei   = std_err,
-      mods  = ~ mod_cont,
-      scale = ~ const_scale,
-      data  = test_data_const,
-      only_data = TRUE
+  expect_error_cases(list(
+    list(
+      label  = "constant numeric moderator",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ const_var,
+        data      = test_data_const,
+        only_data = TRUE
+      )),
+      regexp = "zero variance"
     ),
-    regexp = "zero variance"
-  )
+    list(
+      label  = "single-level factor moderator",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ single_fac,
+        data      = test_data_single,
+        only_data = TRUE
+      )),
+      regexp = "only one level"
+    ),
+    list(
+      label  = "subset drops all but one factor level",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ mod_factor,
+        subset    = c(TRUE, FALSE, TRUE, FALSE, TRUE),
+        data      = test_data_mods,
+        only_data = TRUE
+      )),
+      regexp = "only one level"
+    ),
+    list(
+      label  = "constant scale predictor",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ mod_cont,
+        scale     = ~ const_scale,
+        data      = test_data_const_scale,
+        only_data = TRUE
+      )),
+      regexp = "zero variance"
+    )
+  ))
 })
 
 
@@ -895,137 +834,94 @@ test_that("Valid mods with variation passes validation", {
 # Tests for yi ~ mods formula syntax
 # ============================================================================
 
-test_that("yi ~ mods formula syntax works with single moderator", {
+test_that("yi ~ mods formula syntax preserves variables and formula metadata", {
 
   skip_on_cran()
 
-  result <- brma.norm(
-    yi   = effect ~ mod_cont,
-    sei  = std_err,
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
+  formula_cases <- list(
+    list(
+      expr      = quote(brma.norm(
+        yi        = effect ~ mod_cont,
+        sei       = std_err,
+        data      = test_data_mods,
+        only_data = TRUE
+      )[["data"]]),
+      rows      = seq_len(5),
+      variables = "mod_cont",
+      formula   = "~ mod_cont"
+    ),
+    list(
+      expr      = quote(brma.norm(
+        effect ~ mod_cont + mod_factor,
+        sei       = std_err,
+        data      = test_data_mods,
+        only_data = TRUE
+      )[["data"]]),
+      rows      = seq_len(5),
+      variables = c("mod_cont", "mod_factor"),
+      formula   = "~ mod_cont + mod_factor"
+    ),
+    list(
+      expr      = quote(brma.norm(
+        yi        = effect ~ 0 + mod_factor,
+        sei       = std_err,
+        data      = test_data_mods,
+        only_data = TRUE
+      )[["data"]]),
+      rows      = seq_len(5),
+      variables = "mod_factor",
+      absent    = c("mod_factorA", "mod_factorB"),
+      formula   = "~ 0 + mod_factor"
+    ),
+    list(
+      expr      = quote(brma.norm(
+        yi        = effect ~ mod_cont * mod_factor,
+        sei       = std_err,
+        data      = test_data_mods,
+        only_data = TRUE
+      )[["data"]]),
+      rows      = seq_len(5),
+      variables = c("mod_cont", "mod_factor"),
+      formula   = "~ mod_cont * mod_factor"
+    ),
+    list(
+      expr      = quote(brma.norm(
+        yi        = effect ~ mod_cont,
+        sei       = std_err,
+        subset    = c(1, 3, 5),
+        data      = test_data_mods,
+        only_data = TRUE
+      )[["data"]]),
+      rows      = c(1, 3, 5),
+      variables = "mod_cont",
+      formula   = "~ mod_cont"
+    )
+  )
 
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
+  for (case in formula_cases) {
+    result <- eval(case$expr)
 
-  # Should have mod_cont column with original values (not model matrix)
-  expect_true("mod_cont" %in% names(result$mods))
-  expect_equal(result$mods$mod_cont, test_data_mods$mod_cont)
+    expect_true(!is.null(result$mods))
+    expect_equal(nrow(result$mods), length(case$rows))
+    expect_equal(nrow(result$outcome), length(case$rows))
+    expect_equal(result$outcome$yi, test_data_mods$effect[case$rows])
+    expect_true(all(case$variables %in% names(result$mods)))
+    expect_equal(formula_text(result$mods), case$formula)
 
-  # Check that yi was correctly extracted
-  expect_equal(result$outcome$yi, test_data_mods$effect)
-
-  # Check formula attribute preserves original formula structure
-  expect_equal(paste0(as.character(attr(result$mods, "formula")), collapse = " "), "~ mod_cont")
+    if ("mod_cont" %in% case$variables) {
+      expect_equal(result$mods$mod_cont, test_data_mods$mod_cont[case$rows])
+    }
+    if ("mod_factor" %in% case$variables) {
+      expect_s3_class(result$mods$mod_factor, "factor")
+    }
+    if (!is.null(case$absent)) {
+      expect_false(any(case$absent %in% names(result$mods)))
+    }
+  }
 })
 
 
-test_that("yi ~ mods formula syntax works with multiple moderators", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    effect ~ mod_cont + mod_factor,
-    sei  = std_err,
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
-
-  # Should have original variables (not expanded model matrix)
-  expect_true("mod_cont" %in% names(result$mods))
-  expect_true("mod_factor" %in% names(result$mods))
-
-  # Factor should be preserved as factor
-  expect_s3_class(result$mods$mod_factor, "factor")
-
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ mod_cont + mod_factor")
-})
-
-
-test_that("yi ~ 0 + mods formula syntax removes intercept but keeps original variables", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    yi   = effect ~ 0 + mod_factor,
-    sei  = std_err,
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
-
-  # Should have the original variable (not expanded dummy columns)
-  expect_true("mod_factor" %in% names(result$mods))
-  expect_false("mod_factorA" %in% names(result$mods))
-  expect_false("mod_factorB" %in% names(result$mods))
-
-  # The variable should be a factor
-  expect_s3_class(result$mods$mod_factor, "factor")
-
-  # Check that the formula attribute preserves ~ 0 + structure
-  expect_equal(paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-               "~ 0 + mod_factor")
-})
-
-
-test_that("yi ~ mods formula syntax works with interactions", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    yi   = effect ~ mod_cont * mod_factor,
-    sei  = std_err,
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
-
-  # Should have both main effects
-  expect_true("mod_cont" %in% names(result$mods))
-  expect_true("mod_factor" %in% names(result$mods))
-
-  # Check formula attribute preserves interaction
-  expect_equal(paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-               "~ mod_cont * mod_factor")
-})
-
-
-test_that("yi ~ mods formula syntax applies subset correctly", {
-
-  skip_on_cran()
-
-  result <- brma.norm(
-    yi     = effect ~ mod_cont,
-    sei    = std_err,
-    subset = c(1, 3, 5),
-    data   = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
-
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 3)
-  expect_equal(nrow(result$outcome), 3)
-
-  # Check subset was applied to yi correctly
-  expect_equal(result$outcome$yi, test_data_mods$effect[c(1, 3, 5)])
-
-  # Check formula attribute
-  expect_equal(paste0(as.character(attr(result$mods, "formula")), collapse = " "), "~ mod_cont")
-})
-
-
-test_that("yi ~ mods formula syntax errors when mods also specified", {
+test_that("yi ~ mods formula syntax rejects duplicate mods argument", {
 
   skip_on_cran()
 
@@ -1079,7 +975,7 @@ test_that("yi ~ mods formula returns equivalent results to mods = ~", {
 })
 
 
-test_that("Input works with metafor::escalc output", {
+test_that("Input accepts metafor::escalc output", {
 
   skip_on_cran()
   skip_if_not_installed("metadat")
@@ -1130,62 +1026,51 @@ test_data_na <- data.frame(
 )
 
 
-test_that("NA in yi drops rows with warning", {
+test_that("Outcome NAs drop rows with warning", {
 
   skip_on_cran()
 
-  # Data with NA in yi (row 2)
-  expect_warning(
-    result <- brma.norm(
-      yi   = c(0.10, NA, 0.15, 0.30, 0.05),
-      sei  = c(0.20, 0.24, 0.22, 0.28, 0.17),
-      only_data = TRUE
-    )[["data"]],
-    regexp = "1 observation.*removed due to missing"
+  na_cases <- list(
+    list(
+      yi          = c(0.10, NA, 0.15, 0.30, 0.05),
+      sei         = c(0.20, 0.24, 0.22, 0.28, 0.17),
+      regexp      = "1 observation.*removed due to missing",
+      expected_yi = c(0.10, 0.15, 0.30, 0.05),
+      expected_se = c(0.20, 0.22, 0.28, 0.17)
+    ),
+    list(
+      yi          = c(0.10, 0.25, 0.15, 0.30, 0.05),
+      sei         = c(0.20, 0.24, NA, 0.28, 0.17),
+      regexp      = "1 observation.*removed due to missing",
+      expected_yi = c(0.10, 0.25, 0.30, 0.05),
+      expected_se = c(0.20, 0.24, 0.28, 0.17)
+    ),
+    list(
+      yi          = c(0.10, NA, 0.15, 0.30, 0.05),
+      sei         = c(0.20, 0.24, 0.22, NA, 0.17),
+      regexp      = "2 observation.*removed due to missing",
+      expected_yi = c(0.10, 0.15, 0.05),
+      expected_se = c(0.20, 0.22, 0.17)
+    )
   )
 
-  expect_equal(nrow(result$outcome), 4)
-  expect_equal(result$outcome$yi, c(0.10, 0.15, 0.30, 0.05))
-  expect_equal(result$outcome$sei, c(0.20, 0.22, 0.28, 0.17))
-})
+  for (case in na_cases) {
+    expect_warning(
+      result <- brma.norm(
+        yi        = case$yi,
+        sei       = case$sei,
+        only_data = TRUE
+      )[["data"]],
+      regexp = case$regexp
+    )
 
-
-test_that("NA in sei drops rows with warning", {
-
-  skip_on_cran()
-
-  # Data with NA in sei (row 3)
-  expect_warning(
-    result <- brma.norm(
-      yi   = c(0.10, 0.25, 0.15, 0.30, 0.05),
-      sei  = c(0.20, 0.24, NA, 0.28, 0.17),
-      only_data = TRUE
-    )[["data"]],
-    regexp = "1 observation.*removed due to missing"
-  )
-
-  expect_equal(nrow(result$outcome), 4)
-  expect_equal(result$outcome$yi, c(0.10, 0.25, 0.30, 0.05))
-  expect_equal(result$outcome$sei, c(0.20, 0.24, 0.28, 0.17))
-})
-
-
-test_that("Multiple NAs in outcome drop multiple rows", {
-
-  skip_on_cran()
-
-  # Data with NA in yi (row 2) and sei (row 4)
-  expect_warning(
-    result <- brma.norm(
-      yi   = c(0.10, NA, 0.15, 0.30, 0.05),
-      sei  = c(0.20, 0.24, 0.22, NA, 0.17),
-      only_data = TRUE
-    )[["data"]],
-    regexp = "2 observation.*removed due to missing"
-  )
-
-  expect_equal(nrow(result$outcome), 3)
-  expect_equal(result$outcome$yi, c(0.10, 0.15, 0.05))
+    expect_norm_outcome(
+      result,
+      n   = length(case$expected_yi),
+      yi  = case$expected_yi,
+      sei = case$expected_se
+    )
+  }
 })
 
 
@@ -1312,7 +1197,7 @@ test_that("NAs across outcome, mods, and scale are all handled", {
 })
 
 
-test_that("NA in weights or cluster throws error instead of dropping rows", {
+test_that("NA in weights or cluster is rejected instead of dropped", {
 
   skip_on_cran()
 
@@ -1340,32 +1225,21 @@ test_that("NA in weights or cluster throws error instead of dropping rows", {
 })
 
 
-test_that("Default slab is generated after NA dropping", {
+test_that("Slab and cluster metadata are refreshed after NA dropping", {
 
   skip_on_cran()
 
-  # Data with NA in yi (row 2) - default slab should be sequential after dropping
   expect_warning(
-    result <- brma.norm(
-      yi   = c(0.10, NA, 0.15, 0.30, 0.05),
-      sei  = c(0.20, 0.24, 0.22, 0.28, 0.17),
+    default_slab <- brma.norm(
+      yi        = c(0.10, NA, 0.15, 0.30, 0.05),
+      sei       = c(0.20, 0.24, 0.22, 0.28, 0.17),
       only_data = TRUE
     )[["data"]],
     regexp = "1 observation.*removed due to missing"
   )
 
-  # Default slab should be "Study 1", "Study 2", etc. for remaining 4 rows
-  expect_equal(result$outcome$slab, c("Study 1", "Study 2", "Study 3", "Study 4"))
-})
-
-
-test_that("cluster is processed after NA dropping", {
-
-  skip_on_cran()
-
-  # Data with NA in yi (row 2) - cluster should be renumbered after dropping
   expect_warning(
-    result <- brma.norm(
+    cluster_result <- brma.norm(
       yi        = c(NA, NA, 0.15, 0.30, 0.05),
       sei       = c(0.20, 0.24, 0.22, 0.28, 0.17),
       cluster   = c("g1", "g1", "g2", "g2", "g3"),
@@ -1374,33 +1248,23 @@ test_that("cluster is processed after NA dropping", {
     regexp = "2 observation.*removed due to missing"
   )
 
-  # After dropping row 2, cluster should be g2, g2, g3
-  # These should be converted to numeric: 1, 1, 2
-  expect_equal(result$outcome$cluster, c(1, 1, 2))
-})
-
-
-test_that("User-provided slab is preserved after NA dropping", {
-
-  skip_on_cran()
-
-  # Data with NA in yi (row 2) - user slab should be subsetted correctly
   expect_warning(
-    result <- brma.norm(
-      yi   = c(0.10, NA, 0.15, 0.30, 0.05),
-      sei  = c(0.20, 0.24, 0.22, 0.28, 0.17),
-      slab = c("A", "B", "C", "D", "E"),
+    user_slab <- brma.norm(
+      yi        = c(0.10, NA, 0.15, 0.30, 0.05),
+      sei       = c(0.20, 0.24, 0.22, 0.28, 0.17),
+      slab      = c("A", "B", "C", "D", "E"),
       only_data = TRUE
     )[["data"]],
     regexp = "1 observation.*removed due to missing"
   )
 
-  # User-provided slab should have "B" dropped
-  expect_equal(result$outcome$slab, c("A", "C", "D", "E"))
+  expect_equal(default_slab$outcome$slab, c("Study 1", "Study 2", "Study 3", "Study 4"))
+  expect_equal(cluster_result$outcome$cluster, c(1, 1, 2))
+  expect_equal(user_slab$outcome$slab, c("A", "C", "D", "E"))
 })
 
 
-test_that("All NAs in yi results in error", {
+test_that("All-NA yi is rejected", {
 
   skip_on_cran()
 
@@ -1416,7 +1280,7 @@ test_that("All NAs in yi results in error", {
 })
 
 
-test_that("All observations removed due to NA results in error", {
+test_that("NA handling rejects empty post-drop data", {
 
   skip_on_cran()
 
@@ -1436,7 +1300,7 @@ test_that("All observations removed due to NA results in error", {
 })
 
 
-test_that("NA handling works with yi ~ mods formula syntax", {
+test_that("NA handling supports yi ~ mods formula syntax", {
 
   skip_on_cran()
 
@@ -1464,7 +1328,7 @@ test_that("NA handling works with yi ~ mods formula syntax", {
 })
 
 
-test_that("NA handling works with subset argument", {
+test_that("NA handling supports subset argument", {
 
   skip_on_cran()
 
@@ -1515,7 +1379,7 @@ test_that("Formula attributes are preserved after NA dropping", {
 })
 
 
-test_that("NA in subset argument results in error", {
+test_that("NA in subset argument is rejected", {
 
   skip_on_cran()
 

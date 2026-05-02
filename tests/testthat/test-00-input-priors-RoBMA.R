@@ -1,6 +1,7 @@
 context("Prior input handling for RoBMA (mixture priors)")
 
 skip_on_cran()
+source(testthat::test_path("helper-contracts.R"))
 
 # Helper function to get is_null logical vector from mixture prior
 # BayesTools stores this as "components" attribute with values "null" and "alternative"
@@ -8,6 +9,28 @@ skip_on_cran()
   components <- attr(prior, "components")
   if (is.null(components)) return(NULL)
   return(components == "null")
+}
+
+expect_mixture_component_counts <- function(prior, n_null, n_alt) {
+
+  expect_true(BayesTools::is.prior.mixture(prior))
+
+  is_null <- .get_is_null(prior)
+  expect_equal(sum(is_null), n_null)
+  expect_equal(sum(!is_null), n_alt)
+}
+
+expect_bias_mixture_shape <- function(prior, n_null, n_wf, n_pet, n_peese) {
+
+  expect_mixture_component_counts(prior, n_null = n_null, n_alt = n_wf + n_pet + n_peese)
+
+  has_wf    <- sapply(prior, BayesTools::is.prior.weightfunction)
+  has_pet   <- sapply(prior, BayesTools::is.prior.PET)
+  has_peese <- sapply(prior, BayesTools::is.prior.PEESE)
+
+  expect_equal(sum(has_wf), n_wf)
+  expect_equal(sum(has_pet), n_pet)
+  expect_equal(sum(has_peese), n_peese)
 }
 
 # Test data for prior specification tests
@@ -27,61 +50,35 @@ test_data <- data.frame(
 # Tests for mixture prior creation for effect and heterogeneity
 # ============================================================================
 
-test_that("Default priors create mixture with spike(0) null and normal alternative for effect", {
+test_that("Default priors create effect and heterogeneity mixtures", {
 
   result <- RoBMA(
     yi = effect, sei = std_err, data = test_data,
     measure = "SMD", only_priors = TRUE
   )[["priors"]]
 
-  # Check that mu is a mixture prior
-
-  expect_true(BayesTools::is.prior.mixture(result$outcome$mu))
-
-  # Check mixture components
-  expect_equal(length(result$outcome$mu), 2)  # null + alternative
+  expect_mixture_component_counts(result$outcome$mu, n_null = 1, n_alt = 1)
   expect_true(.get_is_null(result$outcome$mu)[1])
   expect_false(.get_is_null(result$outcome$mu)[2])
-
-  # Check null is spike(0)
   expect_true(BayesTools::is.prior.point(result$outcome$mu[[1]]))
   expect_equal(mean(result$outcome$mu[[1]]), 0)
 
-  # Check alternative scales with UISD
   expected_effect_sd <- sqrt(2) * RoBMA.get_option("default_UISD.effect")
   expect_equal(result$outcome$mu[[2]]$parameters$sd, expected_effect_sd)
-})
 
-
-test_that("Default priors create mixture with spike(0) null and truncated normal alternative for heterogeneity", {
-
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", only_priors = TRUE
-  )[["priors"]]
-
-  # Check that tau is a mixture prior
-  expect_true(BayesTools::is.prior.mixture(result$outcome$tau))
-
-  # Check mixture components
-  expect_equal(length(result$outcome$tau), 2)  # null + alternative
+  expect_mixture_component_counts(result$outcome$tau, n_null = 1, n_alt = 1)
   expect_true(.get_is_null(result$outcome$tau)[1])
   expect_false(.get_is_null(result$outcome$tau)[2])
-
-  # Check null is spike(0)
   expect_true(BayesTools::is.prior.point(result$outcome$tau[[1]]))
   expect_equal(mean(result$outcome$tau[[1]]), 0)
-
-  # Check alternative is truncated at 0
   expect_equal(result$outcome$tau[[2]]$truncation$lower, 0)
 
-  # Check alternative scales with UISD
   expected_het_sd <- sqrt(2) * RoBMA.get_option("default_UISD.heterogeneity")
   expect_equal(result$outcome$tau[[2]]$parameters$sd, expected_het_sd)
 })
 
 
-test_that("Mixture priors scale correctly with different measures", {
+test_that("Mixture priors scale with different measures", {
 
   measures_uisd <- list(SMD = sqrt(2), ZCOR = 1, OR = 2, RR = 2, HR = 2)
 
@@ -182,43 +179,16 @@ test_that("List of priors creates mixture with multiple components", {
 })
 
 
-test_that("NULL/FALSE omits null hypothesis component", {
-
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    prior_effect_null = NULL, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
-
-  expect_true(BayesTools::is.prior.mixture(result$outcome$mu))
-  expect_equal(length(result$outcome$mu), 1)  # only alternative
-
-  # All components should be alternative (not null)
-  is_null <- .get_is_null(result$outcome$mu)
-  expect_equal(sum(is_null), 0)
-})
-
-
-test_that("NULL/FALSE omits alternative hypothesis component", {
-
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    prior_effect = NULL, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
-
-  expect_true(BayesTools::is.prior.mixture(result$outcome$mu))
-  expect_equal(length(result$outcome$mu), 1)  # only null
-
-  # All components should be null
-  is_null <- .get_is_null(result$outcome$mu)
-  expect_equal(sum(is_null), 1)
-})
-
-
-test_that("FALSE works same as NULL for omitting components", {
+test_that("NULL/FALSE omit effect mixture components", {
 
   result_null <- RoBMA(
     yi = effect, sei = std_err, data = test_data,
     prior_effect_null = NULL, measure = "SMD", only_priors = TRUE
+  )[["priors"]]
+
+  result_alt <- RoBMA(
+    yi = effect, sei = std_err, data = test_data,
+    prior_effect = NULL, measure = "SMD", only_priors = TRUE
   )[["priors"]]
 
   result_false <- RoBMA(
@@ -226,6 +196,8 @@ test_that("FALSE works same as NULL for omitting components", {
     prior_effect_null = FALSE, measure = "SMD", only_priors = TRUE
   )[["priors"]]
 
+  expect_mixture_component_counts(result_null$outcome$mu, n_null = 0, n_alt = 1)
+  expect_mixture_component_counts(result_alt$outcome$mu, n_null = 1, n_alt = 0)
   expect_equal(length(result_null$outcome$mu), length(result_false$outcome$mu))
   expect_equal(.get_is_null(result_null$outcome$mu), .get_is_null(result_false$outcome$mu))
 })
@@ -235,91 +207,33 @@ test_that("FALSE works same as NULL for omitting components", {
 # Tests for publication bias model types
 # ============================================================================
 
-test_that("model_type '2w' creates correct bias mixture", {
+test_that("model_type presets create expected bias mixtures", {
 
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", model_type = "2w", only_priors = TRUE
-  )[["priors"]]
+  preset_cases <- list(
+    list(model_type = "2w",   n_null = 1, n_wf = 2, n_pet = 0, n_peese = 0),
+    list(model_type = "6w",   n_null = 1, n_wf = 6, n_pet = 0, n_peese = 0),
+    list(model_type = "PP",   n_null = 1, n_wf = 0, n_pet = 1, n_peese = 1),
+    list(model_type = "PSMA", n_null = 1, n_wf = 6, n_pet = 1, n_peese = 1)
+  )
 
-  expect_true(BayesTools::is.prior.mixture(result$outcome$bias))
+  for (case in preset_cases) {
+    result <- RoBMA(
+      yi          = effect,
+      sei         = std_err,
+      data        = test_data,
+      measure     = "SMD",
+      model_type  = case$model_type,
+      only_priors = TRUE
+    )[["priors"]]
 
-  # Check for prior_none as null
-  is_null <- .get_is_null(result$outcome$bias)
-  expect_true(any(is_null))
-
-  # Check that weight functions are present (not PET/PEESE)
-  has_wf <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.weightfunction(p))
-  expect_true(any(has_wf))
-
-  # No PET/PEESE in 2w
-  has_pet <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PET(p))
-  has_peese <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PEESE(p))
-  expect_false(any(has_pet))
-  expect_false(any(has_peese))
-})
-
-
-test_that("model_type '6w' creates correct bias mixture", {
-
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", model_type = "6w", only_priors = TRUE
-  )[["priors"]]
-
-  expect_true(BayesTools::is.prior.mixture(result$outcome$bias))
-
-  # Count weight functions (should be 6)
-  has_wf <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.weightfunction(p))
-  expect_equal(sum(has_wf), 6)
-
-  # No PET/PEESE
-  has_pet <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PET(p))
-  has_peese <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PEESE(p))
-  expect_false(any(has_pet))
-  expect_false(any(has_peese))
-})
-
-
-test_that("model_type 'PP' creates correct bias mixture", {
-
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", model_type = "PP", only_priors = TRUE
-  )[["priors"]]
-
-  expect_true(BayesTools::is.prior.mixture(result$outcome$bias))
-
-  # Should have PET and PEESE
-  has_pet <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PET(p))
-  has_peese <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PEESE(p))
-  expect_true(any(has_pet))
-  expect_true(any(has_peese))
-
-  # No weight functions
-  has_wf <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.weightfunction(p))
-  expect_false(any(has_wf))
-})
-
-
-test_that("model_type 'PSMA' creates correct bias mixture", {
-
-  result <- RoBMA(
-    yi = effect, sei = std_err, data = test_data,
-    measure = "SMD", model_type = "PSMA", only_priors = TRUE
-  )[["priors"]]
-
-  expect_true(BayesTools::is.prior.mixture(result$outcome$bias))
-
-  # Should have all: weight functions, PET, and PEESE
-  has_wf <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.weightfunction(p))
-  has_pet <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PET(p))
-  has_peese <- sapply(result$outcome$bias, function(p) BayesTools::is.prior.PEESE(p))
-
-  expect_true(any(has_wf))
-  expect_true(any(has_pet))
-  expect_true(any(has_peese))
-  expect_equal(sum(has_wf), 6)  # 6 weight functions in PSMA
+    expect_bias_mixture_shape(
+      result$outcome$bias,
+      n_null  = case$n_null,
+      n_wf    = case$n_wf,
+      n_pet   = case$n_pet,
+      n_peese = case$n_peese
+    )
+  }
 })
 
 
@@ -397,27 +311,30 @@ test_that("Partial bias customization respects model_type alternatives", {
 })
 
 
-test_that("Empty top-level mixtures throw clear errors", {
+test_that("Empty top-level mixtures are rejected", {
 
-  expect_error(
-    RoBMA(
-      yi = effect, sei = std_err, data = test_data,
-      measure = "SMD",
-      prior_effect = NULL, prior_effect_null = NULL,
-      only_priors = TRUE
+  expect_error_cases(list(
+    list(
+      label  = "empty effect mixture",
+      expr   = quote(RoBMA(
+        yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
+        prior_effect = NULL, prior_effect_null = NULL,
+        only_priors = TRUE
+      )),
+      regexp = "effect"
     ),
-    regexp = "effect"
-  )
-
-  expect_error(
-    RoBMA(
-      yi = effect, sei = std_err, data = test_data,
-      measure = "SMD",
-      prior_bias = NULL, prior_bias_null = NULL,
-      only_priors = TRUE
-    ),
-    regexp = "bias"
-  )
+    list(
+      label  = "empty bias mixture",
+      expr   = quote(RoBMA(
+        yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
+        prior_bias = NULL, prior_bias_null = NULL,
+        only_priors = TRUE
+      )),
+      regexp = "bias"
+    )
+  ))
 })
 
 
@@ -446,7 +363,7 @@ test_that("Heterogeneity allocation creates mixture with cluster", {
 })
 
 
-test_that("Custom prior_heterogeneity_allocation works", {
+test_that("Custom prior_heterogeneity_allocation is accepted", {
 
   custom_prior <- BayesTools::prior("beta", parameters = list(alpha = 2, beta = 2))
 
@@ -494,6 +411,20 @@ test_that("Moderator priors create mixture with intercept from effect prior", {
 
   # Intercept should be a mixture prior
   expect_true(BayesTools::is.prior.mixture(result$mods$intercept))
+})
+
+
+test_that("No-intercept RoBMA moderator formulas use fixed-zero intercept", {
+
+  result <- RoBMA(
+    yi = effect, sei = std_err, mods = ~ 0 + mod_cont,
+    data = test_data, measure = "SMD", only_priors = TRUE
+  )[["priors"]]
+
+  expect_null(result$outcome$mu)
+  expect_true(BayesTools::is.prior.point(result$mods$intercept))
+  expect_equal(mean(result$mods$intercept), 0)
+  expect_true(BayesTools::is.prior.mixture(result$mods$mod_cont))
 })
 
 
@@ -550,7 +481,7 @@ test_that("Custom prior_mods_null replaces null for terms", {
 # Tests for informed priors with mixtures
 # ============================================================================
 
-test_that("Informed priors work with mixture structure", {
+test_that("Informed priors are accepted with mixture structure", {
 
   result <- RoBMA(
     yi = effect, sei = std_err, data = test_data,
@@ -597,7 +528,7 @@ test_that("Informed priors with rescaling apply to alternative", {
 # Tests for error conditions
 # ============================================================================
 
-test_that("Invalid model_type throws error", {
+test_that("Invalid model_type is rejected", {
 
   expect_error(
     RoBMA(yi = effect, sei = std_err, data = test_data, model_type = "invalid", only_priors = TRUE),
@@ -606,7 +537,7 @@ test_that("Invalid model_type throws error", {
 })
 
 
-test_that("Conflicting prior specifications throw errors", {
+test_that("Conflicting prior specifications are rejected", {
 
   # Both UISD and informed priors
   expect_error(
@@ -619,7 +550,7 @@ test_that("Conflicting prior specifications throw errors", {
 })
 
 
-test_that("Invalid prior types throw appropriate errors", {
+test_that("Invalid prior types are rejected", {
 
   # Non-prior object
   expect_error(
@@ -965,7 +896,7 @@ test_that("List of null priors creates mixture with multiple null components", {
 # Tests for interaction between effect/heterogeneity and mods/scale
 # ============================================================================
 
-test_that("Effect prior mixture is correctly forwarded to mods intercept", {
+test_that("Effect prior mixture is forwarded to mods intercept", {
 
   custom_effect <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.8))
   custom_null   <- BayesTools::prior("spike", parameters = list(location = 0.1))
@@ -988,7 +919,7 @@ test_that("Effect prior mixture is correctly forwarded to mods intercept", {
 })
 
 
-test_that("Both mods and scale work together with mixtures", {
+test_that("Both mods and scale use mixture priors together", {
 
   result <- suppressWarnings(RoBMA(
     yi = effect, sei = std_err, mods = ~ mod_cont, scale = ~ scale_var,

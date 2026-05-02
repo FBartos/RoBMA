@@ -72,7 +72,9 @@ brma.glmm(
 
 \item{t2i}{a vector of the person-time in the control group.}
 
-\item{weights}{an optional vector of weights.}
+\item{weights}{an optional vector of positive likelihood weights. For normal
+models, each weight powers the estimate likelihood. For GLMM models, each
+weight powers the paired two-arm likelihood for one study.}
 
 \item{mods}{an optional vector, matrix, data.frame, or formula specifying
 moderators (or meta-regressors).}
@@ -179,4 +181,7 @@ Model for incidence rate ratios (\code{measure = "IRR"}) corresponds to
 \insertCite{bagos2009mixed;textual}{RoBMA}.
 \code{prior_lograte} defines the estimate-specific prior distribution on the log-rate.
 If unspecified, a unit-information prior is based on the data.
+
+When \code{weights} are supplied, they are treated as likelihood weights on the
+paired two-arm study contribution.
 }

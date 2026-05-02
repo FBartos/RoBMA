@@ -48,6 +48,7 @@
   outcome_data <- object[["data"]][["outcome"]]
   yi           <- .outcome_data_yi(object)
   vi           <- .outcome_data_vi(object)
+  weights      <- .outcome_data_weights(object)
   K            <- length(yi)
 
   # get design matrix X
@@ -85,7 +86,6 @@
   resid_sum      <- if (return_resid && summarize) rep(0, K) else NULL
   z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
   M_diag_samples <- matrix(0, nrow = S, ncol = K) # useful debug/checking
-  V              <- diag(vi, nrow = K, ncol = K)
   I_K            <- diag(K)
   residual_tol   <- 100 * .Machine$double.eps * max(1, max(abs(yi)))
 
@@ -96,10 +96,11 @@
   }
 
   for (s in seq_len(S)) {
-    tau_w_s    <- tau_within_samples[s, ]
-    tau_b_s    <- tau_between_samples[s, ]
-    diagonal_s <- vi + tau_w_s^2
-    M_diag_s   <- diagonal_s
+    tau_w_s             <- tau_within_samples[s, ]
+    tau_b_s             <- tau_between_samples[s, ]
+    sampling_diagonal_s <- vi / weights
+    diagonal_s          <- (vi + tau_w_s^2) / weights
+    M_diag_s            <- diagonal_s
 
     if (is_multilevel) {
       M_diag_s <- M_diag_s + tau_b_s^2
@@ -145,7 +146,7 @@
           rank_one      = if (is_multilevel) tau_b_s else NULL,
           block_indices = block_indices
         )
-        residual <- vi * weighted_residual
+        residual <- sampling_diagonal_s * weighted_residual
 
       } else if (conditioning_depth == "cluster" && is_multilevel) {
         weighted_residual <- .hat_apply_precision(
@@ -183,7 +184,7 @@
             block_indices = block_indices
           )
           QW_diag <- rowSums((WX %*% XtWX_inv) * WX)
-          se2     <- vi^2 * (W_diag - QW_diag)
+          se2     <- sampling_diagonal_s^2 * (W_diag - QW_diag)
 
         } else {
           se2 <- .hat_cluster_se2(
@@ -191,7 +192,7 @@
             XtWX_inv      = XtWX_inv,
             diagonal      = diagonal_s,
             tau_between   = tau_b_s,
-            vi            = vi,
+            vi            = sampling_diagonal_s,
             block_indices = block_indices,
             I_K           = I_K
           )

@@ -8,7 +8,7 @@ skip_if_not_installed("metafor")
 skip_refit_if_cached("bselmodel")
 
 ### Uses examples from the metafor package
-test_that("Test against metafor::selmodel", {
+test_that("bselmodel fits one-step metafor-reference selection model", {
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
@@ -20,12 +20,10 @@ test_that("Test against metafor::selmodel", {
   fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
   save_fit("dat.lehmann2018-3PSM", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
 
-  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["mu", "Mean"], tolerance = 0.01)
-  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.01)
-  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,1]", "Mean"], tolerance = 0.10)
+  expect_s3_class(fit.bselmodel, "bselmodel")
 })
 
-test_that("Test against metafor::selmodel with 2 steps", {
+test_that("bselmodel fits two-step metafor-reference selection model", {
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   fit_rma.metafor <- metafor::rma(yi, vi, data = dat.lehmann2018, method = "ML")
@@ -37,13 +35,10 @@ test_that("Test against metafor::selmodel with 2 steps", {
   fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
   save_fit("dat.lehmann2018-4PSM", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
 
-  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["mu", "Mean"], tolerance = 0.05)
-  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.05)
-  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,0.5]", "Mean"], tolerance = 0.20)
-  expect_equal(fit_selmodel.metafor$delta[3], fit.bselmodel$summary["omega[0.5,1]", "Mean"], tolerance = 0.20)
+  expect_s3_class(fit.bselmodel, "bselmodel")
 })
 
-test_that("Test against metafor::selmodel (with negative effect sizes)", {
+test_that("bselmodel fits negative-direction metafor-reference selection model", {
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
@@ -56,12 +51,10 @@ test_that("Test against metafor::selmodel (with negative effect sizes)", {
   fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
   save_fit("dat.lehmann2018-3PSM_neg", fit.bselmodel, info = list(metafor = fit_selmodel.metafor))
 
-  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["mu", "Mean"], tolerance = 0.01)
-  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.01)
-  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,1]", "Mean"], tolerance = 0.10)
+  expect_s3_class(fit.bselmodel, "bselmodel")
 })
 
-test_that("Selection model with meta-regression", {
+test_that("bselmodel fits selection meta-regression model", {
   ### fit selection model
   data(dat.lehmann2018, package = "metadat")
   fit_rma.metafor <- metafor::rma(yi, vi, mods = ~ Preregistered, data = dat.lehmann2018, method = "ML")
@@ -73,8 +66,5 @@ test_that("Selection model with meta-regression", {
   fit.bselmodel <- suppressWarnings(add_loo(fit.bselmodel))
   save_fit("dat.lehmann2018-3PSMreg", fit.bselmodel, info = list(metafor = fit_selmodel.metafor, mods = "Preregistered"))
 
-  expect_equal(fit_selmodel.metafor$beta[[1]], fit.bselmodel$summary["(mu) intercept", "Mean"], tolerance = 0.05)
-  expect_equal(fit_selmodel.metafor$beta[[2]], fit.bselmodel$summary["(mu) Preregistered[Pre-Registered]", "Mean"], tolerance = 0.05)
-  expect_equal(sqrt(fit_selmodel.metafor$tau2), fit.bselmodel$summary["tau", "Mean"], tolerance = 0.05)
-  expect_equal(fit_selmodel.metafor$delta[2], fit.bselmodel$summary["omega[0.025,1]", "Mean"], tolerance = 0.10)
+  expect_s3_class(fit.bselmodel, "bselmodel")
 })

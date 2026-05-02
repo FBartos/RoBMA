@@ -38,10 +38,12 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 \item{...}{additional arguments (currently ignored)}
 }
 \value{
-A \code{brma_samples} object containing posterior samples with one
-column per estimate. When printed, displays a summary table. Use \code{summary()}
-to obtain the summary table directly. The samples can be converted to
-\pkg{posterior} draws formats using \code{as_draws()}.
+A \code{brma_samples} object containing posterior draws of BLUP or
+empirical-Bayes true-effect summaries with one column per estimate. For
+existing normal data, these are conditional BLUP means, not simulated
+latent-effect draws. When printed, displays a summary table. Use
+\code{summary()} to obtain the summary table directly. The samples can be
+converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
 Computes the estimated true effects (theta) for a

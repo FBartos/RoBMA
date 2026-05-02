@@ -64,88 +64,28 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_cdf.wnorm
+# .outcome_cdf.selnorm
 # ---------------------------------------------------------------------------- #
 #
-# Compute pointwise CDF values for weighted normal distribution (selection models).
-#
-# For selection models, the observed effect y_i follows a weighted normal:
-#   y_i ~ f(y) * omega(y) / Z
-# where f(y) is normal density and omega(y) is the selection weight function.
-#
-# This uses the .pwnorm_fast.ss function that handles the weighted CDF.
-#
-# Performance optimization: When use_normal is provided, samples with
-# use_normal[i] = TRUE use the fast normal path (pnorm), skipping the
-# expensive weighted CDF computation. This is correct because these samples
-# have omega = all 1s (set by JAGS for non-weightfunction models).
-#
-# @param yi               numeric vector of length K; observed effect sizes
-# @param mu_samples       S x K matrix of location samples
-# @param tau_within       S x K matrix of estimate-level heterogeneity samples
-# @param sei              numeric vector of length K; standard errors
-# @param omega            S x W matrix of omega (weight) samples
-# @param crit_yi          W - 1 x K matrix of critical values for each observation
-# @param use_normal       optional logical vector of length S; TRUE if sample should
-#                         use fast normal path (for samples with omega = all 1s)
-# @param bias_indicator   optional integer vector of length S; active bias branch
-#                         for branch-specific cutpoint mapping
-# @param crit_yi_mapping  optional cutpoint mapping matrix, cuts x branches
-# @param crit_yi_mapping_max optional active cutoff count per branch
-# @param lower.tail       logical; return P(Y <= yi) if TRUE, P(Y > yi) if FALSE
-#
-# @return S x K matrix of CDF values from weighted distribution
+# Compute pointwise CDF values for the selected-normal kernel.
 #
 # ---------------------------------------------------------------------------- #
-.outcome_cdf.wnorm <- function(yi, mu_samples, tau_within, sei, omega, crit_yi,
-                               use_normal = NULL, bias_indicator = NULL,
-                               crit_yi_mapping = NULL,
-                               crit_yi_mapping_max = NULL,
-                               lower.tail = TRUE) {
+.outcome_cdf.selnorm <- function(yi, mu_samples, tau_within, sei,
+                                 selection_context, lower.tail = TRUE) {
 
-  S <- nrow(mu_samples)
-  K <- ncol(mu_samples)
+  S         <- nrow(mu_samples)
+  K         <- ncol(mu_samples)
+  sei_mat   <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd  <- sqrt(tau_within^2 + sei_mat^2)
 
-  # pre-compute total SD for each observation
-  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
-
-  # use the mapped dwnorm_mix backend when branch-specific cutpoint mapping is available
-  has_mapping <- .selection_has_mapping(
-    bias_indicator      = bias_indicator,
-    crit_yi_mapping     = crit_yi_mapping,
-    crit_yi_mapping_max = crit_yi_mapping_max
-  )
-
-  if (has_mapping) {
-    return(.wnorm_mix_cdf_matrix(
-      q                   = yi,
-      mean                = mu_samples,
-      sd                  = total_sd,
-      omega               = omega,
-      crit_yi             = crit_yi,
-      bias_indicator      = bias_indicator,
-      crit_yi_mapping     = crit_yi_mapping,
-      crit_yi_mapping_max = crit_yi_mapping_max,
-      lower.tail          = lower.tail,
-      log.p               = FALSE
-    ))
-  }
-
-  cdf_vals <- matrix(NA_real_, nrow = S, ncol = K)
-  for (k in seq_len(K)) {
-    cdf_vals[, k] <- .pwnorm_fast.ss(
-      q          = rep(yi[k], S),
-      mean       = mu_samples[, k],
-      sd         = total_sd[, k],
-      omega      = omega,
-      crit_x     = crit_yi[, k],
-      lower.tail = lower.tail,
-      use_normal = use_normal  # <-- Pass through for internal subdispatch
-    )
-  }
-
-  return(cdf_vals)
+  return(.selection_step_cdf_matrix(
+    q                 = yi,
+    mean              = mu_samples,
+    sd                = total_sd,
+    sei               = sei,
+    selection_context = selection_context,
+    lower.tail        = lower.tail
+  ))
 }
 
 
@@ -304,7 +244,7 @@
   ### compute CDF based on outcome type
   if (outcome_type == "norm") {
 
-    # flip for negative effect direction (applies to normal and weighted normal)
+    # flip for negative effect direction
     if (effect_direction == "negative") {
       mu_samples_cdf <- -mu_samples
       yi_cdf         <- -yi
@@ -317,29 +257,18 @@
 
     # dispatch between weighted and standard normal
     if (is_weightfunction) {
+      selection_context <- .selection_context(
+        object            = object,
+        posterior_samples = posterior_samples
+      )
 
-      # extract omega samples for weight function
-      omega_samples <- .extract_omega_samples(posterior_samples)
-
-      # get fit_data for crit_yi
-      fit_data <- .create_fit_data(data = data, priors = priors)
-
-      # compute use_normal indicator for performance optimization
-      # this identifies which samples come from non-weightfunction bias models
-      use_normal <- .extract_use_normal(object, posterior_samples = posterior_samples)
-
-      cdf_vals <- .outcome_cdf.wnorm(
-        yi                  = yi_cdf,
-        mu_samples          = mu_samples_cdf,
-        tau_within          = tau_within_samples,
-        sei                 = sei,
-        omega               = omega_samples,
-        crit_yi             = fit_data$crit_yi,
-        lower.tail          = lower_tail,
-        use_normal          = use_normal,
-        bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
-        crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-        crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+      cdf_vals <- .outcome_cdf.selnorm(
+        yi                = yi,
+        mu_samples        = mu_samples,
+        tau_within        = tau_within_samples,
+        sei               = sei,
+        selection_context = selection_context,
+        lower.tail        = TRUE
       )
 
     } else {
@@ -429,21 +358,18 @@
     }
 
     if (is_weightfunction) {
-      omega_samples <- .extract_omega_samples(posterior_samples)
-      use_normal    <- .extract_use_normal(object, posterior_samples = posterior_samples)
+      selection_context <- .selection_context(
+        object            = object,
+        posterior_samples = posterior_samples
+      )
 
-      cdf_vals <- .outcome_cdf.wnorm(
-        yi                  = yi_cdf,
-        mu_samples          = mu_samples_cdf,
-        tau_within          = tau_within,
-        sei                 = sei,
-        omega               = omega_samples,
-        crit_yi             = setup[["fit_data"]][["crit_yi"]],
-        lower.tail          = lower_tail,
-        use_normal          = use_normal,
-        bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
-        crit_yi_mapping     = setup[["fit_data"]][["crit_yi_mapping"]],
-        crit_yi_mapping_max = setup[["fit_data"]][["crit_yi_mapping_max"]]
+      cdf_vals <- .outcome_cdf.selnorm(
+        yi                = yi,
+        mu_samples        = mu_samples,
+        tau_within        = tau_within,
+        sei               = sei,
+        selection_context = selection_context,
+        lower.tail        = TRUE
       )
 
     } else {

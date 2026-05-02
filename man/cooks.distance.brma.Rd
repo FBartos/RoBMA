@@ -20,14 +20,15 @@ distance measures the aggregate influence of each observation on the
 model coefficients.
 }
 \details{
-Cook's distance is computed using a hybrid Bayesian approach. Like DFFITS,
-we calculate the distribution sample-wise to capture the non-linear relationship
-between leverage and influence.
+Cook's distance is computed as a PSIS leave-one-out deletion diagnostic. For
+each observation \eqn{i}, normalized PSIS weights estimate the fitted values
+under the leave-one-out posterior. The distance is the posterior Mahalanobis
+distance between the full-data and leave-one-out fitted-value vectors:
+\deqn{D_i = \frac{\Delta_i' V_\mu^+ \Delta_i}{P}}
 
-\deqn{D_i = \frac{r_i^2}{P} \times \frac{h_i}{1 - h_i}}
-
-where \eqn{P} is the number of regression coefficients (beta parameters),
-\eqn{r_i} is the LOO-PIT residual, and \eqn{h_i} is the hat value (leverage).
+where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
+generalized inverse of the full-posterior fitted-value covariance, and
+\eqn{P} is the rank of the fixed-effect model matrix.
 }
 \examples{
 \dontrun{

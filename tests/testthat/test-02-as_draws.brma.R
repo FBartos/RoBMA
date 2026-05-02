@@ -8,7 +8,7 @@ skip_if_no_fits()
 skip_if_not_installed("posterior")
 fit <- load_fit("bcg_meta-analysis")
 
-test_that("as_draws methods work for fit", {
+test_that("as_draws methods return posterior draws for fits", {
 
   # test as_draws and consistency between methods
   draws <- RoBMA::as_draws(fit)
@@ -122,7 +122,7 @@ test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {
 
     variables <- posterior::variables(draws_df)
     expect_true(any(grepl("_indicator$", variables)),
-                info = paste(name, "should expose product-space indicators"))
+                info = paste(name, "exposes product-space indicators"))
 
     if (!is.null(fit_product[["priors"]][["outcome"]][["mu"]]) &&
         BayesTools::is.prior.mixture(fit_product[["priors"]][["outcome"]][["mu"]])) {

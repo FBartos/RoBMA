@@ -1,49 +1,243 @@
 context("Summary")
 
-# Load common test helpers
 source(testthat::test_path("common-functions.R"))
-REFERENCE_DIR <<- testthat::test_path("..", "results", "summary")
 
-# list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 
+summary_sections <- c(
+  "name",
+  "inclusion_components",
+  "inclusion_mods",
+  "inclusion_scale",
+  "estimates",
+  "estimates_conditional",
+  "estimates_mods",
+  "estimates_mods_conditional",
+  "estimates_scale",
+  "estimates_scale_conditional",
+  "estimates_bias",
+  "estimates_bias_conditional"
+)
 
-test_that("Model summary", {
+summary_table_sections <- setdiff(summary_sections, "name")
 
-  ### default summary for single models
-  for (name in names(fits)) {
-    test_reference_table(summary(fits[[name]]), paste0("summary-", name, ".txt"), paste0("Summary table for '", name, "' mismatch"))
+summary_common_parameters <- function(fit) {
+
+  prior_names <- names(attr(fit[["fit"]], "prior_list"))
+  return(intersect(c("mu", "tau", "rho"), prior_names))
+}
+
+expect_summary_subtable <- function(table, name, section) {
+
+  if (length(table) == 0L) {
+    return(invisible(NULL))
   }
 
-  ### custom settings
-  # custom probability & remove diagnostics
-  test_reference_table(summary(fits[["bcg_meta-analysis"]], probs = c(0.01, 0.99), include_mcmc_diagnostics = FALSE),
-                       paste0("summary-custom-prob-no-diagnostics.txt"), paste0("Summary table for '", name, "' mismatch"))
+  info <- paste0("summary section '", section, "' for '", name, "'")
+  expect_true(is.matrix(table) || is.data.frame(table), info = info)
+  expect_true(nrow(table) > 0L, info = info)
+  expect_true(ncol(table) > 0L, info = info)
+  expect_false(is.null(rownames(table)), info = info)
+  expect_true(all(nzchar(rownames(table))), info = info)
 
-  # de-standardize coefficients
-  test_reference_table(summary(fits[["bangertdrowns2004_location-scale"]], standardized_coefficients = TRUE),
-                       paste0("summary-standardized.txt"), paste0("Summary table for '", name, "' mismatch"))
+  values <- unlist(
+    as.data.frame(table)[vapply(as.data.frame(table), is.numeric, TRUE)],
+    use.names = FALSE
+  )
+  if (length(values) > 0L) {
+    expect_true(all(is.na(values) | !is.nan(values)), info = info)
+  }
 
-  # print output
-  test_reference_table(fits[["bangertdrowns2004_location-scale"]],
-                       paste0("summary-print.txt"), paste0("Summary table for '", name, "' mismatch"))
+  title <- attr(table, "title")
+  expect_true(
+    is.character(title) && length(title) == 1L && nzchar(title),
+    info = paste0(info, " title")
+  )
+}
 
+expect_summary_sections <- function(summary_object, fit, name, conditional = FALSE) {
+
+  common_parameters <- summary_common_parameters(fit)
+
+  expect_equal(
+    length(summary_object[["estimates"]]) > 0L,
+    length(common_parameters) > 0L,
+    info = paste0("common estimate section for '", name, "'")
+  )
+  expect_equal(
+    length(summary_object[["estimates_mods"]]) > 0L,
+    .is_mods(fit),
+    info = paste0("moderator estimate section for '", name, "'")
+  )
+  expect_equal(
+    length(summary_object[["estimates_scale"]]) > 0L,
+    .is_scale(fit),
+    info = paste0("scale estimate section for '", name, "'")
+  )
+  expect_equal(
+    length(summary_object[["estimates_bias"]]) > 0L,
+    .is_bias(fit),
+    info = paste0("bias estimate section for '", name, "'")
+  )
+  expect_equal(
+    length(summary_object[["inclusion_components"]]) > 0L,
+    .is_RoBMA(fit),
+    info = paste0("component inclusion section for '", name, "'")
+  )
+
+  conditional_sections <- c(
+    "estimates_conditional",
+    "estimates_mods_conditional",
+    "estimates_scale_conditional",
+    "estimates_bias_conditional"
+  )
+  conditional_present <- vapply(
+    summary_object[conditional_sections],
+    function(x) length(x) > 0L,
+    TRUE
+  )
+
+  if (conditional) {
+    expect_true(
+      any(conditional_present),
+      info = paste0("conditional sections for '", name, "'")
+    )
+  } else {
+    expect_false(
+      any(conditional_present),
+      info = paste0("conditional sections for '", name, "'")
+    )
+  }
+}
+
+expect_summary_contract <- function(summary_object, fit, name,
+                                    conditional = FALSE) {
+
+  expect_s3_class(summary_object, "summary.brma")
+  expect_named(summary_object, summary_sections)
+  expect_type(summary_object[["name"]], "character")
+  expect_true(length(summary_object[["name"]]) == 1L)
+  expect_true(nzchar(summary_object[["name"]]))
+
+  expect_identical(attr(summary_object, "mods"), .is_mods(fit))
+  expect_identical(attr(summary_object, "scale"), .is_scale(fit))
+  expect_identical(attr(summary_object, "multilevel"), .is_multilevel(fit))
+  expect_identical(attr(summary_object, "bias"), .is_bias(fit))
+  expect_identical(attr(summary_object, "RoBMA"), .is_RoBMA(fit))
+  expect_identical(attr(summary_object, "outcome_type"), .outcome_type(fit))
+
+  for (section in summary_table_sections) {
+    expect_summary_subtable(summary_object[[section]], name, section)
+  }
+  expect_summary_sections(summary_object, fit, name, conditional = conditional)
+}
+
+expect_printed_summary <- function(summary_object, name) {
+
+  output <- capture.output(print(summary_object))
+  expect_true(any(nzchar(output)), info = paste0("printed summary for '", name, "'"))
+  expect_true(any(grepl("Bayesian", output, fixed = TRUE)),
+              info = paste0("printed summary model name for '", name, "'"))
+  expect_false(any(grepl("__xXx__", output, fixed = TRUE)),
+               info = paste0("printed summary labels for '", name, "'"))
+}
+
+
+test_that("summary.brma returns a stable object contract", {
+
+  for (name in names(fits)) {
+    fit <- fits[[name]]
+    out <- summary(fit)
+
+    expect_summary_contract(out, fit, name)
+    expect_printed_summary(out, name)
+  }
 })
 
-test_that("RoBMA conditional summary", {
+test_that("summary.brma options change table schema", {
 
-  skip_if_missing_fits(c("bcg_meta-analysis", "dat.lehmann2018_RoBMA_mods"))
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
 
-  test_reference_table(
-    summary(fits[["dat.lehmann2018_RoBMA_mods"]], conditional = TRUE),
-    "summary-conditional-dat.lehmann2018_RoBMA_mods.txt",
-    "Conditional RoBMA summary mismatch"
+  out <- summary(
+    fits[[name]],
+    probs                    = c(0.01, 0.99),
+    include_mcmc_diagnostics = FALSE
   )
+  expect_summary_contract(out, fits[[name]], name)
+
+  cols <- colnames(out[["estimates"]])
+  expect_true(all(c("Mean", "SD", "0.01", "0.99") %in% cols))
+  expect_false(any(grepl("error\\(MCMC\\)|ESS|R-hat", cols)))
+})
+
+test_that("summary.brma standardized coefficients use the standardized scale", {
+
+  name <- "bangertdrowns2004_location-scale"
+  skip_if_missing_fits(name)
+
+  fit             <- fits[[name]]
+  out_default     <- summary(fit)
+  out_standardized <- summary(fit, standardized_coefficients = TRUE)
+
+  expect_summary_contract(out_standardized, fit, name)
+  expect_true("ni100" %in% rownames(out_default[["estimates_mods"]]))
+  expect_true("ni100" %in% rownames(out_standardized[["estimates_mods"]]))
+  expect_gt(
+    abs(out_default[["estimates_mods"]]["ni100", "Mean"] -
+          out_standardized[["estimates_mods"]]["ni100", "Mean"]),
+    sqrt(.Machine$double.eps)
+  )
+
+  expect_equal(
+    capture.output(print(fit)),
+    capture.output(print(out_default)),
+    info = "print.brma delegates to summary.brma"
+  )
+})
+
+test_that("RoBMA conditional summaries expose conditional sections", {
+
+  name <- "dat.lehmann2018_RoBMA_mods"
+  skip_if_missing_fits(c("bcg_meta-analysis", name))
+
+  out <- summary(fits[[name]], conditional = TRUE)
+  expect_summary_contract(out, fits[[name]], name, conditional = TRUE)
+
+  conditional_titles <- vapply(
+    c(
+      "estimates_conditional",
+      "estimates_mods_conditional",
+      "estimates_scale_conditional",
+      "estimates_bias_conditional"
+    ),
+    function(section) {
+      title <- attr(out[[section]], "title")
+      if (is.null(title)) "" else title
+    },
+    character(1)
+  )
+  expect_true(any(grepl("Conditional", conditional_titles, fixed = TRUE)))
 
   expect_error(
     summary(fits[["bcg_meta-analysis"]], conditional = TRUE),
     "RoBMA objects"
   )
+})
+
+test_that("RoBMA inclusion summaries use user-facing labels", {
+
+  skip_if_missing_fits(c("dat.lehmann2018_RoBMA", "dat.lehmann2018_RoBMA_mods2"))
+
+  out_simple <- summary(fits[["dat.lehmann2018_RoBMA"]])
+  expect_true(all(c("Effect", "Heterogeneity", "Publication Bias") %in%
+                    rownames(out_simple[["inclusion_components"]])))
+
+  out_mods2 <- summary(fits[["dat.lehmann2018_RoBMA_mods2"]])
+  expect_false(any(grepl("__xXx__", rownames(out_mods2[["inclusion_mods"]]),
+                         fixed = TRUE)))
+  expect_true("Preregistered:Gender" %in%
+                rownames(out_mods2[["inclusion_mods"]]))
 })

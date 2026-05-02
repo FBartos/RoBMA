@@ -2,6 +2,7 @@
 % Please edit documentation in R/loo.R
 \name{add_loo.brma}
 \alias{add_loo.brma}
+\alias{add_loo}
 \title{Add LOO-PSIS to brma Objects}
 \usage{
 \method{add_loo}{brma}(object, unit = "estimate", r_eff = NULL, parallel = FALSE)
@@ -36,8 +37,9 @@ one contribution.
 
 With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 per cluster. For unweighted normal models without selection this uses the
-analytic cluster block covariance. Selection, weighted normal, and GLMM
-models integrate the held-out cluster effect with Gauss-Hermite quadrature.
+analytic cluster block covariance. Selection, data-weighted normal, and
+GLMM models integrate the held-out cluster effect with Gauss-Hermite
+quadrature.
 
 For selection models, the LOO evaluates the weighted likelihood, conditioning
 on the posterior omega samples.

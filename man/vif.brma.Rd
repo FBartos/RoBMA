@@ -30,10 +30,12 @@ returns the posterior correlation matrix of regression coefficients.
 }
 \details{
 VIF is computed from the correlation matrix derived from the
-coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}, where
-\eqn{W = \mathrm{diag}(1/(v_i + \hat\tau^2))} and \eqn{\hat\tau^2}
-is the posterior mean heterogeneity. This matches the default
-algebraic approach used by \code{metafor::vif()}.
+coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
+meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
+with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
+and multilevel models, the coefficient covariance is averaged across
+posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
+and block-structured multilevel covariance where applicable.
 
 A VIF of 1 indicates no collinearity; values above 5 or 10 are
 commonly considered problematic.

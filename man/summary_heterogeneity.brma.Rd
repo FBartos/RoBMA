@@ -42,6 +42,11 @@ partitions heterogeneity into estimate-level and cluster-level components:
 \item \code{I2 [between]}: Percentage of variance due to cluster-level heterogeneity
 }
 
+For location-scale models, \code{tau2} aggregates the observation-specific
+heterogeneity variances \eqn{\tau_i^2}; the corresponding \code{tau} summary
+is the square root of this aggregate variance. The relative \eqn{I^2} and
+\eqn{H^2} measures average the observation-specific indices.
+
 The I^2 and H^2 statistics are computed following the metafor package
 implementation, using the "typical" sampling variance formula from
 \insertCite{higgins2002quantifying;textual}{RoBMA} For multilevel models,

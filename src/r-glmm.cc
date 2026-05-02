@@ -96,9 +96,28 @@ static void validate_common_glmm(SEXP mu_samples, SEXP tau_within,
   }
 }
 
+static void validate_weights_glmm(SEXP weights, int K)
+{
+  if (weights == R_NilValue) {
+    return;
+  }
+
+  check_real_glmm(weights, "weights");
+  if (Rf_length(weights) != K) {
+    Rf_error("'weights' must have one value per observation.");
+  }
+
+  const double *weights_p = REAL(weights);
+  for (int k = 0; k < K; ++k) {
+    if (!std::isfinite(weights_p[k]) || weights_p[k] <= 0.0) {
+      Rf_error("'weights' must contain finite positive values.");
+    }
+  }
+}
+
 static double binom_marginal_loglik_scalar(
   int ai, int ci, int n1i, int n2i, double log_coef,
-  double mu, double tau, const double *theta, const double *logit_pi,
+  double mu, double tau, double weight, const double *theta, const double *logit_pi,
   const double *grid_weights, int n_theta, int n_pi,
   std::vector<double> &terms, std::vector<double> &half_effect)
 {
@@ -126,7 +145,7 @@ static double binom_marginal_loglik_scalar(
         ci * log_p_2 +
         di * log_q_2;
 
-      terms[grid_index] = log_lik + grid_weights[grid_index];
+      terms[grid_index] = weight * log_lik + grid_weights[grid_index];
       ++grid_index;
     }
   }
@@ -136,7 +155,7 @@ static double binom_marginal_loglik_scalar(
 
 static double pois_marginal_loglik_scalar(
   int x1i, int x2i, double log_t1i, double log_t2i,
-  double log_factorial, double mu, double tau, const double *theta,
+  double log_factorial, double mu, double tau, double weight, const double *theta,
   const double *log_phi, const double *grid_weights, int n_theta, int n_phi,
   std::vector<double> &terms, std::vector<double> &half_effect,
   std::vector<double> &exp_half_effect,
@@ -167,7 +186,7 @@ static double pois_marginal_loglik_scalar(
         x2i * log_lambda_2 - lambda_2 -
         log_factorial;
 
-      terms[grid_index] = log_lik + grid_weights[grid_index];
+      terms[grid_index] = weight * log_lik + grid_weights[grid_index];
       ++grid_index;
     }
   }
@@ -229,18 +248,14 @@ static void validate_cluster_common_glmm(SEXP mu_samples, SEXP tau_within,
     }
   }
 
-  if (weights != R_NilValue) {
-    check_real_glmm(weights, "weights");
-    if (Rf_length(weights) != *K) {
-      Rf_error("'weights' must have one value per observation.");
-    }
-  }
+  validate_weights_glmm(weights, *K);
 }
 
 extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
                                                   SEXP n1i, SEXP n2i,
                                                   SEXP mu_samples,
                                                   SEXP tau_within,
+                                                  SEXP weights,
                                                   SEXP theta_grid,
                                                   SEXP log_theta_weights,
                                                   SEXP logit_pi_grid,
@@ -258,6 +273,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
     mu_samples, tau_within, theta_grid, log_theta_weights,
     &S, &K, &n_theta
   );
+  validate_weights_glmm(weights, K);
 
   const int n_pi = matrix_nrow_glmm(logit_pi_grid, "logit_pi_grid");
   if (matrix_ncol_glmm(logit_pi_grid, "logit_pi_grid") != K ||
@@ -282,6 +298,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
   const double *log_theta_p   = REAL(log_theta_weights);
   const double *logit_pi_p    = REAL(logit_pi_grid);
   const double *log_pi_w_p    = REAL(log_pi_weights);
+  const double *weights_p      = weights == R_NilValue ? 0 : REAL(weights);
   double *out_p               = REAL(out);
   std::vector<double> terms(static_cast<size_t>(n_pi) * static_cast<size_t>(n_theta));
   std::vector<double> grid_weights(static_cast<size_t>(n_pi) * static_cast<size_t>(n_theta));
@@ -311,6 +328,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
     for (int s = 0; s < S; ++s) {
       const double mu_s  = mu_p[s + S * k];
       const double tau_s = tau_p[s + S * k];
+      const double weight_k = weights_p == 0 ? 1.0 : weights_p[k];
       int grid_index     = 0;
 
       for (int t = 0; t < n_theta; ++t) {
@@ -333,7 +351,7 @@ extern "C" SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
             ci_k * log_p_2 +
             di_k * log_q_2;
 
-          terms[grid_index] = log_lik + grid_weights[grid_index];
+          terms[grid_index] = weight_k * log_lik + grid_weights[grid_index];
           ++grid_index;
         }
       }
@@ -350,6 +368,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
                                                  SEXP t1i, SEXP t2i,
                                                  SEXP mu_samples,
                                                  SEXP tau_within,
+                                                 SEXP weights,
                                                  SEXP theta_grid,
                                                  SEXP log_theta_weights,
                                                  SEXP log_phi_grid,
@@ -367,6 +386,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
     mu_samples, tau_within, theta_grid, log_theta_weights,
     &S, &K, &n_theta
   );
+  validate_weights_glmm(weights, K);
 
   const int n_phi = matrix_nrow_glmm(log_phi_grid, "log_phi_grid");
   if (matrix_ncol_glmm(log_phi_grid, "log_phi_grid") != K ||
@@ -391,6 +411,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
   const double *log_theta_p   = REAL(log_theta_weights);
   const double *log_phi_p     = REAL(log_phi_grid);
   const double *log_phi_w_p   = REAL(log_phi_weights);
+  const double *weights_p      = weights == R_NilValue ? 0 : REAL(weights);
   double *out_p               = REAL(out);
   std::vector<double> terms(static_cast<size_t>(n_phi) * static_cast<size_t>(n_theta));
   std::vector<double> grid_weights(static_cast<size_t>(n_phi) * static_cast<size_t>(n_theta));
@@ -417,6 +438,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
     for (int s = 0; s < S; ++s) {
       const double mu_s  = mu_p[s + S * k];
       const double tau_s = tau_p[s + S * k];
+      const double weight_k = weights_p == 0 ? 1.0 : weights_p[k];
       int grid_index     = 0;
 
       for (int t = 0; t < n_theta; ++t) {
@@ -442,7 +464,7 @@ extern "C" SEXP RoBMA_glmm_pois_marginal_loglik(SEXP x1i, SEXP x2i,
             x2_k * log_lambda_2 - lambda_2 -
             log_factorial;
 
-          terms[grid_index] = log_lik + grid_weights[grid_index];
+          terms[grid_index] = weight_k * log_lik + grid_weights[grid_index];
           ++grid_index;
         }
       }
@@ -559,12 +581,12 @@ extern "C" SEXP RoBMA_glmm_binom_cluster_loglik(SEXP ai, SEXP ci,
             gamma_j * tau_between_p[s + S * k];
           const double marginal_loglik = binom_marginal_loglik_scalar(
             ai_p[k], ci_p[k], n1i_p[k], n2i_p[k], log_coef[k],
-            mu_node, tau_within_p[s + S * k], theta_p,
+            mu_node, tau_within_p[s + S * k], weight_k, theta_p,
             logit_pi_p + n_pi * k,
             grid_weights.data() + static_cast<size_t>(k) * static_cast<size_t>(n_grid),
             n_theta, n_pi, terms, half_effect
           );
-          cluster_terms[s + S * j] += weight_k * marginal_loglik;
+          cluster_terms[s + S * j] += marginal_loglik;
         }
       }
     }
@@ -689,13 +711,13 @@ extern "C" SEXP RoBMA_glmm_pois_cluster_loglik(SEXP x1i, SEXP x2i,
             gamma_j * tau_between_p[s + S * k];
           const double marginal_loglik = pois_marginal_loglik_scalar(
             x1i_p[k], x2i_p[k], log_t1[k], log_t2[k], log_factorial[k],
-            mu_node, tau_within_p[s + S * k], theta_p,
+            mu_node, tau_within_p[s + S * k], weight_k, theta_p,
             log_phi_p + n_phi * k,
             grid_weights.data() + static_cast<size_t>(k) * static_cast<size_t>(n_grid),
             n_theta, n_phi, terms, half_effect,
             exp_half_effect, exp_neg_half_effect
           );
-          cluster_terms[s + S * j] += weight_k * marginal_loglik;
+          cluster_terms[s + S * j] += marginal_loglik;
         }
       }
     }

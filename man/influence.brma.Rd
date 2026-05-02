@@ -15,7 +15,10 @@
 An object of class \code{"infl.brma"}, which corresponds to the
 structure of \code{metafor::influence} objects. It is a list containing:
 \item{inf}{A data frame with columns: \code{rstudent}, \code{dffits},
-\code{cook.d}, \code{cov.r}, \code{hat}, and weight (normalized PSIS weight mean).}
+\code{cook.d}, \code{cov.r}, \code{tau.del}, and \code{hat}, where available.
+The \code{tau.del} column is the PSIS leave-one-out posterior mean of the
+aggregate heterogeneity. For scale models, aggregation is over the remaining
+scale-model rows after each deletion.}
 \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
 }
 \description{

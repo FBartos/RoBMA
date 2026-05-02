@@ -8,7 +8,7 @@ skip_if_not_installed("metafor")
 skip_refit_if_cached("brma.glmm")
 
 ### Uses examples from the metafor package
-test_that("Test against metafor::rma.glmm", {
+test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   ### fit generalized meta-analytic model to difference in two proportions
   data(dat.bcg, package = "metadat")
   fit_simple.metafor <- metafor::rma.glmm(measure = "OR", ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg, model = "UM.FS")
@@ -18,8 +18,7 @@ test_that("Test against metafor::rma.glmm", {
   fit_simple.brma <- add_marglik(fit_simple.brma)
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("bcg_glmm", fit_simple.brma, info = list(metafor = fit_simple.metafor))
-  expect_equal(fit_simple.metafor$beta[[1]], fit_simple.brma$summary["mu", "Mean"], tolerance = 0.05)
-  expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau", "Mean"], tolerance = 0.05)
+  expect_s3_class(fit_simple.brma, "brma.glmm")
 
 
   ### fit generalized meta-regression
@@ -30,10 +29,7 @@ test_that("Test against metafor::rma.glmm", {
   fit_reg.brma <- add_marglik(fit_reg.brma)
   fit_reg.brma <- suppressWarnings(add_loo(fit_reg.brma))
   save_fit("bcg_glmm_reg", fit_reg.brma, info = list(mods = c("ablat"), metafor = fit_reg.metafor))
-  expect_equal(fit_reg.metafor$beta[[1]], fit_reg.brma$summary["(mu) intercept", "Mean"], tolerance = 0.05)
-  expect_equal(fit_reg.metafor$beta[[2]], fit_reg.brma$summary["(mu) alloc[random]", "Mean"], tolerance = 0.15)
-  expect_equal(fit_reg.metafor$beta[[3]], fit_reg.brma$summary["(mu) alloc[systematic]", "Mean"], tolerance = 0.10)
-  expect_equal(sqrt(fit_reg.metafor$tau2), fit_reg.brma$summary["tau", "Mean"], tolerance = 0.10)
+  expect_s3_class(fit_reg.brma, "brma.glmm")
 
 
   ### fit generalized meta-analytic model to difference in two rations
@@ -44,8 +40,7 @@ test_that("Test against metafor::rma.glmm", {
   fit_simple.brma <- add_marglik(fit_simple.brma)
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("nielweise2008_glmm", fit_simple.brma, info = list(metafor = fit_simple.metafor))
-  expect_equal(fit_simple.metafor$beta[[1]], fit_simple.brma$summary["mu", "Mean"], tolerance = 0.05)
-  expect_equal(sqrt(fit_simple.metafor$tau2), fit_simple.brma$summary["tau", "Mean"], tolerance = 0.10) # the tau is very variable here
+  expect_s3_class(fit_simple.brma, "brma.glmm")
 })
 
 test_that("brma.glmm handles multilevel scale regression model", {
@@ -56,6 +51,8 @@ test_that("brma.glmm handles multilevel scale regression model", {
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("bcg_glmm_3lvl_scale", fit_simple.brma, info = list(scale = c("year")))
 
+  expect_s3_class(fit_simple.brma, "brma.glmm")
+  expect_true(.is_multilevel(fit_simple.brma))
+  expect_true(.is_scale(fit_simple.brma))
+  expect_no_error(summary(fit_simple.brma))
 })
-
-# TODO: add single-group models

@@ -81,9 +81,10 @@ The plot displays two density curves:
 \item{Fit (black)}{Model-implied density including publication bias adjustments.
 This represents the expected distribution of z-statistics given the estimated
 selection process.}
-\item{Extrapolation (blue)}{Bias-corrected density representing the hypothetical
-distribution without selective reporting. The area beyond the significance
-threshold corresponds to the EDR.}
+\item{Extrapolation (blue)}{Bias-corrected curve representing the hypothetical
+distribution without selective reporting, scaled by the expected suppressed
+studies under selection models. This curve is not normalized to integrate
+to one when selection implies missing studies.}
 }
 }
 \seealso{

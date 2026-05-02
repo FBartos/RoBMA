@@ -24,17 +24,20 @@
 #'   \item{\code{"cluster"}: Fixed effects plus cluster-level random effects (mu + gamma).
 #'   Only available for multilevel (3-level) models.}
 #'   \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
-#'   effects (mu + gamma + theta). Incorporates all random effects including estimate-level
-#'   heterogeneity. For existing data, returns BLUPs (empirical Bayes estimates).}
+#'   effects (mu + gamma + theta). For existing normal data, returns posterior
+#'   draws of conditional BLUP means, not simulated latent-effect draws. For
+#'   new data, samples estimate-level random effects.}
 #'   \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
 #'   Incorporates both heterogeneity and sampling variability.}
 #'   \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
 #'   regression if present.}
 #' }
-#' @param as_measure logical; whether to return GLMM response predictions as
-#' effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
-#' \code{TRUE}. Only relevant for GLMM models with \code{type = "response"}.
-#' When \code{FALSE}, returns raw frequency data (counts).
+#' @param as_measure logical; whether to convert GLMM response predictions from
+#' simulated counts to continuity-corrected effect-size estimators (logOR for
+#' binomial, logIRR for Poisson). Defaults to \code{TRUE}. Only relevant for
+#' GLMM models with \code{type = "response"}. When \code{FALSE}, returns raw
+#' frequency data (counts). Use \code{type = "estimate"} for latent logOR/logIRR
+#' predictions.
 #' @param output_measure effect-size measure for location/effect predictions.
 #' Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
 #' \code{"COR"}, \code{"ZCOR"}, and \code{"OR"}; \code{"RR"}, \code{"HR"},
@@ -50,16 +53,21 @@
 #'   \item{PET/PEESE terms are NOT added to the mean parameter (mu), returning
 #'   the bias-corrected effect estimate.}
 #'   \item{For \code{type = "response"} with selection models, samples from
-#'   unweighted normal distribution instead of weighted distribution, simulating
-#'   what would be observed without publication bias.}
+#'   the ordinary normal predictive distribution instead of the selected-normal
+#'   distribution, simulating what would be observed without publication bias.}
 #' }
 #' When \code{FALSE}:
 #' \itemize{
 #'   \item{PET/PEESE terms ARE added to mu, returning predictions that include
 #'   the expected bias (i.e., what we expect to observe given publication bias).}
 #'   \item{For \code{type = "response"} with selection models, samples from
-#'   weighted distribution reflecting the selective publishing process.}
+#'   the selected-normal distribution reflecting the selective publishing
+#'   process.}
 #' }
+#' @param conditional whether to return conditional posterior predictions for
+#' RoBMA product-space objects. For location predictions, samples are conditioned
+#' on the effect component; for \code{type = "terms.scale"}, samples are
+#' conditioned on the heterogeneity component.
 #'
 #' @details
 #' \strong{Type hierarchy:}
@@ -69,6 +77,11 @@
 #'   \item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
 #'   \item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
 #' }
+#' For existing normal observations, \code{type = "estimate"} reports the
+#' conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
+#' posterior draw. It is therefore an empirical-Bayes summary, not a draw from
+#' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For new data,
+#' estimate-level random effects are sampled from their model distribution.
 #'
 #' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 #' predictions for the new effect size estimates. To obtain results corresponding to
@@ -93,6 +106,7 @@ predict.brma <- function(object, newdata = NULL,
                          probs = c(.025, .975),
                          bias_adjusted = FALSE,
                          quiet = FALSE,
+                         conditional = FALSE,
                          ...){
 
   # normalize type aliases
@@ -109,7 +123,12 @@ predict.brma <- function(object, newdata = NULL,
   # input validation
   BayesTools::check_bool(as_measure, "as_measure")
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+  BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(quiet, "quiet")
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' predictions are available only for RoBMA objects.",
+         call. = FALSE)
+  }
 
   # check newdata: NULL, TRUE, or data.frame/list
   if (!is.null(newdata) && !isTRUE(newdata)) {
@@ -255,13 +274,19 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(tau_samples) <- if (aggregate) "tau" else paste0("tau[", seq_len(K), "]")
 
-    return(.new_brma_samples(
+    out <- .new_brma_samples(
       samples  = tau_samples,
       n_chains = n_chains,
       n_iter   = n_iter,
       title    = if (aggregate) "Aggregated Scale Term Posterior Prediction:" else "Scale Term Posterior Prediction:",
       probs    = probs,
       data     = if (aggregate) NULL else new_data
+    )
+    return(.condition_prediction_samples(
+      object      = object,
+      samples     = out,
+      conditional = conditional,
+      parameters  = .conditional_heterogeneity_parameters(object)
     ))
   }
 
@@ -303,7 +328,7 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(mu_samples) <- if (aggregate) "mu" else paste0("mu[", seq_len(K), "]")
 
-    return(.new_effect_brma_samples(
+    out <- .new_effect_brma_samples(
       samples          = mu_samples,
       n_chains         = n_chains,
       n_iter           = n_iter,
@@ -311,6 +336,12 @@ predict.brma <- function(object, newdata = NULL,
       probs            = probs,
       data             = if (aggregate) NULL else new_data,
       effect_transform = effect_transform
+    )
+    return(.condition_prediction_samples(
+      object      = object,
+      samples     = out,
+      conditional = conditional,
+      parameters  = .conditional_effect_parameters(object)
     ))
   }
 
@@ -382,7 +413,7 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(mu_samples) <- if (aggregate) "mu_cluster" else paste0("mu_cluster[", seq_len(K), "]")
 
-    return(.new_effect_brma_samples(
+    out <- .new_effect_brma_samples(
       samples          = mu_samples,
       n_chains         = n_chains,
       n_iter           = n_iter,
@@ -390,6 +421,12 @@ predict.brma <- function(object, newdata = NULL,
       probs            = probs,
       data             = if (aggregate) NULL else new_data,
       effect_transform = effect_transform
+    )
+    return(.condition_prediction_samples(
+      object      = object,
+      samples     = out,
+      conditional = conditional,
+      parameters  = .conditional_effect_parameters(object)
     ))
   }
 
@@ -425,14 +462,26 @@ predict.brma <- function(object, newdata = NULL,
     # rename samples
     colnames(true_effects_samples) <- if (aggregate) "theta" else paste0("theta[", seq_len(K), "]")
 
-    return(.new_effect_brma_samples(
+    out <- .new_effect_brma_samples(
       samples          = true_effects_samples,
       n_chains         = n_chains,
       n_iter           = n_iter,
-      title            = if (aggregate) "Aggregated True Effect Posterior Prediction:" else "True Effect Posterior Prediction:",
+      title            = if (same_data && outcome_type == "norm") {
+        "True Effects (BLUP Means):"
+      } else if (aggregate) {
+        "Aggregated True Effect Posterior Prediction:"
+      } else {
+        "True Effect Posterior Prediction:"
+      },
       probs            = probs,
       data             = if (aggregate) NULL else new_data,
       effect_transform = effect_transform
+    )
+    return(.condition_prediction_samples(
+      object      = object,
+      samples     = out,
+      conditional = conditional,
+      parameters  = .conditional_effect_parameters(object)
     ))
 
   }
@@ -442,6 +491,10 @@ predict.brma <- function(object, newdata = NULL,
 
     # different model types have different output structures
     if (is.element(outcome_type, c("bin", "pois"))) {
+
+      if (as_measure) {
+        .check_glmm_response_as_measure(outcome_type, outcome_data)
+      }
 
       # the estimate-level effects are not marginalized for GLMMs
       # include the sampled random effects or marginalize over them for new data
@@ -521,41 +574,11 @@ predict.brma <- function(object, newdata = NULL,
 
       # convert to effect size measure if requested (default)
       if (as_measure) {
-
-        if (outcome_type == "bin") {
-          # convert counts to log-odds ratio using escalc-like formula
-          # logOR = log((ai/bi) / (ci/di)) where bi = n1i - ai, di = n2i - ci
-          # extract ai and ci from interleaved outcome_samples
-          ai <- outcome_samples[, seq(1, 2 * K, by = 2), drop = FALSE]
-          ci <- outcome_samples[, seq(2, 2 * K, by = 2), drop = FALSE]
-          # compute complementary counts
-          n1i_mat <- matrix(outcome_data[["n1i"]], nrow = nrow(ai), ncol = K, byrow = TRUE)
-          n2i_mat <- matrix(outcome_data[["n2i"]], nrow = nrow(ai), ncol = K, byrow = TRUE)
-          bi <- n1i_mat - ai
-          di <- n2i_mat - ci
-          # apply 0.5 continuity correction for zero cells
-          ai_adj <- ai + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
-          bi_adj <- bi + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
-          ci_adj <- ci + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
-          di_adj <- di + 0.5 * (ai == 0 | bi == 0 | ci == 0 | di == 0)
-          # compute log-odds ratio
-          outcome_samples <- log((ai_adj * di_adj) / (bi_adj * ci_adj))
-          colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
-
-        } else if (outcome_type == "pois") {
-          # convert counts to log incidence rate ratio
-          # logIRR = log((x1i/t1i) / (x2i/t2i))
-          x1i <- outcome_samples[, seq(1, 2 * K, by = 2), drop = FALSE]
-          x2i <- outcome_samples[, seq(2, 2 * K, by = 2), drop = FALSE]
-          t1i_mat <- matrix(outcome_data[["t1i"]], nrow = nrow(x1i), ncol = K, byrow = TRUE)
-          t2i_mat <- matrix(outcome_data[["t2i"]], nrow = nrow(x1i), ncol = K, byrow = TRUE)
-          # apply 0.5 continuity correction for zero counts
-          x1i_adj <- x1i + 0.5 * (x1i == 0 | x2i == 0)
-          x2i_adj <- x2i + 0.5 * (x1i == 0 | x2i == 0)
-          # compute log incidence rate ratio
-          outcome_samples <- log((x1i_adj / t1i_mat) / (x2i_adj / t2i_mat))
-          colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
-        }
+        outcome_samples <- .glmm_response_counts_to_measure(
+          outcome_samples = outcome_samples,
+          outcome_data    = outcome_data,
+          outcome_type    = outcome_type
+        )
 
       }
 
@@ -564,7 +587,7 @@ predict.brma <- function(object, newdata = NULL,
 
       # normal outcome models dispatch between:
       # - bias_adjusted = TRUE: sample from unweighted normal (as if no bias)
-      # - bias_adjusted = FALSE with weightfunction: sample from weighted normal
+      # - bias_adjusted = FALSE with weightfunction: sample from selected-normal
       # - bias_adjusted = FALSE without weightfunction: sample from unweighted normal
 
       if (bias_adjusted || !is_weightfunction) {
@@ -579,40 +602,18 @@ predict.brma <- function(object, newdata = NULL,
 
       } else {
 
-        # sample from weighted normal distribution for selection models
-        # extract omega samples for weight function
-        omega_samples <- .extract_omega_samples(posterior_samples)
-
-        # compute use_normal indicator for performance optimization
-        # this identifies which samples come from non-weightfunction bias models
-        use_normal <- .extract_use_normal(object, posterior_samples = posterior_samples)
-
-        # for weighted distributions, crit_yi is computed in "positive" space
-        # (yi flipped for negative effect direction in .create_fit_data)
-        # so we need to flip mu_samples to match, sample, then flip back
-        if (effect_direction == "negative") {
-          # flip mu to positive space for sampling
-          mu_samples_for_wnorm <- -mu_samples
-        } else {
-          mu_samples_for_wnorm <- mu_samples
-        }
-
-        outcome_samples <- .outcome_rng.wnorm(
-          mu_samples          = mu_samples_for_wnorm,
-          tau_within          = tau_within_samples,
-          sei                 = outcome_data[["sei"]],
-          omega               = omega_samples,
-          crit_yi             = fit_data$crit_yi,
-          use_normal          = use_normal,
-          bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
-          crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-          crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+        selection_context <- .selection_context(
+          object            = object,
+          posterior_samples = posterior_samples,
+          newdata           = new_data
         )
 
-        # flip samples back to original space
-        if (effect_direction == "negative") {
-          outcome_samples <- -outcome_samples
-        }
+        outcome_samples <- .outcome_rng.selnorm(
+          mu_samples        = mu_samples,
+          tau_within        = tau_within_samples,
+          sei               = outcome_data[["sei"]],
+          selection_context = selection_context
+        )
 
       }
 
@@ -620,14 +621,276 @@ predict.brma <- function(object, newdata = NULL,
       colnames(outcome_samples) <- paste0("yi[", seq_len(K), "]")
     }
 
-    return(.new_effect_brma_samples(
+    out <- .new_effect_brma_samples(
       samples          = outcome_samples,
       n_chains         = n_chains,
       n_iter           = n_iter,
-      title            = "Observations Posterior Prediction:",
+      title            = .response_prediction_title(outcome_type, as_measure),
       probs            = probs,
       data             = new_data,
       effect_transform = effect_transform
+    )
+    return(.condition_prediction_samples(
+      object      = object,
+      samples     = out,
+      conditional = conditional,
+      parameters  = .conditional_effect_parameters(object)
     ))
   }
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .check_glmm_response_as_measure
+# ---------------------------------------------------------------------------- #
+#
+# Check whether simulated GLMM counts can be converted to effect-size estimator
+# draws. Raw count predictions can allow zero exposure/person-time, but the
+# derived logOR/logIRR estimator cannot.
+#
+# ---------------------------------------------------------------------------- #
+.check_glmm_response_as_measure <- function(outcome_type, outcome_data) {
+
+  if (outcome_type == "bin" &&
+      (any(outcome_data[["n1i"]] <= 0, na.rm = TRUE) ||
+       any(outcome_data[["n2i"]] <= 0, na.rm = TRUE))) {
+    stop(
+      "GLMM response predictions with as_measure = TRUE require positive ",
+      "'n1i' and 'n2i'. Use as_measure = FALSE for raw count predictions ",
+      "or type = 'estimate' for latent logOR predictions.",
+      call. = FALSE
+    )
+  }
+
+  if (outcome_type == "pois" &&
+      (any(outcome_data[["t1i"]] <= 0, na.rm = TRUE) ||
+       any(outcome_data[["t2i"]] <= 0, na.rm = TRUE))) {
+    stop(
+      "Poisson response predictions with as_measure = TRUE require positive ",
+      "'t1i' and 't2i'. Use as_measure = FALSE for raw count predictions ",
+      "or type = 'estimate' for latent logIRR predictions.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .glmm_response_counts_to_measure
+# ---------------------------------------------------------------------------- #
+#
+# Convert simulated GLMM response counts to escalc-style effect-size estimator
+# draws. This is not the latent effect posterior; it is the sampling distribution
+# of the continuity-corrected estimator applied to posterior predictive counts.
+#
+# ---------------------------------------------------------------------------- #
+.glmm_response_counts_to_measure <- function(outcome_samples, outcome_data,
+                                             outcome_type) {
+
+  K <- nrow(outcome_data)
+
+  if (outcome_type == "bin") {
+    ai <- outcome_samples[, seq(1, 2 * K, by = 2), drop = FALSE]
+    ci <- outcome_samples[, seq(2, 2 * K, by = 2), drop = FALSE]
+
+    n1i_mat <- matrix(outcome_data[["n1i"]], nrow = nrow(ai), ncol = K, byrow = TRUE)
+    n2i_mat <- matrix(outcome_data[["n2i"]], nrow = nrow(ai), ncol = K, byrow = TRUE)
+    bi      <- n1i_mat - ai
+    di      <- n2i_mat - ci
+    zero    <- ai == 0 | bi == 0 | ci == 0 | di == 0
+
+    ai_adj <- ai + 0.5 * zero
+    bi_adj <- bi + 0.5 * zero
+    ci_adj <- ci + 0.5 * zero
+    di_adj <- di + 0.5 * zero
+
+    out <- log((ai_adj * di_adj) / (bi_adj * ci_adj))
+
+  } else if (outcome_type == "pois") {
+    x1i <- outcome_samples[, seq(1, 2 * K, by = 2), drop = FALSE]
+    x2i <- outcome_samples[, seq(2, 2 * K, by = 2), drop = FALSE]
+
+    t1i_mat <- matrix(outcome_data[["t1i"]], nrow = nrow(x1i), ncol = K, byrow = TRUE)
+    t2i_mat <- matrix(outcome_data[["t2i"]], nrow = nrow(x1i), ncol = K, byrow = TRUE)
+    zero    <- x1i == 0 | x2i == 0
+
+    x1i_adj <- x1i + 0.5 * zero
+    x2i_adj <- x2i + 0.5 * zero
+
+    out <- log((x1i_adj / t1i_mat) / (x2i_adj / t2i_mat))
+
+  } else {
+    stop("Unsupported GLMM response outcome type.", call. = FALSE)
+  }
+
+  colnames(out) <- paste0("yi[", seq_len(K), "]")
+
+  return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .response_prediction_title
+# ---------------------------------------------------------------------------- #
+#
+# Human-readable prediction title matching the response estimand.
+#
+# ---------------------------------------------------------------------------- #
+.response_prediction_title <- function(outcome_type, as_measure) {
+
+  if (is.element(outcome_type, c("bin", "pois"))) {
+    if (as_measure) {
+      return("Observed Effect-Size Estimator Posterior Prediction:")
+    }
+    return("Observed Counts Posterior Prediction:")
+  }
+
+  return("Observations Posterior Prediction:")
+}
+
+.condition_prediction_samples <- function(object, samples, conditional,
+                                          parameters) {
+
+  if (!conditional) {
+    return(samples)
+  }
+
+  keep <- .conditional_parameter_rows(
+    object     = object,
+    parameters = parameters,
+    rule       = "OR"
+  )
+  sample_matrix <- as.matrix(samples)[keep, , drop = FALSE]
+
+  return(.new_brma_samples(
+    samples          = sample_matrix,
+    n_chains         = attr(samples, "nchains"),
+    n_iter           = attr(samples, "niter"),
+    title            = paste("Conditional", attr(samples, "title")),
+    probs            = attr(samples, "probs"),
+    data             = attr(samples, "data"),
+    effect_transform = attr(samples, "effect_transform")
+  ))
+}
+
+.conditional_effect_parameters <- function(object) {
+
+  prior_names <- names(attr(object[["fit"]], "prior_list"))
+
+  if ("mu" %in% prior_names) {
+    return("mu")
+  }
+  if ("mu_intercept" %in% prior_names) {
+    return("mu_intercept")
+  }
+
+  parameters <- grep("^mu_", prior_names, value = TRUE)
+  if (length(parameters) > 0L) {
+    return(parameters)
+  }
+
+  stop("No location parameter is available for conditional prediction.",
+       call. = FALSE)
+}
+
+.conditional_heterogeneity_parameters <- function(object) {
+
+  prior_names <- names(attr(object[["fit"]], "prior_list"))
+
+  if ("tau" %in% prior_names) {
+    return("tau")
+  }
+  if ("log_tau_intercept" %in% prior_names) {
+    return("log_tau_intercept")
+  }
+
+  parameters <- grep("^log_tau_", prior_names, value = TRUE)
+  if (length(parameters) > 0L) {
+    return(parameters)
+  }
+
+  stop("No heterogeneity parameter is available for conditional prediction.",
+       call. = FALSE)
+}
+
+.conditional_parameter_rows <- function(object, parameters,
+                                        posterior_samples = NULL,
+                                        rule = "OR") {
+
+  BayesTools::check_char(parameters, "parameters", check_length = 0)
+  BayesTools::check_char(rule, "rule", allow_values = c("AND", "OR"))
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  conditions <- vapply(
+    parameters,
+    .conditional_parameter_rows_single,
+    logical(nrow(posterior_samples)),
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  if (rule == "AND") {
+    keep <- apply(conditions, 1, all)
+  } else {
+    keep <- apply(conditions, 1, any)
+  }
+
+  if (!any(keep)) {
+    warning("No samples left after conditioning.", call. = FALSE,
+            immediate. = TRUE)
+  }
+
+  return(keep)
+}
+
+.conditional_parameter_rows_single <- function(parameter, object,
+                                               posterior_samples) {
+
+  prior_list <- attr(object[["fit"]], "prior_list")
+  if (!parameter %in% names(prior_list)) {
+    stop("Missing prior for conditional parameter '", parameter, "'.",
+         call. = FALSE)
+  }
+
+  prior <- prior_list[[parameter]]
+  S     <- nrow(posterior_samples)
+
+  if (BayesTools::is.prior.spike_and_slab(prior)) {
+    indicator <- .conditional_indicator_column(posterior_samples, parameter)
+    return(indicator == 1)
+  }
+
+  if (BayesTools::is.prior.mixture(prior)) {
+    components <- attr(prior, "components")
+    if (!all(components %in% c("null", "alternative"))) {
+      stop(
+        "Conditional mixture posterior distributions are available only ",
+        "for 'null' and 'alternative' components.",
+        call. = FALSE
+      )
+    }
+    indicator <- .conditional_indicator_column(posterior_samples, parameter)
+    return(indicator %in% which(components == "alternative"))
+  }
+
+  warning(
+    "The parameter '", parameter, "' is not a conditional parameter. ",
+    "All samples are assumed to come from the conditional posterior distribution.",
+    call. = FALSE,
+    immediate. = TRUE
+  )
+  return(rep(TRUE, S))
+}
+
+.conditional_indicator_column <- function(posterior_samples, parameter) {
+
+  column <- paste0(parameter, "_indicator")
+  if (!column %in% colnames(posterior_samples)) {
+    stop("Missing posterior model indicator: '", column, "'.",
+         call. = FALSE)
+  }
+
+  return(as.integer(posterior_samples[, column]))
 }

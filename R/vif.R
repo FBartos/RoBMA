@@ -9,8 +9,9 @@
 # 2. Posterior correlation of regression coefficients (Bayesian diagnostic)
 #
 # VIF is computed from the correlation matrix of the coefficient
-# variance-covariance matrix: vcov = (X'WX)^{-1} where W = diag(1/(vi + tau^2))
-# and tau^2 is the posterior mean heterogeneity.
+# variance-covariance matrix: vcov = (X'WX)^{-1}. For simple models, W uses
+# diag(weight_i/(vi + tau^2)); scale and multilevel models average this
+# coefficient covariance over posterior heterogeneity draws.
 #
 # GVIF formula (Fox & Monette, 1992, for multi-df terms):
 #   GVIF = det(R_11) * det(R_22) / det(R)
@@ -64,10 +65,12 @@ vif <- function(object, ...) {
 #'
 #' @details
 #' VIF is computed from the correlation matrix derived from the
-#' coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}, where
-#' \eqn{W = \mathrm{diag}(1/(v_i + \hat\tau^2))} and \eqn{\hat\tau^2}
-#' is the posterior mean heterogeneity. This matches the default
-#' algebraic approach used by \code{metafor::vif()}.
+#' coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
+#' meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
+#' with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
+#' and multilevel models, the coefficient covariance is averaged across
+#' posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
+#' and block-structured multilevel covariance where applicable.
 #'
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
@@ -140,8 +143,10 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 # .compute_vif
 # ---------------------------------------------------------------------------- #
 #
-# Compute VIF/GVIF from cov2cor(solve(X'WX)) following metafor's algebraic
-# approach. W = diag(1/(vi + tau^2)) uses the posterior mean of tau^2.
+# Compute VIF/GVIF from cov2cor(solve(X'WX)). Simple models use the posterior
+# mean tau plug-in. Scale and multilevel models average solve(X'WX) over
+# posterior heterogeneity draws so observation-specific and block covariances
+# are preserved.
 #
 # @param object brma object with moderators
 #
@@ -155,17 +160,19 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   assign <- attr(X, "assign")
 
   # extract sampling variances
-  vi <- .outcome_data_vi(object)
-  K  <- length(vi)
+  vi      <- .outcome_data_vi(object)
+  weights <- .outcome_data_weights(object)
+  K       <- length(vi)
 
-  # extract posterior mean tau^2
-  # for simple models: use summary["tau", "Mean"]
-  # for scale models: use the full tau extraction and aggregate
+  # extract posterior heterogeneity
+  # for simple models: use summary["tau", "Mean"] to preserve metafor-style VIF
+  # for scale/multilevel models: use full posterior tau matrices
   is_scale      <- .is_scale(object)
   is_multilevel <- .is_multilevel(object)
 
   if (!is_scale && !is_multilevel) {
-    tau2 <- object[["summary"]]["tau", "Mean"]^2
+    tau_within_samples  <- matrix(object[["summary"]]["tau", "Mean"], nrow = 1, ncol = K)
+    tau_between_samples <- matrix(0, nrow = 1, ncol = K)
   } else {
     tau_result <- .evaluate.brma.tau(
       fit           = object[["fit"]],
@@ -176,13 +183,19 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
       is_multilevel = is_multilevel,
       K             = K
     )
-    # aggregate: mean across samples and observations
-    tau2 <- mean(rowMeans(tau_result[["tau_within"]])^2 + rowMeans(tau_result[["tau_between"]])^2)
+    tau_within_samples  <- tau_result[["tau_within"]]
+    tau_between_samples <- tau_result[["tau_between"]]
   }
 
-  # compute vcov = (X'WX)^{-1} using meta-analytic weights
-  W    <- diag(1 / (vi + tau2), nrow = K)
-  vcov <- solve(crossprod(X, W) %*% X)
+  # compute posterior-averaged vcov = (X'WX)^{-1} using meta-analytic weights
+  vcov <- .vif_vcov_from_tau_samples(
+    X                   = X,
+    vi                  = vi,
+    weights             = weights,
+    tau_within_samples  = tau_within_samples,
+    tau_between_samples = tau_between_samples,
+    cluster             = if (is_multilevel) object[["data"]][["outcome"]][["cluster"]] else NULL
+  )
 
   # identify and remove intercept (assign == 0)
   has_intercept <- 0 %in% assign
@@ -246,6 +259,106 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   )
 
   return(vif_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_from_tau_samples
+# ---------------------------------------------------------------------------- #
+#
+# Compute the coefficient covariance used by VIF from one or more posterior
+# heterogeneity draws.
+#
+# @param X design matrix.
+# @param vi sampling variances.
+# @param weights likelihood weights.
+# @param tau_within_samples S x K matrix of estimate-level heterogeneity SDs.
+# @param tau_between_samples optional S x K matrix of cluster-level SDs.
+# @param cluster optional cluster identifiers for multilevel block covariance.
+#
+# @return posterior mean of solve(X'WX).
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_from_tau_samples <- function(X, vi, weights, tau_within_samples,
+                                       tau_between_samples = NULL,
+                                       cluster = NULL) {
+
+  K <- length(vi)
+  P <- ncol(X)
+
+  tau_within_samples <- .vif_tau_matrix(tau_within_samples, K, "tau_within_samples")
+
+  if (is.null(tau_between_samples)) {
+    tau_between_samples <- matrix(0, nrow = nrow(tau_within_samples), ncol = K)
+  } else {
+    tau_between_samples <- .vif_tau_matrix(tau_between_samples, K, "tau_between_samples")
+  }
+
+  if (nrow(tau_between_samples) != nrow(tau_within_samples)) {
+    stop("'tau_within_samples' and 'tau_between_samples' must have the same number of rows.",
+         call. = FALSE)
+  }
+
+  block_indices <- list()
+  if (!is.null(cluster)) {
+    block_indices <- .get_multilevel_block_indices(cluster)
+  }
+
+  S        <- nrow(tau_within_samples)
+  vcov_sum <- matrix(0, nrow = P, ncol = P)
+
+  for (s in seq_len(S)) {
+    diagonal_s <- (vi + tau_within_samples[s, ]^2) / weights
+    WX <- .hat_apply_precision(
+      x             = X,
+      diagonal      = diagonal_s,
+      rank_one      = if (!is.null(cluster)) tau_between_samples[s, ] else NULL,
+      block_indices = block_indices
+    )
+
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(crossprod(X, WX))
+  }
+
+  vcov <- vcov_sum / S
+  if (!is.null(colnames(X))) {
+    dimnames(vcov) <- list(colnames(X), colnames(X))
+  }
+
+  return(vcov)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_tau_matrix
+# ---------------------------------------------------------------------------- #
+#
+# Normalize heterogeneity input to an S x K matrix.
+#
+# ---------------------------------------------------------------------------- #
+.vif_tau_matrix <- function(x, K, name) {
+
+  if (is.null(dim(x))) {
+    if (length(x) == 1L) {
+      return(matrix(x, nrow = 1, ncol = K))
+    }
+    if (length(x) == K) {
+      return(matrix(x, nrow = 1, ncol = K))
+    }
+    stop("'", name, "' must have length 1, length K, or be an S x K matrix.",
+         call. = FALSE)
+  }
+
+  x <- as.matrix(x)
+
+  if (ncol(x) == 1L && K > 1L) {
+    x <- matrix(x[, 1], nrow = nrow(x), ncol = K)
+  }
+
+  if (ncol(x) != K) {
+    stop("'", name, "' must have K columns.", call. = FALSE)
+  }
+
+  return(x)
 }
 
 

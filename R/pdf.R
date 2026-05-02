@@ -113,6 +113,29 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .glmm_likelihood_weights
+# ---------------------------------------------------------------------------- #
+#
+# Validate and default GLMM pair likelihood weights.
+#
+# ---------------------------------------------------------------------------- #
+.glmm_likelihood_weights <- function(weights, K) {
+
+  if (is.null(weights)) {
+    return(rep(1, K))
+  }
+
+  BayesTools::check_real(
+    weights, "weights",
+    check_length = K, allow_NULL = FALSE, allow_NA = FALSE,
+    lower = 0, allow_bound = FALSE
+  )
+
+  return(as.numeric(weights))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .outcome_pdf.norm
 # ---------------------------------------------------------------------------- #
 #
@@ -152,84 +175,34 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_pdf.wnorm
+# .outcome_pdf.selnorm
 # ---------------------------------------------------------------------------- #
 #
-# Compute pointwise log-likelihoods for weighted normal distribution (selection models).
-#
-# For selection models, the observed effect y_i follows a weighted normal:
-#   y_i ~ f(y) * omega(y) / Z
-# where f(y) is normal density and omega(y) is the selection weight function.
-#
-# This uses the extended weighted normal density function that handles
-# matrix omega inputs (one row per posterior sample).
-#
-# Performance optimization: When use_normal is provided, samples with
-# use_normal[i] = TRUE use the fast normal path, skipping the expensive
-# weighted normal computation. This is correct because these samples have
-# omega = all 1s (set by JAGS for non-weightfunction models).
-#
-# @param yi               numeric vector of length K; observed effect sizes
-# @param mu_samples       S x K matrix of location samples
-# @param tau_within       S x K matrix of estimate-level heterogeneity samples
-# @param sei              numeric vector of length K; standard errors
-# @param omega            S x W matrix of omega (weight) samples
-# @param crit_yi          W - 1 x K matrix of critical values for each observation
-# @param use_normal       optional logical vector of length S; TRUE if sample should
-#                         use fast normal path (for samples with omega = all 1s)
-# @param bias_indicator   optional integer vector of length S; active bias branch
-#                         for branch-specific cutpoint mapping
-# @param crit_yi_mapping  optional cutpoint mapping matrix, cuts x branches
-# @param crit_yi_mapping_max optional active cutoff count per branch
-#
-# @return S x K matrix of log-likelihood values from weighted distribution
+# Selected-normal likelihood using the compiled p-bin kernel.
 #
 # ---------------------------------------------------------------------------- #
-.outcome_pdf.wnorm <- function(yi, mu_samples, tau_within, sei, omega, crit_yi,
-                               use_normal = NULL, bias_indicator = NULL,
-                               crit_yi_mapping = NULL, crit_yi_mapping_max = NULL) {
+.outcome_pdf.selnorm <- function(yi, mu_samples, tau_within, sei,
+                                 selection_context, weights = NULL) {
 
-  S <- nrow(mu_samples)
-  K <- ncol(mu_samples)
-
-  # pre-compute total SD for each observation
-  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  S       <- nrow(mu_samples)
+  K       <- ncol(mu_samples)
+  sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd <- sqrt(tau_within^2 + sei_mat^2)
 
-  # use the mapped dwnorm_mix backend when branch-specific cutpoint mapping is available
-  has_mapping <- .selection_has_mapping(
-    bias_indicator      = bias_indicator,
-    crit_yi_mapping     = crit_yi_mapping,
-    crit_yi_mapping_max = crit_yi_mapping_max
-  )
-
-  if (has_mapping) {
-    return(.wnorm_mix_logpdf_matrix(
-      yi                  = yi,
-      mean                = mu_samples,
-      sd                  = total_sd,
-      omega               = omega,
-      crit_yi             = crit_yi,
-      bias_indicator      = bias_indicator,
-      crit_yi_mapping     = crit_yi_mapping,
-      crit_yi_mapping_max = crit_yi_mapping_max
-    ))
-  }
-
-  log_lik <- matrix(NA_real_, nrow = S, ncol = K)
-  for (k in seq_len(K)) {
-    log_lik[, k] <- .dwnorm_fast.ss.matrix(
-      x          = yi[k],
-      mean       = mu_samples[, k],
-      sd         = total_sd[, k],
-      omega      = omega,
-      crit_x     = crit_yi[, k],
-      log        = TRUE,
-      use_normal = use_normal  # <-- Pass through for internal subdispatch
-    )
-  }
-
-  return(log_lik)
+  return(.selnorm_kernel_loglik_matrix(
+    yi             = yi,
+    mu_num         = mu_samples,
+    sigma_num      = total_sd,
+    mu_norm        = mu_samples,
+    sigma_norm     = total_sd,
+    sei            = sei,
+    omega          = selection_context[["omega"]],
+    selection_spec = selection_context,
+    alpha          = selection_context[["alpha"]],
+    phack_kind     = selection_context[["phack_kind"]],
+    kernel_mode    = selection_context[["kernel_mode"]],
+    weights        = weights
+  ))
 }
 
 
@@ -271,36 +244,96 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .gauss_legendre_nodes
+# ---------------------------------------------------------------------------- #
+#
+# Compute Gauss-Legendre quadrature nodes and weights on (0, 1).
+#
+# ---------------------------------------------------------------------------- #
+.gauss_legendre_nodes_cache <- new.env(parent = emptyenv())
+
+.gauss_legendre_nodes <- function(n) {
+
+  key <- as.character(n)
+  if (exists(key, envir = .gauss_legendre_nodes_cache, inherits = FALSE)) {
+    return(get(key, envir = .gauss_legendre_nodes_cache, inherits = FALSE))
+  }
+
+  i <- seq_len(n - 1)
+  b <- i / sqrt(4 * i^2 - 1)
+
+  J <- diag(0, n)
+  J[cbind(i, i + 1)] <- b
+  J[cbind(i + 1, i)] <- b
+
+  eig <- eigen(J, symmetric = TRUE)
+
+  nodes_raw   <- eig$values
+  weights_raw <- 2 * eig$vectors[1, ]^2
+
+  nodes   <- (nodes_raw + 1) / 2
+  weights <- weights_raw / 2
+
+  ord <- order(nodes)
+
+  out <- list(
+    nodes       = nodes[ord],
+    weights     = weights[ord],
+    log_weights = log(weights[ord])
+  )
+  assign(key, out, envir = .gauss_legendre_nodes_cache)
+
+  return(out)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .glmm_prior_quantile_grid
+# ---------------------------------------------------------------------------- #
+#
+# Construct quadrature nodes under a prior using the probability integral
+# transform. The returned weights integrate with respect to the prior measure.
+#
+# ---------------------------------------------------------------------------- #
+.glmm_prior_quantile_grid <- function(prior, n) {
+
+  gl      <- .gauss_legendre_nodes(n)
+  q_grid  <- as.numeric(BayesTools::quant(prior, gl[["nodes"]]))
+
+  if (anyNA(q_grid) || any(!is.finite(q_grid))) {
+    stop("The GLMM nuisance prior produced non-finite quadrature nodes.",
+         call. = FALSE)
+  }
+
+  return(list(
+    grid        = q_grid,
+    log_weights = gl[["log_weights"]]
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .glmm_binom_logit_pi_grid
 # ---------------------------------------------------------------------------- #
 #
-# Construct per-observation nuisance grids for binomial GLMM likelihoods.
+# Construct prior-scale nuisance grids for binomial GLMM likelihoods.
 #
 # ---------------------------------------------------------------------------- #
 .glmm_binom_logit_pi_grid <- function(ai, ci, n1i, n2i, prior_pi, n_pi) {
 
-  K              <- length(ai)
-  logit_pi_grid  <- matrix(NA_real_, nrow = n_pi, ncol = K)
-  log_pi_weights <- matrix(NA_real_, nrow = n_pi, ncol = K)
+  K       <- length(ai)
+  pi_grid <- .glmm_prior_quantile_grid(prior = prior_pi, n = n_pi)
 
-  for (k in seq_len(K)) {
-    bi <- n1i[k] - ai[k]
-    di <- n2i[k] - ci[k]
-
-    p_hat <- if (ai[k] == 0 || bi == 0 || ci[k] == 0 || di == 0) {
-      (ai[k] + ci[k] + 0.5) / (n1i[k] + n2i[k] + 1)
-    } else {
-      (ai[k] + ci[k]) / (n1i[k] + n2i[k])
-    }
-    p_hat <- pmin(pmax(p_hat, .Machine$double.eps), 1 - .Machine$double.eps)
-
-    logit_pi_grid[, k] <- seq(qlogis(p_hat) - 5, qlogis(p_hat) + 5, length.out = n_pi)
-    pi_grid            <- plogis(logit_pi_grid[, k])
-    lpi_step           <- logit_pi_grid[2, k] - logit_pi_grid[1, k]
-    log_jacobian       <- stats::dlogis(logit_pi_grid[, k], log = TRUE)
-    log_prior          <- BayesTools::lpdf(prior_pi, pi_grid)
-    log_pi_weights[, k] <- log_prior + log_jacobian + log(lpi_step)
+  if (any(pi_grid[["grid"]] < 0 | pi_grid[["grid"]] > 1)) {
+    stop("The binomial GLMM baserate prior produced nodes outside [0, 1].",
+         call. = FALSE)
   }
+
+  pi_nodes <- pmin(pmax(pi_grid[["grid"]], .Machine$double.eps),
+                   1 - .Machine$double.eps)
+
+  logit_pi_grid  <- matrix(qlogis(pi_nodes), nrow = n_pi, ncol = K)
+  log_pi_weights <- matrix(pi_grid[["log_weights"]], nrow = n_pi, ncol = K)
 
   return(list(
     grid        = logit_pi_grid,
@@ -313,26 +346,16 @@
 # .glmm_pois_log_phi_grid
 # ---------------------------------------------------------------------------- #
 #
-# Construct per-observation nuisance grids for Poisson GLMM likelihoods.
+# Construct prior-scale nuisance grids for Poisson GLMM likelihoods.
 #
 # ---------------------------------------------------------------------------- #
 .glmm_pois_log_phi_grid <- function(x1i, x2i, t1i, t2i, prior_phi, n_phi) {
 
-  K               <- length(x1i)
-  log_phi_grid    <- matrix(NA_real_, nrow = n_phi, ncol = K)
-  log_phi_weights <- matrix(NA_real_, nrow = n_phi, ncol = K)
+  K        <- length(x1i)
+  phi_grid <- .glmm_prior_quantile_grid(prior = prior_phi, n = n_phi)
 
-  for (k in seq_len(K)) {
-    if (x1i[k] == 0 || x2i[k] == 0) {
-      empirical_rate <- (x1i[k] + x2i[k] + 0.5) / (t1i[k] + t2i[k])
-    } else {
-      empirical_rate <- (x1i[k] + x2i[k]) / (t1i[k] + t2i[k])
-    }
-
-    log_phi_grid[, k] <- seq(log(empirical_rate) - 5, log(empirical_rate) + 5, length.out = n_phi)
-    phi_step          <- log_phi_grid[2, k] - log_phi_grid[1, k]
-    log_phi_weights[, k] <- BayesTools::lpdf(prior_phi, log_phi_grid[, k]) + log(phi_step)
-  }
+  log_phi_grid    <- matrix(phi_grid[["grid"]], nrow = n_phi, ncol = K)
+  log_phi_weights <- matrix(phi_grid[["log_weights"]], nrow = n_phi, ncol = K)
 
   return(list(
     grid        = log_phi_grid,
@@ -349,7 +372,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.binom <- function(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
-                               n_theta = 15, n_pi = 30) {
+                               weights = NULL, n_theta = 15, n_pi = 30) {
 
   if (!.has_native_glmm()) {
     return(.outcome_pdf.binom_r(
@@ -360,6 +383,7 @@
       mu_samples = mu_samples,
       tau_within = tau_within,
       prior_pi   = prior_pi,
+      weights    = weights,
       n_theta    = n_theta,
       n_pi       = n_pi
     ))
@@ -374,6 +398,9 @@
     prior_pi = prior_pi,
     n_pi     = n_pi
   )
+  weights_arg <- if (is.null(weights)) NULL else .native_numeric_vector(
+    .glmm_likelihood_weights(weights, ncol(mu_samples))
+  )
 
   return(.Call(
     "RoBMA_glmm_binom_marginal_loglik",
@@ -383,6 +410,7 @@
     .native_integer_vector(n2i),
     .native_numeric_matrix(mu_samples),
     .native_numeric_matrix(tau_within),
+    weights_arg,
     .native_numeric_vector(gh[["nodes"]]),
     .native_numeric_vector(gh[["log_weights"]]),
     .native_numeric_matrix(pi_grid[["grid"]]),
@@ -404,7 +432,8 @@
 #
 # This function uses Gauss-Hermite quadrature for the theta dimension (N(0,1)
 # prior) which requires far fewer points than quantile spacing for similar
-# accuracy. The pi dimension uses adaptive data-guided linear spacing.
+# accuracy. The pi dimension uses Gauss-Legendre quadrature on the prior CDF
+# scale, so the integration covers the full baserate prior support.
 #
 # The integration over samples is vectorized for efficiency: instead of looping
 # over S samples, we compute all samples simultaneously using matrix operations.
@@ -430,10 +459,11 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.binom_r <- function(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
-                                 n_theta = 15, n_pi = 30) {
+                                 weights = NULL, n_theta = 15, n_pi = 30) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
+  weights <- .glmm_likelihood_weights(weights, K)
 
   # initialize output matrix
   log_lik <- matrix(NA_real_, nrow = S, ncol = K)
@@ -443,6 +473,15 @@
   theta_grid        <- gh$nodes
   log_theta_weights <- gh$log_weights
 
+  pi_quadrature <- .glmm_binom_logit_pi_grid(
+    ai       = ai,
+    ci       = ci,
+    n1i      = n1i,
+    n2i      = n2i,
+    prior_pi = prior_pi,
+    n_pi     = n_pi
+  )
+
   # Expand theta grid for vectorized computation
   theta_expanded <- rep(theta_grid, times = n_pi)  # length G
 
@@ -450,30 +489,11 @@
   log_binom_coef_a <- lgamma(n1i + 1) - lgamma(ai + 1) - lgamma(n1i - ai + 1)
   log_binom_coef_c <- lgamma(n2i + 1) - lgamma(ci + 1) - lgamma(n2i - ci + 1)
 
-  # --- 3. LOOP OVER OBSERVATIONS (Data-Guided Centering for Pi) ---
+  # --- 3. LOOP OVER OBSERVATIONS ---
   for (k in seq_len(K)) {
 
-    # --- ADAPTIVE STEP: Center Pi Grid on Empirical Data ---
-    bi <- n1i[k] - ai[k]
-    di <- n2i[k] - ci[k]
-
-    p_hat <- if (ai[k] == 0 || bi == 0 || ci[k] == 0 || di == 0) {
-      (ai[k] + ci[k] + 0.5) / (n1i[k] + n2i[k] + 1)
-    } else {
-      (ai[k] + ci[k]) / (n1i[k] + n2i[k])
-    }
-    p_hat <- pmin(pmax(p_hat, .Machine$double.eps), 1 - .Machine$double.eps)
-    logit_center <- qlogis(p_hat)
-
-    # Define range around center (+/- 5 on logit scale)
-    lpi_grid <- seq(logit_center - 5, logit_center + 5, length.out = n_pi)
-    pi_grid  <- plogis(lpi_grid)
-
-    # Calculate log-weights with Jacobian correction
-    lpi_step       <- lpi_grid[2] - lpi_grid[1]
-    log_jacobian   <- stats::dlogis(lpi_grid, log = TRUE)
-    log_prior      <- BayesTools::lpdf(prior_pi, pi_grid)
-    log_pi_weights <- log_prior + log_jacobian + log(lpi_step)
+    lpi_grid       <- pi_quadrature[["grid"]][, k]
+    log_pi_weights <- pi_quadrature[["log_weights"]][, k]
 
     # Create log-weight vector for all grid points
     log_weights <- as.vector(outer(log_theta_weights, log_pi_weights, "+"))
@@ -495,6 +515,7 @@
 
     log_lik_grid <- log_binom_coef_a[k] + ai[k] * log_p1 + (n1i[k] - ai[k]) * log_1mp1 +
                     log_binom_coef_c[k] + ci[k] * log_p2 + (n2i[k] - ci[k]) * log_1mp2
+    log_lik_grid <- weights[k] * log_lik_grid
 
     log_terms <- sweep(log_lik_grid, 2, log_weights, "+")
     log_lik[, k] <- .rowLogSumExps(log_terms)
@@ -641,7 +662,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.pois <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
-                              n_theta = 15, n_phi = 30) {
+                              weights = NULL, n_theta = 15, n_phi = 30) {
 
   if (!.has_native_glmm()) {
     return(.outcome_pdf.pois_r(
@@ -652,6 +673,7 @@
       mu_samples = mu_samples,
       tau_within = tau_within,
       prior_phi  = prior_phi,
+      weights    = weights,
       n_theta    = n_theta,
       n_phi      = n_phi
     ))
@@ -666,6 +688,9 @@
     prior_phi = prior_phi,
     n_phi    = n_phi
   )
+  weights_arg <- if (is.null(weights)) NULL else .native_numeric_vector(
+    .glmm_likelihood_weights(weights, ncol(mu_samples))
+  )
 
   return(.Call(
     "RoBMA_glmm_pois_marginal_loglik",
@@ -675,6 +700,7 @@
     .native_numeric_vector(t2i),
     .native_numeric_matrix(mu_samples),
     .native_numeric_matrix(tau_within),
+    weights_arg,
     .native_numeric_vector(gh[["nodes"]]),
     .native_numeric_vector(gh[["log_weights"]]),
     .native_numeric_matrix(phi_grid[["grid"]]),
@@ -696,7 +722,8 @@
 #
 # This function uses Gauss-Hermite quadrature for the theta dimension (N(0,1)
 # prior) which requires far fewer points than quantile spacing for similar
-# accuracy. The phi dimension uses adaptive data-guided linear spacing.
+# accuracy. The phi dimension uses Gauss-Legendre quadrature on the prior CDF
+# scale, so the integration covers the full log-rate prior support.
 #
 # The integration over samples is vectorized for efficiency: instead of looping
 # over S samples, we compute all samples simultaneously using matrix operations.
@@ -722,10 +749,11 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.pois_r <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
-                                n_theta = 15, n_phi = 30) {
+                                weights = NULL, n_theta = 15, n_phi = 30) {
 
   S <- nrow(mu_samples)
   K <- ncol(mu_samples)
+  weights <- .glmm_likelihood_weights(weights, K)
 
   # initialize output matrix
   log_lik <- matrix(NA_real_, nrow = S, ncol = K)
@@ -734,6 +762,15 @@
   gh <- .gauss_hermite_nodes(n_theta)
   theta_grid        <- gh$nodes
   log_theta_weights <- gh$log_weights
+
+  phi_quadrature <- .glmm_pois_log_phi_grid(
+    x1i       = x1i,
+    x2i       = x2i,
+    t1i       = t1i,
+    t2i       = t2i,
+    prior_phi = prior_phi,
+    n_phi     = n_phi
+  )
 
   # Expand theta grid for vectorized computation
   theta_expanded <- rep(theta_grid, times = n_phi)  # length G
@@ -744,23 +781,11 @@
   log_t1i <- log(t1i)
   log_t2i <- log(t2i)
 
-  # --- 3. LOOP OVER OBSERVATIONS (Data-Guided Centering for Phi) ---
+  # --- 3. LOOP OVER OBSERVATIONS ---
   for (k in seq_len(K)) {
 
-    # --- ADAPTIVE STEP: Center Phi Grid on Empirical Data ---
-    if (x1i[k] == 0 || x2i[k] == 0) {
-      empirical_rate <- (x1i[k] + x2i[k] + 0.5) / (t1i[k] + t2i[k])
-    } else {
-      empirical_rate <- (x1i[k] + x2i[k]) / (t1i[k] + t2i[k])
-    }
-    log_rate_center <- log(empirical_rate)
-
-    # Define range around center (+/- 5 on log scale)
-    phi_grid <- seq(log_rate_center - 5, log_rate_center + 5, length.out = n_phi)
-
-    # Calculate log-weights (no Jacobian needed - phi is on log scale)
-    phi_step        <- phi_grid[2] - phi_grid[1]
-    log_phi_weights <- BayesTools::lpdf(prior_phi, phi_grid) + log(phi_step)
+    phi_grid        <- phi_quadrature[["grid"]][, k]
+    log_phi_weights <- phi_quadrature[["log_weights"]][, k]
 
     # Create log-weight vector for all grid points
     log_weights <- as.vector(outer(log_theta_weights, log_phi_weights, "+"))
@@ -777,6 +802,7 @@
 
     log_lik_grid <- x1i[k] * log_lambda1 - exp(log_lambda1) - log_factorial_x1[k] +
                     x2i[k] * log_lambda2 - exp(log_lambda2) - log_factorial_x2[k]
+    log_lik_grid <- weights[k] * log_lik_grid
 
     log_terms <- sweep(log_lik_grid, 2, log_weights, "+")
     log_lik[, k] <- .rowLogSumExps(log_terms)
@@ -1062,6 +1088,7 @@
   is_weightfunction <- setup[["is_weightfunction"]]
   outcome_type      <- setup[["outcome_type"]]
   effect_direction  <- setup[["effect_direction"]]
+  data_weights      <- .get_log_lik_data_weights(object)
 
   ### extract posterior samples once if needed
   if (is_weightfunction) {
@@ -1071,7 +1098,7 @@
   ### compute log-likelihood based on outcome type
   if (outcome_type == "norm") {
 
-    # flip for negative effect direction (applies to normal and weighted normal)
+    # flip for negative effect direction
     if (effect_direction == "negative") {
       mu_samples_pdf <- -mu_samples
       yi_pdf         <- -yi
@@ -1082,25 +1109,17 @@
 
     # dispatch between weighted and standard normal
     if (is_weightfunction) {
+      selection_context <- .selection_context(
+        object            = object,
+        posterior_samples = posterior_samples
+      )
 
-      # extract omega samples for weight function
-      omega_samples <- .extract_omega_samples(posterior_samples)
-
-      # compute use_normal indicator for performance optimization
-      # this identifies which samples come from non-weightfunction bias models
-      use_normal <- .extract_use_normal(object, posterior_samples = posterior_samples)
-
-      log_lik <- .outcome_pdf.wnorm(
-        yi                  = yi_pdf,
-        mu_samples          = mu_samples_pdf,
-        tau_within          = tau_within_samples,
-        sei                 = sei,
-        omega               = omega_samples,
-        crit_yi             = setup[["fit_data"]][["crit_yi"]],
-        use_normal          = use_normal,
-        bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
-        crit_yi_mapping     = setup[["fit_data"]][["crit_yi_mapping"]],
-        crit_yi_mapping_max = setup[["fit_data"]][["crit_yi_mapping_max"]]
+      log_lik <- .outcome_pdf.selnorm(
+        yi                = yi,
+        mu_samples        = mu_samples,
+        tau_within        = tau_within_samples,
+        sei               = sei,
+        selection_context = selection_context
       )
 
     } else {
@@ -1126,7 +1145,8 @@
       n2i        = data[["outcome"]][["n2i"]],
       mu_samples = mu_samples,
       tau_within = tau_within_samples,
-      prior_pi   = priors[["outcome"]][["pi"]]
+      prior_pi   = priors[["outcome"]][["pi"]],
+      weights    = data_weights
     )
 
 
@@ -1141,7 +1161,8 @@
       t2i        = data[["outcome"]][["t2i"]],
       mu_samples = mu_samples,
       tau_within = tau_within_samples,
-      prior_phi  = priors[["outcome"]][["phi"]]
+      prior_phi  = priors[["outcome"]][["phi"]],
+      weights    = data_weights
     )
 
   } else {
@@ -1152,7 +1173,9 @@
   }
 
   # add column names and target metadata
-  log_lik <- .apply_log_lik_weights(log_lik, .get_log_lik_data_weights(object))
+  if (outcome_type == "norm") {
+    log_lik <- .apply_log_lik_weights(log_lik, data_weights)
+  }
 
   colnames(log_lik) <- paste0("log_lik[", seq_len(K), "]")
   attr(log_lik, "RoBMA_target") <- list(
@@ -1194,7 +1217,7 @@
   if (outcome_type == "norm" && !is_weightfunction && !is_weights) {
     return(.log_lik_cluster_norm.brma(object))
   } else if (outcome_type == "norm") {
-    return(.log_lik_cluster_wnorm.brma(object))
+    return(.log_lik_cluster_norm_quadrature.brma(object))
   } else if (outcome_type %in% c("bin", "pois")) {
     return(.log_lik_cluster_glmm.brma(object))
   } else {
@@ -1389,11 +1412,11 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .log_lik_cluster_wnorm.brma
+# .log_lik_cluster_norm_quadrature.brma
 # ---------------------------------------------------------------------------- #
 #
-# Gamma-quadrature cluster-unit likelihood for normal selection models and
-# weighted normal models. Conditional on gamma, per-estimate likelihood
+# Gamma-quadrature cluster-unit likelihood for selected-normal models and
+# data-weighted normal models. Conditional on gamma, per-estimate likelihood
 # contributions factorize.
 #
 # @param object brma object.
@@ -1401,14 +1424,14 @@
 # @return S x G cluster-unit log-likelihood matrix.
 #
 # ---------------------------------------------------------------------------- #
-.log_lik_cluster_wnorm.brma <- function(object) {
+.log_lik_cluster_norm_quadrature.brma <- function(object) {
 
   setup             <- .log_lik_cluster_setup.brma(object)
   is_weightfunction <- .is_weightfunction(object)
   yi                <- .outcome_data_yi(object)
   sei               <- .outcome_data_sei(object)
 
-  if (setup[["effect_direction"]] == "negative") {
+  if (setup[["effect_direction"]] == "negative" && !is_weightfunction) {
     mu_samples <- -setup[["mu"]]
     yi         <- -yi
   } else {
@@ -1417,24 +1440,23 @@
 
   if (is_weightfunction) {
     posterior_samples <- setup[["posterior_samples"]]
-    omega_samples     <- .extract_omega_samples(posterior_samples)
-    fit_data          <- .create_fit_data(data = setup[["data"]], priors = setup[["priors"]])
-    use_normal        <- .extract_use_normal(object, posterior_samples = posterior_samples)
+    selection_context <- .selection_context(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
   }
 
   log_lik_fun <- function(idx, mu_node) {
     if (is_weightfunction) {
-      return(.outcome_pdf.wnorm(
-        yi                  = yi[idx],
-        mu_samples          = mu_node,
-        tau_within          = setup[["tau_within"]][, idx, drop = FALSE],
-        sei                 = sei[idx],
-        omega               = omega_samples,
-        crit_yi             = fit_data[["crit_yi"]][, idx, drop = FALSE],
-        use_normal          = use_normal,
-        bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
-        crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-        crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+      local_context <- selection_context
+      local_context[["obs_bin"]] <- selection_context[["obs_bin"]][idx]
+
+      return(.outcome_pdf.selnorm(
+        yi                = yi[idx],
+        mu_samples        = mu_node,
+        tau_within        = setup[["tau_within"]][, idx, drop = FALSE],
+        sei               = sei[idx],
+        selection_context = local_context
       ))
     } else {
       return(.outcome_pdf.norm(
@@ -1521,6 +1543,7 @@
         mu_samples = mu_node,
         tau_within = setup[["tau_within"]][, idx, drop = FALSE],
         prior_pi   = priors[["outcome"]][["pi"]],
+        weights    = setup[["weights"]][idx],
         n_theta    = n_theta,
         n_pi       = n_pi
       )
@@ -1534,6 +1557,7 @@
         mu_samples = mu_node,
         tau_within = setup[["tau_within"]][, idx, drop = FALSE],
         prior_phi  = priors[["outcome"]][["phi"]],
+        weights    = setup[["weights"]][idx],
         n_theta    = n_theta,
         n_phi      = n_phi
       )
@@ -1545,7 +1569,6 @@
     mu_samples          = setup[["mu"]],
     tau_between_samples = setup[["tau_between"]],
     log_lik_fun         = log_lik_fun,
-    weights             = setup[["weights"]],
     n_gamma             = n_gamma
   )
 

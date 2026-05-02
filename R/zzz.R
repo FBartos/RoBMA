@@ -9,7 +9,15 @@
   # Get and save the library location, getting rid of any trailing / caused by r_arch being empty:
   module_location <- gsub('/$','', file.path(libname, pkgname, 'libs', if(.Platform$r_arch!="") .Platform$r_arch else ""))
   if(!file.exists(file.path(module_location, paste('RoBMA', .Platform$dynlib.ext, sep='')))){
-    module_location <- NULL
+    dev_module_location <- normalizePath(file.path(getwd(), "src"), mustWork = FALSE)
+    if (file.exists(file.path(dev_module_location, paste('RoBMA', .Platform$dynlib.ext, sep='')))) {
+      module_location <- dev_module_location
+    } else {
+      module_location <- NULL
+    }
+  }
+
+  if(is.null(module_location)){
     warning('The RoBMA module could not be loaded.', call. = FALSE)
   }else{
     rjags::load.module("RoBMA", path = module_location, quiet = TRUE)
@@ -19,7 +27,7 @@
 
     tryCatch(
       {
-        if(!is.loaded("RoBMA_wnorm_mix_logpdf_matrix", PACKAGE = pkgname)){
+        if(!is.loaded("RoBMA_selnorm_kernel_loglik_matrix", PACKAGE = pkgname)){
           library.dynam("RoBMA", pkgname, libname)
         }
       },

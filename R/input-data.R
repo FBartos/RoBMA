@@ -8,7 +8,9 @@
 #' @param yi a vector of effect sizes.
 #' @param vi a vector of sampling variances.
 #' @param sei a vector of standard errors.
-#' @param weights an optional vector of weights.
+#' @param weights an optional vector of positive likelihood weights. For normal
+#' models, each weight powers the estimate likelihood. For GLMM models, each
+#' weight powers the paired two-arm likelihood for one study.
 #' @param ni an optional vector of sample sizes (used for `measuer = "GEN"`
 #' or when estimating `"UISD"`).
 #' @param mods an optional vector, matrix, data.frame, or formula specifying
@@ -185,7 +187,7 @@ NULL
                                  effect_direction = "positive", skip_validation = FALSE) {
 
   # check additional input
-  .check_measure(measure)
+  .check_measure(measure, class = class)
   BayesTools::check_bool(standardize_continuous_predictors, "standardize_continuous_predictors", allow_NA = FALSE)
   BayesTools::check_char(set_contrast_factor_predictors, "set_contrast_factor_predictors", allow_values = c("treatment", "meandif", "orthonormal"), allow_NA = FALSE)
   if (missing(effect_direction)) {
@@ -292,6 +294,10 @@ NULL
 
   if (k_final == 0) {
     stop("No observations remaining after removing missing values.", call. = FALSE)
+  }
+
+  if (outcome_type == "norm" && effect_direction == "detect") {
+    effect_direction <- if (stats::median(data_outcome[["yi"]], na.rm = TRUE) >= 0) "positive" else "negative"
   }
 
   # Validate predictor variables (after subsetting and NA dropping)
@@ -452,11 +458,6 @@ NULL
     stringsAsFactors = FALSE
   )
 
-  ### Evaluate effect_direction
-  if (effect_direction == "detect") {
-    effect_direction <- if (median(data_outcome$yi, na.rm = TRUE) >= 0) "positive" else "negative"
-  }
-
   return(list(
     data_outcome       = data_outcome,
     k                  = k,
@@ -500,50 +501,49 @@ NULL
 
   ### Determine input format and validate
 
-  # Check which variables are provided
-  has_abcd <- !is.null(ai) && !is.null(bi) && !is.null(ci) && !is.null(di)
-  has_ac_n <- !is.null(ai) && !is.null(ci) && !is.null(n1i) && !is.null(n2i)
-
-  if (!has_abcd && !has_ac_n) {
-    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
-  }
-
   # Determine k from first available variable
   if (!is.null(ai)) {
     k <- length(ai)
   } else {
-    stop("The 'ai' argument is required for GLMM models.", call. = FALSE)
+    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
   }
 
-  # Validate and convert inputs
-  if (has_abcd) {
-    # Full 2x2 table specification
-    BayesTools::check_int(ai, "ai", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-    BayesTools::check_int(bi, "bi", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-    BayesTools::check_int(ci, "ci", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-    BayesTools::check_int(di, "di", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-
-    # Compute marginal totals if not provided
-    if (is.null(n1i)) n1i <- ai + bi
-    if (is.null(n2i)) n2i <- ci + di
-
-  } else {
-    # ai, ci with marginal totals
-    BayesTools::check_int(ai,  "ai",  check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-    BayesTools::check_int(ci,  "ci",  check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-    BayesTools::check_int(n1i, "n1i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-    BayesTools::check_int(n2i, "n2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
-
-    # Compute bi and di from marginals
-    bi <- n1i - ai
-    di <- n2i - ci
-
-    # Check for negative values (invalid data)
-    if (any(bi < 0, na.rm = TRUE))
-      stop("Invalid data: some values of 'bi' (= n1i - ai) are negative.", call. = FALSE)
-    if (any(di < 0, na.rm = TRUE))
-      stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
+  count_args <- list(ai = ai, bi = bi, ci = ci, di = di, n1i = n1i, n2i = n2i)
+  for (arg_name in names(count_args)) {
+    if (!is.null(count_args[[arg_name]])) {
+      BayesTools::check_int(
+        count_args[[arg_name]], arg_name,
+        check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0
+      )
+    }
   }
+
+  has_cells  <- !is.null(ci) && !is.null(bi) && !is.null(di)
+  has_totals <- !is.null(ci) && !is.null(n1i) && !is.null(n2i)
+
+  if (!has_cells && !has_totals) {
+    stop("For GLMM models, provide either (ai, bi, ci, di) or (ai, ci, n1i, n2i).", call. = FALSE)
+  }
+
+  if (!is.null(n1i) && any(ai > n1i, na.rm = TRUE))
+    stop("Invalid data: some values of 'bi' (= n1i - ai) are negative.", call. = FALSE)
+  if (!is.null(n2i) && any(ci > n2i, na.rm = TRUE))
+    stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
+
+  if (!is.null(bi) && !is.null(n1i) && any(n1i != ai + bi, na.rm = TRUE))
+    stop("The provided 'n1i' values must equal 'ai + bi' when both are supplied.", call. = FALSE)
+  if (!is.null(di) && !is.null(n2i) && any(n2i != ci + di, na.rm = TRUE))
+    stop("The provided 'n2i' values must equal 'ci + di' when both are supplied.", call. = FALSE)
+
+  if (!is.null(bi)) {
+    n1i <- ai + bi
+  }
+  if (!is.null(di)) {
+    n2i <- ci + di
+  }
+
+  bi <- n1i - ai
+  di <- n2i - ci
 
   # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "ai")

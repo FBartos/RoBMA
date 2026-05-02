@@ -17,7 +17,7 @@ expect_effect_transform_matches_metafor <- function(input_measure, output_measur
     actual,
     expected,
     tolerance = sqrt(.Machine$double.eps),
-    info      = paste(input_measure, "to", output_measure, "should match metafor")
+    info      = paste(input_measure, "to", output_measure, "matches metafor")
   )
 }
 

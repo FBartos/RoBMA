@@ -242,9 +242,10 @@ print.zcurve_brma <- function(x, ...) {
 #'   \item{Fit (black)}{Model-implied density including publication bias adjustments.
 #'     This represents the expected distribution of z-statistics given the estimated
 #'     selection process.}
-#'   \item{Extrapolation (blue)}{Bias-corrected density representing the hypothetical
-#'     distribution without selective reporting. The area beyond the significance
-#'     threshold corresponds to the EDR.}
+#'   \item{Extrapolation (blue)}{Bias-corrected curve representing the hypothetical
+#'     distribution without selective reporting, scaled by the expected suppressed
+#'     studies under selection models. This curve is not normalized to integrate
+#'     to one when selection implies missing studies.}
 #' }
 #'
 #' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
@@ -593,7 +594,9 @@ hist.zcurve_brma <- function(x, plot_type = "base",
 #' When \code{extrapolate = FALSE}, the density includes all bias adjustments
 #' (PET/PEESE regression, selection weights) representing the fitted model.
 #' When \code{extrapolate = TRUE}, bias adjustments are removed to show the
-#' hypothetical distribution without publication bias.
+#' hypothetical distribution without publication bias. Under selection models,
+#' the curve is scaled by inverse selection probability and need not integrate
+#' to one.
 #'
 #' @return \code{NULL} invisibly for base graphics, ggplot2 layers for ggplot,
 #' or a data frame with columns \code{x}, \code{y}, \code{y_lCI}, \code{y_uCI}
@@ -816,176 +819,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
     ))
   }
 
-  if (!is.null(z_threshold)) {
-
-    # --- EDR Computation ---
-
-    outcome_thresholds <- rep(NA, S)
-    outcome_weights    <- rep(NA, S)
-
-    for (j in seq_len(S)) {
-      temp_thresholds <- rep(NA, K)
-      temp_weights    <- rep(NA, K)
-
-      for (i in seq_len(K)) {
-
-        # predictive SD combines heterogeneity and sampling error
-        total_sd     <- sqrt(tau_within[j, i]^2 + sei[i]^2)
-        use_weighted <- .zcurve_use_weighted(selection, j, extrapolate)
-
-        if (!use_weighted) {
-          # two-tailed probability of exceeding threshold
-          prob <-
-            stats::pnorm(z_threshold * sei[i], mu_samples[j, i], total_sd, lower.tail = FALSE) +
-            stats::pnorm(-z_threshold * sei[i], mu_samples[j, i], total_sd, lower.tail = TRUE)
-
-          temp_thresholds[i] <- prob
-          temp_weights[i]    <- 1
-
-        } else {
-          # selection models: use weighted normal CDF
-          # wnorm helpers assume positive effect direction
-          selection_args <- .zcurve_selection_args(selection, j, i)
-          mu_j_i <- mu_samples[j, i]
-          if (effect_direction == "negative") {
-            mu_j_i <- -mu_j_i
-          }
-
-          # Calculate Prob(|Y| > z_crit * se)
-          prob_upper <- .pwnorm_fast.ss(
-            q          = z_threshold * sei[i],
-            mean       = mu_j_i,
-            sd         = total_sd,
-            omega      = selection_args[["omega"]],
-            crit_x     = selection_args[["crit_yi"]],
-            lower.tail = FALSE
-          )
-
-          prob_lower <- .pwnorm_fast.ss(
-            q          = -z_threshold * sei[i],
-            mean       = mu_j_i,
-            sd         = total_sd,
-            omega      = selection_args[["omega"]],
-            crit_x     = selection_args[["crit_yi"]],
-            lower.tail = TRUE
-          )
-
-          temp_thresholds[i] <- prob_upper + prob_lower
-
-          # normalizing constant for "Missing N" calculation
-          temp_consts <- .dwnorm_fast.ss(
-            x               = 0,
-            mean            = mu_j_i,
-            sd              = total_sd,
-            omega           = selection_args[["omega"]],
-            crit_x          = selection_args[["crit_yi"]],
-            attach_constant = TRUE
-          )
-          temp_weights[i] <- 1 / attr(temp_consts, "constant")
-
-        }
-      }
-
-      if (!is.null(selection) && !extrapolate) {
-         # weight by inverse publication probability
-         outcome_thresholds[j] <- stats::weighted.mean(temp_thresholds, temp_weights)
-      } else {
-         outcome_thresholds[j] <- mean(temp_thresholds)
-      }
-
-      outcome_weights[j] <- mean(temp_weights)
-    }
-
-    return(list(
-      EDR     = outcome_thresholds,
-      weights = outcome_weights
-    ))
-
-
-  } else if (!is.null(z_sequence)) {
-
-    # --- Density Computation ---
-
-    outcome_densities <- matrix(NA, nrow = S, ncol = length(z_sequence))
-
-    for (j in seq_len(S)) {
-      temp_densities_mat <- matrix(NA, nrow = K, ncol = length(z_sequence))
-
-      for (i in seq_len(K)) {
-
-        total_sd <- sqrt(tau_within[j, i]^2 + sei[i]^2)
-        use_weighted <- .zcurve_use_weighted(selection, j, extrapolate)
-
-        if (!use_weighted) {
-          # Jacobian: f_Z(z) = f_Y(z*se) * se
-          temp_densities_mat[i, ] <- stats::dnorm(
-            z_sequence * sei[i],
-            mean = mu_samples[j, i],
-            sd   = total_sd
-          ) * sei[i]
-
-          # extrapolation with selection: scale by normalizing constant
-          if (.zcurve_use_selection_constant(selection, j, extrapolate)) {
-             selection_args <- .zcurve_selection_args(selection, j, i)
-             mu_j_i <- mu_samples[j, i]
-             if (effect_direction == "negative") {
-              mu_j_i_flipped <- -mu_j_i
-             } else {
-              mu_j_i_flipped <- mu_j_i
-             }
-
-             temp_consts <- .dwnorm_fast.ss(
-                x               = 0,
-                mean            = mu_j_i_flipped,
-                sd              = total_sd,
-                omega           = selection_args[["omega"]],
-                crit_x          = selection_args[["crit_yi"]],
-                attach_constant = TRUE
-             )
-             constant <- attr(temp_consts, "constant")
-
-             temp_densities_mat[i, ] <- temp_densities_mat[i, ] / constant
-          }
-
-
-        } else {
-          # fitted selection model density
-          mu_j_i <- mu_samples[j, i]
-          y_seq  <- z_sequence * sei[i]
-          if (effect_direction == "negative") {
-            mu_j_i_flipped <- -mu_j_i
-            y_seq_flipped  <- -y_seq
-          } else {
-            mu_j_i_flipped <- mu_j_i
-            y_seq_flipped  <- y_seq
-          }
-
-          selection_args <- .zcurve_selection_args(
-            selection = selection,
-            row       = j,
-            estimate  = i,
-            n         = length(y_seq)
-          )
-
-          dens_y <- .dwnorm_fast.ss(
-            x      = y_seq_flipped,
-            mean   = mu_j_i_flipped,
-            sd     = total_sd,
-            omega  = selection_args[["omega"]],
-            crit_x = selection_args[["crit_yi"]]
-          )
-
-          # transform density back: f_Z(z) = f_Y(z*se) * se
-          temp_densities_mat[i, ] <- dens_y * sei[i]
-
-        }
-      }
-
-      outcome_densities[j, ] <- colMeans(temp_densities_mat)
-    }
-
-    return(outcome_densities)
-  }
+  return(NULL)
 }
 
 
@@ -993,7 +827,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 # .zcurve_threshold_vectorized
 # ---------------------------------------------------------------------------- #
 #
-# Vectorized EDR computation for normal and mapped weighted-normal rows.
+# Vectorized EDR computation for normal and selected-normal rows.
 #
 # ---------------------------------------------------------------------------- #
 .zcurve_threshold_vectorized <- function(z_threshold, mu_samples, tau_within,
@@ -1018,55 +852,41 @@ lines.zcurve_brma <- function(x, plot_type = "base",
     sd         = total_sd,
     lower.tail = TRUE
   )
-  weights <- matrix(1, nrow = S, ncol = K)
-
-  weighted_rows <- .zcurve_weighted_rows(selection, extrapolate = extrapolate)
+  weights       <- .zcurve_inverse_selection_weights(
+    mean      = mu_samples,
+    sd        = total_sd,
+    sei       = sei,
+    selection = selection
+  )
+  weighted_rows <- if (is.null(selection)) integer(0) else which(!selection[["use_normal"]])
   if (length(weighted_rows) > 0) {
-    mean_eval    <- if (effect_direction == "negative") -mu_samples else mu_samples
-    mean_weight  <- mean_eval[weighted_rows, , drop = FALSE]
-    sd_weight    <- total_sd[weighted_rows, , drop = FALSE]
-    omega_weight <- selection[["omega"]][weighted_rows, , drop = FALSE]
-    bias_weight  <- selection[["bias_indicator"]][weighted_rows]
+    selection_weight <- .selection_context_subset_rows(selection, weighted_rows)
+    mean_weight      <- mu_samples[weighted_rows, , drop = FALSE]
+    sd_weight        <- total_sd[weighted_rows, , drop = FALSE]
 
-    log_norm <- .wnorm_mix_log_norm_matrix(
-      mean                = mean_weight,
-      sd                  = sd_weight,
-      omega               = omega_weight,
-      crit_yi             = selection[["fit_data"]][["crit_yi"]],
-      bias_indicator      = bias_weight,
-      crit_yi_mapping     = selection[["fit_data"]][["crit_yi_mapping"]],
-      crit_yi_mapping_max = selection[["fit_data"]][["crit_yi_mapping_max"]]
-    )
-    prob_upper <- .wnorm_mix_cdf_precomp_matrix(
-      q                   = q_upper,
-      mean                = mean_weight,
-      sd                  = sd_weight,
-      omega               = omega_weight,
-      crit_yi             = selection[["fit_data"]][["crit_yi"]],
-      bias_indicator      = bias_weight,
-      crit_yi_mapping     = selection[["fit_data"]][["crit_yi_mapping"]],
-      crit_yi_mapping_max = selection[["fit_data"]][["crit_yi_mapping_max"]],
-      log_norm            = log_norm,
-      lower.tail          = FALSE
-    )
-    prob_lower <- .wnorm_mix_cdf_precomp_matrix(
-      q                   = q_lower,
-      mean                = mean_weight,
-      sd                  = sd_weight,
-      omega               = omega_weight,
-      crit_yi             = selection[["fit_data"]][["crit_yi"]],
-      bias_indicator      = bias_weight,
-      crit_yi_mapping     = selection[["fit_data"]][["crit_yi_mapping"]],
-      crit_yi_mapping_max = selection[["fit_data"]][["crit_yi_mapping_max"]],
-      log_norm            = log_norm,
-      lower.tail          = TRUE
-    )
+    if (!extrapolate) {
+      prob_upper <- .selection_step_cdf_matrix(
+        q                 = q_upper,
+        mean              = mean_weight,
+        sd                = sd_weight,
+        sei               = sei,
+        selection_context = selection_weight,
+        lower.tail        = FALSE
+      )
+      prob_lower <- .selection_step_cdf_matrix(
+        q                 = q_lower,
+        mean              = mean_weight,
+        sd                = sd_weight,
+        sei               = sei,
+        selection_context = selection_weight,
+        lower.tail        = TRUE
+      )
 
-    thresholds[weighted_rows, ] <- prob_upper + prob_lower
-    weights[weighted_rows, ]    <- exp(-log_norm)
+      thresholds[weighted_rows, ] <- prob_upper + prob_lower
+    }
   }
 
-  if (!is.null(selection) && !extrapolate) {
+  if (!is.null(selection) && extrapolate) {
     EDR <- rowSums(thresholds * weights) / rowSums(weights)
   } else {
     EDR <- rowMeans(thresholds)
@@ -1083,100 +903,130 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 # .zcurve_density_vectorized
 # ---------------------------------------------------------------------------- #
 #
-# Vectorized z-density computation for normal and mapped weighted-normal rows.
+# Vectorized z-density computation for normal and selected-normal rows.
 #
 # ---------------------------------------------------------------------------- #
+.has_native_zcurve_density <- function(selection = FALSE) {
+
+  symbols <- "RoBMA_zcurve_normal_density_matrix"
+  if (selection) {
+    symbols <- c(symbols, "RoBMA_selnorm_zcurve_density_matrix")
+  }
+
+  return(all(vapply(symbols, is.loaded, logical(1), PACKAGE = "RoBMA")))
+}
+
+.zcurve_normal_density_matrix <- function(z_sequence, mean, sd, sei) {
+
+  if (!.has_native_zcurve_density(selection = FALSE)) {
+    stop("The native z-curve density kernel is not loaded.", call. = FALSE)
+  }
+
+  return(.Call(
+    "RoBMA_zcurve_normal_density_matrix",
+    .native_numeric_vector(z_sequence),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_vector(sei),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.zcurve_selnorm_density_matrix <- function(z_sequence, mean, sd, sei,
+                                           selection_context, extrapolate) {
+
+  .selection_require_step_evaluable(selection_context, ".zcurve_density_vectorized()")
+
+  if (!.has_native_zcurve_density(selection = TRUE)) {
+    stop("The native selected-normal z-curve density kernel is not loaded.", call. = FALSE)
+  }
+
+  return(.Call(
+    "RoBMA_selnorm_zcurve_density_matrix",
+    .native_numeric_vector(z_sequence),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(selection_context[["omega"]]),
+    .native_numeric_vector(selection_context[["alpha"]]),
+    .native_integer_vector(selection_context[["phack_kind"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    .native_numeric_vector(selection_context[["z_lower"]]),
+    .native_numeric_vector(selection_context[["z_upper"]]),
+    .native_integer_vector(selection_context[["sign"]]),
+    .native_integer_vector(selection_context[["phack_q"]]),
+    .native_numeric_vector(selection_context[["phack_z_source"]]),
+    .native_numeric_vector(selection_context[["phack_z_dest"]]),
+    .native_numeric_vector(selection_context[["segments"]][["bounds"]]),
+    .native_integer_vector(selection_context[["segments"]][["step_bin"]]),
+    .native_integer_vector(selection_context[["segments"]][["phack_region"]]),
+    as.logical(extrapolate),
+    PACKAGE = "RoBMA"
+  ))
+}
+
 .zcurve_density_vectorized <- function(z_sequence, mu_samples, tau_within,
                                        sei, selection, extrapolate,
                                        effect_direction) {
 
   S           <- nrow(mu_samples)
   K           <- ncol(mu_samples)
-  L           <- length(z_sequence)
   sei_mat     <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd    <- sqrt(tau_within^2 + sei_mat^2)
-  densities   <- matrix(NA_real_, nrow = S, ncol = L)
-  const_rows  <- .zcurve_constant_rows(selection, extrapolate = extrapolate)
-  weight_rows <- .zcurve_weighted_rows(selection, extrapolate = extrapolate)
 
-  log_norm <- NULL
-  if (length(const_rows) > 0) {
-    mean_const <- if (effect_direction == "negative") -mu_samples else mu_samples
-    mean_const <- mean_const[const_rows, , drop = FALSE]
-    sd_const   <- total_sd[const_rows, , drop = FALSE]
-    log_norm <- .wnorm_mix_log_norm_matrix(
-      mean                = mean_const,
-      sd                  = sd_const,
-      omega               = selection[["omega"]][const_rows, , drop = FALSE],
-      crit_yi             = selection[["fit_data"]][["crit_yi"]],
-      bias_indicator      = selection[["bias_indicator"]][const_rows],
-      crit_yi_mapping     = selection[["fit_data"]][["crit_yi_mapping"]],
-      crit_yi_mapping_max = selection[["fit_data"]][["crit_yi_mapping_max"]]
-    )
+  if (is.null(selection)) {
+    return(.zcurve_normal_density_matrix(
+      z_sequence = z_sequence,
+      mean       = mu_samples,
+      sd         = total_sd,
+      sei        = sei
+    ))
   }
 
-  weight_context <- NULL
-  if (length(weight_rows) > 0) {
-    mean_weight     <- if (effect_direction == "negative") -mu_samples else mu_samples
-    mean_weight     <- mean_weight[weight_rows, , drop = FALSE]
-    sd_weight       <- total_sd[weight_rows, , drop = FALSE]
-    omega_weight    <- selection[["omega"]][weight_rows, , drop = FALSE]
-    bias_weight     <- selection[["bias_indicator"]][weight_rows]
-    log_norm_weight <- .wnorm_mix_log_norm_matrix(
-      mean                = mean_weight,
-      sd                  = sd_weight,
-      omega               = omega_weight,
-      crit_yi             = selection[["fit_data"]][["crit_yi"]],
-      bias_indicator      = bias_weight,
-      crit_yi_mapping     = selection[["fit_data"]][["crit_yi_mapping"]],
-      crit_yi_mapping_max = selection[["fit_data"]][["crit_yi_mapping_max"]]
-    )
-    weight_context <- list(
-      mean     = mean_weight,
-      sd       = sd_weight,
-      omega    = omega_weight,
-      bias     = bias_weight,
-      log_norm = log_norm_weight
-    )
+  density <- .zcurve_selnorm_density_matrix(
+    z_sequence        = z_sequence,
+    mean              = mu_samples,
+    sd                = total_sd,
+    sei               = sei,
+    selection_context = selection,
+    extrapolate       = extrapolate
+  )
+
+  return(density)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .zcurve_inverse_selection_weights
+# ---------------------------------------------------------------------------- #
+#
+# Expected attempted studies represented by each observed study under the
+# selection model. Normal/no-bias branches have weight one.
+#
+# ---------------------------------------------------------------------------- #
+.zcurve_inverse_selection_weights <- function(mean, sd, sei, selection) {
+
+  weights <- matrix(1, nrow = nrow(mean), ncol = ncol(mean))
+
+  if (is.null(selection)) {
+    return(weights)
   }
 
-  for (ell in seq_len(L)) {
-    y_seq <- z_sequence[ell] * sei
-    dens <- stats::dnorm(
-      matrix(y_seq, nrow = S, ncol = K, byrow = TRUE),
-      mean = mu_samples,
-      sd   = total_sd
-    ) * sei_mat
-
-    if (length(const_rows) > 0) {
-      dens[const_rows, ] <- dens[const_rows, , drop = FALSE] / exp(log_norm)
-    }
-
-    if (length(weight_rows) > 0) {
-      if (effect_direction == "negative") {
-        y_eval <- -y_seq
-      } else {
-        y_eval <- y_seq
-      }
-
-      log_pdf <- .wnorm_mix_logpdf_precomp_matrix(
-        yi                  = y_eval,
-        mean                = weight_context[["mean"]],
-        sd                  = weight_context[["sd"]],
-        omega               = weight_context[["omega"]],
-        crit_yi             = selection[["fit_data"]][["crit_yi"]],
-        bias_indicator      = weight_context[["bias"]],
-        crit_yi_mapping     = selection[["fit_data"]][["crit_yi_mapping"]],
-        crit_yi_mapping_max = selection[["fit_data"]][["crit_yi_mapping_max"]],
-        log_norm            = weight_context[["log_norm"]]
-      )
-      dens[weight_rows, ] <- exp(log_pdf) * sei_mat[weight_rows, , drop = FALSE]
-    }
-
-    densities[, ell] <- rowMeans(dens)
+  weighted_rows <- which(!selection[["use_normal"]])
+  if (length(weighted_rows) == 0L) {
+    return(weights)
   }
 
-  return(densities)
+  selection_weight <- .selection_context_subset_rows(selection, weighted_rows)
+  log_norm <- .selection_step_log_norm_matrix(
+    mean              = mean[weighted_rows, , drop = FALSE],
+    sd                = sd[weighted_rows, , drop = FALSE],
+    sei               = sei,
+    selection_context = selection_weight
+  )
+
+  weights[weighted_rows, ] <- exp(-log_norm)
+  return(weights)
 }
 
 
@@ -1198,11 +1048,7 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
 .zcurve_constant_rows <- function(selection, extrapolate) {
 
-  if (is.null(selection) || !extrapolate) {
-    return(integer(0))
-  }
-
-  return(which(!selection[["use_normal"]]))
+  return(integer(0))
 }
 
 
@@ -1220,59 +1066,10 @@ lines.zcurve_brma <- function(x, plot_type = "base",
     return(NULL)
   }
 
-  fit_data <- .create_fit_data(data = data, priors = priors)
-  bias_indicator <- .extract_bias_indicator(object, posterior_samples = posterior_samples)
-  priors_bias    <- priors[["outcome"]][["bias"]]
-
-  if (!BayesTools::is.prior.mixture(priors_bias)) {
-    priors_bias <- list(priors_bias)
-  }
-
-  if (any(is.na(bias_indicator)) ||
-      any(bias_indicator < 1L | bias_indicator > length(priors_bias))) {
-    stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
-  }
-
-  return(list(
-    fit_data       = fit_data,
-    omega          = .extract_omega_samples(posterior_samples),
-    use_normal     = .extract_use_normal(object, posterior_samples = posterior_samples),
-    bias_indicator = bias_indicator
+  return(.selection_context(
+    object            = object,
+    posterior_samples = posterior_samples
   ))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .zcurve_use_weighted
-# ---------------------------------------------------------------------------- #
-#
-# Determine whether one posterior row uses a weighted-normal branch.
-#
-# ---------------------------------------------------------------------------- #
-.zcurve_use_weighted <- function(selection, row, extrapolate) {
-
-  return(
-    !is.null(selection) &&
-      !extrapolate &&
-      !selection[["use_normal"]][row]
-  )
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .zcurve_use_selection_constant
-# ---------------------------------------------------------------------------- #
-#
-# Determine whether extrapolated density should be scaled by selection constant.
-#
-# ---------------------------------------------------------------------------- #
-.zcurve_use_selection_constant <- function(selection, row, extrapolate) {
-
-  return(
-    !is.null(selection) &&
-      extrapolate &&
-      !selection[["use_normal"]][row]
-  )
 }
 
 
@@ -1285,15 +1082,9 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 # ---------------------------------------------------------------------------- #
 .zcurve_selection_args <- function(selection, row, estimate, n = 1L) {
 
-  branch      <- selection[["bias_indicator"]][row]
-  mapping_max <- selection[["fit_data"]][["crit_yi_mapping_max"]][branch]
+  .selection_require_step_evaluable(selection, ".zcurve_selection_args()")
 
-  if (is.na(mapping_max) || mapping_max == 0L) {
-    stop("Selected z-curve row does not have an active weightfunction branch.", call. = FALSE)
-  }
-
-  map_idx <- as.integer(selection[["fit_data"]][["crit_yi_mapping"]][seq_len(mapping_max), branch])
-  omega   <- .selection_active_omega(selection[["omega"]], row, map_idx)
+  omega <- selection[["omega"]][row, , drop = FALSE]
 
   if (n > 1L) {
     omega <- matrix(as.numeric(omega), nrow = n, ncol = ncol(omega), byrow = TRUE)
@@ -1301,7 +1092,9 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
   return(list(
     omega   = omega,
-    crit_yi = selection[["fit_data"]][["crit_yi"]][map_idx, estimate]
+    crit_yi = stats::qnorm(rev(selection[["p_cuts"]])[-c(1L, length(selection[["p_cuts"]]))],
+                           lower.tail = FALSE) *
+      selection[["sei"]][estimate]
   ))
 }
 
@@ -1466,57 +1259,12 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 # @return numeric vector of bin boundaries or density evaluation points
 #
 # ---------------------------------------------------------------------------- #
-.zcurve_bins <- function(priors, from, to, by, length.out, type = "hist") {
-  if (is.null(length.out)) {
-    bins <- seq(from = from, to = to, by = by)
-  } else {
-    bins <- seq(from = from, to = to, length.out = length.out)
-  }
-
-  priors_bias <- priors[["bias"]]
-  if (is.null(priors_bias)) return(bins)
-
-  # Check if .zcurve_threshold exists
-  if (exists(".zcurve_threshold", mode = "function")) {
-    z_bounds <- .zcurve_threshold(priors)
-    if (length(z_bounds) == 0) return(bins)
-
-    z_bounds <- z_bounds[z_bounds > from & z_bounds < to]
-
-    if (type == "hist") {
-      # shift bins to match thresholds
-      for (i in seq_along(z_bounds)) {
-        i_larger <- which(bins > z_bounds[i])[1]
-        if (is.na(i_larger)) next
-        i_lower <- i_larger - 1
-        if (bins[i_larger] - z_bounds[i] < z_bounds[i] - bins[i_lower]) {
-          bins[i_larger] <- z_bounds[i]
-        } else {
-          bins[i_lower] <- z_bounds[i]
-        }
-      }
-    } else if (type == "dens") {
-      bins <- sort(unique(c(bins, z_bounds)))
-    }
-  }
-
-  return(bins)
-}
-
-
 .zcurve_bins      <- function(priors, from, to, by, length.out, type = "hist"){
 
   if(is.null(length.out)){
     bins <- seq(from = from, to = to, by = by)
   }else{
     bins <- seq(from = from, to = to, length.out = length.out)
-  }
-
-  priors_bias <- priors[["bias"]]
-
-  # return simple binning in case of no bias
-  if(is.null(priors_bias)){
-    return(bins)
   }
 
   # obtain tresholds from the specified priors
@@ -1558,24 +1306,45 @@ lines.zcurve_brma <- function(x, plot_type = "base",
 
   return(bins)
 }
-.zcurve_threshold <- function(priors){
+.zcurve_bias_priors <- function(priors){
+
+  if(is.null(priors)){
+    return(list())
+  }
+
+  if(!is.null(priors[["outcome"]])){
+    return(.selection_bias_priors(priors))
+  }
 
   priors_bias <- priors[["bias"]]
+  if(is.null(priors_bias)){
+    return(list())
+  }
+  if(BayesTools::is.prior.mixture(priors_bias)){
+    out <- as.list(priors_bias)
+    class(out) <- "list"
+    return(out)
+  }
+
+  return(list(priors_bias))
+}
+.zcurve_threshold <- function(priors){
+
+  priors_bias <- .zcurve_bias_priors(priors)
 
   # return simple binning in case of no bias
-  if(is.null(priors_bias)){
+  if(length(priors_bias) == 0L){
     return()
   }
 
-  priors_weightfunctions <- priors_bias[sapply(priors_bias, is.prior.weightfunction)]
+  p_bounds <- .selection_kernel_breaks(priors_bias)
 
-  # return simple binning in case of no weightfunctions
-  if(length(priors_weightfunctions) == 0){
+  # return simple binning in case of no selection kernels
+  if(is.null(p_bounds)){
     return()
   }
 
   # obtain tresholds from the specified priors
-  p_bounds <- BayesTools::weightfunctions_mapping(priors_weightfunctions, cuts_only = TRUE)
   z_bounds <- stats::qnorm(rev(p_bounds), 0, 1, lower.tail = FALSE)
   z_bounds <- z_bounds[!is.infinite(z_bounds)]
 

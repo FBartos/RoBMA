@@ -189,7 +189,7 @@ assign("default_bias_PEESE.scale",           5,  envir = RoBMA.private)
 #' @name RoBMA_control
 #' @aliases set_autofit_control set_convergence_checks
 #'
-#' @seealso [RoBMA()], [update.RoBMA()]
+#' @seealso [RoBMA()]
 NULL
 
 #' @rdname RoBMA_control
@@ -370,20 +370,3 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 }
 
 
-### TODO: save helpers
-.get_one_sided_cuts          <- function(prior) {
-
-  if (BayesTools::is.prior.weightfunction(prior)) {
-    steps <- prior[["steps"]]
-    side  <- prior[["side"]]
-  } else {
-    steps <- prior[["parameters"]][["steps"]]
-    side  <- gsub("\\.", "-", prior[["distribution"]])
-  }
-
-  if (side == "two-sided") {
-    return(c(1 - rev(steps / 2), steps / 2))
-  } else {
-    return(steps)
-  }
-}

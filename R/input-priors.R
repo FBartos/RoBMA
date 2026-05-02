@@ -408,9 +408,25 @@ NULL
 
 
 # verify that the the measure is available
-.check_measure <- function(measure) {
+.check_measure <- function(measure, class = "norm") {
 
-  BayesTools::check_char(measure, "measure", allow_values = c("SMD", "ZCOR", "RR", "OR", "HR", "RD", "IRR", "GEN"))
+  BayesTools::check_char(measure, "measure")
+
+  if (identical(class, "glmm")) {
+    if (!measure %in% c("OR", "IRR")) {
+      stop(
+        "GLMM models support only 'OR' and 'IRR' measures.",
+        call. = FALSE
+      )
+    }
+    return()
+  }
+
+  BayesTools::check_char(
+    measure,
+    "measure",
+    allow_values = c("SMD", "ZCOR", "RR", "OR", "HR", "RD", "IRR", "GEN")
+  )
 
   return()
 }
@@ -686,8 +702,13 @@ estimate_unit_information_sd <- function(sei, ni) {
           alpha = rep(RoBMA.get_option("default_bias_weightfunction.alpha"), length(steps) + 1)
         )
       )
-    } else if (!BayesTools::is.prior.weightfunction(prior)) {
-      stop("'prior_bias' must be a `prior_weightfunction` object", call. = FALSE)
+    } else if (!.prior_is_selection_kernel(prior)) {
+      stop(
+        "'prior_bias' must be a `prior_weightfunction` or `prior_bias` object",
+        call. = FALSE
+      )
+    } else if (.prior_has_phacking(prior)) {
+      .selection_stop_phacking_deferred()
     }
 
     return(prior)
@@ -777,6 +798,10 @@ estimate_unit_information_sd <- function(sei, ni) {
     if (BayesTools::is.prior.point(prior_intercept) && mean(prior_intercept) == 0) {
       stop("Intercept prior distribution for scale regression cannot be set to 0 since the model is parameterized as tau = exp( log(intercept) + sum(beta_i * x_i) ).", call. = FALSE)
     }
+  }
+  if (parameter == "mods" &&
+      attr(stats::terms(attr(data[[parameter]], "formula")), "intercept") == 0) {
+    prior_intercept <- BayesTools::prior("spike", parameters = list(0))
   }
 
   ### check the user-specified priors
@@ -1274,6 +1299,10 @@ estimate_unit_information_sd <- function(sei, ni) {
     # remove spike(0) priors and rebuild mixture metadata
     prior_intercept <- .remove_zero_scale_intercept_prior(prior_intercept)
   }
+  if (parameter == "mods" &&
+      attr(stats::terms(attr(data[[parameter]], "formula")), "intercept") == 0) {
+    prior_intercept <- BayesTools::prior("spike", parameters = list(0))
+  }
 
   prior_list_alt <- .assign_prior_list.terms(
     prior_list = prior_list, prior_intercept = prior_intercept, parameter = parameter,
@@ -1471,7 +1500,7 @@ estimate_unit_information_sd <- function(sei, ni) {
 .get_prior_bias_type                  <- function(prior) {
   if (BayesTools::is.prior.none(prior)) {
     bias_type <- "none"
-  } else if (BayesTools::is.prior.weightfunction(prior)) {
+  } else if (.prior_is_selection_kernel(prior)) {
     bias_type <- "selmodel"
   } else if (BayesTools::is.prior.PET(prior)) {
     bias_type <- "PET"

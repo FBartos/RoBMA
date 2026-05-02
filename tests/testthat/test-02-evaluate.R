@@ -14,6 +14,8 @@ context("Evaluate posterior samples")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-contracts.R"))
+source(testthat::test_path("helper-test-matrix.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "evaluate")
 
 # ============================================================================ #
@@ -58,14 +60,14 @@ test_that(".evaluate.brma.true_effects.norm computes correct BLUPs", {
     if (mean(tau_within[, k]) > sei[k]) {
       # high tau: theta closer to yi
       expect_true(abs(mean_theta[k] - yi[k]) < abs(mean_theta[k] - mean_mu[k]),
-                  info = paste("Observation", k, "should shrink toward data with high tau"))
+                  info = paste("Observation", k, "shrinks toward data with high tau"))
     } else {
       expect_true(abs(mean_theta[k] - yi[k]) > abs(mean_theta[k] - mean_mu[k]),
-                  info = paste("Observation", k, "should shrink toward mean with high sei"))
+                  info = paste("Observation", k, "shrinks toward mean with high sei"))
     }
   }
 
-  # verify lambda formula is correct by manual calculation
+  # verify lambda formula against a closed-form calculation
   # lambda = tau^2 / (tau^2 + se^2)
   # theta = lambda * yi + (1 - lambda) * mu
   sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
@@ -74,6 +76,31 @@ test_that(".evaluate.brma.true_effects.norm computes correct BLUPs", {
   expected_theta <- lambda * yi_mat + (1 - lambda) * mu_samples
 
   expect_equal(theta, expected_theta, tolerance = 1e-10)
+})
+
+test_that(".evaluate.brma.true_effects.norm returns BLUP means for same data", {
+
+  S <- 25
+  K <- 2
+
+  mu_samples <- matrix(c(0.2, -0.1), nrow = S, ncol = K, byrow = TRUE)
+  tau_within <- matrix(c(0.5, 0.25), nrow = S, ncol = K, byrow = TRUE)
+  yi         <- c(1.0, -0.7)
+  sei        <- c(0.2, 0.4)
+
+  theta <- .evaluate.brma.true_effects.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    sei        = sei,
+    same_data  = TRUE
+  )
+
+  lambda   <- tau_within[1, ]^2 / (tau_within[1, ]^2 + sei^2)
+  expected <- mu_samples[1, ] + lambda * (yi - mu_samples[1, ])
+
+  expect_equal(theta[1, ], expected, tolerance = 1e-12)
+  expect_equal(apply(theta, 2, stats::var), c(0, 0), tolerance = 1e-14)
 })
 
 test_that(".evaluate.brma.true_effects.norm subtracts posterior-row bias offsets", {
@@ -362,9 +389,9 @@ test_that("variance ordering: mu < theta < response", {
   # (shrinkage reduces variance toward the mean)
   # response variance should be larger than theta (adds sampling error)
   expect_true(sd_response > sd_theta,
-              info = paste("Observation", k, ": response should have more variance than theta"))
+              info = "response has more variance than theta")
   expect_true(sd_theta > sd_mu,
-              info = paste("Observation", k, ": theta should have more variance than terms"))
+              info = "theta has more variance than terms")
 })
 
 
@@ -375,9 +402,10 @@ test_that("variance ordering: mu < theta < response", {
 # ============================================================================ #
 
 skip_if_no_fits()
-fit_names <- list_fits()
-fits      <- lazy_fits(fit_names, validate = FALSE)
-info      <- lazy_infos(fit_names, validate = FALSE)
+fit_names     <- list_fits(tier = test_tier())
+all_fit_names <- list_fits()
+fits          <- lazy_fits(fit_names, validate = FALSE)
+all_fits      <- lazy_fits(all_fit_names, validate = FALSE)
 
 test_that(".evaluate.brma.tau returns correct structure", {
 
@@ -385,7 +413,6 @@ test_that(".evaluate.brma.tau returns correct structure", {
 
     object <- fits[[name]]
 
-    # skip non-brma objects (e.g., RoBMA objects)
     if (!inherits(object, "brma")) next
 
     priors       <- object[["priors"]]
@@ -393,8 +420,7 @@ test_that(".evaluate.brma.tau returns correct structure", {
     is_multilevel <- .is_multilevel(object)
     K            <- nrow(object[["data"]][["outcome"]])
 
-    # skip scale models for now - they require specific prior structure
-    # that may not be present in all cached fits
+    # Direct tau extraction for scale formulas is exercised through predict().
     if (is_scale) next
 
     result <- .evaluate.brma.tau(
@@ -408,9 +434,9 @@ test_that(".evaluate.brma.tau returns correct structure", {
     )
 
     # verify structure
-    expect_true(is.list(result), info = paste(name, ": should return list"))
+    expect_true(is.list(result), info = paste(name, ": returns list"))
     expect_true(all(c("tau_within", "tau_between") %in% names(result)),
-                info = paste(name, ": should have tau_within and tau_between components"))
+                info = paste(name, ": has tau_within and tau_between components"))
 
     # verify dimensions
     S <- nrow(result[["tau_within"]])
@@ -418,18 +444,18 @@ test_that(".evaluate.brma.tau returns correct structure", {
     expect_equal(dim(result[["tau_between"]]), c(S, K), info = paste(name, ": tau_between dimensions"))
 
     # verify positivity
-    expect_true(all(result[["tau_within"]] >= 0), info = paste(name, ": tau_within should be non-negative"))
-    expect_true(all(result[["tau_between"]] >= 0), info = paste(name, ": tau_between should be non-negative"))
+    expect_true(all(result[["tau_within"]] >= 0), info = paste(name, ": tau_within is non-negative"))
+    expect_true(all(result[["tau_between"]] >= 0), info = paste(name, ": tau_between is non-negative"))
 
     # verify relationship for non-multilevel: tau_between = 0
     if (!is_multilevel) {
       expect_true(all(result[["tau_between"]] == 0),
-                  info = paste(name, ": non-multilevel should have tau_between = 0"))
+                  info = paste(name, ": non-multilevel has tau_between = 0"))
     }
 
     # verify total tau can be reconstructed: tau = sqrt(tau_within^2 + tau_between^2)
     tau_reconstructed <- sqrt(result[["tau_within"]]^2 + result[["tau_between"]]^2)
-    expect_true(all(tau_reconstructed >= 0), info = paste(name, ": reconstructed tau should be non-negative"))
+    expect_true(all(tau_reconstructed >= 0), info = paste(name, ": reconstructed tau is non-negative"))
   }
 })
 
@@ -439,7 +465,6 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
 
     object <- fits[[name]]
 
-    # skip non-brma objects
     if (!inherits(object, "brma")) next
 
     priors           <- object[["priors"]]
@@ -450,8 +475,7 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
     outcome_data     <- object[["data"]][["outcome"]]
     K                <- nrow(outcome_data)
 
-    # skip mods models for now - they require specific prior structure
-    # that may not be present in all cached fits
+    # Direct moderator design handling is exercised through predict().
     if (is_mods) next
 
     mu_samples <- .evaluate.brma.mu(
@@ -472,13 +496,11 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
     posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
     S <- nrow(posterior_samples)
     expect_equal(dim(mu_samples), c(S, K),
-                 info = paste(name, ": mu dimensions should be S x K"))
+                 info = paste(name, ": mu dimensions are S x K"))
   }
 })
 
-test_that("vectorized PET/PEESE matches loop implementation", {
-
-  # test that outer() produces same results as the original loop
+test_that("PET/PEESE bias offsets match column-wise algebra", {
 
   S   <- 100
   K   <- 5
@@ -488,17 +510,15 @@ test_that("vectorized PET/PEESE matches loop implementation", {
   mu_samples  <- matrix(rnorm(S * K), nrow = S, ncol = K)
   PET_samples <- rnorm(S, mean = 0.5, sd = 0.1)
 
-  # loop implementation (original)
   mu_loop <- mu_samples
   for (i in seq_len(K)) {
     mu_loop[, i] <- mu_loop[, i] + PET_samples * sei[i]
   }
 
-  # vectorized implementation (new)
   mu_vec <- mu_samples + outer(PET_samples, sei)
 
   expect_equal(mu_loop, mu_vec, tolerance = 1e-14,
-               info = "Vectorized outer() should match loop for PET")
+               info = "Vectorized outer() matches loop for PET")
 
   # same test for PEESE (se^2)
   set.seed(777)
@@ -514,7 +534,7 @@ test_that("vectorized PET/PEESE matches loop implementation", {
   mu_vec <- mu_samples + outer(PEESE_samples, sei_sq)
 
   expect_equal(mu_loop, mu_vec, tolerance = 1e-14,
-               info = "Vectorized outer() should match loop for PEESE")
+               info = "Vectorized outer() matches loop for PEESE")
 })
 
 test_that(".evaluate.brma.bias_offset handles PET/PEESE and effect direction", {
@@ -580,7 +600,7 @@ test_that("rho clamping handles boundary values", {
   expect_equal(tau_reconstructed, rep(tau, length(rho)), tolerance = 1e-10)
 })
 
-test_that("GLMM posterior extraction helpers are vectorized correctly", {
+test_that("GLMM posterior extraction helpers are vectorized", {
 
   posterior_samples <- matrix(
     c(
@@ -616,7 +636,7 @@ test_that("GLMM posterior extraction helpers are vectorized correctly", {
   )
 })
 
-test_that("matrix replication patterns are correct", {
+test_that("matrix replication patterns preserve dimensions", {
 
   # verify that matrix(vec, S, K, byrow = TRUE) works as expected
   # this pattern is used throughout the helpers
@@ -652,7 +672,7 @@ test_that("matrix replication patterns are correct", {
 # These tests verify the aggregation logic for predict.brma with newdata = TRUE
 # ============================================================================ #
 
-test_that("aggregation via rowMeans produces correct results", {
+test_that("aggregation matches rowMeans", {
 
   # test that rowMeans aggregation works as expected
   S <- 100
@@ -671,7 +691,7 @@ test_that("aggregation via rowMeans produces correct results", {
   # verify mean is preserved (on average)
   expect_equal(mean(mu_aggregated), mean(mu_samples), tolerance = 0.01)
 
-  # verify aggregation matches manual calculation
+  # verify aggregation against a direct matrix calculation
   expected_aggregated <- matrix(apply(mu_samples, 1, mean), ncol = 1)
   expect_equal(mu_aggregated, expected_aggregated, tolerance = 1e-14)
 })
@@ -694,7 +714,7 @@ test_that("aggregation is no-op for identical columns (non-mods/scale models)", 
   expect_equal(mu_aggregated[, 1], mu_values, tolerance = 1e-14)
 })
 
-test_that("aggregated true effects have correct variance", {
+test_that("aggregated true effects have expected variance", {
 
   # for aggregated effect predictions:
   # theta ~ N(mu, tau) where mu and tau are aggregated
@@ -715,7 +735,7 @@ test_that("aggregated true effects have correct variance", {
   # observed variance should be close
   observed_var <- var(theta_samples)
   expect_equal(observed_var, expected_var, tolerance = 0.02,
-               info = "Aggregated theta variance should match theoretical")
+               info = "Aggregated theta variance matches theory")
 })
 
 
@@ -740,25 +760,25 @@ test_that("predict.brma with newdata = TRUE returns single aggregated prediction
     result_terms <- predict(object, newdata = TRUE, type = "terms")
 
     expect_s3_class(result_terms, "brma_samples")
-    expect_null(attr(result_terms, "data"), info = paste(name, ": data should be NULL for aggregate"))
+    expect_null(attr(result_terms, "data"), info = paste(name, ": data is NULL for aggregate"))
     expect_equal(nrow(summary(result_terms)), 1,
-                 info = paste(name, ": should have single row for aggregate terms"))
+                 info = paste(name, ": has single row for aggregate terms"))
 
     # test type = "terms.scale"
     result_scale <- predict(object, newdata = TRUE, type = "terms.scale")
 
     expect_s3_class(result_scale, "brma_samples")
-    expect_null(attr(result_scale, "data"), info = paste(name, ": data should be NULL for aggregate scale"))
+    expect_null(attr(result_scale, "data"), info = paste(name, ": data is NULL for aggregate scale"))
     expect_equal(nrow(summary(result_scale)), 1,
-                 info = paste(name, ": should have single row for aggregate scale"))
+                 info = paste(name, ": has single row for aggregate scale"))
 
     # test type = "effect"
     result_effect <- predict(object, newdata = TRUE, type = "effect")
 
     expect_s3_class(result_effect, "brma_samples")
-    expect_null(attr(result_effect, "data"), info = paste(name, ": data should be NULL for aggregate effect"))
+    expect_null(attr(result_effect, "data"), info = paste(name, ": data is NULL for aggregate effect"))
     expect_equal(nrow(summary(result_effect)), 1,
-                 info = paste(name, ": should have single row for aggregate effect"))
+                 info = paste(name, ": has single row for aggregate effect"))
   }
 })
 
@@ -778,27 +798,27 @@ test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
     # test type = "terms"
     samples_terms <- predict(object, newdata = TRUE, type = "terms")
     expect_equal(dim(samples_terms), c(S, 1),
-                 info = paste(name, ": terms samples should be S x 1"))
+                 info = paste(name, ": terms samples are S x 1"))
     expect_equal(colnames(samples_terms), "mu",
-                 info = paste(name, ": terms samples should have 'mu' column name"))
+                 info = paste(name, ": terms samples have 'mu' column name"))
 
     # test type = "terms.scale"
     samples_scale <- predict(object, newdata = TRUE, type = "terms.scale")
     expect_equal(dim(samples_scale), c(S, 1),
-                 info = paste(name, ": scale samples should be S x 1"))
+                 info = paste(name, ": scale samples are S x 1"))
     expect_equal(colnames(samples_scale), "tau",
-                 info = paste(name, ": scale samples should have 'tau' column name"))
+                 info = paste(name, ": scale samples have 'tau' column name"))
 
     # test type = "effect"
     samples_effect <- predict(object, newdata = TRUE, type = "effect")
     expect_equal(dim(samples_effect), c(S, 1),
-                 info = paste(name, ": effect samples should be S x 1"))
+                 info = paste(name, ": effect samples are S x 1"))
     expect_equal(colnames(samples_effect), "theta",
-                 info = paste(name, ": effect samples should have 'theta' column name"))
+                 info = paste(name, ": effect samples have 'theta' column name"))
   }
 })
 
-test_that("predict.brma with newdata = TRUE and type = 'response' throws error", {
+test_that("predict.brma rejects response-scale newdata predictions", {
 
   for (name in names(fits)) {
 
@@ -811,7 +831,7 @@ test_that("predict.brma with newdata = TRUE and type = 'response' throws error",
     expect_error(
       predict(object, newdata = TRUE, type = "response"),
       "Aggregated predictions.*not available for type = 'response'",
-      info = paste(name, ": should error for aggregate + response")
+      info = paste(name, ": aggregate + response is rejected")
     )
   }
 })
@@ -836,7 +856,7 @@ test_that("aggregated mu equals rowMeans of non-aggregated mu", {
     colnames(expected_agg) <- "mu"
 
     expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                 info = paste(name, ": aggregated mu should equal rowMeans of full mu"))
+                 info = paste(name, ": aggregated mu equals rowMeans of full mu"))
   }
 })
 
@@ -860,7 +880,7 @@ test_that("aggregated tau equals rowMeans of non-aggregated tau", {
     colnames(expected_agg) <- "tau"
 
     expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                 info = paste(name, ": aggregated tau should equal rowMeans of full tau"))
+                 info = paste(name, ": aggregated tau equals rowMeans of full tau"))
   }
 })
 
@@ -912,7 +932,7 @@ test_that(".extract_use_normal returns correct structure for brma without bias",
 
     # all samples should use normal path (no weightfunction)
     expect_true(all(use_normal),
-                info = paste(name, ": brma without bias should have all use_normal = TRUE"))
+                info = paste(name, ": brma without bias has all use_normal = TRUE"))
   }
 })
 
@@ -940,7 +960,7 @@ test_that(".extract_use_normal returns correct structure for brma with weightfun
 
     # all samples should use weighted path (all from weightfunction)
     expect_true(all(!use_normal),
-                info = paste(name, ": brma with single weightfunction should have all use_normal = FALSE"))
+                info = paste(name, ": brma with single weightfunction has all use_normal = FALSE"))
   }
 })
 
@@ -969,18 +989,20 @@ test_that(".extract_use_normal returns correct structure for brma with PET", {
 
     # all samples should use normal path (PET is not a weightfunction)
     expect_true(all(use_normal),
-                info = paste(name, ": brma with PET should have all use_normal = TRUE"))
+                info = paste(name, ": brma with PET has all use_normal = TRUE"))
   }
 })
 
 test_that(".extract_use_normal returns correct structure for RoBMA", {
 
-  for (name in names(fits)) {
+  robma_names <- intersect(names(fits), catalog_fits(class = "RoBMA", tier = test_tier()))
+  if (length(robma_names) == 0L) {
+    skip("No cached RoBMA fits available for use_normal branch checks.")
+  }
+
+  for (name in robma_names) {
 
     object <- fits[[name]]
-
-    # only test RoBMA objects
-    if (!inherits(object, "RoBMA")) next
 
     # test the function
     use_normal <- .extract_use_normal(object)
@@ -1004,24 +1026,24 @@ test_that(".extract_use_normal returns correct structure for RoBMA", {
         priors_bias <- list(priors_bias)
       }
 
-      # identify weightfunction indices
-      wf_indices <- which(sapply(priors_bias, BayesTools::is.prior.weightfunction))
+      # identify selected-normal kernel indices
+      wf_indices <- which(sapply(priors_bias, .prior_is_selection_kernel))
 
       # verify use_normal is correctly computed
       expected_use_normal <- !(bias_indicator %in% wf_indices)
       expect_equal(use_normal, expected_use_normal,
-                   info = paste(name, ": use_normal should match bias_indicator logic"))
+                   info = paste(name, ": use_normal matches bias_indicator logic"))
 
       # verify we have both types of samples (unless all priors are one type)
       if (length(wf_indices) > 0 && length(wf_indices) < length(priors_bias)) {
         expect_true(any(use_normal) && any(!use_normal),
-                    info = paste(name, ": RoBMA should have mix of normal and weighted samples"))
+                    info = paste(name, ": RoBMA has mix of normal and weighted samples"))
       }
     }
   }
 })
 
-test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use mapped branches", {
+test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use selected-normal branches", {
 
   name <- "dat.lehmann2018_RoBMA"
   skip_if_missing_fits(name)
@@ -1040,40 +1062,25 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use mapped branches", {
   }
 
   selected_rows <- sort(c(normal_rows, weighted_rows))
-  omega_samples <- .extract_omega_samples(posterior_samples)
-
-  if (setup[["effect_direction"]] == "negative") {
-    yi_eval     <- -setup[["yi"]]
-    mu_eval     <- -setup[["mu"]]
-    lower_tail  <- FALSE
-  } else {
-    yi_eval     <- setup[["yi"]]
-    mu_eval     <- setup[["mu"]]
-    lower_tail  <- TRUE
-  }
-
-  log_lik <- .outcome_pdf.wnorm(
-    yi                  = yi_eval,
-    mu_samples          = mu_eval[selected_rows, , drop = FALSE],
-    tau_within          = setup[["tau_within"]][selected_rows, , drop = FALSE],
-    sei                 = setup[["sei"]],
-    omega               = omega_samples[selected_rows, , drop = FALSE],
-    crit_yi             = fit_data[["crit_yi"]],
-    bias_indicator      = bias_indicator[selected_rows],
-    crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-    crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+  selection_context <- .selection_context(
+    object            = object,
+    posterior_samples = posterior_samples
   )
-  cdf_vals <- .outcome_cdf.wnorm(
-    yi                  = yi_eval,
-    mu_samples          = mu_eval[selected_rows, , drop = FALSE],
-    tau_within          = setup[["tau_within"]][selected_rows, , drop = FALSE],
-    sei                 = setup[["sei"]],
-    omega               = omega_samples[selected_rows, , drop = FALSE],
-    crit_yi             = fit_data[["crit_yi"]],
-    lower.tail          = lower_tail,
-    bias_indicator      = bias_indicator[selected_rows],
-    crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-    crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+  selected_context <- .selection_context_subset_rows(selection_context, selected_rows)
+
+  log_lik <- .outcome_pdf.selnorm(
+    yi                = setup[["yi"]],
+    mu_samples        = setup[["mu"]][selected_rows, , drop = FALSE],
+    tau_within        = setup[["tau_within"]][selected_rows, , drop = FALSE],
+    sei               = setup[["sei"]],
+    selection_context = selected_context
+  )
+  cdf_vals <- .outcome_cdf.selnorm(
+    yi                = setup[["yi"]],
+    mu_samples        = setup[["mu"]][selected_rows, , drop = FALSE],
+    tau_within        = setup[["tau_within"]][selected_rows, , drop = FALSE],
+    sei               = setup[["sei"]],
+    selection_context = selected_context
   )
 
   expect_equal(dim(log_lik), c(length(selected_rows), setup[["K"]]))
@@ -1087,21 +1094,26 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use mapped branches", {
   normal_branch_rows   <- normal_rows[bias_indicator[normal_rows] == normal_branch]
   weighted_branch_rows <- weighted_rows[bias_indicator[weighted_rows] == weighted_branch]
 
-  expect_equal(fit_data[["crit_yi_mapping_max"]][normal_branch], 0)
-  expect_gt(fit_data[["crit_yi_mapping_max"]][weighted_branch], 0)
-
   normal_pdf <- .outcome_pdf.norm(
-    yi         = yi_eval,
-    mu_samples = mu_eval[normal_branch_rows, , drop = FALSE],
+    yi         = if (setup[["effect_direction"]] == "negative") -setup[["yi"]] else setup[["yi"]],
+    mu_samples = if (setup[["effect_direction"]] == "negative") {
+      -setup[["mu"]][normal_branch_rows, , drop = FALSE]
+    } else {
+      setup[["mu"]][normal_branch_rows, , drop = FALSE]
+    },
     tau_within = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
     sei        = setup[["sei"]]
   )
   normal_cdf <- .outcome_cdf.norm(
-    yi         = yi_eval,
-    mu_samples = mu_eval[normal_branch_rows, , drop = FALSE],
+    yi         = if (setup[["effect_direction"]] == "negative") -setup[["yi"]] else setup[["yi"]],
+    mu_samples = if (setup[["effect_direction"]] == "negative") {
+      -setup[["mu"]][normal_branch_rows, , drop = FALSE]
+    } else {
+      setup[["mu"]][normal_branch_rows, , drop = FALSE]
+    },
     tau_within = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
     sei        = setup[["sei"]],
-    lower.tail = lower_tail
+    lower.tail = if (setup[["effect_direction"]] == "negative") FALSE else TRUE
   )
 
   expect_equal(
@@ -1116,8 +1128,12 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use mapped branches", {
   )
 
   weighted_pdf_norm <- .outcome_pdf.norm(
-    yi         = yi_eval,
-    mu_samples = mu_eval[weighted_branch_rows, , drop = FALSE],
+    yi         = if (setup[["effect_direction"]] == "negative") -setup[["yi"]] else setup[["yi"]],
+    mu_samples = if (setup[["effect_direction"]] == "negative") {
+      -setup[["mu"]][weighted_branch_rows, , drop = FALSE]
+    } else {
+      setup[["mu"]][weighted_branch_rows, , drop = FALSE]
+    },
     tau_within = setup[["tau_within"]][weighted_branch_rows, , drop = FALSE],
     sei        = setup[["sei"]]
   )
@@ -1128,19 +1144,15 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use mapped branches", {
   )))
 
   set.seed(11)
-  rng_normal <- .outcome_rng.wnorm(
-    mu_samples          = mu_eval[normal_branch_rows, , drop = FALSE],
-    tau_within          = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
-    sei                 = setup[["sei"]],
-    omega               = omega_samples[normal_branch_rows, , drop = FALSE],
-    crit_yi             = fit_data[["crit_yi"]],
-    bias_indicator      = bias_indicator[normal_branch_rows],
-    crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-    crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+  rng_normal <- .outcome_rng.selnorm(
+    mu_samples        = setup[["mu"]][normal_branch_rows, , drop = FALSE],
+    tau_within        = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
+    sei               = setup[["sei"]],
+    selection_context = .selection_context_subset_rows(selection_context, normal_branch_rows)
   )
   set.seed(11)
   rng_normal_expected <- .outcome_rng.norm(
-    mu_samples = mu_eval[normal_branch_rows, , drop = FALSE],
+    mu_samples = setup[["mu"]][normal_branch_rows, , drop = FALSE],
     tau_within = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
     sei        = setup[["sei"]]
   )
@@ -1149,15 +1161,11 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use mapped branches", {
                tolerance = 1e-12)
 
   set.seed(12)
-  rng_mixed <- .outcome_rng.wnorm(
-    mu_samples          = mu_eval[selected_rows, , drop = FALSE],
-    tau_within          = setup[["tau_within"]][selected_rows, , drop = FALSE],
-    sei                 = setup[["sei"]],
-    omega               = omega_samples[selected_rows, , drop = FALSE],
-    crit_yi             = fit_data[["crit_yi"]],
-    bias_indicator      = bias_indicator[selected_rows],
-    crit_yi_mapping     = fit_data[["crit_yi_mapping"]],
-    crit_yi_mapping_max = fit_data[["crit_yi_mapping_max"]]
+  rng_mixed <- .outcome_rng.selnorm(
+    mu_samples        = setup[["mu"]][selected_rows, , drop = FALSE],
+    tau_within        = setup[["tau_within"]][selected_rows, , drop = FALSE],
+    sei               = setup[["sei"]],
+    selection_context = selected_context
   )
 
   expect_equal(dim(rng_mixed), c(length(selected_rows), setup[["K"]]))
@@ -1201,7 +1209,7 @@ test_that("product-space posterior indicators have expected columns and valid ra
 
   for (name in product_names) {
 
-    object            <- fits[[name]]
+    object            <- all_fits[[name]]
     posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
     priors            <- object[["priors"]]
 
@@ -1265,7 +1273,7 @@ test_that("RoBMA inactive bias branches expose zeros or neutral weights", {
 
   for (name in product_names) {
 
-    object            <- fits[[name]]
+    object            <- all_fits[[name]]
     posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
     priors_bias       <- object[["priors"]][["outcome"]][["bias"]]
     if (is.null(priors_bias) || !"bias_indicator" %in% colnames(posterior_samples)) {
@@ -1327,14 +1335,14 @@ test_that(".pdf.brma returns finite log-likelihoods for weightfunction models", 
 
     # verify structure
     expect_true(is.matrix(log_lik),
-                info = paste(name, ": log_lik should be a matrix"))
+                info = paste(name, ": log_lik is a matrix"))
     expect_true(all(is.finite(log_lik)),
-                info = paste(name, ": all log-likelihoods should be finite"))
+                info = paste(name, ": all log-likelihoods are finite"))
 
     # verify dimensions match
     K <- length(.outcome_data_yi(object))
     expect_equal(ncol(log_lik), K,
-                 info = paste(name, ": ncol should match number of observations"))
+                 info = paste(name, ": ncol matches number of observations"))
   }
 })
 
@@ -1353,15 +1361,15 @@ test_that(".cdf.brma returns valid CDF values for weightfunction models", {
 
     # verify structure
     expect_true(is.matrix(cdf_vals),
-                info = paste(name, ": cdf_vals should be a matrix"))
+                info = paste(name, ": cdf_vals is a matrix"))
     expect_true(all(is.finite(cdf_vals)),
-                info = paste(name, ": all CDF values should be finite"))
+                info = paste(name, ": all CDF values are finite"))
     expect_true(all(cdf_vals > 0 & cdf_vals < 1),
-                info = paste(name, ": all CDF values should be in (0, 1)"))
+                info = paste(name, ": all CDF values are in (0, 1)"))
 
     # verify dimensions match
     K <- length(.outcome_data_yi(object))
     expect_equal(ncol(cdf_vals), K,
-                 info = paste(name, ": ncol should match number of observations"))
+                 info = paste(name, ": ncol matches number of observations"))
   }
 })

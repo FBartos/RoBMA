@@ -3,41 +3,41 @@ Robust Bayesian Model-Averaged Mixed-Effect Model (k = 81)
 
 Component Inclusion
                  Prior prob. Post. prob. Inclusion BF
-Effect                 0.500       0.148        0.173
+Effect                 0.500       0.157        0.186
 Heterogeneity          0.500       1.000          Inf
-Publication Bias       0.500       0.870        6.712
+Publication Bias       0.500       0.850        5.670
 
 Meta-Regression Inclusion
                      Prior prob. Post. prob. Inclusion BF
-Preregistered              0.500       0.681        2.134
-Gender                     0.500       0.190        0.234
-Preregistered:Gender       0.500       0.116        0.131
+Preregistered              0.500       0.707        2.415
+Gender                     0.500       0.188        0.232
+Preregistered:Gender       0.500       0.131        0.150
 
 Common Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau 0.300 0.041 0.223 0.298 0.385     0.00054          0.013 6223 1.001
+tau 0.301 0.042 0.222 0.299 0.388     0.00053          0.013 6308 1.000
 
 Meta-Regression
                                                               Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-intercept                                                    0.004 0.045 -0.085  0.000 0.137     0.00131          0.029 1223 1.009
-Preregistered[dif: Not Pre-Registered]                       0.093 0.083  0.000  0.094 0.252     0.00341          0.041  593 1.009
-Preregistered[dif: Pre-Registered]                          -0.093 0.083 -0.252 -0.094 0.000     0.00341          0.041  593 1.009
-Gender[dif: Females]                                        -0.009 0.028 -0.100  0.000 0.003     0.00074          0.026 1625 1.014
-Gender[dif: Males]                                           0.009 0.028 -0.003  0.000 0.100     0.00074          0.026 1625 1.014
-Preregistered[dif: Not Pre-Registered]:Gender[dif: Females]  0.001 0.019 -0.038  0.000 0.045     0.00047          0.024 2689 1.001
-Preregistered[dif: Pre-Registered]:Gender[dif: Females]     -0.001 0.019 -0.045  0.000 0.038     0.00047          0.024 2689 1.001
-Preregistered[dif: Not Pre-Registered]:Gender[dif: Males]   -0.001 0.019 -0.045  0.000 0.038     0.00047          0.024 2689 1.001
-Preregistered[dif: Pre-Registered]:Gender[dif: Males]        0.001 0.019 -0.038  0.000 0.045     0.00047          0.024 2689 1.001
+intercept                                                    0.005 0.048 -0.088  0.000 0.151     0.00138          0.029 1255 1.006
+Preregistered[dif: Not Pre-Registered]                       0.100 0.084  0.000  0.107 0.261     0.00363          0.043  560 1.004
+Preregistered[dif: Pre-Registered]                          -0.100 0.084 -0.261 -0.107 0.000     0.00363          0.043  560 1.004
+Gender[dif: Females]                                        -0.011 0.033 -0.114  0.000 0.000     0.00118          0.036  882 1.006
+Gender[dif: Males]                                           0.011 0.033  0.000  0.000 0.114     0.00118          0.036  882 1.006
+Preregistered[dif: Not Pre-Registered]:Gender[dif: Females]  0.002 0.023 -0.032  0.000 0.068     0.00076          0.032 1137 1.026
+Preregistered[dif: Pre-Registered]:Gender[dif: Females]     -0.002 0.023 -0.068  0.000 0.032     0.00076          0.032 1137 1.026
+Preregistered[dif: Not Pre-Registered]:Gender[dif: Males]   -0.002 0.023 -0.068  0.000 0.032     0.00076          0.032 1137 1.026
+Preregistered[dif: Pre-Registered]:Gender[dif: Males]        0.002 0.023 -0.032  0.000 0.068     0.00076          0.032 1137 1.026
 
 Publication Bias
                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-PET               0.403 0.436 0.000 0.276 1.213     0.01522          0.035  820 1.004
-PEESE             0.460 0.888 0.000 0.000 2.834     0.02139          0.024 1907 1.002
 omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,0.05] 0.982 0.081 0.685 1.000 1.000     0.00128          0.016 4363 1.005
-omega[0.05,0.5]   0.956 0.143 0.428 1.000 1.000     0.00258          0.018 3429 1.001
-omega[0.5,0.95]   0.943 0.175 0.324 1.000 1.000     0.00311          0.018 3492 1.002
-omega[0.95,0.975] 0.943 0.175 0.324 1.000 1.000     0.00311          0.018 3497 1.002
-omega[0.975,1]    0.944 0.175 0.324 1.000 1.000     0.00302          0.017 3786 1.002
+omega[0.025,0.05] 0.985 0.073 0.731 1.000 1.000     0.00089          0.012 6904 1.006
+omega[0.05,0.5]   0.963 0.128 0.469 1.000 1.000     0.00170          0.013 5744 1.006
+omega[0.5,0.95]   0.952 0.159 0.357 1.000 1.000     0.00212          0.013 5645 1.004
+omega[0.95,0.975] 0.952 0.159 0.357 1.000 1.000     0.00212          0.013 5642 1.004
+omega[0.975,1]    0.953 0.158 0.357 1.000 1.000     0.00212          0.013 5622 1.004
+PET               0.375 0.423 0.000 0.003 1.187     0.01340          0.032 1006 1.000
+PEESE             0.487 0.902 0.000 0.000 2.843     0.01960          0.022 2174 1.000
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 

@@ -802,7 +802,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     sd_si <- sqrt(tau_total^2 + se_rep^2)
 
     if (sampling_bias && .is_weightfunction(x)) {
-      si_bounds <- .regplot_weighted_mixture_interval_quantiles(
+      si_bounds <- .regplot_selection_mixture_interval_quantiles(
         x            = x,
         mean_samples = pred_samples,
         sd_samples   = sd_si,
@@ -989,10 +989,12 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # ---------------------------------------------------------------------------- #
 .has_native_regplot_mixture <- function() {
 
-  return(
-    is.loaded("RoBMA_regplot_normal_mixture_interval",   PACKAGE = "RoBMA") &&
-      is.loaded("RoBMA_regplot_weighted_mixture_interval", PACKAGE = "RoBMA")
-  )
+  return(is.loaded("RoBMA_regplot_normal_mixture_interval", PACKAGE = "RoBMA"))
+}
+
+.has_native_regplot_selection_mixture <- function() {
+
+  return(is.loaded("RoBMA_regplot_selnorm_mixture_interval", PACKAGE = "RoBMA"))
 }
 
 
@@ -1042,47 +1044,34 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
 
 # ---------------------------------------------------------------------------- #
-# .regplot_weighted_mixture_interval_quantiles
+# .regplot_selection_mixture_interval_quantiles
 # ---------------------------------------------------------------------------- #
 #
 # Deterministic quantiles of observed-effect mixtures with selection branches.
 #
 # ---------------------------------------------------------------------------- #
-.regplot_weighted_mixture_interval_quantiles <- function(x, mean_samples,
-                                                         sd_samples, se,
-                                                         probs) {
+.regplot_selection_mixture_interval_quantiles <- function(x, mean_samples,
+                                                          sd_samples, se,
+                                                          probs) {
 
   mean_samples     <- as.matrix(mean_samples)
   sd_samples       <- as.matrix(sd_samples)
   setup            <- .regplot_selection_setup(x)
   effect_direction <- .effect_direction(x)
 
-  if (.has_native_regplot_mixture()) {
-    selection <- setup[["selection"]]
-    if (!is.null(selection)) {
-      crit_yi <- matrix(
-        stats::qnorm(selection[["steps"]], lower.tail = FALSE) * se,
-        ncol = 1
-      )
-
-      return(.Call(
-        "RoBMA_regplot_weighted_mixture_interval",
-        .native_numeric_matrix(mean_samples),
-        .native_numeric_matrix(sd_samples),
-        .native_numeric_vector(probs),
-        .native_numeric_matrix(setup[["omega"]]),
-        .native_integer_vector(setup[["bias_indicator"]]),
-        as.logical(setup[["is_weightfunction"]]),
-        .native_numeric_matrix(crit_yi),
-        .native_numeric_matrix(selection[["crit_yi_mapping"]]),
-        .native_integer_vector(selection[["crit_yi_mapping_max"]]),
-        effect_direction,
-        PACKAGE = "RoBMA"
-      ))
-    }
+  if (!is.null(setup[["selection"]]) &&
+      se > 0 &&
+      .has_native_regplot_selection_mixture()) {
+    return(.regplot_selnorm_mixture_interval_quantiles(
+      mean_samples      = mean_samples,
+      sd_samples        = sd_samples,
+      se                = se,
+      probs             = probs,
+      selection_context = setup[["selection"]]
+    ))
   }
 
-  return(.regplot_weighted_mixture_interval_quantiles_r(
+  return(.regplot_selection_mixture_interval_quantiles_r(
     mean_samples     = mean_samples,
     sd_samples       = sd_samples,
     se               = se,
@@ -1092,18 +1081,51 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   ))
 }
 
+.regplot_selnorm_mixture_interval_quantiles <- function(mean_samples,
+                                                        sd_samples, se,
+                                                        probs,
+                                                        selection_context) {
 
-.regplot_weighted_mixture_interval_quantiles_r <- function(mean_samples,
-                                                           sd_samples, se,
-                                                           probs, setup,
-                                                           effect_direction) {
+  .selection_require_step_evaluable(
+    selection_context,
+    ".regplot_selection_mixture_interval_quantiles()"
+  )
+
+  return(.Call(
+    "RoBMA_regplot_selnorm_mixture_interval",
+    .native_numeric_matrix(mean_samples),
+    .native_numeric_matrix(sd_samples),
+    .native_numeric_vector(se),
+    .native_numeric_vector(probs),
+    .native_numeric_matrix(selection_context[["omega"]]),
+    .native_numeric_vector(selection_context[["alpha"]]),
+    .native_integer_vector(selection_context[["phack_kind"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    .native_numeric_vector(selection_context[["z_lower"]]),
+    .native_numeric_vector(selection_context[["z_upper"]]),
+    .native_integer_vector(selection_context[["sign"]]),
+    .native_integer_vector(selection_context[["phack_q"]]),
+    .native_numeric_vector(selection_context[["phack_z_source"]]),
+    .native_numeric_vector(selection_context[["phack_z_dest"]]),
+    .native_numeric_vector(selection_context[["segments"]][["bounds"]]),
+    .native_integer_vector(selection_context[["segments"]][["step_bin"]]),
+    .native_integer_vector(selection_context[["segments"]][["phack_region"]]),
+    PACKAGE = "RoBMA"
+  ))
+}
+
+
+.regplot_selection_mixture_interval_quantiles_r <- function(mean_samples,
+                                                            sd_samples, se,
+                                                            probs, setup,
+                                                            effect_direction) {
 
   lower <- numeric(ncol(mean_samples))
   upper <- numeric(ncol(mean_samples))
 
   for (i in seq_len(ncol(mean_samples))) {
     cdf_fun <- function(q) {
-      .regplot_weighted_mixture_cdf(
+      .regplot_selection_mixture_cdf(
         q                = q,
         mean             = mean_samples[, i],
         sd               = sd_samples[, i],
@@ -1215,10 +1237,10 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
 
 # ---------------------------------------------------------------------------- #
-# .regplot_weighted_mixture_cdf
+# .regplot_selection_mixture_cdf
 # ---------------------------------------------------------------------------- #
-.regplot_weighted_mixture_cdf <- function(q, mean, sd, se, setup,
-                                          effect_direction) {
+.regplot_selection_mixture_cdf <- function(q, mean, sd, se, setup,
+                                           effect_direction) {
 
   eps_sd     <- sqrt(.Machine$double.eps)
   cdf_values <- rep(NA_real_, length(mean))
@@ -1237,11 +1259,11 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     )
   }
 
-  weighted_rows <- setup[["is_weightfunction"]] & !zero_sd
-  if (any(weighted_rows)) {
+  selected_rows <- setup[["is_weightfunction"]] & !zero_sd
+  if (any(selected_rows)) {
     setup[["mu"]] <- mean
-    rows <- which(weighted_rows)
-    cdf_values[rows] <- .funnel_weighted_cdf(
+    rows <- which(selected_rows)
+    cdf_values[rows] <- .funnel_selected_cdf(
       q                = q,
       rows             = rows,
       se               = se,
@@ -1263,32 +1285,21 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
   posterior_samples <- .get_posterior_samples(x[["fit"]])
   S                 <- nrow(posterior_samples)
-  priors_bias       <- x[["priors"]][["outcome"]][["bias"]]
-
-  if (!BayesTools::is.prior.mixture(priors_bias)) {
-    priors_bias <- list(priors_bias)
-  }
-
-  branch_is_weightfunction <- vapply(priors_bias, BayesTools::is.prior.weightfunction, logical(1))
   bias_indicator           <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
-
-  if (any(is.na(bias_indicator)) ||
-      any(bias_indicator < 1L | bias_indicator > length(priors_bias))) {
-    stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
-  }
-
-  omega_cols <- grep("^omega(\\[|$)", colnames(posterior_samples))
-  if (length(omega_cols) > 0L) {
-    omega_samples <- .extract_omega_samples(posterior_samples)
+  selection                <- .selection_context(
+    object            = x,
+    posterior_samples = posterior_samples
+  )
+  use_normal <- if (is.null(selection)) {
+    rep(TRUE, S)
   } else {
-    omega_samples <- matrix(1, nrow = S, ncol = 1)
+    selection[["use_normal"]]
   }
 
   return(list(
-    omega             = omega_samples,
     bias_indicator    = bias_indicator,
-    is_weightfunction = branch_is_weightfunction[bias_indicator],
-    selection         = .funnel_selection_setup(priors_bias, branch_is_weightfunction)
+    is_weightfunction = !use_normal,
+    selection         = selection
   ))
 }
 

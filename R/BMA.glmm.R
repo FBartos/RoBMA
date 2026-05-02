@@ -21,6 +21,9 @@
 #' Model for incidence rate ratios (\code{measure = "IRR"}) uses a Poisson-normal
 #' model as described in \insertCite{bagos2009mixed;textual}{RoBMA}.
 #'
+#' When \code{weights} are supplied, they are treated as likelihood weights on
+#' the paired two-arm study contribution.
+#'
 #' @return \code{BMA.glmm} returns an object of class \code{"BMA.glmm"}.
 #'
 #' @seealso [brma.glmm()] [RoBMA()] [summary.brma()] [plot.brma()]

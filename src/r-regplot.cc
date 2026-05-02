@@ -6,10 +6,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
-#include <cstring>
 #include <vector>
 
-#include "source/wmnorm.h"
+#include "source/selnorm.h"
 
 static int regplot_matrix_nrow(SEXP x, const char *name)
 {
@@ -43,11 +42,70 @@ static void regplot_check_integer(SEXP x, const char *name)
   }
 }
 
-static void regplot_check_logical(SEXP x, const char *name)
+static int regplot_scalar_or_row_int(const int *x, int n, int row,
+                                     const char *name)
 {
-  if (TYPEOF(x) != LGLSXP) {
-    Rf_error("'%s' must be logical.", name);
+  if (n == 1) {
+    return x[0];
   }
+  if (row >= n) {
+    Rf_error("'%s' must have length 1 or one value per posterior sample.", name);
+  }
+  return x[row];
+}
+
+static double regplot_scalar_or_row_real(const double *x, int n, int row,
+                                         const char *name)
+{
+  if (n == 1) {
+    return x[0];
+  }
+  if (row >= n) {
+    Rf_error("'%s' must have length 1 or one value per posterior sample.", name);
+  }
+  return x[row];
+}
+
+static void regplot_validate_omega_matrix(const double *omega, int S, int B)
+{
+  for (int b = 0; b < B; ++b) {
+    for (int s = 0; s < S; ++s) {
+      const double w = omega[s + S * b];
+      if (!std::isfinite(w) || w < 0) {
+        Rf_error("'omega' must contain finite non-negative values.");
+      }
+    }
+  }
+}
+
+static void regplot_set_kernel_data(SelNormKernelData *data, int B,
+                                    int n_segments, SEXP sign, SEXP q,
+                                    SEXP z_lower, SEXP z_upper,
+                                    SEXP phack_z_source,
+                                    SEXP phack_z_dest,
+                                    SEXP segment_bounds,
+                                    SEXP segment_step_bin,
+                                    SEXP segment_phack_region)
+{
+  data->n_bins                 = B;
+  data->n_segments             = n_segments;
+  data->effect_sign            = INTEGER(sign)[0];
+  data->q                      = INTEGER(q)[0];
+  data->z_lower                = REAL(z_lower);
+  data->z_upper                = REAL(z_upper);
+  data->phack_z_source         = REAL(phack_z_source);
+  data->phack_z_dest           = REAL(phack_z_dest);
+  data->segment_bounds         = REAL(segment_bounds);
+  data->segment_step_bin       = INTEGER(segment_step_bin);
+  data->segment_phack_region   = INTEGER(segment_phack_region);
+  data->segment_step_bin_real  = 0;
+  data->segment_phack_region_real = 0;
+}
+
+static bool regplot_row_has_active_phack(int mode, double alpha, int phack_kind)
+{
+  return (mode == SELKERNEL_PHACK_POWER ||
+    mode == SELKERNEL_STEP_PHACK_POWER) && phack_kind > 0 && alpha > 0;
 }
 
 static double regplot_clamp_probability(double x)
@@ -98,6 +156,62 @@ static double regplot_normal_mixture_cdf(double q, const double *mean,
       cdf_s = q >= mean[s] ? 1.0 : 0.0;
     } else {
       cdf_s = pnorm(q, mean[s], sd[s], true, false);
+    }
+    cdf_sum += regplot_clamp_probability(cdf_s);
+  }
+
+  return cdf_sum / static_cast<double>(S);
+}
+
+static double regplot_selnorm_mixture_cdf(
+  double q,
+  const double *mean,
+  const double *sd,
+  double se,
+  const double *omega,
+  const double *alpha,
+  const int *phack_kind,
+  const int *kernel_mode,
+  const SelNormKernelData &data,
+  int S,
+  int alpha_len,
+  int phack_kind_len,
+  int kernel_mode_len)
+{
+  const double eps_sd = std::sqrt(DBL_EPSILON);
+  double cdf_sum = 0;
+
+  for (int s = 0; s < S; ++s) {
+    double cdf_s;
+    if (sd[s] < eps_sd) {
+      cdf_s = q >= mean[s] ? 1.0 : 0.0;
+    } else {
+      const double alpha_s = regplot_scalar_or_row_real(alpha, alpha_len, s, "alpha");
+      const int phack_s = regplot_scalar_or_row_int(
+        phack_kind, phack_kind_len, s, "phack_kind"
+      );
+      const int mode_s = regplot_scalar_or_row_int(
+        kernel_mode, kernel_mode_len, s, "kernel_mode"
+      );
+
+      if (regplot_row_has_active_phack(mode_s, alpha_s, phack_s)) {
+        cdf_s = NA_REAL;
+      } else {
+        cdf_s = cpp_selnorm_kernel_cdf(
+          q,
+          mean[s],
+          sd[s],
+          se,
+          omega + s,
+          alpha_s,
+          phack_s,
+          mode_s,
+          data,
+          S,
+          true,
+          false
+        );
+      }
     }
     cdf_sum += regplot_clamp_probability(cdf_s);
   }
@@ -428,198 +542,120 @@ extern "C" SEXP RoBMA_regplot_normal_mixture_interval(SEXP mean, SEXP sd,
   return regplot_interval_result(K, lower, upper);
 }
 
-static int regplot_branch_active_cuts(int branch, const int *mapping_max,
-                                      const double *mapping, int n_branches,
-                                      int n_map, int n_crit, int n_omega)
-{
-  if (branch == NA_INTEGER || branch < 1 || branch > n_branches) {
-    Rf_error("'bias_indicator' contains an invalid branch index.");
-  }
-
-  const int active_cuts = mapping_max[branch - 1];
-  if (active_cuts == NA_INTEGER || active_cuts < 0 ||
-      active_cuts > n_map || active_cuts > n_crit) {
-    Rf_error("'crit_yi_mapping_max' contains an invalid active cutoff count.");
-  }
-
-  for (int j = 0; j < active_cuts; ++j) {
-    const double raw_index = mapping[j + n_map * (branch - 1)];
-    const int index = static_cast<int>(raw_index);
-    if (!std::isfinite(raw_index) || raw_index != static_cast<double>(index) ||
-        index < 1 || index > n_crit) {
-      Rf_error("'crit_yi_mapping' contains an invalid cutoff index.");
-    }
-    if (index >= n_omega) {
-      Rf_error("'omega' must have one more column than the largest mapped cutoff index.");
-    }
-  }
-
-  return active_cuts;
-}
-
-static void regplot_prepare_weighted_log_norm(
-  const double *mean, const double *sd, int S,
-  const double *omega, int n_omega,
-  const int *bias_indicator, const int *is_weightfunction,
-  const double *crit_yi, const double *mapping, const int *mapping_max,
-  int n_branches, int n_map, int n_crit, bool negative_direction,
-  std::vector<double> &log_norm)
-{
-  const double eps_sd = std::sqrt(DBL_EPSILON);
-
-  for (int s = 0; s < S; ++s) {
-    log_norm[static_cast<size_t>(s)] = 0;
-    if (is_weightfunction[s] != TRUE || sd[s] < eps_sd) {
-      continue;
-    }
-
-    const int branch = bias_indicator[s];
-    const int active_cuts = regplot_branch_active_cuts(
-      branch, mapping_max, mapping, n_branches, n_map, n_crit, n_omega
-    );
-    const double mean_eval = negative_direction ? -mean[s] : mean[s];
-
-    log_norm[static_cast<size_t>(s)] = cpp_wnorm_mix_log_norm(
-      mean_eval, sd[s], crit_yi, omega + s,
-      mapping + n_map * (branch - 1), active_cuts, S
-    );
-  }
-}
-
-static double regplot_weighted_mixture_cdf(
-  double q, const double *mean, const double *sd, int S,
-  const double *omega, int n_omega,
-  const int *bias_indicator, const int *is_weightfunction,
-  const double *crit_yi, const double *mapping, const int *mapping_max,
-  int n_branches, int n_map, int n_crit, bool negative_direction,
-  const std::vector<double> &log_norm)
-{
-  const double eps_sd = std::sqrt(DBL_EPSILON);
-  double cdf_sum = 0;
-
-  for (int s = 0; s < S; ++s) {
-    double cdf_s;
-    if (sd[s] < eps_sd) {
-      cdf_s = q >= mean[s] ? 1.0 : 0.0;
-    } else if (is_weightfunction[s] != TRUE) {
-      cdf_s = pnorm(q, mean[s], sd[s], true, false);
-    } else {
-      const int branch = bias_indicator[s];
-      const int active_cuts = regplot_branch_active_cuts(
-        branch, mapping_max, mapping, n_branches, n_map, n_crit, n_omega
-      );
-      const double q_eval    = negative_direction ? -q       : q;
-      const double mean_eval = negative_direction ? -mean[s] : mean[s];
-      const bool lower_tail  = !negative_direction;
-
-      cdf_s = cpp_wnorm_mix_cdf_precomputed(
-        q_eval, mean_eval, sd[s], crit_yi, omega + s,
-        mapping + n_map * (branch - 1), active_cuts,
-        log_norm[static_cast<size_t>(s)], lower_tail, false, S
-      );
-    }
-
-    cdf_sum += regplot_clamp_probability(cdf_s);
-  }
-
-  return cdf_sum / static_cast<double>(S);
-}
-
-extern "C" SEXP RoBMA_regplot_weighted_mixture_interval(
-  SEXP mean, SEXP sd, SEXP probs, SEXP omega, SEXP bias_indicator,
-  SEXP is_weightfunction, SEXP crit_yi, SEXP crit_yi_mapping,
-  SEXP crit_yi_mapping_max, SEXP effect_direction)
+extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
+  SEXP mean, SEXP sd, SEXP se, SEXP probs, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region)
 {
   int S, K;
   regplot_validate_mean_sd(mean, sd, &S, &K);
   regplot_validate_probs(probs);
+  regplot_check_real(se, "se");
   regplot_check_real(omega, "omega");
-  regplot_check_integer(bias_indicator, "bias_indicator");
-  regplot_check_logical(is_weightfunction, "is_weightfunction");
-  regplot_check_real(crit_yi, "crit_yi");
-  regplot_check_real(crit_yi_mapping, "crit_yi_mapping");
-  regplot_check_integer(crit_yi_mapping_max, "crit_yi_mapping_max");
+  regplot_check_real(alpha, "alpha");
+  regplot_check_integer(phack_kind, "phack_kind");
+  regplot_check_integer(kernel_mode, "kernel_mode");
+  regplot_check_real(z_lower, "z_lower");
+  regplot_check_real(z_upper, "z_upper");
+  regplot_check_integer(sign, "sign");
+  regplot_check_integer(q, "q");
+  regplot_check_real(phack_z_source, "phack_z_source");
+  regplot_check_real(phack_z_dest, "phack_z_dest");
+  regplot_check_real(segment_bounds, "segment_bounds");
+  regplot_check_integer(segment_step_bin, "segment_step_bin");
+  regplot_check_integer(segment_phack_region, "segment_phack_region");
 
-  if (TYPEOF(effect_direction) != STRSXP || Rf_length(effect_direction) != 1) {
-    Rf_error("'effect_direction' must be a character scalar.");
+  if (Rf_length(se) != 1 || !(REAL(se)[0] > 0)) {
+    Rf_error("'se' must be a positive scalar.");
   }
 
-  const int n_omega    = regplot_matrix_ncol(omega, "omega");
-  const int n_crit     = regplot_matrix_nrow(crit_yi, "crit_yi");
-  const int K_crit     = regplot_matrix_ncol(crit_yi, "crit_yi");
-  const int n_map      = regplot_matrix_nrow(crit_yi_mapping, "crit_yi_mapping");
-  const int n_branches = Rf_length(crit_yi_mapping_max);
-
+  const int B = regplot_matrix_ncol(omega, "omega");
+  if (B < 1) {
+    Rf_error("'omega' must have at least one column.");
+  }
   if (regplot_matrix_nrow(omega, "omega") != S) {
     Rf_error("'omega' must have one row per posterior sample.");
   }
-  if (Rf_length(bias_indicator) != S) {
-    Rf_error("'bias_indicator' must have one value per posterior sample.");
+  if (Rf_length(z_lower) != B || Rf_length(z_upper) != B) {
+    Rf_error("'z_lower' and 'z_upper' must match the number of omega columns.");
   }
-  if (Rf_length(is_weightfunction) != S) {
-    Rf_error("'is_weightfunction' must have one value per posterior sample.");
+  if (Rf_length(sign) != 1 || (INTEGER(sign)[0] != 1 && INTEGER(sign)[0] != -1)) {
+    Rf_error("'sign' must be 1 or -1.");
   }
-  if (K_crit != 1 && K_crit != K) {
-    Rf_error("'crit_yi' must have one column or one column per prediction.");
+  if (Rf_length(q) != 1 || INTEGER(q)[0] < 0 || INTEGER(q)[0] > 2) {
+    Rf_error("'q' must be 0, 1, or 2.");
   }
-  if (regplot_matrix_ncol(crit_yi_mapping, "crit_yi_mapping") != n_branches) {
-    Rf_error("'crit_yi_mapping' columns must match 'crit_yi_mapping_max'.");
+  if (Rf_length(phack_z_source) != 2 || Rf_length(phack_z_dest) != 2) {
+    Rf_error("'phack_z_source' and 'phack_z_dest' must have length 2.");
+  }
+  if (Rf_length(alpha) != 1 && Rf_length(alpha) != S) {
+    Rf_error("'alpha' must have length 1 or one value per posterior sample.");
+  }
+  if (Rf_length(phack_kind) != 1 && Rf_length(phack_kind) != S) {
+    Rf_error("'phack_kind' must have length 1 or one value per posterior sample.");
+  }
+  if (Rf_length(kernel_mode) != 1 && Rf_length(kernel_mode) != S) {
+    Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
   }
 
-  const bool negative_direction =
-    std::strcmp(CHAR(STRING_ELT(effect_direction, 0)), "negative") == 0;
+  const int n_segments = Rf_length(segment_step_bin);
+  if (Rf_length(segment_phack_region) != n_segments ||
+      Rf_length(segment_bounds) != n_segments + 1) {
+    Rf_error("Segment arrays have incompatible lengths.");
+  }
 
-  const double *mean_p   = REAL(mean);
-  const double *sd_p     = REAL(sd);
-  const double *omega_p  = REAL(omega);
-  const double *crit_p   = REAL(crit_yi);
-  const double *mapping  = REAL(crit_yi_mapping);
-  const int *mapping_max = INTEGER(crit_yi_mapping_max);
-  const int *bias_p      = INTEGER(bias_indicator);
-  const int *is_w_p      = LOGICAL(is_weightfunction);
-  const double p_lower   = REAL(probs)[0];
-  const double p_upper   = REAL(probs)[1];
+  const double *mean_p       = REAL(mean);
+  const double *sd_p         = REAL(sd);
+  const double se_p          = REAL(se)[0];
+  const double *omega_p      = REAL(omega);
+  const double *alpha_p      = REAL(alpha);
+  const int *phack_kind_p    = INTEGER(phack_kind);
+  const int *kernel_mode_p   = INTEGER(kernel_mode);
+  const double p_lower       = REAL(probs)[0];
+  const double p_upper       = REAL(probs)[1];
+
+  regplot_validate_omega_matrix(omega_p, S, B);
+
+  SelNormKernelData data;
+  regplot_set_kernel_data(
+    &data, B, n_segments, sign, q, z_lower, z_upper,
+    phack_z_source, phack_z_dest, segment_bounds,
+    segment_step_bin, segment_phack_region
+  );
 
   std::vector<double> lower(static_cast<size_t>(K));
   std::vector<double> upper(static_cast<size_t>(K));
-  std::vector<double> log_norm(static_cast<size_t>(S));
 
   for (int k = 0; k < K; ++k) {
     const double *mean_k = mean_p + static_cast<size_t>(S) * static_cast<size_t>(k);
     const double *sd_k   = sd_p   + static_cast<size_t>(S) * static_cast<size_t>(k);
-    const int crit_col   = K_crit == 1 ? 0 : k;
-    const double *crit_k = crit_p + static_cast<size_t>(n_crit) * static_cast<size_t>(crit_col);
 
-    regplot_prepare_weighted_log_norm(
-      mean_k, sd_k, S, omega_p, n_omega, bias_p, is_w_p, crit_k,
-      mapping, mapping_max, n_branches, n_map, n_crit,
-      negative_direction, log_norm
-    );
+    auto cdf_fun = [mean_k, sd_k, se_p, omega_p, alpha_p, phack_kind_p,
+                    kernel_mode_p, &data, S, alpha, phack_kind,
+                    kernel_mode](double q_val) {
+      return regplot_selnorm_mixture_cdf(
+        q_val,
+        mean_k,
+        sd_k,
+        se_p,
+        omega_p,
+        alpha_p,
+        phack_kind_p,
+        kernel_mode_p,
+        data,
+        S,
+        Rf_length(alpha),
+        Rf_length(phack_kind),
+        Rf_length(kernel_mode)
+      );
+    };
 
     lower[static_cast<size_t>(k)] = regplot_mixture_quantile(
-      p_lower, mean_k, sd_k, S,
-      [mean_k, sd_k, S, omega_p, n_omega, bias_p, is_w_p, crit_k,
-       mapping, mapping_max, n_branches, n_map, n_crit, negative_direction,
-       &log_norm](double q) {
-        return regplot_weighted_mixture_cdf(
-          q, mean_k, sd_k, S, omega_p, n_omega, bias_p, is_w_p,
-          crit_k, mapping, mapping_max, n_branches, n_map, n_crit,
-          negative_direction, log_norm
-        );
-      }
+      p_lower, mean_k, sd_k, S, cdf_fun
     );
-
     upper[static_cast<size_t>(k)] = regplot_mixture_quantile(
-      p_upper, mean_k, sd_k, S,
-      [mean_k, sd_k, S, omega_p, n_omega, bias_p, is_w_p, crit_k,
-       mapping, mapping_max, n_branches, n_map, n_crit, negative_direction,
-       &log_norm](double q) {
-        return regplot_weighted_mixture_cdf(
-          q, mean_k, sd_k, S, omega_p, n_omega, bias_p, is_w_p,
-          crit_k, mapping, mapping_max, n_branches, n_map, n_crit,
-          negative_direction, log_norm
-        );
-      }
+      p_upper, mean_k, sd_k, S, cdf_fun
     );
   }
 

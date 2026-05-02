@@ -77,7 +77,9 @@ BMA.glmm(
 
 \item{t2i}{a vector of the person-time in the control group.}
 
-\item{weights}{an optional vector of weights.}
+\item{weights}{an optional vector of positive likelihood weights. For normal
+models, each weight powers the estimate likelihood. For GLMM models, each
+weight powers the paired two-arm likelihood for one study.}
 
 \item{mods}{an optional vector, matrix, data.frame, or formula specifying
 moderators (or meta-regressors).}
@@ -189,6 +191,9 @@ as described in \insertCite{jackson2018comparison;textual}{RoBMA}.
 
 Model for incidence rate ratios (\code{measure = "IRR"}) uses a Poisson-normal
 model as described in \insertCite{bagos2009mixed;textual}{RoBMA}.
+
+When \code{weights} are supplied, they are treated as likelihood weights on
+the paired two-arm study contribution.
 }
 \seealso{
 \code{\link[=brma.glmm]{brma.glmm()}} \code{\link[=RoBMA]{RoBMA()}} \code{\link[=summary.brma]{summary.brma()}} \code{\link[=plot.brma]{plot.brma()}}

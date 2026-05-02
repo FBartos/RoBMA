@@ -50,89 +50,61 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_rng.wnorm
+# .outcome_rng.selnorm
 # ---------------------------------------------------------------------------- #
 #
-# Sample observed effect sizes from weighted normal distribution (selection models).
-#
-# For selection models, the observed effect y_i follows a weighted normal:
-#   y_i ~ f(y) * omega(y) / Z
-# where f(y) is normal density and omega(y) is the selection weight function.
-#
-# This uses the fast spike-and-slab weighted normal sampler.
-#
-# Performance optimization: When use_normal is provided, samples with
-# use_normal[i] = TRUE use the fast normal path (rnorm), skipping the
-# weighted rejection sampling. This is correct because these samples
-# have omega = all 1s (set by JAGS for non-weightfunction models).
-#
-# @param mu_samples       S x K matrix of location samples
-# @param tau_within       S x K matrix of within-cluster heterogeneity samples
-# @param sei              numeric vector of length K; standard errors
-# @param omega            S x W matrix of omega (weight) samples
-# @param crit_yi          W - 1 x K matrix of critical values for each observation
-# @param use_normal       optional logical vector of length S; TRUE if sample should
-#                         use fast normal path (for samples with omega = all 1s)
-# @param bias_indicator   optional integer vector of length S; active bias branch
-#                         for branch-specific cutpoint mapping
-# @param crit_yi_mapping  optional cutpoint mapping matrix, cuts x branches
-# @param crit_yi_mapping_max optional active cutoff count per branch
-#
-# @return S x K matrix of sampled observed effect sizes from weighted distribution
+# Sample observed effect sizes from the selected-normal kernel.
 #
 # ---------------------------------------------------------------------------- #
-.outcome_rng.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi,
-                               use_normal = NULL, bias_indicator = NULL,
-                               crit_yi_mapping = NULL, crit_yi_mapping_max = NULL) {
+.outcome_rng.selnorm <- function(mu_samples, tau_within, sei,
+                                 selection_context) {
 
-  S <- nrow(mu_samples)
-  K <- ncol(mu_samples)
+  S          <- nrow(mu_samples)
+  K          <- ncol(mu_samples)
+  sei_mat    <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd   <- sqrt(tau_within^2 + sei_mat^2)
+  use_normal <- selection_context[["use_normal"]]
 
-  # pre-compute total SD for each observation
-  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
-
-  # sample from weighted normal for each observation
-  # (loop is necessary due to .rwnorm_fast.ss interface)
-  has_mapping <- .selection_has_mapping(
-    bias_indicator      = bias_indicator,
-    crit_yi_mapping     = crit_yi_mapping,
-    crit_yi_mapping_max = crit_yi_mapping_max
-  )
-  response_samples <- matrix(NA_real_, nrow = S, ncol = K)
-
-  for (k in seq_len(K)) {
-    if (has_mapping) {
-      response_samples[, k] <- .selection_branch_apply(
-        S                   = S,
-        bias_indicator      = bias_indicator,
-        crit_yi_mapping     = crit_yi_mapping,
-        crit_yi_mapping_max = crit_yi_mapping_max,
-        normal_fun = function(rows) {
-          stats::rnorm(length(rows), mean = mu_samples[rows, k],
-                       sd = total_sd[rows, k])
-        },
-        weighted_fun = function(rows, map_idx) {
-          .rwnorm_fast.ss(
-            mean   = mu_samples[rows, k],
-            sd     = total_sd[rows, k],
-            omega  = .selection_active_omega(omega, rows, map_idx),
-            crit_x = crit_yi[map_idx, k]
-          )
-        }
-      )
-    } else {
-      response_samples[, k] <- .rwnorm_fast.ss(
-        mean       = mu_samples[, k],
-        sd         = total_sd[, k],
-        omega      = omega,
-        crit_x     = crit_yi[, k],
-        use_normal = use_normal  # <-- Pass through for internal subdispatch
-      )
-    }
+  if (length(use_normal) == 1L) {
+    use_normal <- rep(use_normal, S)
   }
 
-  return(response_samples)
+  if (all(use_normal)) {
+    return(.outcome_rng.norm(
+      mu_samples = mu_samples,
+      tau_within = tau_within,
+      sei        = sei
+    ))
+  }
+
+  if (any(use_normal)) {
+    out <- matrix(NA_real_, nrow = S, ncol = K)
+
+    normal_rows <- which(use_normal)
+    step_rows   <- which(!use_normal)
+
+    out[normal_rows, ] <- .outcome_rng.norm(
+      mu_samples = mu_samples[normal_rows, , drop = FALSE],
+      tau_within = tau_within[normal_rows, , drop = FALSE],
+      sei        = sei
+    )
+
+    out[step_rows, ] <- .selection_step_rng_matrix(
+      mean              = mu_samples[step_rows, , drop = FALSE],
+      sd                = total_sd[step_rows, , drop = FALSE],
+      sei               = sei,
+      selection_context = .selection_context_subset_rows(selection_context, step_rows)
+    )
+
+    return(out)
+  }
+
+  return(.selection_step_rng_matrix(
+    mean              = mu_samples,
+    sd                = total_sd,
+    sei               = sei,
+    selection_context = selection_context
+  ))
 }
 
 

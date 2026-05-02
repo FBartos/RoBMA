@@ -60,7 +60,7 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' sampling distribution funnel. Defaults to \code{TRUE}. Only used when
 #' \code{residual = FALSE} or when automatic mode selects outcome mode. Ignored
 #' in residual mode. When \code{TRUE} and the model
-#' includes selection models (weightfunction), uses weighted normal quantiles.
+#' includes selection models (weightfunction), uses selected-normal quantiles.
 #' When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 #' skew from these regression adjustments.
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
@@ -961,15 +961,6 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   }
 
   if (!BayesTools::is.prior.mixture(x[["priors"]][["outcome"]][["bias"]])) {
-    if (is_weightfunction) {
-      return(.get_funnel_quantiles_weighted_plugin(
-        x                = x,
-        se_sequence      = se_sequence,
-        mu               = mu,
-        sd_seq           = sd_seq,
-        effect_direction = effect_direction
-      ))
-    }
     if (is_PET || is_PEESE) {
       return(.get_funnel_quantiles_PETPEESE_plugin(
         x                = x,
@@ -989,72 +980,6 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     sampling_heterogeneity = sampling_heterogeneity,
     effect_direction       = effect_direction
   ))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .get_funnel_quantiles_weighted_plugin
-# ---------------------------------------------------------------------------- #
-#
-# Fast plug-in weighted-normal contours for single selection-model priors.
-#
-# ---------------------------------------------------------------------------- #
-.get_funnel_quantiles_weighted_plugin <- function(x, se_sequence, mu, sd_seq,
-                                                 effect_direction) {
-
-  n_se              <- length(se_sequence)
-  posterior_samples <- .get_posterior_samples(x[["fit"]])
-  omega_cols        <- grep("^omega\\[", colnames(posterior_samples))
-  omega_mean        <- colMeans(posterior_samples[, omega_cols, drop = FALSE])
-  omega_matrix      <- matrix(omega_mean, nrow = n_se, ncol = length(omega_mean), byrow = TRUE)
-  priors_bias       <- x[["priors"]][["outcome"]][["bias"]]
-
-  if (!BayesTools::is.prior.mixture(priors_bias)) {
-    priors_bias <- list(priors_bias)
-  }
-
-  steps <- BayesTools::weightfunctions_mapping(
-    priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)],
-    cuts_only = TRUE,
-    one_sided = TRUE
-  )
-  steps <- rev(steps)[c(-1, -length(steps))]
-
-  lower <- numeric(n_se)
-  upper <- numeric(n_se)
-
-  if (effect_direction == "negative") {
-    mu_calc <- -mu
-  } else {
-    mu_calc <- mu
-  }
-
-  for (i in seq_len(n_se)) {
-    crit_x <- stats::qnorm(steps, lower.tail = FALSE) * se_sequence[i]
-
-    lower[i] <- .qwnorm_fast.ss(
-      p      = 0.025,
-      mean   = mu_calc,
-      sd     = sd_seq[i],
-      omega  = omega_matrix[i, , drop = FALSE],
-      crit_x = crit_x
-    )
-    upper[i] <- .qwnorm_fast.ss(
-      p      = 0.975,
-      mean   = mu_calc,
-      sd     = sd_seq[i],
-      omega  = omega_matrix[i, , drop = FALSE],
-      crit_x = crit_x
-    )
-  }
-
-  if (effect_direction == "negative") {
-    temp  <- -upper
-    upper <- -lower
-    lower <- temp
-  }
-
-  return(list(lower = lower, upper = upper, mid = rep(mu, n_se)))
 }
 
 
@@ -1101,7 +1026,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 # Each posterior row dispatches to its active bias model:
 # - no-bias rows use a normal CDF
 # - PET/PEESE rows use a normal CDF with the row-specific bias offset
-# - selection-model rows use the mapped weighted-normal CDF
+# - selection-model rows use the selected-normal CDF
 #
 # Quantiles are obtained from the averaged posterior-row CDF.
 #
@@ -1163,10 +1088,9 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     priors_bias <- list(priors_bias)
   }
 
-  branch_is_weightfunction <- vapply(priors_bias, BayesTools::is.prior.weightfunction, logical(1))
-  branch_is_PET            <- vapply(priors_bias, BayesTools::is.prior.PET,            logical(1))
-  branch_is_PEESE          <- vapply(priors_bias, BayesTools::is.prior.PEESE,          logical(1))
-  bias_indicator           <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
+  branch_is_PET   <- vapply(priors_bias, BayesTools::is.prior.PET,   logical(1))
+  branch_is_PEESE <- vapply(priors_bias, BayesTools::is.prior.PEESE, logical(1))
+  bias_indicator  <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
 
   if (any(is.na(bias_indicator)) ||
       any(bias_indicator < 1L | bias_indicator > length(priors_bias))) {
@@ -1187,11 +1111,14 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   PET_samples[!branch_is_PET[bias_indicator]]     <- 0
   PEESE_samples[!branch_is_PEESE[bias_indicator]] <- 0
 
-  omega_cols <- grep("^omega\\[", colnames(posterior_samples))
-  if (length(omega_cols) > 0) {
-    omega_samples <- as.matrix(posterior_samples[, omega_cols, drop = FALSE])
+  selection <- .selection_context(
+    object            = x,
+    posterior_samples = posterior_samples
+  )
+  use_normal <- if (is.null(selection)) {
+    rep(TRUE, S)
   } else {
-    omega_samples <- matrix(1, nrow = S, ncol = 1)
+    selection[["use_normal"]]
   }
 
   return(list(
@@ -1199,10 +1126,9 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     tau                   = tau_samples,
     PET                   = PET_samples,
     PEESE                 = PEESE_samples,
-    omega                 = omega_samples,
     bias_indicator        = bias_indicator,
-    is_weightfunction     = branch_is_weightfunction[bias_indicator],
-    selection             = .funnel_selection_setup(priors_bias, branch_is_weightfunction)
+    is_weightfunction     = !use_normal,
+    selection             = selection
   ))
 }
 
@@ -1270,45 +1196,6 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   }
 
   return(rep(0, S))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .funnel_selection_setup
-# ---------------------------------------------------------------------------- #
-#
-# Recreate the branch-specific weightfunction cutpoint mapping for arbitrary SEs.
-#
-# ---------------------------------------------------------------------------- #
-.funnel_selection_setup <- function(priors_bias, branch_is_weightfunction) {
-
-  if (!any(branch_is_weightfunction)) {
-    return(NULL)
-  }
-
-  steps <- BayesTools::weightfunctions_mapping(
-    priors_bias[branch_is_weightfunction],
-    cuts_only = TRUE,
-    one_sided = TRUE
-  )
-  steps <- rev(steps)[c(-1, -length(steps))]
-
-  crit_yi_mapping     <- matrix(0L, nrow = length(steps), ncol = length(priors_bias))
-  crit_yi_mapping_max <- rep(0L, length(priors_bias))
-
-  for (i in seq_along(priors_bias)) {
-    if (branch_is_weightfunction[i]) {
-      this_steps <- .get_one_sided_cuts(priors_bias[[i]])
-      crit_yi_mapping[seq_along(this_steps), i] <- which(steps %in% this_steps)
-      crit_yi_mapping_max[i] <- length(this_steps)
-    }
-  }
-
-  return(list(
-    steps                = steps,
-    crit_yi_mapping     = crit_yi_mapping,
-    crit_yi_mapping_max = crit_yi_mapping_max
-  ))
 }
 
 
@@ -1421,7 +1308,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   weighted_rows <- setup[["is_weightfunction"]] & !zero_sd
   if (any(weighted_rows)) {
     rows <- which(weighted_rows)
-    cdf_values[rows] <- .funnel_weighted_cdf(
+    cdf_values[rows] <- .funnel_selected_cdf(
       q                = q,
       rows             = rows,
       se               = se,
@@ -1456,48 +1343,103 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
 
 # ---------------------------------------------------------------------------- #
-# .funnel_weighted_cdf
+# .funnel_selected_cdf
 # ---------------------------------------------------------------------------- #
 #
-# Weighted-normal CDF for selection-model posterior rows.
+# Selected-normal CDF for selection-model posterior rows.
 #
 # ---------------------------------------------------------------------------- #
-.funnel_weighted_cdf <- function(q, rows, se, total_sd, setup, effect_direction) {
+.funnel_selected_cdf <- function(q, rows, se, total_sd, setup, effect_direction) {
 
   selection <- setup[["selection"]]
 
-  if (is.null(selection) || length(selection[["steps"]]) == 0) {
+  if (is.null(selection)) {
     return(stats::pnorm(q, mean = setup[["mu"]][rows], sd = total_sd[rows]))
   }
 
-  crit_yi <- matrix(
-    stats::qnorm(selection[["steps"]], lower.tail = FALSE) * se,
-    ncol = 1
-  )
+  .selection_require_step_evaluable(selection, ".funnel_selected_cdf()")
 
-  if (effect_direction == "negative") {
-    q_eval     <- -q
-    mean_eval  <- -setup[["mu"]][rows]
-    lower_tail <- FALSE
-  } else {
-    q_eval     <- q
-    mean_eval  <- setup[["mu"]][rows]
-    lower_tail <- TRUE
+  if (se <= 0) {
+    return(.funnel_selected_cdf_zero_se(
+      q        = q,
+      rows     = rows,
+      total_sd = total_sd,
+      setup    = setup
+    ))
   }
 
-  cdf <- .wnorm_mix_cdf_matrix(
-    q                   = q_eval,
-    mean                = matrix(mean_eval, ncol = 1),
-    sd                  = matrix(total_sd[rows], ncol = 1),
-    omega               = setup[["omega"]][rows, , drop = FALSE],
-    crit_yi             = crit_yi,
-    bias_indicator      = setup[["bias_indicator"]][rows],
-    crit_yi_mapping     = selection[["crit_yi_mapping"]],
-    crit_yi_mapping_max = selection[["crit_yi_mapping_max"]],
-    lower.tail          = lower_tail
+  local_context <- .selection_context_subset_rows(selection, rows)
+  cdf           <- .selection_step_cdf_matrix(
+    q                 = q,
+    mean              = matrix(setup[["mu"]][rows], ncol = 1),
+    sd                = matrix(total_sd[rows], ncol = 1),
+    sei               = se,
+    selection_context = local_context,
+    lower.tail        = TRUE
   )
 
   return(as.numeric(cdf[, 1]))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_selected_cdf_zero_se
+# ---------------------------------------------------------------------------- #
+#
+# Limit of the selected-normal CDF as the standard error approaches zero.
+#
+# Selection bins are defined on signed z = sign * y / se. At se -> 0, finite
+# z-bin intervals collapse to zero mass. Only the two tail intervals remain:
+# the upper z tail maps to signed effects above 0, and the lower z tail maps to
+# signed effects below 0. This explicit limit avoids evaluating the native
+# selected-normal kernel at the singular se = 0 boundary.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_selected_cdf_zero_se <- function(q, rows, total_sd, setup) {
+
+  selection <- setup[["selection"]]
+  sign      <- selection[["sign"]]
+  omega     <- selection[["omega"]][rows, , drop = FALSE]
+  mean      <- sign * setup[["mu"]][rows]
+  sd        <- total_sd[rows]
+  q_signed  <- sign * q
+  S         <- length(rows)
+
+  denom <- rep(0, S)
+  mass  <- rep(0, S)
+
+  for (b in seq_len(selection[["n_bins"]])) {
+    z_lower <- selection[["z_lower"]][b]
+    z_upper <- selection[["z_upper"]][b]
+
+    if (is.infinite(z_lower) && z_lower < 0 &&
+        is.infinite(z_upper) && z_upper > 0) {
+      lower <- -Inf
+      upper <-  Inf
+    } else if (is.infinite(z_upper) && z_upper > 0) {
+      lower <- 0
+      upper <- Inf
+    } else if (is.infinite(z_lower) && z_lower < 0) {
+      lower <- -Inf
+      upper <- 0
+    } else {
+      next
+    }
+
+    bin_mass <- .selection_interval_prob_vec(lower, upper, mean, sd)
+    denom    <- denom + omega[, b] * bin_mass
+
+    if (sign == 1L) {
+      selected_mass <- .selection_interval_prob_vec(lower, min(upper, q_signed), mean, sd)
+    } else {
+      selected_mass <- .selection_interval_prob_vec(max(lower, q_signed), upper, mean, sd)
+    }
+    mass <- mass + omega[, b] * selected_mass
+  }
+
+  out <- mass / denom
+  out <- pmin(pmax(out, 0), 1)
+  return(out)
 }
 
 

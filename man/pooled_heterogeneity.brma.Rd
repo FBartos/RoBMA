@@ -4,13 +4,17 @@
 \alias{pooled_heterogeneity.brma}
 \title{Pooled Heterogeneity for brma Objects}
 \usage{
-\method{pooled_heterogeneity}{brma}(object, probs = c(0.025, 0.975), ...)
+\method{pooled_heterogeneity}{brma}(object, probs = c(0.025, 0.975), conditional = FALSE, ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
 
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
+
+\item{conditional}{whether to return the pooled heterogeneity conditional on
+the heterogeneity component for RoBMA product-space objects. Defaults to
+\code{FALSE}.}
 
 \item{...}{additional arguments (currently ignored)}
 }

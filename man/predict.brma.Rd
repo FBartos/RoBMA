@@ -14,6 +14,7 @@
   probs = c(0.025, 0.975),
   bias_adjusted = FALSE,
   quiet = FALSE,
+  conditional = FALSE,
   ...
 )
 }
@@ -42,18 +43,21 @@ not accounting for random effects.}
 \item{\code{"cluster"}: Fixed effects plus cluster-level random effects (mu + gamma).
 Only available for multilevel (3-level) models.}
 \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
-effects (mu + gamma + theta). Incorporates all random effects including estimate-level
-heterogeneity. For existing data, returns BLUPs (empirical Bayes estimates).}
+effects (mu + gamma + theta). For existing normal data, returns posterior
+draws of conditional BLUP means, not simulated latent-effect draws. For
+new data, samples estimate-level random effects.}
 \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
 Incorporates both heterogeneity and sampling variability.}
 \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
 regression if present.}
 }}
 
-\item{as_measure}{logical; whether to return GLMM response predictions as
-effect size measures (logOR for binomial, logIRR for Poisson). Defaults to
-\code{TRUE}. Only relevant for GLMM models with \code{type = "response"}.
-When \code{FALSE}, returns raw frequency data (counts).}
+\item{as_measure}{logical; whether to convert GLMM response predictions from
+simulated counts to continuity-corrected effect-size estimators (logOR for
+binomial, logIRR for Poisson). Defaults to \code{TRUE}. Only relevant for
+GLMM models with \code{type = "response"}. When \code{FALSE}, returns raw
+frequency data (counts). Use \code{type = "estimate"} for latent logOR/logIRR
+predictions.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.
 Defaults to the fitted measure. Supported conversions are among \code{"SMD"},
@@ -75,16 +79,22 @@ Defaults to \code{FALSE}. When \code{TRUE}:
 \item{PET/PEESE terms are NOT added to the mean parameter (mu), returning
 the bias-corrected effect estimate.}
 \item{For \code{type = "response"} with selection models, samples from
-unweighted normal distribution instead of weighted distribution, simulating
-what would be observed without publication bias.}
+the ordinary normal predictive distribution instead of the selected-normal
+distribution, simulating what would be observed without publication bias.}
 }
 When \code{FALSE}:
 \itemize{
 \item{PET/PEESE terms ARE added to mu, returning predictions that include
 the expected bias (i.e., what we expect to observe given publication bias).}
 \item{For \code{type = "response"} with selection models, samples from
-weighted distribution reflecting the selective publishing process.}
+the selected-normal distribution reflecting the selective publishing
+process.}
 }}
+
+\item{conditional}{whether to return conditional posterior predictions for
+RoBMA product-space objects. For location predictions, samples are conditioned
+on the effect component; for \code{type = "terms.scale"}, samples are
+conditioned on the heterogeneity component.}
 
 \item{...}{additional arguments}
 }
@@ -106,6 +116,11 @@ to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 \item{\code{"estimate"}: mu + gamma + theta (adds estimate-level random effect)}
 \item{\code{"response"}: mu + gamma + theta + epsilon (adds sampling error)}
 }
+For existing normal observations, \code{type = "estimate"} reports the
+conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
+posterior draw. It is therefore an empirical-Bayes summary, not a draw from
+the full latent-effect posterior \eqn{\theta_i \mid y_i}. For new data,
+estimate-level random effects are sampled from their model distribution.
 
 Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 predictions for the new effect size estimates. To obtain results corresponding to

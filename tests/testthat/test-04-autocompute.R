@@ -4,7 +4,7 @@ source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 skip_if_not_installed("metafor")
 
-test_that("autocompute options work for brma()", {
+test_that("autocompute options are applied for brma()", {
 
   # Using a very simple model to be fast
   data(dat.bcg, package = "metadat")

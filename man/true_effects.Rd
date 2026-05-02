@@ -13,7 +13,7 @@ true_effects(object, ...)
 }
 \value{
 Method-specific return value, typically a summary table or
-posterior samples of the true effects.
+posterior samples of BLUP or empirical-Bayes true-effect summaries.
 }
 \description{
 Computes the estimated true effects (theta) from a

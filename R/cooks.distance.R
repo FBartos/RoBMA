@@ -19,14 +19,15 @@
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
-#' Cook's distance is computed using a hybrid Bayesian approach. Like DFFITS,
-#' we calculate the distribution sample-wise to capture the non-linear relationship
-#' between leverage and influence.
+#' Cook's distance is computed as a PSIS leave-one-out deletion diagnostic. For
+#' each observation \eqn{i}, normalized PSIS weights estimate the fitted values
+#' under the leave-one-out posterior. The distance is the posterior Mahalanobis
+#' distance between the full-data and leave-one-out fitted-value vectors:
+#' \deqn{D_i = \frac{\Delta_i' V_\mu^+ \Delta_i}{P}}
 #'
-#' \deqn{D_i = \frac{r_i^2}{P} \times \frac{h_i}{1 - h_i}}
-#'
-#' where \eqn{P} is the number of regression coefficients (beta parameters),
-#' \eqn{r_i} is the LOO-PIT residual, and \eqn{h_i} is the hat value (leverage).
+#' where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
+#' generalized inverse of the full-posterior fitted-value covariance, and
+#' \eqn{P} is the rank of the fixed-effect model matrix.
 #'
 #' @return A numeric vector of Cook's distance values, one for each observation.
 #'
@@ -55,52 +56,49 @@ cooks.distance.brma <- function(model, ...) {
     stop("cooks.distance is not available for selection models (weightfunction).", call. = FALSE)
   }
 
-  # 1. Get rstudent (LOO-PIT residuals) - Vector of length K
-  r_res        <- rstudent(model)
-  rstudent_vec <- r_res[["z"]]
-
-  # 2. Identify P (number of coefficients)
-  X <- .get_model_matrix(model)
-  P <- ncol(X)
-
-  # 3. Get hat matrix samples (S x K)
-  hat_res <- .compute_hat_matrix_samples(
-    object             = model,
-    conditioning_depth = "marginal",
-    return_full_H      = FALSE,
-    return_se          = FALSE
-  )
-  hat_samples <- hat_res[["H_diag"]]
-
-  # 4. Call internal function
-  d_vec <- .cooks.distance_internal(rstudent_vec, hat_samples, P)
+  fit_samples <- .influence_fit_samples(model)
+  weights     <- loo_weights(model)
+  P           <- qr(.get_model_matrix(model))[["rank"]]
+  d_vec       <- .cooks.distance_internal(fit_samples, weights, P)
 
   return(d_vec)
 }
 
-.cooks.distance_internal <- function(rstudent_vec, hat_samples, P) {
+.cooks.distance_internal <- function(fit_samples, weights, P) {
 
-  K <- length(rstudent_vec)
-  S <- nrow(hat_samples)
+  summary <- .psis_fit_influence_summary(fit_samples, weights)
+  delta   <- sweep(summary[["loo_fit"]], 2, summary[["full_fit"]], "-")
+  delta   <- -delta
 
-  # 4. Calculate Cook's Distance Samples
-  # Broadcast rstudent squared
-  rstudent_sq_mat <- matrix(rstudent_vec^2, nrow = S, ncol = K, byrow = TRUE)
+  vcov_fit <- stats::cov(fit_samples)
+  vcov_inv <- .symmetric_ginv(vcov_fit)
 
-  # Leverage-one cases do not have a defined linear-model deletion diagnostic:
-  # deleting the point removes the information that identifies its fitted cell.
-  hat_samples_safe <- pmax(hat_samples, 0)
-  hat_samples_safe[hat_samples_safe >= 1 - sqrt(.Machine$double.eps)] <- NA_real_
-
-  # Calculate D samples:
-  # D_{s,i} = (rstudent_i^2 / P) * (h_{s,i} / (1 - h_{s,i}))
-  factor_mat <- hat_samples_safe / (1 - hat_samples_safe)
-
-  d_samples <- (rstudent_sq_mat / P) * factor_mat
-
-  # 5. Aggregate: Compute column means
-  d_vec <- colMeans(d_samples, na.rm = FALSE)
-  names(d_vec) <- names(rstudent_vec)
+  d_vec <- rowSums((delta %*% vcov_inv) * delta) / max(P, 1L)
+  names(d_vec) <- colnames(fit_samples)
 
   return(d_vec)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .symmetric_ginv
+# ---------------------------------------------------------------------------- #
+#
+# Generalized inverse for symmetric positive semi-definite covariance matrices.
+#
+# ---------------------------------------------------------------------------- #
+.symmetric_ginv <- function(x, tol = sqrt(.Machine$double.eps)) {
+
+  x   <- (x + t(x)) / 2
+  eig <- eigen(x, symmetric = TRUE)
+
+  keep <- eig[["values"]] > max(abs(eig[["values"]]), 1) * tol
+  if (!any(keep)) {
+    return(matrix(0, nrow = nrow(x), ncol = ncol(x)))
+  }
+
+  vectors <- eig[["vectors"]][, keep, drop = FALSE]
+  values  <- eig[["values"]][keep]
+
+  return(vectors %*% diag(1 / values, nrow = length(values)) %*% t(vectors))
 }

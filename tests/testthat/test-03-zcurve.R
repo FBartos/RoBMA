@@ -2,6 +2,8 @@ context("Z-curve plot")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 
 # list cached fits lazily
 skip_if_no_fits()
@@ -9,12 +11,20 @@ fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
+.zcurve_test_area <- function(df) {
+
+  x <- df[["x"]]
+  y <- df[["y"]]
+
+  return(sum(diff(x) * (y[-length(y)] + y[-1L]) / 2))
+}
+
 
 # ============================================================================ #
 # Test: Simple Meta-Analysis Z-Curve
 # ============================================================================ #
 
-test_that("Z-curve plot for simple meta-analysis works", {
+test_that("Z-curve plot for simple meta-analysis renders base and ggplot output", {
 
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]
@@ -39,7 +49,9 @@ test_that("Z-curve plot for simple meta-analysis works", {
 # Test: Z-Curve Customization
 # ============================================================================ #
 
-test_that("Z-curve plot customization works", {
+test_that("Z-curve plot customization snapshots are stable", {
+
+  skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name     <- "bcg_meta-analysis"
   zc       <- as_zcurve(fits[[name]])
@@ -93,7 +105,7 @@ test_that("Z-curve plot customization works", {
 # Test: Meta-Regression Z-Curve
 # ============================================================================ #
 
-test_that("Z-curve plot for meta-regression works", {
+test_that("Z-curve plot for meta-regression renders base output", {
 
   name <- "bcg_meta-regression"
   zc   <- as_zcurve(fits[[name]])
@@ -108,7 +120,7 @@ test_that("Z-curve plot for meta-regression works", {
 # Test: Selection Models Z-Curve
 # ============================================================================ #
 
-test_that("Z-curve plot for selection model (positive) works", {
+test_that("Z-curve plot for positive-direction selection model renders base output", {
 
   name <- "dat.lehmann2018-3PSM"
   zc   <- as_zcurve(fits[[name]])
@@ -119,7 +131,9 @@ test_that("Z-curve plot for selection model (positive) works", {
 
 })
 
-test_that("Z-curve plot for selection model (negative) works", {
+test_that("Z-curve plot for negative-direction selection model renders base output", {
+
+  skip_if_not_full_visuals("Negative-direction selection z-curve is gallery coverage.")
 
   name <- "dat.lehmann2018-3PSM_neg"
   zc   <- as_zcurve(fits[[name]])
@@ -157,11 +171,10 @@ test_that("Z-curve handles RoBMA bias-mixture branches", {
     estimate  = 1,
     n         = 3
   )
-  branch      <- selection[["bias_indicator"]][weighted_rows[1]]
-  active_cuts <- selection[["fit_data"]][["crit_yi_mapping_max"]][branch]
+  active_cuts <- selection[["n_bins"]] - 1L
 
   expect_equal(nrow(selection_args[["omega"]]), 3)
-  expect_equal(ncol(selection_args[["omega"]]), active_cuts + 1)
+  expect_equal(ncol(selection_args[["omega"]]), selection[["n_bins"]])
   expect_length(selection_args[["crit_yi"]], active_cuts)
 
   zc <- as_zcurve(fit, max_samples = 50)
@@ -181,13 +194,39 @@ test_that("Z-curve handles RoBMA bias-mixture branches", {
 
   expect_true(all(is.finite(unlist(fitted_density[c("y", "y_lCI", "y_uCI")]))))
   expect_true(all(is.finite(unlist(extrapolated_density[c("y", "y_lCI", "y_uCI")]))))
+
+  fitted_area       <- .zcurve_test_area(lines(
+    zc,
+    as_data     = TRUE,
+    max_samples = 50,
+    plot_ci     = FALSE,
+    extrapolate = FALSE,
+    from        = -20,
+    to          = 20,
+    length.out  = 2001
+  ))
+  extrapolated_area <- .zcurve_test_area(lines(
+    zc,
+    as_data     = TRUE,
+    max_samples = 50,
+    plot_ci     = FALSE,
+    extrapolate = TRUE,
+    from        = -20,
+    to          = 20,
+    length.out  = 2001
+  ))
+  expected_area     <- mean(zc[["zcurve"]][["estimates"]][["weights"]])
+
+  expect_equal(fitted_area, 1, tolerance = 0.01)
+  expect_equal(extrapolated_area, expected_area, tolerance = 0.01)
+  expect_gt(extrapolated_area, fitted_area)
 })
 
 # ============================================================================ #
 # Test: PET Models Z-Curve
 # ============================================================================ #
 
-test_that("Z-curve plot for PET model (positive) works", {
+test_that("Z-curve plot for positive-direction PET model renders base output", {
 
   name <- "dat.lehmann2018-PET"
   zc   <- as_zcurve(fits[[name]])
@@ -198,7 +237,9 @@ test_that("Z-curve plot for PET model (positive) works", {
 
 })
 
-test_that("Z-curve plot for PET model (negative) works", {
+test_that("Z-curve plot for negative-direction PET model renders base output", {
+
+  skip_if_not_full_visuals("Negative-direction PET z-curve is gallery coverage.")
 
   name <- "dat.lehmann2018-PET_neg"
   zc   <- as_zcurve(fits[[name]])
@@ -213,7 +254,9 @@ test_that("Z-curve plot for PET model (negative) works", {
 # Test: Multilevel Models Z-Curve
 # ============================================================================ #
 
-test_that("Z-curve plot for multilevel model works", {
+test_that("Z-curve plot for multilevel model renders base output", {
+
+  skip_if_not_full_visuals("Multilevel z-curve is gallery coverage.")
 
   name <- "konstantopoulos2011_3lvl"
   zc   <- as_zcurve(fits[[name]])

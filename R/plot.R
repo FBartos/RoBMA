@@ -631,27 +631,6 @@ plot_pet_peese.brma  <- function(
 
 
 
-.clean_PET_PEESE_samples <- function(samples, parameter) {
-  for (i in seq_along(attr(samples[["PET"]], "prior_list"))) {
-    if (is.prior.PET(attr(samples[["PET"]], "prior_list")[[i]])) {
-      class(attr(samples[["PET"]], "prior_list")[[i]])   <- class(attr(samples[["PET"]], "prior_list")[[i]])[!class(attr(samples[["PET"]], "prior_list")[[i]]) %in% "prior.PET"]
-    } else if (!is.prior.point(attr(samples[["PET"]], "prior_list")[[i]])){
-      attr(samples[["PET"]], "prior_list")[[i]] <- prior("point", parameter = list("location" = 0), prior_weights = attr(samples[["PET"]], "prior_list")[[i]][["prior_weights"]])
-    }
-  }
-  for (i in seq_along(attr(samples[["PEESE"]], "prior_list"))) {
-    if (is.prior.PEESE(attr(samples[["PEESE"]], "prior_list")[[i]])) {
-      class(attr(samples[["PEESE"]], "prior_list")[[i]])   <- class(attr(samples[["PEESE"]], "prior_list")[[i]])[!class(attr(samples[["PEESE"]], "prior_list")[[i]]) %in% "prior.PEESE"]
-    } else if (!is.prior.point(attr(samples[["PEESE"]], "prior_list")[[i]])) {
-      attr(samples[["PEESE"]], "prior_list")[[i]] <- prior("point", parameter = list("location" = 0), prior_weights = attr(samples[["PEESE"]], "prior_list")[[i]][["prior_weights"]])
-    }
-  }
-  return(samples)
-}
-
-
-
-
 ### basic MCMC diagnostics functions ----
 
 #' @title Plot MCMC Diagnostics
@@ -1166,9 +1145,13 @@ plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type 
 
 .select_plot_prior_bias <- function(prior, parameter, allow_mixed_bias = FALSE) {
 
+  if (.prior_has_phacking(prior)) {
+    .selection_stop_phacking_deferred()
+  }
+
   if (!BayesTools::is.prior.mixture(prior)) {
     if (parameter == "bias" ||
-        (parameter == "omega" && BayesTools::is.prior.weightfunction(prior)) ||
+        (parameter == "omega" && .prior_has_selection(prior)) ||
         (parameter == "PET" && BayesTools::is.prior.PET(prior)) ||
         (parameter == "PEESE" && BayesTools::is.prior.PEESE(prior))) {
       return(prior)
@@ -1177,7 +1160,7 @@ plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type 
     stop(sprintf("The publication-bias prior does not contain a '%s' component.", parameter), call. = FALSE)
   }
 
-  has_weightfunction <- any(vapply(prior, BayesTools::is.prior.weightfunction, logical(1)))
+  has_weightfunction <- any(vapply(prior, .prior_has_selection, logical(1)))
   has_petpeese       <- any(vapply(prior, function(x) BayesTools::is.prior.PET(x) || BayesTools::is.prior.PEESE(x), logical(1)))
 
   if (parameter == "bias") {
@@ -1195,7 +1178,7 @@ plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type 
 
   keep <- switch(
     parameter,
-    "omega" = vapply(prior, BayesTools::is.prior.weightfunction, logical(1)),
+    "omega" = vapply(prior, .prior_has_selection, logical(1)),
     "PET"   = vapply(prior, BayesTools::is.prior.PET, logical(1)),
     "PEESE" = vapply(prior, BayesTools::is.prior.PEESE, logical(1))
   )
@@ -1453,10 +1436,17 @@ plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type 
 
 .use_plot_prior_list_dispatch <- function(prior) {
 
+  if (.is_prior_phacking(prior) || .prior_has_phacking(prior)) {
+    .selection_stop_phacking_deferred()
+  }
+
   return(
-    BayesTools::is.prior.factor(prior) &&
-      !BayesTools::is.prior.mixture(prior) &&
-      (BayesTools::is.prior.meandif(prior) || BayesTools::is.prior.orthonormal(prior))
+    (
+      BayesTools::is.prior.factor(prior) &&
+        !BayesTools::is.prior.mixture(prior) &&
+        (BayesTools::is.prior.meandif(prior) || BayesTools::is.prior.orthonormal(prior))
+    ) ||
+      .is_prior_bias_kernel(prior)
   )
 }
 

@@ -4,6 +4,8 @@
 
 ### Changes
 - renames the multilevel clustering argument to `cluster`
+- routes selection-weightfunction priors through the BayesTools selection backend and selected-normal kernel, removing legacy weighted-normal mapping paths
+- requires the upcoming BayesTools 0.3.0 release for the selection-backend prior compiler
 
 
 

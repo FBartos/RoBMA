@@ -1,5 +1,7 @@
 context("Prior input handling for brma.norm")
 
+source(testthat::test_path("helper-contracts.R"))
+
 # Test data for prior specification tests
 test_data <- data.frame(
   effect     = c(0.10, 0.25, 0.15, 0.30, 0.05),
@@ -17,7 +19,7 @@ test_data <- data.frame(
 # Tests for measure specification and UISD
 # ============================================================================
 
-test_that("Default priors scale correctly with known UISD for each measure", {
+test_that("Default priors scale with known UISD for each measure", {
 
   skip_on_cran()
 
@@ -58,7 +60,7 @@ test_that("UISD is estimated from sample sizes for GEN measure", {
 })
 
 
-test_that("GEN measure without ni throws error", {
+test_that("GEN measure without ni is rejected", {
 
   skip_on_cran()
 
@@ -69,7 +71,7 @@ test_that("GEN measure without ni throws error", {
 })
 
 
-test_that("Invalid measure throws error", {
+test_that("Invalid measure is rejected", {
 
   skip_on_cran()
 
@@ -108,7 +110,7 @@ test_that("Manual prior_unit_information_sd is used and overrides known UISD", {
 })
 
 
-test_that("estimate_unit_information_sd computes correctly and validates inputs", {
+test_that("estimate_unit_information_sd computes UISD and validates inputs", {
 
   skip_on_cran()
 
@@ -120,27 +122,58 @@ test_that("estimate_unit_information_sd computes correctly and validates inputs"
   expected <- sqrt(sum(ni) / sum(sei^(-2)))
   expect_equal(result, expected, tolerance = 1e-10)
 
-  # Invalid inputs
-  expect_error(estimate_unit_information_sd(sei = c(-0.2, 0.3), ni = c(50, 30)), regexp = "sei")
-  expect_error(estimate_unit_information_sd(sei = c(0, 0.3), ni = c(50, 30)), regexp = "sei")
-  expect_error(estimate_unit_information_sd(sei = c(0.2, 0.3), ni = c(-50, 30)), regexp = "ni")
-  expect_error(estimate_unit_information_sd(sei = c(0.2, 0.3, 0.4), ni = c(50, 30)), regexp = "length|ni")
-  expect_error(estimate_unit_information_sd(sei = c(0.2, NA), ni = c(50, 30)), regexp = "sei")
+  expect_error_cases(list(
+    list(
+      label  = "negative sei",
+      expr   = quote(estimate_unit_information_sd(sei = c(-0.2, 0.3), ni = c(50, 30))),
+      regexp = "sei"
+    ),
+    list(
+      label  = "zero sei",
+      expr   = quote(estimate_unit_information_sd(sei = c(0, 0.3), ni = c(50, 30))),
+      regexp = "sei"
+    ),
+    list(
+      label  = "negative ni",
+      expr   = quote(estimate_unit_information_sd(sei = c(0.2, 0.3), ni = c(-50, 30))),
+      regexp = "ni"
+    ),
+    list(
+      label  = "length mismatch",
+      expr   = quote(estimate_unit_information_sd(sei = c(0.2, 0.3, 0.4), ni = c(50, 30))),
+      regexp = "length|ni"
+    ),
+    list(
+      label  = "missing sei",
+      expr   = quote(estimate_unit_information_sd(sei = c(0.2, NA), ni = c(50, 30))),
+      regexp = "sei"
+    )
+  ))
 })
 
 
-test_that("Invalid prior_unit_information_sd throws error", {
+test_that("Invalid prior_unit_information_sd is rejected", {
 
   skip_on_cran()
 
-  expect_error(
-    brma.norm(yi = effect, sei = std_err, data = test_data, prior_unit_information_sd = -1, only_priors = TRUE),
-    regexp = "prior_unit_information_sd"
-  )
-  expect_error(
-    brma.norm(yi = effect, sei = std_err, data = test_data, prior_unit_information_sd = 0, only_priors = TRUE),
-    regexp = "prior_unit_information_sd"
-  )
+  expect_error_cases(list(
+    list(
+      label  = "negative UISD",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        prior_unit_information_sd = -1, only_priors = TRUE
+      )),
+      regexp = "prior_unit_information_sd"
+    ),
+    list(
+      label  = "zero UISD",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        prior_unit_information_sd = 0, only_priors = TRUE
+      )),
+      regexp = "prior_unit_information_sd"
+    )
+  ))
 })
 
 
@@ -206,8 +239,103 @@ test_that("bselmodel keeps only steps shortcut for default weightfunction", {
   expect_equal(result$outcome$bias$weights$omega, c(1, 0.5))
 })
 
+test_that("RoBMA accepts fixed zero weightfunctions at prior setup", {
 
-test_that("bPEESE default respects manual prior_unit_information_sd", {
+  skip_on_cran()
+
+  zero_prior <- BayesTools::prior_weightfunction(
+    "one-sided", c(.05), BayesTools::wf_fixed(c(1, 0))
+  )
+  valid_prior <- BayesTools::prior_weightfunction(
+    "one-sided", c(.05), BayesTools::wf_fixed(c(1, .5))
+  )
+
+  expect_equal(zero_prior$weights$omega, c(1, 0))
+  expect_silent(
+    bselmodel(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "SMD", prior_bias = zero_prior, only_priors = TRUE
+    )
+  )
+  expect_silent(
+    bselmodel(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "SMD",
+      prior_bias = BayesTools::prior_bias(selection = zero_prior),
+      only_priors = TRUE
+    )
+  )
+  expect_silent(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data,
+      measure = "SMD",
+      prior_bias = list(valid_prior, zero_prior),
+      prior_unit_information_sd = 1,
+      only_priors = TRUE,
+      silent = TRUE
+    )
+  )
+})
+
+test_that("selection backend consumes BayesTools omega p-order directly", {
+
+  skip_on_cran()
+
+  prior_bias <- prior_weightfunction(
+    "one-sided", c(0.025, 0.05), wf_fixed(c(1, 0.5, 0.1))
+  )
+  object <- bselmodel(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", prior_bias = prior_bias, only_priors = TRUE
+  )
+
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
+
+  expect_true(all(c(
+    "sel_z_lower", "sel_z_upper", "sel_obs_bin", "sel_sign"
+  ) %in% names(fit_data)))
+  expect_false(any(grepl("sel_phack|phack_z|sel_segment|sel_kernel_mode", names(fit_data))))
+  expect_match(syntax, "dselnorm_step", fixed = TRUE)
+  expect_false(grepl("dselnorm_kernel|sel_phack|phack_z|sel_segment|sel_kernel_mode", syntax))
+
+  omega_p <- matrix(c(1, 0.5, 0.1), nrow = 1)
+  sei     <- object[["data"]][["outcome"]][["sei"]][1]
+  yi_eval <- stats::qnorm(.04, lower.tail = FALSE) * sei
+
+  selection_spec <- .selection_spec(
+    priors           = object[["priors"]],
+    yi               = yi_eval,
+    sei              = sei,
+    effect_direction = .effect_direction(object)
+  )
+  log_lik <- .selnorm_kernel_loglik_matrix(
+    yi             = yi_eval,
+    mu_num         = matrix(0, nrow = 1, ncol = 1),
+    sigma_num      = matrix(sei, nrow = 1, ncol = 1),
+    sei            = sei,
+    omega          = omega_p,
+    selection_spec = selection_spec
+  )
+  prob <- stats::pnorm(
+    selection_spec[["z_upper"]],
+    mean = 0, sd = sei / sei
+  ) - stats::pnorm(
+    selection_spec[["z_lower"]],
+    mean = 0, sd = sei / sei
+  )
+  ref_log_lik <- stats::dnorm(yi_eval, mean = 0, sd = sei, log = TRUE) +
+    log(omega_p[selection_spec[["obs_bin"]]]) -
+    log(sum(omega_p * prob))
+
+  expect_equal(
+    as.numeric(log_lik), as.numeric(ref_log_lik),
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("bPEESE default respects supplied prior_unit_information_sd", {
 
   skip_on_cran()
 
@@ -228,7 +356,7 @@ test_that("bPEESE default respects manual prior_unit_information_sd", {
 # Tests for rescale_priors
 # ============================================================================
 
-test_that("rescale_priors correctly scales prior distributions", {
+test_that("rescale_priors scales prior distributions", {
 
   skip_on_cran()
 
@@ -243,9 +371,24 @@ test_that("rescale_priors correctly scales prior distributions", {
     expect_equal(result_rescaled$outcome$tau$parameters$sd, result_base$outcome$tau$parameters$sd * scale_factor)
   }
 
-  # Invalid values
-  expect_error(brma.norm(yi = effect, sei = std_err, data = test_data, rescale_priors = -1, only_priors = TRUE))
-  expect_error(brma.norm(yi = effect, sei = std_err, data = test_data, rescale_priors = 0, only_priors = TRUE))
+  expect_error_cases(list(
+    list(
+      label  = "negative rescale_priors",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        rescale_priors = -1, only_priors = TRUE
+      )),
+      regexp = "rescale_priors"
+    ),
+    list(
+      label  = "zero rescale_priors",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        rescale_priors = 0, only_priors = TRUE
+      )),
+      regexp = "rescale_priors"
+    )
+  ))
 })
 
 
@@ -253,7 +396,7 @@ test_that("rescale_priors correctly scales prior distributions", {
 # Tests for custom priors
 # ============================================================================
 
-test_that("Custom prior_effect and prior_heterogeneity work with rescaling", {
+test_that("Custom prior_effect and prior_heterogeneity rescale", {
 
   skip_on_cran()
 
@@ -279,7 +422,7 @@ test_that("Custom prior_effect and prior_heterogeneity work with rescaling", {
 })
 
 
-test_that("Different prior distribution types work", {
+test_that("Different prior distribution types are accepted", {
 
   skip_on_cran()
 
@@ -305,7 +448,7 @@ test_that("Different prior distribution types work", {
 # Tests for informed priors
 # ============================================================================
 
-test_that("Informed priors work for medicine field with rescaling", {
+test_that("Informed priors are accepted for medicine field with rescaling", {
 
   skip_on_cran()
 
@@ -348,24 +491,29 @@ test_that("Informed priors work for medicine field with rescaling", {
 })
 
 
-test_that("Conflicting prior specifications throw errors", {
+test_that("Conflicting prior specifications are rejected", {
 
   skip_on_cran()
 
-  # Invalid field
-  expect_error(
-    brma.norm(yi = effect, sei = std_err, data = test_data, prior_informed_field = "invalid", only_priors = TRUE),
-    regexp = "prior_informed_field"
-  )
-
-  # Both UISD and informed priors
-  expect_error(
-    brma.norm(
-      yi = effect, sei = std_err, data = test_data,
-      prior_unit_information_sd = 1.5, prior_informed_field = "medicine", only_priors = TRUE
+  expect_error_cases(list(
+    list(
+      label  = "invalid informed-prior field",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        prior_informed_field = "invalid", only_priors = TRUE
+      )),
+      regexp = "prior_informed_field"
     ),
-    regexp = "prior_unit_information_sd|prior_informed_field|mutually exclusive"
-  )
+    list(
+      label  = "UISD conflicts with informed priors",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        prior_unit_information_sd = 1.5, prior_informed_field = "medicine",
+        only_priors = TRUE
+      )),
+      regexp = "prior_unit_information_sd|prior_informed_field|mutually exclusive"
+    )
+  ))
 })
 
 
@@ -390,7 +538,7 @@ test_that("Informed scale priors are assigned", {
 # Tests for heterogeneity allocation prior (cluster)
 # ============================================================================
 
-test_that("Heterogeneity allocation prior works correctly", {
+test_that("Heterogeneity allocation priors are assigned", {
 
   skip_on_cran()
 
@@ -418,29 +566,32 @@ test_that("Heterogeneity allocation prior works correctly", {
 })
 
 
-test_that("Constrained point priors outside support throw errors", {
+test_that("Constrained point priors outside support are rejected", {
 
   skip_on_cran()
 
-  expect_error(
-    brma.norm(
-      yi = effect, sei = std_err, data = test_data,
-      measure = "SMD",
-      prior_heterogeneity = BayesTools::prior("spike", parameters = list(location = -0.1)),
-      only_priors = TRUE
+  expect_error_cases(list(
+    list(
+      label  = "negative heterogeneity spike",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
+        prior_heterogeneity = BayesTools::prior("spike", parameters = list(location = -0.1)),
+        only_priors = TRUE
+      )),
+      regexp = "prior_heterogeneity"
     ),
-    regexp = "prior_heterogeneity"
-  )
-
-  expect_error(
-    brma.norm(
-      yi = effect, sei = std_err, cluster = cluster, data = test_data,
-      measure = "SMD",
-      prior_heterogeneity_allocation = BayesTools::prior("spike", parameters = list(location = 1.1)),
-      only_priors = TRUE
-    ),
-    regexp = "heterogeneity_allocation"
-  )
+    list(
+      label  = "heterogeneity-allocation spike above one",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, cluster = cluster, data = test_data,
+        measure = "SMD",
+        prior_heterogeneity_allocation = BayesTools::prior("spike", parameters = list(location = 1.1)),
+        only_priors = TRUE
+      )),
+      regexp = "heterogeneity_allocation"
+    )
+  ))
 })
 
 
@@ -448,7 +599,7 @@ test_that("Constrained point priors outside support throw errors", {
 # Tests for moderator and scale priors
 # ============================================================================
 
-test_that("Moderator priors are assigned correctly", {
+test_that("Moderator priors are assigned", {
 
   skip_on_cran()
 
@@ -491,7 +642,33 @@ test_that("Moderator priors are assigned correctly", {
 })
 
 
-test_that("Scale priors are assigned correctly", {
+test_that("No-intercept moderator formulas use fixed-zero intercept", {
+
+  object <- brma.norm(
+    yi = effect, sei = std_err, mods = ~ 0 + mod_cont,
+    data = test_data, measure = "SMD", only_priors = TRUE
+  )
+  result <- object[["priors"]]
+
+  expect_null(result$outcome$mu)
+  expect_true(BayesTools::is.prior.point(result$mods$intercept))
+  expect_equal(mean(result$mods$intercept), 0)
+  expect_false(BayesTools::is.prior.point(result$mods$mod_cont))
+
+  formula_output <- BayesTools::JAGS_formula(
+    parameter  = "mu",
+    data       = object[["data"]][["mods"]],
+    formula    = .create_fit_formula_list(data = object[["data"]], parameter = "mods"),
+    prior_list = .create_fit_formula_prior_list(priors = object[["priors"]], parameter = "mods")
+  )
+
+  expect_true(BayesTools::is.prior.point(formula_output[["prior_list"]][["mu_intercept"]]))
+  expect_equal(mean(formula_output[["prior_list"]][["mu_intercept"]]), 0)
+  expect_match(formula_output[["formula_syntax"]], "mu_intercept", fixed = TRUE)
+})
+
+
+test_that("Scale priors are assigned", {
 
   skip_on_cran()
 
@@ -522,7 +699,7 @@ test_that("Scale priors are assigned correctly", {
 })
 
 
-test_that("Both mods and scale priors work together", {
+test_that("Both mods and scale priors are assigned together", {
 
   skip_on_cran()
 
@@ -544,7 +721,7 @@ test_that("Both mods and scale priors work together", {
 # Tests for contrast
 # ============================================================================
 
-test_that("set_contrast_factor_predictors options work", {
+test_that("set_contrast_factor_predictors options are applied", {
 
   skip_on_cran()
 

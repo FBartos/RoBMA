@@ -1,16 +1,88 @@
-context("Influence Diagnostics")
-# these test implicitly test
-# - cooks.distance
-# - dffits
-# - covratio
-# - dfbetas
-# - rstudent
-# - hatvalues
+context("Influence diagnostics")
 
-# Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-contracts.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-metafor.R"))
 
-# list cached fits lazily
+test_that("PSIS fitted-value influence helpers match direct calculations", {
+
+  fit_samples <- matrix(
+    c(
+      0, 1, 2,
+      1, 2, 3,
+      2, 3, 4,
+      3, 4, 5
+    ),
+    nrow  = 4,
+    byrow = TRUE
+  )
+  colnames(fit_samples) <- paste0("study", 1:3)
+
+  weights <- matrix(
+    c(
+      .4, .3, .2, .1,
+      .1, .2, .3, .4,
+      .25, .25, .25, .25
+    ),
+    nrow  = 4,
+    byrow = FALSE
+  )
+
+  full_fit <- colMeans(fit_samples)
+  loo_fit  <- crossprod(weights, fit_samples)
+  loo_m2   <- crossprod(weights, fit_samples^2)
+  loo_var  <- loo_m2 - loo_fit^2
+
+  expected_dffits <- (full_fit - diag(loo_fit)) / sqrt(diag(loo_var))
+  expected_cook_delta <- sweep(loo_fit, 2, full_fit, "-")
+  expected_cook_delta <- -expected_cook_delta
+  expected_cook <- rowSums(
+    (expected_cook_delta %*% .symmetric_ginv(stats::cov(fit_samples))) *
+      expected_cook_delta
+  ) / 2
+
+  summary <- .psis_fit_influence_summary(fit_samples, weights)
+  expect_equal(summary[["full_fit"]], full_fit)
+  expect_equal(summary[["loo_fit"]], loo_fit)
+  expect_equal(summary[["loo_var"]], pmax(loo_var, 0))
+  expect_equal(.dffits_internal(fit_samples, weights), expected_dffits)
+  expect_equal(unname(.cooks.distance_internal(fit_samples, weights, P = 2)),
+               expected_cook)
+})
+
+test_that("PSIS tau deletion helper aggregates remaining scale rows", {
+
+  tau_samples <- matrix(
+    c(
+      1, 3, 5,
+      2, 4, 6,
+      3, 5, 7,
+      4, 6, 8
+    ),
+    nrow  = 4,
+    byrow = TRUE
+  )
+  weights <- matrix(
+    c(
+      .4, .3, .2, .1,
+      .1, .2, .3, .4,
+      .25, .25, .25, .25
+    ),
+    nrow  = 4,
+    byrow = FALSE
+  )
+
+  deleted_tau <- cbind(
+    rowMeans(tau_samples[, -1, drop = FALSE]),
+    rowMeans(tau_samples[, -2, drop = FALSE]),
+    rowMeans(tau_samples[, -3, drop = FALSE])
+  )
+  expected <- colSums(weights * deleted_tau)
+
+  expect_equal(.influence_tau_del_from_samples(tau_samples, weights), expected)
+})
+
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 
@@ -18,212 +90,95 @@ fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
-expect_influence_object <- function(x, n, inf_cols, min_dfbs_cols = 1) {
-
-  expect_s3_class(x, "infl.brma")
-  expect_true(all(inf_cols %in% names(x[["inf"]])))
-  expect_equal(nrow(x[["inf"]]), n)
-  expect_true(all(is.finite(as.matrix(x[["inf"]][, inf_cols, drop = FALSE]))))
-  expect_s3_class(x[["dfbs"]], "data.frame")
-  expect_equal(nrow(x[["dfbs"]]), n)
-  expect_gte(ncol(x[["dfbs"]]), min_dfbs_cols)
-  expect_true(all(is.finite(as.matrix(x[["dfbs"]]))))
-}
-
-
-# ============================================================================ #
-# Test: Simple Meta-Analysis Influence
-# ============================================================================ #
-
-test_that("Influence stats for simple meta-analysis match metafor", {
-
-  name <- "bcg_meta-analysis"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
-
-  # Compute Influence
-  inf_metafor <- influence(fit_metafor)
-  inf_brma    <- influence(fit_brma)
-
-  # Check the individual components
-  expect_equal(inf_metafor$inf$rstudent, inf_brma$inf$rstudent,  tolerance = 0.05, info = "rstudent matches")
-  expect_equal(inf_metafor$inf$dffits,   inf_brma$inf$dffits,    tolerance = 0.05, info = "dffits matches")
-  expect_equal(inf_metafor$inf$cook.d,   inf_brma$inf$cook.d,    tolerance = 0.05, info = "cook.d matches")
-  expect_equal(inf_metafor$inf$cov.r,    inf_brma$inf$cov.r,     tolerance = 0.05, info = "cov.r matches")
-  expect_equal(inf_metafor$inf$tau2.del, inf_brma$inf$tau.del^2, tolerance = 0.05, info = "tau2.del matches")
-  expect_equal(inf_metafor$inf$hat,      inf_brma$inf$hat,       tolerance = 0.05, info = "hat matches")
-  expect_equal(inf_metafor$dfbs$intrcpt, inf_brma$dfbs$mu,       tolerance = 0.10, info = "dfbetas matches")
-
-  # Check standalone functions
-  expect_equal(inf_metafor$inf$dffits, dffits(fit_brma),         tolerance = 0.05)
-  expect_equal(inf_metafor$inf$cook.d, cooks.distance(fit_brma), tolerance = 0.05)
-  expect_equal(inf_metafor$inf$cov.r,  covratio(fit_brma),       tolerance = 0.05)
+for_each_case(influence_metafor_cases(), function(case) {
+  test_that_case("Influence diagnostics match metafor", case, {
+    expect_influence_matches_metafor(case)
+  })
 })
 
-# ============================================================================ #
-# Test: Meta-Regression Influence
-# ============================================================================ #
+test_that("Influence tau.del for location-scale models uses aggregate deleted tau", {
 
-test_that("Influence stats for meta-regression match metafor", {
+  name <- "bangertdrowns2004_location-scale"
+  skip_if_missing_fits(name)
 
-  name <- "bcg_meta-regression"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
+  fit_brma <- fits[[name]]
 
-  # Compute Influence
-  inf_metafor <- influence(fit_metafor)
-  inf_brma    <- suppressWarnings(influence(fit_brma))
+  tau_result <- .evaluate.brma.tau(
+    fit           = fit_brma[["fit"]],
+    scale_data    = fit_brma[["data"]][["scale"]],
+    scale_formula = .create_fit_formula_list(data = fit_brma[["data"]], "scale"),
+    scale_priors  = fit_brma[["priors"]][["scale"]],
+    is_scale      = TRUE,
+    is_multilevel = FALSE,
+    K             = nrow(fit_brma[["data"]][["outcome"]])
+  )
+  tau_samples <- tau_result[["tau_total"]]
+  weights     <- loo_weights(fit_brma)
+  deleted_tau <- (rowSums(tau_samples) - tau_samples) / (ncol(tau_samples) - 1L)
+  expected    <- colSums(weights * deleted_tau)
 
-  # Skip outliers not well approximated by loo
-  skip_case <- c(4, 6, 13)
+  inf_brma <- suppressWarnings(influence(fit_brma))
+  scale_loo_coef_1 <- suppressWarnings(
+    dfbetas(fit_brma, type = "scale", return_loo_estimates = TRUE)[[1]]
+  )
 
-  # Check the individual components
-  expect_equal(inf_metafor$inf$rstudent[-skip_case], inf_brma$inf$rstudent[-skip_case],  tolerance = 0.15, info = "rstudent matches")
-  expect_equal(inf_metafor$inf$dffits[-skip_case],   inf_brma$inf$dffits[-skip_case],    tolerance = 0.10, info = "dffits matches")
-  expect_equal(inf_metafor$inf$cook.d[-skip_case],   inf_brma$inf$cook.d[-skip_case],    tolerance = 0.10, info = "cook.d matches")
-  # skip covariance.ratio check - the metafors approach does not seen to account for uncertrainty in tau
-  # expect_equal(inf_metafor$inf$cov.r[-skip_case],    inf_brma$inf$cov.r[-skip_case],     tolerance = 0.10, info = "cov.r matches")
-  expect_equal(inf_metafor$inf$tau2.del[-skip_case], inf_brma$inf$tau.del[-skip_case]^2, tolerance = 0.10, info = "tau2.del matches")
-  expect_equal(inf_metafor$inf$hat[-skip_case],      inf_brma$inf$hat[-skip_case],       tolerance = 0.10, info = "hat matches")
+  expect_equal(unname(inf_brma[["inf"]][["tau.del"]]), unname(expected),
+               tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(unname(inf_brma[["inf"]][["tau.del"]]),
+                                unname(scale_loo_coef_1))))
 })
 
-test_that("Influence stats for meta-regression with interaction match metafor", {
-
-  name <- "bcg_meta-regression4"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
-
-  # Compute Influence
-  inf_metafor <- influence(fit_metafor)
-  inf_brma    <- suppressWarnings(influence(fit_brma))
-
-  # Skip outliers not well approximated by loo
-  skip_case <- c(4, 5, 6, 8, 10)
-
-  # Check the individual components
-  expect_true(cor(inf_metafor$inf$rstudent, inf_brma$inf$rstudent, method = "spearman", use = "pairwise") > 0.9, info = "rstudent matches")
-  expect_true(cor(inf_metafor$inf$dffits, inf_brma$inf$dffits, method = "spearman", use = "pairwise") > 0.9, info = "dffits matches")
-  expect_true(cor(inf_metafor$inf$cook.d, inf_brma$inf$cook.d, method = "spearman", use = "pairwise") > 0.8, info = "cook.d matches")
-  expect_true(cor(inf_metafor$inf$cov.r, inf_brma$inf$cov.r, method = "spearman", use = "pairwise") > 0.9, info = "cov.r matches")
-  expect_true(cor(inf_metafor$inf$tau2.del, inf_brma$inf$tau.del, method = "spearman", use = "pairwise") > 0.9, info = "tau2.del matches")
-  expect_true(cor(inf_metafor$inf$hat, inf_brma$inf$hat, method = "spearman", use = "pairwise") > 0.9, info = "hat matches")
-  # use correlation only because of regularization
-})
-
-# ============================================================================ #
-# Test: 3-Level Model Influence
-# ============================================================================ #
-
-test_that("Influence stats for 3-level model match metafor", {
-
-  name <- "konstantopoulos2011_3lvl"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
-
-  # There is no influence for multivariate models (check the separate functions)
-  expect_equal(as.vector(cooks.distance(fit_metafor)), suppressWarnings(cooks.distance(fit_brma)), tolerance = 0.05)
-  # no dffits
-  # no cov.r
-})
-
-test_that("Influence stats for 3-level meta-regression match metafor", {
-
-  name <- "konstantopoulos2011_3lvl2"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
-
-  # There is no influence for multivariate models (check the separate functions)
-  expect_equal(as.vector(cooks.distance(fit_metafor)), suppressWarnings(cooks.distance(fit_brma)), tolerance = 0.05)
-  # no dffits
-  # no cov.r
-})
-
-# ============================================================================ #
-# Test: Selection Model Influence
-# ============================================================================ #
-
-test_that("Influence stats for selection model work", {
+test_that("Influence stats for selection model are available", {
 
   name <- "dat.lehmann2018-3PSM"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
+  skip_if_missing_fits(name)
 
-  # There is no influence for selection models nor seperate functions
-  inf_brma <- suppressWarnings(influence(fit_brma))
+  inf_brma <- suppressWarnings(influence(fits[[name]]))
   expect_true(!is.null(inf_brma))
 })
 
-test_that("DFFITS errors for unsupported model families", {
+test_that("DFFITS rejects unsupported model families", {
 
-  skip_if_not("bcg_glmm" %in% names(fits), "GLMM cached fit not available.")
-  skip_if_not("bcg_BMA.glmm" %in% names(fits), "BMA.glmm cached fit not available.")
-  skip_if_not("dat.lehmann2018-3PSM" %in% names(fits), "Selection cached fit not available.")
-  skip_if_not("dat.lehmann2018_RoBMA" %in% names(fits), "RoBMA cached fit not available.")
+  model_names <- c(
+    "bcg_glmm",
+    "bcg_BMA.glmm",
+    "dat.lehmann2018-3PSM",
+    "dat.lehmann2018_RoBMA"
+  )
+  skip_if_missing_fits(model_names)
 
-  expect_error(
-    dffits(fits[["bcg_glmm"]]),
-    "only available for normal outcome models"
-  )
-  expect_error(
-    dffits(fits[["bcg_BMA.glmm"]]),
-    "only available for normal outcome models"
-  )
-  expect_error(
-    dffits(fits[["dat.lehmann2018-3PSM"]]),
-    "not available for selection models"
-  )
-  expect_error(
-    dffits(fits[["dat.lehmann2018_RoBMA"]]),
-    "not available for selection models"
-  )
+  expect_error(dffits(fits[["bcg_glmm"]]), "only available for normal outcome models")
+  expect_error(dffits(fits[["bcg_BMA.glmm"]]), "only available for normal outcome models")
+  expect_error(dffits(fits[["dat.lehmann2018-3PSM"]]), "not available for selection models")
+  expect_error(dffits(fits[["dat.lehmann2018_RoBMA"]]), "not available for selection models")
 })
 
-# ============================================================================ #
-# Test: Model-Averaging Influence Diagnostics
-# ============================================================================ #
+test_that("Influence stats for model-averaging fits are internally consistent", {
 
-test_that("Influence stats for BMA.norm model-averaging fit are internally consistent", {
-
-  name <- "dat.lehmann2018_BMA.norm"
-  fit_brma <- fits[[name]]
-  n        <- nrow(fit_brma[["data"]][["outcome"]])
-  inf_brma <- suppressWarnings(influence(fit_brma))
-
-  expect_influence_object(
-    inf_brma,
-    n,
-    inf_cols = c("rstudent", "dffits", "cook.d", "cov.r", "tau.del", "hat")
+  cases <- data.frame(
+    name = c("dat.lehmann2018_BMA.norm", "bcg_BMA.glmm", "dat.lehmann2018_RoBMA"),
+    unsupported_cook = c(NA, "normal outcome models", "selection models"),
+    stringsAsFactors = FALSE
   )
-})
+  cases[["inf_cols"]] <- I(list(
+    c("rstudent", "dffits", "cook.d", "cov.r", "tau.del", "hat"),
+    c("rstudent", "cov.r", "tau.del"),
+    c("rstudent", "cov.r", "tau.del")
+  ))
+  skip_if_missing_fits(cases[["name"]])
 
-test_that("Influence stats for BMA.glmm model-averaging fit are internally consistent", {
+  for (i in seq_len(nrow(cases))) {
+    name     <- cases[["name"]][[i]]
+    fit_brma <- fits[[name]]
+    inf_brma <- suppressWarnings(influence(fit_brma))
 
-  name <- "bcg_BMA.glmm"
-  fit_brma <- fits[[name]]
-  n        <- nrow(fit_brma[["data"]][["outcome"]])
-  inf_brma <- suppressWarnings(influence(fit_brma))
+    expect_influence_object(inf_brma, nobs(fit_brma), cases[["inf_cols"]][[i]],
+                            info = name)
 
-  expect_influence_object(
-    inf_brma,
-    n,
-    inf_cols = c("rstudent", "cov.r", "tau.del")
-  )
-  expect_false(any(c("dffits", "cook.d", "hat") %in% names(inf_brma[["inf"]])))
-  expect_error(cooks.distance(fit_brma), "normal outcome models")
-})
-
-test_that("Influence stats for RoBMA model-averaging fit are internally consistent", {
-
-  name <- "dat.lehmann2018_RoBMA"
-  fit_brma <- fits[[name]]
-  n        <- nrow(fit_brma[["data"]][["outcome"]])
-  inf_brma <- suppressWarnings(influence(fit_brma))
-
-  expect_influence_object(
-    inf_brma,
-    n,
-    inf_cols = c("rstudent", "cov.r", "tau.del")
-  )
-  expect_false(any(c("dffits", "cook.d", "hat") %in% names(inf_brma[["inf"]])))
-  expect_error(cooks.distance(fit_brma), "selection models")
+    unsupported_cook <- cases[["unsupported_cook"]][[i]]
+    if (!is.na(unsupported_cook)) {
+      expect_false(any(c("dffits", "cook.d", "hat") %in% names(inf_brma[["inf"]])))
+      expect_error(cooks.distance(fit_brma), unsupported_cook)
+    }
+  }
 })

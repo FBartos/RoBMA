@@ -10,7 +10,9 @@
 
 \item{sei}{a vector of standard errors.}
 
-\item{weights}{an optional vector of weights.}
+\item{weights}{an optional vector of positive likelihood weights. For normal
+models, each weight powers the estimate likelihood. For GLMM models, each
+weight powers the paired two-arm likelihood for one study.}
 
 \item{ni}{an optional vector of sample sizes (used for \code{measuer = "GEN"}
 or when estimating \code{"UISD"}).}

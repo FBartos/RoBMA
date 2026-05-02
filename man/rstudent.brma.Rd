@@ -54,7 +54,7 @@ or model misspecification.
 The \code{z} column is the primary standardized diagnostic. The \code{resid}
 and \code{se} columns are raw-scale companions computed from LOO predictive
 moments using the normalized PSIS weights. For selection models, these moments
-are computed from the fitted weighted-normal predictive distribution. For
+are computed from the fitted selected-normal predictive distribution. For
 GLMMs, they are computed on the approximate effect-size scale used by the
 LOO-PIT diagnostic.
 

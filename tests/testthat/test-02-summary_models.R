@@ -1,10 +1,7 @@
-context("Summary Models")
+context("Summary models")
 
-# Load common test helpers
 source(testthat::test_path("common-functions.R"))
-REFERENCE_DIR <<- testthat::test_path("..", "results", "summary_models")
 
-# list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
@@ -14,34 +11,101 @@ summary_model_names <- intersect(
   catalog_fits(class = c("BMA.norm", "BMA.glmm", "RoBMA"))
 )
 
+expect_summary_models_marginal_table <- function(table, name, component) {
 
-test_that("summary_models marginal summaries", {
+  info <- paste0("summary_models marginal '", component, "' for '", name, "'")
 
-  ### default marginal summary for RoBMA models
-  for (name in names(fits)) {
-    if (!name %in% summary_model_names) {
-      next
-    }
-    test_reference_table(
-      summary_models(fits[[name]], type = "marginal"),
-      paste0("summary_models-marginal-", name, ".txt"),
-      paste0("Marginal summary_models table for '", name, "' mismatch")
+  expect_s3_class(table, "RoBMA_summary_models_marginal")
+  expect_true(is.data.frame(table), info = info)
+  expect_true(nrow(table) > 0L, info = info)
+  expect_true(all(c("Hypothesis", "prior_prob", "post_prob", "inclusion_BF") %in%
+                    colnames(table)), info = info)
+  expect_true(all(table[["Hypothesis"]] %in% c("Null", "Alternative")),
+              info = info)
+  expect_true(all(is.finite(table[["prior_prob"]])), info = info)
+  expect_true(all(is.finite(table[["post_prob"]])), info = info)
+  expect_equal(sum(table[["prior_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
+               info = info)
+  expect_equal(sum(table[["post_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
+               info = info)
+  expect_equal(attr(table, "title"), component, info = info)
+}
+
+expect_summary_models_marginal <- function(out, name) {
+
+  expect_s3_class(out, "summary_models.RoBMA")
+  expect_equal(out[["type"]], "marginal")
+  expect_type(out[["name"]], "character")
+  expect_true(length(out[["name"]]) == 1L && nzchar(out[["name"]]))
+  expect_type(out[["marginal"]], "list")
+  expect_true(length(out[["marginal"]]) > 0L,
+              info = paste0("marginal components for '", name, "'"))
+
+  for (component in names(out[["marginal"]])) {
+    expect_summary_models_marginal_table(
+      out[["marginal"]][[component]],
+      name      = name,
+      component = component
     )
+  }
+}
+
+expect_summary_models_individual <- function(out, marginal, name) {
+
+  table <- out[["individual"]]
+  info  <- paste0("summary_models individual for '", name, "'")
+
+  expect_s3_class(out, "summary_models.RoBMA")
+  expect_equal(out[["type"]], "individual")
+  expect_s3_class(table, "RoBMA_summary_models_individual")
+  expect_true(is.data.frame(table), info = info)
+  expect_true(nrow(table) > 0L, info = info)
+  expect_true(all(c("prior_prob", "post_prob", "inclusion_BF") %in%
+                    colnames(table)), info = info)
+  expect_true(all(names(marginal[["marginal"]]) %in% colnames(table)),
+              info = info)
+  expect_equal(
+    nrow(table),
+    prod(vapply(marginal[["marginal"]], nrow, integer(1))),
+    info = info
+  )
+  expect_true(all(is.finite(table[["prior_prob"]])), info = info)
+  expect_true(all(is.finite(table[["post_prob"]])), info = info)
+  expect_equal(sum(table[["prior_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
+               info = info)
+  expect_equal(sum(table[["post_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
+               info = info)
+  expect_equal(attr(table, "title"), "Individual Models", info = info)
+}
+
+expect_printed_summary_models <- function(out, name) {
+
+  output <- capture.output(print(out))
+  expect_true(any(nzchar(output)),
+              info = paste0("printed summary_models for '", name, "'"))
+  expect_false(any(grepl("__xXx__", output, fixed = TRUE)),
+               info = paste0("printed summary_models labels for '", name, "'"))
+}
+
+
+test_that("summary_models marginal summaries have stable structure", {
+
+  for (name in summary_model_names) {
+    out <- summary_models(fits[[name]], type = "marginal")
+
+    expect_summary_models_marginal(out, name)
+    expect_printed_summary_models(out, name)
   }
 })
 
-test_that("summary_models individual summaries", {
+test_that("summary_models individual summaries have stable structure", {
 
-  ### default individual summary for RoBMA models
-  for (name in names(fits)) {
-    if (!name %in% summary_model_names) {
-      next
-    }
-    test_reference_table(
-      summary_models(fits[[name]], type = "individual"),
-      paste0("summary_models-individual-", name, ".txt"),
-      paste0("Individual summary_models table for '", name, "' mismatch")
-    )
+  for (name in summary_model_names) {
+    marginal   <- summary_models(fits[[name]], type = "marginal")
+    individual <- summary_models(fits[[name]], type = "individual")
+
+    expect_summary_models_individual(individual, marginal, name)
+    expect_printed_summary_models(individual, name)
   }
 })
 

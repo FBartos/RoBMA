@@ -39,7 +39,7 @@
 #'     This is the recommended standardized residual for Bayesian models as it properly
 #'     accounts for estimation uncertainty and leverage. Available for all model
 #'     types. Note: This requires that the loo has been computed previously (see
-#'     [add_loo()] function).
+#'     \code{add_loo()} function).
 #' }
 #' @param unit output unit. Only \code{"estimate"} is implemented currently..
 #' @param conditioning_depth conditioning depth for non-LOO residuals. \code{"marginal"}
@@ -267,6 +267,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
   is_scale      <- .is_scale(object)
   priors        <- object[["priors"]]
   vi            <- .outcome_data_vi(object)
+  weights       <- .outcome_data_weights(object)
   K             <- length(vi)
 
   tau_result <- .evaluate.brma.tau(
@@ -279,15 +280,22 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
     K             = K
   )
 
-  tau_samples <- switch(conditioning_depth,
-    "marginal" = tau_result[["tau_total"]],
-    "cluster"  = tau_result[["tau_within"]],
-    "estimate" = matrix(0, nrow = nrow(tau_result[["tau_total"]]), ncol = K)
+  tau_within  <- tau_result[["tau_within"]]
+  tau_between <- tau_result[["tau_between"]]
+  if (is.null(tau_between)) {
+    tau_between <- matrix(0, nrow = nrow(tau_within), ncol = K)
+  }
+
+  vi_mat      <- matrix(vi, nrow = nrow(tau_within), ncol = K, byrow = TRUE)
+  weights_mat <- matrix(weights, nrow = nrow(tau_within), ncol = K, byrow = TRUE)
+
+  se2 <- switch(conditioning_depth,
+    "marginal" = (vi_mat + tau_within^2) / weights_mat + tau_between^2,
+    "cluster"  = (vi_mat + tau_within^2) / weights_mat,
+    "estimate" = vi_mat / weights_mat
   )
 
-  vi_mat <- matrix(vi, nrow = nrow(tau_samples), ncol = K, byrow = TRUE)
-
-  return(sqrt(vi_mat + tau_samples^2))
+  return(sqrt(se2))
 }
 
 
@@ -444,7 +452,7 @@ rstandard.brma <- function(model, unit = "estimate",
 #' The \code{z} column is the primary standardized diagnostic. The \code{resid}
 #' and \code{se} columns are raw-scale companions computed from LOO predictive
 #' moments using the normalized PSIS weights. For selection models, these moments
-#' are computed from the fitted weighted-normal predictive distribution. For
+#' are computed from the fitted selected-normal predictive distribution. For
 #' GLMMs, they are computed on the approximate effect-size scale used by the
 #' LOO-PIT diagnostic.
 #'
@@ -520,6 +528,24 @@ rstudent.brma <- function(model, unit = "estimate",
 
   # get LOO-PIT z values using the estimate-unit LOO target
   check_loo(model, unit = "estimate")
+
+  if (setup[["outcome_type"]] == "norm" && setup[["is_weightfunction"]]) {
+    summary <- .loo_predictive_selnorm_summary_estimate(
+      object       = model,
+      setup        = setup,
+      psis_weights = psis_weights
+    )
+
+    out <- data.frame(
+      resid = summary[["resid"]],
+      se    = summary[["se"]],
+      z     = summary[["z"]]
+    )
+    rownames(out) <- NULL
+
+    return(out)
+  }
+
   z <- .standardized_residuals_loopit(
     object       = model,
     psis_weights = psis_weights,
@@ -577,46 +603,8 @@ rstudent.brma <- function(model, unit = "estimate",
   tau_within        <- setup[["tau_within"]]
   outcome_type      <- setup[["outcome_type"]]
   is_weightfunction <- setup[["is_weightfunction"]]
-  effect_direction  <- setup[["effect_direction"]]
 
   sei_mat <- matrix(sei, nrow = nrow(mu_samples), ncol = K, byrow = TRUE)
-
-  if (outcome_type == "norm" && is_weightfunction) {
-    posterior_samples <- setup[["posterior_samples"]]
-    omega_samples     <- .extract_omega_samples(posterior_samples)
-
-    if (effect_direction == "negative") {
-      mu_moments <- -mu_samples
-    } else {
-      mu_moments <- mu_samples
-    }
-
-    moments <- .outcome_moments.wnorm(
-      mu_samples          = mu_moments,
-      tau_within          = tau_within,
-      sei                 = sei,
-      omega               = omega_samples,
-      crit_yi             = setup[["fit_data"]][["crit_yi"]],
-      use_normal          = .extract_use_normal(object, posterior_samples = posterior_samples),
-      bias_indicator      = .extract_bias_indicator(object, posterior_samples = posterior_samples),
-      crit_yi_mapping     = setup[["fit_data"]][["crit_yi_mapping"]],
-      crit_yi_mapping_max = setup[["fit_data"]][["crit_yi_mapping_max"]]
-    )
-
-    mean_samples   <- moments[["mean"]]
-    second_samples <- moments[["second"]]
-
-    if (effect_direction == "negative") {
-      mean_samples <- -mean_samples
-    }
-  } else {
-    pred_var       <- tau_within^2 + sei_mat^2
-    mean_samples   <- mu_samples
-    second_samples <- pred_var + mu_samples^2
-  }
-
-  mean_samples   <- as.matrix(mean_samples)
-  second_samples <- as.matrix(second_samples)
 
   if (is.null(psis_weights)) {
     psis_weights <- loo::weights.importance_sampling(
@@ -625,6 +613,26 @@ rstudent.brma <- function(model, unit = "estimate",
       normalize = TRUE
     )
   }
+
+  if (outcome_type == "norm" && is_weightfunction) {
+    summary <- .loo_predictive_selnorm_summary_estimate(
+      object       = object,
+      setup        = setup,
+      psis_weights = psis_weights
+    )
+
+    return(list(
+      resid = summary[["resid"]],
+      se    = summary[["se"]]
+    ))
+  } else {
+    pred_var       <- tau_within^2 + sei_mat^2
+    mean_samples   <- mu_samples
+    second_samples <- pred_var + mu_samples^2
+  }
+
+  mean_samples   <- as.matrix(mean_samples)
+  second_samples <- as.matrix(second_samples)
 
   pred_mean   <- colSums(psis_weights * mean_samples)
   pred_second <- colSums(psis_weights * second_samples)
@@ -640,74 +648,73 @@ rstudent.brma <- function(model, unit = "estimate",
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_moments.wnorm
+# .loo_predictive_selnorm_summary_estimate
 # ---------------------------------------------------------------------------- #
 #
-# Per-posterior-sample first and second predictive moments for selection models.
-#
-# @param mu_samples       S x K matrix of location samples in selection space.
-# @param tau_within       S x K matrix of estimate-level heterogeneity samples.
-# @param sei              numeric vector of length K.
-# @param omega            S x W matrix of omega samples.
-# @param crit_yi          W - 1 x K matrix of selection cutoffs.
-# @param use_normal       optional logical vector for normal fast path.
-# @param bias_indicator   optional posterior branch indicator.
-# @param crit_yi_mapping  optional branch-specific cutoff mapping.
-# @param crit_yi_mapping_max optional active cutoff count per branch.
-#
-# @return list with S x K matrices mean and second.
+# Fused selected-normal LOO-PIT and predictive moment reducer.
 #
 # ---------------------------------------------------------------------------- #
-.outcome_moments.wnorm <- function(mu_samples, tau_within, sei, omega, crit_yi,
-                                   use_normal = NULL, bias_indicator = NULL,
-                                   crit_yi_mapping = NULL,
-                                   crit_yi_mapping_max = NULL) {
+.loo_predictive_selnorm_summary_estimate <- function(object, setup,
+                                                     psis_weights) {
 
-  S <- nrow(mu_samples)
-  K <- ncol(mu_samples)
+  yi                <- setup[["yi"]]
+  sei               <- setup[["sei"]]
+  K                 <- setup[["K"]]
+  mu_samples        <- setup[["mu"]]
+  tau_within        <- setup[["tau_within"]]
+  posterior_samples <- setup[["posterior_samples"]]
+  S                 <- nrow(mu_samples)
+  sei_mat           <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd          <- sqrt(tau_within^2 + sei_mat^2)
 
-  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
-
-  mean_samples   <- matrix(NA_real_, nrow = S, ncol = K)
-  second_samples <- matrix(NA_real_, nrow = S, ncol = K)
-
-  has_mapping <- .selection_has_mapping(
-    bias_indicator      = bias_indicator,
-    crit_yi_mapping     = crit_yi_mapping,
-    crit_yi_mapping_max = crit_yi_mapping_max
+  selection_context <- .selection_context(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  summary <- .selection_step_weighted_summary(
+    yi                = yi,
+    mean              = mu_samples,
+    sd                = total_sd,
+    sei               = sei,
+    psis_weights      = psis_weights,
+    selection_context = selection_context
   )
 
-  if (has_mapping) {
-    return(.wnorm_mix_moments_matrix(
-      mean                = mu_samples,
-      sd                  = total_sd,
-      omega               = omega,
-      crit_yi             = crit_yi,
-      bias_indicator      = bias_indicator,
-      crit_yi_mapping     = crit_yi_mapping,
-      crit_yi_mapping_max = crit_yi_mapping_max
-    ))
-  }
-
-  for (k in seq_len(K)) {
-    moments <- .wnorm_moments_fast.ss.matrix(
-      mean       = mu_samples[, k],
-      sd         = total_sd[, k],
-      omega      = omega,
-      crit_x     = crit_yi[, k],
-      use_normal = use_normal
-    )
-    mean_samples[, k]   <- moments[["mean"]]
-    second_samples[, k] <- moments[["second"]]
-  }
+  u_values <- pmax(pmin(summary[["cdf"]], 1 - 1e-10), 1e-10)
+  resid    <- yi - summary[["mean"]]
+  se       <- sqrt(pmax(summary[["second"]] - summary[["mean"]]^2, 0))
 
   return(list(
-    mean   = mean_samples,
-    second = second_samples
+    resid = resid,
+    se    = se,
+    z     = stats::qnorm(u_values),
+    u     = u_values
   ))
 }
 
+
+# ---------------------------------------------------------------------------- #
+# .outcome_moments.selnorm
+# ---------------------------------------------------------------------------- #
+#
+# Per-posterior-sample first and second moments for selected-normal kernels.
+#
+# ---------------------------------------------------------------------------- #
+.outcome_moments.selnorm <- function(mu_samples, tau_within, sei,
+                                     selection_context) {
+
+  S        <- nrow(mu_samples)
+  K        <- ncol(mu_samples)
+  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+
+  return(.selection_step_moments_matrix(
+    mean              = mu_samples,
+    sd                = total_sd,
+    sei               = sei,
+    selection_context = selection_context
+  ))
+}
 
 # ---------------------------------------------------------------------------- #
 # .residuals_cluster.brma
@@ -861,6 +868,25 @@ rstudent.brma <- function(model, unit = "estimate",
 
 
 # ---------------------------------------------------------------------------- #
+# .outcome_data_weights
+# ---------------------------------------------------------------------------- #
+#
+# Extract likelihood weights from the outcome data, defaulting to unit weights.
+#
+# ---------------------------------------------------------------------------- #
+.outcome_data_weights <- function(object) {
+
+  outcome_data <- object[["data"]][["outcome"]]
+
+  if (.is_weights(object)) {
+    return(as.numeric(outcome_data[["weights"]]))
+  }
+
+  return(rep(1, nrow(outcome_data)))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .standardized_residuals_loopit
 # ---------------------------------------------------------------------------- #
 #
@@ -899,6 +925,16 @@ rstudent.brma <- function(model, unit = "estimate",
   # check Pareto k diagnostics and warn if unreliable
   if (check) {
     check_loo(object, unit = "estimate")
+  }
+
+  setup <- .estimate_likelihood_setup.brma(object)
+  if (setup[["outcome_type"]] == "norm" && setup[["is_weightfunction"]]) {
+    summary <- .loo_predictive_selnorm_summary_estimate(
+      object       = object,
+      setup        = setup,
+      psis_weights = psis_weights
+    )
+    return(summary[["z"]])
   }
 
   # compute CDF matrix (S x K) for the estimate-unit LOO target

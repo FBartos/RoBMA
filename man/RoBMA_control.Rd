@@ -104,5 +104,5 @@ fit <- RoBMA(d = c(0.5, 0.3, 0.1),
 
 }
 \seealso{
-\code{\link[=RoBMA]{RoBMA()}}, \code{\link[=update.RoBMA]{update.RoBMA()}}
+\code{\link[=RoBMA]{RoBMA()}}
 }

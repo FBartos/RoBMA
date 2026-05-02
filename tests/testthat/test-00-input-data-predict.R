@@ -1,10 +1,9 @@
 context("Input handling for predict")
 
-# ============================================================================
-# Test data setup
-# ============================================================================
+source(testthat::test_path("helper-contracts.R"))
 
-# Test data for normal likelihood models
+skip_on_cran()
+
 test_data_norm <- data.frame(
   yi        = c(0.2, 0.5, -0.1, 0.3, 0.4),
   sei       = c(0.1, 0.15, 0.12, 0.08, 0.11),
@@ -14,1036 +13,474 @@ test_data_norm <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Test data with vi instead of sei
 test_data_norm_vi <- data.frame(
-  yi        = c(0.2, 0.5, -0.1, 0.3, 0.4),
-  vi        = c(0.01, 0.0225, 0.0144, 0.0064, 0.0121),
-  mod_cont  = c(1.5, 2.3, 1.8, 3.1, 0.9),
-  mod_fac   = factor(c("A", "B", "A", "B", "A")),
+  yi       = c(0.2, 0.5, -0.1, 0.3, 0.4),
+  vi       = c(0.01, 0.0225, 0.0144, 0.0064, 0.0121),
+  mod_cont = c(1.5, 2.3, 1.8, 3.1, 0.9),
+  mod_fac  = factor(c("A", "B", "A", "B", "A")),
   stringsAsFactors = FALSE
 )
 
-# Test data for GLMM binomial models
 test_data_glmm <- data.frame(
-  ai        = c(10L, 15L, 12L, 8L, 20L),
-  ci        = c(5L, 10L, 8L, 4L, 12L),
-  n1i       = c(50L, 50L, 50L, 50L, 50L),
-  n2i       = c(50L, 50L, 50L, 50L, 50L),
-  mod_cont  = c(1.5, 2.3, 1.8, 3.1, 0.9),
-  mod_fac   = factor(c("A", "B", "A", "B", "A")),
+  ai       = c(10L, 15L, 12L, 8L, 20L),
+  ci       = c(5L, 10L, 8L, 4L, 12L),
+  n1i      = c(50L, 50L, 50L, 50L, 50L),
+  n2i      = c(50L, 50L, 50L, 50L, 50L),
+  mod_cont = c(1.5, 2.3, 1.8, 3.1, 0.9),
+  mod_fac  = factor(c("A", "B", "A", "B", "A")),
   stringsAsFactors = FALSE
 )
 
+compare_data_lists <- function(data1, data2, check_slab = FALSE,
+                               structure_only = FALSE, info = NULL) {
 
-# ============================================================================
-# Helper function to compare data lists (ignoring slab differences)
-# ============================================================================
-
-compare_data_lists <- function(data1, data2, check_slab = FALSE, structure_only = FALSE) {
-  # Check class
   expect_s3_class(data1, "RoBMA_data")
   expect_s3_class(data2, "RoBMA_data")
 
-  # Check outcome dimensions
   if (!structure_only) {
-    expect_equal(nrow(data1$outcome), nrow(data2$outcome))
+    expect_equal(nrow(data1$outcome), nrow(data2$outcome), info = info)
   }
-  expect_equal(ncol(data1$outcome), ncol(data2$outcome))
-  expect_equal(names(data1$outcome), names(data2$outcome))
+  expect_equal(ncol(data1$outcome), ncol(data2$outcome), info = info)
+  expect_equal(names(data1$outcome), names(data2$outcome), info = info)
 
-  # Check outcome column values (excluding slab which may differ)
   if (!structure_only) {
-    outcome_cols <- setdiff(names(data1$outcome), if (check_slab) character(0) else "slab")
+    outcome_cols <- setdiff(names(data1$outcome), if (check_slab) character() else "slab")
     for (col in outcome_cols) {
-      expect_equal(
-        data1$outcome[[col]], data2$outcome[[col]],
-        info = paste("Mismatch in outcome column:", col)
-      )
+      expect_equal(data1$outcome[[col]], data2$outcome[[col]],
+                   info = paste(info, "outcome", col))
     }
   }
 
-  # Check mods if present
-  if (!is.null(data1$mods) && !is.null(data2$mods)) {
-    if (!structure_only) {
-      expect_equal(nrow(data1$mods), nrow(data2$mods))
-    }
-    expect_equal(names(data1$mods), names(data2$mods))
-    if (!structure_only) {
-      for (col in names(data1$mods)) {
-        expect_equal(
-          data1$mods[[col]], data2$mods[[col]],
-          info = paste("Mismatch in mods column:", col)
-        )
+  for (slot in c("mods", "scale")) {
+    expect_equal(is.null(data1[[slot]]), is.null(data2[[slot]]), info = info)
+    if (!is.null(data1[[slot]])) {
+      if (!structure_only) {
+        expect_equal(nrow(data1[[slot]]), nrow(data2[[slot]]), info = info)
       }
-    }
-    # Check formula attribute
-    expect_equal(
-      attr(data1$mods, "formula"), attr(data2$mods, "formula"),
-      info = "Mismatch in mods formula attribute"
-    )
-  } else {
-    expect_equal(is.null(data1$mods), is.null(data2$mods))
-  }
-
-  # Check scale if present
-  if (!is.null(data1$scale) && !is.null(data2$scale)) {
-    if (!structure_only) {
-      expect_equal(nrow(data1$scale), nrow(data2$scale))
-    }
-    expect_equal(names(data1$scale), names(data2$scale))
-    if (!structure_only) {
-      for (col in names(data1$scale)) {
-        expect_equal(
-          data1$scale[[col]], data2$scale[[col]],
-          info = paste("Mismatch in scale column:", col)
-        )
+      expect_equal(names(data1[[slot]]), names(data2[[slot]]), info = info)
+      if (!structure_only) {
+        for (col in names(data1[[slot]])) {
+          expect_equal(data1[[slot]][[col]], data2[[slot]][[col]],
+                       info = paste(info, slot, col))
+        }
       }
+      expect_equal(attr(data1[[slot]], "formula"), attr(data2[[slot]], "formula"),
+                   info = paste(info, slot, "formula"))
     }
-    expect_equal(
-      attr(data1$scale, "formula"), attr(data2$scale, "formula"),
-      info = "Mismatch in scale formula attribute"
-    )
-  } else {
-    expect_equal(is.null(data1$scale), is.null(data2$scale))
   }
 
-  # Check key attributes
-  expect_equal(attr(data1, "outcome_type"), attr(data2, "outcome_type"))
+  attrs <- c(
+    "outcome_type", "mods", "scale",
+    "standardize_continuous_predictors",
+    "set_contrast_factor_predictors", "effect_direction"
+  )
+  for (attr_name in attrs) {
+    expect_equal(attr(data1, attr_name), attr(data2, attr_name),
+                 info = paste(info, "attribute", attr_name))
+  }
   if (!structure_only) {
-    expect_equal(attr(data1, "k_final"), attr(data2, "k_final"))
+    expect_equal(attr(data1, "k_final"), attr(data2, "k_final"),
+                 info = paste(info, "attribute k_final"))
   }
-  expect_equal(attr(data1, "mods"), attr(data2, "mods"))
-  expect_equal(attr(data1, "scale"), attr(data2, "scale"))
-  expect_equal(
-    attr(data1, "standardize_continuous_predictors"),
-    attr(data2, "standardize_continuous_predictors")
-  )
-  expect_equal(
-    attr(data1, "set_contrast_factor_predictors"),
-    attr(data2, "set_contrast_factor_predictors")
-  )
-  expect_equal(attr(data1, "effect_direction"), attr(data2, "effect_direction"))
 }
 
+prepare_newdata_cases <- list(
+  list(
+    label = "normal same data with sei",
+    fit = quote(brma.norm(
+      yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+    )),
+    newdata = quote(test_data_norm)
+  ),
+  list(
+    label = "normal same data with vi",
+    fit = quote(brma.norm(
+      yi = yi, vi = vi, data = test_data_norm_vi, only_data = TRUE
+    )),
+    newdata = quote(test_data_norm_vi)
+  ),
+  list(
+    label = "normal different outcome rows",
+    fit = quote(brma.norm(
+      yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+    )),
+    newdata = quote(data.frame(yi = c(0.1, 0.6, 0.0), sei = c(0.2, 0.1, 0.15))),
+    structure_only = TRUE
+  ),
+  list(
+    label = "normal moderators same data",
+    fit = quote(brma.norm(
+      yi = yi, sei = sei, mods = ~ mod_cont + mod_fac,
+      data = test_data_norm, only_data = TRUE
+    )),
+    newdata = quote(test_data_norm)
+  ),
+  list(
+    label = "normal moderators different rows",
+    fit = quote(brma.norm(
+      yi = yi, sei = sei, mods = ~ mod_cont + mod_fac,
+      data = test_data_norm, only_data = TRUE
+    )),
+    newdata = quote(data.frame(
+      yi       = c(0.1, 0.3),
+      sei      = c(0.1, 0.2),
+      mod_cont = c(2.0, 1.0),
+      mod_fac  = factor(c("A", "B"), levels = c("A", "B"))
+    )),
+    structure_only = TRUE
+  ),
+  list(
+    label = "normal scale same data",
+    fit = quote(brma.norm(
+      yi = yi, sei = sei, scale = ~ scale_var,
+      data = test_data_norm, only_data = TRUE
+    )),
+    newdata = quote(test_data_norm)
+  ),
+  list(
+    label = "normal moderators and scale",
+    fit = quote(brma.norm(
+      yi = yi, sei = sei, mods = ~ mod_cont, scale = ~ scale_var,
+      data = test_data_norm, only_data = TRUE
+    )),
+    newdata = quote(test_data_norm)
+  ),
+  list(
+    label = "GLMM same data",
+    fit = quote(brma.glmm(
+      ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+      data = test_data_glmm, only_data = TRUE
+    )),
+    newdata = quote(test_data_glmm)
+  ),
+  list(
+    label = "GLMM moderators same data",
+    fit = quote(brma.glmm(
+      ai = ai, ci = ci, n1i = n1i, n2i = n2i, mods = ~ mod_cont + mod_fac,
+      data = test_data_glmm, only_data = TRUE
+    )),
+    newdata = quote(test_data_glmm)
+  )
+)
 
-# ============================================================================
-# Basic brma.norm tests - outcome variables
-# ============================================================================
+test_that(".prepare_newdata reconstructs response, moderator, and scale data", {
 
-test_that(".prepare_newdata works with brma.norm using sei", {
+  for (case in prepare_newdata_cases) {
+    fit <- eval(case[["fit"]])
+    result <- RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = eval(case[["newdata"]]),
+      type    = "terms"
+    )
 
-  skip_on_cran()
+    compare_data_lists(
+      fit[["data"]],
+      result,
+      structure_only = isTRUE(case[["structure_only"]]),
+      info           = case[["label"]]
+    )
+  }
+})
 
-  # Create a fitted object (data only)
+test_that(".prepare_newdata inserts dummy outcomes only when the response is unused", {
+
   fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
+    yi = yi, sei = sei, mods = ~ mod_cont,
+    data = test_data_norm, only_data = TRUE
   )
-
-  # Prepare newdata using the same data
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-test_that(".prepare_newdata works with brma.norm using vi", {
-
-  skip_on_cran()
-
-  # Create a fitted object using vi
-  fit <- brma.norm(
-    yi   = test_data_norm_vi$yi,
-    sei  = sqrt(test_data_norm_vi$vi),
-    only_data = TRUE
-  )
-
-  # Prepare newdata using the same data
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_norm_vi,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-test_that(".prepare_newdata works with different newdata (same structure)", {
-
-  skip_on_cran()
-
-  # Create a fitted object
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # Create new data with different values but same structure
-  new_df <- data.frame(
-    yi  = c(0.1, 0.6, 0.0),
-    sei = c(0.2, 0.1, 0.15)
-  )
-
-  # Prepare using .prepare_newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  # Compare
-  compare_data_lists(fit[["data"]], newdata_result, structure_only = TRUE)
-})
-
-
-# ============================================================================
-# brma.norm with moderators (mods)
-# ============================================================================
-
-test_that(".prepare_newdata works with brma.norm and mods formula", {
-
-  skip_on_cran()
-
-  # Create a fitted object with mods
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont + mod_fac,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # Prepare newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-test_that(".prepare_newdata with mods and different newdata", {
-
-  skip_on_cran()
-
-  # Create a fitted object with mods
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont + mod_fac,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # Create new data with different values
-  new_df <- data.frame(
-    yi       = c(0.1, 0.3),
-    sei      = c(0.1, 0.2),
-    mod_cont = c(2.0, 1.0),
-    mod_fac  = factor(c("A", "B"), levels = c("A", "B"))
-  )
-
-  # Prepare using .prepare_newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  # Compare
-  compare_data_lists(fit[["data"]], newdata_result, structure_only = TRUE)
-})
-
-
-# ============================================================================
-# brma.norm with scale predictors
-# ============================================================================
-
-test_that(".prepare_newdata works with brma.norm and scale formula", {
-
-  skip_on_cran()
-
-  # Create a fitted object with scale
-  fit <- brma.norm(
-    yi    = yi,
-    sei   = sei,
-    scale = ~ scale_var,
-    data  = test_data_norm,
-    only_data = TRUE
-  )
-
-  # Prepare newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-test_that(".prepare_newdata works with both mods and scale", {
-
-  skip_on_cran()
-
-  # Create a fitted object with both mods and scale
-  fit <-  brma.norm(
-    yi    = yi,
-    sei   = sei,
-    mods  = ~ mod_cont,
-    scale = ~ scale_var,
-    data  = test_data_norm,
-    only_data = TRUE
-  )
-
-  # Prepare newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-# ============================================================================
-# brma.glmm tests (binomial)
-# ============================================================================
-
-test_that(".prepare_newdata works with brma.glmm (binomial)", {
-
-  skip_on_cran()
-
-  # Create a fitted object
-  fit <-  brma.glmm(
-    ai   = ai,
-    ci   = ci,
-    n1i  = n1i,
-    n2i  = n2i,
-    data = test_data_glmm,
-    only_data = TRUE
-  )
-
-  # Prepare newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_glmm,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-test_that(".prepare_newdata works with brma.glmm and mods", {
-
-  skip_on_cran()
-
-  # Create a fitted object with mods
-  fit <-  brma.glmm(
-    ai   = ai,
-    ci   = ci,
-    n1i  = n1i,
-    n2i  = n2i,
-    mods = ~ mod_cont + mod_fac,
-    data = test_data_glmm,
-    only_data = TRUE
-  )
-
-  # Prepare newdata
-  newdata_result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = test_data_glmm,
-    type    = "terms"
-  )
-
-  # Compare with the original data
-  compare_data_lists(fit[["data"]], newdata_result)
-})
-
-
-# ============================================================================
-# Input validation tests - missing columns
-# ============================================================================
-
-test_that(".prepare_newdata inserts dummy yi when yi is unused", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  new_df <- data.frame(sei = c(0.1, 0.2))
 
   result <- RoBMA:::.prepare_newdata(
     object  = fit,
-    newdata = new_df,
-    type    = "response"
-  )
-
-  expect_equal(result[["outcome"]][["yi"]], c(0, 0))
-  expect_equal(result[["outcome"]][["sei"]], new_df[["sei"]])
-})
-
-
-test_that(".prepare_newdata accepts moderator-only terms newdata", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  new_df <- data.frame(mod_cont = c(1.2, 2.4))
-
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
+    newdata = data.frame(mod_cont = c(1.2, 2.4)),
     type    = "terms"
   )
 
   expect_equal(nrow(result[["outcome"]]), 2L)
   expect_equal(result[["outcome"]][["yi"]], c(0, 0))
   expect_equal(result[["outcome"]][["sei"]], c(0, 0))
+
+  response_fit <- brma.norm(
+    yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+  )
+  response <- RoBMA:::.prepare_newdata(
+    object  = response_fit,
+    newdata = data.frame(sei = c(0.1, 0.2)),
+    type    = "response"
+  )
+  expect_equal(response[["outcome"]][["yi"]], c(0, 0))
+  expect_equal(response[["outcome"]][["sei"]], c(0.1, 0.2))
 })
 
+test_that(".prepare_newdata rejects missing required variables", {
 
-test_that(".prepare_newdata requires sei/vi for normal response newdata", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
+  fit_norm <- brma.norm(
+    yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+  )
+  fit_mods <- brma.norm(
+    yi = yi, sei = sei, mods = ~ mod_cont + mod_fac,
+    data = test_data_norm, only_data = TRUE
+  )
+  fit_scale <- brma.norm(
+    yi = yi, sei = sei, scale = ~ scale_var,
+    data = test_data_norm, only_data = TRUE
+  )
+  fit_glmm <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
   )
 
-  bad_df <- data.frame(yi = c(0.1, 0.2))
-
-  expect_error(
-    RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = bad_df,
-      type    = "response"
+  expect_error_cases(list(
+    list(
+      label  = "normal response missing sei/vi",
+      expr   = quote(RoBMA:::.prepare_newdata(
+        object = fit_norm, newdata = data.frame(yi = c(0.1, 0.2)),
+        type = "response"
+      )),
+      regexp = "sei.*vi"
     ),
-    regexp = "sei.*vi"
-  )
+    list(
+      label  = "missing moderator",
+      expr   = quote(RoBMA:::.prepare_newdata(
+        object = fit_mods,
+        newdata = data.frame(
+          yi = c(0.1, 0.2), sei = c(0.1, 0.2),
+          mod_fac = factor(c("A", "B"))
+        ),
+        type = "terms"
+      )),
+      regexp = "mod_cont"
+    ),
+    list(
+      label  = "missing scale predictor",
+      expr   = quote(RoBMA:::.prepare_newdata(
+        object = fit_scale,
+        newdata = data.frame(yi = c(0.1, 0.2), sei = c(0.1, 0.2)),
+        type = "terms"
+      )),
+      regexp = "scale_var"
+    ),
+    list(
+      label  = "missing GLMM response size",
+      expr   = quote(RoBMA:::.prepare_newdata(
+        object = fit_glmm,
+        newdata = data.frame(ai = c(10L, 15L), ci = c(5L, 10L), n1i = c(50L, 50L)),
+        type = "response"
+      )),
+      regexp = "n2i"
+    )
+  ))
 })
 
-
-test_that(".prepare_newdata requires sei/vi for biased PET/PEESE terms", {
-
-  skip_on_cran()
+test_that(".prepare_newdata permits bias-adjusted PET/PEESE terms without new standard errors", {
 
   fit <- bPET(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
+    yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
   )
-  fit[["priors"]] <- list(
-    outcome = list(
-      bias = BayesTools::prior_PET(
-        distribution = "normal",
-        parameters   = list(mean = 0, sd = 1)
-      )
-    )
-  )
-
+  fit[["priors"]] <- list(outcome = list(
+    bias = BayesTools::prior_PET("normal", list(mean = 0, sd = 1))
+  ))
   new_df <- data.frame(row = 1:2)
 
   expect_error(
     RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = new_df,
-      type    = "terms"
+      object = fit, newdata = new_df, type = "terms"
     ),
     regexp = "sei.*vi"
   )
-
-  expect_no_error(
-    RoBMA:::.prepare_newdata(
-      object        = fit,
-      newdata       = new_df,
-      type          = "terms",
-      bias_adjusted = TRUE
-    )
-  )
+  expect_no_error(RoBMA:::.prepare_newdata(
+    object = fit, newdata = new_df, type = "terms", bias_adjusted = TRUE
+  ))
 })
 
+test_that(".prepare_newdata preserves predictor transformation settings", {
 
-test_that(".prepare_newdata throws error when mods variables are missing", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont + mod_fac,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata without mod_cont
-  bad_df <- data.frame(
-    yi      = c(0.1, 0.2),
-    sei     = c(0.1, 0.2),
-    mod_fac = factor(c("A", "B"))
-  )
-
-  expect_error(
-    RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = bad_df,
-      type    = "terms"
-    ),
-    regexp = "mod_cont"
-  )
-})
-
-
-test_that(".prepare_newdata throws error when scale variables are missing", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi    = yi,
-    sei   = sei,
-    scale = ~ scale_var,
-    data  = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata without scale_var
-  bad_df <- data.frame(
-    yi  = c(0.1, 0.2),
-    sei = c(0.1, 0.2)
-  )
-
-  expect_error(
-    RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = bad_df,
-      type    = "terms"
-    ),
-    regexp = "scale_var"
-  )
-})
-
-
-test_that(".prepare_newdata throws error when GLMM response sizes are missing", {
-
-  skip_on_cran()
-
-  fit <-  brma.glmm(
-    ai   = ai,
-    ci   = ci,
-    n1i  = n1i,
-    n2i  = n2i,
-    data = test_data_glmm,
-    only_data = TRUE
-  )
-
-  # newdata missing n2i
-  bad_df <- data.frame(
-    ai  = c(10L, 15L),
-    ci  = c(5L, 10L),
-    n1i = c(50L, 50L)
-  )
-
-  expect_error(
-    RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = bad_df,
-      type    = "response"
-    ),
-    regexp = "n2i"
-  )
-})
-
-
-# ============================================================================
-# Settings preservation tests
-# ============================================================================
-
-test_that(".prepare_newdata preserves standardize_continuous_predictors setting", {
-
-  skip_on_cran()
-
-  # Create fit with standardize = TRUE
   fit_std <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont,
+    yi = yi, sei = sei, mods = ~ mod_cont,
     data = test_data_norm,
     standardize_continuous_predictors = TRUE,
     only_data = TRUE
   )
-
-  # Create fit with standardize = FALSE
   fit_no_std <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont,
+    yi = yi, sei = sei, mods = ~ mod_cont,
     data = test_data_norm,
     standardize_continuous_predictors = FALSE,
     only_data = TRUE
   )
-
-  # Prepare newdata for both
-  result_std <- RoBMA:::.prepare_newdata(
-    object  = fit_std,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  result_no_std <- RoBMA:::.prepare_newdata(
-    object  = fit_no_std,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  # Check attributes are preserved
+  result_std <- RoBMA:::.prepare_newdata(fit_std, test_data_norm, type = "terms")
+  result_no_std <- RoBMA:::.prepare_newdata(fit_no_std, test_data_norm, type = "terms")
 
   expect_true(attr(result_std, "standardize_continuous_predictors"))
   expect_false(attr(result_no_std, "standardize_continuous_predictors"))
-})
 
-
-test_that(".prepare_newdata preserves set_contrast_factor_predictors setting", {
-
-  skip_on_cran()
-
-  # Create fit with treatment contrasts
   fit_treatment <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_fac,
+    yi = yi, sei = sei, mods = ~ mod_fac,
     data = test_data_norm,
     set_contrast_factor_predictors = "treatment",
     only_data = TRUE
   )
-
-  # Create fit with meandif contrasts
   fit_meandif <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_fac,
+    yi = yi, sei = sei, mods = ~ mod_fac,
     data = test_data_norm,
     set_contrast_factor_predictors = "meandif",
     only_data = TRUE
   )
 
-  # Prepare newdata for both
-  result_treatment <- RoBMA:::.prepare_newdata(
-    object  = fit_treatment,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
+  result_treatment <- RoBMA:::.prepare_newdata(fit_treatment, test_data_norm, type = "terms")
+  result_meandif <- RoBMA:::.prepare_newdata(fit_meandif, test_data_norm, type = "terms")
 
-  result_meandif <- RoBMA:::.prepare_newdata(
-    object  = fit_meandif,
-    newdata = test_data_norm,
-    type    = "terms"
-  )
-
-  # Check attributes are preserved
   expect_equal(attr(result_treatment, "set_contrast_factor_predictors"), "treatment")
   expect_equal(attr(result_meandif, "set_contrast_factor_predictors"), "meandif")
 })
 
+test_that(".prepare_newdata drops rows with missing outcome or moderator values", {
 
-# ============================================================================
-# NA handling tests
-# ============================================================================
-
-test_that(".prepare_newdata handles NA values in newdata", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
+  fit_norm <- brma.norm(
+    yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
   )
-
-  # newdata with NA
-  new_df <- data.frame(
-    yi  = c(0.1, NA, 0.3),
-    sei = c(0.1, 0.2, 0.15)
-  )
-
-  # Should drop the NA row with a warning
   expect_warning(
-    result <- RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = new_df,
-      type    = "terms"
+    result_norm <- RoBMA:::.prepare_newdata(
+      object = fit_norm,
+      newdata = data.frame(yi = c(0.1, NA, 0.3), sei = c(0.1, 0.2, 0.15)),
+      type = "terms"
     ),
     regexp = "removed"
   )
+  expect_equal(nrow(result_norm[["outcome"]]), 2L)
 
-  expect_equal(nrow(result$outcome), 2)
-})
-
-
-test_that(".prepare_newdata handles NA in mods", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont,
-    data = test_data_norm,
-    only_data = TRUE
+  fit_mods <- brma.norm(
+    yi = yi, sei = sei, mods = ~ mod_cont,
+    data = test_data_norm, only_data = TRUE
   )
-
-  # newdata with NA in moderator
-  new_df <- data.frame(
-    yi       = c(0.1, 0.2, 0.3),
-    sei      = c(0.1, 0.2, 0.15),
-    mod_cont = c(1.5, NA, 2.0)
-  )
-
-  # Should drop the NA row
   expect_warning(
-    result <- RoBMA:::.prepare_newdata(
-      object  = fit,
-      newdata = new_df,
-      type    = "terms"
+    result_mods <- RoBMA:::.prepare_newdata(
+      object = fit_mods,
+      newdata = data.frame(
+        yi = c(0.1, 0.2, 0.3), sei = c(0.1, 0.2, 0.15),
+        mod_cont = c(1.5, NA, 2.0)
+      ),
+      type = "terms"
     ),
     regexp = "removed"
   )
-
-  expect_equal(nrow(result$outcome), 2)
-  expect_equal(nrow(result$mods), 2)
+  expect_equal(nrow(result_mods[["outcome"]]), 2L)
+  expect_equal(nrow(result_mods[["mods"]]), 2L)
 })
 
+test_that(".prepare_newdata accepts prediction-only edge cases", {
 
-# ============================================================================
-# Edge cases
-# ============================================================================
-
-test_that(".prepare_newdata works with single row newdata", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
+  edge_cases <- list(
+    list(
+      label = "single row",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(yi = 0.5, sei = 0.1)),
+      check = function(result) {
+        expect_equal(nrow(result[["outcome"]]), 1L)
+        expect_equal(result[["outcome"]][["yi"]], 0.5)
+      }
+    ),
+    list(
+      label = "extra columns",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(
+        yi = c(0.1, 0.2), sei = c(0.1, 0.2),
+        extra_col = c("a", "b"), another = c(1, 2)
+      )),
+      check = function(result) expect_equal(nrow(result[["outcome"]]), 2L)
+    ),
+    list(
+      label = "single-level factor",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, mods = ~ mod_fac,
+        data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(
+        yi = c(0.1, 0.2, 0.3), sei = c(0.1, 0.1, 0.1),
+        mod_fac = factor(c("A", "A", "A"), levels = c("A", "B"))
+      )),
+      check = function(result) {
+        expect_equal(nrow(result[["mods"]]), 3L)
+        expect_equal(as.character(result[["mods"]][["mod_fac"]]), rep("A", 3))
+      }
+    ),
+    list(
+      label = "zero-variance moderator",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, mods = ~ mod_cont,
+        data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(
+        yi = c(0.1, 0.2, 0.3), sei = c(0.1, 0.1, 0.1),
+        mod_cont = c(2, 2, 2)
+      )),
+      check = function(result) expect_equal(result[["mods"]][["mod_cont"]], c(2, 2, 2))
+    ),
+    list(
+      label = "single observation with mixed moderators",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, mods = ~ mod_cont + mod_fac,
+        data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(
+        yi = 0.25, sei = 0.1, mod_cont = 2.5,
+        mod_fac = factor("B", levels = c("A", "B"))
+      )),
+      check = function(result) {
+        expect_equal(nrow(result[["mods"]]), 1L)
+        expect_equal(as.character(result[["mods"]][["mod_fac"]]), "B")
+      }
+    ),
+    list(
+      label = "zero-variance scale predictor",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, scale = ~ scale_var,
+        data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(
+        yi = c(0.1, 0.2), sei = c(0.1, 0.1), scale_var = c(1, 1)
+      )),
+      check = function(result) expect_equal(result[["scale"]][["scale_var"]], c(1, 1))
+    ),
+    list(
+      label = "zero sei",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+      )),
+      newdata = quote(data.frame(yi = c(0.1, 0.2, 0.3), sei = c(0, 0.1, 0))),
+      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0.1, 0))
+    ),
+    list(
+      label = "zero vi",
+      fit = quote(brma.norm(
+        yi = yi, vi = vi, data = test_data_norm_vi, only_data = TRUE
+      )),
+      newdata = quote(data.frame(yi = c(0.1, 0.2), vi = c(0, 0))),
+      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0))
+    ),
+    list(
+      label = "optional ni omitted",
+      fit = quote(brma.norm(
+        yi = yi, sei = sei, ni = ni,
+        data = data.frame(yi = c(0.2, 0.5, -0.1),
+                          sei = c(0.1, 0.15, 0.12),
+                          ni = c(50, 100, 75)),
+        only_data = TRUE
+      )),
+      newdata = quote(data.frame(yi = c(0.1, 0.2), sei = c(0, 0.1))),
+      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0.1))
+    )
   )
 
-  # Single row newdata
-  new_df <- data.frame(yi = 0.5, sei = 0.1)
-
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 1)
-  expect_equal(result$outcome$yi, 0.5)
-  expect_equal(result$outcome$sei, 0.1)
-})
-
-
-test_that(".prepare_newdata works with newdata having extra columns", {
-
-  skip_on_cran()
-
-  fit <-  brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata with extra columns
-  new_df <- data.frame(
-    yi        = c(0.1, 0.2),
-    sei       = c(0.1, 0.2),
-    extra_col = c("a", "b"),
-    another   = c(1, 2)
-  )
-
-  # Should work, ignoring extra columns
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 2)
-})
-
-
-# ============================================================================
-# Tests for newdata edge cases (single values/levels)
-# These are valid for prediction but would fail original data validation
-# ============================================================================
-
-test_that(".prepare_newdata works with single-level factor in newdata", {
-
-  skip_on_cran()
-
-  # Fit with multi-level factor
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_fac,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata with only one level of the factor (predicting for group "A" only)
-  new_df <- data.frame(
-    yi      = c(0.1, 0.2, 0.3),
-    sei     = c(0.1, 0.1, 0.1),
-    mod_fac = factor(c("A", "A", "A"), levels = c("A", "B"))
-  )
-
-  # Should work - single level is valid for prediction
-
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 3)
-  expect_equal(nrow(result$mods), 3)
-  expect_equal(as.character(result$mods$mod_fac), c("A", "A", "A"))
-})
-
-
-test_that(".prepare_newdata works with zero-variance continuous predictor in newdata", {
-
-  skip_on_cran()
-
-  # Fit with continuous moderator that has variance
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata with constant continuous predictor (predicting at single value)
-  new_df <- data.frame(
-    yi       = c(0.1, 0.2, 0.3),
-    sei      = c(0.1, 0.1, 0.1),
-    mod_cont = c(2.0, 2.0, 2.0)  # All same value
-  )
-
-  # Should work - zero variance is valid for prediction
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 3)
-  expect_equal(nrow(result$mods), 3)
-  expect_equal(result$mods$mod_cont, c(2.0, 2.0, 2.0))
-})
-
-
-test_that(".prepare_newdata works with single observation in newdata", {
-
-  skip_on_cran()
-
-  # Fit with both continuous and factor moderators
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    mods = ~ mod_cont + mod_fac,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata with only one observation (implies single level and zero variance)
-  new_df <- data.frame(
-    yi       = 0.25,
-    sei      = 0.1,
-    mod_cont = 2.5,
-    mod_fac  = factor("B", levels = c("A", "B"))
-  )
-
-  # Should work - single observation is valid for prediction
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 1)
-  expect_equal(nrow(result$mods), 1)
-  expect_equal(result$mods$mod_cont, 2.5)
-  expect_equal(as.character(result$mods$mod_fac), "B")
-})
-
-
-test_that(".prepare_newdata works with scale formula and zero-variance predictor", {
-
-  skip_on_cran()
-
-  # Fit with scale formula
-  fit <- brma.norm(
-    yi    = yi,
-    sei   = sei,
-    scale = ~ scale_var,
-    data  = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata with constant scale predictor
-  new_df <- data.frame(
-    yi        = c(0.1, 0.2),
-    sei       = c(0.1, 0.1),
-    scale_var = c(1.0, 1.0)  # All same value
-  )
-
-  # Should work - zero variance in scale predictor is valid for prediction
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 2)
-  expect_equal(nrow(result$scale), 2)
-  expect_equal(result$scale$scale_var, c(1.0, 1.0))
-})
-
-
-test_that(".prepare_newdata works with sei = 0 in newdata", {
-
-  skip_on_cran()
-
-  # Fit with normal data (sei > 0)
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    data = test_data_norm,
-    only_data = TRUE
-  )
-
-  # newdata with sei = 0 (prediction at zero standard error)
-  new_df <- data.frame(
-    yi  = c(0.1, 0.2, 0.3),
-    sei = c(0, 0.1, 0)  # Some sei = 0
-  )
-
-  # Should work - sei = 0 is valid for prediction (type = "terms")
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 3)
-  expect_equal(result$outcome$sei, c(0, 0.1, 0))
-})
-
-
-test_that(".prepare_newdata works with vi = 0 in newdata", {
-
-  skip_on_cran()
-
-  # Fit with vi instead of sei
-  fit <- brma.norm(
-    yi   = yi,
-    vi   = vi,
-    data = test_data_norm_vi,
-    only_data = TRUE
-  )
-
-  # newdata with vi = 0 (prediction at zero variance)
-  new_df <- data.frame(
-    yi = c(0.1, 0.2),
-    vi = c(0, 0)  # All vi = 0
-  )
-
-  # Should work - vi = 0 is valid for prediction
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 2)
-  expect_equal(result$outcome$sei, c(0, 0))  # sei = sqrt(vi) = 0
-})
-
-
-test_that(".prepare_newdata works with ni = 0 in newdata", {
-
-  skip_on_cran()
-
-  # Create test data with ni (ni must be in original data to be expected in newdata)
-  test_data_with_ni <- data.frame(
-    yi  = c(0.2, 0.5, -0.1),
-    sei = c(0.1, 0.15, 0.12),
-    ni  = c(50, 100, 75)
-  )
-
-  # Fit with ni
-  fit <- brma.norm(
-    yi   = yi,
-    sei  = sei,
-    ni   = ni,
-    data = test_data_with_ni,
-    only_data = TRUE
-  )
-
-  # newdata with ni = 0
-  # Note: ni is optional, so we just verify it doesn't error when sei = 0
-  new_df <- data.frame(
-    yi  = c(0.1, 0.2),
-    sei = c(0, 0.1)  # Test with sei = 0 as main validation
-  )
-
-  # Should work - sei = 0 is valid for prediction
-  result <- RoBMA:::.prepare_newdata(
-    object  = fit,
-    newdata = new_df,
-    type    = "terms"
-  )
-
-  expect_equal(nrow(result$outcome), 2)
-  expect_equal(result$outcome$sei, c(0, 0.1))
+  for (case in edge_cases) {
+    fit <- eval(case[["fit"]])
+    result <- RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = eval(case[["newdata"]]),
+      type    = "terms"
+    )
+    case[["check"]](result)
+  }
 })

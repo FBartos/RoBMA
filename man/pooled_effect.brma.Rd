@@ -10,6 +10,7 @@
   output_measure = NULL,
   transform = NULL,
   probs = c(0.025, 0.975),
+  conditional = FALSE,
   ...
 )
 }
@@ -33,6 +34,9 @@ and \code{"IRR"}.}
 
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
+
+\item{conditional}{whether to return the pooled effect conditional on the
+effect component for RoBMA product-space objects. Defaults to \code{FALSE}.}
 
 \item{...}{additional arguments (currently ignored)}
 }

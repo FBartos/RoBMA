@@ -2,6 +2,8 @@ context("Prior and posterior plots")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 
 # list cached fits lazily
 skip_if_no_fits()
@@ -126,6 +128,8 @@ test_that("Prior and posterior distributions for brma.norm models", {
 
 test_that("Prior and posterior plots transform effect-size axis", {
 
+  skip_if_not_full_visuals("Effect-size transform snapshots are visual-gallery coverage.")
+
   name     <- "bcg_meta-analysis"
   temp_fit <- fits[[name]]
 
@@ -139,6 +143,8 @@ test_that("Prior and posterior plots transform effect-size axis", {
 })
 
 test_that("Prior and posterior distributions for bPET / bPEESE objects", {
+
+  skip_if_not_full_visuals("PET/PEESE prior-posterior snapshots are visual-gallery coverage.")
 
   ### PET model
   name <- "dat.lehmann2018-PET"
@@ -161,7 +167,9 @@ test_that("Prior and posterior distributions for bPET / bPEESE objects", {
 
 })
 
-test_that("Prior and posterior distributions for bselmod objects", {
+test_that("Prior and posterior distributions for bselmodel objects", {
+
+  skip_if_not_full_visuals("Selection prior-posterior snapshots are visual-gallery coverage.")
 
 
   ### weight function
@@ -187,6 +195,8 @@ test_that("Prior and posterior distributions for bselmod objects", {
 
 test_that("Prior and posterior distributions for BMA.norm objects", {
 
+  skip_if_not_full_visuals("BMA prior-posterior snapshots are visual-gallery coverage.")
+
   name <- "dat.lehmann2018_BMA.norm_mods"
   temp_fit <- fits[[name]]
   set.seed(1)
@@ -208,6 +218,8 @@ test_that("Prior and posterior distributions for BMA.norm objects", {
 })
 
 test_that("Prior and posterior distributions for RoBMA objects", {
+
+  skip_if_not_full_visuals("RoBMA prior-posterior snapshots are visual-gallery coverage.")
 
   name <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   temp_fit <- fits[[name]]

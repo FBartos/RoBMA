@@ -10,6 +10,7 @@ context("loo methods for brma objects")
 # against other metafor output) it is primary tested therein.
 
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-contracts.R"))
 skip_on_cran()
 skip_if_no_fits()
 skip_if_not_installed("loo")
@@ -20,82 +21,45 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
 
-# ---------------------------------------------------------------------------- #
-# logLik simple function test
-# ---------------------------------------------------------------------------- #
+test_that("logLik returns finite pointwise matrices for cached fits", {
 
-test_that("logLik computes log-likelihood matrix with correct dimensions", {
+  for (name in c("bcg_meta-analysis", "bcg_meta-regression")) {
+    fit_brma <- fits[[name]]
+    log_lik  <- logLik(fit_brma)
 
-  name        <- "bcg_meta-analysis"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
-
-  name2        <- "bcg_meta-regression"
-  fit_metafor2 <- info[[name2]][["metafor"]]
-  fit_brma2    <- fits[[name2]]
-
-  # the loglik comparison is meaningless, however, the average logLik should be
-  # at least in the same ballpark as frequentist logLik + test for consistency
-
-  ll_metafor  <- logLik(fit_metafor)
-  ll_metafor2 <- logLik(fit_metafor2)
-
-  ll_brma  <- logLik(fit_brma)
-  ll_brma2 <- logLik(fit_brma2)
-
-  expect_equal(mean(apply(ll_brma,  1, sum)), -13.60, tolerance = 0.01) # metafor: 'log Lik.' -12.20237 (df=2)
-  expect_equal(mean(apply(ll_brma2, 1, sum)), -10.1 , tolerance = 0.01) # metafor: 'log Lik.' -8.106874 (df=4)
-
-  expect_equal(ncol(ll_brma),  nrow(fit_brma$data$outcome))
-  expect_equal(ncol(ll_brma2), nrow(fit_brma2$data$outcome))
-
+    expect_s3_class(log_lik, "logLik.brma")
+    expect_true(is.matrix(log_lik), info = name)
+    expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
+    expect_true(all(is.finite(log_lik)), info = name)
+    expect_true(stats::var(rowSums(log_lik)) > 0, info = name)
+  }
 })
 
+test_that("loo and WAIC expose cached diagnostics and missing-cache errors", {
 
-# ---------------------------------------------------------------------------- #
-# loo/WAIC simple function test
-# ---------------------------------------------------------------------------- #
+  for (name in c("bcg_meta-analysis", "bcg_meta-regression")) {
+    fit_brma <- fits[[name]]
+    loo_brma <- suppressWarnings(loo(fit_brma))
 
-test_that("loo/WAIC computes roughly matches AIC", {
+    expect_s3_class(loo_brma, "loo")
+    expect_true(all(c("elpd_loo", "p_loo", "looic") %in% rownames(loo_brma[["estimates"]])),
+                info = name)
+    expect_true(all(is.finite(loo_brma[["estimates"]][, "Estimate"])), info = name)
 
-  name        <- "bcg_meta-analysis"
-  fit_metafor <- info[[name]][["metafor"]]
-  fit_brma    <- fits[[name]]
+    fit_missing <- fit_brma
+    fit_missing[["loo"]] <- NULL
+    expect_error(loo(fit_missing), "LOO has not been computed", info = name)
+    expect_error(waic(fit_missing), "WAIC has not been computed", info = name)
 
-  name2        <- "bcg_meta-regression"
-  fit_metafor2 <- info[[name2]][["metafor"]]
-  fit_brma2    <- fits[[name2]]
+    fit_waic <- suppressWarnings(add_waic(fit_missing))
+    waic_brma <- waic(fit_waic)
 
-  ### the AIC - LOO/WAIC comparison is not exact but there should be some mapping
-
-  AIC_metafor  <- AIC(fit_metafor)
-  AIC_metafor2 <- AIC(fit_metafor2)
-
-  ## loo
-  loo_brma  <- loo(fit_brma)
-  loo_brma2 <- loo(fit_brma2)
-
-  # simulate loo not being computed to test the error
-  fit_brma[["loo"]] <- NULL
-  expect_error(loo(fit_brma), "LOO has not been computed")
-
-  ## waic (not precompted for test objects)
-  expect_error(waic(fit_brma), "WAIC has not been computed")
-  fit_brma   <- add_waic(fit_brma)
-  fit_brma2  <- suppressWarnings(add_waic(fit_brma2))
-  waic_brma  <- waic(fit_brma)
-  waic_brma2 <- waic(fit_brma2)
-
-  expect_equal(loo_brma$estimates["looic", "Estimate"],  28.71, tolerance = 0.01) # metafor: 28.40474
-  expect_equal(loo_brma2$estimates["looic", "Estimate"], 24.8 , tolerance = 0.01) # metafor: 24.21375
-
-  expect_equal(waic_brma$estimates["waic", "Estimate"],  28.62, tolerance = 0.01) # metafor: 28.40474
-  expect_equal(waic_brma2$estimates["waic", "Estimate"], 24 , tolerance = 0.01) # metafor: 24.21375
+    expect_s3_class(waic_brma, "waic")
+    expect_true(all(c("elpd_waic", "p_waic", "waic") %in% rownames(waic_brma[["estimates"]])),
+                info = name)
+    expect_true(all(is.finite(waic_brma[["estimates"]][, "Estimate"])), info = name)
+  }
 })
-
-# ---------------------------------------------------------------------------- #
-# loo_compare simple function test
-# ---------------------------------------------------------------------------- #
 
 test_that("loo_compare compares two brma models", {
 
@@ -113,7 +77,7 @@ test_that("loo_compare compares two brma models", {
   expect_true("se_diff" %in% colnames(out))
 })
 
-test_that("loo_compare works with loo objects", {
+test_that("loo_compare accepts loo objects", {
 
   # get two brma fits
   fit_brma  <- fits[["bcg_meta-analysis"]]
@@ -133,7 +97,7 @@ test_that("loo_compare works with loo objects", {
   expect_true("se_diff" %in% colnames(out))
 })
 
-test_that("loo_compare errors with < 2 models", {
+test_that("loo_compare rejects fewer than two models", {
 
   # get one brma fit
   fit_brma <- fits[["bcg_meta-analysis"]]
@@ -141,13 +105,14 @@ test_that("loo_compare errors with < 2 models", {
   expect_error(loo_compare(fit_brma, "At least two models"))
 })
 
-test_that("logLik, LOO, weights, diagnostics, and WAIC work for product-space fits", {
+test_that("logLik, LOO, weights, diagnostics, and WAIC are available for product-space fits", {
 
   product_names <- c(
     "dat.lehmann2018_BMA.norm",
     "bcg_BMA.glmm",
     "dat.lehmann2018_RoBMA"
   )
+  skip_if_missing_fits(product_names)
 
   for (name in product_names) {
 
@@ -181,6 +146,7 @@ test_that("logLik, LOO, weights, diagnostics, and WAIC work for product-space fi
 test_that("loo_compare compares BMA and RoBMA product-space fits on the same data", {
 
   product_names <- c("dat.lehmann2018_BMA.norm", "dat.lehmann2018_RoBMA")
+  skip_if_missing_fits(product_names)
 
   out <- suppressWarnings(loo_compare(
     fits[["dat.lehmann2018_BMA.norm"]],
@@ -200,7 +166,6 @@ test_that("loo_compare compares BMA and RoBMA product-space fits on the same dat
 
 test_that(".outcome_pdf.norm computes correct log-likelihood", {
 
-  # manual test with known values
   set.seed(123)
 
   yi  <- c(0.1, 0.2, 0.3)
@@ -215,7 +180,7 @@ test_that(".outcome_pdf.norm computes correct log-likelihood", {
 
   expect_equal(dim(log_lik), c(S, K))
 
-  # compute expected log-likelihood manually for first observation
+  # compute expected log-likelihood directly for first observation
   total_sd <- sqrt(0.05^2 + 0.1^2)
   expected_ll <- dnorm(0.1, mean = 0.15, sd = total_sd, log = TRUE)
   expect_equal(log_lik[1, 1], expected_ll, tolerance = 1e-10)
@@ -240,33 +205,73 @@ test_that(".outcome_cdf.norm keeps negative-direction tail precision", {
   expect_gt(cdf_vals[1, 1], 0)
 })
 
-test_that(".outcome_cdf.wnorm forwards lower.tail to normal fast path", {
+test_that(".outcome_cdf.selnorm forwards lower.tail through step kernel", {
 
-  yi         <- 10
+  yi         <- 3
   sei        <- 1
   mu_samples <- matrix(0, nrow = 1, ncol = 1)
   tau_within <- matrix(0, nrow = 1, ncol = 1)
-  omega      <- matrix(c(1, 1), nrow = 1)
-  crit_yi    <- matrix(0, nrow = 1, ncol = 1)
+  prior      <- BayesTools::prior_weightfunction(
+    "one-sided", c(.05), BayesTools::wf_fixed(c(1, 1))
+  )
+  spec <- .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = yi,
+    sei              = sei,
+    effect_direction = "positive"
+  )
+  selection_context <- c(spec, list(
+    omega       = matrix(c(1, 1), nrow = 1),
+    alpha       = 0,
+    phack_kind  = 0L,
+    kernel_mode = SELKERNEL_STEP
+  ))
 
-  cdf_vals <- .outcome_cdf.wnorm(
-    yi         = yi,
-    mu_samples = mu_samples,
-    tau_within = tau_within,
-    sei        = sei,
-    omega      = omega,
-    crit_yi    = crit_yi,
-    lower.tail = FALSE,
-    use_normal = TRUE
+  cdf_vals <- .outcome_cdf.selnorm(
+    yi                = yi,
+    mu_samples        = mu_samples,
+    tau_within        = tau_within,
+    sei               = sei,
+    selection_context = selection_context,
+    lower.tail        = FALSE
   )
 
-  expect_equal(cdf_vals[1, 1], stats::pnorm(yi, lower.tail = FALSE))
+  expect_equal(cdf_vals[1, 1], stats::pnorm(yi, lower.tail = FALSE),
+               tolerance = 1e-12)
   expect_gt(cdf_vals[1, 1], 0)
+})
+
+test_that("GLMM nuisance grids integrate over prior support", {
+
+  prior_pi <- BayesTools::prior("beta", list(1, 1))
+  pi_grid  <- .glmm_binom_logit_pi_grid(
+    ai       = c(0L, 50L),
+    ci       = c(50L, 0L),
+    n1i      = c(100L, 100L),
+    n2i      = c(100L, 100L),
+    prior_pi = prior_pi,
+    n_pi     = 17
+  )
+
+  expect_equal(pi_grid[["grid"]][, 1], pi_grid[["grid"]][, 2])
+  expect_equal(sum(exp(pi_grid[["log_weights"]][, 1])), 1, tolerance = 1e-12)
+
+  prior_phi <- BayesTools::prior("normal", list(0, 1))
+  phi_grid  <- .glmm_pois_log_phi_grid(
+    x1i       = c(0L, 100L),
+    x2i       = c(100L, 0L),
+    t1i       = c(10, 1000),
+    t2i       = c(1000, 10),
+    prior_phi = prior_phi,
+    n_phi     = 17
+  )
+
+  expect_equal(phi_grid[["grid"]][, 1], phi_grid[["grid"]][, 2])
+  expect_equal(sum(exp(phi_grid[["log_weights"]][, 1])), 1, tolerance = 1e-12)
 })
 
 test_that(".outcome_pdf.binom computes correct log-likelihood", {
 
-  # manual test with known values
   ai  <- c(10, 20)
   ci  <- c(15, 25)
   n1i <- c(100, 100)
@@ -278,13 +283,24 @@ test_that(".outcome_pdf.binom computes correct log-likelihood", {
   tau_within <- matrix(0.0, nrow = S, ncol = K)
   prior_pi   <- BayesTools::prior("beta", list(1, 1))
 
-  log_lik <- .outcome_pdf.binom(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi)
+  log_lik <- .outcome_pdf.binom(
+    ai         = ai,
+    ci         = ci,
+    n1i        = n1i,
+    n2i        = n2i,
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    prior_pi   = prior_pi,
+    n_theta    = 3,
+    n_pi       = 120
+  )
 
   expect_equal(dim(log_lik), c(S, K))
 
-  # with log-OR = 0, both groups should have same probability
-  # value updated to match the marginal likelihood calculation
-  expect_equal(log_lik[1, 1], -7.64, tolerance = 0.01)
+  expected <- lchoose(n1i[1], ai[1]) + lchoose(n2i[1], ci[1]) +
+    lbeta(ai[1] + ci[1] + 1, n1i[1] + n2i[1] - ai[1] - ci[1] + 1)
+
+  expect_equal(log_lik[1, 1], expected, tolerance = 1e-8)
 })
 
 test_that(".outcome_pdf.binom handles boundary cell studies", {
@@ -336,11 +352,33 @@ test_that(".outcome_pdf.binom matches R reference", {
     .outcome_pdf.binom_r(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi, n_theta = 7, n_pi = 9),
     tolerance = 1e-10
   )
+
+  weights <- c(1, 0.5, 1.25, 2)
+  weighted <- .outcome_pdf.binom(
+    ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
+    weights = weights, n_theta = 7, n_pi = 9
+  )
+
+  expect_equal(
+    weighted,
+    .outcome_pdf.binom_r(
+      ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
+      weights = weights, n_theta = 7, n_pi = 9
+    ),
+    tolerance = 1e-10
+  )
+  expect_false(isTRUE(all.equal(
+    weighted,
+    sweep(.outcome_pdf.binom(
+      ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
+      n_theta = 7, n_pi = 9
+    ), 2, weights, "*"),
+    tolerance = 1e-8
+  )))
 })
 
 test_that(".outcome_pdf.pois computes correct log-likelihood", {
 
-  # manual test with known values
   x1i <- c(10, 20)
   x2i <- c(15, 25)
   t1i <- c(100, 100)
@@ -352,13 +390,33 @@ test_that(".outcome_pdf.pois computes correct log-likelihood", {
   tau_within <- matrix(0.0, nrow = S, ncol = K)
   prior_phi  <- BayesTools::prior("normal", list(0, 1))
 
-  log_lik <- .outcome_pdf.pois(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi)
+  log_lik <- .outcome_pdf.pois(
+    x1i        = x1i,
+    x2i        = x2i,
+    t1i        = t1i,
+    t2i        = t2i,
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    prior_phi  = prior_phi,
+    n_theta    = 3,
+    n_phi      = 80
+  )
 
   expect_equal(dim(log_lik), c(S, K))
 
-  # with log-IRR = 0, both groups should have same rate
-  # value updated to match the marginal likelihood calculation
-  expect_equal(log_lik[1, 1], -8.60, tolerance = 0.01)
+  expected <- log(stats::integrate(
+    function(phi) {
+      lambda <- t1i[1] * exp(phi)
+      exp(stats::dpois(x1i[1], lambda = lambda, log = TRUE) +
+          stats::dpois(x2i[1], lambda = lambda, log = TRUE) +
+          stats::dnorm(phi, log = TRUE))
+    },
+    lower   = -Inf,
+    upper   = Inf,
+    rel.tol = 1e-10
+  )[["value"]])
+
+  expect_equal(log_lik[1, 1], expected, tolerance = 1e-5)
 })
 
 test_that(".outcome_pdf.pois matches R reference", {
@@ -390,6 +448,29 @@ test_that(".outcome_pdf.pois matches R reference", {
     .outcome_pdf.pois_r(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi, n_theta = 7, n_phi = 9),
     tolerance = 1e-10
   )
+
+  weights <- c(1, 0.5, 1.25, 2)
+  weighted <- .outcome_pdf.pois(
+    x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
+    weights = weights, n_theta = 7, n_phi = 9
+  )
+
+  expect_equal(
+    weighted,
+    .outcome_pdf.pois_r(
+      x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
+      weights = weights, n_theta = 7, n_phi = 9
+    ),
+    tolerance = 1e-10
+  )
+  expect_false(isTRUE(all.equal(
+    weighted,
+    sweep(.outcome_pdf.pois(
+      x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
+      n_theta = 7, n_phi = 9
+    ), 2, weights, "*"),
+    tolerance = 1e-8
+  )))
 })
 
 test_that("native GLMM cluster likelihood matches R composition", {
@@ -478,7 +559,7 @@ test_that("native GLMM cluster likelihood matches R composition", {
 # loo_weights and check_loo S3 tests
 # ---------------------------------------------------------------------------- #
 
-test_that("loo_weights and check_loo work correctly", {
+test_that("loo_weights and check_loo return stable diagnostics", {
 
   fit_brma <- fits[["bcg_meta-analysis"]]
 

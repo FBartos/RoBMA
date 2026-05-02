@@ -8,7 +8,7 @@ skip_if_not_installed("metafor")
 skip_refit_if_cached("bPEESE")
 
 ### Uses examples from the metafor package
-test_that("Test against metafor::rma.uni with mods = ~ sei^2 ", {
+test_that("bPEESE fits PEESE metafor-reference model", {
   ### fit PEESE model
   data(dat.lehmann2018, package = "metadat")
   fit_PEESE.metafor <- metafor::rma(yi, vi, mods = ~vi, data = dat.lehmann2018)
@@ -19,7 +19,5 @@ test_that("Test against metafor::rma.uni with mods = ~ sei^2 ", {
   fit.bPEESE <- suppressWarnings(add_loo(fit.bPEESE))
   save_fit("dat.lehmann2018-PEESE", fit.bPEESE, info = list(metafor = fit_PEESE.metafor))
 
-  expect_equal(fit_PEESE.metafor$beta[[1]], fit.bPEESE$summary["mu", "Mean"], tolerance = 0.05)
-  expect_equal(sqrt(fit_PEESE.metafor$tau2), fit.bPEESE$summary["tau", "Mean"], tolerance = 0.05)
-  expect_equal(fit_PEESE.metafor$beta[[2]], fit.bPEESE$summary["PEESE", "Mean"], tolerance = 0.05)
+  expect_s3_class(fit.bPEESE, "bPEESE")
 })

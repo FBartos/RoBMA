@@ -9,7 +9,7 @@ skip_if_not_installed("posterior")
 
 fit <- load_fit("bcg_meta-analysis")
 
-test_that("as_draws methods work for brma_samples", {
+test_that("as_draws methods return posterior draws for brma_samples", {
 
   # obtain brma_samples
   brma_samples <- predict(fit)

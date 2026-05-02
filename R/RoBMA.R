@@ -39,7 +39,7 @@ RoBMA <- function(
     .call = match.call(), .envir = parent.frame(), class = "norm",
     set_contrast_factor_predictors = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
-    measure = measure)
+    effect_direction = effect_direction, measure = measure)
   if (isTRUE(dots[["only_data"]]))
     return(object)
 

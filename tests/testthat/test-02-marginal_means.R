@@ -2,29 +2,13 @@ context("Estimated marginal means")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
 
 # list cached fits lazily
 skip_if_no_fits()
-marginal_means_cases <- data.frame(
-  name = c(
-    "bcg_meta-regression",
-    "bcg_meta-regression2",
-    "bcg_meta-regression2b",
-    "dat.lehmann2018_BMA.norm_mods",
-    "dat.lehmann2018_RoBMA_mods"
-  ),
-  parameter = c(
-    "year",
-    "alloc",
-    "alloc",
-    "Preregistered",
-    "Preregistered"
-  ),
-  stringsAsFactors = FALSE
-)
-
-fit_names <- c("bcg_meta-analysis", marginal_means_cases[["name"]])
+fit_names <- c("bcg_meta-analysis", marginal_means_cases()[["name"]])
 fits <- lazy_fits(fit_names, validate = FALSE)
 
 
@@ -192,11 +176,12 @@ test_that("marginal_means summaries convert effect-size measures", {
 })
 
 
-test_that("marginal_means summaries match references", {
+test_that("marginal_means summaries match reference tables", {
 
-  for (i in seq_len(nrow(marginal_means_cases))) {
+  cases <- marginal_means_cases()
+  for (i in seq_len(nrow(cases))) {
 
-    name <- marginal_means_cases[["name"]][i]
+    name <- cases[["name"]][i]
     fit  <- fits[[name]]
     emm  <- marginal_means(fit, n_samples = 1000)
 
@@ -204,54 +189,67 @@ test_that("marginal_means summaries match references", {
       test_reference_table(
         summary(emm),
         paste0("summary_marginal-", name, "-averaged.txt"),
-        paste0("Averaged marginal means for '", name, "' mismatch")
+        paste0("Averaged marginal means reference table mismatch for '", name, "'")
       )
 
       test_reference_table(
         summary(emm, type = "conditional"),
         paste0("summary_marginal-", name, "-conditional.txt"),
-        paste0("Conditional marginal means for '", name, "' mismatch")
+        paste0("Conditional marginal means reference table mismatch for '", name, "'")
       )
     } else {
       test_reference_table(
         summary(emm),
         paste0("summary_marginal-", name, ".txt"),
-        paste0("Marginal means for '", name, "' mismatch")
+        paste0("Marginal means reference table mismatch for '", name, "'")
       )
     }
   }
 })
 
 
-test_that("marginal_means plots match references", {
+test_that("marginal_means core plot snapshots are stable", {
 
-  for (i in seq_len(nrow(marginal_means_cases))) {
+  for_each_case(marginal_means_cases(), function(case) {
 
-    name      <- marginal_means_cases[["name"]][i]
-    parameter <- marginal_means_cases[["parameter"]][i]
+    name      <- case_name(case)
+    parameter <- case_value(case, "parameter")
     fit       <- fits[[name]]
     emm       <- marginal_means(fit, n_samples = 1000)
 
-    vdiffr::expect_doppelganger(
+    expect_brma_plot_snapshot(
       paste0(name, "-marginal_means-baseplot-no-prior"),
       function() plot(emm, parameter = parameter, prior = FALSE)
     )
 
-    vdiffr::expect_doppelganger(
+    expect_brma_plot_snapshot(
+      paste0(name, "-marginal_means-ggplot-no-prior"),
+      plot(emm, parameter = parameter, prior = FALSE, plot_type = "ggplot")
+    )
+  }, tier = visual_test_tier())
+})
+
+test_that("marginal_means prior plot gallery snapshots are stable", {
+
+  skip_if_not_full_visuals("Marginal-means prior overlays are gallery coverage.")
+
+  for_each_case(marginal_means_cases(), function(case) {
+
+    name      <- case_name(case)
+    parameter <- case_value(case, "parameter")
+    fit       <- fits[[name]]
+    emm       <- marginal_means(fit, n_samples = 1000)
+
+    expect_brma_plot_snapshot(
       paste0(name, "-marginal_means-baseplot-prior"),
       function() plot(emm, parameter = parameter, prior = TRUE)
     )
 
-    vdiffr::expect_doppelganger(
-      paste0(name, "-marginal_means-ggplot-no-prior"),
-      plot(emm, parameter = parameter, prior = FALSE, plot_type = "ggplot")
-    )
-
-    vdiffr::expect_doppelganger(
+    expect_brma_plot_snapshot(
       paste0(name, "-marginal_means-ggplot-prior"),
       plot(emm, parameter = parameter, prior = TRUE, plot_type = "ggplot")
     )
-  }
+  }, tier = visual_test_tier())
 })
 
 

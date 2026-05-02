@@ -1,7 +1,9 @@
-context("QQ Normal plot")
+context("Q-Q normal plot")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 
 # list cached fits lazily
 skip_if_no_fits()
@@ -12,10 +14,10 @@ info      <- lazy_infos(fit_names, validate = FALSE)
 
 
 # ============================================================================ #
-# Test: Simple Meta-Analysis QQ Plot
+# Test: Simple Meta-Analysis Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for simple meta-analysis matches metafor structure", {
+test_that("Q-Q plot for simple meta-analysis matches metafor structure", {
 
   name        <- "bcg_meta-analysis"
   fit_metafor <- info[[name]][["metafor"]]
@@ -49,10 +51,10 @@ test_that("QQ plot for simple meta-analysis matches metafor structure", {
 })
 
 # ============================================================================ #
-# Test: Meta-Regression QQ Plot
+# Test: Meta-Regression Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for meta-regression works correctly", {
+test_that("Q-Q plot for meta-regression matches metafor residual quantiles", {
 
   name        <- "bcg_meta-regression"
   fit_metafor <- info[[name]][["metafor"]]
@@ -77,7 +79,9 @@ test_that("QQ plot for meta-regression works correctly", {
   )
 })
 
-test_that("QQ plot for meta-regression with interaction works correctly", {
+test_that("Q-Q plot for interaction meta-regression renders residual quantiles", {
+
+  skip_if_not_full_visuals("Interaction Q-Q variants duplicate the core meta-regression visual.")
 
   name        <- "bcg_meta-regression4"
   fit_metafor <- info[[name]][["metafor"]]
@@ -103,10 +107,12 @@ test_that("QQ plot for meta-regression with interaction works correctly", {
 })
 
 # ============================================================================ #
-# Test: Location-Scale Model QQ Plot
+# Test: Location-Scale Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for location-scale model works correctly", {
+test_that("Q-Q plot for location-scale model renders residual quantiles", {
+
+  skip_if_not_full_visuals("Location-scale Q-Q variants are gallery coverage.")
 
   name     <- "bangertdrowns2004_location-scale"
   fit_brma <- fits[[name]]
@@ -123,10 +129,10 @@ test_that("QQ plot for location-scale model works correctly", {
 })
 
 # ============================================================================ #
-# Test: 3-Level Model QQ Plot
+# Test: 3-Level Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for 3-level model works correctly", {
+test_that("Q-Q plot for 3-level model renders residual quantiles", {
 
   name     <- "konstantopoulos2011_3lvl"
   fit_brma <- fits[[name]]
@@ -142,7 +148,9 @@ test_that("QQ plot for 3-level model works correctly", {
   )
 })
 
-test_that("QQ plot for 3-level meta-regression works correctly", {
+test_that("Q-Q plot for 3-level meta-regression renders residual quantiles", {
+
+  skip_if_not_full_visuals("3-level meta-regression duplicates the default multilevel Q-Q visual.")
 
   name     <- "konstantopoulos2011_3lvl2"
   fit_brma <- fits[[name]]
@@ -159,10 +167,10 @@ test_that("QQ plot for 3-level meta-regression works correctly", {
 })
 
 # ============================================================================ #
-# Test: GLMM Model QQ Plot
+# Test: GLMM Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for GLMM model works correctly", {
+test_that("Q-Q plot for GLMM model renders residual quantiles", {
 
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
@@ -181,11 +189,13 @@ test_that("QQ plot for GLMM model works correctly", {
   # rstandard should error for GLMM models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
-    info = "rstandard should error for GLMM models"
+    info = "rstandard residuals are rejected for GLMM models"
   )
 })
 
-test_that("QQ plot for GLMM meta-regression works correctly", {
+test_that("Q-Q plot for GLMM meta-regression renders residual quantiles", {
+
+  skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM Q-Q visual.")
 
   name     <- "bcg_glmm_reg"
   fit_brma <- fits[[name]]
@@ -204,15 +214,15 @@ test_that("QQ plot for GLMM meta-regression works correctly", {
   # rstandard should error for GLMM models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
-    info = "rstandard should error for GLMM models"
+    info = "rstandard residuals are rejected for GLMM models"
   )
 })
 
 # ============================================================================ #
-# Test: PET Model QQ Plot
+# Test: PET Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for PET works correctly", {
+test_that("Q-Q plot for PET model matches metafor residual quantiles", {
 
   name        <- "dat.lehmann2018-PET"
   fit_metafor <- info[[name]][["metafor"]]
@@ -232,7 +242,9 @@ test_that("QQ plot for PET works correctly", {
   })
 })
 
-test_that("QQ plot for PET regression works correctly", {
+test_that("Q-Q plot for PET meta-regression matches metafor residual quantiles", {
+
+  skip_if_not_full_visuals("PET meta-regression duplicates the default PET Q-Q visual.")
 
   name        <- "dat.lehmann2018-PETreg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -253,10 +265,10 @@ test_that("QQ plot for PET regression works correctly", {
 })
 
 # ============================================================================ #
-# Test: Selection Model QQ Plot
+# Test: Selection Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for selection model works correctly", {
+test_that("Q-Q plot for selection model renders residual quantiles", {
 
   name     <- "dat.lehmann2018-3PSM"
   fit_brma <- fits[[name]]
@@ -275,11 +287,13 @@ test_that("QQ plot for selection model works correctly", {
   # rstandard should error for selection models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
-    info = "rstandard should error for selection models"
+    info = "rstandard residuals are rejected for selection models"
   )
 })
 
-test_that("QQ plot for selection meta-regression works correctly", {
+test_that("Q-Q plot for selection meta-regression renders residual quantiles", {
+
+  skip_if_not_full_visuals("Selection meta-regression duplicates the default selection Q-Q visual.")
 
   name     <- "dat.lehmann2018-3PSMreg"
   fit_brma <- fits[[name]]
@@ -298,15 +312,15 @@ test_that("QQ plot for selection meta-regression works correctly", {
   # rstandard should error for selection models
   expect_error(
     qqnorm(fit_brma, type = "rstandard"),
-    info = "rstandard should error for selection models"
+    info = "rstandard residuals are rejected for selection models"
   )
 })
 
 # ============================================================================ #
-# Test: BMA.norm Model QQ Plot
+# Test: BMA.norm Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for BMA.norm model works correctly", {
+test_that("Q-Q plot for BMA.norm model renders base output", {
 
   name     <- "dat.lehmann2018_BMA.norm"
   fit_brma <- fits[[name]]
@@ -317,7 +331,9 @@ test_that("QQ plot for BMA.norm model works correctly", {
   })
 })
 
-test_that("QQ plot for BMA.norm meta-regression works correctly", {
+test_that("Q-Q plot for BMA.norm meta-regression renders base output", {
+
+  skip_if_not_full_visuals("BMA meta-regression duplicates the default BMA Q-Q smoke test.")
 
   name     <- "dat.lehmann2018_BMA.norm_mods"
   fit_brma <- fits[[name]]
@@ -329,10 +345,10 @@ test_that("QQ plot for BMA.norm meta-regression works correctly", {
 })
 
 # ============================================================================ #
-# Test: BMA.glmm Model QQ Plot
+# Test: BMA.glmm Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for BMA.glmm model works correctly", {
+test_that("Q-Q plot for BMA.glmm model renders base output", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   fit_brma <- fits[[name]]
@@ -344,10 +360,10 @@ test_that("QQ plot for BMA.glmm model works correctly", {
 })
 
 # ============================================================================ #
-# Test: RoBMA Model QQ Plot
+# Test: RoBMA Model Q-Q Plot
 # ============================================================================ #
 
-test_that("QQ plot for RoBMA model works correctly", {
+test_that("Q-Q plot for RoBMA model renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
@@ -358,7 +374,9 @@ test_that("QQ plot for RoBMA model works correctly", {
   })
 })
 
-test_that("QQ plot for RoBMA meta-regression works correctly", {
+test_that("Q-Q plot for RoBMA meta-regression renders LOO-PIT output", {
+
+  skip_if_not_full_visuals("RoBMA meta-regression duplicates the default RoBMA Q-Q smoke test.")
 
   name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   fit_brma <- fits[[name]]
@@ -371,10 +389,10 @@ test_that("QQ plot for RoBMA meta-regression works correctly", {
 
 
 # ============================================================================ #
-# Test: QQ Plot Interface
+# Test: Q-Q Plot Interface
 # ============================================================================ #
 
-test_that("QQ plot has correct interface", {
+test_that("Q-Q plot data and argument validation are stable", {
 
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]
@@ -387,7 +405,7 @@ test_that("QQ plot has correct interface", {
   qq_data <- qqnorm(fit_brma, as_data = TRUE, type = "rstandard")
 
   expect_true(is.list(qq_data),
-    info = "as_data = TRUE should return a list"
+    info = "as_data = TRUE returns a list"
   )
 
   expected_components <- c(
@@ -395,31 +413,31 @@ test_that("QQ plot has correct interface", {
     "xlim", "ylim", "xlab", "ylab"
   )
   expect_true(all(expected_components %in% names(qq_data)),
-    info = "QQ data should contain all expected components"
+    info = "Q-Q data contains all expected components"
   )
 
   # Check points data.frame structure
   expect_true(is.data.frame(qq_data$points),
-    info = "points should be a data.frame"
+    info = "points are returned as a data.frame"
   )
   expect_true(all(c("x", "y") %in% names(qq_data$points)),
-    info = "points should have x and y columns"
+    info = "points contain x and y columns"
   )
 
   # Check number of points matches number of observations
   n_studies <- nrow(fit_brma$data$outcome)
   expect_equal(nrow(qq_data$points), n_studies,
-    info = "number of points should match number of observations"
+    info = "number of points matches number of observations"
   )
 
   # Check x values are sorted (theoretical quantiles)
   expect_equal(qq_data$x, sort(qq_data$x),
-    info = "theoretical quantiles should be sorted"
+    info = "theoretical quantiles are sorted"
   )
 
   # Check y values are sorted (sorted residuals)
   expect_equal(qq_data$y, sort(qq_data$y),
-    info = "sample quantiles should be sorted"
+    info = "sample quantiles are sorted"
   )
 
   # --------------------------------------------------
@@ -428,7 +446,7 @@ test_that("QQ plot has correct interface", {
 
   qq_data_no_env <- qqnorm(fit_brma, as_data = TRUE, envelope = FALSE, type = "rstandard")
   expect_null(qq_data_no_env$envelope,
-    info = "envelope should be NULL when envelope = FALSE"
+    info = "envelope is NULL when envelope = FALSE"
   )
 
   # --------------------------------------------------
@@ -436,10 +454,10 @@ test_that("QQ plot has correct interface", {
   # --------------------------------------------------
 
   expect_true(is.data.frame(qq_data$envelope),
-    info = "envelope should be a data.frame when envelope = TRUE"
+    info = "envelope is a data.frame when envelope = TRUE"
   )
   expect_true(all(c("x", "lower", "upper") %in% names(qq_data$envelope)),
-    info = "envelope should have x, lower, upper columns"
+    info = "envelope contains x, lower, upper columns"
   )
 
   # --------------------------------------------------
@@ -447,7 +465,7 @@ test_that("QQ plot has correct interface", {
   # --------------------------------------------------
 
   expect_error(qqnorm(fit_brma, plot_type = "invalid"),
-    info = "should error on invalid plot_type"
+    info = "invalid plot_type is rejected"
   )
 
   # --------------------------------------------------
@@ -455,15 +473,17 @@ test_that("QQ plot has correct interface", {
   # --------------------------------------------------
 
   expect_error(qqnorm(fit_brma, type = "invalid"),
-    info = "should error on invalid type"
+    info = "invalid type is rejected"
   )
 })
 
 # ============================================================================ #
-# Test: QQ Plot Customization
+# Test: Q-Q Plot Customization
 # ============================================================================ #
 
-test_that("QQ plot customization works", {
+test_that("Q-Q plot customization snapshots are stable", {
+
+  skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]

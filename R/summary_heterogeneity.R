@@ -72,6 +72,11 @@ summary_heterogeneity <- function(object, ...) {
 #'   \item \code{I2 [between]}: Percentage of variance due to cluster-level heterogeneity
 #' }
 #'
+#' For location-scale models, \code{tau2} aggregates the observation-specific
+#' heterogeneity variances \eqn{\tau_i^2}; the corresponding \code{tau} summary
+#' is the square root of this aggregate variance. The relative \eqn{I^2} and
+#' \eqn{H^2} measures average the observation-specific indices.
+#'
 #' The I^2 and H^2 statistics are computed following the metafor package
 #' implementation, using the "typical" sampling variance formula from
 #' \insertCite{higgins2002quantifying;textual}{RoBMA} For multilevel models,
@@ -129,61 +134,12 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
     K             = K
   )
 
-  # aggregate tau samples across observations (for scale models)
-  tau_within_samples  <- rowMeans(tau_result[["tau_within"]])
-  tau_between_samples <- rowMeans(tau_result[["tau_between"]])
-
-  # compute heterogeneity indices
-  if (is_multilevel) {
-
-    # multilevel model: partition heterogeneity
-    sigma2_within  <- tau_within_samples^2
-    sigma2_between <- tau_between_samples^2
-    sigma2_total   <- sigma2_within + sigma2_between
-
-    tau_total <- sqrt(sigma2_total)
-    tau2      <- sigma2_total
-
-    # partitioned I^2
-    I2_total   <- 100 * sigma2_total   / (sigma2_total + v_tilde)
-    I2_within  <- 100 * sigma2_within  / (sigma2_total + v_tilde)
-    I2_between <- 100 * sigma2_between / (sigma2_total + v_tilde)
-
-    # H^2
-    H2 <- (sigma2_total + v_tilde) / v_tilde
-
-    # build samples list for multilevel output
-    samples_list <- list(
-      "tau"             = tau_total,
-      "tau [within]"    = sqrt(sigma2_within),
-      "tau [between]"   = sqrt(sigma2_between),
-      "tau2"            = tau2,
-      "tau2 [within]"   = sigma2_within,
-      "tau2 [between]"  = sigma2_between,
-      "I2"              = I2_total,
-      "I2 [within]"     = I2_within,
-      "I2 [between]"    = I2_between,
-      "H2"              = H2
-    )
-
-  } else {
-
-    # standard (non-multilevel) model
-    tau_samples  <- tau_within_samples
-    tau2_samples <- tau_samples^2
-
-    # I^2 and H^2
-    I2 <- 100 * tau2_samples / (tau2_samples + v_tilde)
-    H2 <- (tau2_samples + v_tilde) / v_tilde
-
-    # build samples list
-    samples_list <- list(
-      "tau"  = tau_samples,
-      "tau2" = tau2_samples,
-      "I2"   = I2,
-      "H2"   = H2
-    )
-  }
+  samples_list <- .summary_heterogeneity_samples(
+    tau_within_samples  = tau_result[["tau_within"]],
+    tau_between_samples = tau_result[["tau_between"]],
+    v_tilde             = v_tilde,
+    is_multilevel       = is_multilevel
+  )
 
   # generate summary table
   estimates <- BayesTools::ensemble_estimates_table(
@@ -201,6 +157,73 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
   class(output) <- "summary_heterogeneity.brma"
 
   return(output)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .summary_heterogeneity_samples
+# ---------------------------------------------------------------------------- #
+#
+# Compute heterogeneity summaries from observation-level tau samples.
+#
+.summary_heterogeneity_samples <- function(tau_within_samples, tau_between_samples,
+                                           v_tilde, is_multilevel) {
+
+  if (is.null(tau_between_samples)) {
+    tau_between_samples <- matrix(0, nrow = nrow(tau_within_samples),
+                                  ncol = ncol(tau_within_samples))
+  }
+
+  if (!is.matrix(tau_within_samples) || !is.matrix(tau_between_samples)) {
+    stop("'tau_within_samples' and 'tau_between_samples' must be matrices.",
+         call. = FALSE)
+  }
+  if (!identical(dim(tau_within_samples), dim(tau_between_samples))) {
+    stop("'tau_within_samples' and 'tau_between_samples' must have matching dimensions.",
+         call. = FALSE)
+  }
+  if (!is.numeric(v_tilde) || length(v_tilde) != 1 || !is.finite(v_tilde) || v_tilde <= 0) {
+    stop("'v_tilde' must be a positive finite number.", call. = FALSE)
+  }
+
+  sigma2_within_matrix  <- tau_within_samples^2
+  sigma2_between_matrix <- tau_between_samples^2
+  sigma2_total_matrix   <- sigma2_within_matrix + sigma2_between_matrix
+
+  sigma2_within  <- rowMeans(sigma2_within_matrix)
+  sigma2_between <- rowMeans(sigma2_between_matrix)
+  sigma2_total   <- sigma2_within + sigma2_between
+
+  denominator_matrix <- sigma2_total_matrix + v_tilde
+
+  I2_total <- rowMeans(100 * sigma2_total_matrix / denominator_matrix)
+  H2       <- rowMeans(denominator_matrix / v_tilde)
+
+  if (is_multilevel) {
+
+    I2_within  <- rowMeans(100 * sigma2_within_matrix / denominator_matrix)
+    I2_between <- rowMeans(100 * sigma2_between_matrix / denominator_matrix)
+
+    return(list(
+      "tau"             = sqrt(sigma2_total),
+      "tau [within]"    = sqrt(sigma2_within),
+      "tau [between]"   = sqrt(sigma2_between),
+      "tau2"            = sigma2_total,
+      "tau2 [within]"   = sigma2_within,
+      "tau2 [between]"  = sigma2_between,
+      "I2"              = I2_total,
+      "I2 [within]"     = I2_within,
+      "I2 [between]"    = I2_between,
+      "H2"              = H2
+    ))
+  }
+
+  return(list(
+    "tau"  = sqrt(sigma2_total),
+    "tau2" = sigma2_total,
+    "I2"   = I2_total,
+    "H2"   = H2
+  ))
 }
 
 

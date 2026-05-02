@@ -4,6 +4,9 @@
 if (!exists("GENERATE_REFERENCE_FILES")) {
   GENERATE_REFERENCE_FILES <- FALSE
 }
+if (!exists("FIT_CACHE_VERSION")) {
+  FIT_CACHE_VERSION <- 2L
+}
 
 # Get the directory where prefitted models are stored. Local development uses
 # a persistent ignored folder; CRAN checks fall back to tempdir().
@@ -286,6 +289,60 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
   return(catalog[["name"]])
 }
 
+.source_hash_call_name <- function(expr) {
+
+  if (!is.call(expr)) {
+    return("")
+  }
+
+  fun <- expr[[1]]
+  if (is.symbol(fun)) {
+    return(as.character(fun))
+  }
+  if (is.call(fun) && identical(as.character(fun[[1]]), "::")) {
+    return(as.character(fun[[3]]))
+  }
+
+  return("")
+}
+
+.source_hash_skip_call <- function(expr) {
+
+  call_name <- .source_hash_call_name(expr)
+
+  return(
+    call_name %in% c("context", "source", "skip_on_cran",
+                     "skip_if_not_installed", "skip_refit_if_cached") ||
+      grepl("^expect_", call_name)
+  )
+}
+
+.source_hash_normalize_expr <- function(expr) {
+
+  if (is.call(expr)) {
+    call_name <- .source_hash_call_name(expr)
+
+    if (.source_hash_skip_call(expr)) {
+      return(character())
+    }
+
+    if (identical(call_name, "test_that")) {
+      body <- if (length(expr) >= 3L) expr[[3]] else NULL
+      return(.source_hash_normalize_expr(body))
+    }
+
+    if (identical(call_name, "{")) {
+      normalized <- unlist(
+        lapply(as.list(expr)[-1], .source_hash_normalize_expr),
+        use.names = FALSE
+      )
+      return(normalized[nzchar(normalized)])
+    }
+  }
+
+  return(paste(deparse(expr, width.cutoff = 500L), collapse = "\n"))
+}
+
 source_file_md5 <- function(source_file) {
 
   if (is.null(source_file) || is.na(source_file) || !nzchar(source_file)) {
@@ -297,7 +354,23 @@ source_file_md5 <- function(source_file) {
     return(NA_character_)
   }
 
-  return(unname(tools::md5sum(path)))
+  parsed <- try(parse(path), silent = TRUE)
+  if (inherits(parsed, "try-error")) {
+    lines <- readLines(path, warn = FALSE)
+    lines <- sub("#.*$", "", lines)
+    lines <- trimws(lines)
+    lines <- lines[nzchar(lines)]
+  } else {
+    lines <- unlist(lapply(parsed, .source_hash_normalize_expr), use.names = FALSE)
+    lines <- trimws(lines)
+    lines <- lines[nzchar(lines)]
+  }
+
+  normalized <- tempfile("robma-fit-source-", fileext = ".R")
+  writeLines(lines, normalized, useBytes = TRUE)
+  on.exit(unlink(normalized), add = TRUE)
+
+  return(unname(tools::md5sum(normalized)))
 }
 
 fit_cache_metadata <- function(name, fit, info = NULL) {
@@ -306,7 +379,7 @@ fit_cache_metadata <- function(name, fit, info = NULL) {
   source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
 
   metadata <- list(
-    version          = 1L,
+    version          = FIT_CACHE_VERSION,
     name             = name,
     saved_at         = format(Sys.time(), usetz = TRUE),
     fit_class        = class(fit),
@@ -402,6 +475,9 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
   }
 
   if (!is.null(entry) && !is.null(metadata)) {
+    if (is.null(metadata[["version"]]) || !identical(metadata[["version"]], FIT_CACHE_VERSION)) {
+      messages <- c(messages, "cache version changed")
+    }
     if (!is.null(metadata[["name"]]) && !identical(metadata[["name"]], name)) {
       messages <- c(messages, "metadata name mismatch")
     }
@@ -505,7 +581,7 @@ is_cached_fit_valid <- function(name, check_source = TRUE, deep = FALSE) {
 skip_if_no_fits <- function() {
 
   if (length(list_fits(validate = TRUE)) == 0) {
-    skip("Valid pre-fitted models not found. Run `test(filter = 'test-01')` first.")
+    skip("No valid cached fits available. Run `devtools::test(filter = '01-')` first.")
   }
 }
 
@@ -542,7 +618,7 @@ skip_refit_if_cached <- function(name) {
 
   if (skip_refit && length(fit_names) > 0 &&
       all(vapply(fit_names, is_cached_fit_valid, TRUE))) {
-    skip("Skipping model refitting: valid cached fit exists.")
+    skip("Skipping model refit: valid cached fit exists.")
   }
 
   return(invisible(FALSE))

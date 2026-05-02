@@ -12,20 +12,20 @@ test_that("fit catalog is internally consistent", {
   expect_true(all(file.exists(testthat::test_path(catalog[["source_file"]]))),
               info = "all catalog source files must exist")
   expect_true(all(catalog[["has_loo"]]),
-              info = "all cached test fits should include pre-computed LOO")
+              info = "all cached test fits include pre-computed LOO")
   expect_true(all(!catalog[["has_waic"]]),
               info = "WAIC is not pre-computed for cached test fits")
   expect_true(all(!catalog[catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "RoBMA"), "has_marglik"]),
               info = "product-space model averaging fits must not cache marginal likelihoods")
   expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "RoBMA"), "has_marglik"]),
-              info = "single-model cached fits should include marginal likelihoods")
+              info = "single-model cached fits include marginal likelihoods")
 })
 
 test_that("cached fits are catalogued and valid", {
 
   cached_names <- list_fits(validate = FALSE)
   if (length(cached_names) == 0) {
-    skip("No cached fits available.")
+    skip("No cached fits available for catalog validation.")
   }
 
   catalog_names <- fit_catalog()[["name"]]

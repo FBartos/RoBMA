@@ -58,7 +58,9 @@ Adds model-implied density lines to an existing z-curve plot.
 When \code{extrapolate = FALSE}, the density includes all bias adjustments
 (PET/PEESE regression, selection weights) representing the fitted model.
 When \code{extrapolate = TRUE}, bias adjustments are removed to show the
-hypothetical distribution without publication bias.
+hypothetical distribution without publication bias. Under selection models,
+the curve is scaled by inverse selection probability and need not integrate
+to one.
 }
 \seealso{
 \code{\link[=plot.zcurve_brma]{plot.zcurve_brma()}}, \code{\link[=hist.zcurve_brma]{hist.zcurve_brma()}}

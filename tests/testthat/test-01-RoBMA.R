@@ -16,16 +16,10 @@ test_that("RoBMA handles default model", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("dat.lehmann2018_RoBMA", fit)
 
-  ## simple quick consistency checks
-  # check that the model fits and has expected class
   expect_s3_class(fit, "RoBMA")
-
-  # check that mixture priors are present
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$mu))
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$tau))
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$bias))
-
-  # check that summary works
   expect_no_error(summary(fit))
 })
 
@@ -43,11 +37,7 @@ test_that("RoBMA handles custom priors", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("dat.lehmann2018_RoBMA_custom", fit)
 
-  ## simple quick consistency checks
-  # check that the model fits and has expected class
   expect_s3_class(fit, "RoBMA")
-
-  # check that custom priors are applied
   expect_equal(length(fit$priors$outcome$mu), 2)
   expect_equal(length(fit$priors$outcome$tau), 1)
   expect_equal(fit$priors$outcome$mu[[2]]$parameters, list(mean = 0, sd = 0.5))
@@ -64,11 +54,7 @@ test_that("RoBMA handles meta-regression", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("dat.lehmann2018_RoBMA_mods", fit, info = list(mods = c("Preregistered")))
 
-  ## simple quick consistency checks
-  # check that the model fits and has expected class
   expect_s3_class(fit, "RoBMA")
-
-  # check that 2 mods parameters are present
   expect_equal(length(fit$priors$mods), 2)
 })
 
@@ -82,11 +68,7 @@ test_that("RoBMA handles meta-regression with interaction", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("dat.lehmann2018_RoBMA_mods2", fit, info = list(mods = c("Preregistered", "Gender", "Preregistered:Gender")))
 
-  ## simple quick consistency checks
-  # check that the model fits and has expected class
   expect_s3_class(fit, "RoBMA")
-
-  # check that 2 mods parameters are present
   expect_equal(length(fit$priors$mods), 4)
 })
 
@@ -100,11 +82,7 @@ test_that("RoBMA handles multilevel location-scale meta-regression", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("dat.lehmann2018_RoBMA_3lvl_mods_scale", fit, info = list(mods = c("Preregistered"), scale = c("Preregistered")))
 
-  ## simple quick consistency checks
-  # check that the model fits and has expected class
   expect_s3_class(fit, "RoBMA")
-
-  # check that 2 mods parameters are present
   expect_equal(length(fit$priors$mods), 2)
   expect_equal(length(fit$priors$scale), 2)
   expect_equal(length(fit$priors$outcome$rho), 1)

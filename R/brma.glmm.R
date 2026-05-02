@@ -17,6 +17,9 @@
 #' `prior_lograte` defines the estimate-specific prior distribution on the log-rate.
 #' If unspecified, a unit-information prior is based on the data.
 #'
+#' When `weights` are supplied, they are treated as likelihood weights on the
+#' paired two-arm study contribution.
+#'
 #' @export
 brma.glmm <- function(
   # input specification

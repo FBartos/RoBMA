@@ -2,6 +2,8 @@ context("Funnel plot")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 
 # list cached fits lazily
 skip_if_no_fits()
@@ -51,7 +53,7 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
 # Test: Meta-Regression Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for meta-regression works correctly", {
+test_that("Funnel plot for meta-regression matches metafor residual views", {
 
   name        <- "bcg_meta-regression"
   fit_metafor <- info[[name]][["metafor"]]
@@ -83,7 +85,9 @@ test_that("Funnel plot for meta-regression works correctly", {
   )
 })
 
-test_that("Funnel plot for meta-regression with interaction works correctly", {
+test_that("Funnel plot for interaction meta-regression renders residual views", {
+
+  skip_if_not_full_visuals("Interaction funnel variants duplicate the core meta-regression visual.")
 
   name        <- "bcg_meta-regression4"
   fit_metafor <- info[[name]][["metafor"]]
@@ -114,7 +118,9 @@ test_that("Funnel plot for meta-regression with interaction works correctly", {
 # Test: Location-Scale Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for location-scale model works correctly", {
+test_that("Funnel plot for location-scale model matches metafor residual view", {
+
+  skip_if_not_full_visuals("Location-scale funnel variants are gallery coverage.")
 
   name <- "bangertdrowns2004_location-scale"
   fit_metafor <- info[[name]][["metafor"]]
@@ -142,7 +148,7 @@ test_that("Funnel plot for location-scale model works correctly", {
 # Test: 3-Level Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for 3-level model works correctly", {
+test_that("Funnel plot for 3-level model matches metafor structure", {
 
   name <- "konstantopoulos2011_3lvl"
   fit_metafor <- info[[name]][["metafor"]]
@@ -160,16 +166,15 @@ test_that("Funnel plot for 3-level model works correctly", {
     funnel(fit_brma, plot_type = "base", main = "brma", sampling_heterogeneity = FALSE, xlim = c(-1, 1.5), ylim = c(0.4, 0))
   })
 
-  # TODO:
-  # add cluster-level residuals once implemented
-
   vdiffr::expect_doppelganger(
     "funnel_3lvl_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
 })
 
-test_that("Funnel plot for 3-level meta-regression works correctly", {
+test_that("Funnel plot for 3-level meta-regression renders residual views", {
+
+  skip_if_not_full_visuals("3-level meta-regression duplicates the default multilevel funnel visual.")
 
   name <- "konstantopoulos2011_3lvl2"
   fit_metafor <- info[[name]][["metafor"]]
@@ -187,9 +192,6 @@ test_that("Funnel plot for 3-level meta-regression works correctly", {
     suppressWarnings(suppressWarnings(funnel(fit_brma, plot_type = "base", type = "rstandard", conditioning_depth = "marginal", main = "brma", sampling_heterogeneity = FALSE, xlim = c(-1, 1.5), ylim = c(0.5, 0))))
   })
 
-  # TODO:
-  # add cluster-level residuals once implemented
-
   vdiffr::expect_doppelganger(
     "funnel_3lvl2_brma_ggplot",
     suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
@@ -200,7 +202,7 @@ test_that("Funnel plot for 3-level meta-regression works correctly", {
 # Test: GLMM Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for GLMM model works correctly", {
+test_that("Funnel plot for GLMM model renders ggplot output", {
 
   name <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
@@ -212,7 +214,9 @@ test_that("Funnel plot for GLMM model works correctly", {
   )
 })
 
-test_that("Funnel plot for GLMM meta-regression works correctly", {
+test_that("Funnel plot for GLMM meta-regression renders ggplot output", {
+
+  skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM funnel visual.")
 
   name <- "bcg_glmm_reg"
   fit_brma <- fits[[name]]
@@ -228,7 +232,7 @@ test_that("Funnel plot for GLMM meta-regression works correctly", {
 # Test: Selection Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for selection model works correctly", {
+test_that("Funnel plot for selection model matches metafor structure", {
 
   name <- "dat.lehmann2018-3PSM"
   fit_metafor <- info[[name]][["metafor"]]
@@ -252,7 +256,9 @@ test_that("Funnel plot for selection model works correctly", {
   )
 })
 
-test_that("Funnel plot for selection meta-regression works correctly", {
+test_that("Funnel plot for selection meta-regression renders residual view", {
+
+  skip_if_not_full_visuals("Selection meta-regression duplicates the default selection funnel visual.")
 
   name <- "dat.lehmann2018-3PSMreg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -272,7 +278,9 @@ test_that("Funnel plot for selection meta-regression works correctly", {
   })
 })
 
-test_that("Funnel plot for selection model (negative) works correctly", {
+test_that("Funnel plot for negative-direction selection model matches metafor structure", {
+
+  skip_if_not_full_visuals("Negative-direction selection is gallery coverage.")
 
   name <- "dat.lehmann2018-3PSM_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -295,7 +303,7 @@ test_that("Funnel plot for selection model (negative) works correctly", {
 # Test: PET Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for PET model works correctly", {
+test_that("Funnel plot for PET model matches metafor residual view", {
 
   name <- "dat.lehmann2018-PET"
   fit_metafor <- info[[name]][["metafor"]]
@@ -320,7 +328,9 @@ test_that("Funnel plot for PET model works correctly", {
   )
 })
 
-test_that("Funnel plot for PET meta-regression works correctly", {
+test_that("Funnel plot for PET meta-regression matches metafor residual view", {
+
+  skip_if_not_full_visuals("PET meta-regression duplicates the default PET funnel visual.")
 
   name <- "dat.lehmann2018-PETreg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -340,7 +350,9 @@ test_that("Funnel plot for PET meta-regression works correctly", {
   })
 })
 
-test_that("Funnel plot for PET model (negative) works correctly", {
+test_that("Funnel plot for negative-direction PET model matches metafor residual view", {
+
+  skip_if_not_full_visuals("Negative-direction PET is gallery coverage.")
 
   name <- "dat.lehmann2018-PET_neg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -369,7 +381,7 @@ test_that("Funnel plot for PET model (negative) works correctly", {
 # Test: BMA.norm Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for BMA.norm model works correctly", {
+test_that("Funnel plot for BMA.norm model renders base output", {
 
   name     <- "dat.lehmann2018_BMA.norm"
   fit_brma <- fits[[name]]
@@ -379,7 +391,9 @@ test_that("Funnel plot for BMA.norm model works correctly", {
   })
 })
 
-test_that("Funnel plot for BMA.norm meta-regression works correctly", {
+test_that("Funnel plot for BMA.norm meta-regression renders base output", {
+
+  skip_if_not_full_visuals("BMA meta-regression duplicates the default BMA funnel smoke test.")
 
   name     <- "dat.lehmann2018_BMA.norm_mods"
   fit_brma <- fits[[name]]
@@ -393,7 +407,7 @@ test_that("Funnel plot for BMA.norm meta-regression works correctly", {
 # Test: BMA.glmm Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for BMA.glmm model works correctly", {
+test_that("Funnel plot for BMA.glmm model renders base output", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   fit_brma <- fits[[name]]
@@ -407,7 +421,7 @@ test_that("Funnel plot for BMA.glmm model works correctly", {
 # Test: RoBMA Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot for RoBMA model works correctly", {
+test_that("Funnel plot for RoBMA model renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
@@ -417,7 +431,9 @@ test_that("Funnel plot for RoBMA model works correctly", {
   })
 })
 
-test_that("Funnel plot for RoBMA meta-regression works correctly", {
+test_that("Funnel plot for RoBMA meta-regression renders LOO-PIT output", {
+
+  skip_if_not_full_visuals("RoBMA meta-regression duplicates the default RoBMA funnel smoke test.")
 
   name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   fit_brma <- fits[[name]]
@@ -431,7 +447,7 @@ test_that("Funnel plot for RoBMA meta-regression works correctly", {
 # Test: Funnel Plot Options
 # ============================================================================ #
 
-test_that("Funnel plot has correct interface", {
+test_that("Funnel plot data and argument validation are stable", {
 
   name <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]
@@ -443,7 +459,7 @@ test_that("Funnel plot has correct interface", {
   funnel_data <- funnel(fit_brma, as_data = TRUE)
 
   expect_true(is.list(funnel_data),
-    info = "as_data = TRUE should return a list"
+    info = "as_data = TRUE returns a list"
   )
 
   expected_components <- c(
@@ -451,21 +467,21 @@ test_that("Funnel plot has correct interface", {
     "background", "x_range", "y_range"
   )
   expect_true(all(expected_components %in% names(funnel_data)),
-    info = "funnel data should contain all expected components"
+    info = "funnel data contains all expected components"
   )
 
   # Check points data.frame structure
   expect_true(is.data.frame(funnel_data$points),
-    info = "points should be a data.frame"
+    info = "points are returned as a data.frame"
   )
   expect_true(all(c("x", "y") %in% names(funnel_data$points)),
-    info = "points should have x and y columns"
+    info = "points contain x and y columns"
   )
 
   # Check number of points matches number of studies
   n_studies <- nrow(fit_brma$data$outcome)
   expect_equal(nrow(funnel_data$points), n_studies,
-    info = "number of points should match number of studies"
+    info = "number of points matches number of studies"
   )
 
   # --------------------------------------------------
@@ -473,7 +489,7 @@ test_that("Funnel plot has correct interface", {
   # --------------------------------------------------
 
   expect_error(funnel(fit_brma, plot_type = "invalid"),
-    info = "should error on invalid plot_type"
+    info = "invalid plot_type is rejected"
   )
 
   # --------------------------------------------------
@@ -481,7 +497,7 @@ test_that("Funnel plot has correct interface", {
   # --------------------------------------------------
 
   expect_error(funnel(fit_brma, sampling_heterogeneity = "yes"),
-    info = "should error on invalid sampling_heterogeneity"
+    info = "invalid sampling_heterogeneity is rejected"
   )
 })
 
@@ -489,7 +505,9 @@ test_that("Funnel plot has correct interface", {
 # Test: Funnel Plot Customization
 # ============================================================================ #
 
-test_that("Funnel plot customization works", {
+test_that("Funnel plot customization snapshots are stable", {
+
+  skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]

@@ -54,28 +54,18 @@ test_that("bridge sampling marginal likelihood is close to BIC for metafor-refer
 })
 
 
-# ---------------------------------------------------------------------------- #
-# test simple comparisons
-# ---------------------------------------------------------------------------- #
+test_that("effect-direction reversals preserve marginal likelihood", {
 
-test_that("simple comparisons", {
-
-  ### there should be no difference between positive and negative PET
   fit1 <- fits[["dat.lehmann2018-PET"]]
   fit2 <- fits[["dat.lehmann2018-PET_neg"]]
 
   expect_equal(bridgesampling::bf(bridge_sampler(fit2), bridge_sampler(fit1))$bf, 1, tolerance = 0.01)
 
-  ### there should be no difference between positive and negative 3PSM
   fit1 <- fits[["dat.lehmann2018-3PSM"]]
   fit2 <- fits[["dat.lehmann2018-3PSM_neg"]]
 
   expect_equal(bridgesampling::bf(bridge_sampler(fit2), bridge_sampler(fit1))$bf, 1, tolerance = 0.01)
 })
-
-# ---------------------------------------------------------------------------- #
-# logml simple function test
-# ---------------------------------------------------------------------------- #
 
 test_that("logml returns scalar log marginal likelihood, can be applied to both bridge and brma", {
 
@@ -91,10 +81,6 @@ test_that("logml returns scalar log marginal likelihood, can be applied to both 
   expect_equal(logml_result1, logml_result2, tolerance = 0.01)
 })
 
-
-# ---------------------------------------------------------------------------- #
-# bf simple function test
-# ---------------------------------------------------------------------------- #
 
 test_that("bf computes Bayes factor between two models, can be applied to both bridge and brma", {
 
@@ -114,10 +100,6 @@ test_that("bf computes Bayes factor between two models, can be applied to both b
   expect_equal(bf_result1, bf_result4, tolerance = 0.01)
 })
 
-
-# ---------------------------------------------------------------------------- #
-# post_prob simple function test
-# ---------------------------------------------------------------------------- #
 
 test_that("post_prob computes posterior model probabilities", {
 
@@ -157,7 +139,7 @@ test_that("post_prob respects prior model probabilities", {
 # error handling tests
 # ---------------------------------------------------------------------------- #
 
-test_that("bf errors with non-brma object", {
+test_that("bf rejects non-brma object", {
 
   skip_if_missing_fits("bcg_meta-analysis")
 
@@ -169,7 +151,7 @@ test_that("bf errors with non-brma object", {
 })
 
 
-test_that("post_prob errors with single model", {
+test_that("post_prob rejects single model", {
 
   skip_if_missing_fits("bcg_meta-analysis")
 
@@ -181,7 +163,7 @@ test_that("post_prob errors with single model", {
 })
 
 
-test_that("bridge_sampler errors if marglik not computed", {
+test_that("bridge_sampler rejects fits without marginal likelihood", {
 
   skip_if_missing_fits("bcg_meta-analysis")
 

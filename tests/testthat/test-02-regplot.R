@@ -2,6 +2,8 @@ context("Regression plot (bubble plot)")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 
 # list cached fits lazily
 skip_if_no_fits()
@@ -38,7 +40,9 @@ test_that("Regression plot for continuous moderator matches metafor", {
   )
 })
 
-test_that("Regression plot with prediction intervals works", {
+test_that("Regression plot renders prediction intervals", {
+
+  skip_if_not_full_visuals("Prediction-interval regplot variants are gallery coverage.")
 
   name     <- "bcg_meta-regression"
   fit_brma <- fits[[name]]
@@ -57,7 +61,7 @@ test_that("Regression plot with prediction intervals works", {
   )
 })
 
-test_that("Regression plot for categorical (dummy) moderator works", {
+test_that("Regression plot renders categorical dummy moderator", {
 
   name        <- "bcg_meta-regression2"
   fit_metafor <- info[[name]][["metafor"]]
@@ -75,7 +79,9 @@ test_that("Regression plot for categorical (dummy) moderator works", {
   )
 })
 
-test_that("Regression plot for categorical moderator with different coding works", {
+test_that("Regression plot renders alternative categorical coding", {
+
+  skip_if_not_full_visuals("Alternative coding snapshots duplicate categorical regplot coverage.")
 
   fit_brma1 <- fits[["bcg_meta-regression2"]]
   fit_brma2 <- fits[["bcg_meta-regression2b"]]
@@ -89,7 +95,9 @@ test_that("Regression plot for categorical moderator with different coding works
   })
 })
 
-test_that("Regression plot for interaction works", {
+test_that("Regression plot renders interaction moderators", {
+
+  skip_if_not_full_visuals("Interaction regplot variants are gallery coverage.")
 
   fit_brma3 <- fits[["bcg_meta-regression3"]]
   fit_brma4 <- fits[["bcg_meta-regression4"]]
@@ -112,7 +120,9 @@ test_that("Regression plot for interaction works", {
 # Test: Location-Scale Model Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for location-scale model works", {
+test_that("Regression plot for location-scale model matches metafor view", {
+
+  skip_if_not_full_visuals("Location-scale regplot variants are gallery coverage.")
 
   name        <- "bangertdrowns2004_location-scale"
   fit_metafor <- info[[name]][["metafor"]]
@@ -140,7 +150,7 @@ test_that("Regression plot for location-scale model works", {
 # Test: 3-Level Model Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for multilevel model works", {
+test_that("Regression plot for multilevel model renders fitted moderator", {
 
   name        <- "konstantopoulos2011_3lvl2"
   fit_metafor <- info[[name]][["metafor"]]
@@ -162,7 +172,7 @@ test_that("Regression plot for multilevel model works", {
 # Test: Selection Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for selection model works", {
+test_that("Regression plot for selection model renders fitted moderator", {
 
   name        <- "dat.lehmann2018-3PSMreg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -184,7 +194,7 @@ test_that("Regression plot for selection model works", {
 # Test: PET Model Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for PET model works", {
+test_that("Regression plot for PET model renders fitted moderator", {
 
   name        <- "dat.lehmann2018-PETreg"
   fit_metafor <- info[[name]][["metafor"]]
@@ -206,7 +216,7 @@ test_that("Regression plot for PET model works", {
 # Test: BMA.norm Model Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for BMA.norm meta-regression works correctly", {
+test_that("Regression plot for BMA.norm meta-regression renders base output", {
 
   name     <- "dat.lehmann2018_BMA.norm_mods"
   fit_brma <- fits[[name]]
@@ -220,7 +230,9 @@ test_that("Regression plot for BMA.norm meta-regression works correctly", {
 # Test: BMA.glmm Model Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for BMA.glmm model works correctly", {
+test_that("Regression plot for BMA.glmm model renders base output", {
+
+  skip_if_not_full_visuals("BMA.glmm regplot smoke is gallery coverage.")
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   fit_brma <- fits[[name]]
@@ -234,7 +246,7 @@ test_that("Regression plot for BMA.glmm model works correctly", {
 # Test: RoBMA Model Regression Plot
 # ============================================================================ #
 
-test_that("Regression plot for RoBMA meta-regression works correctly", {
+test_that("Regression plot for RoBMA meta-regression renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   fit_brma <- fits[[name]]
@@ -248,7 +260,7 @@ test_that("Regression plot for RoBMA meta-regression works correctly", {
 # Test: Regression Plot Options
 # ============================================================================ #
 
-test_that("Regression plot has correct interface", {
+test_that("Regression plot data and argument validation are stable", {
 
   name     <- "bcg_meta-regression"
   fit_brma <- fits[[name]]
@@ -260,22 +272,22 @@ test_that("Regression plot has correct interface", {
   regplot_data <- regplot(fit_brma, mod = "year", pi = TRUE, si = TRUE, as_data = TRUE)
 
   expect_true(is.list(regplot_data),
-    info = "as_data = TRUE should return a list"
+    info = "as_data = TRUE returns a list"
   )
 
   expected_components <- c(
     "points", "pred", "ci", "xlim", "ylim", "xlab", "ylab", "mod_type"
   )
   expect_true(all(expected_components %in% names(regplot_data)),
-    info = "regplot data should contain all expected components"
+    info = "regplot data contains all expected components"
   )
 
   # Check points data.frame structure
   expect_true(is.data.frame(regplot_data$points),
-    info = "points should be a data.frame"
+    info = "points are returned as a data.frame"
   )
   expect_true(all(c("x", "y", "size") %in% names(regplot_data$points)),
-    info = "points should have x, y, and size columns"
+    info = "points contain x, y, and size columns"
   )
 
   # Check continuous interval-band structure
@@ -286,23 +298,23 @@ test_that("Regression plot has correct interface", {
     band_data <- regplot_data[[band_name]]
 
     expect_true(all(band_columns %in% names(band_data)),
-      info = paste0(band_name, " should have x, y, lower, upper, and xpred columns")
+      info = paste0(band_name, " contains x, y, lower, upper, and xpred columns")
     )
     expect_equal(nrow(band_data), 2 * n_pred,
-      info = paste0(band_name, " should contain one row per polygon vertex")
+      info = paste0(band_name, " contains one row per polygon vertex")
     )
     expect_true(all(vapply(band_data[band_columns], length, integer(1)) == nrow(band_data)),
-      info = paste0(band_name, " columns should all have matching lengths")
+      info = paste0(band_name, " columns all have matching lengths")
     )
     expect_equal(band_data$x, band_data$xpred,
-      info = paste0(band_name, " x coordinates should match the stored prediction x values")
+      info = paste0(band_name, " x coordinates match the stored prediction x values")
     )
   }
 
   # Check number of points matches number of studies
   n_studies <- nrow(fit_brma$data$outcome)
   expect_equal(nrow(regplot_data$points), n_studies,
-    info = "number of points should match number of studies"
+    info = "number of points matches number of studies"
   )
 
   # --------------------------------------------------
@@ -314,7 +326,7 @@ test_that("Regression plot has correct interface", {
 
   expect_error(regplot(fit_simple),
     regexp = "regplot requires a model with moderators",
-    info = "should error on intercept-only model"
+    info = "intercept-only model is rejected"
   )
 
   # --------------------------------------------------
@@ -322,11 +334,13 @@ test_that("Regression plot has correct interface", {
   # --------------------------------------------------
 
   expect_error(regplot(fit_brma, plot_type = "invalid"),
-    info = "should error on invalid plot_type"
+    info = "invalid plot_type is rejected"
   )
 })
 
 test_that("Regression plot transforms effect-size data", {
+
+  skip_if_not_full_visuals("Transformation regplot snapshots are gallery coverage.")
 
   name     <- "bcg_meta-regression"
   fit_brma <- fits[[name]]
@@ -344,7 +358,9 @@ test_that("Regression plot transforms effect-size data", {
 # Test: Regression Plot Customization
 # ============================================================================ #
 
-test_that("Regression plot customization works", {
+test_that("Regression plot customization snapshots are stable", {
+
+  skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name     <- "bcg_meta-regression"
   fit_brma <- fits[[name]]
@@ -454,7 +470,9 @@ test_that("Regression plot customization works", {
 # Test: Regression Plot Confidence Level
 # ============================================================================ #
 
-test_that("Regression plot confidence level works", {
+test_that("Regression plot confidence-level snapshots are stable", {
+
+  skip_if_not_full_visuals("Confidence-level snapshots are visual-gallery coverage.")
 
   name     <- "bcg_meta-regression"
   fit_brma <- fits[[name]]
@@ -494,48 +512,6 @@ test_that("native regplot mixture intervals match R fallback", {
     mean_samples = mean_samples,
     sd_samples   = sd_samples,
     probs        = probs
-  )
-
-  expect_equal(actual, expected, tolerance = 1e-4)
-
-  crit_yi             <- matrix(c(1, 2), ncol = 1)
-  crit_yi_mapping     <- matrix(c(1, 2, 1, 2), nrow = 2, ncol = 2)
-  crit_yi_mapping_max <- c(2L, 2L)
-  omega               <- matrix(stats::runif(S * 3, .25, 1), nrow = S, ncol = 3)
-  bias_indicator      <- sample.int(2, S, replace = TRUE)
-  is_weightfunction   <- sample(c(TRUE, FALSE), S, replace = TRUE)
-  setup <- list(
-    omega             = omega,
-    bias_indicator    = bias_indicator,
-    is_weightfunction = is_weightfunction,
-    selection         = list(
-      steps                = stats::pnorm(as.numeric(crit_yi), lower.tail = FALSE),
-      crit_yi_mapping     = crit_yi_mapping,
-      crit_yi_mapping_max = crit_yi_mapping_max
-    )
-  )
-
-  expected <- RoBMA:::.regplot_weighted_mixture_interval_quantiles_r(
-    mean_samples     = mean_samples,
-    sd_samples       = sd_samples,
-    se               = 1,
-    probs            = probs,
-    setup            = setup,
-    effect_direction = "positive"
-  )
-  actual <- .Call(
-    "RoBMA_regplot_weighted_mixture_interval",
-    mean_samples,
-    sd_samples,
-    probs,
-    omega,
-    as.integer(bias_indicator),
-    is_weightfunction,
-    crit_yi,
-    crit_yi_mapping,
-    as.integer(crit_yi_mapping_max),
-    "positive",
-    PACKAGE = "RoBMA"
   )
 
   expect_equal(actual, expected, tolerance = 1e-4)

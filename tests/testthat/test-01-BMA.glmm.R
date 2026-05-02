@@ -18,17 +18,10 @@ test_that("BMA.glmm fits binomial model (OR)", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm", fit)
 
-  # check that the model fits and has the expected class
   expect_s3_class(fit, "BMA.glmm")
-
-  # check that mixture priors are present
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$mu))
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$tau))
-
-  # check that no bias prior is present
   expect_null(fit$priors$outcome$bias)
-
-  # check that summary works
   expect_no_error(summary(fit))
 })
 
@@ -48,11 +41,8 @@ test_that("BMA.glmm handles custom priors", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm_custom", fit)
 
-  # check that custom priors are applied
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$mu))
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$tau))
-
-  # tau mixture should only have alternative (no null)
   expect_equal(length(fit$priors$outcome$tau), 1)
 })
 
@@ -72,11 +62,7 @@ test_that("BMA.glmm handles 3lvl location-scale meta-regression", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm_3lvl_location_scale", fit, info = list(mods = "year", scale = "year"))
 
-  # tau mixture should only have alternative (no null)
   expect_equal(length(fit$priors$outcome$rho), 1)
   expect_equal(length(fit$priors$mods), 2)
   expect_equal(length(fit$priors$scale), 2)
 })
-
-
-# TODO: add single group models

@@ -27,6 +27,8 @@
     if (!BayesTools::is.prior.mixture(prior_list[["bias"]])) {
       if (BayesTools::is.prior.weightfunction(prior_list[["bias"]])) {
         names(prior_list)[names(prior_list) == "bias"] <- "omega"
+      } else if (.prior_has_phacking(prior_list[["bias"]])) {
+        .selection_stop_phacking_deferred()
       } else if (BayesTools::is.prior.PET(prior_list[["bias"]])) {
         names(prior_list)[names(prior_list) == "bias"] <- "PET"
       } else if (BayesTools::is.prior.PEESE(prior_list[["bias"]])) {
@@ -55,42 +57,18 @@
       fit_data[["yi"]] <- -1 * fit_data[["yi"]]
     }
 
-    # add publication bias weights mapping for selection models
+    # add selection-kernel data for selection models
     if (.is_priors_weightfunction(priors)) {
+      selection_spec <- .selection_spec(
+        priors           = priors,
+        yi               = fit_data[["yi"]],
+        sei              = fit_data[["sei"]],
+        effect_direction = effect_direction,
+        signed_data      = TRUE
+      )
 
-      # extract publication bias priors
-      priors_bias <- priors[["outcome"]][["bias"]]
+      fit_data <- c(fit_data, selection_spec[["jags_data"]])
 
-      # in the case of RoBMA, the prior is formated as prior_mixture (list of priors) while selection models, PET, and PEESE use a single prior
-      # as such standardize them to always behave like a list
-      if (!BayesTools::is.prior.mixture(priors_bias)) {
-        priors_bias <- list(priors_bias)
-        # all fitting is standardized to dwnorm_mix function
-        # if only a simple prior is defined, we need to insert bias_indicator manually
-        fit_data$bias_indicator <- 1
-      }
-
-      # create the weightfunction mapping for effect size thresholds
-      steps   <- BayesTools::weightfunctions_mapping(priors_bias[sapply(priors_bias, BayesTools::is.prior.weightfunction)], cuts_only = TRUE, one_sided = TRUE)
-      steps   <- rev(steps)[c(-1, -length(steps))]
-      crit_yi <- .create_yi_cutoffs(fit_data[["yi"]], fit_data[["sei"]], list(side = "one-sided", steps = steps))
-
-      # create the weightfunction mapping to weights (transform all weight functions to one-sided)
-      crit_yi_mapping     <- matrix(0, nrow = length(priors_bias), ncol = ncol(crit_yi))
-      crit_yi_mapping_max <- rep(0, length(priors_bias))
-      for (i in seq_along(priors_bias)) {
-        if (BayesTools::is.prior.weightfunction(priors_bias[[i]])) {
-          ### the following subsetting allows us "merge" steps with equal weights due to the construction
-          # specify indexes of the relevant steps
-          this_steps <- .get_one_sided_cuts(priors_bias[[i]])
-          crit_yi_mapping[i,1:length(this_steps)] <- which(steps %in% this_steps)
-          crit_yi_mapping_max[i] <- length(this_steps)
-        }
-      }
-
-      fit_data$crit_yi             <- t(crit_yi)
-      fit_data$crit_yi_mapping     <- t(crit_yi_mapping)
-      fit_data$crit_yi_mapping_max <- crit_yi_mapping_max
     }
 
   } else if (.data_outcome_type(data) == "bin") {
@@ -172,6 +150,17 @@
   ### create the model syntax
   model_syntax <- "model{\n"
 
+  selection_spec <- NULL
+  if (is_weightfunction) {
+    selection_spec <- .selection_spec(
+      priors           = priors,
+      yi               = data[["outcome"]][["yi"]],
+      sei              = data[["outcome"]][["sei"]],
+      effect_direction = effect_direction,
+      signed_data      = TRUE
+    )
+  }
+
   ### the main model parameters are created automatically via BayesTools::JAGS_fit
   # - mu  (!is_mods)  / mu[i]  (is_mods)
   # - tau (!is_scale) / tau[i] (is_scale)
@@ -197,6 +186,15 @@
     tau_total_node
   }
   tau_between_node <- if (is_scale) "tau_between[i]" else "tau_between"
+
+  if (is_weightfunction && isTRUE(selection_spec[["jags_use_step_switch"]])) {
+    model_syntax <- paste0(
+      model_syntax,
+      "sel_kernel_mode_active = ",
+      selection_spec[["jags_kernel_mode_expr"]],
+      "\n"
+    )
+  }
 
   ### enter the main block
   model_syntax <- paste0(model_syntax, "for(i in 1:K){\n")
@@ -246,8 +244,8 @@
   } else {
     tau_estimate <- tau_total_node
   }
-  # compute the total variance of the estimate
-  tau2_estimate <- paste0("( pow(sei[i],2) + pow(",tau_estimate,",2) )")
+  # compute the total marginal variance of the observed estimate
+  total_var_expr <- paste0("( pow(sei[i],2) + pow(", tau_estimate, ",2) )")
 
 
   ### specify model likelihood
@@ -257,20 +255,53 @@
 
     # selection and normal models for norm data outcome
     if (is_weightfunction) {
-      if (is_weights) {
+      likelihood_weight_expr <- if (is_weights) "weight[i]" else "1"
+      total_sd_node          <- "sel_total_sd[i]"
+      model_syntax           <- paste0(
+        model_syntax,
+        "  ", total_sd_node, " = ", paste0("sqrt", total_var_expr), "\n"
+      )
+      if (identical(selection_spec[["mode"]], "step") &&
+          isTRUE(selection_spec[["jags_use_step_switch"]])) {
         model_syntax <- paste0(
-          model_syntax, "  yi[i] ~ dwwnorm_mix(", mu_estimate, ",", "sqrt", tau2_estimate,
-          ", crit_yi[,i], omega, crit_yi_mapping[,bias_indicator], crit_yi_mapping_max[bias_indicator], weight[i])\n")
+          model_syntax,
+          "  yi[i] ~ dselnorm_step_switch(",
+          mu_estimate, ",", total_sd_node, ",",
+          "sei[i],", likelihood_weight_expr, ",",
+          selection_spec[["jags_omega"]], ",",
+          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
+          selection_spec[["jags_kernel_mode"]], ")\n"
+        )
+      } else if (identical(selection_spec[["mode"]], "step")) {
+        model_syntax <- paste0(
+          model_syntax,
+          "  yi[i] ~ dselnorm_step(",
+          mu_estimate, ",", total_sd_node, ",",
+          "sei[i],", likelihood_weight_expr, ",",
+          selection_spec[["jags_omega"]], ",",
+          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign)\n"
+        )
       } else {
         model_syntax <- paste0(
-          model_syntax, "  yi[i] ~ dwnorm_mix(", mu_estimate, ",", "sqrt", tau2_estimate,
-          ", crit_yi[,i], omega, crit_yi_mapping[,bias_indicator], crit_yi_mapping_max[bias_indicator])\n")
+          model_syntax,
+          "  yi[i] ~ dselnorm_kernel(",
+          mu_estimate, ",", total_sd_node, ",",
+          mu_estimate, ",", total_sd_node, ",",
+          "sei[i],", likelihood_weight_expr, ",",
+          selection_spec[["jags_omega"]], ",",
+          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
+          selection_spec[["jags_alpha"]], ",",
+          selection_spec[["jags_phack_kind"]], ",",
+          "phack_z_source,phack_z_dest,",
+          "sel_segment_bounds,sel_segment_step_bin,sel_segment_phack_region,",
+          "sel_kernel_mode)\n"
+        )
       }
     } else {
       if (is_weights) {
-        model_syntax <- paste0(model_syntax, "  yi[i] ~ dwnorm(", mu_estimate, ",", "1/", tau2_estimate, ", weight[i])\n")
+        model_syntax <- paste0(model_syntax, "  yi[i] ~ dwnorm(", mu_estimate, ",", "1/", total_var_expr, ", weight[i])\n")
       } else {
-        model_syntax <- paste0(model_syntax, "  yi[i] ~ dnorm(",  mu_estimate, ",", "1/", tau2_estimate, ")\n")
+        model_syntax <- paste0(model_syntax, "  yi[i] ~ dnorm(",  mu_estimate, ",", "1/", total_var_expr, ")\n")
       }
     }
 
@@ -293,8 +324,7 @@
     # specify appropriate likelihoods
     if (outcome_type == "bin") {
       # the observed data
-      if (is_weights){
-        stop("TODO: implement")
+      if (is_weights) {
         model_syntax <- paste0(model_syntax, "  ai[i] ~ dwbinom(p1[i], n1i[i], weight[i])\n")
         model_syntax <- paste0(model_syntax, "  ci[i] ~ dwbinom(p2[i], n2i[i], weight[i])\n")
       } else {
@@ -303,11 +333,10 @@
       }
     } else if (outcome_type == "pois") {
       # the observed data
-      if(is_weights){
-        stop("TODO: implement")
+      if (is_weights) {
         model_syntax <- paste0(model_syntax, "  x1i[i] ~ dwpois(r1[i], weight[i])\n")
         model_syntax <- paste0(model_syntax, "  x2i[i] ~ dwpois(r2[i], weight[i])\n")
-      }else{
+      } else {
         model_syntax <- paste0(model_syntax, "  x1i[i] ~ dpois(r1[i])\n")
         model_syntax <- paste0(model_syntax, "  x2i[i] ~ dpois(r2[i])\n")
       }
@@ -443,42 +472,6 @@
   return(fit)
 }
 
-# Helper functions -----
-.create_yi_cutoffs <- function(yi, sei, prior) {
-
-  # get a matrix of test-statistics for the critical values
-  crit_zi <- matrix(ncol = 0, nrow = length(yi))
-
-  if (BayesTools::is.prior.weightfunction(prior)) {
-    side  <- prior[["side"]]
-    steps <- prior[["steps"]]
-  } else {
-    side  <- prior[["side"]]
-    steps <- prior[["steps"]]
-    if (is.null(side)) {
-      side <- prior[["distribution"]]
-    }
-    if (is.null(steps)) {
-      steps <- prior[["parameters"]][["steps"]]
-    }
-    side <- gsub("\\.", "-", side)
-  }
-
-  # compute the thresholds
-  for (step in steps) {
-    if (side == "one-sided") {
-      crit_zi <- cbind(crit_zi, stats::qnorm(step,   lower.tail = FALSE))
-    } else if (side == "two-sided") {
-      crit_zi <- cbind(crit_zi, stats::qnorm(step/2, lower.tail = FALSE))
-    }
-  }
-
-  # transform the thresholds back to effect sizes
-  crit_yi <- crit_zi * matrix(sei, ncol = ncol(crit_zi), nrow = nrow(crit_zi))
-
-  return(crit_yi)
-}
-
 .is_priors_PET            <- function(priors) {
 
   if (is.null(priors[["outcome"]][["bias"]]))
@@ -505,9 +498,9 @@
     return(FALSE)
 
   if (is.prior.mixture(priors[["outcome"]][["bias"]]))
-    return(any(sapply(priors[["outcome"]][["bias"]], is.prior.weightfunction)))
+    return(any(sapply(priors[["outcome"]][["bias"]], .prior_is_selection_kernel)))
 
-  return(is.prior.weightfunction(priors[["outcome"]][["bias"]]))
+  return(.prior_is_selection_kernel(priors[["outcome"]][["bias"]]))
 }
 .is_priors_bias           <- function(priors) {
   return(.is_priors_PET(priors) || .is_priors_PEESE(priors) || .is_priors_weightfunction(priors))

@@ -23,20 +23,16 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
-#' DFFITS values are computed using a hybrid Bayesian approach. Since the leverage
-#' (hat values) is uncertain in Bayesian models (depending on \eqn{\tau^2}),
-#' we calculate the distribution of DFFITS values across posterior samples and
-#' report the posterior mean.
+#' DFFITS values are computed as a PSIS leave-one-out deletion diagnostic. For
+#' each observation \eqn{i}, the leave-one-out posterior mean fitted value at
+#' that observation is estimated with normalized PSIS weights and compared to
+#' the full-posterior fitted value:
+#' \deqn{DFFITS_i =
+#'   \frac{\hat{\mu}_i - \hat{\mu}_{i(-i)}}{SD_{(-i)}(\mu_i)}}
 #'
-#' The computation uses the LOO-PIT residuals (which account for estimation
-#' uncertainty and leverage) combined with the full posterior distribution of
-#' the hat matrix diagonals.
-#'
-#' \deqn{DFFITS_i = r_i \times \sqrt{\frac{h_i}{1 - h_i}}}
-#'
-#' where \eqn{r_i} is the LOO-PIT residual (Studentized residual) and \eqn{h_i}
-#' is the hat value (leverage). In the Bayesian implementation, this is averaged
-#' over the posterior samples of \eqn{h_i}.
+#' This targets deletion influence on fitted values directly. It does not use
+#' LOO-PIT residuals, which are predictive outlier diagnostics rather than
+#' fitted-value deletion diagnostics.
 #'
 #' @return A numeric vector of DFFITS values, one for each observation.
 #'
@@ -64,52 +60,93 @@ dffits.brma <- function(model, ...) {
       stop("dffits is not available for selection models (weightfunction).", call. = FALSE)
     }
 
-    # 1. Get rstudent (LOO-PIT residuals) - Vector of length K
-    # We use the "z" column (standardized residuals)
-    r_res <- rstudent(model)
-    rstudent_vec <- r_res[["z"]]
-
-    # 2. Get hat matrix samples (S x K)
-    # returns list(H_diag, ...)
-    hat_res <- .compute_hat_matrix_samples(
-        object             = model,
-        conditioning_depth = "marginal",
-        return_full_H      = FALSE,
-        return_se          = FALSE
-    )
-    hat_samples <- hat_res[["H_diag"]]
-    
-    # 3. Call internal function
-    dffits_vec <- .dffits_internal(rstudent_vec, hat_samples)
+    fit_samples <- .influence_fit_samples(model)
+    weights     <- loo_weights(model)
+    dffits_vec  <- .dffits_internal(fit_samples, weights)
 
     return(dffits_vec)
 }
 
-.dffits_internal <- function(rstudent_vec, hat_samples) {
-    
-    K <- length(rstudent_vec)
-    S <- nrow(hat_samples)
+.dffits_internal <- function(fit_samples, weights) {
 
-    # Broadcast: Expand the rstudent vector (Length K) into a matrix (Dimensions S x K)
-    # to match hat_samples.
-    rstudent_mat <- matrix(rstudent_vec, nrow = S, ncol = K, byrow = TRUE)
+  summary <- .psis_fit_influence_summary(fit_samples, weights)
 
-    # Leverage-one cases do not have a defined linear-model deletion diagnostic:
-    # deleting the point removes the information that identifies its fitted cell.
-    hat_samples_safe <- pmax(hat_samples, 0)
-    hat_samples_safe[hat_samples_safe >= 1 - sqrt(.Machine$double.eps)] <- NA_real_
+  delta <- summary[["full_fit"]] - diag(summary[["loo_fit"]])
+  se    <- sqrt(diag(summary[["loo_var"]]))
+  out   <- delta / se
+  out[se <= sqrt(.Machine$double.eps)] <- NA_real_
 
-    # Calculate Leverage Factor
-    # factor_{s,i} = sqrt(h_{s,i} / (1 - h_{s,i}))
-    factor_mat <- sqrt(hat_samples_safe / (1 - hat_samples_safe))
+  names(out) <- colnames(fit_samples)
 
-    # Compute Samples
-    # DFFITS_{s,i} = rstudent_i * factor_{s,i}
-    dffits_samples <- rstudent_mat * factor_mat
+  return(out)
+}
 
-    # Aggregate: Compute column means to return a vector of length K
-    dffits_vec <- colMeans(dffits_samples, na.rm = FALSE)
-    names(dffits_vec) <- names(rstudent_vec)
-    
-    return(dffits_vec)
+
+# ---------------------------------------------------------------------------- #
+# .influence_fit_samples
+# ---------------------------------------------------------------------------- #
+#
+# Posterior fitted-value samples for fixed location terms used by PSIS deletion
+# diagnostics.
+#
+# ---------------------------------------------------------------------------- #
+.influence_fit_samples <- function(model) {
+
+  data              <- model[["data"]]
+  priors            <- model[["priors"]]
+  posterior_samples <- .get_posterior_samples(model[["fit"]])
+  K                 <- nrow(data[["outcome"]])
+
+  fit_samples <- .evaluate.brma.mu(
+    fit               = model[["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(model)) .create_fit_formula_list(data = data, "mods") else NULL,
+    mods_priors       = priors[["mods"]],
+    is_mods           = .is_mods(model),
+    is_PET            = .is_PET(model),
+    is_PEESE          = .is_PEESE(model),
+    effect_direction  = .effect_direction(model),
+    bias_adjusted     = FALSE,
+    K                 = K,
+    posterior_samples = posterior_samples
+  )
+
+  colnames(fit_samples) <- .get_estimate_labels(model)
+
+  return(fit_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .psis_fit_influence_summary
+# ---------------------------------------------------------------------------- #
+#
+# Full and PSIS leave-one-out fitted-value moments.
+#
+# ---------------------------------------------------------------------------- #
+.psis_fit_influence_summary <- function(fit_samples, weights) {
+
+  if (!is.matrix(fit_samples)) {
+    fit_samples <- as.matrix(fit_samples)
+  }
+  if (!is.matrix(weights)) {
+    weights <- as.matrix(weights)
+  }
+  if (nrow(fit_samples) != nrow(weights) ||
+      ncol(fit_samples) != ncol(weights)) {
+    stop("'fit_samples' and 'weights' must have the same dimensions.",
+         call. = FALSE)
+  }
+
+  full_fit <- colMeans(fit_samples)
+  loo_fit  <- crossprod(weights, fit_samples)
+  loo_m2   <- crossprod(weights, fit_samples^2)
+  loo_var  <- pmax(loo_m2 - loo_fit^2, 0)
+
+  return(list(
+    full_fit = full_fit,
+    loo_fit  = loo_fit,
+    loo_var  = loo_var
+  ))
 }

@@ -96,6 +96,14 @@ add_marglik.brma <- function(object, ...) {
   priors <- object[["priors"]]
   fit    <- object[["fit"]]
 
+  if (.marglik_has_composed_bias(priors[["outcome"]][["bias"]])) {
+    stop(
+      "Marginal likelihood is not available for combined ",
+      "prior_bias(selection, phacking) models yet.",
+      call. = FALSE
+    )
+  }
+
   ### create arguments to be passed to BayesTools::JAGS_bridgesampling
   fit_formula_list        <- list()
   fit_formula_data_list   <- list()
@@ -105,6 +113,11 @@ add_marglik.brma <- function(object, ...) {
   ### create model base
   fit_priors <- .create_fit_priors(data = data, priors = priors)
   fit_data   <- .create_fit_data(data = data, priors = priors)
+  fit_data   <- .marglik_add_selection_bridge_data(
+    fit_data         = fit_data,
+    priors           = priors,
+    effect_direction = .data_effect_direction(data)
+  )
 
   ### add effect regressions
   if (.is_data_mods(data)) {
@@ -145,6 +158,52 @@ add_marglik.brma <- function(object, ...) {
   )
 
   return(marglik)
+}
+
+
+.marglik_has_composed_bias <- function(prior) {
+
+  if (is.null(prior)) {
+    return(FALSE)
+  }
+  if (BayesTools::is.prior.mixture(prior)) {
+    return(any(vapply(as.list(prior), .marglik_has_composed_bias, logical(1))))
+  }
+  if (!.is_prior_bias_kernel(prior)) {
+    return(FALSE)
+  }
+
+  return(.prior_has_phacking(prior))
+}
+
+
+.marglik_add_selection_bridge_data <- function(fit_data, priors, effect_direction) {
+
+  if (!.is_priors_weightfunction(priors) || is.null(fit_data[["yi"]])) {
+    return(fit_data)
+  }
+
+  selection_spec <- .selection_spec(
+    priors           = priors,
+    yi               = fit_data[["yi"]],
+    sei              = fit_data[["sei"]],
+    effect_direction = effect_direction,
+    signed_data      = TRUE
+  )
+
+  if (is.null(selection_spec)) {
+    return(fit_data)
+  }
+
+  fit_data[["sel_kernel_mode"]]           <- selection_spec[["kernel_mode"]]
+  fit_data[["sel_segment_bounds"]]        <- .selection_jags_bounds(selection_spec[["segments"]][["bounds"]])
+  fit_data[["sel_segment_step_bin"]]      <- selection_spec[["segments"]][["step_bin"]]
+  fit_data[["sel_segment_phack_region"]]  <- selection_spec[["segments"]][["phack_region"]]
+  fit_data[["sel_phack_q"]]               <- selection_spec[["phack_q"]]
+  fit_data[["sel_phack_z_source"]]        <- selection_spec[["phack_z_source"]]
+  fit_data[["sel_phack_z_dest"]]          <- selection_spec[["phack_z_dest"]]
+
+  return(fit_data)
 }
 
 
@@ -250,17 +309,13 @@ add_marglik.brma <- function(object, ...) {
 
     if (is_weightfunction) {
 
-      # weighted normal likelihood (selection models)
-      log_lik <- .outcome_pdf.wnorm(
-        yi         = data[["yi"]],
-        mu_samples = mu_samples,
-        tau_within = tau_within_samples,
-        sei        = data[["sei"]],
-        omega      = .marglik_get_omega_samples(parameters),
-        crit_yi    = data[["crit_yi"]],
-        bias_indicator      = .marglik_get_bias_indicator(parameters, data),
-        crit_yi_mapping     = data[["crit_yi_mapping"]],
-        crit_yi_mapping_max = data[["crit_yi_mapping_max"]]
+      selection_context <- .marglik_selection_context(parameters, data)
+      log_lik <- .outcome_pdf.selnorm(
+        yi                = data[["yi"]],
+        mu_samples        = mu_samples,
+        tau_within        = tau_within_samples,
+        sei               = data[["sei"]],
+        selection_context = selection_context
       )
 
     } else {
@@ -434,23 +489,68 @@ add_marglik.brma <- function(object, ...) {
 }
 
 
-#' @keywords internal
-.marglik_get_omega_samples <- function(parameters) {
+.marglik_selection_context <- function(parameters, data) {
 
-  # omega is a vector of weights from BayesTools
-  # convert to 1 x W matrix for compatibility with .dwnorm_fast.ss.matrix
-  omega <- parameters[["omega"]]
-  return(matrix(omega, nrow = 1))
-}
+  n_bins <- length(data[["sel_z_lower"]])
+  phack_z_source <- if (!is.null(data[["phack_z_source"]])) {
+    data[["phack_z_source"]]
+  } else if (!is.null(data[["sel_phack_z_source"]])) {
+    data[["sel_phack_z_source"]]
+  } else {
+    c(0, 0)
+  }
+  phack_z_dest <- if (!is.null(data[["phack_z_dest"]])) {
+    data[["phack_z_dest"]]
+  } else if (!is.null(data[["sel_phack_z_dest"]])) {
+    data[["sel_phack_z_dest"]]
+  } else {
+    c(0, 0)
+  }
+  omega <- if (!is.null(parameters[["omega"]])) {
+    matrix(parameters[["omega"]], nrow = 1)
+  } else if (!is.null(data[["sel_omega"]])) {
+    matrix(data[["sel_omega"]], nrow = 1)
+  } else {
+    matrix(1, nrow = 1, ncol = n_bins)
+  }
 
-.marglik_get_bias_indicator <- function(parameters, data) {
-  if (!is.null(parameters[["bias_indicator"]])) {
-    return(as.integer(parameters[["bias_indicator"]]))
+  alpha <- if (!is.null(parameters[["alpha"]])) parameters[["alpha"]] else {
+    if (!is.null(data[["sel_phack_alpha"]])) data[["sel_phack_alpha"]] else 0
   }
-  if (!is.null(data[["bias_indicator"]])) {
-    return(as.integer(data[["bias_indicator"]]))
+  phack_kind <- if (!is.null(parameters[["phack_kind"]])) {
+    as.integer(parameters[["phack_kind"]])
+  } else {
+    if (!is.null(data[["sel_phack_kind"]])) {
+      as.integer(data[["sel_phack_kind"]])
+    } else if (!is.null(data[["sel_phack_q"]]) &&
+               data[["sel_kernel_mode"]] %in% c(SELKERNEL_PHACK_POWER, SELKERNEL_STEP_PHACK_POWER)) {
+      as.integer(data[["sel_phack_q"]])
+    } else {
+      0L
+    }
   }
-  return(1L)
+
+  return(list(
+    kernel_mode    = data[["sel_kernel_mode"]],
+    z_lower        = data[["sel_z_lower"]],
+    z_upper        = data[["sel_z_upper"]],
+    obs_bin        = data[["sel_obs_bin"]],
+    sign           = data[["sel_sign"]],
+    n_bins         = n_bins,
+    has_step       = data[["sel_kernel_mode"]] %in% c(SELKERNEL_STEP, SELKERNEL_STEP_PHACK_POWER),
+    has_phack      = data[["sel_kernel_mode"]] %in% c(SELKERNEL_PHACK_POWER, SELKERNEL_STEP_PHACK_POWER),
+    phack_q        = if (phack_kind > 0L) phack_kind else 1L,
+    phack_z_source = phack_z_source,
+    phack_z_dest   = phack_z_dest,
+    segments       = list(
+      bounds       = data[["sel_segment_bounds"]],
+      step_bin     = data[["sel_segment_step_bin"]],
+      phack_region = data[["sel_segment_phack_region"]]
+    ),
+    omega          = omega,
+    alpha          = alpha,
+    phack_kind     = phack_kind
+  ))
 }
 
 

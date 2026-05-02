@@ -58,7 +58,7 @@ in outcome mode and ignored in residual mode.}
 sampling distribution funnel. Defaults to \code{TRUE}. Only used when
 \code{residual = FALSE} or when automatic mode selects outcome mode. Ignored
 in residual mode. When \code{TRUE} and the model
-includes selection models (weightfunction), uses weighted normal quantiles.
+includes selection models (weightfunction), uses selected-normal quantiles.
 When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 skew from these regression adjustments.}
 

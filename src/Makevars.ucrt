@@ -28,7 +28,6 @@ PKG_CXXFLAGS=
 ###  The installed major version of JAGS is needed at this stage - we try to guess this from JAGS_ROOT
 ###  If you have a non-standard JAGS install (and therefore JAGS_ROOT variable), then see the README file
 ###############
-
 # We need to introduce spaces so that we can fool word into splitting the $(JAGS_ROOT) path:
 space :=
 space +=
@@ -71,37 +70,14 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 -llapack
 ### Objects to be compiled
 ### NB: the objects in distributions/jags are only necessary for JAGS <=3, and are excluded by the sources when compiling against JAGS >= 4
 ###############
-
-OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
- 		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
-		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
+OBJECTS = distributions/DWN.o \
 		  distributions/DWB.o \
-		  distributions/DWNMIX.o distributions/DWWNMIX.o \
-		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
-		  transformations/omega.o \
-		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
-		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
-		  r-wmnorm.o r-glmm.o r-regplot.o init.o RoBMA.o testRoBMA.o
-
-###############
-
-
-
-###############
-#### If you still have compilation problems (after reading README) then you can use the following code instead.  Deleting everything above this line and uncomment the two relevant lines below.
-###############
-
-# PKG_CPPFLAGS=-I"$(JAGS_ROOT)/include"
-# PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-4 -llapack
-# OBJECTS = distributions/DMN.o distributions/DWMN1.o distributions/DWMN2.o distributions/DMNv.o distributions/DWMN1v.o distributions/DWMN2v.o \
-#		  distributions/DWN1.o distributions/DWN2.o distributions/DWT1.o distributions/DWT2.o  \
-#		  distributions/DWN.o distributions/DWWN1.o distributions/DWWN2.o \
-#		  distributions/DWB.o \
-#		  distributions/DWNMIX.o distributions/DWWNMIX.o \
-#		  transformations/z.o transformations/r.o transformations/d.o transformations/logOR.o  \
-#		  transformations/omega.o \
-#		  functions/wmnorm.o functions/mnorm.o matrix/matrix.o \
-#		  source/tools.o source/mnorm.o source/wmnorm.o source/transformations.o \
-#		  init.o RoBMA.o testRoBMA.o
+		  distributions/DWP.o \
+		  distributions/DSELNORMSTEP.o \
+		  distributions/DSELNORMSTEPSWITCH.o \
+		  distributions/DSELNORMKERNEL.o \
+		  matrix/matrix.o \
+		  source/selnorm.o \
+		  r-glmm.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############

@@ -36,7 +36,7 @@ specified model, these residuals should follow a standard normal distribution.
 This is the recommended standardized residual for Bayesian models as it properly
 accounts for estimation uncertainty and leverage. Available for all model
 types. Note: This requires that the loo has been computed previously (see
-\code{\link[=add_loo]{add_loo()}} function).
+\code{add_loo()} function).
 }}
 
 \item{unit}{output unit. Only \code{"estimate"} is implemented currently..}

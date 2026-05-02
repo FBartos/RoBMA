@@ -2,6 +2,8 @@ context("Radial (Galbraith) plot")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-test-matrix.R"))
+source(testthat::test_path("helper-visuals.R"))
 
 # list cached fits lazily
 skip_if_no_fits()
@@ -56,7 +58,7 @@ test_that("Radial plot for simple meta-analysis matches metafor structure", {
 # Test: 3-Level Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for 3-level model works correctly", {
+test_that("Radial plot for 3-level model renders brma outputs", {
 
   name     <- "konstantopoulos2011_3lvl"
   fit_brma <- fits[[name]]
@@ -77,7 +79,7 @@ test_that("Radial plot for 3-level model works correctly", {
 # Test: GLMM Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for GLMM model works correctly", {
+test_that("Radial plot for GLMM model renders brma outputs", {
 
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
@@ -96,7 +98,7 @@ test_that("Radial plot for GLMM model works correctly", {
 # Test: Selection Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for selection model works correctly", {
+test_that("Radial plot for selection model renders brma outputs", {
 
   name     <- "dat.lehmann2018-3PSM"
   fit_brma <- fits[[name]]
@@ -115,7 +117,7 @@ test_that("Radial plot for selection model works correctly", {
 # Test: PET Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for PET model works correctly", {
+test_that("Radial plot for PET model renders brma outputs", {
 
   name     <- "dat.lehmann2018-PET"
   fit_brma <- fits[[name]]
@@ -134,7 +136,7 @@ test_that("Radial plot for PET model works correctly", {
 # Test: BMA.norm Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for BMA.norm model works correctly", {
+test_that("Radial plot for BMA.norm model renders base output", {
 
   name     <- "dat.lehmann2018_BMA.norm"
   fit_brma <- fits[[name]]
@@ -148,7 +150,7 @@ test_that("Radial plot for BMA.norm model works correctly", {
 # Test: BMA.glmm Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for BMA.glmm model works correctly", {
+test_that("Radial plot for BMA.glmm model renders base output", {
 
   name     <- "bcg_BMA.glmm"
   fit_brma <- fits[[name]]
@@ -162,7 +164,7 @@ test_that("Radial plot for BMA.glmm model works correctly", {
 # Test: RoBMA Model Radial Plot
 # ============================================================================ #
 
-test_that("Radial plot for RoBMA model works correctly", {
+test_that("Radial plot for RoBMA model renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
@@ -182,14 +184,14 @@ test_that("Radial plot errors on unsupported model types", {
   expect_error(
     radial(fits[["bcg_meta-regression"]]),
     "moderators",
-    info = "should error on meta-regression model"
+    info = "meta-regression model is rejected"
   )
 
   # location-scale model (has both mods and scale, moderator check fires first)
   expect_error(
     radial(fits[["bangertdrowns2004_location-scale"]]),
     "moderators",
-    info = "should error on location-scale model"
+    info = "location-scale model is rejected"
   )
 })
 
@@ -198,7 +200,7 @@ test_that("Radial plot errors on unsupported model types", {
 # Test: Radial Plot Interface
 # ============================================================================ #
 
-test_that("Radial plot has correct interface", {
+test_that("Radial plot data and alias interface are stable", {
 
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]
@@ -210,7 +212,7 @@ test_that("Radial plot has correct interface", {
   radial_data <- radial(fit_brma, as_data = TRUE)
 
   expect_true(is.list(radial_data),
-    info = "as_data = TRUE should return a list"
+    info = "as_data = TRUE returns a list"
   )
 
   expected_components <- c(
@@ -218,21 +220,21 @@ test_that("Radial plot has correct interface", {
     "ci_arc", "ci_ticks", "xlim", "zlim"
   )
   expect_true(all(expected_components %in% names(radial_data)),
-    info = "radial data should contain all expected components"
+    info = "radial data contains all expected components"
   )
 
   # Check points data.frame structure
   expect_true(is.data.frame(radial_data$points),
-    info = "points should be a data.frame"
+    info = "points are returned as a data.frame"
   )
   expect_true(all(c("x", "z") %in% names(radial_data$points)),
-    info = "points should have x and z columns"
+    info = "points contain x and z columns"
   )
 
   # Check number of points matches number of studies
   n_studies <- nrow(fit_brma$data$outcome)
   expect_equal(nrow(radial_data$points), n_studies,
-    info = "number of points should match number of studies"
+    info = "number of points matches number of studies"
   )
 
   # --------------------------------------------------
@@ -242,13 +244,13 @@ test_that("Radial plot has correct interface", {
   radial_data_centered <- radial(fit_brma, center = TRUE, as_data = TRUE)
 
   expect_true(radial_data_centered$center,
-    info = "center flag should be TRUE when centering"
+    info = "center flag is TRUE when centering"
   )
 
   # centered z-values should differ from non-centered
   expect_false(
     all(abs(radial_data$points$z - radial_data_centered$points$z) < 1e-10),
-    info = "centering should change z-axis values"
+    info = "centering changes z-axis values"
   )
 
   # --------------------------------------------------
@@ -256,7 +258,7 @@ test_that("Radial plot has correct interface", {
   # --------------------------------------------------
 
   expect_error(radial(fit_brma, plot_type = "invalid"),
-    info = "should error on invalid plot_type"
+    info = "invalid plot_type is rejected"
   )
 
   # --------------------------------------------------
@@ -265,7 +267,7 @@ test_that("Radial plot has correct interface", {
 
   galbraith_data <- galbraith(fit_brma, as_data = TRUE)
   expect_equal(radial_data, galbraith_data,
-    info = "galbraith() should produce same output as radial()"
+    info = "galbraith() produces same output as radial()"
   )
 })
 
@@ -274,7 +276,9 @@ test_that("Radial plot has correct interface", {
 # Test: Radial Plot Customization
 # ============================================================================ #
 
-test_that("Radial plot customization works", {
+test_that("Radial plot customization snapshots are stable", {
+
+  skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name     <- "bcg_meta-analysis"
   fit_brma <- fits[[name]]

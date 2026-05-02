@@ -48,8 +48,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For unweighted normal models without selection this uses the
-#' analytic cluster block covariance. Selection, weighted normal, and GLMM
-#' models integrate the held-out cluster effect with Gauss-Hermite quadrature.
+#' analytic cluster block covariance. Selection, data-weighted normal, and
+#' GLMM models integrate the held-out cluster effect with Gauss-Hermite
+#' quadrature.
 #'
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
@@ -88,6 +89,7 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \insertCite{vehtari2017practical}{RoBMA}
 #' \insertCite{vehtari2024pareto}{RoBMA}
 #'
+#' @aliases add_loo
 #' @export
 add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FALSE) {
   unit <- .normalize_unit(unit)
