@@ -132,24 +132,24 @@ adjusted for simultaneous inference across all \eqn{k} comparisons.
 }
 \examples{
 \dontrun{
-# Simple meta-analysis
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-fit <- add_loo(fit)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
+  fit <- add_loo(fit)
 
-# Default QQ plot (rstudent/LOO-PIT residuals)
-qqnorm(fit)
-
-# Using rstandard residuals (normal models only)
-qqnorm(fit, type = "rstandard")
-
-# Without confidence envelope
-qqnorm(fit, envelope = FALSE)
-
-# Using ggplot2
-qqnorm(fit, plot_type = "ggplot")
-
-# Custom appearance
-qqnorm(fit, pch = 19, col = "blue", shade = "lightblue")
+  qqnorm(fit)
+  qqnorm(fit, type = "rstandard")
+  qqnorm(fit, envelope = FALSE)
+  qqnorm(fit, plot_type = "ggplot")
+  qqnorm(fit, pch = 19, col = "blue", shade = "lightblue")
+}
 }
 
 }

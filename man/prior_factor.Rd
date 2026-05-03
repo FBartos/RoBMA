@@ -27,6 +27,5 @@ prior_factor(
 An object of class \code{prior}.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior_factor}} for
-creating priors on factor contrasts.
+Create priors on factor contrasts.
 }

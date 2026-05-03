@@ -25,9 +25,13 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Defaults to \code{RoBMA.get_option("silent")}.}
+\item{silent}{logical. Whether to suppress output. For \code{brma()} and
+\code{brma.glmm()}, a missing value uses \code{RoBMA.get_option("silent")}.
+Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
 
-\item{...}{additional arguments.}
+\item{...}{additional advanced arguments. Fitting functions reject unused
+arguments; currently recognized internal arguments include \code{only_data},
+\code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
 }
 \description{
 The \code{brma} family of functions uses the following arguments to specify the

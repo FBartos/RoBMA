@@ -56,18 +56,15 @@ out-of-sample predictive performance. This evaluates how well models predict
 }
 \examples{
 \dontrun{
-# Fit a brma model
-fit <- brma(yi = yi, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
-# Compute and store LOO-PSIS
-fit <- add_loo(fit)
-
-# Extract LOO object
-loo_fit <- loo(fit)
-print(loo_fit)
-
-# Check Pareto k diagnostics
-plot(loo_fit)
+  fit <- add_loo(fit)
+  loo_fit <- loo(fit)
+  print(loo_fit)
+  plot(loo_fit)
+}
 }
 
 }

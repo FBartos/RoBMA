@@ -183,16 +183,18 @@ test_that("Residuals for BMA.norm fits are internally consistent", {
 
 test_that("Residuals for BMA.glmm fits are internally consistent", {
 
-  model_names <- c("bcg_BMA.glmm", "bcg_BMA.glmm_3lvl_location_scale")
+  model_names <- c("bcg_BMA.glmm", "nielweise2008_BMA.glmm", "bcg_BMA.glmm_3lvl_location_scale")
   skip_if_missing_fits(model_names)
 
-  fit_brma <- fits[["bcg_BMA.glmm"]]
-  n        <- nobs(fit_brma)
+  for (name in c("bcg_BMA.glmm", "nielweise2008_BMA.glmm")) {
+    fit_brma <- fits[[name]]
+    n        <- nobs(fit_brma)
 
-  expect_residual_vector(residuals(fit_brma), n)
-  expect_error(residuals(fit_brma, type = "pearson"), "normal outcome models")
-  expect_error(rstandard(fit_brma), "normal outcome models")
-  expect_residual_table(suppressWarnings(rstudent(fit_brma)), n)
+    expect_residual_vector(residuals(fit_brma), n)
+    expect_error(residuals(fit_brma, type = "pearson"), "normal outcome models")
+    expect_error(rstandard(fit_brma), "normal outcome models")
+    expect_residual_table(suppressWarnings(rstudent(fit_brma)), n)
+  }
 
   fit_3lvl <- fits[["bcg_BMA.glmm_3lvl_location_scale"]]
   n_3lvl   <- nrow(fit_3lvl[["data"]][["outcome"]])

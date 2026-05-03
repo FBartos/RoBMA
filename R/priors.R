@@ -1,7 +1,7 @@
 #' @title Prior Distribution
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior}} for creating
-#' prior distribution objects.
+#' @description Create prior distribution objects used by RoBMA and brma
+#' fitting functions.
 #'
 #' @param distribution character. Prior distribution name.
 #' @param parameters list. Distribution parameters.
@@ -10,13 +10,20 @@
 #'
 #' @return An object of class \code{prior}.
 #'
+#' @examples
+#' prior("normal", list(mean = 0, sd = 0.5))
+#' prior(
+#'   "normal",
+#'   list(mean = 0, sd = 0.5),
+#'   truncation = list(lower = 0, upper = Inf)
+#' )
+#'
 #' @export
 prior <- BayesTools::prior
 
 #' @title Empty Prior
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior_none}} for
-#' omitting a model component.
+#' @description Create an empty prior used to omit a model component.
 #'
 #' @inheritParams prior
 #'
@@ -27,8 +34,7 @@ prior_none <- BayesTools::prior_none
 
 #' @title Factor Prior
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior_factor}} for
-#' creating priors on factor contrasts.
+#' @description Create priors on factor contrasts.
 #'
 #' @inheritParams prior
 #' @param contrast character. Contrast coding used for factor levels.
@@ -40,8 +46,7 @@ prior_factor <- BayesTools::prior_factor
 
 #' @title PET Prior
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior_PET}} for PET
-#' publication-bias regression priors.
+#' @description Create PET publication-bias regression priors.
 #'
 #' @inheritParams prior
 #'
@@ -52,8 +57,7 @@ prior_PET  <- BayesTools::prior_PET
 
 #' @title PEESE Prior
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior_PEESE}} for
-#' PEESE publication-bias regression priors.
+#' @description Create PEESE publication-bias regression priors.
 #'
 #' @inheritParams prior
 #'
@@ -64,8 +68,8 @@ prior_PEESE <- BayesTools::prior_PEESE
 
 #' @title Weightfunction Prior
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior_weightfunction}}
-#' and its weight-prior helper constructors.
+#' @description Create weightfunction publication-bias priors and their
+#' weight-prior helper objects.
 #'
 #' @param side character. Either \code{"one-sided"} or \code{"two-sided"}.
 #' @param steps numeric vector of p-value cut points.
@@ -77,6 +81,14 @@ prior_PEESE <- BayesTools::prior_PEESE
 #'
 #' @return \code{prior_weightfunction()} returns an object of class
 #' \code{prior}; the \code{wf_*()} helpers return weight-prior objects.
+#'
+#' @examples
+#' prior_weightfunction("one-sided", steps = 0.025)
+#' prior_weightfunction(
+#'   side    = "one-sided",
+#'   steps   = c(0.025, 0.5),
+#'   weights = wf_fixed(c(1, 0.8, 0.6))
+#' )
 #'
 #' @export
 prior_weightfunction <- BayesTools::prior_weightfunction
@@ -100,8 +112,7 @@ wf_independent <- BayesTools::wf_independent
 
 #' @title Informed Prior
 #'
-#' @description Thin re-export of \code{\link[BayesTools]{prior_informed}} for
-#' empirical informed prior distributions.
+#' @description Create empirical informed prior distributions.
 #'
 #' @param name character. Informed prior name.
 #' @param parameter character. Optional parameter subset.
@@ -133,7 +144,7 @@ prior_informed <- BayesTools::prior_informed
 #'     k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n if \code{contrasts = FALSE}.}
 #'   \item{\code{contr.meandif}}{Return a matrix of mean difference contrasts.
 #'     This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
-#'     distributions on difference between the gran mean and factor level are identical independent
+#'     distributions on difference between the grand mean and factor level are identical independent
 #'     of the number of factor levels (which does not hold for the orthonormal contrast). Furthermore,
 #'     the contrast is re-scaled so the specified prior distribution exactly corresponds to the prior
 #'     distribution on difference between each factor level and the grand mean -- this is approximately

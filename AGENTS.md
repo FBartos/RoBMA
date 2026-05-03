@@ -10,7 +10,7 @@ RoBMA (Robust Bayesian Meta-Analysis) is an R package for estimating ensembles o
 
 - **Backend**: JAGS (via `runjags`/`rjags`) with custom C++ module for specialized distributions
 - **Core Dependency**: `BayesTools` (handles priors, plotting, diagnostics, and generic Bayesian infrastructure)
-- **Algorithms**: Two estimation approaches: `"bridge"` (bridge sampling, default) and `"ss"` (spike-and-slab approximation)
+- **Estimation**: Refactored JAGS product-space fitting; no legacy algorithm-selection fitting path in active RoBMA.
 
 **System Requirement**: JAGS 4.3.1+ must be installed (https://mcmc-jags.sourceforge.io/)
 

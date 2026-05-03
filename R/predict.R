@@ -3,6 +3,8 @@
 #' @description \code{predict.brma} predicts values
 #'
 #' @inheritParams summary.brma
+#' @param probs quantiles of the posterior samples to be displayed when the
+#' returned `brma_samples` object is printed. Defaults to `c(.025, .975)`.
 #' @param newdata specification for prediction data. Defaults to \code{NULL} which
 #' corresponds to prediction for the observed data. Alternatives are:
 #' \itemize{
@@ -68,6 +70,8 @@
 #' RoBMA product-space objects. For location predictions, samples are conditioned
 #' on the effect component; for \code{type = "terms.scale"}, samples are
 #' conditioned on the heterogeneity component.
+#' @param quiet logical; whether to suppress informational messages about
+#' prediction scale and bias adjustment.
 #'
 #' @details
 #' \strong{Type hierarchy:}
@@ -88,7 +92,41 @@
 #' metafor's predict function, use \code{type = "terms"} for the mean effect size
 #' and \code{type = "estimate"} for true effects (prediction interval).
 #'
+#' \strong{Likelihood weights:} If the model was fitted with \code{weights},
+#' the weights affect the posterior fit, log-likelihood, LOO/WAIC, and
+#' existing-data conditional diagnostics such as BLUP shrinkage and leverage.
+#' They do not change the observation-level sampling error used by
+#' \code{type = "response"} for normal models: response predictions simulate
+#' raw future effect-size estimates with the supplied \code{sei}, not
+#' \code{sei / sqrt(weight)}.
+#'
 #' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE) &&
+#'     requireNamespace("metafor", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'   dat <- metafor::escalc(
+#'     measure = "RR",
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     data    = dat.bcg
+#'   )
+#'
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     mods    = ~ ablat + year,
+#'     data    = dat,
+#'     measure = "RR",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   predict(fit, type = "terms")
+#'   predict(fit, newdata = TRUE, type = "terms")
+#'   predict(fit, type = "estimate")
+#' }
 #' }
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
@@ -263,8 +301,12 @@ predict.brma <- function(object, newdata = NULL,
   }
 
   ### extract MCMC chain info for brma_samples construction
-  n_chains <- length(object[["fit"]][["mcmc"]])
-  n_iter   <- object[["fit"]][["sample"]]
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
+  n_chains <- chain_info[["n_chains"]]
+  n_iter   <- chain_info[["n_iter"]]
 
   ### return only tau samples if type = "terms.scale" is selected
   if (type == "terms.scale") {
@@ -764,10 +806,14 @@ predict.brma <- function(object, newdata = NULL,
   )
   sample_matrix <- as.matrix(samples)[keep, , drop = FALSE]
 
+  if (nrow(sample_matrix) == 0L) {
+    stop("No posterior samples remain after conditioning.", call. = FALSE)
+  }
+
   return(.new_brma_samples(
     samples          = sample_matrix,
-    n_chains         = attr(samples, "nchains"),
-    n_iter           = attr(samples, "niter"),
+    n_chains         = 1L,
+    n_iter           = nrow(sample_matrix),
     title            = paste("Conditional", attr(samples, "title")),
     probs            = attr(samples, "probs"),
     data             = attr(samples, "data"),

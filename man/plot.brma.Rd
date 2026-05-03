@@ -28,8 +28,18 @@ are \code{"tau"} (for the heterogeneity),
 \code{"weightfunction"} (for the estimated weightfunction),
 or \code{"PET-PEESE"} (for the PET-PEESE regression).}
 
+\item{parameter_mods}{character. Moderator term to plot. Use
+\code{"intercept"} for the adjusted effect in meta-regression models.}
+
+\item{parameter_scale}{character. Scale-regression term to plot. Use
+\code{"intercept"} for the heterogeneity intercept in location-scale models.}
+
 \item{prior}{whether prior distribution should be added to
 figure. Defaults to \code{FALSE}.}
+
+\item{standardized_coefficients}{whether to plot moderator and
+scale-regression coefficients on the standardized predictor scale. Defaults
+to \code{FALSE}.}
 
 \item{conditional}{whether to plot the conditional posterior distribution
 for RoBMA product-space objects. Defaults to \code{FALSE}.}
@@ -66,7 +76,7 @@ respectively.}
 }
 \value{
 \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
 }
 \description{
 \code{plot.brma} visualizes posterior
@@ -74,6 +84,14 @@ or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
 }
 \examples{
 \dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+
+  plot(fit, parameter = "mu")
+  plot(fit, parameter = "tau", prior = TRUE)
+  plot(fit, parameter = "PET")
+}
 }
 
 

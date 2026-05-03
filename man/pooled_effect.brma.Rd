@@ -62,11 +62,19 @@ For models without moderators, this returns the single mu parameter.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
 
-# get pooled effect
-pooled_effect(fit)
+  pooled_effect(fit)
+}
 }
 
 }

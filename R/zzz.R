@@ -70,7 +70,7 @@
 
   # tricking the dyn.library unload
   if(!is.null(RoBMA.private$lib_name)){
-    library.dynam("RoBMA", "RoBMA", RoBMA.private$lib_name)
+    library.dynam.unload("RoBMA", "RoBMA", RoBMA.private$lib_name)
   }
 
   # Just in case it is not always safe to try and access an element of an env that is in the process of being deleted (when R quits):
@@ -134,7 +134,6 @@
   # Register methods for brma class
   .s3_register("loo::loo",         "brma")
   .s3_register("loo::loo_compare", "brma")
-  .s3_register("loo::loo_compare", "loo")
 
   invisible(NULL)
 }

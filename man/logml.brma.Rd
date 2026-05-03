@@ -2,6 +2,7 @@
 % Please edit documentation in R/bridgesampling.R
 \name{logml.brma}
 \alias{logml.brma}
+\alias{logml}
 \title{Log Marginal Likelihood for brma Objects}
 \usage{
 \method{logml}{brma}(x, ...)
@@ -24,13 +25,14 @@ object that was previously computed and stored using \code{\link{add_marglik}}.
 }
 \examples{
 \dontrun{
-fit <- brma(y = d, se = se, data = Bem2011)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
-# Compute marginal likelihood first
-fit <- add_marglik(fit)
+  fit <- add_marglik(fit)
 
-# Get log marginal likelihood
-logml(fit)
+  logml(fit)
+}
 }
 
 }

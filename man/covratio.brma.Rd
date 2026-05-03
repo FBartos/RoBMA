@@ -2,6 +2,7 @@
 % Please edit documentation in R/covratio.R
 \name{covratio.brma}
 \alias{covratio.brma}
+\alias{covratio}
 \title{COVRATIO for brma Objects}
 \usage{
 \method{covratio}{brma}(model, type = "mods", ...)
@@ -10,7 +11,8 @@
 \item{model}{a fitted brma object.}
 
 \item{type}{type of parameters to be summarized. Defaults to \code{"mods"}
-(for the effect size and meta-regression coefficients).}
+(for the effect size and meta-regression coefficients). Use \code{"scale"}
+for heterogeneity and scale-regression coefficients.}
 
 \item{...}{additional arguments (currently ignored).}
 }
@@ -31,15 +33,19 @@ leave-one-out covariance matrices without refitting the model.
 Values > 1 indicate that the observation improves precision (decreases
 variance), while values < 1 indicate that the observation decreases precision
 (increases variance).
+If any included parameter has zero posterior variance, the covariance
+determinant is zero and COVRATIO is undefined. In that case, values are
+reported as \code{NaN} with a printed note naming the affected parameters.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-fit <- add_loo(fit)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit <- add_loo(fit)
 
-# compute COVRATIO
-covratio(fit)
+  covratio(fit)
+}
 }
 
 }

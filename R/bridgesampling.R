@@ -65,16 +65,18 @@ bayes_factor <- function(x1, x2, log = FALSE, ...) UseMethod("bayes_factor")
 #'
 #' @examples
 #' \dontrun{
-#' fit <- brma(y = d, se = se, data = Bem2011)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 #'
-#' # Compute marginal likelihood first
-#' fit <- add_marglik(fit)
+#'   fit <- add_marglik(fit)
 #'
-#' # Extract bridge sampling object
-#' bridge <- bridge_sampler(fit)
-#' print(bridge)
+#'   bridge <- bridge_sampler(fit)
+#'   print(bridge)
+#' }
 #' }
 #'
+#' @aliases bridge_sampler
 #' @export
 #' @exportS3Method bridgesampling::bridge_sampler
 bridge_sampler.brma <- function(samples, ...) {
@@ -107,15 +109,17 @@ bridge_sampler.brma <- function(samples, ...) {
 #'
 #' @examples
 #' \dontrun{
-#' fit <- brma(y = d, se = se, data = Bem2011)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 #'
-#' # Compute marginal likelihood first
-#' fit <- add_marglik(fit)
+#'   fit <- add_marglik(fit)
 #'
-#' # Get log marginal likelihood
-#' logml(fit)
+#'   logml(fit)
+#' }
 #' }
 #'
+#' @aliases logml
 #' @export
 #' @exportS3Method bridgesampling::logml
 logml.brma <- function(x, ...) {
@@ -150,19 +154,25 @@ logml.brma <- function(x, ...) {
 #'
 #' @examples
 #' \dontrun{
-#' fit1 <- brma(y = d, se = se, data = Bem2011)
-#' fit2 <- brma(
-#'   y = d, se = se, data = Bem2011,
-#'   priors = prior(family = "point", value = 0, parameter = "mu")
-#' )
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit1 <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit2 <- brma(
+#'     yi           = yi,
+#'     vi           = vi,
+#'     data         = dat.lehmann2018,
+#'     measure      = "SMD",
+#'     prior_effect = FALSE
+#'   )
 #'
-#' # Compute marginal likelihoods
-#' fit1 <- add_marglik(fit1)
-#' fit2 <- add_marglik(fit2)
+#'   fit1 <- add_marglik(fit1)
+#'   fit2 <- add_marglik(fit2)
 #'
-#' post_prob(fit1, fit2)
+#'   post_prob(fit1, fit2)
+#' }
 #' }
 #'
+#' @aliases post_prob
 #' @export
 #' @exportS3Method bridgesampling::post_prob
 post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
@@ -232,19 +242,25 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 #'
 #' @examples
 #' \dontrun{
-#' fit1 <- brma(y = d, se = se, data = Bem2011)
-#' fit2 <- brma(
-#'   y = d, se = se, data = Bem2011,
-#'   priors = prior(family = "point", value = 0, parameter = "mu")
-#' )
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit1 <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit2 <- brma(
+#'     yi           = yi,
+#'     vi           = vi,
+#'     data         = dat.lehmann2018,
+#'     measure      = "SMD",
+#'     prior_effect = FALSE
+#'   )
 #'
-#' # Compute marginal likelihoods
-#' fit1 <- add_marglik(fit1)
-#' fit2 <- add_marglik(fit2)
+#'   fit1 <- add_marglik(fit1)
+#'   fit2 <- add_marglik(fit2)
 #'
-#' bf(fit1, fit2)
+#'   bf(fit1, fit2)
+#' }
 #' }
 #'
+#' @aliases bf bayes_factor
 #' @export
 #' @exportS3Method bridgesampling::bf
 bf.brma <- function(x1, x2, log = FALSE, ...) {

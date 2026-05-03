@@ -54,11 +54,19 @@ the partitioned I^2 follows the approach described in the metafor documentation.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
 
-# get heterogeneity summary
-summary_heterogeneity(fit)
+  summary_heterogeneity(fit)
+}
 }
 
 }

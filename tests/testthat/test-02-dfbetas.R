@@ -60,9 +60,11 @@ test_that("DFBETAS for PET and PEESE expose publication-bias terms", {
       "dat.lehmann2018-PET",
       "dat.lehmann2018-PETreg",
       "dat.lehmann2018-PET_neg",
-      "dat.lehmann2018-PEESE"
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESEreg",
+      "dat.lehmann2018-PEESE_neg"
     ),
-    column = c("PET", "PET", "PET", "PEESE"),
+    column = c("PET", "PET", "PET", "PEESE", "PEESE", "PEESE"),
     stringsAsFactors = FALSE
   )
   skip_if_missing_fits(bias_cases[["name"]])
@@ -97,11 +99,12 @@ test_that("DFBETAS for model-averaging fits are internally consistent", {
       "dat.lehmann2018_BMA.norm_mods",
       "dat.lehmann2018_BMA.norm_scale",
       "bcg_BMA.glmm",
+      "nielweise2008_BMA.glmm",
       "dat.lehmann2018_RoBMA_mods",
       "dat.lehmann2018_RoBMA_3lvl_mods_scale"
     ),
-    type = c(NA, NA, "scale", NA, NA, NA),
-    min_cols = c(1, 2, 2, 1, 1, 1),
+    type = c(NA, NA, "scale", NA, NA, NA, NA),
+    min_cols = c(1, 2, 2, 1, 1, 1, 1),
     stringsAsFactors = FALSE
   )
   skip_if_missing_fits(c(cases[["name"]], "dat.lehmann2018_RoBMA"))

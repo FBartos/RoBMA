@@ -2,12 +2,15 @@
 % Please edit documentation in R/loo.R
 \name{check_loo.brma}
 \alias{check_loo.brma}
+\alias{check_loo}
 \title{Check LOO Diagnostics for brma Objects}
 \usage{
 \method{check_loo}{brma}(object, unit = "estimate", ...)
 }
 \arguments{
 \item{object}{a brma model object.}
+
+\item{unit}{output/deletion unit. See \code{\link{add_loo}}.}
 
 \item{...}{currently unused.}
 }

@@ -24,6 +24,15 @@ prior(
 An object of class \code{prior}.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior}} for creating
-prior distribution objects.
+Create prior distribution objects used by RoBMA and brma
+fitting functions.
+}
+\examples{
+prior("normal", list(mean = 0, sd = 0.5))
+prior(
+  "normal",
+  list(mean = 0, sd = 0.5),
+  truncation = list(lower = 0, upper = Inf)
+)
+
 }

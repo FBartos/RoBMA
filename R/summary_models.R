@@ -8,7 +8,20 @@
 #'   (\code{"marginal"}) or individual model combinations (\code{"individual"}).
 #' @param ... additional arguments
 #'
-#' @return A list of class \code{summary_models.RoBMA}.
+#' @return A list of class \code{summary_models.RoBMA}. For
+#' `type = "marginal"`, it contains marginal component tables. For
+#' `type = "individual"`, it contains a table of individual model
+#' combinations and posterior probabilities.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   summary_models(fit)
+#'   summary_models(fit, type = "individual")
+#' }
+#' }
 #'
 #' @export
 summary_models <- function(object, ...) {
@@ -62,6 +75,8 @@ summary_models.RoBMA <- function(object, type = "marginal", ...) {
   return(output)
 }
 
+#' @rdname summary_models
+#' @param x a `summary_models.RoBMA` object.
 #' @export
 print.summary_models.RoBMA <- function(x, ...) {
 

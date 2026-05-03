@@ -2,6 +2,7 @@
 % Please edit documentation in R/marglik.R
 \name{add_marglik.brma}
 \alias{add_marglik.brma}
+\alias{add_marglik}
 \title{Add Marginal Likelihood to brma Objects}
 \usage{
 \method{add_marglik}{brma}(object, ...)
@@ -30,17 +31,17 @@ use predictive comparison methods such as \code{\link{loo.brma}} instead.
 }
 \examples{
 \dontrun{
-fit <- brma(y = d, se = se, data = Bem2011)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
-# Compute and store marginal likelihood
-fit <- add_marglik(fit)
+  fit <- add_marglik(fit)
 
-# Extract bridge sampling object
-bridge <- bridge_sampler(fit)
-print(bridge)
+  bridge <- bridge_sampler(fit)
+  print(bridge)
 
-# Get log marginal likelihood
-logml(fit)
+  logml(fit)
+}
 }
 
 }

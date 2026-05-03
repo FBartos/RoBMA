@@ -13,6 +13,5 @@ prior_none(prior_weights = 1)
 An object of class \code{prior}.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior_none}} for
-omitting a model component.
+Create an empty prior used to omit a model component.
 }

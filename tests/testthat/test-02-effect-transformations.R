@@ -21,6 +21,30 @@ expect_effect_transform_matches_metafor <- function(input_measure, output_measur
   )
 }
 
+expect_effect_jacobian_matches_numeric <- function(input_measure, values,
+                                                   output_measure = NULL,
+                                                   transform = NULL) {
+
+  info           <- .effect_output_setup_measure(
+    input_measure  = input_measure,
+    output_measure = output_measure,
+    transform      = transform
+  )
+  transformation <- info[["transformation"]]
+  step           <- 1e-6
+  expected       <- (
+    transformation[["fun"]](values + step) -
+    transformation[["fun"]](values - step)
+  ) / (2 * step)
+
+  expect_equal(
+    transformation[["jac"]](values),
+    expected,
+    tolerance = 1e-5,
+    info      = paste(input_measure, "to", info[["output_measure"]], "uses forward Jacobian")
+  )
+}
+
 test_that("effect-size measure transformations match metafor", {
 
   d_values <- c(-1, 0, 1)
@@ -109,6 +133,61 @@ test_that("effect-size measure transformations match metafor", {
   )
 })
 
+test_that("effect-size transformations use forward Jacobians", {
+
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "SMD",
+    output_measure = "COR",
+    values         = c(-1, 0, 1)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "COR",
+    output_measure = "SMD",
+    values         = c(-0.4, 0, 0.4)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "COR",
+    output_measure = "ZCOR",
+    values         = c(-0.4, 0, 0.4)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "ZCOR",
+    output_measure = "COR",
+    values         = c(-0.5, 0, 0.5)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "SMD",
+    output_measure = "OR",
+    values         = c(-1, 0, 1)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "OR",
+    output_measure = "SMD",
+    values         = c(-1, 0, 1)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure = "RR",
+    transform     = "EXP",
+    values        = c(log(0.5), 0, log(2))
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "SMD",
+    output_measure = "OR",
+    transform      = "EXP",
+    values         = c(-1, 0, 1)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "SMD",
+    output_measure = "ZCOR",
+    values         = c(-1, 0, 1)
+  )
+  expect_effect_jacobian_matches_numeric(
+    input_measure  = "OR",
+    output_measure = "COR",
+    values         = c(-1, 0, 1)
+  )
+})
+
 test_that("EXP is explicit for log-scale ratio output", {
 
   log_values <- c(log(0.5), 0, log(2))
@@ -151,6 +230,31 @@ test_that("non-core measures are not converted across measures", {
   expect_equal(
     .transform_effect_vector(c(0, log(2)), info),
     metafor::transf.exp.int(c(0, log(2)), targs = list(tau2 = 0))
+  )
+})
+
+test_that("plot transformations match BayesTools density Jacobian convention", {
+
+  original_x    <- c(-1, 0, 1)
+  transformed_x <- exp(original_x)
+  info          <- .effect_output_setup_measure(
+    input_measure = "RR",
+    transform     = "EXP"
+  )
+
+  expect_warning(
+    density_y <- BayesTools:::.density.prior_transformation_y(
+      x              = transformed_x,
+      y              = rep(1, length(transformed_x)),
+      transformation = .effect_plot_transformation(info)
+    ),
+    NA
+  )
+
+  expect_equal(
+    density_y,
+    1 / transformed_x,
+    tolerance = sqrt(.Machine$double.eps)
   )
 })
 

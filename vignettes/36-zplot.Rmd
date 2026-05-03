@@ -41,10 +41,10 @@ data("Weingarten2018", package = "RoBMA")
 Weingarten2018 <- Weingarten2018[Weingarten2018$standard_paradigm & Weingarten2018$proximal_dataset, ]
 fit_RE_Weingarten2018 <- NoBMA(r = Weingarten2018$r_xy, n = round(Weingarten2018$N), cluster = Weingarten2018$paper_id,
                            priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                           algorithm = "ss", sample = 10000, burnin = 10000, adapt = 10000, 
+                           sample = 10000, burnin = 10000, adapt = 10000, 
                            chains = 5, parallel = TRUE, seed = 1, save = "min")
 fit_RoBMA_Weingarten2018 <- RoBMA(r = Weingarten2018$r_xy, n = round(Weingarten2018$N), cluster = Weingarten2018$paper_id,
-                              algorithm = "ss", sample = 10000, burnin = 10000, adapt = 10000,
+                              sample = 10000, burnin = 10000, adapt = 10000,
                               chains = 5, parallel = TRUE, seed = 1, save = "min")
 
 zcurve_RE_Weingarten2018    <- as_zcurve(fit_RE_Weingarten2018)
@@ -58,10 +58,10 @@ saveRDS(zcurve_RoBMA_Weingarten2018, file = "../models/zcurve/zcurve_RoBMA_Weing
 data("Hoppen2025", package = "RoBMA")
 fit_RE_Hoppen2025 <- NoBMA(d = Hoppen2025$d, se = sqrt(Hoppen2025$v), 
                            priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                           algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                           sample = 10000, burnin = 5000, adapt = 5000, 
                            chains = 5, parallel = TRUE, seed = 1, save = "min")
 fit_RoBMA_Hoppen2025 <- RoBMA(d = Hoppen2025$d, se = sqrt(Hoppen2025$v), 
-                              algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                              sample = 10000, burnin = 5000, adapt = 5000, 
                               chains = 5, parallel = TRUE, seed = 1, save = "min")
 
 zcurve_RE_Hoppen2025    <- as_zcurve(fit_RE_Hoppen2025)
@@ -75,10 +75,10 @@ data("Wang2025", package = "RoBMA")
 Wang2025 <- Wang2025[Wang2025$Learning_effect == "Learning performance", ]
 fit_RE_Wang2025 <- NoBMA(d = Wang2025$g, se = Wang2025$se, 
                          priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                         algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                         sample = 10000, burnin = 5000, adapt = 5000, 
                          chains = 5, parallel = TRUE, seed = 1, save = "min")
 fit_RoBMA_Wang2025 <- RoBMA(d = Wang2025$g, se = Wang2025$se, 
-                            algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                            sample = 10000, burnin = 5000, adapt = 5000, 
                             chains = 5, parallel = TRUE, seed = 1, save = "min")
 
 zcurve_RE_Wang2025    <- as_zcurve(fit_RE_Wang2025)
@@ -91,10 +91,10 @@ saveRDS(zcurve_RoBMA_Wang2025, file = "../models/zcurve/zcurve_RoBMA_Wang2025.RD
 data("ManyLabs16", package = "RoBMA")
 fit_RE_ManyLabs16 <- NoBMA(d = ManyLabs16$y, se = ManyLabs16$se, 
                            priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                           algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                           sample = 10000, burnin = 5000, adapt = 5000, 
                            chains = 5, parallel = TRUE, seed = 1, save = "min")
 fit_RoBMA_ManyLabs16 <- RoBMA(d = ManyLabs16$y, se = ManyLabs16$se, 
-                              algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                              sample = 10000, burnin = 5000, adapt = 5000, 
                               chains = 5, parallel = TRUE, seed = 1, save = "min")
 
 zcurve_RE_ManyLabs16    <- as_zcurve(fit_RE_ManyLabs16)
@@ -173,7 +173,7 @@ The z-curve diagnostic workflow consists of the following steps:
 
 Note that when using `NoBMA()` to fit a standard random-effects model we need to set `priors_effect_null = NULL` and `priors_heterogeneity_null = NULL` to disable model averaging across null hypotheses. 
 This ensures we fit a single random-effects model rather than a Bayesian model-averaged ensemble.
-The z-curve plot is implemented only for models fitted using the spike-and-slab algorithm specified via `algorithm = "ss"`.
+The z-curve plot works with fitted `brma`/`RoBMA` objects that retain the posterior quantities required by `as_zcurve()`.
 
 ## Applied Examples
 
@@ -218,13 +218,13 @@ we specify a multilevel random-effects model using `NoBMA()` and a multilevel pu
 fit_RE_Weingarten2018 <- NoBMA(r = Weingarten2018$r_xy, n = round(Weingarten2018$N), 
                                cluster = Weingarten2018$paper_id,
                                priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                               algorithm = "ss", sample = 10000, burnin = 10000, adapt = 10000, 
+                               sample = 10000, burnin = 10000, adapt = 10000, 
                                chains = 5, parallel = TRUE, seed = 1)
 
 # Fit RoBMA model (adjusted for publication bias)
 fit_RoBMA_Weingarten2018 <- RoBMA(r = Weingarten2018$r_xy, n = round(Weingarten2018$N), 
                                   cluster = Weingarten2018$paper_id,
-                                  algorithm = "ss", sample = 10000, burnin = 10000, adapt = 10000,
+                                  sample = 10000, burnin = 10000, adapt = 10000,
                                   chains = 5, parallel = TRUE, seed = 1)
 ```
 
@@ -342,12 +342,12 @@ We fit both a random-effects model using `NoBMA()` and a publication bias-adjust
 # Fit random-effects model (unadjusted for publication bias)
 fit_RE_Hoppen2025 <- NoBMA(d = Hoppen2025$d, se = sqrt(Hoppen2025$v), 
                            priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                           algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                           sample = 10000, burnin = 5000, adapt = 5000, 
                            chains = 5, parallel = TRUE, seed = 1)
 
 # Fit RoBMA model (adjusted for publication bias)
 fit_RoBMA_Hoppen2025 <- RoBMA(d = Hoppen2025$d, se = sqrt(Hoppen2025$v), 
-                              algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                              sample = 10000, burnin = 5000, adapt = 5000, 
                               chains = 5, parallel = TRUE, seed = 1)
 ```
 
@@ -458,10 +458,10 @@ head(Wang2025)
 # Fit models
 fit_RE_Wang2025 <- NoBMA(d = Wang2025$g, se = Wang2025$se, 
                          priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                         algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                         sample = 10000, burnin = 5000, adapt = 5000, 
                          chains = 5, parallel = TRUE, seed = 1)
 fit_RoBMA_Wang2025 <- RoBMA(d = Wang2025$g, se = Wang2025$se, 
-                            algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                            sample = 10000, burnin = 5000, adapt = 5000, 
                             chains = 5, parallel = TRUE, seed = 1)
 
 # Create z-curve objects
@@ -549,10 +549,10 @@ head(ManyLabs16)
 # Fit models and create z-curve objects
 fit_RE_ManyLabs16 <- NoBMA(d = ManyLabs16$y, se = ManyLabs16$se, 
                            priors_effect_null = NULL, priors_heterogeneity_null = NULL,
-                           algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                           sample = 10000, burnin = 5000, adapt = 5000, 
                            chains = 5, parallel = TRUE, seed = 1)
 fit_RoBMA_ManyLabs16 <- RoBMA(d = ManyLabs16$y, se = ManyLabs16$se, 
-                              algorithm = "ss", sample = 10000, burnin = 5000, adapt = 5000, 
+                              sample = 10000, burnin = 5000, adapt = 5000, 
                               chains = 5, parallel = TRUE, seed = 1)
 
 zcurve_RE_ManyLabs16    <- as_zcurve(fit_RE_ManyLabs16)

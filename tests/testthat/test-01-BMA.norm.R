@@ -3,6 +3,7 @@ context("Model fitting for BMA.norm")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()
+skip_if_not_installed("metadat")
 skip_refit_if_cached("BMA.norm")
 
 
@@ -11,6 +12,7 @@ test_that("BMA.norm handles default model", {
   fit <- BMA.norm(
     yi = yi, vi = vi,
     data = dat.lehmann2018, measure = "SMD",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
@@ -32,6 +34,7 @@ test_that("BMA.norm handles custom priors", {
     prior_effect_null = prior("spike", list(location = 0)),
     prior_heterogeneity = prior("normal", list(mean = 0, sd = 0.25), truncation = list(lower = 0)),
     prior_heterogeneity_null = NULL,  # no null hypothesis for heterogeneity
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
@@ -49,6 +52,7 @@ test_that("BMA.norm handles meta-regression", {
   fit <- BMA.norm(
     yi = yi, vi = vi, mods = ~ Preregistered,
     data = dat.lehmann2018, measure = "SMD",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
@@ -63,6 +67,7 @@ test_that("BMA.norm handles scale-regression", {
   fit <- suppressWarnings(BMA.norm(
     yi = yi, vi = vi, scale = ~ Preregistered,
     data = dat.lehmann2018, measure = "SMD",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )) # suppress warning about removing spike at heterogeneity
   fit <- suppressWarnings(add_loo(fit))

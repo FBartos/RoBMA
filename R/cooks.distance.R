@@ -32,12 +32,13 @@
 #' @return A numeric vector of Cook's distance values, one for each observation.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
-#' fit <- add_loo(fit)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit <- add_loo(fit)
 #'
-#' # compute Cook's distance
-#' cooks.distance(fit)
+#'   cooks.distance(fit)
+#' }
 #' }
 #'
 #' @seealso \code{\link{influence.brma}}, \code{\link{dffits.brma}}, \code{\link{hatvalues.brma}}

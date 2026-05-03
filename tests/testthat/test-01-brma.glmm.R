@@ -28,7 +28,7 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
   fit_reg.brma <- brma.glmm(ai = tpos, bi = tneg, ci = cpos, di = cneg, mods = ~ alloc, data = dat.bcg, measure = "OR", seed = 1, silent = TRUE)
   fit_reg.brma <- add_marglik(fit_reg.brma)
   fit_reg.brma <- suppressWarnings(add_loo(fit_reg.brma))
-  save_fit("bcg_glmm_reg", fit_reg.brma, info = list(mods = c("ablat"), metafor = fit_reg.metafor))
+  save_fit("bcg_glmm_reg", fit_reg.brma, info = list(mods = c("alloc"), metafor = fit_reg.metafor))
   expect_s3_class(fit_reg.brma, "brma.glmm")
 
 
@@ -46,7 +46,13 @@ test_that("brma.glmm fits binomial and Poisson metafor-reference models", {
 test_that("brma.glmm handles multilevel scale regression model", {
   # using RoBMA package
   data(dat.bcg, package = "metadat")
-  fit_simple.brma <- brma.glmm(ai = tpos, bi = tneg, ci = cpos, di = cneg, scale = ~ year, cluster = alloc, data = dat.bcg, measure = "OR", seed = 1, silent = TRUE)
+  fit_simple.brma <- brma.glmm(
+    ai = tpos, bi = tneg, ci = cpos, di = cneg,
+    scale = ~ year, cluster = alloc,
+    data = dat.bcg, measure = "OR",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    seed = 1, silent = TRUE
+  )
   fit_simple.brma <- add_marglik(fit_simple.brma)
   fit_simple.brma <- suppressWarnings(add_loo(fit_simple.brma))
   save_fit("bcg_glmm_3lvl_scale", fit_simple.brma, info = list(scale = c("year")))

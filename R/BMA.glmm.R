@@ -24,7 +24,29 @@
 #' When \code{weights} are supplied, they are treated as likelihood weights on
 #' the paired two-arm study contribution.
 #'
-#' @return \code{BMA.glmm} returns an object of class \code{"BMA.glmm"}.
+#' @return A fitted object of class
+#' `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`. The object contains checked
+#' `data`, checked mixture `priors`, the JAGS `fit`, cached `summary`, and
+#' cached `coefficients`.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'
+#'   fit <- BMA.glmm(
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     data    = dat.bcg,
+#'     measure = "OR",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#' }
+#' }
 #'
 #' @seealso [brma.glmm()] [RoBMA()] [summary.brma()] [plot.brma()]
 #' @export

@@ -6,7 +6,12 @@
 \title{412 effect sizes from a meta-analysis of secondary benefits of family-based treatments
 by \insertCite{johnides2025secondary;textual}{RoBMA}}
 \format{
-A data.frame with 3 columns and 412 observations.
+A data.frame with 3 columns and 412 observations:
+\describe{
+\item{\code{study}}{Study label.}
+\item{\code{d}}{Cohen's d effect size.}
+\item{\code{se}}{Standard error of d.}
+}
 }
 \usage{
 Johnides2025

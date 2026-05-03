@@ -14,7 +14,7 @@
 #'
 #' @details
 #' The conversion reconstructs the MCMC chain structure from the stored
-#' \code{n_chains} and \code{n_iter} attributes. The samples are assumed
+#' \code{nchains} and \code{niter} attributes. The samples are assumed
 #' to be ordered with chains concatenated (i.e., all iterations from chain 1,
 #' then all from chain 2, etc.).
 #'
@@ -114,7 +114,7 @@ as_draws_rvars.brma_samples <- function(x, ...) {
 #' @return An \code{mcmc.list} object suitable for conversion to posterior
 #' draws formats.
 #'
-#' @keywords internal
+#' @noRd
 .brma_samples_to_mcmc.list <- function(x) {
 
   n_chains <- attr(x, "nchains")
@@ -122,6 +122,14 @@ as_draws_rvars.brma_samples <- function(x, ...) {
 
   # convert to plain matrix
   samples_mat <- as.matrix(x)
+
+  if (length(n_chains) != 1L || length(n_iter) != 1L ||
+      is.na(n_chains) || is.na(n_iter) ||
+      n_chains < 1L || n_iter < 1L ||
+      n_chains * n_iter != nrow(samples_mat)) {
+    stop("Invalid brma_samples chain metadata: 'nchains * niter' must equal the number of sample rows.",
+         call. = FALSE)
+  }
 
   # split into chains
   # samples are ordered: chain1_iter1, ..., chain1_iterN, chain2_iter1, ..., etc.

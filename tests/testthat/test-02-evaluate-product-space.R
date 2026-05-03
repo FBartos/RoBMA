@@ -163,6 +163,7 @@ test_that("product-space posterior indicators have expected columns and valid ra
     "dat.lehmann2018_BMA.norm_mods",
     "dat.lehmann2018_BMA.norm_scale",
     "bcg_BMA.glmm",
+    "nielweise2008_BMA.glmm",
     "bcg_BMA.glmm_3lvl_location_scale",
     "dat.lehmann2018_RoBMA",
     "dat.lehmann2018_RoBMA_3lvl_mods_scale"

@@ -2,6 +2,7 @@
 % Please edit documentation in R/bridgesampling.R
 \name{post_prob.brma}
 \alias{post_prob.brma}
+\alias{post_prob}
 \title{Posterior Model Probabilities for brma Objects}
 \usage{
 \method{post_prob}{brma}(x, ..., prior_prob = NULL, model_names = NULL)
@@ -33,17 +34,22 @@ All models must be fitted to the same \code{yi}/\code{sei} target.
 }
 \examples{
 \dontrun{
-fit1 <- brma(y = d, se = se, data = Bem2011)
-fit2 <- brma(
-  y = d, se = se, data = Bem2011,
-  priors = prior(family = "point", value = 0, parameter = "mu")
-)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit1 <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit2 <- brma(
+    yi           = yi,
+    vi           = vi,
+    data         = dat.lehmann2018,
+    measure      = "SMD",
+    prior_effect = FALSE
+  )
 
-# Compute marginal likelihoods
-fit1 <- add_marglik(fit1)
-fit2 <- add_marglik(fit2)
+  fit1 <- add_marglik(fit1)
+  fit2 <- add_marglik(fit2)
 
-post_prob(fit1, fit2)
+  post_prob(fit1, fit2)
+}
 }
 
 }

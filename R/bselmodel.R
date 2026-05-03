@@ -6,6 +6,34 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @param steps numeric vector of one-sided p-value cut points for the
+#' selection model. If omitted, the default is `0.025`, yielding intervals
+#' `[0, .025]` and `(.025, 1]`.
+#'
+#' @return A fitted object of class `c("bselmodel", "brma")` containing a
+#' single Bayesian selection model fit.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- bselmodel(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     steps   = 0.025,
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#'   funnel(fit)
+#' }
+#' }
+#'
+#' @seealso [RoBMA()], [bPET()], [bPEESE()], [summary.brma()],
+#' [funnel.brma()]
 #' @export
 bselmodel <- function(
     # input specification
@@ -34,8 +62,12 @@ bselmodel <- function(
 ) {
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "bselmodel()"
+  )
   object       <- .createObject(
     dots = dots, class = c("bselmodel", "brma"),
     # MCMC and fitting settings

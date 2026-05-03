@@ -17,8 +17,7 @@ prior_informed(name, parameter = NULL, type = "smd")
 An object of class \code{prior}.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior_informed}} for
-empirical informed prior distributions.
+Create empirical informed prior distributions.
 }
 \details{
 Further details can be found in \insertCite{erp2017estimates;textual}{RoBMA},

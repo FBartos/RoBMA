@@ -71,18 +71,15 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \code{\link[loo]{loo_compare}}, \code{\link[loo]{pareto_k_ids}}
 #'
 #' @examples \dontrun{
-#' # Fit a brma model
-#' fit <- brma(yi = yi, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 #'
-#' # Compute and store LOO-PSIS
-#' fit <- add_loo(fit)
-#'
-#' # Extract LOO object
-#' loo_fit <- loo(fit)
-#' print(loo_fit)
-#'
-#' # Check Pareto k diagnostics
-#' plot(loo_fit)
+#'   fit <- add_loo(fit)
+#'   loo_fit <- loo(fit)
+#'   print(loo_fit)
+#'   plot(loo_fit)
+#' }
 #' }
 #'
 #' @references
@@ -203,6 +200,7 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #'
 #' @seealso \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}
 #'
+#' @aliases add_waic
 #' @export
 add_waic.brma <- function(object, unit = "estimate", ...) {
   unit <- .normalize_unit(unit)
@@ -266,17 +264,17 @@ loo <- function(x, ...) UseMethod("loo")
 #' \code{\link[loo]{loo_compare}}, \code{\link[loo]{pareto_k_ids}}
 #'
 #' @examples \dontrun{
-#' # Fit a brma model
-#' fit <- brma(yi = yi, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit <- add_loo(fit)
 #'
-#' # Compute LOO-PSIS (must be called first)
-#' fit <- add_loo(fit)
-#'
-#' # Extract LOO object
-#' loo_fit <- loo(fit)
-#' print(loo_fit)
+#'   loo_fit <- loo(fit)
+#'   print(loo_fit)
+#' }
 #' }
 #'
+#' @aliases loo
 #' @export
 loo.brma <- function(x, unit = "estimate", ...) {
   return(.check_loo_target(x, unit = unit))
@@ -356,21 +354,21 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}
 #'
 #' @examples \dontrun{
-#' # Fit models with and without publication bias adjustment
-#' fit_bias <- RoBMA(yi = yi, sei = sei, data = dat)
-#' fit_nobias <- BMA(yi = yi, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
 #'
-#' # Add LOO to both models
-#' fit_bias <- add_loo(fit_bias)
-#' fit_nobias <- add_loo(fit_nobias)
+#'   fit_bias <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit_nobias <- BMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 #'
-#' # Compare models based on expected out-of-sample predictive performance
-#' loo_compare(fit_bias, fit_nobias)
+#'   fit_bias <- add_loo(fit_bias)
+#'   fit_nobias <- add_loo(fit_nobias)
 #'
-#' # Alternatively, compare loo objects directly
-#' loo_compare(loo(fit_bias), loo(fit_nobias))
+#'   loo_compare(fit_bias, fit_nobias)
+#'   loo_compare(loo(fit_bias), loo(fit_nobias))
+#' }
 #' }
 #'
+#' @aliases loo_compare
 #' @export
 loo_compare.brma <- function(x, ..., unit = "estimate") {
   unit <- .normalize_unit(unit)
@@ -477,6 +475,7 @@ waic <- function(x, ...) UseMethod("waic")
 #'
 #' @seealso \code{\link{add_waic}}, \code{\link{loo.brma}}, \code{\link[loo]{waic}}
 #'
+#' @aliases waic
 #' @export
 waic.brma <- function(x, unit = "estimate", ...) {
   return(.check_waic_target(x, unit = unit))
@@ -502,6 +501,7 @@ loo_weights <- function(object, ...) UseMethod("loo_weights")
 #'
 #' @return A matrix of normalized PSIS weights.
 #'
+#' @aliases loo_weights
 #' @exportS3Method
 loo_weights.brma <- function(object, unit = "estimate", ...) {
   # extract loo
@@ -529,10 +529,12 @@ check_loo <- function(object, ...) UseMethod("check_loo")
 #' warn if any values are high.
 #'
 #' @param object a brma model object.
+#' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... currently unused.
 #'
 #' @return NULL (throws warning if diagnostics are unreliable).
 #'
+#' @aliases check_loo
 #' @exportS3Method
 check_loo.brma <- function(object, unit = "estimate", ...) {
   # extract loo

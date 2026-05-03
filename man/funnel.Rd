@@ -2,6 +2,7 @@
 % Please edit documentation in R/funnel.R
 \name{funnel.brma}
 \alias{funnel.brma}
+\alias{funnel}
 \title{Funnel Plot for brma Object}
 \usage{
 \method{funnel}{brma}(
@@ -138,31 +139,36 @@ data using formulas equivalent to \code{metafor::escalc}.
 }
 \examples{
 \dontrun{
-# Simple meta-analysis: outcome mode (observed effect sizes vs fitted
-# sampling distribution)
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-funnel(fit)
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
 
-# Force residual mode even for simple model
-funnel(fit, residual = TRUE)
+  fit <- brma(yi = yi, vi = vi, data = dat, measure = "RR")
+  funnel(fit)
+  funnel(fit, pch = 19, col = "blue", bg = "lightblue")
 
-# Meta-regression: automatically uses residual mode with LOO-PIT residuals
-fit_reg <- brma(yi ~ mod, sei = sei, data = dat)
-funnel(fit_reg)
+  fit_reg <- brma(
+    yi      = yi,
+    vi      = vi,
+    mods    = ~ ablat + year,
+    data    = dat,
+    measure = "RR"
+  )
+  fit_reg <- add_loo(fit_reg)
+  funnel(fit_reg)
+  funnel(fit_reg, type = "outcome")
 
-# Different residual types
-funnel(fit_reg, type = "LOO-PIT")
-funnel(fit_reg, type = "outcome")
-
-# Customize appearance
-funnel(fit, pch = 19, col = "blue", bg = "lightblue")
-funnel(fit, back = "lightgrey", shade = "white", lty = "dashed")
-
-# Return plotting data instead of drawing the figure
-funnel_data <- funnel(fit, as_data = TRUE)
-
-# using ggplot2
-funnel(fit, plot_type = "ggplot")
+  funnel_data <- funnel(fit, as_data = TRUE)
+  funnel(fit, plot_type = "ggplot")
+}
 }
 
 }

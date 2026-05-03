@@ -81,8 +81,6 @@ for an overview or explore them directly:
   outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
 - [Fitting custom meta-analytic
   ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
-- [Fast Robust Bayesian Meta-Analysis via Spike and Slab
-  Algorithm](https://fbartos.github.io/RoBMA/articles/FastRoBMA.html)
 - [Z-Curve Publication Bias
   Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html)
 
@@ -121,8 +119,6 @@ The 3.0 version brings several features to the package:
   `marginal_summary()` and `marginal_plot()` function
 - prediction intervals, I^2, and H^2 statistics using
   `summary_heterogeneity()` function
-- the spike and slab algorithm for faster model estimation via the
-  `algorithm = "ss"` argument
 
 The 2.0 version brought several updates to the package:
 
@@ -190,8 +186,6 @@ First, we load the package and the data set included in the package.
 library(RoBMA)
 #> Loading required namespace: runjags
 #> Loading required namespace: mvtnorm
-#> RoBMA version 3.3 now features spike-and-slab style model-averaging via the 'algorithm = "ss"' argument.
-#> See 'vignette("FastRoBMA", package = "RoBMA")' for more details ('algorithm = "ss"' argument will become the default setting in the future major release of the package).
 
 data("Bem2011", package = "RoBMA")
 Bem2011

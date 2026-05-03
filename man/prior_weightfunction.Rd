@@ -48,6 +48,15 @@ wf_independent(prior, scale = "omega")
 \code{prior}; the \code{wf_*()} helpers return weight-prior objects.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior_weightfunction}}
-and its weight-prior helper constructors.
+Create weightfunction publication-bias priors and their
+weight-prior helper objects.
+}
+\examples{
+prior_weightfunction("one-sided", steps = 0.025)
+prior_weightfunction(
+  side    = "one-sided",
+  steps   = c(0.025, 0.5),
+  weights = wf_fixed(c(1, 0.8, 0.6))
+)
+
 }

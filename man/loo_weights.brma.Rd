@@ -2,6 +2,7 @@
 % Please edit documentation in R/loo.R
 \name{loo_weights.brma}
 \alias{loo_weights.brma}
+\alias{loo_weights}
 \title{Extract Normalized PSIS Weights from brma Object}
 \usage{
 \method{loo_weights}{brma}(object, unit = "estimate", ...)

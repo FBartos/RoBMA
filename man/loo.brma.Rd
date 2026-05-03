@@ -2,6 +2,7 @@
 % Please edit documentation in R/loo.R
 \name{loo.brma}
 \alias{loo.brma}
+\alias{loo}
 \title{LOO-PSIS for brma Objects}
 \usage{
 \method{loo}{brma}(x, unit = "estimate", ...)
@@ -28,15 +29,14 @@ an error is thrown.
 }
 \examples{
 \dontrun{
-# Fit a brma model
-fit <- brma(yi = yi, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit <- add_loo(fit)
 
-# Compute LOO-PSIS (must be called first)
-fit <- add_loo(fit)
-
-# Extract LOO object
-loo_fit <- loo(fit)
-print(loo_fit)
+  loo_fit <- loo(fit)
+  print(loo_fit)
+}
 }
 
 }

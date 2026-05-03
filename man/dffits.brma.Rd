@@ -2,6 +2,7 @@
 % Please edit documentation in R/dffits.R
 \name{dffits.brma}
 \alias{dffits.brma}
+\alias{dffits}
 \title{DFFITS for brma Objects}
 \usage{
 \method{dffits}{brma}(model, ...)
@@ -34,12 +35,13 @@ fitted-value deletion diagnostics.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-fit <- add_loo(fit)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit <- add_loo(fit)
 
-# compute DFFITS
-dffits(fit)
+  dffits(fit)
+}
 }
 
 }

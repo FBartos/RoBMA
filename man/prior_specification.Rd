@@ -57,7 +57,10 @@ Defaults to \code{NULL}.}
 Defaults to \code{NULL}.}
 }
 \description{
-Prior distributions must be specified for all model parameters.
+Prior distributions can be supplied for all model parameters. When omitted,
+the fitting functions construct defaults from the effect-size measure, sample
+sizes, or informed-prior settings when available.
+
 This typically includes the pooled effect \eqn{\mu} and between-study heterogeneity
 \eqn{\tau}. In the case of meta-regression, the pooled effect \eqn{\mu} corresponds to
 the intercept, and additional prior distributions for the regression coefficients

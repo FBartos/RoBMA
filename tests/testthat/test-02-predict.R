@@ -54,6 +54,45 @@ test_that("Predictions for equivalent interaction parameterizations match", {
   )
 })
 
+test_that("Newdata prediction preserves duplicate rows and rejects novel factor levels", {
+
+  skip_if_missing_fits(c("bcg_meta-regression", "bcg_meta-regression2"))
+
+  fit_cont <- fits[["bcg_meta-regression"]]
+  newdata_cont <- data.frame(
+    ablat = c(10, 10, 70),
+    year  = c(1950, 1950, 1980)
+  )
+  pred_cont <- predict(
+    fit_cont,
+    newdata = newdata_cont,
+    type    = "terms",
+    quiet   = TRUE
+  )
+  pred_single <- predict(
+    fit_cont,
+    newdata = newdata_cont[3, , drop = FALSE],
+    type    = "terms",
+    quiet   = TRUE
+  )
+
+  expect_equal(unname(pred_cont[, 1]), unname(pred_cont[, 2]),
+               info = "duplicated newdata rows produce identical predictions")
+  expect_equal(unname(pred_cont[, 3]), unname(pred_single[, 1]),
+               info = "newdata row order is preserved")
+
+  fit_factor <- fits[["bcg_meta-regression2"]]
+  old_levels <- levels(fit_factor[["data"]][["mods"]][["alloc"]])
+  newdata_factor <- data.frame(
+    alloc = factor("not-in-training", levels = c(old_levels, "not-in-training"))
+  )
+
+  expect_error(
+    predict(fit_factor, newdata = newdata_factor, type = "terms", quiet = TRUE),
+    info = "novel factor levels are rejected"
+  )
+})
+
 test_that("Wrapper functions have correct interface", {
 
   name <- "bcg_meta-analysis"
@@ -168,6 +207,7 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
   product_names <- c(
     "dat.lehmann2018_BMA.norm",
     "bcg_BMA.glmm",
+    "nielweise2008_BMA.glmm",
     "dat.lehmann2018_RoBMA"
   )
   skip_if_missing_fits(product_names)

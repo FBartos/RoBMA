@@ -12,12 +12,12 @@
 \item{...}{additional arguments (currently ignored)}
 }
 \value{
-A matrix of hat values with dimensions \code{S x K}, where \code{S} is the number
-of posterior samples and \code{K} is the number of observations.
+A numeric vector of length \code{K}, one posterior mean leverage per
+observation.
 }
 \description{
 Computes hat values (leverages) from a fitted brma object.
-Returns a matrix of hat values, one for each observation and each posterior sample.
+Returns posterior mean leverages, one for each observation.
 }
 \details{
 Hat values (leverages) measure the influence of each observation on the
@@ -28,19 +28,29 @@ This function computes the diagonal elements of the hat matrix:
 \deqn{h_i = (X (X^T W X)^{-1} X^T W)_{ii}}
 where \eqn{W} is the weight matrix inverse to the marginal variance matrix.
 
-The result is a matrix of coordinates, where rows correspond to posterior samples
-and columns correspond to observations.
+The hat matrix is computed for each posterior draw and then averaged over
+draws, matching the vector output shape used by \code{metafor}.
+
+This method is available only for normal outcome models without
+weightfunction selection.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
 
-# get hat values
-hv <- hatvalues(fit)
-
-# compute posterior mean leverage
-colMeans(hv)
+  fit <- brma(yi = yi, vi = vi, data = dat, measure = "RR")
+  hatvalues(fit)
+}
 }
 
 }

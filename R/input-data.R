@@ -1,36 +1,56 @@
 #' @title Input Data Specification
 #' @name data_input
 #' @description
-#' The following variables can be used to specify the input data for the
-#' \code{\link{brma}}, \code{\link{brma.glmm}}, \code{\link{bselmodel}},
-#' or other fitting functions.
+#' Shared data-input arguments used by the RoBMA fitting functions.
 #'
-#' @param yi a vector of effect sizes.
-#' @param vi a vector of sampling variances.
-#' @param sei a vector of standard errors.
+#' Normal models use approximate effect-size estimates supplied through
+#' `yi` with either `vi` or `sei`. GLMM models use the raw two-arm count
+#' arguments for binomial (`measure = "OR"`) or Poisson (`measure = "IRR"`)
+#' outcomes.
+#'
+#' @param yi a vector of effect sizes, or a formula with the effect size on the
+#' left-hand side and location moderators on the right-hand side (for example
+#' `yi ~ x1 + x2`). If a formula is supplied, `mods` is ignored.
+#' @param vi a vector of sampling variances. Either `vi` or `sei` must be
+#' supplied for normal models.
+#' @param sei a vector of standard errors. Either `vi` or `sei` must be
+#' supplied for normal models.
 #' @param weights an optional vector of positive likelihood weights. For normal
 #' models, each weight powers the estimate likelihood. For GLMM models, each
 #' weight powers the paired two-arm likelihood for one study.
-#' @param ni an optional vector of sample sizes (used for `measuer = "GEN"`
+#' @param ni an optional vector of sample sizes. Used for `measure = "GEN"`
 #' or when estimating `"UISD"`).
 #' @param mods an optional vector, matrix, data.frame, or formula specifying
-#' moderators (or meta-regressors).
+#' location moderators (meta-regressors). Formula input is evaluated in `data`.
 #' @param scale an optional vector, matrix, data.frame, or formula specifying
-#' scale predictors (for location-scale models).
-#' @param cluster an optional vector of cluster identifiers.
+#' scale predictors for location-scale models. Formula input is evaluated in
+#' `data`.
+#' @param cluster an optional vector of cluster identifiers for multilevel
+#' meta-analysis.
 #' @param data an optional data frame containing the variables.
 #' @param slab an optional vector of study labels.
 #' @param subset an optional logical or numeric vector specifying a subset of
 #' data to be used.
 #' @param measure a character string specifying the effect size measure.
-#' Defaults to `"GEN"`. Other options are `"SMD"`, `"OR"`, `"RR"`, `"RD"`,
-#' `"HR"`, `"IRR"`, `"ZCOR"`.
-#' @param ai a vector of the number of events in the treatment/experimental group.
-#' @param bi a vector of the number of non-events in the treatment/experimental group.
-#' @param ci a vector of the number of events in the control group.
-#' @param di a vector of the number of non-events in the control group.
-#' @param n1i a vector of the sample size in the treatment/experimental group.
-#' @param n2i a vector of the sample size in the control group.
+#' Normal models default to `"GEN"` and support `"SMD"`, `"ZCOR"`, `"RR"`,
+#' `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and `"GEN"`. GLMM models support only
+#' `"OR"` and `"IRR"` and default to `"OR"`.
+#' @param effect_direction direction used by publication-bias adjustments.
+#' `"positive"` assumes statistically significant positive estimates are more
+#' likely to be selected; `"negative"` mirrors the selection direction;
+#' `"detect"` infers the direction from the fitted data.
+#' @param ai a vector of the number of events in the treatment or experimental
+#' group for binomial GLMM models.
+#' @param bi a vector of the number of non-events in the treatment or
+#' experimental group for binomial GLMM models.
+#' @param ci a vector of the number of events in the control group for binomial
+#' GLMM models.
+#' @param di a vector of the number of non-events in the control group for
+#' binomial GLMM models.
+#' @param n1i a vector of the sample size in the treatment or experimental
+#' group. If omitted for binomial GLMMs, it is computed as `ai + bi`.
+#' @param n2i a vector of the sample size in the control group. If omitted for
+#' binomial GLMMs, it is computed as `ci + di`.
 #' @param x1i a vector of the number of events in the treatment/experimental group
 #' (for Poisson data).
 #' @param x2i a vector of the number of events in the control group (for Poisson data).

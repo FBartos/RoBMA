@@ -43,11 +43,22 @@ from the internal \code{$priors} list.
 }
 \examples{
 \dontrun{
-priors <- BMA(yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE)
-print_prior(priors)
-print_prior(priors, parameter = "mu")
-print_prior(priors, parameter = "tau")
-print_prior(priors, parameter_mods = "x")
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  priors <- BMA(
+    yi          = yi,
+    vi          = vi,
+    mods        = ~ Preregistered,
+    data        = dat.lehmann2018,
+    measure     = "SMD",
+    only_priors = TRUE
+  )
+
+  print_prior(priors)
+  print_prior(priors, parameter = "mu")
+  print_prior(priors, parameter = "tau")
+  print_prior(priors, parameter_mods = "Preregistered")
+}
 }
 
 }

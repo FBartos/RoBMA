@@ -2,6 +2,7 @@
 % Please edit documentation in R/loo.R
 \name{waic.brma}
 \alias{waic.brma}
+\alias{waic}
 \title{WAIC for brma Objects}
 \usage{
 \method{waic}{brma}(x, unit = "estimate", ...)

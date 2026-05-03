@@ -2,6 +2,7 @@
 % Please edit documentation in R/regplot.R
 \name{regplot.brma}
 \alias{regplot.brma}
+\alias{regplot}
 \title{Regression Plot (Bubble Plot) for brma Object}
 \usage{
 \method{regplot}{brma}(
@@ -65,10 +66,11 @@ observed range.}
 \item{transf}{function; transformation to apply to the y-axis (effect sizes).
 Defaults to \code{NULL} (no transformation).}
 
-\item{atransf}{function; transformation to apply to axis labels only.
-Defaults to \code{NULL} (same as \code{transf}).}
+\item{atransf}{reserved for axis-label transformations. Currently not
+implemented and must be \code{NULL}.}
 
-\item{targs}{list; additional arguments for transformation functions.}
+\item{targs}{reserved for additional transformation arguments. Currently not
+implemented and must be \code{NULL}.}
 
 \item{refline}{numeric; position of horizontal reference line.
 Defaults to \code{NULL} (no reference line).}
@@ -160,30 +162,32 @@ different levels of a second moderator, useful for visualizing interactions.
 }
 \examples{
 \dontrun{
-# fit a meta-regression model
-fit <- brma(yi ~ ablat, sei = sei, data = dat.bcg)
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
 
-# basic bubble plot
-regplot(fit)
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    mods    = ~ ablat + year,
+    data    = dat,
+    measure = "RR"
+  )
+  regplot(fit, mod = "ablat")
+  regplot(fit, mod = "year", pi = TRUE, si = TRUE)
+  regplot(fit, mod = "ablat", plot_type = "ggplot")
 
-# with prediction intervals
-regplot(fit, pi = TRUE)
-
-# with sampling intervals
-regplot(fit, si = TRUE)
-
-# all interval bands
-regplot(fit, ci = TRUE, pi = TRUE, si = TRUE)
-
-# using ggplot2
-regplot(fit, plot_type = "ggplot")
-
-# customize appearance
-regplot(fit, col = "blue", lcol = "darkblue", pch = 19)
-
-# categorical moderator
-fit_cat <- brma(yi ~ alloc, sei = sei, data = dat.bcg)
-regplot(fit_cat)
+  fit_cat <- brma(yi = yi, vi = vi, mods = ~ alloc, data = dat, measure = "RR")
+  regplot(fit_cat)
+}
 }
 
 }

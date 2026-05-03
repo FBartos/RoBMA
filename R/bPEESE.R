@@ -6,6 +6,30 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#'
+#' @return A fitted object of class `c("bPEESE", "brma")` containing a single
+#' PEESE publication-bias model fit.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- bPEESE(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#'   funnel(fit)
+#' }
+#' }
+#'
+#' @seealso [RoBMA()], [bPET()], [bselmodel()], [summary.brma()],
+#' [funnel.brma()]
 #' @export
 bPEESE <- function(
     # input specification
@@ -34,8 +58,12 @@ bPEESE <- function(
 ) {
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "bPEESE()"
+  )
   object       <- .createObject(
     dots = dots, class = c("bPEESE", "brma"),
     # MCMC and fitting settings

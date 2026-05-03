@@ -6,7 +6,20 @@
 \title{881 estimates from 69 studies of a relationship between employment and
 educational outcomes collected by \insertCite{kroupova2021student;textual}{RoBMA}}
 \format{
-A data.frame with 11 columns and 881 observations.
+A data.frame with 11 columns and 881 observations:
+\describe{
+\item{\code{r}}{Partial correlation coefficient.}
+\item{\code{se}}{Standard error of r.}
+\item{\code{study}}{Study label.}
+\item{\code{sample_size}}{Sample size.}
+\item{\code{education_outcome}}{Type of educational outcome.}
+\item{\code{employment_intensity}}{Employment intensity.}
+\item{\code{students_gender}}{Gender composition of the student sample.}
+\item{\code{location}}{Study location.}
+\item{\code{design}}{Study design.}
+\item{\code{endogenity_control}}{Whether endogeneity was controlled.}
+\item{\code{motivation_control}}{Whether motivation was controlled.}
+}
 }
 \usage{
 Kroupova2021

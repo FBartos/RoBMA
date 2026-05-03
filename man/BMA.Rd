@@ -48,26 +48,32 @@ BMA(
 )
 }
 \arguments{
-\item{yi}{a vector of effect sizes.}
+\item{yi}{a vector of effect sizes, or a formula with the effect size on the
+left-hand side and location moderators on the right-hand side (for example
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} is ignored.}
 
-\item{vi}{a vector of sampling variances.}
+\item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 
-\item{sei}{a vector of standard errors.}
+\item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 
 \item{weights}{an optional vector of positive likelihood weights. For normal
 models, each weight powers the estimate likelihood. For GLMM models, each
 weight powers the paired two-arm likelihood for one study.}
 
-\item{ni}{an optional vector of sample sizes (used for \code{measuer = "GEN"}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
 
 \item{mods}{an optional vector, matrix, data.frame, or formula specifying
-moderators (or meta-regressors).}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
-scale predictors (for location-scale models).}
+scale predictors for location-scale models. Formula input is evaluated in
+\code{data}.}
 
-\item{cluster}{an optional vector of cluster identifiers.}
+\item{cluster}{an optional vector of cluster identifiers for multilevel
+meta-analysis.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -77,8 +83,43 @@ scale predictors (for location-scale models).}
 data to be used.}
 
 \item{measure}{a character string specifying the effect size measure.
-Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR"}, \code{"RD"},
-\code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
+Normal models default to \code{"GEN"} and support \code{"SMD"}, \code{"ZCOR"}, \code{"RR"},
+\code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}. GLMM models support only
+\code{"OR"} and \code{"IRR"} and default to \code{"OR"}.}
+
+\item{prior_effect}{prior distribution(s) for the alternative effect
+component(s).}
+
+\item{prior_heterogeneity}{prior distribution(s) for the alternative
+heterogeneity component(s).}
+
+\item{prior_mods}{prior distribution(s) for alternative moderator
+components. A single prior applies to all terms; a named list can specify
+term-specific components.}
+
+\item{prior_scale}{prior distribution(s) for alternative scale-regression
+components. A single prior applies to all terms; a named list can specify
+term-specific components.}
+
+\item{prior_heterogeneity_allocation}{prior distribution(s) for the
+alternative cluster-level heterogeneity allocation component(s).}
+
+\item{prior_effect_null}{prior distribution(s) for the null effect
+component(s).}
+
+\item{prior_heterogeneity_null}{prior distribution(s) for the null
+heterogeneity component(s).}
+
+\item{prior_mods_null}{prior distribution(s) for null moderator components.
+A single prior applies to all terms; a named list can specify term-specific
+components.}
+
+\item{prior_scale_null}{prior distribution(s) for null scale-regression
+components. A single prior applies to all terms; a named list can specify
+term-specific components.}
+
+\item{prior_heterogeneity_allocation_null}{prior distribution(s) for the
+null cluster-level heterogeneity allocation component(s).}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -101,26 +142,50 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Defaults to \code{RoBMA.get_option("silent")}.}
+\item{silent}{logical. Whether to suppress output. For \code{brma()} and
+\code{brma.glmm()}, a missing value uses \code{RoBMA.get_option("silent")}.
+Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
 
-\item{...}{additional arguments.}
+\item{...}{additional advanced arguments. Fitting functions reject unused
+arguments; currently recognized internal arguments include \code{only_data},
+\code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
 }
 \value{
-\code{BMA.norm} returns an object of class \code{"BMA.norm"}.
+A fitted object of class \code{c("BMA.norm", "RoBMA", "brma")}.
+The object contains checked \code{data}, checked mixture \code{priors}, the JAGS
+\code{fit}, cached \code{summary}, and cached \code{coefficients}.
 }
 \description{
-Convenience wrapper for fitting Bayesian model-averaged meta-analytic
-models without publication bias adjustment. This function calls \code{\link{RoBMA}}
-internally without the \code{model_type} argument, omitting selection models and
-PET-PEESE bias adjustment.
+Fits Bayesian model-averaged meta-analytic models without
+publication-bias adjustment. \code{BMA()} is an alias for \code{BMA.norm()}.
 }
 \details{
 \code{BMA.norm} (and its alias \code{BMA}) provides a simplified interface for
 Bayesian model-averaged meta-analysis when publication bias adjustment is not needed.
-It is equivalent to calling \code{\link{RoBMA}} without specifying \code{prior_bias},
-\code{prior_bias_null}, or \code{model_type}.
+It uses the same product-space mixture-prior machinery as \code{RoBMA()} but
+omits selection models and PET-PEESE bias adjustment.
 
 For publication bias adjusted meta-analysis, use \code{\link{RoBMA}} directly.
+}
+\examples{
+\dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+
+  fit <- BMA(
+    yi      = yi,
+    vi      = vi,
+    mods    = ~ Preregistered,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
+
+  summary(fit)
+}
+}
+
 }
 \seealso{
 \code{\link[=RoBMA]{RoBMA()}} \code{\link[=brma]{brma()}} \code{\link[=summary.brma]{summary.brma()}} \code{\link[=plot.brma]{plot.brma()}}

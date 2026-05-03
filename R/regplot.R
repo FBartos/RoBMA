@@ -47,9 +47,10 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param digits integer; number of decimal places for labels. Defaults to \code{2}.
 #' @param transf function; transformation to apply to the y-axis (effect sizes).
 #' Defaults to \code{NULL} (no transformation).
-#' @param atransf function; transformation to apply to axis labels only.
-#' Defaults to \code{NULL} (same as \code{transf}).
-#' @param targs list; additional arguments for transformation functions.
+#' @param atransf reserved for axis-label transformations. Currently not
+#' implemented and must be `NULL`.
+#' @param targs reserved for additional transformation arguments. Currently not
+#' implemented and must be `NULL`.
 #' @param refline numeric; position of horizontal reference line.
 #' Defaults to \code{NULL} (no reference line).
 #' @param psize numeric vector or \code{NULL}; point sizes for each study.
@@ -120,33 +121,36 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' If \code{as_data = TRUE}, returns a list with plot data components.
 #'
 #' @examples \dontrun{
-#' # fit a meta-regression model
-#' fit <- brma(yi ~ ablat, sei = sei, data = dat.bcg)
+#' if (requireNamespace("metadat", quietly = TRUE) &&
+#'     requireNamespace("metafor", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'   dat <- metafor::escalc(
+#'     measure = "RR",
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     data    = dat.bcg
+#'   )
 #'
-#' # basic bubble plot
-#' regplot(fit)
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     mods    = ~ ablat + year,
+#'     data    = dat,
+#'     measure = "RR"
+#'   )
+#'   regplot(fit, mod = "ablat")
+#'   regplot(fit, mod = "year", pi = TRUE, si = TRUE)
+#'   regplot(fit, mod = "ablat", plot_type = "ggplot")
 #'
-#' # with prediction intervals
-#' regplot(fit, pi = TRUE)
-#'
-#' # with sampling intervals
-#' regplot(fit, si = TRUE)
-#'
-#' # all interval bands
-#' regplot(fit, ci = TRUE, pi = TRUE, si = TRUE)
-#'
-#' # using ggplot2
-#' regplot(fit, plot_type = "ggplot")
-#'
-#' # customize appearance
-#' regplot(fit, col = "blue", lcol = "darkblue", pch = 19)
-#'
-#' # categorical moderator
-#' fit_cat <- brma(yi ~ alloc, sei = sei, data = dat.bcg)
-#' regplot(fit_cat)
+#'   fit_cat <- brma(yi = yi, vi = vi, mods = ~ alloc, data = dat, measure = "RR")
+#'   regplot(fit_cat)
+#' }
 #' }
 #'
 #' @seealso [funnel.brma()], [predict.brma()]
+#' @aliases regplot
 #' @export
 #' @rdname regplot
 regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si = FALSE,

@@ -18,12 +18,12 @@ details below.}
 available options, see details below.}
 }
 \value{
-The current value of all available RoBMA options (after applying any
-changes specified) is returned invisibly as a named list.
+\code{RoBMA.options()} invisibly returns a named list with all current
+options after applying any changes. \code{RoBMA.get_option()} returns the current
+value of the requested option.
 }
 \description{
-A placeholder object and functions for the RoBMA package.
-(adapted from the runjags R package).
+Inspect or change package-level defaults used by RoBMA.
 }
 \details{
 The available options are:

@@ -2,6 +2,8 @@
 % Please edit documentation in R/summary.R
 \name{summary.brma}
 \alias{summary.brma}
+\alias{print.summary.brma}
+\alias{print.brma}
 \title{Summarize brma Object}
 \usage{
 \method{summary}{brma}(
@@ -12,6 +14,10 @@
   conditional = FALSE,
   ...
 )
+
+\method{print}{summary.brma}(x, ...)
+
+\method{print}{brma}(x, ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -32,6 +38,14 @@ correspond to the standardized scale on which prior distributions are specified 
 product-space objects. Defaults to \code{FALSE}.}
 
 \item{...}{additional arguments}
+
+\item{x}{a \code{summary.brma} or fitted \code{brma} object.}
+}
+\value{
+A list of class \code{summary.brma} with model name, optional RoBMA
+inclusion tables, common estimates, moderator estimates, scale estimates,
+publication-bias estimates, and optional conditional estimates. The printed
+form displays the non-empty tables.
 }
 \description{
 \code{summary.brma} creates summary tables for a
@@ -40,6 +54,20 @@ parameter estimates.
 }
 \examples{
 \dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+
+  fit <- bPET(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
+
+  summary(fit)
+}
 }
 
 

@@ -67,7 +67,7 @@ devtools::test()
 
 ### Cache Validation
 
-`save_fit()` writes the fit, info object, and metadata. Metadata records the test file hash and whether the object contains LOO, WAIC, marginal likelihood, and metafor info.
+`save_fit()` writes the fit, info object, and metadata. Metadata records the normalized `test-01-*` file hash, the cache-affecting fitting-source hash, and whether the object contains LOO, WAIC, marginal likelihood, and metafor info. The fitting-source hash is intentionally scoped to fitting, prior/data input, cached LOO/marglik, and native likelihood/JAGS code; unrelated summaries, plotting, prediction, documentation, and post-fit methods should not force refits.
 
 `skip_refit_if_cached("brma.norm")` and similar group calls skip a whole `test-01-*` file only when all cataloged fits for that group are valid.
 
@@ -76,6 +76,7 @@ devtools::test()
 A cached fit is stale if:
 
 - its `test-01-*` source file changed
+- cache-affecting fitting source changed
 - metadata is missing
 - required LOO/marglik/metafor info is missing
 - forbidden fields are present, e.g. marginal likelihood for product-space `RoBMA`, `BMA.norm`, or `BMA.glmm`

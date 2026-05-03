@@ -2,6 +2,7 @@
 % Please edit documentation in R/loo.R
 \name{loo_compare.brma}
 \alias{loo_compare.brma}
+\alias{loo_compare}
 \title{Compare brma Models Using LOO}
 \usage{
 \method{loo_compare}{brma}(x, ..., unit = "estimate")
@@ -34,19 +35,18 @@ RoBMA rejects comparisons with different \code{yi}/\code{sei} targets,
 }
 \examples{
 \dontrun{
-# Fit models with and without publication bias adjustment
-fit_bias <- RoBMA(yi = yi, sei = sei, data = dat)
-fit_nobias <- BMA(yi = yi, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
 
-# Add LOO to both models
-fit_bias <- add_loo(fit_bias)
-fit_nobias <- add_loo(fit_nobias)
+  fit_bias <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit_nobias <- BMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
-# Compare models based on expected out-of-sample predictive performance
-loo_compare(fit_bias, fit_nobias)
+  fit_bias <- add_loo(fit_bias)
+  fit_nobias <- add_loo(fit_nobias)
 
-# Alternatively, compare loo objects directly
-loo_compare(loo(fit_bias), loo(fit_nobias))
+  loo_compare(fit_bias, fit_nobias)
+  loo_compare(loo(fit_bias), loo(fit_nobias))
+}
 }
 
 }

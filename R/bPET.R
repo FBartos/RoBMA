@@ -6,6 +6,30 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#'
+#' @return A fitted object of class `c("bPET", "brma")` containing a single
+#' PET publication-bias model fit.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- bPET(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#'   funnel(fit)
+#' }
+#' }
+#'
+#' @seealso [RoBMA()], [bPEESE()], [bselmodel()], [summary.brma()],
+#' [funnel.brma()]
 #' @export
 bPET <- function(
   # input specification
@@ -34,8 +58,12 @@ bPET <- function(
 ) {
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "bPET()"
+  )
   object       <- .createObject(
     dots = dots, class = c("bPET", "brma"),
     # MCMC and fitting settings

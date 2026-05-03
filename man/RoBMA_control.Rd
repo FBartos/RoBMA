@@ -95,11 +95,18 @@ conv_checks <- set_convergence_checks(
 )
 
 \dontrun{
-# Use in RoBMA function
-fit <- RoBMA(d = c(0.5, 0.3, 0.1),
-             se = c(0.2, 0.15, 0.1),
-             autofit_control = autofit_ctrl,
-             convergence_checks = conv_checks)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+
+  fit <- RoBMA(
+    yi                 = yi,
+    vi                 = vi,
+    data               = dat.lehmann2018,
+    measure            = "SMD",
+    autofit_control    = autofit_ctrl,
+    convergence_checks = conv_checks
+  )
+}
 }
 
 }

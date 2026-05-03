@@ -103,7 +103,19 @@ expect_hatvalues_vector <- function(x, n, info = NULL) {
 
 expect_dfbetas_table <- function(x, n, min_cols = 1, info = NULL) {
 
-  expect_finite_table(x, n = n, min_cols = min_cols, info = info)
+  testthat::expect_s3_class(x, "data.frame")
+  testthat::expect_equal(nrow(x), n, info = info)
+  testthat::expect_true(ncol(x) >= min_cols, info = info)
+
+  numeric_cols <- vapply(x, is.numeric, TRUE)
+  if (any(numeric_cols)) {
+    values <- as.matrix(x[, numeric_cols, drop = FALSE])
+    testthat::expect_true(all(is.finite(values) | is.nan(values)), info = info)
+    if (any(is.nan(values))) {
+      testthat::expect_true(!is.null(attr(x, "note")), info = info)
+      testthat::expect_true(nzchar(attr(x, "note")), info = info)
+    }
+  }
 }
 
 expect_vif_table <- function(x, n_terms = NULL, info = NULL) {
@@ -126,10 +138,13 @@ expect_influence_object <- function(x, n, inf_cols, min_dfbs_cols = 1,
   testthat::expect_s3_class(x, "infl.brma")
   testthat::expect_true(all(inf_cols %in% names(x[["inf"]])), info = info)
   testthat::expect_equal(nrow(x[["inf"]]), n, info = info)
-  testthat::expect_true(
-    all(is.finite(as.matrix(x[["inf"]][, inf_cols, drop = FALSE]))),
-    info = info
-  )
+  inf_values <- as.matrix(x[["inf"]][, inf_cols, drop = FALSE])
+  testthat::expect_true(all(is.finite(inf_values) | is.nan(inf_values)),
+                        info = info)
+  if (any(is.nan(inf_values))) {
+    testthat::expect_true(!is.null(attr(x, "note")), info = info)
+    testthat::expect_true(nzchar(attr(x, "note")), info = info)
+  }
   expect_dfbetas_table(x[["dfbs"]], n = n, min_cols = min_dfbs_cols,
                        info = info)
 }

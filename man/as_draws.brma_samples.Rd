@@ -37,7 +37,7 @@ samples to various draws formats supported by the \pkg{posterior} package.
 }
 \details{
 The conversion reconstructs the MCMC chain structure from the stored
-\code{n_chains} and \code{n_iter} attributes. The samples are assumed
+\code{nchains} and \code{niter} attributes. The samples are assumed
 to be ordered with chains concatenated (i.e., all iterations from chain 1,
 then all from chain 2, etc.).
 }

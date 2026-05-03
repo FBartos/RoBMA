@@ -3,10 +3,15 @@
 \docType{data}
 \name{Anderson2010}
 \alias{Anderson2010}
-\title{27 experimental studies from
+\title{23 experimental studies from
 \insertCite{anderson2010violent;textual}{RoBMA} that meet the best practice criteria}
 \format{
-A data.frame with 3 columns and 23 observations.
+A data.frame with 3 columns and 23 observations:
+\describe{
+\item{\code{r}}{Correlation coefficient.}
+\item{\code{n}}{Sample size.}
+\item{\code{name}}{Study label.}
+}
 }
 \usage{
 Anderson2010
@@ -16,7 +21,7 @@ a data.frame.
 }
 \description{
 The data set contains correlation coefficients, sample
-sizes, and labels for 27 experimental studies focusing on the effect of
+sizes, and labels for 23 experimental studies focusing on the effect of
 violent video games on aggressive behavior. The full original data can
 found at https://github.com/Joe-Hilgard/Anderson-meta.
 }

@@ -4,26 +4,32 @@
 \alias{data_input}
 \title{Input Data Specification}
 \arguments{
-\item{yi}{a vector of effect sizes.}
+\item{yi}{a vector of effect sizes, or a formula with the effect size on the
+left-hand side and location moderators on the right-hand side (for example
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} is ignored.}
 
-\item{vi}{a vector of sampling variances.}
+\item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 
-\item{sei}{a vector of standard errors.}
+\item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 
 \item{weights}{an optional vector of positive likelihood weights. For normal
 models, each weight powers the estimate likelihood. For GLMM models, each
 weight powers the paired two-arm likelihood for one study.}
 
-\item{ni}{an optional vector of sample sizes (used for \code{measuer = "GEN"}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
 
 \item{mods}{an optional vector, matrix, data.frame, or formula specifying
-moderators (or meta-regressors).}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
-scale predictors (for location-scale models).}
+scale predictors for location-scale models. Formula input is evaluated in
+\code{data}.}
 
-\item{cluster}{an optional vector of cluster identifiers.}
+\item{cluster}{an optional vector of cluster identifiers for multilevel
+meta-analysis.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -33,20 +39,32 @@ scale predictors (for location-scale models).}
 data to be used.}
 
 \item{measure}{a character string specifying the effect size measure.
-Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR"}, \code{"RD"},
-\code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
+Normal models default to \code{"GEN"} and support \code{"SMD"}, \code{"ZCOR"}, \code{"RR"},
+\code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}. GLMM models support only
+\code{"OR"} and \code{"IRR"} and default to \code{"OR"}.}
 
-\item{ai}{a vector of the number of events in the treatment/experimental group.}
+\item{effect_direction}{direction used by publication-bias adjustments.
+\code{"positive"} assumes statistically significant positive estimates are more
+likely to be selected; \code{"negative"} mirrors the selection direction;
+\code{"detect"} infers the direction from the fitted data.}
 
-\item{bi}{a vector of the number of non-events in the treatment/experimental group.}
+\item{ai}{a vector of the number of events in the treatment or experimental
+group for binomial GLMM models.}
 
-\item{ci}{a vector of the number of events in the control group.}
+\item{bi}{a vector of the number of non-events in the treatment or
+experimental group for binomial GLMM models.}
 
-\item{di}{a vector of the number of non-events in the control group.}
+\item{ci}{a vector of the number of events in the control group for binomial
+GLMM models.}
 
-\item{n1i}{a vector of the sample size in the treatment/experimental group.}
+\item{di}{a vector of the number of non-events in the control group for
+binomial GLMM models.}
 
-\item{n2i}{a vector of the sample size in the control group.}
+\item{n1i}{a vector of the sample size in the treatment or experimental
+group. If omitted for binomial GLMMs, it is computed as \code{ai + bi}.}
+
+\item{n2i}{a vector of the sample size in the control group. If omitted for
+binomial GLMMs, it is computed as \code{ci + di}.}
 
 \item{x1i}{a vector of the number of events in the treatment/experimental group
 (for Poisson data).}
@@ -58,7 +76,10 @@ Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR
 \item{t2i}{a vector of the person-time in the control group.}
 }
 \description{
-The following variables can be used to specify the input data for the
-\code{\link{brma}}, \code{\link{brma.glmm}}, \code{\link{bselmodel}},
-or other fitting functions.
+Shared data-input arguments used by the RoBMA fitting functions.
+
+Normal models use approximate effect-size estimates supplied through
+\code{yi} with either \code{vi} or \code{sei}. GLMM models use the raw two-arm count
+arguments for binomial (\code{measure = "OR"}) or Poisson (\code{measure = "IRR"})
+outcomes.
 }

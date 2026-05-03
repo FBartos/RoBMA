@@ -1,7 +1,7 @@
 
 Model-Averaged Marginal Means:
                                     Mean    SD  0.025    0.5 0.975 Inclusion BF
-intercept                          0.006 0.046 -0.075  0.000 0.152        0.178
-Preregistered[Not Pre-Registered]  0.108 0.088 -0.003  0.110 0.273        1.009
-Preregistered[Pre-Registered]     -0.096 0.100 -0.273 -0.105 0.119        0.975
+intercept                          0.003 0.054 -0.132  0.000 0.163        0.181
+Preregistered[Not Pre-Registered]  0.097 0.090 -0.037  0.107 0.271        0.661
+Preregistered[Pre-Registered]     -0.090 0.101 -0.298 -0.096 0.112        0.714
 

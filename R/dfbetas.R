@@ -14,7 +14,7 @@
 
 #' @title DFBETAS for brma Objects
 #'
-#' @description Computes DFBETAS (Difference in FITS, standardized) for a
+#' @description Computes DFBETAS (Difference in BETAS, standardized) for a
 #' fitted brma object. DFBETAS measures the influence of each observation on
 #' the estimated model coefficients. Positive values indicate that deleting the
 #' observation yields a smaller estimate, negative values indicate that deleting
@@ -32,6 +32,9 @@
 #' (i.e., `standardize_continuous_predictors = TRUE`).
 #' @param transform_factors whether to transform factors to their original names.
 #' Defaults to \code{TRUE}.
+#' @param return_loo_estimates whether to return the leave-one-out coefficient
+#' estimates used to compute DFBETAS instead of standardized DFBETAS values.
+#' Defaults to \code{FALSE}.
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
@@ -55,26 +58,28 @@
 #' This approximation allows computing influence statistics without refitting
 #' the model \eqn{K} times, making it computationally efficient.
 #' For \code{type = "bias"}, fixed identification parameters (e.g., the reference
-#' \eqn{\omega = 1} interval) are omitted because their LOO posterior standard
-#' deviation is zero.
+#' \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
+#' These parameters are retained in the output, but their DFBETAS values are
+#' reported as \code{NaN} because the standardized diagnostic is undefined.
 #'
 #' Note: This function requires that LOO-CV has been computed for the model
 #' using \code{\link{add_loo}}.
 #'
-#' @return A data frame with \eqn{K} rows (observations) and \eqn{P} columns
-#' (parameters), containing the DFBETAS values. Row names correspond to
-#' study labels (if available) or indices.
+#' @return If `return_loo_estimates = FALSE`, a data frame with \eqn{K} rows
+#' (observations) and \eqn{P} columns (parameters), containing DFBETAS values.
+#' If `return_loo_estimates = TRUE`, returns the corresponding leave-one-out
+#' coefficient estimates. Row names correspond to study labels (if available)
+#' or indices.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit <- add_loo(fit)
 #'
-#' # compute LOO (required)
-#' fit <- add_loo(fit)
-#'
-#' # compute DFBETAS
-#' inf <- dfbetas(fit)
-#' plot(inf[, 1], type = "h")
+#'   inf <- dfbetas(fit)
+#'   plot(inf[, 1], type = "h")
+#' }
 #' }
 #'
 #' @seealso \code{\link{add_loo}}, \code{\link{loo_weights.brma}}
@@ -150,19 +155,6 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
     stop("No parameters available for DFBETAS with the requested type.", call. = FALSE)
   }
 
-  if (type == "bias") {
-    varying <- apply(
-      samples_mat,
-      2,
-      function(x) diff(range(x, na.rm = TRUE)) > sqrt(.Machine$double.eps)
-    )
-    samples_mat <- samples_mat[, varying, drop = FALSE]
-
-    if (ncol(samples_mat) == 0) {
-      stop("No varying publication bias parameters available for DFBETAS.", call. = FALSE)
-    }
-  }
-
   # dimensions
   S <- nrow(samples_mat) # number of samples
   P <- ncol(samples_mat) # number of coefficients
@@ -222,12 +214,39 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   # 4. Compute DFBETAS
   # (beta_full - beta_loo) / se_loo
   dfbetas_val <- (beta_full_mat - beta_loo) / se_loo
+  undefined   <- apply(se_loo <= sqrt(.Machine$double.eps), 2, any)
+  if (any(undefined)) {
+    dfbetas_val[, undefined] <- NaN
+  }
 
   # convert to data frame
   dfbetas_df <- as.data.frame(dfbetas_val)
   colnames(dfbetas_df) <- colnames(samples_mat)
 
+  if (any(undefined)) {
+    dfbetas_df <- .diagnostic_with_note(
+      dfbetas_df,
+      class = "dfbetas.brma",
+      note  = .diagnostic_zero_variance_note(
+        diagnostic = "DFBETAS",
+        parameters = colnames(samples_mat)[undefined]
+      )
+    )
+  }
+
   return(dfbetas_df)
+}
+
+
+#' @exportS3Method
+print.dfbetas.brma <- function(x, ...) {
+
+  note <- attr(x, "note")
+  class(x) <- "data.frame"
+  print(x, ...)
+  .print_diagnostic_note(note)
+
+  return(invisible(x))
 }
 
 
@@ -261,4 +280,38 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   }
 
   return(do.call(cbind, bias_samples))
+}
+
+
+.diagnostic_zero_variance_note <- function(diagnostic, parameters,
+                                           variance = "LOO posterior") {
+
+  parameters <- paste(parameters, collapse = ", ")
+  return(paste0(
+    diagnostic,
+    " could not be computed for parameter(s) ",
+    parameters,
+    " because the ",
+    variance,
+    " variance is zero; values are reported as NaN."
+  ))
+}
+
+
+.diagnostic_with_note <- function(x, class, note) {
+
+  attr(x, "note") <- note
+  class(x)        <- c(class, class(x))
+
+  return(x)
+}
+
+
+.print_diagnostic_note <- function(note) {
+
+  if (!is.null(note) && nzchar(note)) {
+    cat("\nNote: ", note, "\n", sep = "")
+  }
+
+  return(invisible(NULL))
 }

@@ -10,7 +10,7 @@
 # Transformation objects use the BayesTools convention:
 # - fun: forward transformation
 # - inv: inverse transformation
-# - jac: derivative of inv(x) with respect to x
+# - jac: derivative of fun(x) with respect to x
 #
 # ============================================================================ #
 
@@ -118,7 +118,7 @@
   return(list(
     fun = exp,
     inv = log,
-    jac = function(x) 1 / x
+    jac = exp
   ))
 }
 
@@ -145,32 +145,32 @@
     "SMD->COR" = list(
       fun = .d_to_cor,
       inv = function(x) 2 * x / sqrt(1 - x^2),
-      jac = function(x) 2 / (1 - x^2)^(3 / 2)
+      jac = function(x) 4 / (x^2 + 4)^(3 / 2)
     ),
     "COR->SMD" = list(
       fun = function(x) 2 * x / sqrt(1 - x^2),
       inv = .d_to_cor,
-      jac = function(x) 4 / (x^2 + 4)^(3 / 2)
+      jac = function(x) 2 / (1 - x^2)^(3 / 2)
     ),
     "COR->ZCOR" = list(
       fun = .cor_to_z,
       inv = tanh,
-      jac = function(x) 1 - tanh(x)^2
+      jac = function(x) 1 / (1 - x^2)
     ),
     "ZCOR->COR" = list(
       fun = tanh,
       inv = .cor_to_z,
-      jac = function(x) 1 / (1 - x^2)
+      jac = function(x) 1 - tanh(x)^2
     ),
     "SMD->OR" = list(
       fun = function(x) x * pi / sqrt(3),
       inv = function(x) x * sqrt(3) / pi,
-      jac = function(x) rep(sqrt(3) / pi, length(x))
+      jac = function(x) rep(pi / sqrt(3), length(x))
     ),
     "OR->SMD" = list(
       fun = function(x) x * sqrt(3) / pi,
       inv = function(x) x * pi / sqrt(3),
-      jac = function(x) rep(pi / sqrt(3), length(x))
+      jac = function(x) rep(sqrt(3) / pi, length(x))
     )
   ))
 }
@@ -185,8 +185,7 @@
     inv = function(x) first[["inv"]](second[["inv"]](x)),
     jac = function(x) {
 
-      second_inv <- second[["inv"]](x)
-      first[["jac"]](second_inv) * second[["jac"]](x)
+      first[["jac"]](x) * second[["jac"]](first[["fun"]](x))
     }
   ))
 }

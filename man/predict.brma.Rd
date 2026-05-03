@@ -70,8 +70,8 @@ log-scale measures.}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
 
-\item{probs}{quantiles of the posterior samples to be displayed.
-Defaults to \code{c(.025, .50, .975)}}
+\item{probs}{quantiles of the posterior samples to be displayed when the
+returned \code{brma_samples} object is printed. Defaults to \code{c(.025, .975)}.}
 
 \item{bias_adjusted}{whether predictions should adjust for publication bias.
 Defaults to \code{FALSE}. When \code{TRUE}:
@@ -90,6 +90,9 @@ the expected bias (i.e., what we expect to observe given publication bias).}
 the selected-normal distribution reflecting the selective publishing
 process.}
 }}
+
+\item{quiet}{logical; whether to suppress informational messages about
+prediction scale and bias adjustment.}
 
 \item{conditional}{whether to return conditional posterior predictions for
 RoBMA product-space objects. For location predictions, samples are conditioned
@@ -126,9 +129,43 @@ Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} p
 predictions for the new effect size estimates. To obtain results corresponding to
 metafor's predict function, use \code{type = "terms"} for the mean effect size
 and \code{type = "estimate"} for true effects (prediction interval).
+
+\strong{Likelihood weights:} If the model was fitted with \code{weights},
+the weights affect the posterior fit, log-likelihood, LOO/WAIC, and
+existing-data conditional diagnostics such as BLUP shrinkage and leverage.
+They do not change the observation-level sampling error used by
+\code{type = "response"} for normal models: response predictions simulate
+raw future effect-size estimates with the supplied \code{sei}, not
+\code{sei / sqrt(weight)}.
 }
 \examples{
 \dontrun{
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
+
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    mods    = ~ ablat + year,
+    data    = dat,
+    measure = "RR",
+    seed    = 1,
+    silent  = TRUE
+  )
+
+  predict(fit, type = "terms")
+  predict(fit, newdata = TRUE, type = "terms")
+  predict(fit, type = "estimate")
+}
 }
 
 }

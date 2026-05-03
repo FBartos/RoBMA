@@ -98,11 +98,29 @@ vif <- function(object, ...) {
 #' posterior regression coefficient samples.}
 #'
 #' @examples \dontrun{
-#' # fit a meta-regression
-#' fit <- brma(yi ~ ablat + year, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE) &&
+#'     requireNamespace("metafor", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'   dat <- metafor::escalc(
+#'     measure = "RR",
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     data    = dat.bcg
+#'   )
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     mods    = ~ ablat + year,
+#'     data    = dat,
+#'     measure = "RR",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
 #'
-#' # compute VIF
-#' vif(fit)
+#'   vif(fit)
+#' }
 #' }
 #'
 #' @references

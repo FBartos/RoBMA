@@ -6,7 +6,11 @@
 \title{55 effect sizes from Many Labs 2 replication studies of
 \insertCite{tversky1981framing;textual}{RoBMA} framing effects}
 \format{
-A data.frame with 2 columns and 55 observations.
+A data.frame with 2 columns and 55 observations:
+\describe{
+\item{\code{y}}{Standardized mean difference.}
+\item{\code{se}}{Standard error of y.}
+}
 }
 \usage{
 ManyLabs16

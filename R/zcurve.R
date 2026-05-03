@@ -60,6 +60,18 @@ as_zcurve <- function(object, ...) UseMethod("as_zcurve")
 #'
 #' @seealso [summary.zcurve_brma()], [plot.zcurve_brma()], [hist.zcurve_brma()]
 #'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   zfit <- as_zcurve(fit)
+#'   summary(zfit)
+#'   plot(zfit)
+#' }
+#' }
+#'
+#' @aliases as_zcurve
 #' @export
 as_zcurve.brma <- function(object, significance_level = stats::qnorm(0.975), max_samples = 1000, ...) {
 

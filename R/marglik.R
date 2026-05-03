@@ -49,19 +49,20 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #'
 #' @examples
 #' \dontrun{
-#' fit <- brma(y = d, se = se, data = Bem2011)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 #'
-#' # Compute and store marginal likelihood
-#' fit <- add_marglik(fit)
+#'   fit <- add_marglik(fit)
 #'
-#' # Extract bridge sampling object
-#' bridge <- bridge_sampler(fit)
-#' print(bridge)
+#'   bridge <- bridge_sampler(fit)
+#'   print(bridge)
 #'
-#' # Get log marginal likelihood
-#' logml(fit)
+#'   logml(fit)
+#' }
 #' }
 #'
+#' @aliases add_marglik
 #' @export
 add_marglik.brma <- function(object, ...) {
   if (inherits(object, "RoBMA")) {

@@ -19,6 +19,6 @@ the default stored in the object (typically \code{c(.025, .975)})}
 A \code{BayesTools_table} object containing the summary statistics.
 }
 \description{
-Creates, prints, and returns a summary table of posterior samples
+Creates and returns a summary table of posterior samples
 using \code{BayesTools::ensemble_estimates_table}.
 }

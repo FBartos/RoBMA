@@ -8,74 +8,114 @@ skip_if_no_fits()
 skip_if_not_installed("posterior")
 fit <- load_fit("bcg_meta-analysis")
 
+.fit_draw_dimensions <- function(fit) {
+
+  mcmc_list <- RoBMA:::.brma_to_mcmc.list(fit)
+  n_iter    <- vapply(mcmc_list, function(x) nrow(as.matrix(x)), integer(1))
+
+  return(list(
+    n_draws = sum(n_iter),
+    n_chains = length(mcmc_list),
+    n_iter = unique(n_iter)
+  ))
+}
+
+fit_dims <- .fit_draw_dimensions(fit)
+
 test_that("as_draws methods return posterior draws for fits", {
 
   # test as_draws and consistency between methods
   draws <- RoBMA::as_draws(fit)
   expect_s3_class(draws, "draws")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   draws <- posterior::as_draws(fit)
   expect_s3_class(draws, "draws")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   # test as_draws_array
   draws <- RoBMA::as_draws_array(fit)
   expect_s3_class(draws, "draws_array")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   draws <- posterior::as_draws_array(fit)
   expect_s3_class(draws, "draws_array")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   # test as_draws_df
   draws <- RoBMA::as_draws_df(fit)
   expect_s3_class(draws, "draws_df")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   draws <- posterior::as_draws_df(fit)
   expect_s3_class(draws, "draws_df")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   # test as_draws_list
   draws <- RoBMA::as_draws_list(fit)
   expect_s3_class(draws, "draws_list")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   draws <- posterior::as_draws_list(fit)
   expect_s3_class(draws, "draws_list")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
 
   # test as_draws_rvars
   draws <- RoBMA::as_draws_rvars(fit)
   expect_s3_class(draws, "draws_rvars")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
   expect_true("mu" %in% posterior::variables(draws))
 
   draws <- posterior::as_draws_rvars(fit)
   expect_s3_class(draws, "draws_rvars")
-  expect_true(posterior::ndraws(draws)      == 15000)
-  expect_true(posterior::nchains(draws)     == 3)
-  expect_true(posterior::niterations(draws) == 5000)
+  expect_true(posterior::ndraws(draws)      == fit_dims[["n_draws"]])
+  expect_true(posterior::nchains(draws)     == fit_dims[["n_chains"]])
+  expect_true(posterior::niterations(draws) == fit_dims[["n_iter"]])
   expect_true("mu" %in% posterior::variables(draws))
+})
+
+test_that("as_draws methods preserve raw MCMC values and order", {
+
+  mcmc_list       <- RoBMA:::.brma_to_mcmc.list(fit)
+  expected_matrix <- do.call(rbind, lapply(mcmc_list, as.matrix))
+  draws_matrix    <- as.matrix(RoBMA::as_draws_matrix(fit))
+  variables       <- intersect(colnames(expected_matrix), colnames(draws_matrix))
+  selected_rows   <- unique(round(seq(1, nrow(expected_matrix), length.out = 7)))
+  selected_vars   <- head(variables, 8)
+
+  expect_true(length(selected_vars) > 0L)
+  expect_equal(
+    as.vector(draws_matrix[selected_rows, selected_vars, drop = FALSE]),
+    as.vector(expected_matrix[selected_rows, selected_vars, drop = FALSE]),
+    tolerance = 0
+  )
+
+  draws_array <- RoBMA::as_draws_array(fit)
+  first_var   <- selected_vars[[1]]
+  expect_equal(
+    as.numeric(draws_array[1, 1, first_var]),
+    as.numeric(as.matrix(mcmc_list[[1]])[1, first_var]),
+    tolerance = 0,
+    info      = "first chain and iteration are preserved"
+  )
 })
 
 test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {
@@ -83,6 +123,7 @@ test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {
   product_names <- c(
     "dat.lehmann2018_BMA.norm",
     "bcg_BMA.glmm",
+    "nielweise2008_BMA.glmm",
     "dat.lehmann2018_RoBMA"
   )
   skip_if_missing_fits(product_names)

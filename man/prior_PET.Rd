@@ -24,6 +24,5 @@ prior_PET(
 An object of class \code{prior}.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior_PET}} for PET
-publication-bias regression priors.
+Create PET publication-bias regression priors.
 }

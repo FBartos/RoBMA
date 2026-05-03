@@ -1,13 +1,18 @@
-#' @title 27 experimental studies from
+#' @title 23 experimental studies from
 #' \insertCite{anderson2010violent;textual}{RoBMA} that meet the best practice criteria
 #'
 #' @description The data set contains correlation coefficients, sample
-#' sizes, and labels for 27 experimental studies focusing on the effect of
+#' sizes, and labels for 23 experimental studies focusing on the effect of
 #' violent video games on aggressive behavior. The full original data can
 #' found at https://github.com/Joe-Hilgard/Anderson-meta.
 #'
 #'
-#' @format A data.frame with 3 columns and 23 observations.
+#' @format A data.frame with 3 columns and 23 observations:
+#' \describe{
+#'   \item{\code{r}}{Correlation coefficient.}
+#'   \item{\code{n}}{Sample size.}
+#'   \item{\code{name}}{Study label.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -25,7 +30,12 @@
 #' \insertCite{bem2011feeling;textual}{RoBMA} as analyzed in his later meta-analysis
 #' \insertCite{bem2011must}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 9 observations.
+#' @format A data.frame with 3 columns and 9 observations:
+#' \describe{
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{se}}{Standard error of d.}
+#'   \item{\code{study}}{Study label.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -44,7 +54,12 @@
 #' \insertCite{poulsen2006potassium}{RoBMA} which was used as an example in
 #' \insertCite{bartos2021bayesian;textual}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 5 observations.
+#' @format A data.frame with 3 columns and 5 observations:
+#' \describe{
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{se}}{Standard error of d.}
+#'   \item{\code{study}}{Study label.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -63,7 +78,20 @@
 #' at http://meta-analysis.cz/students.
 #' (Note that some standard errors and employment intensities are missing.)
 #'
-#' @format A data.frame with 11 columns and 881 observations.
+#' @format A data.frame with 11 columns and 881 observations:
+#' \describe{
+#'   \item{\code{r}}{Partial correlation coefficient.}
+#'   \item{\code{se}}{Standard error of r.}
+#'   \item{\code{study}}{Study label.}
+#'   \item{\code{sample_size}}{Sample size.}
+#'   \item{\code{education_outcome}}{Type of educational outcome.}
+#'   \item{\code{employment_intensity}}{Employment intensity.}
+#'   \item{\code{students_gender}}{Gender composition of the student sample.}
+#'   \item{\code{location}}{Study location.}
+#'   \item{\code{design}}{Study design.}
+#'   \item{\code{endogenity_control}}{Whether endogeneity was controlled.}
+#'   \item{\code{motivation_control}}{Whether motivation was controlled.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -83,7 +111,12 @@
 #' conflict \insertCite{lui2015intergenerational}{RoBMA} which was used as an
 #' example in \insertCite{bartos2020adjusting;textual}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 18 observations.
+#' @format A data.frame with 3 columns and 18 observations:
+#' \describe{
+#'   \item{\code{r}}{Correlation coefficient.}
+#'   \item{\code{n}}{Sample size.}
+#'   \item{\code{study}}{Study label.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -140,7 +173,21 @@
 #' on students' learning performance, learning perception, and higher-order thinking
 #' \insertCite{wang2025effect}{RoBMA}.
 #'
-#' @format A data.frame with 12 columns and 70 observations.
+#' @format A data.frame with 12 columns and 70 observations:
+#' \describe{
+#'   \item{\code{Learning_effect}}{Learning-effect outcome category.}
+#'   \item{\code{Author_year}}{Author-year study label.}
+#'   \item{\code{N_EG}}{Experimental-group sample size.}
+#'   \item{\code{N_CG}}{Control-group sample size.}
+#'   \item{\code{g}}{Hedges' g effect size.}
+#'   \item{\code{Grade_level}}{Grade level.}
+#'   \item{\code{Type_of_course}}{Course type.}
+#'   \item{\code{Duration}}{Study duration.}
+#'   \item{\code{Learning_model}}{Learning model.}
+#'   \item{\code{Role_of_ChatGPT}}{Role of ChatGPT in the intervention.}
+#'   \item{\code{Area_of_ChatGPT_application}}{Application area.}
+#'   \item{\code{se}}{Standard error of g.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -157,7 +204,11 @@
 #' Many Labs 2 project examining variation in replicability across samples and settings
 #' \insertCite{klein2018many;textual}{RoBMA}.
 #'
-#' @format A data.frame with 2 columns and 55 observations.
+#' @format A data.frame with 2 columns and 55 observations:
+#' \describe{
+#'   \item{\code{y}}{Standardized mean difference.}
+#'   \item{\code{se}}{Standard error of y.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -174,7 +225,18 @@
 #' examined social comparison as a behavior change technique across the behavioral
 #' sciences \insertCite{hoppen2025meta}{RoBMA}.
 #'
-#' @format A data.frame with 9 columns and 37 observations.
+#' @format A data.frame with 9 columns and 37 observations:
+#' \describe{
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{v}}{Sampling variance of d.}
+#'   \item{\code{outcome}}{Outcome type.}
+#'   \item{\code{feedback_level}}{Feedback level.}
+#'   \item{\code{social_comparison_type}}{Social-comparison type.}
+#'   \item{\code{sessions}}{Number of sessions.}
+#'   \item{\code{sample_type}}{Sample type.}
+#'   \item{\code{sample_size}}{Sample size.}
+#'   \item{\code{country}}{Country.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -194,7 +256,21 @@
 #' where participants list either few or many examples and then make judgments
 #' \insertCite{weingarten2018does}{RoBMA}.
 #'
-#' @format A data.frame with 12 columns and 582 observations.
+#' @format A data.frame with 12 columns and 582 observations:
+#' \describe{
+#'   \item{\code{r_xy}}{Correlation between manipulation and outcome.}
+#'   \item{\code{N}}{Sample size.}
+#'   \item{\code{paper_id}}{Paper identifier.}
+#'   \item{\code{published}}{Publication-status indicator.}
+#'   \item{\code{USA}}{Whether the study was conducted in the USA.}
+#'   \item{\code{number_of_few}}{Number of examples in the few-examples condition.}
+#'   \item{\code{number_of_many}}{Number of examples in the many-examples condition.}
+#'   \item{\code{episodic_memory}}{Whether the trial targeted episodic memory.}
+#'   \item{\code{standard_paradigm}}{Whether the standard paradigm was used.}
+#'   \item{\code{proximal_dataset}}{Whether the data set was proximal.}
+#'   \item{\code{r_xm}}{Correlation between manipulation and mediator.}
+#'   \item{\code{r_my}}{Correlation between mediator and outcome.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -211,7 +287,12 @@
 #' with mental health, physical health, and developmental disorders provide secondary benefits
 #' to the children's siblings and caregivers \insertCite{johnides2025secondary}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 412 observations.
+#' @format A data.frame with 3 columns and 412 observations:
+#' \describe{
+#'   \item{\code{study}}{Study label.}
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{se}}{Standard error of d.}
+#' }
 #'
 #' @return a data.frame.
 #'
@@ -228,7 +309,14 @@
 #' The meta-analysis examined the relationship between perceived beauty and professional success
 #' \insertCite{havrankova2025beauty}{RoBMA}.
 #'
-#' @format A data.frame with 5 columns and 1159 observations.
+#' @format A data.frame with 5 columns and 1159 observations:
+#' \describe{
+#'   \item{\code{y}}{Effect size: percent increase in earnings.}
+#'   \item{\code{se}}{Standard error of y.}
+#'   \item{\code{facing_customer}}{Type of customer contact.}
+#'   \item{\code{study_id}}{Study identifier.}
+#'   \item{\code{N}}{Sample size.}
+#' }
 #'
 #' @return a data.frame.
 #'

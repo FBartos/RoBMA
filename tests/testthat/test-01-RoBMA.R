@@ -3,6 +3,7 @@ context("Model fitting for RoBMA")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()
+skip_if_not_installed("metadat")
 skip_refit_if_cached("RoBMA")
 
 
@@ -11,6 +12,7 @@ test_that("RoBMA handles default model", {
   fit <- RoBMA(
     yi = yi, vi = vi,
     data = dat.lehmann2018, measure = "SMD",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
@@ -32,6 +34,7 @@ test_that("RoBMA handles custom priors", {
     prior_effect_null = prior("spike", list(location = 0)),
     prior_heterogeneity = prior("normal", list(mean = 0, sd = 0.25), truncation = list(lower = 0)),
     prior_heterogeneity_null = NULL,  # no null hypothesis for heterogeneity
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
@@ -49,6 +52,7 @@ test_that("RoBMA handles meta-regression", {
   fit <- suppressWarnings(RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered,
     data = dat.lehmann2018, measure = "SMD",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   ))
   fit <- suppressWarnings(add_loo(fit))
@@ -63,6 +67,7 @@ test_that("RoBMA handles meta-regression with interaction", {
   fit <- RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered * Gender,
     data = dat.lehmann2018, measure = "SMD",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
@@ -77,7 +82,8 @@ test_that("RoBMA handles multilevel location-scale meta-regression", {
   fit <- suppressWarnings(RoBMA(
     yi = yi, vi = vi, mods = ~ Preregistered, scale = ~ Preregistered, cluster = Full_Citation,
     data = dat.lehmann2018, measure = "SMD",
-    seed = 1, silent = TRUE, adapt = 1000
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    seed = 1, silent = TRUE
   ))
   fit <- suppressWarnings(add_loo(fit))
   save_fit("dat.lehmann2018_RoBMA_3lvl_mods_scale", fit, info = list(mods = c("Preregistered"), scale = c("Preregistered")))

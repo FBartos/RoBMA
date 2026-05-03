@@ -2,6 +2,7 @@
 % Please edit documentation in R/zcurve.R
 \name{as_zcurve.brma}
 \alias{as_zcurve.brma}
+\alias{as_zcurve}
 \title{Transform brma Object to Z-Curve}
 \usage{
 \method{as_zcurve}{brma}(
@@ -46,6 +47,19 @@ what the true power distribution would be without selective reporting.
 The resulting object retains all original brma properties while adding
 z-curve results, enabling both standard meta-analytic summaries and
 z-curve diagnostics on the same object.
+}
+\examples{
+\dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+
+  zfit <- as_zcurve(fit)
+  summary(zfit)
+  plot(zfit)
+}
+}
+
 }
 \seealso{
 \code{\link[=summary.zcurve_brma]{summary.zcurve_brma()}}, \code{\link[=plot.zcurve_brma]{plot.zcurve_brma()}}, \code{\link[=hist.zcurve_brma]{hist.zcurve_brma()}}

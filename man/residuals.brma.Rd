@@ -28,7 +28,7 @@ bias adjustment.
 raw residuals by their standard errors computed using the hat matrix.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
-\item \code{"LOO-PIT" (alias: \code{"rstudent"}}: Leave-one-out probability
+\item \code{"LOO-PIT"} (alias: \code{"rstudent"}): Leave-one-out probability
 integral transform (PIT) residuals computed via Pareto smoothed importance
 sampling. The LOO-CDF value for each observation is computed and transformed
 to standard normal quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly
@@ -50,8 +50,8 @@ value. LOO-PIT residuals always use the estimate-unit LOO target.}
 fitted values. Defaults to \code{FALSE}, which means residuals are computed
 as the difference between observed values and raw (biased) predictions
 including PET/PEESE terms. Set to \code{TRUE} to compute residuals from
-bias-corrected fitted values. Only applies to \code{type = "outcome"}. Note
-that the bias adjustment residuals are not residuals in the traditional sense.}
+bias-corrected fitted values. Applies to outcome and Pearson residuals. Note
+that bias-adjusted residuals are not residuals in the traditional sense.}
 
 \item{...}{additional arguments.}
 }
@@ -110,28 +110,35 @@ naturally propagating uncertainty in model parameters to the residuals.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
 
-# get raw residuals (default)
-residuals(fit)
+  fit <- bPET(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
 
-# get Pearson (semi-standardized) residuals (normal outcome only)
-residuals(fit, type = "pearson")
+  # raw residuals (default)
+  residuals(fit)
 
-# get internally standardized residuals (normal outcome only)
-residuals(fit, type = "rstandard")
+  # Pearson and internally standardized residuals
+  residuals(fit, type = "pearson")
+  residuals(fit, type = "rstandard")
 
-# get LOO-PIT residuals (recommended for standardized residuals)
-# should be ~N(0,1) if model is correctly specified
-residuals(fit, type = "LOO-PIT")
+  # LOO-PIT residuals require stored LOO
+  fit <- add_loo(fit)
+  residuals(fit, type = "LOO-PIT")
 
-# get residuals from bias-adjusted predictions
-residuals(fit, bias_adjusted = TRUE)
+  # residuals from bias-adjusted predictions
+  residuals(fit, bias_adjusted = TRUE)
 
-# check LOO diagnostics before using LOO-PIT residuals
-loo_result <- loo(fit)
-plot(loo_result) # check Pareto k values
+  # check Pareto k diagnostics
+  plot(loo(fit))
+}
 }
 
 }

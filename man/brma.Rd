@@ -43,26 +43,32 @@ brma(
 )
 }
 \arguments{
-\item{yi}{a vector of effect sizes.}
+\item{yi}{a vector of effect sizes, or a formula with the effect size on the
+left-hand side and location moderators on the right-hand side (for example
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} is ignored.}
 
-\item{vi}{a vector of sampling variances.}
+\item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 
-\item{sei}{a vector of standard errors.}
+\item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
+supplied for normal models.}
 
 \item{weights}{an optional vector of positive likelihood weights. For normal
 models, each weight powers the estimate likelihood. For GLMM models, each
 weight powers the paired two-arm likelihood for one study.}
 
-\item{ni}{an optional vector of sample sizes (used for \code{measuer = "GEN"}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
 
 \item{mods}{an optional vector, matrix, data.frame, or formula specifying
-moderators (or meta-regressors).}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
-scale predictors (for location-scale models).}
+scale predictors for location-scale models. Formula input is evaluated in
+\code{data}.}
 
-\item{cluster}{an optional vector of cluster identifiers.}
+\item{cluster}{an optional vector of cluster identifiers for multilevel
+meta-analysis.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -72,8 +78,9 @@ scale predictors (for location-scale models).}
 data to be used.}
 
 \item{measure}{a character string specifying the effect size measure.
-Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR"}, \code{"RD"},
-\code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
+Normal models default to \code{"GEN"} and support \code{"SMD"}, \code{"ZCOR"}, \code{"RR"},
+\code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}. GLMM models support only
+\code{"OR"} and \code{"IRR"} and default to \code{"OR"}.}
 
 \item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
 (the intercept). If omitted, a default prior is constructed. In single-model
@@ -135,9 +142,19 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Defaults to \code{RoBMA.get_option("silent")}.}
+\item{silent}{logical. Whether to suppress output. For \code{brma()} and
+\code{brma.glmm()}, a missing value uses \code{RoBMA.get_option("silent")}.
+Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
 
-\item{...}{additional arguments.}
+\item{...}{additional advanced arguments. Fitting functions reject unused
+arguments; currently recognized internal arguments include \code{only_data},
+\code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
+}
+\value{
+A fitted object of class \code{c("brma.norm", "brma")}. The object
+contains checked \code{data}, checked \code{priors}, the JAGS \code{fit}, cached \code{summary},
+and cached \code{coefficients}. If the corresponding package options are enabled,
+it can also contain cached LOO, WAIC, or marginal likelihood results.
 }
 \description{
 Function for fitting random-effects, meta-regression, multilevel,
@@ -268,11 +285,55 @@ making them more diffuse. Point and none priors are unchanged.
 
 \subsection{Handling of continuous and factor predictors}{
 
-TODO: explain \code{standardize_continuous_predictors} and \code{set_contrast_factor_predictors}
+When \code{standardize_continuous_predictors = TRUE}, continuous moderator and
+scale predictors are internally standardized before fitting. Reported
+summaries are transformed back to the original predictor scale by default;
+use \code{standardized_coefficients = TRUE} in \code{summary()} or related methods to
+inspect coefficients on the standardized scale.
+
+Factor predictors use the contrast specified by
+\code{set_contrast_factor_predictors}. The default \code{"treatment"} follows standard
+treatment coding. Model-averaging functions default to \code{"meandif"} so
+inclusion priors for factor levels are centered on deviations from the grand
+mean.
 }
 
 }
 }
+\examples{
+\dontrun{
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
+
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    mods    = ~ ablat + year,
+    data    = dat,
+    measure = "RR",
+    seed    = 1,
+    silent  = TRUE
+  )
+
+  summary(fit)
+  predict(fit, type = "terms")
+}
+}
+
+}
 \references{
 \insertAllCited{}
+}
+\seealso{
+\code{\link[=RoBMA]{RoBMA()}}, \code{\link[=BMA]{BMA()}}, \code{\link[=brma.glmm]{brma.glmm()}}, \code{\link[=summary.brma]{summary.brma()}},
+\code{\link[=plot.brma]{plot.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

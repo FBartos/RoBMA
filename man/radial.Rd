@@ -2,6 +2,8 @@
 % Please edit documentation in R/radial.R
 \name{radial.brma}
 \alias{radial.brma}
+\alias{radial}
+\alias{galbraith}
 \alias{galbraith.brma}
 \title{Radial (Galbraith) Plot for brma Object}
 \usage{
@@ -119,21 +121,24 @@ pooled effect varies across studies.
 }
 \examples{
 \dontrun{
-# Simple meta-analysis
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-radial(fit)
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
 
-# Centered at pooled estimate
-radial(fit, center = TRUE)
-
-# Using ggplot2
-radial(fit, plot_type = "ggplot")
-
-# Custom appearance
-radial(fit, pch = 19, col = "blue")
-
-# galbraith() is an alias
-galbraith(fit)
+  fit <- brma(yi = yi, vi = vi, data = dat, measure = "RR")
+  radial(fit)
+  radial(fit, center = TRUE)
+  radial(fit, plot_type = "ggplot")
+  galbraith(fit)
+}
 }
 
 }

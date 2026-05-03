@@ -71,10 +71,22 @@ This is especially useful for objects created with \code{only_priors = TRUE}.
 }
 \examples{
 \dontrun{
-priors <- BMA(yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE)
-plot_prior(priors, parameter = "mu")
-plot_prior(priors, parameter = "tau")
-plot_prior(priors, parameter_mods = "x", standardized_coefficients = FALSE)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+
+  priors <- BMA(
+    yi           = yi,
+    vi           = vi,
+    mods         = ~ Preregistered,
+    data         = dat.lehmann2018,
+    measure      = "SMD",
+    only_priors  = TRUE
+  )
+
+  plot_prior(priors, parameter = "mu")
+  plot_prior(priors, parameter = "tau")
+  plot_prior(priors, parameter_mods = "Preregistered")
+}
 }
 
 }

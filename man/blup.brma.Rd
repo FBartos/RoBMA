@@ -66,11 +66,19 @@ cluster-level (\eqn{\gamma}) and estimate-level random effects.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
 
-# get BLUPs (true effects)
-blup(fit)
+  blup(fit)
+}
 }
 
 }

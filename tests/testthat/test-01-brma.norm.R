@@ -44,7 +44,12 @@ test_that("brma.norm fits metafor-reference normal models", {
   expect_s3_class(fit_mods2.brma, "brma.norm")
 
   # using RoBMA package (meandif coding)
-  fit_mods2b.brma <- brma(yi, vi, mods = ~ alloc, data = dat, measure = "RR", seed = 1, silent = TRUE, rescale_priors = 2, set_contrast_factor_predictors = "meandif")
+  fit_mods2b.brma <- brma(
+    yi, vi, mods = ~ alloc, data = dat, measure = "RR",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    seed = 1, silent = TRUE, rescale_priors = 2,
+    set_contrast_factor_predictors = "meandif"
+  )
   fit_mods2b.brma <- add_marglik(fit_mods2b.brma)
   fit_mods2b.brma <- suppressWarnings(add_loo(fit_mods2b.brma))
   save_fit("bcg_meta-regression2b", fit_mods2b.brma, info = list(mods = c("alloc"), metafor = NULL))
@@ -62,7 +67,12 @@ test_that("brma.norm fits metafor-reference normal models", {
   expect_s3_class(fit_mods3.brma, "brma.norm")
 
   # using RoBMA package (meandif coding)
-  fit_mods3b.brma <- brma(yi, vi, mods = ~ alloc * year, data = dat, measure = "RR", seed = 1, silent = TRUE, set_contrast_factor_predictors = "meandif")
+  fit_mods3b.brma <- brma(
+    yi, vi, mods = ~ alloc * year, data = dat, measure = "RR",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    seed = 1, silent = TRUE,
+    set_contrast_factor_predictors = "meandif"
+  )
   fit_mods3b.brma <- add_marglik(fit_mods3b.brma)
   fit_mods3b.brma <- suppressWarnings(add_loo(fit_mods3b.brma))
   save_fit("bcg_meta-regression3b", fit_mods3b.brma, info = list(mods = c("alloc", "year", "alloc:year"), metafor = NULL))
@@ -81,7 +91,12 @@ test_that("brma.norm fits metafor-reference normal models", {
   expect_s3_class(fit_mods4.brma, "brma.norm")
 
   # using RoBMA package (increase scale because of shrinkage, meandif coding)
-  fit_mods4b.brma <- brma(yi, vi, mods = ~ alloc * year_before1969, data = dat, measure = "RR", seed = 1, silent = TRUE, set_contrast_factor_predictors = "meandif")
+  fit_mods4b.brma <- brma(
+    yi, vi, mods = ~ alloc * year_before1969, data = dat, measure = "RR",
+    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    seed = 1, silent = TRUE,
+    set_contrast_factor_predictors = "meandif"
+  )
   fit_mods4b.brma <- add_marglik(fit_mods4b.brma)
   fit_mods4b.brma <- suppressWarnings(add_loo(fit_mods4b.brma))
   save_fit("bcg_meta-regression4b", fit_mods4b.brma, info = list(mods = c("alloc", "year_before1969", "alloc:year_before1969"), metafor = NULL))

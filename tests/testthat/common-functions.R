@@ -5,7 +5,7 @@ if (!exists("GENERATE_REFERENCE_FILES")) {
   GENERATE_REFERENCE_FILES <- FALSE
 }
 if (!exists("FIT_CACHE_VERSION")) {
-  FIT_CACHE_VERSION <- 2L
+  FIT_CACHE_VERSION <- 3L
 }
 
 # Get the directory where prefitted models are stored. Local development uses
@@ -113,6 +113,8 @@ fit_catalog <- function() {
       "dat.lehmann2018-PET_neg",
       "dat.lehmann2018-PETreg",
       "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESE_neg",
+      "dat.lehmann2018-PEESEreg",
       "dat.lehmann2018-3PSM",
       "dat.lehmann2018-4PSM",
       "dat.lehmann2018-3PSM_neg",
@@ -122,6 +124,7 @@ fit_catalog <- function() {
       "dat.lehmann2018_BMA.norm_mods",
       "dat.lehmann2018_BMA.norm_scale",
       "bcg_BMA.glmm",
+      "nielweise2008_BMA.glmm",
       "bcg_BMA.glmm_custom",
       "bcg_BMA.glmm_3lvl_location_scale",
       "dat.lehmann2018_RoBMA",
@@ -134,50 +137,55 @@ fit_catalog <- function() {
       rep("brma.norm", 11),
       rep("brma.glmm", 4),
       rep("bPET", 3),
-      "bPEESE",
+      rep("bPEESE", 3),
       rep("bselmodel", 4),
       rep("BMA.norm", 4),
-      rep("BMA.glmm", 3),
+      rep("BMA.glmm", 4),
       rep("RoBMA", 5)
     ),
     family = c(
       rep("norm", 11),
       rep("glmm", 4),
-      rep("norm", 20)
+      rep("norm", 3),
+      rep("norm", 3),
+      rep("norm", 4),
+      rep("norm", 4),
+      rep("glmm", 4),
+      rep("norm", 5)
     ),
     source_file = c(
       rep("test-01-brma.norm.R", 11),
       rep("test-01-brma.glmm.R", 4),
       rep("test-01-bPET.R", 3),
-      "test-01-bPEESE.R",
+      rep("test-01-bPEESE.R", 3),
       rep("test-01-bselmodel.R", 4),
       rep("test-01-BMA.norm.R", 4),
-      rep("test-01-BMA.glmm.R", 3),
+      rep("test-01-BMA.glmm.R", 4),
       rep("test-01-RoBMA.R", 5)
     ),
     has_metafor = c(
       TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, TRUE, TRUE,
       TRUE, TRUE, TRUE, FALSE,
       TRUE, TRUE, TRUE,
-      TRUE,
+      TRUE, TRUE, TRUE,
       TRUE, TRUE, TRUE, TRUE,
-      rep(FALSE, 12)
+      rep(FALSE, 13)
     ),
     has_loo = TRUE,
     has_waic = FALSE,
     has_marglik = c(
-      rep(TRUE, 23),
-      rep(FALSE, 12)
+      rep(TRUE, 25),
+      rep(FALSE, 13)
     ),
     tier = c(
       "core", "core", "extended", "extended", "core", "extended", "extended", "extended",
       "core", "core", "extended",
       "core", "core", "core", "extended",
       "core", "extended", "extended",
-      "core",
+      "core", "extended", "core",
       "core", "extended", "extended", "extended",
       "core", "extended", "core", "extended",
-      "core", "extended", "extended",
+      "core", "core", "extended", "extended",
       "core", "extended", "core", "extended", "extended"
     ),
     stringsAsFactors = FALSE
@@ -203,6 +211,8 @@ fit_catalog <- function() {
     c("metafor", "PET", "negative"),
     c("metafor", "PET", "mods"),
     c("metafor", "PEESE"),
+    c("metafor", "PEESE", "negative"),
+    c("metafor", "PEESE", "mods"),
     c("metafor", "selection"),
     c("metafor", "selection", "steps"),
     c("metafor", "selection", "negative"),
@@ -212,6 +222,7 @@ fit_catalog <- function() {
     c("BMA.norm", "normal", "mods"),
     c("BMA.norm", "normal", "scale"),
     c("BMA.glmm", "glmm", "binomial"),
+    c("BMA.glmm", "glmm", "poisson"),
     c("BMA.glmm", "glmm", "binomial", "custom_priors"),
     c("BMA.glmm", "glmm", "binomial", "multilevel", "mods", "scale"),
     c("RoBMA", "normal", "simple", "selection", "PET"),
@@ -373,22 +384,146 @@ source_file_md5 <- function(source_file) {
   return(unname(tools::md5sum(normalized)))
 }
 
+.package_source_md5_cache <- new.env(parent = emptyenv())
+
+.fit_cache_source_files <- function(package_root = NULL, relative = FALSE) {
+
+  if (is.null(package_root)) {
+    package_root <- normalizePath(
+      testthat::test_path("..", ".."),
+      winslash = "/",
+      mustWork = TRUE
+    )
+  } else {
+    package_root <- normalizePath(package_root, winslash = "/", mustWork = TRUE)
+  }
+
+  # Keep this scoped to code that can change saved fit objects or cached fit
+  # extensions. Post-fit methods are tested against the cached objects.
+  r_files <- c(
+    "R/BMA.glmm.R",
+    "R/BMA.norm.R",
+    "R/RoBMA.R",
+    "R/bPEESE.R",
+    "R/bPET.R",
+    "R/brma.glmm.R",
+    "R/brma.norm.R",
+    "R/bselmodel.R",
+    "R/fit.R",
+    "R/input-data.R",
+    "R/input-object.R",
+    "R/input-priors.R",
+    "R/loo.R",
+    "R/marglik.R",
+    "R/pdf.R",
+    "R/priors.R",
+    "R/selection-mapping.R",
+    "R/utilities.R",
+    "R/zzz.R"
+  )
+  src_files <- c(
+    "src/RoBMA.cc",
+    "src/init.c",
+    "src/distributions/DSELNORMKERNEL.cc",
+    "src/distributions/DSELNORMKERNEL.h",
+    "src/distributions/DSELNORMSTEP.cc",
+    "src/distributions/DSELNORMSTEP.h",
+    "src/distributions/DSELNORMSTEPSWITCH.cc",
+    "src/distributions/DSELNORMSTEPSWITCH.h",
+    "src/distributions/DWB.cc",
+    "src/distributions/DWB.h",
+    "src/distributions/DWN.cc",
+    "src/distributions/DWN.h",
+    "src/distributions/DWP.cc",
+    "src/distributions/DWP.h",
+    "src/r-glmm.cc",
+    "src/r-selnorm.cc",
+    "src/source/selnorm.cc",
+    "src/source/selnorm.h"
+  )
+
+  source_files <- sort(c(r_files, src_files))
+  source_paths <- file.path(package_root, source_files)
+  source_files <- source_files[file.exists(source_paths)]
+
+  if (relative) {
+    return(source_files)
+  }
+
+  return(sort(normalizePath(
+    file.path(package_root, source_files),
+    winslash = "/",
+    mustWork = TRUE
+  )))
+}
+
+.fit_cache_source_file_md5 <- function(path) {
+
+  extension <- tolower(tools::file_ext(path))
+  if (identical(extension, "r")) {
+    parsed <- try(parse(file = path, keep.source = FALSE), silent = TRUE)
+    if (!inherits(parsed, "try-error")) {
+      lines <- unlist(lapply(parsed, function(expr) {
+        paste(deparse(expr, width.cutoff = 500L), collapse = "\n")
+      }), use.names = FALSE)
+
+      normalized <- tempfile("robma-package-source-", fileext = ".R")
+      writeLines(lines, normalized, useBytes = TRUE)
+      on.exit(unlink(normalized), add = TRUE)
+
+      return(unname(tools::md5sum(normalized)))
+    }
+  }
+
+  return(unname(tools::md5sum(path)))
+}
+
+package_source_md5 <- function() {
+
+  if (exists("value", envir = .package_source_md5_cache, inherits = FALSE)) {
+    return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
+  }
+
+  package_root <- normalizePath(
+    testthat::test_path("..", ".."),
+    winslash = "/",
+    mustWork = TRUE
+  )
+  source_files <- .fit_cache_source_files(package_root = package_root)
+  file_hashes  <- vapply(source_files, .fit_cache_source_file_md5, character(1))
+  relative_files <- substring(source_files, nchar(package_root) + 2L)
+  hash_input     <- paste(
+    paste0(relative_files, ":", unname(file_hashes)),
+    collapse = "\n"
+  )
+
+  normalized <- tempfile("robma-package-source-", fileext = ".txt")
+  writeLines(hash_input, normalized, useBytes = TRUE)
+  on.exit(unlink(normalized), add = TRUE)
+
+  value <- unname(tools::md5sum(normalized))
+  assign("value", value, envir = .package_source_md5_cache)
+
+  return(value)
+}
+
 fit_cache_metadata <- function(name, fit, info = NULL) {
 
   entry       <- fit_catalog_entry(name)
   source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
 
   metadata <- list(
-    version          = FIT_CACHE_VERSION,
-    name             = name,
-    saved_at         = format(Sys.time(), usetz = TRUE),
-    fit_class        = class(fit),
-    source_file      = source_file,
-    source_file_md5  = source_file_md5(source_file),
-    has_loo          = !is.null(fit[["loo"]]),
-    has_waic         = !is.null(fit[["waic"]]),
-    has_marglik      = !is.null(fit[["marglik"]]),
-    has_metafor_info = !is.null(info) && "metafor" %in% names(info) && !is.null(info[["metafor"]])
+    version            = FIT_CACHE_VERSION,
+    name               = name,
+    saved_at           = format(Sys.time(), usetz = TRUE),
+    fit_class          = class(fit),
+    source_file        = source_file,
+    source_file_md5    = source_file_md5(source_file),
+    package_source_md5 = package_source_md5(),
+    has_loo            = !is.null(fit[["loo"]]),
+    has_waic           = !is.null(fit[["waic"]]),
+    has_marglik        = !is.null(fit[["marglik"]]),
+    has_metafor_info   = !is.null(info) && "metafor" %in% names(info) && !is.null(info[["metafor"]])
   )
 
   return(metadata)
@@ -449,17 +584,17 @@ is_false_env <- function(name) {
 
 validate_cached_fit <- function(name, fit = NULL, info = NULL,
                                 metadata = NULL, check_source = TRUE,
-                                deep = FALSE) {
+                                check_files = TRUE, deep = FALSE) {
 
   messages <- character()
   paths    <- fit_cache_paths(name)
   entry    <- fit_catalog_entry(name)
 
-  if (!file.exists(paths[["fit"]]) && is.null(fit)) {
+  if (check_files && !file.exists(paths[["fit"]]) && is.null(fit)) {
     messages <- c(messages, "fit file is missing")
     return(messages)
   }
-  if (!file.exists(paths[["fit"]])) {
+  if (check_files && !file.exists(paths[["fit"]])) {
     messages <- c(messages, "fit file is missing")
   }
 
@@ -510,7 +645,7 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
       if (!isTRUE(metadata[["has_metafor_info"]])) {
         messages <- c(messages, "metadata reports missing metafor reference")
       }
-      if (!file.exists(paths[["info"]]) && is.null(info)) {
+      if (check_files && !file.exists(paths[["info"]]) && is.null(info)) {
         messages <- c(messages, "metafor info file is missing")
       }
     }
@@ -519,6 +654,13 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
     if (check_source && !is.na(expected_md5) &&
         (is.null(metadata[["source_file_md5"]]) || !identical(metadata[["source_file_md5"]], expected_md5))) {
       messages <- c(messages, "source file hash changed")
+    }
+
+    expected_package_md5 <- package_source_md5()
+    if (check_source &&
+        (is.null(metadata[["package_source_md5"]]) ||
+         !identical(metadata[["package_source_md5"]], expected_package_md5))) {
+      messages <- c(messages, "cache source hash changed")
     }
   }
 

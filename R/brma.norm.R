@@ -118,11 +118,56 @@
 #' making them more diffuse. Point and none priors are unchanged.
 #'
 #' ### Handling of continuous and factor predictors
-#' TODO: explain `standardize_continuous_predictors` and `set_contrast_factor_predictors`
+#' When `standardize_continuous_predictors = TRUE`, continuous moderator and
+#' scale predictors are internally standardized before fitting. Reported
+#' summaries are transformed back to the original predictor scale by default;
+#' use `standardized_coefficients = TRUE` in `summary()` or related methods to
+#' inspect coefficients on the standardized scale.
+#'
+#' Factor predictors use the contrast specified by
+#' `set_contrast_factor_predictors`. The default `"treatment"` follows standard
+#' treatment coding. Model-averaging functions default to `"meandif"` so
+#' inclusion priors for factor levels are centered on deviations from the grand
+#' mean.
+#'
+#' @return A fitted object of class `c("brma.norm", "brma")`. The object
+#' contains checked `data`, checked `priors`, the JAGS `fit`, cached `summary`,
+#' and cached `coefficients`. If the corresponding package options are enabled,
+#' it can also contain cached LOO, WAIC, or marginal likelihood results.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE) &&
+#'     requireNamespace("metafor", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'   dat <- metafor::escalc(
+#'     measure = "RR",
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     data    = dat.bcg
+#'   )
+#'
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     mods    = ~ ablat + year,
+#'     data    = dat,
+#'     measure = "RR",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#'   predict(fit, type = "terms")
+#' }
+#' }
 #'
 #' @references
 #' \insertAllCited{}
 #'
+#' @seealso [RoBMA()], [BMA()], [brma.glmm()], [summary.brma()],
+#' [plot.brma()], [predict.brma()]
 #' @export
 brma <- brma.norm <- function(
     # input specification
@@ -150,8 +195,12 @@ brma <- brma.norm <- function(
     ) {
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "brma.norm()"
+  )
   object       <- .createObject(
     dots = dots, class = c("brma.norm", "brma"),
     # MCMC and fitting settings

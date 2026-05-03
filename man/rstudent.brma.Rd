@@ -65,16 +65,17 @@ suitable for all model types including selection models and GLMMs.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-fit <- add_loo(fit)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit <- add_loo(fit)
 
-# get externally standardized residuals
-rstudent(fit)
+  # externally standardized residuals
+  rstudent(fit)
 
-# check LOO diagnostics
-loo_obj <- loo(fit)
-plot(loo_obj) # check Pareto k values
+  # check Pareto k values
+  plot(loo(fit))
+}
 }
 
 }

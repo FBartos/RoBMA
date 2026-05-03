@@ -25,15 +25,25 @@
 #' aggregate heterogeneity. For scale models, aggregation is over the remaining
 #' scale-model rows after each deletion.}
 #' \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
+#' Undefined determinant- or variance-standardized diagnostics are reported as
+#' \code{NaN} and printed with an explanatory note.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
-#' fit <- add_loo(fit)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'   fit <- add_loo(fit)
 #'
-#' # compute influence diagnostics
-#' inf <- influence(fit)
-#' print(inf)
+#'   inf <- influence(fit)
+#'   print(inf)
+#' }
 #' }
 #'
 #' @seealso \code{\link{dffits.brma}}, \code{\link{cooks.distance.brma}},
@@ -86,6 +96,8 @@ influence.brma <- function(model, ...) {
   # COVRATIO
   # covratio uses weights and beta samples, not hat_samples directly.
   cov_val <- covratio(model)
+  cov_note <- attr(cov_val, "note")
+  cov_val <- as.numeric(cov_val)
 
   # DFBETAS
   # dfbetas uses weights and beta samples.
@@ -118,6 +130,9 @@ influence.brma <- function(model, ...) {
     inf  = inf_df,
     dfbs = dfb_val
   )
+  if (!is.null(cov_note)) {
+    attr(res, "note") <- cov_note
+  }
 
   class(res) <- "infl.brma"
   return(res)
@@ -190,5 +205,6 @@ print.infl.brma <- function(x, digits = 3, ...) {
   print(x$inf, digits = digits, ...)
   cat("\nDFBETAS:\n")
   print(x$dfbs, digits = digits, ...)
+  .print_diagnostic_note(attr(x, "note"))
   invisible(x)
 }

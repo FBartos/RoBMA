@@ -1,3 +1,50 @@
+#' @title Robust Bayesian Model-Averaged Meta-Analysis
+#'
+#' @description Fits a robust Bayesian model-averaged meta-analysis. The
+#' default ensemble averages across models with and without an effect,
+#' heterogeneity, and publication-bias adjustment.
+#'
+#' @inheritParams data_input
+#' @inheritParams RoBMA_prior_specification
+#' @inheritParams prior_specification
+#' @inheritParams fitting_specification
+#'
+#' @details
+#' `RoBMA()` uses product-space Bayesian model averaging. Inclusion Bayes
+#' factors and model-averaged estimates are obtained from mixture priors for
+#' effect, heterogeneity, moderators, scale regression, and publication-bias
+#' components.
+#'
+#' By default, `model_type = "PSMA"` includes selection-model weight functions
+#' together with PET and PEESE publication-bias adjustments. Use `BMA()` for
+#' model averaging without publication-bias adjustment, or `brma()` for fitting
+#' a single meta-analytic model.
+#'
+#' @return A fitted object of class `c("RoBMA", "brma")`. The object contains
+#' checked `data`, checked `priors`, the JAGS `fit`, cached `summary`, and
+#' cached `coefficients`. It can be passed to `summary()`, `plot()`,
+#' `predict()`, `funnel()`, `add_loo()`, and related methods.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- RoBMA(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#'   plot(fit)
+#' }
+#' }
+#'
+#' @seealso [BMA()], [brma()], [bselmodel()], [bPET()], [bPEESE()],
+#' [summary.brma()], [plot.brma()]
 #' @export
 RoBMA <- function(
   # input specification
@@ -26,6 +73,11 @@ RoBMA <- function(
 
   ### create the output object
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "RoBMA()"
+  )
   object       <- .createObject(
     dots = dots, class = c("RoBMA", "brma"),
     # MCMC and fitting settings

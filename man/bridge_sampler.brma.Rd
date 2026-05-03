@@ -2,6 +2,7 @@
 % Please edit documentation in R/bridgesampling.R
 \name{bridge_sampler.brma}
 \alias{bridge_sampler.brma}
+\alias{bridge_sampler}
 \title{Bridge Sampling for brma Objects}
 \usage{
 \method{bridge_sampler}{brma}(samples, ...)
@@ -30,14 +31,15 @@ The returned object can be used for Bayesian model comparison via
 }
 \examples{
 \dontrun{
-fit <- brma(y = d, se = se, data = Bem2011)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
-# Compute marginal likelihood first
-fit <- add_marglik(fit)
+  fit <- add_marglik(fit)
 
-# Extract bridge sampling object
-bridge <- bridge_sampler(fit)
-print(bridge)
+  bridge <- bridge_sampler(fit)
+  print(bridge)
+}
 }
 
 }

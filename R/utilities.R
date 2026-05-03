@@ -1,7 +1,6 @@
 #' @title Options for the RoBMA package
 #'
-#' @description A placeholder object and functions for the RoBMA package.
-#' (adapted from the runjags R package).
+#' @description Inspect or change package-level defaults used by RoBMA.
 #'
 #' @param name the name of the option to get the current value of - for a list of
 #' available options, see details below.
@@ -29,8 +28,9 @@
 #'   \item{\code{default_bias_PEESE.scale}}{default scale for the PEESE (default \code{5})}
 #' }
 #'
-#' @return The current value of all available RoBMA options (after applying any
-#' changes specified) is returned invisibly as a named list.
+#' @return `RoBMA.options()` invisibly returns a named list with all current
+#' options after applying any changes. `RoBMA.get_option()` returns the current
+#' value of the requested option.
 #'
 #' @export RoBMA.options
 #' @export RoBMA.get_option
@@ -42,30 +42,41 @@ NULL
 #' @rdname RoBMA_options
 RoBMA.options    <- function(...){
 
-	opts <- list(...)
+  opts <- list(...)
 
-	for(i in seq_along(opts)){
+  if (length(opts) > 0 && (is.null(names(opts)) || any(names(opts) == ""))) {
+    stop("All options must be named.", call. = FALSE)
+  }
 
-	  if(!names(opts)[i] %in% names(RoBMA.private))
-	    stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep=""))
+  option_names <- RoBMA.private[["option_names"]]
 
-	  assign(names(opts)[i], opts[[i]] , envir = RoBMA.private)
-	}
+  for (i in seq_along(opts)) {
 
-	return(invisible(RoBMA.private$options))
+    if (!names(opts)[i] %in% option_names) {
+      stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""))
+    }
+
+    assign(names(opts)[i], opts[[i]], envir = RoBMA.private)
+  }
+
+  return(invisible(.RoBMA_current_options()))
 }
 
 #' @rdname RoBMA_options
 RoBMA.get_option <- function(name){
 
-	if(length(name)!=1)
-	  stop("Only 1 option can be retrieved at a time")
+  if (length(name) != 1) {
+    stop("Only 1 option can be retrieved at a time", call. = FALSE)
+  }
 
-	if(!name %in% names(RoBMA.private))
-	  stop(paste("Unmatched or ambiguous option '", name, "'", sep=""))
+  option_names <- RoBMA.private[["option_names"]]
 
-	# Use eval as some defaults are put in using 'expression' to avoid evaluating at load time:
-	return(eval(RoBMA.private[[name]]))
+  if (!name %in% option_names) {
+    stop(paste("Unmatched or ambiguous option '", name, "'", sep = ""))
+  }
+
+  # Use eval as some defaults are put in using 'expression' to avoid evaluating at load time:
+  return(eval(RoBMA.private[[name]]))
 }
 
 # export the function directly to suppress import warnings
@@ -75,14 +86,14 @@ RoBMA.get_option <- function(name){
 RoBMA.private <- new.env()
 # Use 'expression' for functions to avoid having to evaluate before the package is fully loaded:
 assign("defaultoptions",  list(
-  jagspath = expression(.runjags__findjags()),
-  envir    = RoBMA.private))
+  jagspath = expression(.runjags__findjags())
+), envir = RoBMA.private)
 
 assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
 assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
 assign("min_jags_major",  4,                              envir = RoBMA.private)
 assign("max_jags_major",  4,                              envir = RoBMA.private)
-assign("max_cores",       parallel::detectCores(logical = TRUE) - 1,  envir = RoBMA.private)
+assign("max_cores",       max(1L, parallel::detectCores(logical = TRUE) - 1L, na.rm = TRUE), envir = RoBMA.private)
 assign("check_scaling",   TRUE,                                       envir = RoBMA.private) # TODO: remove?
 
 assign("silent", FALSE,  envir = RoBMA.private)
@@ -108,11 +119,40 @@ assign("default_bias_weightfunction.alpha",  1,  envir = RoBMA.private)
 assign("default_bias_PET.scale",             1,  envir = RoBMA.private)
 assign("default_bias_PEESE.scale",           5,  envir = RoBMA.private)
 
+assign("option_names", c(
+  "max_cores",
+  "check_scaling",
+  "silent",
+  "autocompute.loo",
+  "autocompute.waic",
+  "autocompute.marglik",
+  "cluster_likelihood.n_gamma",
+  "default_UISD.effect",
+  "default_UISD.heterogeneity",
+  "default_UISD.mods",
+  "default_UISD.scale",
+  "default_informed_priors.mods",
+  "default_informed_priors.scale",
+  "default_bias_weightfunction.alpha",
+  "default_bias_PET.scale",
+  "default_bias_PEESE.scale"
+), envir = RoBMA.private)
+
+
+.RoBMA_current_options <- function() {
+
+  option_names <- RoBMA.private[["option_names"]]
+  out          <- mget(option_names, envir = RoBMA.private, inherits = FALSE)
+
+  return(out)
+}
+
 
 # check and fix number of threads (sometimes bugs out during installation)
 .check_max_cores <- function(){
-  if(RoBMA.private$max_cores > parallel::detectCores(logical = TRUE) - 1){
-    RoBMA.options(max_cores = parallel::detectCores(logical = TRUE) - 1)
+  max_cores <- max(1L, parallel::detectCores(logical = TRUE) - 1L, na.rm = TRUE)
+  if(RoBMA.private$max_cores > max_cores || RoBMA.private$max_cores < 1){
+    RoBMA.options(max_cores = max_cores)
   }
 }
 
@@ -174,11 +214,18 @@ assign("default_bias_PEESE.scale",           5,  envir = RoBMA.private)
 #' )
 #'
 #' \dontrun{
-#' # Use in RoBMA function
-#' fit <- RoBMA(d = c(0.5, 0.3, 0.1),
-#'              se = c(0.2, 0.15, 0.1),
-#'              autofit_control = autofit_ctrl,
-#'              convergence_checks = conv_checks)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- RoBMA(
+#'     yi                 = yi,
+#'     vi                 = vi,
+#'     data               = dat.lehmann2018,
+#'     measure            = "SMD",
+#'     autofit_control    = autofit_ctrl,
+#'     convergence_checks = conv_checks
+#'   )
+#' }
 #' }
 #'
 #' @return \code{set_autofit_control} returns a list of autofit control settings
@@ -256,6 +303,9 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }
   if(is.null(parallel)){
     parallel <- old_fit_control[["parallel"]]
+  }
+  if(is.null(cores)){
+    cores <- old_fit_control[["cores"]]
   }
   if(is.null(silent)){
     silent <- old_fit_control[["silent"]]
@@ -351,6 +401,8 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, remove_failed = remove_failed, balance_probability = balance_probability)
   new_convergence_checks <- .check_and_list_convergence_checks(new_convergence_checks)
+
+  return(new_convergence_checks)
 }
 
 

@@ -170,7 +170,11 @@ test_that("plot_prior handles publication-bias prior components", {
     plot_prior(priors, parameter = "bias", plot_type = "ggplot"),
     regexp = "mixes weight-function and PET-PEESE"
   )
-  expect_true(.is_ggplot(plot_prior(priors, parameter = "omega", plot_type = "ggplot")))
+  omega_output <- capture.output(
+    omega_plot <- plot_prior(priors, parameter = "omega", plot_type = "ggplot")
+  )
+  expect_identical(omega_output, character(0))
+  expect_true(.is_ggplot(omega_plot))
   expect_true(.is_ggplot(plot_prior(priors, parameter = "PET",   plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(priors, parameter = "PEESE", plot_type = "ggplot")))
 

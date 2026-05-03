@@ -37,15 +37,17 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' @return A numeric vector of DFFITS values, one for each observation.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
-#' fit <- add_loo(fit)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'   fit <- add_loo(fit)
 #'
-#' # compute DFFITS
-#' dffits(fit)
+#'   dffits(fit)
+#' }
 #' }
 #'
 #' @seealso \code{\link{influence.brma}}, \code{\link{cooks.distance.brma}}, \code{\link{hatvalues.brma}}
+#' @aliases dffits
 #' @exportS3Method
 dffits.brma <- function(model, ...) {
 

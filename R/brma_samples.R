@@ -37,7 +37,7 @@
 #' @return An object of class \code{brma_samples} which inherits from
 #' \code{matrix}.
 #'
-#' @keywords internal
+#' @noRd
 .new_brma_samples <- function(samples, n_chains, n_iter, title,
                               probs = c(.025, .975), data = NULL,
                               effect_transform = NULL) {
@@ -45,6 +45,17 @@
   # ensure samples is a matrix with proper column names
   if (!is.matrix(samples)) {
     samples <- as.matrix(samples)
+  }
+
+  n_chains <- as.integer(n_chains)
+  n_iter   <- as.integer(n_iter)
+
+  if (length(n_chains) != 1L || length(n_iter) != 1L ||
+      is.na(n_chains) || is.na(n_iter) ||
+      n_chains < 1L || n_iter < 1L ||
+      n_chains * n_iter != nrow(samples)) {
+    stop("Invalid brma_samples chain metadata: 'n_chains * n_iter' must equal the number of sample rows.",
+         call. = FALSE)
   }
 
   # add attributes for MCMC structure
@@ -65,6 +76,28 @@
   class(samples) <- c("brma_samples", "matrix", "array")
 
   return(samples)
+}
+
+
+# Derive valid chain metadata for brma_samples objects.
+.brma_samples_chain_info <- function(fit = NULL, n_samples) {
+
+  n_samples <- as.integer(n_samples)
+
+  if (!is.null(fit) && !is.null(fit[["mcmc"]]) && length(fit[["mcmc"]]) > 0L) {
+    chain_lengths <- vapply(fit[["mcmc"]], function(x) NROW(x), integer(1))
+    if (sum(chain_lengths) == n_samples && length(unique(chain_lengths)) == 1L) {
+      return(list(
+        n_chains = length(chain_lengths),
+        n_iter   = chain_lengths[[1]]
+      ))
+    }
+  }
+
+  return(list(
+    n_chains = 1L,
+    n_iter   = n_samples
+  ))
 }
 
 
@@ -102,7 +135,7 @@ print.brma_samples <- function(x, probs = NULL, ...) {
 
 #' @title Summarize brma_samples Object
 #'
-#' @description Creates, prints, and returns a summary table of posterior samples
+#' @description Creates and returns a summary table of posterior samples
 #' using \code{BayesTools::ensemble_estimates_table}.
 #'
 #' @param object a \code{brma_samples} object

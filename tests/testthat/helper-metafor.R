@@ -105,7 +105,7 @@ expect_residuals_match_metafor <- function(case) {
   tolerance   <- case_value(case, "tolerance", 0.05)
 
   if (kind %in% c("standard", "regression", "multilevel", "multilevel_no_loo",
-                  "pet", "pet_reg")) {
+                  "pet", "pet_reg", "peese", "peese_reg")) {
     .expect_residuals_equal(name, residuals(fit_brma), residuals(fit_metafor),
                             tolerance, "outcome residuals")
     .expect_residuals_equal(name, residuals(fit_brma, type = "pearson"),
@@ -424,10 +424,19 @@ expect_prediction_matches_metafor <- function(case) {
     return(invisible(TRUE))
   }
 
-  if (kind %in% c("pet", "pet_reg")) {
-    if (kind == "pet_reg") {
+  if (kind %in% c("pet", "pet_reg", "peese", "peese_reg")) {
+    is_regression_bias <- kind %in% c("pet_reg", "peese_reg")
+    bias_column        <- if (kind %in% c("pet", "pet_reg")) "sqrt(vi)" else "vi"
+
+    if (is_regression_bias) {
+      bias_newmods <- matrix(
+        0,
+        nrow     = nrow(fit_metafor$X),
+        ncol     = 1,
+        dimnames = list(NULL, bias_column)
+      )
       metafor_newmods_bias_adjusted <- cbind(
-        "sqrt(vi)" = 0,
+        bias_newmods,
         fit_metafor$X[, -c(1, 2), drop = FALSE]
       )
       metafor_mu <- mean(predict(fit_metafor, newmods = metafor_newmods_bias_adjusted)$pred)
@@ -525,6 +534,14 @@ expect_prediction_matches_metafor <- function(case) {
     ))
   }
 
+  if (kind == "peese_reg") {
+    preregistered <- .newdata_factor(fit_brma, "Preregistered")
+    return(data.frame(
+      Preregistered = preregistered,
+      vi            = c(0.01, 0.04)
+    ))
+  }
+
   if (kind == "selection_reg") {
     preregistered <- .newdata_factor(fit_brma, "Preregistered")
     return(data.frame(Preregistered = preregistered))
@@ -552,14 +569,19 @@ expect_prediction_matches_metafor <- function(case) {
     return(.metafor_linear_predictor(fit_metafor, ~ vi, newdata))
   }
 
-  if (kind == "pet_reg") {
+  if (kind %in% c("pet_reg", "peese_reg")) {
     metafor_newdata <- newdata
     if (bias_adjusted) {
       metafor_newdata[["vi"]] <- 0
     }
+    formula <- if (kind == "pet_reg") {
+      ~ sqrt(vi) + Preregistered
+    } else {
+      ~ vi + Preregistered
+    }
     return(.metafor_linear_predictor(
       fit_metafor,
-      ~ sqrt(vi) + Preregistered,
+      formula,
       metafor_newdata
     ))
   }

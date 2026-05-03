@@ -1,9 +1,7 @@
 #' @title Bayesian Model-Averaged Meta-Analysis
 #'
-#' @description Convenience wrapper for fitting Bayesian model-averaged meta-analytic
-#' models without publication bias adjustment. This function calls \code{\link{RoBMA}}
-#' internally without the \code{model_type} argument, omitting selection models and
-#' PET-PEESE bias adjustment.
+#' @description Fits Bayesian model-averaged meta-analytic models without
+#' publication-bias adjustment. `BMA()` is an alias for `BMA.norm()`.
 #'
 #' @inheritParams data_input
 #' @inheritParams RoBMA_prior_specification
@@ -12,12 +10,32 @@
 #' @details
 #' \code{BMA.norm} (and its alias \code{BMA}) provides a simplified interface for
 #' Bayesian model-averaged meta-analysis when publication bias adjustment is not needed.
-#' It is equivalent to calling \code{\link{RoBMA}} without specifying \code{prior_bias},
-#' \code{prior_bias_null}, or \code{model_type}.
+#' It uses the same product-space mixture-prior machinery as `RoBMA()` but
+#' omits selection models and PET-PEESE bias adjustment.
 #'
 #' For publication bias adjusted meta-analysis, use \code{\link{RoBMA}} directly.
 #'
-#' @return \code{BMA.norm} returns an object of class \code{"BMA.norm"}.
+#' @return A fitted object of class `c("BMA.norm", "RoBMA", "brma")`.
+#' The object contains checked `data`, checked mixture `priors`, the JAGS
+#' `fit`, cached `summary`, and cached `coefficients`.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- BMA(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     mods    = ~ Preregistered,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#' }
+#' }
 #'
 #' @seealso [RoBMA()] [brma()] [summary.brma()] [plot.brma()]
 #'

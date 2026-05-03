@@ -11,11 +11,18 @@
 #' are \code{"tau"} (for the heterogeneity),
 #' \code{"weightfunction"} (for the estimated weightfunction),
 #' or \code{"PET-PEESE"} (for the PET-PEESE regression).
+#' @param parameter_mods character. Moderator term to plot. Use
+#' \code{"intercept"} for the adjusted effect in meta-regression models.
+#' @param parameter_scale character. Scale-regression term to plot. Use
+#' \code{"intercept"} for the heterogeneity intercept in location-scale models.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
 #' @param prior whether prior distribution should be added to
 #' figure. Defaults to \code{FALSE}.
+#' @param standardized_coefficients whether to plot moderator and
+#' scale-regression coefficients on the standardized predictor scale. Defaults
+#' to \code{FALSE}.
 #' @param conditional whether to plot the conditional posterior distribution
 #' for RoBMA product-space objects. Defaults to \code{FALSE}.
 #' @param dots_prior list of additional graphical arguments
@@ -34,11 +41,19 @@
 #' respectively.
 #'
 #' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+#'
+#'   plot(fit, parameter = "mu")
+#'   plot(fit, parameter = "tau", prior = TRUE)
+#'   plot(fit, parameter = "PET")
+#' }
 #' }
 #'
 #'
 #' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#' or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
 #'
 #' @seealso [RoBMA()]
 #' @export
@@ -157,10 +172,22 @@ plot.brma  <- function(
 #' \code{plot_type = "ggplot"}, a named list of plots is returned.
 #'
 #' @examples \dontrun{
-#' priors <- BMA(yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE)
-#' plot_prior(priors, parameter = "mu")
-#' plot_prior(priors, parameter = "tau")
-#' plot_prior(priors, parameter_mods = "x", standardized_coefficients = FALSE)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   priors <- BMA(
+#'     yi           = yi,
+#'     vi           = vi,
+#'     mods         = ~ Preregistered,
+#'     data         = dat.lehmann2018,
+#'     measure      = "SMD",
+#'     only_priors  = TRUE
+#'   )
+#'
+#'   plot_prior(priors, parameter = "mu")
+#'   plot_prior(priors, parameter = "tau")
+#'   plot_prior(priors, parameter_mods = "Preregistered")
+#' }
 #' }
 #'
 #' @seealso [BMA()] [RoBMA()] [brma()] [prior()]
@@ -280,7 +307,18 @@ plot_prior.brma <- function(
     }
   }
 
-  if (.use_plot_prior_list_dispatch(selected[["prior"]])) {
+  if (BayesTools::is.prior.mixture(selected[["prior"]])) {
+    plot <- do.call(
+      BayesTools::plot_prior_list,
+      c(
+        list(
+          prior_list = .prior_mixture_plot_list(selected[["prior"]]),
+          plot_type  = plot_type
+        ),
+        dots
+      )
+    )
+  } else if (.use_plot_prior_list_dispatch(selected[["prior"]])) {
     plot <- do.call(
       BayesTools::plot_prior_list,
       c(
@@ -337,11 +375,22 @@ plot.only_priors.brma <- function(x, ...) {
 #' returned invisibly.
 #'
 #' @examples \dontrun{
-#' priors <- BMA(yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE)
-#' print_prior(priors)
-#' print_prior(priors, parameter = "mu")
-#' print_prior(priors, parameter = "tau")
-#' print_prior(priors, parameter_mods = "x")
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   priors <- BMA(
+#'     yi          = yi,
+#'     vi          = vi,
+#'     mods        = ~ Preregistered,
+#'     data        = dat.lehmann2018,
+#'     measure     = "SMD",
+#'     only_priors = TRUE
+#'   )
+#'
+#'   print_prior(priors)
+#'   print_prior(priors, parameter = "mu")
+#'   print_prior(priors, parameter = "tau")
+#'   print_prior(priors, parameter_mods = "Preregistered")
+#' }
 #' }
 #'
 #' @seealso [plot_prior()] [BMA()] [RoBMA()] [brma()] [prior()]
@@ -434,8 +483,8 @@ print.only_priors.brma <- function(x, ...) {
 
 #' @title Plots Weight Function of brma Object
 #'
-#' @description \code{plot.brma} visualizes posterior
-#' (and prior) weight function of a brma object.
+#' @description \code{plot_weightfunction.brma} visualizes the posterior
+#' (and optionally prior) publication-bias weight function of a brma object.
 #'
 #' @param x a fitted RoBMA object
 #' @param plot_type whether to use a base plot \code{"base"}
@@ -443,6 +492,10 @@ print.only_priors.brma <- function(x, ...) {
 #' \code{"base"}.
 #' @param prior whether prior distribution should be added to
 #' figure. Defaults to \code{FALSE}.
+#' @param rescale_p_values whether to rescale p-values to the interval shown
+#' by the weightfunction plot. Defaults to \code{TRUE}.
+#' @param show_data whether to add observed one-sided p-values to the plot.
+#' Defaults to \code{TRUE}.
 #' @param dots_prior list of additional graphical arguments
 #' to be passed to the plotting function of the prior
 #' distribution. Supported arguments are \code{lwd},
@@ -458,11 +511,26 @@ print.only_priors.brma <- function(x, ...) {
 #' respectively.
 #'
 #' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- bselmodel(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   plot_weightfunction(fit)
+#'   plot_weightfunction(fit, prior = TRUE, show_data = FALSE)
+#' }
 #' }
 #'
 #'
-#' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-#' or an object object of class 'ggplot2' if \code{plot_type = "ggplot2"}.
+#' @return \code{plot_weightfunction.brma} returns either \code{NULL} if
+#' \code{plot_type = "base"} or a \code{ggplot2} object if
+#' \code{plot_type = "ggplot"}.
 #'
 #' @seealso [RoBMA()]
 #' @export
@@ -1448,6 +1516,17 @@ plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type 
     ) ||
       .is_prior_bias_kernel(prior)
   )
+}
+
+.prior_mixture_plot_list <- function(prior) {
+
+  prior_list  <- unclass(prior)
+  prior_names <- names(prior_list)
+
+  attributes(prior_list) <- NULL
+  names(prior_list)     <- prior_names
+
+  return(prior_list)
 }
 
 .check_plot_prior_name <- function(x, argument) {

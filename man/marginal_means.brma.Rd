@@ -54,10 +54,23 @@ object with moderators using \code{BayesTools::as_marginal_inference()}.
 }
 \examples{
 \dontrun{
-fit <- brma(yi = yi, sei = sei, mods = ~ x, data = dat)
-mm  <- marginal_means(fit)
-summary(mm)
-plot(mm, parameter = "x")
+if (requireNamespace("metadat", quietly = TRUE) &&
+    requireNamespace("metafor", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+  dat <- metafor::escalc(
+    measure = "RR",
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    data    = dat.bcg
+  )
+
+  fit <- brma(yi = yi, vi = vi, mods = ~ alloc, data = dat, measure = "RR")
+  mm  <- marginal_means(fit)
+  summary(mm)
+  plot(mm, parameter = "alloc")
+}
 }
 
 }

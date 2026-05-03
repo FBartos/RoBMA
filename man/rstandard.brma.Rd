@@ -58,14 +58,16 @@ This function is only available for normal outcome models without selection
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
-# get marginal internally standardized residuals (default)
-rstandard(fit)
+  # marginal internally standardized residuals (default)
+  rstandard(fit)
 
-# get estimate-level (BLUP-based) residuals
-rstandard(fit, conditioning_depth = "estimate")
+  # estimate-level (BLUP-based) residuals
+  rstandard(fit, conditioning_depth = "estimate")
+}
 }
 
 }

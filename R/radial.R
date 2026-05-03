@@ -110,24 +110,28 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' of the American Statistical Association}, 89(428), 1232-1242.
 #'
 #' @examples \dontrun{
-#' # Simple meta-analysis
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
-#' radial(fit)
+#' if (requireNamespace("metadat", quietly = TRUE) &&
+#'     requireNamespace("metafor", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'   dat <- metafor::escalc(
+#'     measure = "RR",
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     data    = dat.bcg
+#'   )
 #'
-#' # Centered at pooled estimate
-#' radial(fit, center = TRUE)
-#'
-#' # Using ggplot2
-#' radial(fit, plot_type = "ggplot")
-#'
-#' # Custom appearance
-#' radial(fit, pch = 19, col = "blue")
-#'
-#' # galbraith() is an alias
-#' galbraith(fit)
+#'   fit <- brma(yi = yi, vi = vi, data = dat, measure = "RR")
+#'   radial(fit)
+#'   radial(fit, center = TRUE)
+#'   radial(fit, plot_type = "ggplot")
+#'   galbraith(fit)
+#' }
 #' }
 #'
 #' @seealso [funnel.brma()], [pooled_effect.brma()], [pooled_heterogeneity.brma()]
+#' @aliases radial galbraith
 #' @export
 #' @rdname radial
 radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,

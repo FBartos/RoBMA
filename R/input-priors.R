@@ -2,7 +2,10 @@
 #' @name prior_specification
 #'
 #' @description
-#' Prior distributions must be specified for all model parameters.
+#' Prior distributions can be supplied for all model parameters. When omitted,
+#' the fitting functions construct defaults from the effect-size measure, sample
+#' sizes, or informed-prior settings when available.
+#'
 #' This typically includes the pooled effect \eqn{\mu} and between-study heterogeneity
 #' \eqn{\tau}. In the case of meta-regression, the pooled effect \eqn{\mu} corresponds to
 #' the intercept, and additional prior distributions for the regression coefficients
@@ -171,8 +174,22 @@ NULL
 #' product space method \insertCite{carlin1995bayesian,lodewyckx2011tutorial}{RoBMA},
 #' where a single MCMC chain explores a joint model space containing all competing models.
 #'
-#' @param prior_effect,prior_heterogeneity,prior_mods,prior_scale,prior_heterogeneity_allocation,prior_bias
-#' Prior distribution(s) for the alternative hypothesis component(s). Can be:
+#' @param prior_effect prior distribution(s) for the alternative effect
+#' component(s).
+#' @param prior_heterogeneity prior distribution(s) for the alternative
+#' heterogeneity component(s).
+#' @param prior_mods prior distribution(s) for alternative moderator
+#' components. A single prior applies to all terms; a named list can specify
+#' term-specific components.
+#' @param prior_scale prior distribution(s) for alternative scale-regression
+#' components. A single prior applies to all terms; a named list can specify
+#' term-specific components.
+#' @param prior_heterogeneity_allocation prior distribution(s) for the
+#' alternative cluster-level heterogeneity allocation component(s).
+#' @param prior_bias prior distribution(s) for alternative publication-bias
+#' component(s), such as weight functions, PET, or PEESE.
+#'
+#' Alternative prior arguments can be:
 #' \itemize{
 #'   \item A single prior distribution object (creates a mixture with one alternative)
 #'   \item A list of prior distributions (creates a mixture with multiple alternatives)
@@ -180,8 +197,22 @@ NULL
 #' }
 #' See \code{\link{prior_specification}} for details on specifying individual priors.
 #'
-#' @param prior_effect_null,prior_heterogeneity_null,prior_mods_null,prior_scale_null,prior_heterogeneity_allocation_null,prior_bias_null
-#' Prior distribution(s) for the null hypothesis component(s). Can be:
+#' @param prior_effect_null prior distribution(s) for the null effect
+#' component(s).
+#' @param prior_heterogeneity_null prior distribution(s) for the null
+#' heterogeneity component(s).
+#' @param prior_mods_null prior distribution(s) for null moderator components.
+#' A single prior applies to all terms; a named list can specify term-specific
+#' components.
+#' @param prior_scale_null prior distribution(s) for null scale-regression
+#' components. A single prior applies to all terms; a named list can specify
+#' term-specific components.
+#' @param prior_heterogeneity_allocation_null prior distribution(s) for the
+#' null cluster-level heterogeneity allocation component(s).
+#' @param prior_bias_null prior distribution(s) for null publication-bias
+#' component(s), usually `prior_none()`.
+#'
+#' Null prior arguments can be:
 #' \itemize{
 #'   \item A single prior distribution object (creates a mixture with one null)
 #'   \item A list of prior distributions (creates a mixture with multiple nulls)
@@ -189,7 +220,7 @@ NULL
 #' }
 #' Defaults to a point mass (spike) at zero for effect and heterogeneity parameters.
 #'
-#' @param model_type Character string specifying predefined publication bias model
+#' @param model_type character string specifying predefined publication-bias model
 #' ensembles. One of:
 #' \itemize{
 #'   \item `"PSMA"` (default): Full RoBMA-PSMA ensemble with 6 weight functions + PET + PEESE
@@ -368,37 +399,67 @@ NULL
 #'
 #' @examples
 #' \dontrun{
-#' # Default mixture priors (spike-and-slab for effect and heterogeneity)
-#' fit1 <- RoBMA(yi = effect, sei = se, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
 #'
-#' # Custom alternative priors (two effect size scales)
-#' fit2 <- RoBMA(yi = effect, sei = se, data = dat,
-#'   prior_effect = list(
-#'     prior("normal", list(mean = 0, sd = 0.35)),
-#'     prior("normal", list(mean = 0, sd = 0.70))
+#'   # Default mixture priors (spike-and-slab for effect and heterogeneity)
+#'   fit1 <- RoBMA(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
 #'   )
-#' )
 #'
-#' # No null hypothesis for effect (assume effect exists)
-#' fit3 <- RoBMA(yi = effect, sei = se, data = dat,
-#'   prior_effect_null = NULL
-#' )
+#'   # Custom alternative priors (two effect size scales)
+#'   fit2 <- RoBMA(
+#'     yi           = yi,
+#'     vi           = vi,
+#'     data         = dat.lehmann2018,
+#'     measure      = "SMD",
+#'     prior_effect = list(
+#'       prior("normal", list(mean = 0, sd = 0.35)),
+#'       prior("normal", list(mean = 0, sd = 0.70))
+#'     ),
+#'     seed         = 1,
+#'     silent       = TRUE
+#'   )
 #'
-#' # Only selection model bias adjustment (no PET-PEESE)
-#' fit4 <- RoBMA(yi = effect, sei = se, data = dat,
-#'   model_type = "6w"
-#' )
+#'   # No null hypothesis for effect (assume effect exists)
+#'   fit3 <- RoBMA(
+#'     yi                = yi,
+#'     vi                = vi,
+#'     data              = dat.lehmann2018,
+#'     measure           = "SMD",
+#'     prior_effect_null = NULL,
+#'     seed              = 1,
+#'     silent            = TRUE
+#'   )
 #'
-#' # Multilevel model with custom rho prior
-#' fit5 <- RoBMA(yi = effect, sei = se, cluster = study, data = dat,
-#'   prior_heterogeneity_allocation = prior("beta", list(alpha = 2, beta = 2)),
-#'   prior_heterogeneity_allocation_null = prior("spike", list(location = 0.5))
-#' )
+#'   # Only selection model bias adjustment (no PET-PEESE)
+#'   fit4 <- RoBMA(
+#'     yi         = yi,
+#'     vi         = vi,
+#'     data       = dat.lehmann2018,
+#'     measure    = "SMD",
+#'     model_type = "6w",
+#'     seed       = 1,
+#'     silent     = TRUE
+#'   )
 #'
-#' # Meta-regression with different null specifications per moderator
-#' fit6 <- RoBMA(yi = effect, sei = se, mods = ~ x1 + x2, data = dat,
-#'   prior_mods_null = list(x1 = NULL)  # Always include x1, test x2
-#' )
+#'   # Meta-regression with different null specifications per moderator
+#'   fit5 <- RoBMA(
+#'     yi              = yi,
+#'     vi              = vi,
+#'     mods            = ~ Preregistered,
+#'     data            = dat.lehmann2018,
+#'     measure         = "SMD",
+#'     prior_mods_null = list(Preregistered = NULL),
+#'     seed            = 1,
+#'     silent          = TRUE
+#'   )
+#' }
 #' }
 #'
 #' @aliases RoBMA_prior_specification

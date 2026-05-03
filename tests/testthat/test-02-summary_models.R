@@ -109,6 +109,35 @@ test_that("summary_models individual summaries have stable structure", {
   }
 })
 
+test_that("summary_models individual weights marginalize to component weights", {
+
+  for (name in summary_model_names) {
+    marginal   <- summary_models(fits[[name]], type = "marginal")
+    individual <- summary_models(fits[[name]], type = "individual")[["individual"]]
+
+    for (component in names(marginal[["marginal"]])) {
+      component_table <- marginal[["marginal"]][[component]]
+
+      for (level in rownames(component_table)) {
+        selected <- individual[[component]] == level
+
+        expect_equal(
+          sum(individual[["prior_prob"]][selected]),
+          component_table[level, "prior_prob"],
+          tolerance = sqrt(.Machine$double.eps),
+          info      = paste(name, component, level, "prior marginalization")
+        )
+        expect_equal(
+          sum(individual[["post_prob"]][selected]),
+          component_table[level, "post_prob"],
+          tolerance = sqrt(.Machine$double.eps),
+          info      = paste(name, component, level, "posterior marginalization")
+        )
+      }
+    }
+  }
+})
+
 test_that("summary_models is RoBMA-only", {
 
   skip_if_missing_fits("bcg_meta-analysis")

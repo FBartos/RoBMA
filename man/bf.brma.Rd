@@ -2,6 +2,8 @@
 % Please edit documentation in R/bridgesampling.R
 \name{bf.brma}
 \alias{bf.brma}
+\alias{bf}
+\alias{bayes_factor}
 \alias{bayes_factor.brma}
 \title{Bayes Factor for brma Objects}
 \usage{
@@ -39,17 +41,22 @@ model \code{x2}. The marginal likelihoods must first be computed using
 }
 \examples{
 \dontrun{
-fit1 <- brma(y = d, se = se, data = Bem2011)
-fit2 <- brma(
-  y = d, se = se, data = Bem2011,
-  priors = prior(family = "point", value = 0, parameter = "mu")
-)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit1 <- brma(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit2 <- brma(
+    yi           = yi,
+    vi           = vi,
+    data         = dat.lehmann2018,
+    measure      = "SMD",
+    prior_effect = FALSE
+  )
 
-# Compute marginal likelihoods
-fit1 <- add_marglik(fit1)
-fit2 <- add_marglik(fit2)
+  fit1 <- add_marglik(fit1)
+  fit2 <- add_marglik(fit2)
 
-bf(fit1, fit2)
+  bf(fit1, fit2)
+}
 }
 
 }

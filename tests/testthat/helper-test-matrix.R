@@ -95,7 +95,10 @@ hatvalue_cases <- function() {
       "konstantopoulos2011_3lvl2",
       "dat.lehmann2018-PET",
       "dat.lehmann2018-PETreg",
-      "dat.lehmann2018-PET_neg"
+      "dat.lehmann2018-PET_neg",
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESEreg",
+      "dat.lehmann2018-PEESE_neg"
     ),
     label = c(
       "normal simple",
@@ -105,10 +108,14 @@ hatvalue_cases <- function() {
       "normal multilevel meta-regression",
       "PET",
       "PET meta-regression",
-      "PET negative"
+      "PET negative",
+      "PEESE",
+      "PEESE meta-regression",
+      "PEESE negative"
     ),
-    tolerance = rep(0.05, 8),
-    tier = c("core", "core", "core", "core", "extended", "core", "core", "extended"),
+    tolerance = rep(0.05, 11),
+    tier = c("core", "core", "core", "core", "extended", "core", "core", "extended",
+             "core", "core", "extended"),
     stringsAsFactors = FALSE
   )
 }
@@ -158,7 +165,10 @@ dfbetas_metafor_cases <- function() {
       "konstantopoulos2011_3lvl2",
       "dat.lehmann2018-PET",
       "dat.lehmann2018-PETreg",
-      "dat.lehmann2018-PET_neg"
+      "dat.lehmann2018-PET_neg",
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESEreg",
+      "dat.lehmann2018-PEESE_neg"
     ),
     label = c(
       "normal simple",
@@ -168,17 +178,25 @@ dfbetas_metafor_cases <- function() {
       "normal multilevel meta-regression",
       "PET",
       "PET meta-regression",
-      "PET negative"
+      "PET negative",
+      "PEESE",
+      "PEESE meta-regression",
+      "PEESE negative"
     ),
-    tolerance = rep(0.10, 8),
-    oracle = c("equal", "equal", "structure", "equal", "equal", "mapped", "mapped", "mapped"),
-    tier = c("core", "core", "core", "core", "extended", "core", "core", "extended"),
+    tolerance = rep(0.10, 11),
+    oracle = c("equal", "equal", "structure", "equal", "equal", "mapped", "mapped", "mapped",
+               "mapped", "mapped", "mapped"),
+    tier = c("core", "core", "core", "core", "extended", "core", "core", "extended",
+             "core", "core", "extended"),
     stringsAsFactors = FALSE
   )
   out[["skip_rows"]] <- I(list(integer(), c(4, 6, 13), integer(), integer(),
-                               integer(), integer(), integer(), integer()))
-  out[["metafor_cols"]] <- I(list(NULL, NULL, NULL, NULL, NULL, 1, c(1, 3), 1))
-  out[["brma_cols"]]    <- I(list(NULL, NULL, NULL, NULL, NULL, 1, c(1, 2), 1))
+                               integer(), integer(), integer(), integer(),
+                               integer(), integer(), integer()))
+  out[["metafor_cols"]] <- I(list(NULL, NULL, NULL, NULL, NULL, 1, c(1, 3), 1,
+                                  1, c(1, 3), 1))
+  out[["brma_cols"]]    <- I(list(NULL, NULL, NULL, NULL, NULL, 1, c(1, 2), 1,
+                                  1, c(1, 2), 1))
 
   return(out)
 }
@@ -193,6 +211,9 @@ summary_heterogeneity_cases <- function() {
       "bangertdrowns2004_location-scale",
       "dat.lehmann2018-PET",
       "dat.lehmann2018-PET_neg",
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESEreg",
+      "dat.lehmann2018-PEESE_neg",
       "dat.lehmann2018-3PSM",
       "dat.lehmann2018-3PSM_neg",
       "nielweise2008_glmm"
@@ -204,17 +225,24 @@ summary_heterogeneity_cases <- function() {
       "normal location-scale",
       "PET",
       "PET negative",
+      "PEESE",
+      "PEESE meta-regression",
+      "PEESE negative",
       "selection",
       "selection negative",
       "GLMM"
     ),
     kind = c("standard", "multilevel", "standard", "scale", "standard",
-             "standard", "selection", "selection", "standard"),
-    tolerance = c(0.05, 0.05, 0.10, 0.05, 0.05, 0.05, 0.05, 0.05, 0.10),
-    h2_tolerance = c(0.05, NA, 0.20, 0.20, 0.05, 0.05, NA, NA, 0.10),
-    i2_tolerance = c(0.05, NA, 0.10, 0.05, 0.05, 0.05, NA, NA, 0.20),
+             "standard", "standard", "standard", "standard", "selection",
+             "selection", "standard"),
+    tolerance = c(0.05, 0.05, 0.10, 0.05, 0.05, 0.05, 0.05, 0.05,
+                  0.05, 0.05, 0.05, 0.10),
+    h2_tolerance = c(0.05, NA, 0.20, 0.20, 0.05, 0.05, 0.05, 0.05,
+                     0.05, NA, NA, 0.10),
+    i2_tolerance = c(0.05, NA, 0.10, 0.05, 0.05, 0.05, 0.05, 0.05,
+                     0.05, NA, NA, 0.20),
     tier = c("core", "core", "core", "core", "core", "extended", "core",
-             "extended", "core"),
+             "core", "extended", "core", "extended", "core"),
     stringsAsFactors = FALSE
   )
 }
@@ -262,6 +290,9 @@ residual_metafor_cases <- function() {
       "dat.lehmann2018-PET",
       "dat.lehmann2018-PETreg",
       "dat.lehmann2018-PET_neg",
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESEreg",
+      "dat.lehmann2018-PEESE_neg",
       "nielweise2008_glmm",
       "bcg_glmm_reg"
     ),
@@ -278,6 +309,9 @@ residual_metafor_cases <- function() {
       "PET",
       "PET meta-regression",
       "PET negative",
+      "PEESE",
+      "PEESE meta-regression",
+      "PEESE negative",
       "GLMM",
       "GLMM meta-regression"
     ),
@@ -294,18 +328,24 @@ residual_metafor_cases <- function() {
       "pet",
       "pet_reg",
       "pet",
+      "peese",
+      "peese_reg",
+      "peese",
       "glmm",
       "glmm_reg"
     ),
     tolerance = c(0.05, 0.10, 0.10, 0.05, 0.05, 0.05, 0.05,
-                  0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.10),
+                  0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+                  0.05, 0.05, 0.10),
     tier = c("core", "core", "core", "core", "core", "extended", "core",
-             "extended", "extended", "core", "core", "extended", "core", "core"),
+             "extended", "extended", "core", "core", "extended", "core",
+             "core", "extended", "core", "core"),
     stringsAsFactors = FALSE
   )
   out[["rstudent"]] <- I(list(
     "equal", "rank", NULL, NULL, "rank", NULL, "selection_pos", NULL,
-    "selection_neg", "equal", NULL, "equal", "glmm_align", NULL
+    "selection_neg", "equal", NULL, "equal", "equal", NULL, "equal",
+    "glmm_align", NULL
   ))
 
   return(out)
@@ -328,7 +368,10 @@ prediction_metafor_cases <- function() {
       "dat.lehmann2018-3PSM_neg",
       "dat.lehmann2018-PET",
       "dat.lehmann2018-PETreg",
-      "dat.lehmann2018-PET_neg"
+      "dat.lehmann2018-PET_neg",
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-PEESEreg",
+      "dat.lehmann2018-PEESE_neg"
     ),
     label = c(
       "normal simple",
@@ -344,7 +387,10 @@ prediction_metafor_cases <- function() {
       "selection negative",
       "PET",
       "PET meta-regression",
-      "PET negative"
+      "PET negative",
+      "PEESE",
+      "PEESE meta-regression",
+      "PEESE negative"
     ),
     kind = c(
       "simple",
@@ -360,16 +406,22 @@ prediction_metafor_cases <- function() {
       "selection",
       "pet",
       "pet_reg",
-      "pet"
+      "pet",
+      "peese",
+      "peese_reg",
+      "peese"
     ),
     tolerance = c(0.05, 0.05, 0.05, 0.05, 0.05, 0.10, 0.05,
-                  0.15, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05),
+                  0.15, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+                  0.05, 0.05, 0.05),
     tau_tolerance = c(0.05, NA, NA, 0.05, 0.05, 0.05, 0.05,
-                      0.10, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05),
+                      0.10, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+                      0.05, 0.05, 0.05),
     fitted_tolerance = c(NA, 0.05, NA, 0.05, NA, NA, NA, NA, NA,
-                         NA, NA, 0.10, 0.10, 0.10),
+                         NA, NA, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10),
     tier = c("core", "core", "core", "core", "core", "extended", "core",
-             "core", "core", "extended", "extended", "core", "core", "extended"),
+             "core", "core", "extended", "extended", "core", "core", "extended",
+             "core", "core", "extended"),
     stringsAsFactors = FALSE
   )
 }
@@ -384,6 +436,7 @@ prediction_newdata_metafor_cases <- function() {
       "konstantopoulos2011_3lvl2",
       "bcg_glmm_reg",
       "dat.lehmann2018-PETreg",
+      "dat.lehmann2018-PEESEreg",
       "dat.lehmann2018-3PSMreg"
     ),
     label = c(
@@ -393,6 +446,7 @@ prediction_newdata_metafor_cases <- function() {
       "normal multilevel moderator",
       "GLMM factor moderator",
       "PET moderator",
+      "PEESE moderator",
       "selection moderator"
     ),
     kind = c(
@@ -402,11 +456,13 @@ prediction_newdata_metafor_cases <- function() {
       "multilevel_mod",
       "glmm_factor",
       "pet_reg",
+      "peese_reg",
       "selection_reg"
     ),
-    tolerance = c(0.10, 0.10, 0.05, 0.05, 0.10, 0.07, 0.05),
-    tau_tolerance = c(NA, NA, 0.05, NA, NA, NA, NA),
-    tier = c("core", "core", "core", "extended", "core", "core", "extended"),
+    tolerance = c(0.10, 0.10, 0.05, 0.05, 0.10, 0.07, 0.07, 0.05),
+    tau_tolerance = c(NA, NA, 0.05, NA, NA, NA, NA, NA),
+    tier = c("core", "core", "core", "extended", "core", "core", "core",
+             "extended"),
     stringsAsFactors = FALSE
   )
 }

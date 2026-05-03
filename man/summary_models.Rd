@@ -3,11 +3,14 @@
 \name{summary_models}
 \alias{summary_models}
 \alias{summary_models.RoBMA}
+\alias{print.summary_models.RoBMA}
 \title{Summarize RoBMA Model Weights}
 \usage{
 summary_models(object, ...)
 
 \method{summary_models}{RoBMA}(object, type = "marginal", ...)
+
+\method{print}{summary_models.RoBMA}(x, ...)
 }
 \arguments{
 \item{object}{a fitted RoBMA object}
@@ -16,11 +19,28 @@ summary_models(object, ...)
 
 \item{type}{whether to summarize marginal component prior distributions
 (\code{"marginal"}) or individual model combinations (\code{"individual"}).}
+
+\item{x}{a \code{summary_models.RoBMA} object.}
 }
 \value{
-A list of class \code{summary_models.RoBMA}.
+A list of class \code{summary_models.RoBMA}. For
+\code{type = "marginal"}, it contains marginal component tables. For
+\code{type = "individual"}, it contains a table of individual model
+combinations and posterior probabilities.
 }
 \description{
 Creates marginal or individual model-weight summaries for
 RoBMA product-space objects.
+}
+\examples{
+\dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- RoBMA(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+
+  summary_models(fit)
+  summary_models(fit, type = "individual")
+}
+}
+
 }

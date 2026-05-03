@@ -51,17 +51,23 @@ brma.glmm(
 )
 }
 \arguments{
-\item{ai}{a vector of the number of events in the treatment/experimental group.}
+\item{ai}{a vector of the number of events in the treatment or experimental
+group for binomial GLMM models.}
 
-\item{bi}{a vector of the number of non-events in the treatment/experimental group.}
+\item{bi}{a vector of the number of non-events in the treatment or
+experimental group for binomial GLMM models.}
 
-\item{ci}{a vector of the number of events in the control group.}
+\item{ci}{a vector of the number of events in the control group for binomial
+GLMM models.}
 
-\item{di}{a vector of the number of non-events in the control group.}
+\item{di}{a vector of the number of non-events in the control group for
+binomial GLMM models.}
 
-\item{n1i}{a vector of the sample size in the treatment/experimental group.}
+\item{n1i}{a vector of the sample size in the treatment or experimental
+group. If omitted for binomial GLMMs, it is computed as \code{ai + bi}.}
 
-\item{n2i}{a vector of the sample size in the control group.}
+\item{n2i}{a vector of the sample size in the control group. If omitted for
+binomial GLMMs, it is computed as \code{ci + di}.}
 
 \item{x1i}{a vector of the number of events in the treatment/experimental group
 (for Poisson data).}
@@ -77,12 +83,14 @@ models, each weight powers the estimate likelihood. For GLMM models, each
 weight powers the paired two-arm likelihood for one study.}
 
 \item{mods}{an optional vector, matrix, data.frame, or formula specifying
-moderators (or meta-regressors).}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
 \item{scale}{an optional vector, matrix, data.frame, or formula specifying
-scale predictors (for location-scale models).}
+scale predictors for location-scale models. Formula input is evaluated in
+\code{data}.}
 
-\item{cluster}{an optional vector of cluster identifiers.}
+\item{cluster}{an optional vector of cluster identifiers for multilevel
+meta-analysis.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -92,8 +100,9 @@ scale predictors (for location-scale models).}
 data to be used.}
 
 \item{measure}{a character string specifying the effect size measure.
-Defaults to \code{"GEN"}. Other options are \code{"SMD"}, \code{"OR"}, \code{"RR"}, \code{"RD"},
-\code{"HR"}, \code{"IRR"}, \code{"ZCOR"}.}
+Normal models default to \code{"GEN"} and support \code{"SMD"}, \code{"ZCOR"}, \code{"RR"},
+\code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}. GLMM models support only
+\code{"OR"} and \code{"IRR"} and default to \code{"OR"}.}
 
 \item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
 (the intercept). If omitted, a default prior is constructed. In single-model
@@ -163,9 +172,19 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Defaults to \code{RoBMA.get_option("silent")}.}
+\item{silent}{logical. Whether to suppress output. For \code{brma()} and
+\code{brma.glmm()}, a missing value uses \code{RoBMA.get_option("silent")}.
+Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
 
-\item{...}{additional arguments.}
+\item{...}{additional advanced arguments. Fitting functions reject unused
+arguments; currently recognized internal arguments include \code{only_data},
+\code{only_priors}, \code{is_JASP}, and \code{is_JASP_prefix}.}
+}
+\value{
+A fitted object of class \code{c("brma.glmm", "brma")}. The object
+contains checked \code{data}, checked \code{priors}, the JAGS \code{fit}, cached \code{summary},
+and cached \code{coefficients}. If the corresponding package options are enabled,
+it can also contain cached LOO, WAIC, or marginal likelihood results.
 }
 \description{
 Function for fitting random-effects, meta-regression, multilevel,
@@ -184,4 +203,29 @@ If unspecified, a unit-information prior is based on the data.
 
 When \code{weights} are supplied, they are treated as likelihood weights on the
 paired two-arm study contribution.
+}
+\examples{
+\dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.bcg, package = "metadat")
+
+  fit <- brma.glmm(
+    ai      = tpos,
+    bi      = tneg,
+    ci      = cpos,
+    di      = cneg,
+    mods    = ~ alloc,
+    data    = dat.bcg,
+    measure = "OR",
+    seed    = 1,
+    silent  = TRUE
+  )
+
+  summary(fit)
+}
+}
+
+}
+\seealso{
+\code{\link[=brma]{brma()}}, \code{\link[=BMA.glmm]{BMA.glmm()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=predict.brma]{predict.brma()}}
 }

@@ -42,11 +42,19 @@ For multilevel (3-level) models, the returned tau is the total heterogeneity:
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
 
-# get pooled heterogeneity
-pooled_heterogeneity(fit)
+  pooled_heterogeneity(fit)
+}
 }
 
 }

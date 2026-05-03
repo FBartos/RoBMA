@@ -19,7 +19,26 @@
 #'   product-space objects. Defaults to \code{FALSE}.
 #' @param ... additional arguments
 #'
+#' @return A list of class `summary.brma` with model name, optional RoBMA
+#' inclusion tables, common estimates, moderator estimates, scale estimates,
+#' publication-bias estimates, and optional conditional estimates. The printed
+#' form displays the non-empty tables.
+#'
 #' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'
+#'   fit <- bPET(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#' }
 #' }
 #'
 #'
@@ -232,6 +251,8 @@ summary.brma       <- function(
   return(out)
 }
 
+#' @rdname summary.brma
+#' @param x a `summary.brma` or fitted `brma` object.
 #' @export
 print.summary.brma <- function(x, ...) {
 
@@ -258,6 +279,7 @@ print.summary.brma <- function(x, ...) {
   return(invisible(x))
 }
 
+#' @rdname summary.brma
 #' @export
 print.brma <- function(x, ...) {
   print(summary(x, ...))

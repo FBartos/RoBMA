@@ -6,7 +6,18 @@
 \title{37 studies from a meta-analysis of social comparison as a behavior change technique
 by \insertCite{hoppen2025meta;textual}{RoBMA}}
 \format{
-A data.frame with 9 columns and 37 observations.
+A data.frame with 9 columns and 37 observations:
+\describe{
+\item{\code{d}}{Cohen's d effect size.}
+\item{\code{v}}{Sampling variance of d.}
+\item{\code{outcome}}{Outcome type.}
+\item{\code{feedback_level}}{Feedback level.}
+\item{\code{social_comparison_type}}{Social-comparison type.}
+\item{\code{sessions}}{Number of sessions.}
+\item{\code{sample_type}}{Sample type.}
+\item{\code{sample_size}}{Sample size.}
+\item{\code{country}}{Country.}
+}
 }
 \usage{
 Hoppen2025

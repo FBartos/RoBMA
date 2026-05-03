@@ -30,15 +30,21 @@ correspond to the standardized scale on which prior distributions are specified 
 \item{transform_factors}{whether to transform factors to their original names.
 Defaults to \code{TRUE}.}
 
+\item{return_loo_estimates}{whether to return the leave-one-out coefficient
+estimates used to compute DFBETAS instead of standardized DFBETAS values.
+Defaults to \code{FALSE}.}
+
 \item{...}{additional arguments (currently ignored).}
 }
 \value{
-A data frame with \eqn{K} rows (observations) and \eqn{P} columns
-(parameters), containing the DFBETAS values. Row names correspond to
-study labels (if available) or indices.
+If \code{return_loo_estimates = FALSE}, a data frame with \eqn{K} rows
+(observations) and \eqn{P} columns (parameters), containing DFBETAS values.
+If \code{return_loo_estimates = TRUE}, returns the corresponding leave-one-out
+coefficient estimates. Row names correspond to study labels (if available)
+or indices.
 }
 \description{
-Computes DFBETAS (Difference in FITS, standardized) for a
+Computes DFBETAS (Difference in BETAS, standardized) for a
 fitted brma object. DFBETAS measures the influence of each observation on
 the estimated model coefficients. Positive values indicate that deleting the
 observation yields a smaller estimate, negative values indicate that deleting
@@ -65,23 +71,23 @@ weighted standard deviation of the posterior samples.
 This approximation allows computing influence statistics without refitting
 the model \eqn{K} times, making it computationally efficient.
 For \code{type = "bias"}, fixed identification parameters (e.g., the reference
-\eqn{\omega = 1} interval) are omitted because their LOO posterior standard
-deviation is zero.
+\eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
+These parameters are retained in the output, but their DFBETAS values are
+reported as \code{NaN} because the standardized diagnostic is undefined.
 
 Note: This function requires that LOO-CV has been computed for the model
 using \code{\link{add_loo}}.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
+  fit <- add_loo(fit)
 
-# compute LOO (required)
-fit <- add_loo(fit)
-
-# compute DFBETAS
-inf <- dfbetas(fit)
-plot(inf[, 1], type = "h")
+  inf <- dfbetas(fit)
+  plot(inf[, 1], type = "h")
+}
 }
 
 }

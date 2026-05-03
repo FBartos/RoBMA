@@ -7,7 +7,12 @@
 \insertCite{bem2011feeling;textual}{RoBMA} as described in
 \insertCite{bem2011must;textual}{RoBMA}}
 \format{
-A data.frame with 3 columns and 9 observations.
+A data.frame with 3 columns and 9 observations:
+\describe{
+\item{\code{d}}{Cohen's d effect size.}
+\item{\code{se}}{Standard error of d.}
+\item{\code{study}}{Study label.}
+}
 }
 \usage{
 Bem2011

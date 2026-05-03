@@ -110,11 +110,19 @@ pooled_effect <- function(object, ...) {
 #' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
 #'
-#' # get pooled effect
-#' pooled_effect(fit)
+#'   pooled_effect(fit)
+#' }
 #' }
 #'
 #' @seealso [predict.brma()], [pooled_heterogeneity()], [blup()]
@@ -200,11 +208,19 @@ pooled_heterogeneity <- function(object, ...) {
 #' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
 #'
-#' # get pooled heterogeneity
-#' pooled_heterogeneity(fit)
+#'   pooled_heterogeneity(fit)
+#' }
 #' }
 #'
 #' @seealso [predict.brma()], [pooled_effect()], [blup()]
@@ -290,11 +306,19 @@ blup <- function(object, ...) {
 #' converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
 #'
-#' # get BLUPs (true effects)
-#' blup(fit)
+#'   blup(fit)
+#' }
 #' }
 #'
 #' @seealso [predict.brma()], [pooled_effect()], [pooled_heterogeneity()],
@@ -363,11 +387,19 @@ true_effects <- function(object, ...) {
 #' converted to \pkg{posterior} draws formats using \code{as_draws()}.
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
 #'
-#' # get true effects (equivalent to blup())
-#' true_effects(fit)
+#'   true_effects(fit)
+#' }
 #' }
 #'
 #' @seealso [blup.brma()], [predict.brma()], [pooled_effect()],
@@ -445,11 +477,19 @@ ranef <- function(object, ...) {
 #' component).
 #'
 #' @examples \dontrun{
-#' # fit a brma model
-#' fit <- brma(yi ~ 1, sei = sei, data = dat)
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.lehmann2018, package = "metadat")
+#'   fit <- brma(
+#'     yi      = yi,
+#'     vi      = vi,
+#'     data    = dat.lehmann2018,
+#'     measure = "SMD",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
 #'
-#' # extract random effects (deviations from mu)
-#' ranef(fit)
+#'   ranef(fit)
+#' }
 #' }
 #'
 #' @seealso [blup.brma()], [predict.brma()], [pooled_effect()]
@@ -468,12 +508,6 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
   is_multilevel <- .is_multilevel(object)
 
-  # extract MCMC chain info
-  n_chains <- length(object[["fit"]][["mcmc"]])
-  n_iter   <- object[["fit"]][["sample"]]
-  data     <- object[["data"]]
-  labels   <- .get_estimate_labels(object)
-
   # get BLUPs (fixed + all random effects)
   blup_samples <- predict.brma(
     object        = object,
@@ -484,6 +518,12 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     quiet         = TRUE,
     ...
   )
+
+  # extract MCMC chain info from the returned samples
+  n_chains <- attr(blup_samples, "nchains")
+  n_iter   <- attr(blup_samples, "niter")
+  data     <- object[["data"]]
+  labels   <- .get_estimate_labels(object)
 
   # get fixed-effect predictions only
   terms_samples <- predict.brma(

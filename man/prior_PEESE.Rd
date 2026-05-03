@@ -24,6 +24,5 @@ prior_PEESE(
 An object of class \code{prior}.
 }
 \description{
-Thin re-export of \code{\link[BayesTools]{prior_PEESE}} for
-PEESE publication-bias regression priors.
+Create PEESE publication-bias regression priors.
 }

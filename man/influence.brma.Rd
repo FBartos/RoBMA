@@ -20,6 +20,8 @@ The \code{tau.del} column is the PSIS leave-one-out posterior mean of the
 aggregate heterogeneity. For scale models, aggregation is over the remaining
 scale-model rows after each deletion.}
 \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
+Undefined determinant- or variance-standardized diagnostics are reported as
+\code{NaN} and printed with an explanatory note.
 }
 \description{
 Computes DFFITS, Cook's distance, COVRATIO, and other
@@ -27,13 +29,21 @@ influence diagnostics for a fitted brma object.
 }
 \examples{
 \dontrun{
-# fit a brma model
-fit <- brma(yi ~ 1, sei = sei, data = dat)
-fit <- add_loo(fit)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+  fit <- brma(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
+  fit <- add_loo(fit)
 
-# compute influence diagnostics
-inf <- influence(fit)
-print(inf)
+  inf <- influence(fit)
+  print(inf)
+}
 }
 
 }

@@ -67,7 +67,7 @@ NULL
 #'
 #' @return A \code{mcmc.list} object containing the MCMC samples.
 #'
-#' @keywords internal
+#' @noRd
 .brma_to_mcmc.list <- function(x) {
 
   if (!inherits(x, "brma")) {

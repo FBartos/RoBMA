@@ -20,6 +20,32 @@
 #' When `weights` are supplied, they are treated as likelihood weights on the
 #' paired two-arm study contribution.
 #'
+#' @return A fitted object of class `c("brma.glmm", "brma")`. The object
+#' contains checked `data`, checked `priors`, the JAGS `fit`, cached `summary`,
+#' and cached `coefficients`. If the corresponding package options are enabled,
+#' it can also contain cached LOO, WAIC, or marginal likelihood results.
+#'
+#' @examples \dontrun{
+#' if (requireNamespace("metadat", quietly = TRUE)) {
+#'   data(dat.bcg, package = "metadat")
+#'
+#'   fit <- brma.glmm(
+#'     ai      = tpos,
+#'     bi      = tneg,
+#'     ci      = cpos,
+#'     di      = cneg,
+#'     mods    = ~ alloc,
+#'     data    = dat.bcg,
+#'     measure = "OR",
+#'     seed    = 1,
+#'     silent  = TRUE
+#'   )
+#'
+#'   summary(fit)
+#' }
+#' }
+#'
+#' @seealso [brma()], [BMA.glmm()], [summary.brma()], [predict.brma()]
 #' @export
 brma.glmm <- function(
   # input specification
@@ -47,8 +73,12 @@ brma.glmm <- function(
 ){
 
   ### create the output object
-  time.start   <- proc.time()
   dots         <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
+    caller  = "brma.glmm()"
+  )
   object       <- .createObject(
     dots = dots, class = c("brma.glmm", "brma"),
     # MCMC and fitting settings
