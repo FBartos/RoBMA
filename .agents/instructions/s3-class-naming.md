@@ -15,7 +15,8 @@ For functions that return objects needing print/summary methods, use consistent 
 | `summary_heterogeneity()` | `brma` | `summary_heterogeneity.brma` |
 | `summary()` | `brma` | `summary.brma` |
 | `residuals()` | `brma` | `residuals.brma` |
-| `confint()` | `brma` | `confint.brma` |
+| `vif()` | `brma` | `vif.brma` |
+| `marginal_means()` | `brma` | `marginal_means.brma` |
 
 ## Implementation
 

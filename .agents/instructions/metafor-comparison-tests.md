@@ -12,10 +12,9 @@ When writing tests that compare RoBMA/brma results against metafor:
 
 2. **Load both fits in comparison tests** (in `test-02-*.R` files):
    ```r
-   fits <- lapply(list_fits(), load_fit)
-   info <- lapply(list_fits(), load_info)
-   names(fits) <- list_fits()
-   names(info) <- list_fits()
+   fit_names <- list_fits(has_metafor = TRUE)
+   fits      <- lazy_fits(fit_names, validate = FALSE)
+   info      <- lazy_infos(fit_names, validate = FALSE)
 
    fit_brma    <- fits[[name]]
    fit_metafor <- info[[name]][["metafor"]]
@@ -38,4 +37,4 @@ When writing tests that compare RoBMA/brma results against metafor:
 
 - `tests/testthat/test-01-*.R` - Generate and save fits with metafor info
 - `tests/testthat/test-02-*.R` - Load fits and compare against metafor
-- `tests/testthat/common-functions.R` - `save_fit()`, `load_fit()`, `load_info()` helpers
+- `tests/testthat/common-functions.R` - `save_fit()`, `lazy_fits()`, `lazy_infos()`, `load_fit()`, `load_info()` helpers

@@ -1,6 +1,8 @@
 # sampling_bias Parameter Pattern
 
-For RoBMA plotting and analysis functions that use predictions from models with publication bias adjustments, add a `sampling_bias` parameter to control whether bias is incorporated.
+For RoBMA plotting and analysis functions that use predictions from models with
+publication-bias adjustments, add a `sampling_bias` parameter to control whether
+bias is incorporated.
 
 ## Applies To
 
@@ -21,7 +23,8 @@ For RoBMA plotting and analysis functions that use predictions from models with 
 
 ## Implementation
 
-The `sampling_bias` parameter maps to `predict.brma()`'s `bias_adjusted` with **inverted logic**:
+The `sampling_bias` parameter maps to `predict.brma()`'s `bias_adjusted` with
+inverted logic:
 
 ```r
 # In function signature
@@ -32,7 +35,7 @@ pred_samples <- predict.brma(
   object        = x,
   newdata       = newdata,
   type          = "terms",
-  bias_adjusted = !sampling_bias,  # inverted!
+  bias_adjusted = !sampling_bias,
   quiet         = TRUE
 )
 ```
@@ -41,14 +44,15 @@ pred_samples <- predict.brma(
 
 | `sampling_bias` | `bias_adjusted` | Effect |
 |-----------------|-----------------|--------|
-| `TRUE` (default) | `FALSE` | PET/PEESE terms ARE added → shows biased predictions (what you'd observe) |
-| `FALSE` | `TRUE` | PET/PEESE terms NOT added → shows corrected predictions |
+| `TRUE` (default) | `FALSE` | PET/PEESE terms are added; shows biased predictions users would observe |
+| `FALSE` | `TRUE` | PET/PEESE terms are not added; shows corrected predictions |
 
 ## Rationale
 
-- Default `TRUE` matches user expectation: "include the bias in what I see"
-- Consistent with `funnel.brma()` which has `sampling_bias` parameter
-- The inversion handles the semantic difference between "include bias" (user-facing) vs "adjust for bias" (internal)
+- Default `TRUE` means "include the bias in what I see".
+- This matches `funnel.brma()` and `regplot.brma()` user-facing semantics.
+- The inversion handles the semantic difference between "include bias"
+  (user-facing) and "adjust for bias" (internal).
 
 ## Example Usage
 

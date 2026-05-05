@@ -2,7 +2,7 @@
 
 **Domain**: R package development, visualization
 **Confidence**: High
-**Source**: RoBMA package patterns (funnel.R, radial.R, regplot.R)
+**Source**: RoBMA package patterns (`funnel.R`, `radial.R`, `regplot.R`, `zplot.R`)
 
 ## Pattern
 
@@ -18,8 +18,7 @@ myplot <- function(x, ...) UseMethod("myplot")
 myplot.myclass <- function(x, plot_type = "base", as_data = FALSE, ...) {
 
   # Input validation
-
-BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(as_data, "as_data")
 
   # Set up graphical parameters with defaults
@@ -164,3 +163,4 @@ Separate functions for each backend:
 - `funnel.brma()` - funnel plots
 - `radial.brma()` - radial/Galbraith plots
 - `regplot.brma()` - regression/bubble plots
+- `zplot.brma()` / `as_zplot.brma()` - publication-bias diagnostic plots and reusable plot data

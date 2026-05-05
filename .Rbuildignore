@@ -2,6 +2,7 @@
 ^renv\.lock$
 ^\.dev$
 ^RoBMA\.Rproj$
+^src/.*\.(o|so|dll|dylib)$
 ^\.Rproj\.user$
 ^do-not-share$
 ^models$

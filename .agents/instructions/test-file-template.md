@@ -9,15 +9,13 @@ context("Feature Name")
 
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
-REFERENCE_DIR <<- testthat::test_path("..", "results", "feature_name")
 
-# list & load all fits
+# list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
-fits <- lapply(list_fits(), load_fit)
-info <- lapply(list_fits(), load_info)
-names(fits) <- list_fits()
-names(info) <- list_fits()
+fit_names <- list_fits()
+fits      <- lazy_fits(fit_names, validate = FALSE)
+info      <- lazy_infos(fit_names, validate = FALSE)
 ```
 
 ## Test Block Structure
@@ -47,7 +45,7 @@ test_that("Description of what is being tested", {
 1. **Context**: Describes the feature being tested
 2. **Common functions**: Load shared helpers and set reference directory
 3. **Skip conditions**: Skip if fits not available or packages not installed
-4. **Named fits/info**: Load all cached fits and their comparison info
+4. **Lazy fits/info**: Use `lazy_fits()` and `lazy_infos()` unless eager loading is required
 5. **Section separators**: Use `# === #` for major sections, `# --- #` for subsections
 6. **Info parameter**: Always include `info = "description"` in `expect_*` calls
 

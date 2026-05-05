@@ -10,10 +10,10 @@ Reference for writing vignettes in `vignettes/`. Canonical references for genera
 
 Vignettes are ordered alphabetically by filename in `browseVignettes()`, on the CRAN page, and in pkgdown. We use a tiered numeric prefix with gaps so new vignettes can be inserted without renumbering:
 
-- `0X` — Foundations (`v00-introduction.Rmd`, `v01-prior-distributions.Rmd`, `v02-bayesian-meta-analysis.Rmd`)
-- `1X` — Correspondence with `metafor` (`v10-metafor-parity-multilevel.Rmd`, ...)
-- `2X` — Bayesian Model Averaging (`v20-bayesian-model-averaging.Rmd`, `21-publication-bias-adjustment.Rmd`)
-- `3X` — Paper companions (`v30-tutorial.Rmd`, `31-meta-regression.Rmd`, ...)
+- `0X` - Foundations (`v00-introduction.Rmd`, `v01-prior-distributions.Rmd`, `v02-bayesian-meta-analysis.Rmd`, `v03-feature-coverage.Rmd`)
+- `1X` - Correspondence with `metafor` (`v10-metafor-parity-multilevel.Rmd`, `v11-metafor-parity-publication-bias.Rmd`, `v12-metafor-parity-location-scale.Rmd`, `v13-metafor-parity-glmm.Rmd`)
+- `2X` - Bayesian model averaging and robust Bayesian meta-analysis (`v20-bayesian-model-averaging.Rmd`, `v21-robust-bayesian-meta-analysis.Rmd`)
+- `3X` - Paper companions and diagnostics (`v30-tutorial.Rmd`, `v31-robma-metaregression.Rmd`, `v32-robma-multilevel.Rmd`, `v33-robma-multilevel-metaregression.Rmd`, `v34-bma-norm-medicine.Rmd`, `v35-bma-glmm-medicine.Rmd`, `v36-zplot.Rmd`)
 
 Filenames are lowercase with hyphens. The YAML `title:` is the clean human-readable name, without the prefix.
 
@@ -43,6 +43,15 @@ vignette: >
 Use author `František Bartoš` unless instructed otherwise.
 
 Use a spelled date, not `\`r Sys.Date()\``. `link-citations: true` and the `_notangle` engine line are required.
+
+### Encoding and Diacritics
+
+RoBMA documentation should render names with diacritics correctly across supported platforms.
+Keep `DESCRIPTION` with `Encoding: UTF-8`, save vignette and documentation sources as UTF-8, and keep `%\VignetteEncoding{UTF-8}` in every vignette.
+
+Use real UTF-8 names in YAML and prose, for example `František Bartoš`.
+Use portable LaTeX accent escapes in BibTeX entries, for example `Barto{\v{s}}`, because bibliography tools handle those more consistently than raw Unicode.
+Do not replace names with ASCII transliterations in user-facing vignettes or docs unless a specific downstream tool cannot render UTF-8 and the maintainer approves the fallback.
 
 Immediately after the YAML header, include the shared print-output rule:
 
@@ -98,15 +107,15 @@ if (.Platform$OS.type == "windows") {
 }
 ```
 
-`fig.retina = 3` saves PNGs at 3× pixel density and inserts the `<img>` tag at the original CSS width, giving sharp figures on retina/high-DPI screens at the same physical display size as the default. **Do not bump `dpi`** to improve quality: `dpi` scales both the file resolution *and* the displayed CSS size, so the figures grow on the page. Use `fig.retina` for resolution; use per-chunk `out.width` only when explicitly needed.
+`fig.retina = 3` saves PNGs at 3x pixel density and inserts the `<img>` tag at the original CSS width, giving sharp figures on retina/high-DPI screens at the same physical display size as the default. **Do not bump `dpi`** to improve quality: `dpi` scales both the file resolution *and* the displayed CSS size, so the figures grow on the page. Use `fig.retina` for resolution; use per-chunk `out.width` only when explicitly needed.
 
 The global `fig.height = 3.5` is for single-panel chunks. Override per chunk for double-column comparison plots (see *Side-by-Side `metafor` Parity* below).
 
 ## Caching (only when vignettes fit MCMC models)
 
-When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cache `name` MUST match the vignette filename without `.Rmd`. The pattern is three chunks: setup with cache → load cached fits → re-fit code with `eval = FALSE`.
+When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cache `name` MUST match the vignette filename without `.Rmd`. The pattern is three chunks: setup with cache, load cached fits, then re-fit code with `eval = FALSE`.
 
-`vignettes/v02-bayesian-meta-analysis.Rmd` and `vignettes/v30-tutorial.Rmd` are working examples. If the vignette only assembles priors (`only_priors = TRUE`) or otherwise runs cheaply, skip caching entirely — see `v01-prior-distributions.Rmd`.
+`vignettes/v02-bayesian-meta-analysis.Rmd` and `vignettes/v30-tutorial.Rmd` are working examples. If the vignette only assembles priors (`only_priors = TRUE`) or otherwise runs cheaply, skip caching entirely; see `v01-prior-distributions.Rmd`.
 
 ## Section Structure
 
@@ -114,7 +123,7 @@ When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cac
   - *Methodological framing* (priors, distributions, theory). Open with what the topic is. If the topic has a substantive asymmetry or tension (e.g., priors behave differently in estimation vs. testing/BMA), state it up front so the rest of the vignette has a frame. Cite the umbrella reference at the end of the lede.
   - *Getting-started framing* (`metafor` parity, paper companions, tutorials). Open with "this vignette is a starting point for ...". Name the example dataset, the side-by-side device, and the simple-to-complex arc in one sentence. Cite the package and the comparison reference (e.g., `[@RoBMA]`, `[@metafor]`).
   - In both patterns, avoid hype-ish framings: do not list features as a "toolkit", do not write "what changes is X" sentences, do not use marketing language.
-- **Headings.** `##` for top-level sections, `###` for subsections. Inside a subsection, finer divisions use bolded sentence-leading paragraphs like `**Categorical moderators.**` — not `####`.
+- **Headings.** `##` for top-level sections, `###` for subsections. Inside a subsection, finer divisions use bolded sentence-leading paragraphs like `**Categorical moderators.**`, not `####`.
 - **Closer.** Substantive vignettes end with a short *General Considerations and Reporting* (or analogous) section that re-iterates the main framing and gives reporting guidance, in bolded principle paragraphs.
 - **References.** `## References` is the final heading; the bibliography is auto-rendered.
 
@@ -122,8 +131,8 @@ When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cac
 
 Pandoc syntax, not `\insertCite{}`:
 
-- `[@bartos2021no]` → (Bartoš et al., 2021)
-- `@bartos2021no` → Bartoš et al. (2021)
+- `[@bartos2021no]` renders as (Bartoš et al., 2021)
+- `@bartos2021no` renders as Bartoš et al. (2021)
 - `[@key1; @key2]` for multiple keys
 
 Always check `inst/REFERENCES.bib` before citing. Don't invent keys and don't add keys to `inst/REFERENCES.bib`; ask the user to add the keys manually!
@@ -148,10 +157,10 @@ The single most important convention is the **argument layout in fitting calls**
 
 The order of arguments inside the call is always:
 
-1. **Input** — outcome variables and effect-size spec (`yi`, `vi`/`sei`, `ni`, `measure`).
-2. **Formulas** — `mods`, scale formulas, etc.
-3. **Other important arguments** — the per-example highlights: `rescale_priors`, `prior_unit_information_sd`, `set_contrast_factor_predictors`, `prior_effect`, `prior_informed_field`, `model_type`, custom `prior_*` lists.
-4. **Boilerplate** — `data` and fitting-control args (`only_priors`, `seed`, `parallel`, ...). Always last.
+1. **Input**: outcome variables and effect-size spec (`yi`, `vi`/`sei`, `ni`, `measure`).
+2. **Formulas**: `mods`, scale formulas, etc.
+3. **Other important arguments**: the per-example highlights: `rescale_priors`, `prior_unit_information_sd`, `set_contrast_factor_predictors`, `prior_effect`, `prior_informed_field`, `model_type`, custom `prior_*` lists.
+4. **Boilerplate**: `data` and fitting-control args (`only_priors`, `seed`, `parallel`, ...). Always last.
 
 **Basic call (input + boilerplate only):**
 
@@ -216,7 +225,7 @@ prior_effect        = prior_informed("Oosterwijk"),
 prior_heterogeneity = prior_informed("van Erp", parameter = "heterogeneity"),
 ```
 
-Do not align across blocks separated by multi-line `prior(...)` constructs. Inside a `prior(...)` call, do not align — the args read naturally without it.
+Do not align across blocks separated by multi-line `prior(...)` constructs. Inside a `prior(...)` call, do not align; the args read naturally without it.
 
 ### Named arguments in `prior()`, `prior_factor()`, etc.
 
@@ -285,7 +294,7 @@ Kroupova2021 <- metafor::escalc(
 
 A `metafor`-parity (or getting-started) vignette pairs each `metafor::rma()` call with the matching `brma()` call, building from a simple random-effects model up to meta-regression with a categorical moderator. Do not dump all `brma()` fits in one chunk; introduce one model per section, each with its own summary, plot, and diagnostic before moving on.
 
-**Do not duplicate generic inference helpers across parity vignettes.** A specialized parity vignette (multilevel, GLMM, publication-bias) should only walk through the features that are *specific* to the model class it covers — for the multilevel vignette, that is `cluster`, the `tau`/`rho` parameterization, and `summary_heterogeneity()`'s within/between decomposition. Generic helpers that work the same way for any `brma()` fit (`mods`, `regplot()`, `predict()`, `bf()` / `loo_compare()`, `rstudent()`, `qqnorm()`, `plot(loo(fit))`) belong in `v02-bayesian-meta-analysis.Rmd`. Close the specialized vignette with a short *Other Inference Helpers* section that points back to `v02-bayesian-meta-analysis.html` and notes that the only thing that changes is the new structural argument.
+**Do not duplicate generic inference helpers across parity vignettes.** A specialized parity vignette (multilevel, GLMM, publication-bias) should only walk through the features that are *specific* to the model class it covers. For the multilevel vignette, that is `cluster`, the `tau`/`rho` parameterization, and `summary_heterogeneity()`'s within/between decomposition. Generic helpers that work the same way for any `brma()` fit (`mods`, `regplot()`, `predict()`, `bf()` / `loo_compare()`, `rstudent()`, `qqnorm()`, `plot(loo(fit))`) belong in `v02-bayesian-meta-analysis.Rmd`. Close the specialized vignette with a short *Other Inference Helpers* section that points back to `v02-bayesian-meta-analysis.html` and notes that the only thing that changes is the new structural argument.
 
 ### Per-section pattern
 
@@ -369,9 +378,9 @@ plot(fit, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 
 ### Voice and word choice
 
-- Use both **Subject + active verb stuctures** ("This vignette illustrates", ...) and **"we" as the narrator.** ("We start by fitting...", "we can model-average over the two models..."). Do not relly too much on passive tense. 
+- Use both **subject + active verb structures** ("This vignette illustrates", ...) and **"we" as the narrator.** ("We start by fitting...", "we can model-average over the two models..."). Do not rely too much on passive tense.
 - The vignette is going through the analysis with the reader, not delivering a brochure.
-- **Nouns   Not "the vignette walks through" or bare imperatives. 
+- **Prefer active narration over bare imperatives.** "We start by fitting..." is usually better than "Fit...".
 - **Name the specific referent of nouns.** Prefer "mixture of *the two* models" over "mixture of models"; "the *prior distribution*" over "the prior"; "without fitting *the models*" over "without fitting". When the noun has a definite referent in context, name it; tightening this away reads as math jargon.
 - **Open the lede with the practical situation, not the abstract claim.** "In meta-analysis, analysts often have to balance different assumptions about the data-generating process and decide what kind of model to fit, which covariates to include, and what publication-bias adjustment method to use" beats "Choosing one meta-analytic model out of several plausible specifications discards the evidence the discarded models carry." The conceptual claim follows the practical setup; do not lead with abstract framing.
 - **Concrete, visible action over abstract metaphor.** "`regplot()` shrinks the difference towards zero" beats "shrinks the line toward a flat fit when the inclusion BF is modest". Describe what the figure or output literally shows, not what it metaphorically represents.
@@ -396,4 +405,4 @@ plot(fit, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 - Do not bump `dpi` to improve figure quality. Use `fig.retina = 3` instead. `dpi` scales both file resolution and displayed CSS size, so the figures grow on the page.
 - Do not list features as a "toolkit" or use "what changes is X" framings in the lede.
 - Do not reference other vignettes as plain italics; use `[*Title*](filename.html)` so the link is clickable.
-- Do not put all `brma()` fits in one chunk in `metafor`-parity vignettes. Build models step by step, one section per added complexity (intercept-only → continuous moderator → categorical moderator).
+- Do not put all `brma()` fits in one chunk in `metafor`-parity vignettes. Build models step by step, one section per added complexity (intercept-only, continuous moderator, categorical moderator).

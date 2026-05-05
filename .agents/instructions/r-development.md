@@ -22,8 +22,8 @@ Reference this file when working with R code (`.R`, `.Rmd`, `.qmd` files).
 
 ## Performance Considerations
 
-- **Profiling:** Use `profvis::profvis()` to identify performance bottlenecks.
-- **Caching:** Use `memoise::memoise()` for expensive function results.
+- **Profiling:** Use focused benchmarks or `profvis::profvis()` when profiling is worth the dependency.
+- **Caching:** Prefer existing package caches/helpers. Do not add cache dependencies such as `memoise` without maintainer approval.
 - **Vectorization:** Prefer vectorized operations over loops. Use `vapply()` for type-stable iteration.
 
 ## Tooling & Quality
@@ -44,6 +44,6 @@ Reference this file when working with R code (`.R`, `.Rmd`, `.qmd` files).
 
 ## Security Best Practices
 
-- **Command execution:** Prefer `processx::run()` over `system()`; validate all arguments.
+- **Command execution:** Avoid package runtime shell calls where possible. If unavoidable, validate all arguments and avoid adding dependencies just for process control.
 - **File paths:** Normalize and sanitize user-provided paths.
 - **Credentials:** Never hardcode secrets. Use env vars (`Sys.getenv()`).

@@ -67,7 +67,10 @@ devtools::test(reporter = "llm")
 | `ROBMA_TEST_FILES_DIR` | Cache directory location |
 | `ROBMA_TEST_SKIP_REFIT` | Skip fitting if a valid cache exists; defaults to `TRUE` |
 | `ROBMA_TEST_FORCE_REFIT` | Force refitting even if a valid cache exists |
+| `ROBMA_TEST_EXTENDED` | Include extended, slower model-family/case matrix tests |
 | `ROBMA_TEST_FULL_DIAGNOSTICS` | Run extended redundant residual/influence diagnostics skipped by default |
+| `ROBMA_TEST_FULL_VISUALS` | Run visual-gallery snapshots skipped by default |
+| `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS` | Allow missing vdiffr snapshots only while regenerating snapshots |
 
 ### Cache Validation
 
@@ -115,7 +118,7 @@ When adding a new cached fit in `test-01-*`, add it to `fit_catalog()` in the sa
 
 Clear cache when:
 
-- You modify model fitting logic in `R/brma.norm.R`, `R/fit.R`
+- You modify model fitting logic in constructor/input files, `R/fit.R`, cache-affecting likelihood files, or native likelihood/JAGS code
 - You change model definitions in `test-01-*.R` files
 - Tests fail unexpectedly due to stale cached fits
 
@@ -250,7 +253,8 @@ Never update results of committed tests. If tests fail there was either:
 
 ## Visual Regression Tests (vdiffr)
 
-Some tests use `vdiffr::expect_doppelganger()` for plot comparisons.
+Some tests use `expect_vdiffr_snapshot()` from `helper-visuals.R`, which wraps
+`vdiffr::expect_doppelganger()` and skips when snapshots are not available.
 Never update visual comparisons automatically. Ask the user to manually verify updates.
 
 ## Troubleshooting

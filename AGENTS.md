@@ -21,6 +21,8 @@ Users can specify prior distributions for effect sizes, heterogeneity, publicati
 
 Additional detailed instructions are available in `.agents/instructions/`:
 
+Treat [engineer-mode.md](.agents/instructions/engineer-mode.md) as the default engineering prelude for repository work. If the runtime cannot literally prepend that file before every user prompt, read it at session start; after compaction/resume or when unsure, re-read it before planning or editing non-trivial changes.
+
 - [r-development.md](.agents/instructions/r-development.md) - R coding standards and conventions
 - [testing.md](.agents/instructions/testing.md) - Unit testing workflow and cache system
 - [vignettes.md](.agents/instructions/vignettes.md) - Vignette writing and pre-computation patterns
@@ -29,12 +31,17 @@ Additional detailed instructions are available in `.agents/instructions/`:
 - [metafor-comparison-tests.md](.agents/instructions/metafor-comparison-tests.md) - Testing against metafor reference
 - [test-file-template.md](.agents/instructions/test-file-template.md) - Template for test-02-*.R files
 - [s3-class-naming.md](.agents/instructions/s3-class-naming.md) - S3 class naming conventions
-- [use-normal-subdispatch.md](.agents/instructions/use-normal-subdispatch.md) - Performance optimization for mixed weighted/normal samples
+- [use-normal-subdispatch.md](.agents/instructions/use-normal-subdispatch.md) - Selected-normal `use_normal` routing
 - [bias-indicator-extraction.md](.agents/instructions/bias-indicator-extraction.md) - RoBMA bias model identification from posterior
 - [predict-newdata-workaround.md](.agents/instructions/predict-newdata-workaround.md) - Outcome requirements for predict.brma() with newdata
 - [sampling-bias-parameter.md](.agents/instructions/sampling-bias-parameter.md) - sampling_bias parameter pattern for RoBMA/bPET/bPEESE/bselmodel
+- [r-package-plotting-architecture.md](.agents/instructions/r-package-plotting-architecture.md) - Plotting architecture for base/ggplot/as_data methods
+- [r-visual-testing-vdiffr.md](.agents/instructions/r-visual-testing-vdiffr.md) - Visual regression testing patterns
+- [workflow.md](.agents/instructions/workflow.md) - Repository workflow expectations
+- [engineer-mode.md](.agents/instructions/engineer-mode.md) - Senior engineering judgment for larger changes
 
 Read these files when working on the corresponding areas.
+When updating these instructions, first verify referenced files/functions with the current tree. Put maintainer-intent questions in `.agents/instructions-decisions.md` instead of guessing.
 
 ## Development Commands
 
@@ -47,7 +54,7 @@ devtools::check()                 # Full R CMD check
 ```
 
 **Testing Note**: Always use testthat LLM reporting for unit tests (`reporter = "llm"`; or set `AGENT=1` if a wrapper cannot pass `reporter`). Long-running model fits are cached. 
-Run `devtools::test(filter = "fit", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
+Run `devtools::test(filter = "01-", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
 
 ## Code Style
 
@@ -84,12 +91,12 @@ Leave an empty line after opening brace `{` in function definitions.
 
 ### JAGS Behavior for Publication Bias Models
 
-**Critical insight**: JAGS sets `omega = 1` for non-weightfunction posterior samples.
+**Critical insight**: selection-model post-processing is driven by `bias_indicator` and `.selection_context()`, not by direct `omega` checks.
 
 This means:
-- When `is_weightfunction = TRUE`, always use `.outcome_pdf.wnorm()` etc.
-- Weighted normal with omega = 1 mathematically equals normal distribution
-- No per-sample dispatch needed in most cases
+- When `is_weightfunction = TRUE`, use the selected-normal helpers (`.outcome_pdf.selnorm()`, `.outcome_cdf.selnorm()`, `.outcome_rng.selnorm()`) with a `.selection_context()`.
+- `.selection_context()` sets `kernel_mode = SELKERNEL_NORMAL` for posterior rows from non-selection bias branches.
+- Do not infer branch type from `omega`; use `.extract_use_normal()`.
 
 **bias_indicator column**: For RoBMA (mixture priors), posterior samples contain `bias_indicator` column (1-indexed) tracking which bias model generated each sample. Use `.extract_use_normal()` for robust detection.
 
@@ -124,17 +131,18 @@ Classes are layered for S3 method dispatch:
 - input handling in `R/input-data.R`,  `R/input-priors.R`,  `R/input-object.R`
 - model specification in `R/fit.R`
 - posterior evaluation in `R/evaluate.R`, `R/pdf.R`, `R/cdf.R`, `R/rng.R`
-- weighted distributions in `R/distributions.R`
+- native interface helpers in `R/distributions.R`
+- selection-kernel mapping in `R/selection-mapping.R`
 
 
 ### JAGS Extension (src/)
-Custom C++ JAGS module with weighted distributions for publication bias:
-- `src/distributions/` - Custom distributions (DWT1, DWMN1, etc.)
-- `src/functions/` - Matrix operations, density functions
-- `src/transformations/` - Effect size transformations
+Custom C++ JAGS module with weighted likelihoods and selected-normal publication-bias distributions:
+- `src/distributions/` - Custom JAGS distributions (`DWN`, `DWB`, `DWP`, `DSELNORM*`)
+- `src/selnorm/` - Selected-normal native kernels shared by JAGS and R-native calls
+- `src/r-*.cc` and `src/init.c` - R-native likelihood/plotting helper registration
 - `src/RoBMA.cc` - Module registration
 
-When adding JAGS distributions: implement in `src/distributions/`, register in `src/RoBMA.cc`, update all `Makevars*` files.
+When adding JAGS distributions or native kernels: implement under the matching `src/` subdirectory, register JAGS distributions in `src/RoBMA.cc`, register R-callable routines in `src/init.c`, and update all `Makevars*` files.
 
 ## Documentation
 
