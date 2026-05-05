@@ -16,14 +16,16 @@
 \method{zplot}{zplot_brma}(object, ...)
 }
 \arguments{
-\item{object}{a brma or zplot_brma object.}
+\item{object}{a normal-outcome \code{brma} object, or a
+\code{zplot_brma} object.}
 
 \item{significance_level}{z-value threshold for significance. Defaults
 to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 
 \item{summary_max_samples}{maximum number of posterior samples used for the
 EDR and missing-study summaries stored in the generated zplot object.
-Defaults to 1000.}
+This is separate from the plot-density \code{max_samples} argument accepted
+by \code{plot.zplot_brma()} through \code{...}. Defaults to 1000.}
 
 \item{...}{arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.}
 }
@@ -33,6 +35,11 @@ Defaults to 1000.}
 \description{
 Convenience wrapper for creating and plotting zplot diagnostics
 from a fitted \code{brma} object.
+}
+\details{
+When \code{object} already inherits from \code{zplot_brma},
+\code{zplot()} dispatches directly to \code{plot.zplot_brma()} without
+recomputing stored summaries.
 }
 \examples{
 \dontrun{

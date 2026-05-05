@@ -1,5 +1,5 @@
 
-Bayesian Multilevel Random-Effects Model (k = 56, lvls = 11)
+Bayesian Multilevel Random-Effects Model (k = 56, clusters = 11)
 
 Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat

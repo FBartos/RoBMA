@@ -24,8 +24,13 @@ The WAIC must first be computed using \code{\link{add_waic}}.
 }
 \details{
 This function extracts the WAIC object that was previously computed and
-stored using \code{\link{add_waic}}. If WAIC has not been computed,
-an error is thrown.
+stored using \code{object <- add_waic(object, unit = unit)}. If WAIC has not
+been computed for the requested unit, an error is thrown.
+
+This is the RoBMA S3 generic and \code{brma} method. The method is also
+registered for \code{\link[loo]{waic}}, so \code{loo::waic(fit)} extracts
+the cached WAIC object for \code{brma} fits. Use \code{\link[loo]{waic}}
+directly for raw log-likelihood arrays or matrices.
 
 In most cases, LOO-PSIS (via \code{\link{loo.brma}}) is preferred over WAIC
 because it provides better estimates and includes diagnostics (Pareto k

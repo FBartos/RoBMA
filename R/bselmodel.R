@@ -6,9 +6,18 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @param prior_bias selection-model bias prior, usually created by
+#' \code{prior_weightfunction()}. If omitted or \code{NULL}, a default
+#' one-sided weightfunction prior is constructed from \code{steps}.
 #' @param steps numeric vector of one-sided p-value cut points for the
-#' selection model. If omitted, the default is `0.025`, yielding intervals
-#' `[0, .025]` and `(.025, 1]`.
+#' default selection model. If `prior_bias` is supplied, the prior carries its
+#' own side, steps, and weights. If omitted, the default is `0.025`, yielding
+#' intervals `[0, .025]` and `(.025, 1]`.
+#'
+#' @details
+#' `bselmodel()` is a normal/effect-size selection-model constructor. Custom
+#' `prior_bias` can be a weightfunction prior or a supported BayesTools
+#' selection-kernel prior; p-hacking kernels are not supported in active RoBMA.
 #'
 #' @return A fitted object of class `c("bselmodel", "brma")` containing a
 #' single Bayesian selection model fit.
@@ -32,15 +41,15 @@
 #' }
 #' }
 #'
-#' @seealso [RoBMA()], [bPET()], [bPEESE()], [summary.brma()],
-#' [funnel.brma()]
+#' @seealso [publication_bias_prior_specification], [RoBMA()], [bPET()],
+#' [bPEESE()], [summary.brma()], [funnel.brma()]
 #' @export
 bselmodel <- function(
     # input specification
   yi, vi, sei, weights, ni,
   mods, scale, cluster,
   data, slab, subset,
-  measure = "GEN",
+  measure,
 
   # prior specification
   prior_effect, prior_heterogeneity, prior_mods, prior_scale,
@@ -62,9 +71,16 @@ bselmodel <- function(
 ) {
 
   ### create the output object
-  dots         <- list(...)
-  dots         <- .validate_constructor_dots(dots, caller = "bselmodel()")
-  object       <- .createObject(
+  dots            <- list(...)
+  missing_measure <- missing(measure)
+  if (missing_measure && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure("bselmodel()")
+  }
+  if (missing_measure) {
+    measure <- "GEN"
+  }
+  dots            <- .validate_constructor_dots(dots, caller = "bselmodel()")
+  object          <- .createObject(
     dots = dots, class = c("bselmodel", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,

@@ -35,7 +35,9 @@ and \code{"IRR"}.}
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
-\item{...}{additional arguments (currently ignored)}
+\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
+arguments such as \code{newdata}, \code{type}, \code{quiet},
+\code{output_measure}, and \code{transform} are fixed by this method.}
 }
 \value{
 A \code{brma_samples} object containing posterior draws of BLUP or
@@ -54,15 +56,19 @@ fitted brma object. These correspond to Best Linear Unbiased Predictions
 This function is a convenience wrapper around \code{predict.brma(...,
 type = "effect", newdata = NULL)}.
 
-For normal models, true effects are computed using empirical Bayes shrinkage:
+For unweighted two-level normal models, true effects are computed using
+empirical Bayes shrinkage:
 \deqn{\theta_i = \lambda_i \cdot y_i + (1 - \lambda_i) \cdot \mu_i}
 where \eqn{\lambda_i = \tau^2 / (\tau^2 + se_i^2)}.
+With likelihood weights, \eqn{se_i^2} is replaced by the weighted sampling
+variance \eqn{se_i^2 / w_i}.
 
 For GLMM models (binomial, Poisson), the estimate-level random effects
 are extracted directly from the posterior samples.
 
-For multilevel (3-level) models, the true effects incorporate both
-cluster-level (\eqn{\gamma}) and estimate-level random effects.
+For multilevel (3-level) normal models, cluster-level effects are estimated
+jointly within cluster blocks and estimate-level effects are then shrunk
+conditional on those cluster effects.
 }
 \examples{
 \dontrun{

@@ -16,13 +16,18 @@ print_prior(x, ...)
 \item{x}{a \code{brma}, \code{BMA}, or \code{RoBMA} object, or a prior
 distribution object.}
 
-\item{...}{additional arguments passed to the prior printing method.}
+\item{...}{additional arguments passed to the prior printing method. Use
+\code{silent = TRUE} for programmatic inspection without console output.}
 
 \item{parameter}{character. Base parameter to print. If omitted, all stored
 prior distributions are printed.
 Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
-\code{"PEESE"}, \code{"omega"}, and \code{"bias"}. Moderator and scale
-terms can also be selected by name when unambiguous.}
+\code{"PEESE"}, \code{"omega"}, and \code{"bias"}, with aliases
+\code{"effect"} = \code{"mu"}, \code{"heterogeneity"} = \code{"tau"},
+and \code{"weightfunction"} = \code{"omega"}. GLMM outcome priors
+\code{"pi"} and \code{"phi"} are available when present. Moderator and
+scale terms can also be selected by name when unambiguous. A character vector
+requests multiple base parameters.}
 
 \item{parameter_mods}{character. Moderator term to print.
 Use \code{"intercept"} for the adjusted effect in meta-regression models.}

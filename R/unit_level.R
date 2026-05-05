@@ -185,7 +185,7 @@
 #
 # @param object brma object.
 #
-# @return deterministic hash of the yi/sei target.
+# @return deterministic hash of the outcome target.
 #
 # ---------------------------------------------------------------------------- #
 .get_outcome_hash <- function(object) {
@@ -261,7 +261,7 @@
   data_hashes <- vapply(objects, .get_outcome_hash, character(1))
 
   if (length(unique(data_hashes)) > 1) {
-    stop(caller, " requires models fitted to the same yi/sei data.",
+    stop(caller, " requires models fitted to the same outcome data.",
          call. = FALSE)
   }
 
@@ -321,7 +321,7 @@
 # @param unit               character; output/deletion unit.
 # @param conditioning_depth character; implied conditioning depth.
 # @param targets            character; target labels.
-# @param data_hash          character; hash of the yi/sei target.
+# @param data_hash          character; hash of the outcome target.
 #
 # @return object with RoBMA target metadata.
 #

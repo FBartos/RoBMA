@@ -32,3 +32,13 @@ knowledge-base/
 /resources
 .RData
 /docs_check
+/-
+/cran-check-decision-log.md
+/index.html
+/package-lock.json
+/AGENTS.html
+/CLAUDE.html
+/copilot-instructions.html
+/docs/AGENTS.html
+/docs/CLAUDE.html
+/docs/copilot-instructions.html

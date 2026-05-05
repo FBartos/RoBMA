@@ -11,8 +11,8 @@
   logBF = FALSE,
   BF01 = FALSE,
   bf = NULL,
-  output_measure,
-  transform,
+  output_measure = NULL,
+  transform = NULL,
   ...
 )
 }

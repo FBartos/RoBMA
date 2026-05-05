@@ -829,6 +829,12 @@ expect_summary_heterogeneity_matches_metafor <- function(case) {
       tolerance = tolerance,
       info      = paste(name, "between tau matches metafor")
     )
+    testthat::expect_equal(
+      brma_het$estimates["rho", "Mean"],
+      fit_metafor$rho,
+      tolerance = tolerance,
+      info      = paste(name, "rho matches metafor")
+    )
 
     W         <- diag(1 / fit_metafor$vi)
     X         <- model.matrix(fit_metafor)

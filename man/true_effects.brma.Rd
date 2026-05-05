@@ -35,7 +35,9 @@ and \code{"IRR"}.}
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
-\item{...}{additional arguments (currently ignored)}
+\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
+arguments such as \code{newdata}, \code{type}, \code{quiet},
+\code{output_measure}, and \code{transform} are fixed by this method.}
 }
 \value{
 A \code{brma_samples} object containing posterior draws of BLUP or

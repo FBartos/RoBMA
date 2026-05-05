@@ -2,22 +2,22 @@
 
 Reference for writing vignettes in `vignettes/`. Canonical references for general functionality:
 
-- **Prior distributions / default prior distributions**: `vignettes/01-prior-distributions.Rmd`
-- **Getting-started / simple workflow**: `vignettes/02-bayesian-meta-analysis.Rmd`
-- **Comprehensive feature list**: `vignettes/03-feature-coverage.Rmd`
+- **Prior distributions / default prior distributions**: `vignettes/v01-prior-distributions.Rmd`
+- **Getting-started / simple workflow**: `vignettes/v02-bayesian-meta-analysis.Rmd`
+- **Comprehensive feature list**: `vignettes/v03-feature-coverage.Rmd`
 
 ## Filename and Ordering
 
 Vignettes are ordered alphabetically by filename in `browseVignettes()`, on the CRAN page, and in pkgdown. We use a tiered numeric prefix with gaps so new vignettes can be inserted without renumbering:
 
-- `0X` — Foundations (`00-introduction.Rmd`, `01-prior-distributions.Rmd`, `02-bayesian-meta-analysis.Rmd`)
-- `1X` — Correspondence with `metafor` (`10-metafor-parity-multilevel.Rmd`, ...)
-- `2X` — Bayesian Model Averaging (`20-bayesian-model-averaging.Rmd`, `21-publication-bias-adjustment.Rmd`)
-- `3X` — Paper companions (`30-tutorial.Rmd`, `31-meta-regression.Rmd`, ...)
+- `0X` — Foundations (`v00-introduction.Rmd`, `v01-prior-distributions.Rmd`, `v02-bayesian-meta-analysis.Rmd`)
+- `1X` — Correspondence with `metafor` (`v10-metafor-parity-multilevel.Rmd`, ...)
+- `2X` — Bayesian Model Averaging (`v20-bayesian-model-averaging.Rmd`, `21-publication-bias-adjustment.Rmd`)
+- `3X` — Paper companions (`v30-tutorial.Rmd`, `31-meta-regression.Rmd`, ...)
 
 Filenames are lowercase with hyphens. The YAML `title:` is the clean human-readable name, without the prefix.
 
-When a vignette caches model fits, the cache directory under `models/` MUST match the filename without `.Rmd`. For example, `02-bayesian-meta-analysis.Rmd` caches into `models/02-bayesian-meta-analysis/`. The cache `name` argument inside the vignette must use the same string.
+When a vignette caches model fits, the cache directory under `models/` MUST match the filename without `.Rmd`. For example, `v02-bayesian-meta-analysis.Rmd` caches into `models/v02-bayesian-meta-analysis/`. The cache `name` argument inside the vignette must use the same string.
 
 ## YAML Header
 
@@ -43,6 +43,16 @@ vignette: >
 Use author `František Bartoš` unless instructed otherwise.
 
 Use a spelled date, not `\`r Sys.Date()\``. `link-citations: true` and the `_notangle` engine line are required.
+
+Immediately after the YAML header, include the shared print-output rule:
+
+````markdown
+```{r child = "_vignette-nowrap.md", echo = FALSE, eval = TRUE}
+```
+````
+
+This child sets `options(width = 10000)` and CSS overrides for `pre` / `sourceCode` blocks, so printed output and source blocks use horizontal scrolling instead of browser wrapping.
+Do not duplicate this CSS inside individual vignettes; edit `vignettes/_vignette-nowrap.md` if the rule changes.
 
 ## Setup Chunk
 
@@ -96,7 +106,7 @@ The global `fig.height = 3.5` is for single-panel chunks. Override per chunk for
 
 When a vignette runs actual MCMC fits, use `vignettes/vignette-cache.R`. The cache `name` MUST match the vignette filename without `.Rmd`. The pattern is three chunks: setup with cache → load cached fits → re-fit code with `eval = FALSE`.
 
-`vignettes/02-bayesian-meta-analysis.Rmd` and `vignettes/30-tutorial.Rmd` are working examples. If the vignette only assembles priors (`only_priors = TRUE`) or otherwise runs cheaply, skip caching entirely — see `01-prior-distributions.Rmd`.
+`vignettes/v02-bayesian-meta-analysis.Rmd` and `vignettes/v30-tutorial.Rmd` are working examples. If the vignette only assembles priors (`only_priors = TRUE`) or otherwise runs cheaply, skip caching entirely — see `v01-prior-distributions.Rmd`.
 
 ## Section Structure
 
@@ -123,7 +133,7 @@ Always check `inst/REFERENCES.bib` before citing. Don't invent keys and don't ad
 Reference other vignettes as clickable links to their rendered HTML, not as plain italics:
 
 ```markdown
-see the [*Prior Distributions*](01-prior-distributions.html) vignette
+see the [*Prior Distributions*](v01-prior-distributions.html) vignette
 ```
 
 This works in both pkgdown sites and `browseVignettes()` HTML. The path is relative to the rendered HTML of the current vignette (same directory). Keep the title italicized inside the link text.
@@ -275,7 +285,7 @@ Kroupova2021 <- metafor::escalc(
 
 A `metafor`-parity (or getting-started) vignette pairs each `metafor::rma()` call with the matching `brma()` call, building from a simple random-effects model up to meta-regression with a categorical moderator. Do not dump all `brma()` fits in one chunk; introduce one model per section, each with its own summary, plot, and diagnostic before moving on.
 
-**Do not duplicate generic inference helpers across parity vignettes.** A specialized parity vignette (multilevel, GLMM, publication-bias) should only walk through the features that are *specific* to the model class it covers — for the multilevel vignette, that is `cluster`, the `tau`/`rho` parameterization, and `summary_heterogeneity()`'s within/between decomposition. Generic helpers that work the same way for any `brma()` fit (`mods`, `regplot()`, `predict()`, `bf()` / `loo_compare()`, `rstudent()`, `qqnorm()`, `plot(loo(fit))`) belong in `02-bayesian-meta-analysis.Rmd`. Close the specialized vignette with a short *Other Inference Helpers* section that points back to `02-bayesian-meta-analysis.html` and notes that the only thing that changes is the new structural argument.
+**Do not duplicate generic inference helpers across parity vignettes.** A specialized parity vignette (multilevel, GLMM, publication-bias) should only walk through the features that are *specific* to the model class it covers — for the multilevel vignette, that is `cluster`, the `tau`/`rho` parameterization, and `summary_heterogeneity()`'s within/between decomposition. Generic helpers that work the same way for any `brma()` fit (`mods`, `regplot()`, `predict()`, `bf()` / `loo_compare()`, `rstudent()`, `qqnorm()`, `plot(loo(fit))`) belong in `v02-bayesian-meta-analysis.Rmd`. Close the specialized vignette with a short *Other Inference Helpers* section that points back to `v02-bayesian-meta-analysis.html` and notes that the only thing that changes is the new structural argument.
 
 ### Per-section pattern
 
@@ -368,9 +378,9 @@ plot(fit, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 - **Plain words over math jargon when describing visualizations.** "the corresponding visualization for the prior distribution" beats "the same decomposition for the prior"; "drops the null component on the effect (spike at zero)" beats "drops the spike". When introducing a technical term, follow with a parenthetical that grounds it.
 - **No clever paired phrasings.** "remove the component" beats "force the component in or out". List alternatives with "or"; do not stack parallels for symmetry.
 - **When introducing a paired naming convention, name the example.** "Every component has a paired `_null` argument (i.e. `prior_effect` and `prior_effect_null`)" beats "Every component has a paired `_null` argument". The example does the lifting that the rule alone cannot.
-- **Cross-references go in narrative voice.** "In a later vignette [*Robust Bayesian Meta-Analysis*](21-robust-bayesian-meta-analysis.html), we illustrate..." or "Note that we do not demonstrate all the diagnostics; see [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html)". Bare terminal pointers ("for X, see Y") are reserved for the closer's see-also list.
+- **Cross-references go in narrative voice.** "In a later vignette [*Robust Bayesian Meta-Analysis*](v21-robust-bayesian-meta-analysis.html), we illustrate..." or "Note that we do not demonstrate all the diagnostics; see [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html)". Bare terminal pointers ("for X, see Y") are reserved for the closer's see-also list.
 - always use "prior distribution" / "default prior distribution" in full
-- always use "`RoBMA` package"  / "`metafor` package" in full 
+- always use "`RoBMA` R package" / "`metafor` package" in full (note the "R" only for `RoBMA`)
 
 ## Common Pitfalls
 
@@ -381,6 +391,7 @@ plot(fit, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 - Do not use em dashes in prose.
 - Do not invent citation keys; check `inst/REFERENCES.bib` first.
 - Do not use `\`r Sys.Date()\`` in the YAML date; use a spelled date.
+- Do not let printed chunk output wrap in the browser; include `_vignette-nowrap.md` immediately after the YAML header.
 - Do not let the cache `name` and the vignette filename drift apart.
 - Do not bump `dpi` to improve figure quality. Use `fig.retina = 3` instead. `dpi` scales both file resolution and displayed CSS size, so the figures grow on the page.
 - Do not list features as a "toolkit" or use "what changes is X" framings in the lede.

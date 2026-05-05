@@ -33,12 +33,12 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' @param object a brma model object.
 #' @param unit output/deletion unit. \code{"estimate"} computes one contribution
 #' per effect-size estimate. \code{"cluster"} computes one contribution per
-#' cluster.
+#' cluster and is available only for multilevel models.
 #' @param r_eff optional vector of relative effective sample sizes. If not
 #' provided, it is computed from the log-likelihood values.
-#' @param parallel Logical. If \code{TRUE} computations are parallelized and
-#' the number of cores is taken from \code{RoBMA.get_option("max_cores")}. If
-#' \code{FALSE} computations are run on a single core.
+#' @param parallel Logical. If \code{TRUE}, \code{loo::relative_eff()} and
+#' \code{loo::loo()} use \code{RoBMA.get_option("max_cores")}. Log-likelihood
+#' construction is unchanged. If \code{FALSE}, those computations use one core.
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
@@ -66,7 +66,8 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' out-of-sample predictive performance. This evaluates how well models predict
 #' \emph{new} observations, not how well they fit the observed data.
 #'
-#' @return The brma object with the LOO result stored in \code{object[["loo"]]}.
+#' @return The brma object with the LOO result stored in
+#' \code{object[["loo"]][[unit]]}.
 #'
 #' @seealso \code{\link{loo.brma}}, \code{\link[loo]{loo}},
 #' \code{\link[loo]{loo_compare}}, \code{\link[loo]{pareto_k_ids}}
@@ -185,7 +186,8 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' for brma model objects and store the result in the object.
 #'
 #' @param object a brma model object.
-#' @param unit output/deletion unit. See \code{\link{add_loo}}.
+#' @param unit output/deletion unit. See \code{\link{add_loo}}; the same
+#' accepted values and multilevel constraint apply.
 #' @param ... additional arguments passed to \code{\link[loo]{waic}}.
 #'
 #' @details
@@ -197,7 +199,8 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' because it provides better estimates and includes diagnostics (Pareto k
 #' values) that indicate when the approximation may be unreliable.
 #'
-#' @return The brma object with the WAIC result stored in \code{object[["waic"]]}.
+#' @return The brma object with the WAIC result stored in
+#' \code{object[["waic"]][[unit]]}.
 #'
 #' @seealso \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}
 #'
@@ -255,8 +258,11 @@ loo <- function(x, ...) UseMethod("loo")
 #'
 #' @details
 #' This function extracts the LOO object that was previously computed and
-#' stored using \code{\link{add_loo}}. If LOO has not been computed,
-#' an error is thrown.
+#' stored using \code{object <- add_loo(object, unit = unit)}. If LOO has not
+#' been computed for the requested unit, an error is thrown.
+#'
+#' This is the RoBMA S3 generic and \code{brma} method. Use
+#' \code{\link[loo]{loo}} directly for raw log-likelihood arrays or matrices.
 #'
 #' @return An object of class \code{c("psis_loo", "loo")} as returned by
 #' \code{\link[loo]{loo}}.
@@ -346,8 +352,8 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' \code{\link[loo]{loo_compare}}, the selection is based on expected
 #' out-of-sample predictive performance. This evaluates how well models predict
 #' \emph{new} observations, not how well they fit the observed data.
-#' RoBMA rejects comparisons with different \code{yi}/\code{sei} targets,
-#' \code{unit}, or implied \code{conditioning_depth}.
+#' RoBMA rejects comparisons with different outcome targets/data, \code{unit},
+#' or implied \code{conditioning_depth}.
 #'
 #' @return A matrix of class \code{"compare.loo"} as returned by
 #' \code{\link[loo]{loo_compare}}.
@@ -403,10 +409,13 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
 
 #' @title Compare loo Objects Using LOO
 #'
-#' @description Method for comparing loo objects directly.
+#' @description Method for comparing RoBMA-targeted \code{loo} or \code{waic}
+#' objects directly.
 #'
-#' @param x a loo object (the first model to compare).
-#' @param ... additional loo or brma objects to compare.
+#' @param x a RoBMA-targeted \code{loo} or \code{waic} object (the first model
+#' to compare).
+#' @param ... additional RoBMA-targeted \code{loo}/\code{waic} or \code{brma}
+#' objects to compare.
 #' @param unit output/deletion unit used when extracting LOO from brma objects.
 #'
 #' @return A matrix of class \code{"compare.loo"} as returned by
@@ -464,8 +473,13 @@ waic <- function(x, ...) UseMethod("waic")
 #'
 #' @details
 #' This function extracts the WAIC object that was previously computed and
-#' stored using \code{\link{add_waic}}. If WAIC has not been computed,
-#' an error is thrown.
+#' stored using \code{object <- add_waic(object, unit = unit)}. If WAIC has not
+#' been computed for the requested unit, an error is thrown.
+#'
+#' This is the RoBMA S3 generic and \code{brma} method. The method is also
+#' registered for \code{\link[loo]{waic}}, so \code{loo::waic(fit)} extracts
+#' the cached WAIC object for \code{brma} fits. Use \code{\link[loo]{waic}}
+#' directly for raw log-likelihood arrays or matrices.
 #'
 #' In most cases, LOO-PSIS (via \code{\link{loo.brma}}) is preferred over WAIC
 #' because it provides better estimates and includes diagnostics (Pareto k
@@ -478,6 +492,7 @@ waic <- function(x, ...) UseMethod("waic")
 #'
 #' @aliases waic
 #' @export
+#' @exportS3Method loo::waic
 waic.brma <- function(x, unit = "estimate", ...) {
   return(.check_waic_target(x, unit = unit))
 }
@@ -500,7 +515,13 @@ loo_weights <- function(object, ...) UseMethod("loo_weights")
 #' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... currently unused.
 #'
-#' @return A matrix of normalized PSIS weights.
+#' @details LOO must first be computed with
+#' \code{object <- add_loo(object, unit = unit)}. This method extracts the
+#' stored PSIS object and does not compute LOO.
+#'
+#' @return An \code{S x K} matrix for estimate-unit LOO, or \code{S x G}
+#' matrix for cluster-unit LOO, with posterior samples in rows and LOO targets
+#' in columns. Columns are normalized to sum to one.
 #'
 #' @aliases loo_weights
 #' @exportS3Method
@@ -532,6 +553,10 @@ check_loo <- function(object, ...) UseMethod("check_loo")
 #' @param object a brma model object.
 #' @param unit output/deletion unit. See \code{\link{add_loo}}.
 #' @param ... currently unused.
+#'
+#' @details LOO must first be computed with
+#' \code{object <- add_loo(object, unit = unit)}. The method warns when any
+#' Pareto \eqn{k} diagnostic is greater than 0.7.
 #'
 #' @return NULL (throws warning if diagnostics are unreliable).
 #'

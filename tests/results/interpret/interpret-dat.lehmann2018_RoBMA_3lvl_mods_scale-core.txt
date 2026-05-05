@@ -1,4 +1,4 @@
-Robust Bayesian Model-Averaged Multilevel Location-Scale Model (k = 81, lvls = 41).
+Robust Bayesian Model-Averaged Multilevel Location-Scale Model (k = 81, clusters = 41).
 Effect inclusion: weak evidence against the effect (BF01 = 1.571).
 Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf = Inf).
 Publication Bias inclusion: moderate evidence in favor of publication bias (BFpb = 3.808).

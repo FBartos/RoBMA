@@ -10,7 +10,7 @@ prior_none(prior_weights = 1)
 \item{prior_weights}{numeric prior model weight.}
 }
 \value{
-An object of class \code{prior}.
+An object inheriting from \code{prior} and \code{prior.none}.
 }
 \description{
 Create an empty prior used to omit a model component.

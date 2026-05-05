@@ -8,12 +8,13 @@
 \method{dffits}{brma}(model, ...)
 }
 \arguments{
-\item{model}{a fitted brma object.}
+\item{model}{a fitted normal-outcome \code{brma} object without a
+weightfunction component.}
 
 \item{...}{additional arguments (currently ignored).}
 }
 \value{
-A numeric vector of DFFITS values, one for each observation.
+A named numeric vector of DFFITS values, one for each observation.
 }
 \description{
 Computes DFFITS (Difference in FITS, standardized) for a
@@ -32,6 +33,11 @@ the full-posterior fitted value:
 This targets deletion influence on fitted values directly. It does not use
 LOO-PIT residuals, which are predictive outlier diagnostics rather than
 fitted-value deletion diagnostics.
+
+Estimate-unit LOO must first be computed with
+\code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
+posterior SD of a fitted value is near zero, the corresponding DFFITS value
+is returned as \code{NA}.
 }
 \examples{
 \dontrun{

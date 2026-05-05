@@ -1,5 +1,5 @@
 
-Bayesian Multilevel Location-Scale Model (k = 13, lvls = 3)
+Bayesian Multilevel Location-Scale Model (k = 13, clusters = 3)
 
 Common Estimates
       Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD ESS R-hat

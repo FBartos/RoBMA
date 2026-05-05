@@ -13,7 +13,7 @@
 )
 }
 \arguments{
-\item{object}{a brma object.}
+\item{object}{a normal-outcome \code{brma} object.}
 
 \item{significance_level}{z-value threshold for significance. Defaults
 to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
@@ -27,8 +27,10 @@ Defaults to 1000.}
 The input object with added class \code{"zplot_brma"} and a new
 \code{zplot} list component containing:
 \describe{
-\item{estimates}{posterior samples for EDR and weights}
-\item{data}{observed z-statistics and significance counts}
+\item{estimates}{a list with posterior samples for \code{EDR} and
+missing-study \code{weights}}
+\item{data}{a list with \code{significance_level}, observed
+\code{z}-statistics, \code{N_significant}, and \code{N_observed}}
 }
 }
 \description{
@@ -36,13 +38,14 @@ Transforms an estimated brma model into a zplot object
 that can be summarized and plotted to assess replicability.
 }
 \details{
-Zplot analysis estimates the Expected Discovery Rate (EDR), which
-represents the average power of statistically significant studies. This
-provides insight into the replicability of findings in a literature.
+Zplot analysis estimates the Expected Discovery Rate (EDR), the posterior
+mean probability that an exact replication would be statistically significant
+at the supplied threshold. This provides insight into the replicability of
+findings in a literature.
 
 The implementation uses extrapolation mode by default, which removes
-publication bias adjustments (PET/PEESE/selection weights) to estimate
-what the true power distribution would be without selective reporting.
+selection-model weights when evaluating the model-implied z-value density.
+PET/PEESE regression terms remain part of the fitted location model.
 Zplot diagnostics are available only for normal outcome models. GLMM
 objects are rejected because their raw likelihood is on a count scale while
 zplot diagnostics require observed effect-size z-statistics with standard

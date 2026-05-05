@@ -190,5 +190,13 @@ test_that("add_marglik rejects product-space model-averaging objects", {
       add_marglik(load_fit(name, validate = FALSE)),
       "Marginal likelihood is not available for product-space"
     )
+    expect_error(
+      bridge_sampler(load_fit(name, validate = FALSE)),
+      "Marginal likelihood is not available for product-space"
+    )
+    expect_error(
+      logml(load_fit(name, validate = FALSE)),
+      "Marginal likelihood is not available for product-space"
+    )
   }
 })

@@ -36,8 +36,11 @@ For standard (2-level) random-effects models, the function reports:
 For multilevel (3-level) models with nested effects, the function additionally
 partitions heterogeneity into estimate-level and cluster-level components:
 \itemize{
+\item \code{rho}: Proportion of heterogeneity variance allocated to clusters
 \item \code{tau [within]}: Estimate-level standard deviation
 \item \code{tau [between]}: Cluster-level standard deviation
+\item \code{tau2 [within]}: Estimate-level variance
+\item \code{tau2 [between]}: Cluster-level variance
 \item \code{I2 [within]}: Percentage of variance due to estimate-level heterogeneity
 \item \code{I2 [between]}: Percentage of variance due to cluster-level heterogeneity
 }
@@ -49,7 +52,7 @@ is the square root of this aggregate variance. The relative \eqn{I^2} and
 
 The I^2 and H^2 statistics are computed following the metafor package
 implementation, using the "typical" sampling variance formula from
-\insertCite{higgins2002quantifying;textual}{RoBMA} For multilevel models,
+\insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 the partitioned I^2 follows the approach described in the metafor documentation.
 }
 \examples{

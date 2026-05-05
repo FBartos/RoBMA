@@ -57,3 +57,17 @@ test_that("Diagnostic label helpers preserve study labels and repair invalid row
   vec <- RoBMA:::.diagnostic_set_names(1:3, object)
   expect_equal(names(vec), labels)
 })
+
+
+test_that("diagnostic plot wrappers expose the full selector API", {
+
+  wrapper_formals <- list(
+    autocorrelation = names(formals(plot_diagnostic_autocorrelation.brma)),
+    trace           = names(formals(plot_diagnostic_trace.brma)),
+    density         = names(formals(plot_diagnostic_density.brma))
+  )
+
+  for (formals_i in wrapper_formals) {
+    expect_true(all(c("parameter_mods", "parameter_scale", "type", "lags") %in% formals_i))
+  }
+})

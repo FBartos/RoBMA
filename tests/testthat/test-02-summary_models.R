@@ -20,10 +20,15 @@ expect_summary_models_marginal_table <- function(table, name, component) {
   expect_true(nrow(table) > 0L, info = info)
   expect_true(all(c("Hypothesis", "prior_prob", "post_prob", "inclusion_BF") %in%
                     colnames(table)), info = info)
+  expect_true("BF_error_percent" %in% colnames(table), info = info)
   expect_true(all(table[["Hypothesis"]] %in% c("Null", "Alternative")),
               info = info)
   expect_true(all(is.finite(table[["prior_prob"]])), info = info)
   expect_true(all(is.finite(table[["post_prob"]])), info = info)
+  expect_true(all(is.finite(table[["BF_error_percent"]]) |
+                    is.na(table[["BF_error_percent"]])), info = info)
+  expect_equal(attr(table[["BF_error_percent"]], "name"),
+               "error%(Inclusion BF)", info = info)
   expect_equal(sum(table[["prior_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
                info = info)
   expect_equal(sum(table[["post_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
@@ -62,6 +67,7 @@ expect_summary_models_individual <- function(out, marginal, name) {
   expect_true(nrow(table) > 0L, info = info)
   expect_true(all(c("prior_prob", "post_prob", "inclusion_BF") %in%
                     colnames(table)), info = info)
+  expect_true("BF_error_percent" %in% colnames(table), info = info)
   expect_true(all(names(marginal[["marginal"]]) %in% colnames(table)),
               info = info)
   expect_equal(
@@ -71,6 +77,10 @@ expect_summary_models_individual <- function(out, marginal, name) {
   )
   expect_true(all(is.finite(table[["prior_prob"]])), info = info)
   expect_true(all(is.finite(table[["post_prob"]])), info = info)
+  expect_true(all(is.finite(table[["BF_error_percent"]]) |
+                    is.na(table[["BF_error_percent"]])), info = info)
+  expect_equal(attr(table[["BF_error_percent"]], "name"),
+               "error%(Inclusion BF)", info = info)
   expect_equal(sum(table[["prior_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
                info = info)
   expect_equal(sum(table[["post_prob"]]), 1, tolerance = sqrt(.Machine$double.eps),
@@ -136,6 +146,30 @@ test_that("summary_models individual weights marginalize to component weights", 
       }
     }
   }
+})
+
+test_that("summary_models can omit BF diagnostics", {
+
+  skip_if_missing_fits("dat.lehmann2018_RoBMA")
+
+  marginal <- summary_models(
+    fits[["dat.lehmann2018_RoBMA"]],
+    type                     = "marginal",
+    include_mcmc_diagnostics = FALSE
+  )
+  individual <- summary_models(
+    fits[["dat.lehmann2018_RoBMA"]],
+    type                     = "individual",
+    include_mcmc_diagnostics = FALSE
+  )
+
+  for (component in names(marginal[["marginal"]])) {
+    table <- marginal[["marginal"]][[component]]
+    expect_false("BF_error_percent" %in% colnames(table))
+    expect_false("BF_error" %in% attr(table, "type"))
+  }
+  expect_false("BF_error_percent" %in% colnames(individual[["individual"]]))
+  expect_false("BF_error" %in% attr(individual[["individual"]], "type"))
 })
 
 test_that("summary_models is RoBMA-only", {

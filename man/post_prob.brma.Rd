@@ -11,10 +11,10 @@
 
 \item{...}{additional brma model objects.}
 
-\item{prior_prob}{numeric vector with prior model probabilities.
-If omitted, a uniform prior is used (i.e., all models are equally
-likely a priori). The default \code{NULL} corresponds to equal
-prior model weights.}
+\item{prior_prob}{numeric vector with prior model probabilities or weights.
+Values must be finite, nonnegative, have the same length as the retained
+models, and have a positive total. If omitted, a uniform prior is used.
+Supplied values are normalized internally.}
 
 \item{model_names}{character vector with model names. If \code{NULL}
 (the default), names will be derived from deparsing the call.}
@@ -29,7 +29,10 @@ likelihoods of brma models.
 }
 \details{
 The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
-All models must be fitted to the same \code{yi}/\code{sei} target.
+\code{x} and at least one additional \code{brma} model must be supplied.
+Non-\code{brma} objects in \code{...} are ignored with a warning. All retained
+models must be fitted to the same outcome target/data, including outcome type
+and, when present, weights and cluster identifiers.
 }
 \examples{
 \dontrun{

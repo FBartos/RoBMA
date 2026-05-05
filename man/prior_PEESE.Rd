@@ -21,8 +21,16 @@ prior_PEESE(
 \item{prior_weights}{numeric prior model weight.}
 }
 \value{
-An object of class \code{prior}.
+An object inheriting from \code{prior} with the \code{prior.PEESE}
+marker class.
 }
 \description{
 Create PEESE publication-bias regression priors.
+}
+\details{
+This forwards to \code{BayesTools::prior_PEESE()} and uses the same
+distribution and parameter conventions as \code{prior()}.
+}
+\seealso{
+\code{\link{publication_bias_prior_specification}}
 }

@@ -58,7 +58,9 @@ as_draws_rvars(x, ...)
 \method{as_draws_rvars}{brma}(x, ...)
 }
 \arguments{
-\item{x}{a fitted \code{brma} object.}
+\item{x}{an object to convert. The \code{brma} methods expect a fitted
+\code{brma} object; default methods forward non-\code{brma} objects to the
+corresponding \pkg{posterior} conversion function.}
 
 \item{...}{additional arguments passed to the corresponding
 \pkg{posterior} function.}
@@ -89,9 +91,10 @@ The following conversion functions are available:
 }
 
 These methods require the \pkg{posterior} package to be installed.
-The conversion is performed by first extracting the MCMC samples
-as a \code{mcmc.list} object and then using the corresponding
-\pkg{posterior} conversion function.
+For \code{brma} methods, conversion is performed by first extracting the MCMC
+samples as a \code{mcmc.list} object and then using the corresponding
+\pkg{posterior} conversion function. \code{brma_samples} objects have
+separate methods documented at \code{\link{as_draws.brma_samples}}.
 }
 \seealso{
 \code{\link[posterior]{draws}}, \code{\link{brma}},

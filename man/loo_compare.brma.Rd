@@ -30,8 +30,8 @@ predictive performance (ELPD).
 \code{\link[loo]{loo_compare}}, the selection is based on expected
 out-of-sample predictive performance. This evaluates how well models predict
 \emph{new} observations, not how well they fit the observed data.
-RoBMA rejects comparisons with different \code{yi}/\code{sei} targets,
-\code{unit}, or implied \code{conditioning_depth}.
+RoBMA rejects comparisons with different outcome targets/data, \code{unit},
+or implied \code{conditioning_depth}.
 }
 \examples{
 \dontrun{

@@ -15,10 +15,9 @@ marginal_means(object, ...)
 A method-specific estimated marginal means object.
 }
 \description{
-Computes estimated marginal means for fitted \code{brma}
-objects with moderators. The returned object stores the BayesTools
-marginal-inference object and can be summarized or plotted with
-\code{summary()} and \code{plot()}.
+S3 generic for estimated marginal means. The \code{brma}
+method works with fitted moderator models and stores the BayesTools
+marginal-inference object for \code{summary()} and \code{plot()}.
 }
 \seealso{
 \code{\link[=summary]{summary()}}, \code{\link[=plot]{plot()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=regplot]{regplot()}}

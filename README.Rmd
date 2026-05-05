@@ -6,206 +6,36 @@ output:       github_document
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-```{r include = FALSE, eval = FALSE}
-library(RoBMA)
-fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, seed = 1)
-saveRDS(fit, file = "models/README/Bem2011.RDS")
-```
-```{r, include = FALSE}
+
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment  = "#>",
   fig.path = "man/figures/README-",
   dev      = "png"
 )
-if(.Platform$OS.type == "windows"){
+if (.Platform$OS.type == "windows") {
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
 }
-# we pre-load the model, the fitting time is around 30 minutes
-fit <- readRDS(file = "models/README/Bem2011.RDS")
+
+article_url <- function(page) {
+  paste0("https://fbartos.github.io/RoBMA/articles/", page, ".html")
+}
+
+reference_url <- function(page) {
+  paste0("https://fbartos.github.io/RoBMA/reference/", page, ".html")
+}
 ```
 
 <!-- badges: start -->
-[![R-CRAN-check](https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg)](https://github.com/FBartos/RoBMA/actions)
-[![R-tests](https://github.com/FBartos/RoBMA/workflows/R-CMD-tests/badge.svg)](https://github.com/FBartos/RoBMA/actions)
+[![R-CMD-check](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-check.yaml)
+[![R-unit-tests](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-tests.yaml/badge.svg)](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-tests.yaml)
+[![test-coverage](https://github.com/FBartos/RoBMA/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/FBartos/RoBMA/actions/workflows/test-coverage.yaml)
+[![Codecov](https://codecov.io/gh/FBartos/RoBMA/graph/badge.svg)](https://app.codecov.io/gh/FBartos/RoBMA)
 [![CRAN status](https://www.r-pkg.org/badges/version/RoBMA)](https://CRAN.R-project.org/package=RoBMA)
 <!-- badges: end -->
 
 # Robust Bayesian Meta-Analysis (RoBMA)
 
-This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. 
-The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. 
-The package includes more complex models such as meta-regression and multilevel meta-analysis. 
-The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. 
-The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. 
-The package is also integrated into the JASP software [@jasp14] and can be used via the graphical user interface (see @bartos2025bayesian).
-
-See our manuscripts for technical details and examples:
-
- - @bartos2025zcurve (https://doi.org/10.48550/arXiv.2509.07171) introduces meta-analytic zplots for assessing model fit with respect to publication bias
- - @bartos2025robust (https://doi.org/10.31234/osf.io/9tgp2_v1) extends RoBMA-PSMA into multilevel meta-analysis 
- - @bartos2023robust (https://doi.org/10.1037/met0000737) extends RoBMA-PSMA into meta-regression 
- - @bartos2023empirical (https://doi.org/10.48550/arXiv.2306.11468) outlines binomial-normal Bayesian model-averaged meta-analysis for binary outcomes (+ develops informed prior distributions for log OR, log RR, RD, and log HR in medical settings, also see @bartos2021bayesian for informed prior distributions for Cohen's d, based on the Cochrane Database of Systematic Reviews) 
- - @bartos2021no (https://doi.org/10.1002/jrsm.1594) describes the newest version of publication bias adjustment, RoBMA-PSMA, which combines selection models and PET-PEESE,
- - @maier2020robust (https://doi.org/10.1037/met0000405) introduces the RoBMA framework and the original version of the method,
- - @bartos2020adjusting (https://doi.org/10.1177/25152459221109259) provides an accessible tutorial on the method including the implementation in the the user-friendly graphical user interface of JASP [@jasp14]
-
-
-We also prepared multiple vignettes that illustrate functionality of the package. See the [Introduction to RoBMA](https://fbartos.github.io/RoBMA/articles/00-introduction.html) for an overview or explore them directly:
-
- - [Prior distributions](https://fbartos.github.io/RoBMA/articles/01-prior-distributions.html)
- - [Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.html)
- - [Bayesian model averaging](https://fbartos.github.io/RoBMA/articles/20-bayesian-model-averaging.html)
- - [Robust Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/21-robust-bayesian-meta-analysis.html)
- - [Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis](https://fbartos.github.io/RoBMA/articles/30-tutorial.html)
- - [Robust Bayesian model-averaged meta-regression](https://fbartos.github.io/RoBMA/articles/31-robma-metaregression.html)
- - [Multilevel Robust Bayesian Meta-Analysis](https://fbartos.github.io/RoBMA/articles/32-robma-multilevel.html)
- - [Multilevel Robust Bayesian Model-Averaged Meta-Regression](https://fbartos.github.io/RoBMA/articles/33-robma-multilevel-metaregression.html)
- - [Informed Bayesian model-averaged meta-analysis in medicine](https://fbartos.github.io/RoBMA/articles/34-bma-norm-medicine.html)
- - [Informed Bayesian model-averaged meta-analysis with binary outcomes](https://fbartos.github.io/RoBMA/articles/35-bma-glmm-medicine.html)
- - [Zplot Publication Bias Diagnostics](https://fbartos.github.io/RoBMA/articles/36-zplot.html)
-
-
-## Updates
-
-### Backwards Compatibility
-
-Please note that the major releases of RoBMA break backwards compatibility.
-The latest version of RoBMA 1 can be installed using
-``` r
-remotes::install_version("RoBMA", version = "1.2.1")
+```{r child = "vignettes/_v00-introduction-body.md"}
 ```
-and the latest version of RoBMA 2 can be installed using
-``` r
-remotes::install_version("RoBMA", version = "2.3.2")
-```
-(Or use the source packages archived with at OSF repositories associated with the corresponding projects.)
-
-
-### News
-
-The 3.0 version brings several features to the package:
-
-- multilevel models via the `study_ids` argument
-- meta-regression models via the `RoBMA.reg()` function
-- binomial-normal meta-analytic models via the `BiBMA()` function
-- residual funnel plots via the `funnel()` function and meta-analytic zplot diagnostics via the `as_zplot()`/`zplot()` functions
-- publication bias unadjusted models via the `NoBMA()` and `NoBMA.reg()` functions (wrappers around `RoBMA()` and `RoBMA.reg()`)
-- marginal summaries and plots of the regression models via the `marginal_summary()` and `marginal_plot()` function
-- prediction intervals, I^2, and H^2 statistics using `summary_heterogeneity()` function
-
-The 2.0 version brought several updates to the package:
-
- - naming of the arguments specifying prior distributions for the different parameters/components of the models changed (`priors_mu` -> `priors_effect`, `priors_tau` -> `priors_heterogeneity`, and `priors_omega` -> `priors_bias`),
- - prior distributions for specifying weight functions now use a dedicated function with separate weight-prior helpers (`prior_weightfunction("two-sided", steps, wf_cumulative(alpha))`),
- - new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (`prior_none()`),
- - new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (`prior_PET(distribution = "Cauchy", parameters = ...)` and `prior_PEESE(distribution = "Cauchy", parameters = ...)`),
- - new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from @bartos2021no),
- - new `model_type` argument allowing to specify different "pre-canned" models (`"PSMA"` = RoBMA-PSMA, `"PP"` = RoBMA-PP, `"2w"` = corresponding to @maier2020robust),
- - `combine_data` function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the `RoBMA` function)
- - better and improved automatic fitting procedure now enabled by default (can be turned of with `autofit = FALSE`)
- - prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher's z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen's d by default, but both of them can be overwritten with the `prior_scale` and `transformation` arguments),
- - new prior distributions, e.g., beta or fixed weight functions,
- - and plenty of small changes to the arguments, output, and etc...
-
-
-## Installation
-
-The package requires [JAGS 4.3.2](https://mcmc-jags.sourceforge.io/) to be installed. The release version can be installed from CRAN:
-``` r
-install.packages("RoBMA")
-```
-and the development version of the package can be installed from GitHub:
-
-``` r
-devtools::install_github("FBartos/RoBMA")
-```
-
-## Example
-
-To illustrate the functionality of the package, we fit the RoBMA-PSMA model from the example in @bartos2021no to adjust for publication bias in the infamous @bem2011feeling "Feeling the future" pre-cognition study. The RoBMA-PSMA model combines six selection models and PET-PEESE to adjust for publication bias. As in the pre-print, we analyze the data as described by @bem2011must in his reply to methodological critiques.
-
-First, we load the package and the data set included in the package.
-
-```{r}
-library(RoBMA)
-
-data("Bem2011", package = "RoBMA")
-Bem2011
-```
-
-Then, we fit the meta-analytic model ensemble that is composed of 36 models (the new default settings of RoBMA fitting function). These models represent all possible combinations of prior distributions for the following components:
-
-* effect size (the mean parameter $\mu$)
-  - a spike at zero, representing the null hypothesis of the absence of effect
-  - a standard normal distribution, representing the alternative hypothesis of the presence of effect
-* heterogeneity (the heterogeneity parameter $\tau$)
-  - a spike at zero, representing the null hypothesis of the absence of heterogeneity (i.e., fixed effect meta-analysis)
-  - an inverse gamma distribution with shape = 1 and scale = 0.15, based on @erp2017estimates, representing the alternative hypothesis of the presence of heterogeneity (i.e., random effect meta-analysis)
-* publication bias
-  - no prior distribution, representing the absence of publication bias
-  - eight prior distributions specifying two two-sided weight functions, four one-sided weight functions, and PET and PEESE publication bias adjustment, representing the presence of publication bias
-
-The prior odds of the components are by default set to make all three model categories equally likely a priory (0.5 prior probability of the presence of the effect, 0.5 prior probability of the presence of the heterogeneity, and 0.5 prior probability of the presence of the publication bias). The prior model probability of the publication bias adjustment component is further split equally among the selection models represented by the six weightfunctions and the PET-PEESE models. 
-
-
-``` r
-fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, seed = 1)
-```
-
-The main summary can be obtained using the `summary.RoBMA()` function.
-
-The first table shows an overview of the ensemble composition. The number of models, the prior and posterior model probabilities, and inclusion Bayes factor of the ensemble  components representing the alternative hypothesis of the presence of the effect, heterogeneity, and publication bias, We can see the data show very weak evidence, barely worth mentioning, against the presence of the effect ($\text{BF}_{10} = 0.479$ -> $\text{BF}_{01} = 2.09$), moderate evidence for the absence of heterogeneity ($\text{BF}_{\text{rf}} = 0.143$ -> $BF_{\text{fr}} = 7.00$), and strong evidence for the presence of publication bias ($\text{BF}_{\text{pb}} = 16.32$).
-
-The second table shows model-averaged estimates weighted by the individual models' posterior probabilities. The mean estimate $\mu =0.037$, 95% CI [-0.041, 0.213], is very close to zero, corresponding to the a priory expected absence of pre-cognition. The heterogeneity estimate $\tau$ has most of its probability mass around zero due to the higher support of models assuming absence of the heterogeneity. The parameters omega, representing the publication weights at each *p*-value interval are decreasing with increasing *p*-values, showing the publication bias, as well as the non zero PET and PEESE estimates.
-
-```{r}
-summary(fit)
-```
-
-We can visualize the estimated mean and heterogeneity parameters using the `plot.RoBMA()` function. The arrows in both figures represent the point probability mass at $\mu = 0$ and $\tau = 0$, corresponding to the null hypotheses of the absence of effect and heterogeneity, both increasing in the posterior model probability from 0.5 to 0.676 and 0.875 respectively.
-
-```{r fig_mu, out.width = "80%", fig.align = "center"}
-plot(fit, parameter = "mu", xlim = c(-0.5, 0.5))
-```
-
-```{r fig_tau, out.width = "80%", fig.align = "center"}
-plot(fit, parameter = "tau")
-```
-
-We can further visualize the publication bias adjustments of selection models, visualizing the posterior estimate of the model-averaged weightfunction that shows a sharp decrease in the publication weights of studies with *p*-values above the "marginal significance" (0.10) level,
-
-```{r fig_weightfunction, out.width = "80%", fig.align = "center"}
-plot(fit, parameter = "weightfunction", rescale_x = TRUE)
-```
-
-and the PET-PEESE publication bias adjustment, visualizing the individual studies' standard errors and effect sizes as diamonds and the model-averaged estimate of the regression lines that shows a steady increase of effect sizes with increasing standard errors.
-
-```{r fig_PETPEESE, out.width = "80%", fig.align = "center"}
-plot(fit, parameter = "PET-PEESE", xlim = c(0, 0.25))
-```
-
-The usual meta-analytic forest plot can be obtained with the `forest()` function, 
-
-```{r fig_forest, fig.height = 5, fig.width = 10, out.width = "100%", fig.align = "center"}
-forest(fit)
-```
-
-and visualization of the effect size estimates from models assuming presence of the effect can be obtained with the `plot_models()` function.
-
-```{r fig_mu_ind, fig.height = 7, fig.width = 7, out.width = '75%', fig.align = "center"}
-plot_models(fit, conditional = TRUE)
-```
-
-Apart from plotting, the individual model performance can be inspected using the `summary.RoBMA()` function with argument `type = "models"` or the overview of the individual model MCMC diagnostics can be obtained by setting `type = "diagnostics"` (not shown here for the lack of space).
-
-We can also visualize the MCMC diagnostics using the diagnostics function. The function can display the chains `type = "chain"` / posterior sample densities `type = "densities"`, and averaged auto-correlations `type = "autocorrelation"`. Here, we request the chains trace plot of the $\mu$ parameter of the most complex model by setting `show_models = 36` (the model numbers can be obtained from the summary function with `type = "models"` argument).
-
-```{r fig_mu_chain, out.width = '80%', fig.align = "center"}
-diagnostics(fit, parameter = "mu", type = "chains", show_models = 36)
-```
-
-The package allows to fit highly customized models with different prior distribution functions, prior model probabilities, and provides more visualization options. See the documentation to find out more about the specific functions: `RoBMA()`, `priors()`, `plot.RoBMA()`. The main package functionality is also implemented within the Meta Analysis module of JASP 0.14 [@jasp14] and will be soon updated to accommodate the 2.0 version of the package.
-
-
-### References

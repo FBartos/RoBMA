@@ -15,7 +15,10 @@
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
-\item{...}{additional arguments (currently ignored)}
+\item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
+supported options such as \code{conditional}. \code{newdata}, \code{type},
+\code{quiet}, \code{output_measure}, and \code{transform} are controlled by
+this method.}
 }
 \value{
 For 2-level models, a \code{brma_samples} object. For 3-level
@@ -24,8 +27,8 @@ component).
 }
 \description{
 Extracts random effect deviations from a fitted brma object.
-These are the offsets from the fixed-effect predictions, corresponding
-to what \code{metafor::ranef()} returns.
+These are posterior-sample offsets from the fixed-effect predictions,
+analogous to random-effect deviations returned by \code{metafor::ranef()}.
 }
 \details{
 Random effects are computed as the difference between the true
@@ -35,7 +38,8 @@ effects (BLUPs) and the fixed-effect predictions:
 For standard (2-level) models, returns a single \code{brma_samples}
 object with the estimate-level random effects.
 
-For multilevel (3-level) models, returns a list with two components:
+For multilevel (3-level) models, returns a list with two observation-aligned
+\code{brma_samples} matrices, one column per estimate row:
 \describe{
 \item{\code{cluster}}{Cluster-level random effects
 (\eqn{\gamma_j \cdot \tau_{between}}), representing between-cluster

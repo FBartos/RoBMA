@@ -16,7 +16,8 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 the heterogeneity component for RoBMA product-space objects. Defaults to
 \code{FALSE}.}
 
-\item{...}{additional arguments (currently ignored)}
+\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
+arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,

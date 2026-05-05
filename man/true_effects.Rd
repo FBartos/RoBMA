@@ -17,7 +17,8 @@ posterior samples of BLUP or empirical-Bayes true-effect summaries.
 }
 \description{
 Computes the estimated true effects (theta) from a
-fitted model. This is an alias for \code{\link{blup}}.
+fitted model. This is a separate S3 generic whose \code{brma} method
+delegates to \code{\link{blup.brma}}.
 }
 \seealso{
 \code{\link[=blup]{blup()}}, \code{\link[=predict.brma]{predict.brma()}}

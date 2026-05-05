@@ -3,6 +3,9 @@ title: "test"
 output: html_document
 ---
 
+```{r child = "_vignette-nowrap.md", echo = FALSE, eval = TRUE}
+```
+
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
@@ -14,7 +17,7 @@ data("dat.bangertdrowns2004", package = "metadat")
 dat <- dat.bangertdrowns2004
 dat$ni100 <- dat$ni / 100
 fit2_metafor <- suppressWarnings(rma(yi, vi, mods = ~ ni100, scale = ~ ni100, data = dat))
-fit2_brma <- readRDS("../models/12-metafor-parity-location-scale/fit2_brma.RDS")
+fit2_brma <- readRDS("../models/v12-metafor-parity-location-scale/fit2_brma.RDS")
 cat("metafor class:", class(fit2_metafor), "\n")
 cat("brma class:", class(fit2_brma), "\n")
 

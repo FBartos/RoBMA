@@ -6,6 +6,10 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @param prior_bias PET regression-coefficient prior created by
+#' \code{prior_PET()}. If omitted or \code{NULL}, the default is a Cauchy prior
+#' centered at 0, truncated to positive values, with scale from
+#' \code{RoBMA.get_option("default_bias_PET.scale")}.
 #'
 #' @return A fitted object of class `c("bPET", "brma")` containing a single
 #' PET publication-bias model fit.
@@ -28,15 +32,15 @@
 #' }
 #' }
 #'
-#' @seealso [RoBMA()], [bPEESE()], [bselmodel()], [summary.brma()],
-#' [funnel.brma()]
+#' @seealso [publication_bias_prior_specification], [RoBMA()], [bPEESE()],
+#' [bselmodel()], [summary.brma()], [funnel.brma()]
 #' @export
 bPET <- function(
   # input specification
   yi, vi, sei, weights, ni,
   mods, scale, cluster,
   data, slab, subset,
-  measure = "GEN",
+  measure,
 
   # prior specification
   prior_effect, prior_heterogeneity, prior_mods, prior_scale,
@@ -58,9 +62,16 @@ bPET <- function(
 ) {
 
   ### create the output object
-  dots         <- list(...)
-  dots         <- .validate_constructor_dots(dots, caller = "bPET()")
-  object       <- .createObject(
+  dots            <- list(...)
+  missing_measure <- missing(measure)
+  if (missing_measure && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure("bPET()")
+  }
+  if (missing_measure) {
+    measure <- "GEN"
+  }
+  dots            <- .validate_constructor_dots(dots, caller = "bPET()")
+  object          <- .createObject(
     dots = dots, class = c("bPET", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,

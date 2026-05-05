@@ -21,8 +21,17 @@ prior_PET(
 \item{prior_weights}{numeric prior model weight.}
 }
 \value{
-An object of class \code{prior}.
+An object inheriting from \code{prior} with the \code{prior.PET}
+marker class.
 }
 \description{
 Create PET publication-bias regression priors.
+}
+\details{
+This forwards to \code{BayesTools::prior_PET()} and uses the same
+distribution and parameter conventions as \code{prior()}. By default, PET
+priors are truncated to the positive half-line.
+}
+\seealso{
+\code{\link{publication_bias_prior_specification}}
 }

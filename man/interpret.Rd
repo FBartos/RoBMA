@@ -29,12 +29,18 @@ interpret(object, ...)
 \arguments{
 \item{object}{a fitted model object.}
 
-\item{...}{additional arguments passed to methods.}
+\item{...}{additional arguments passed to methods. The \code{brma} method
+reserves \code{...}; unused arguments error, except deprecated
+\code{output_scale}, which is accepted with a warning.}
 
-\item{output_measure}{optional effect-size measure used for the pooled effect.}
+\item{output_measure}{optional effect-size measure used for the pooled
+effect only. Supported conversion targets include \code{"SMD"},
+\code{"COR"}, \code{"ZCOR"}, and \code{"OR"} when the input scale allows
+conversion.}
 
-\item{transform}{optional display transformation. Currently \code{"EXP"}
-exponentiates log-scale measures.}
+\item{transform}{optional display transformation. \code{"EXP"} exponentiates
+log-scale \code{"OR"}, \code{"RR"}, \code{"HR"}, and \code{"IRR"}
+pooled effects; aliases for no transform are accepted.}
 
 \item{conditional}{whether to summarize conditional estimates for RoBMA
 product-space objects. Defaults to \code{FALSE}.}
@@ -61,7 +67,8 @@ Defaults to \code{FALSE}.}
 \value{
 A character vector with class \code{"interpret.brma"}. The
 normalized BayesTools interpretation records are stored in the
-\code{"records"} attribute.
+\code{"records"} attribute; the \code{brma} method also stores
+\code{"scope"}, \code{"conditional"}, and optionally \code{"priors"}.
 }
 \description{
 Creates a concise textual interpretation of fitted RoBMA

@@ -44,6 +44,7 @@ test_that("multilevel scale heterogeneity partitions variance and I2", {
   samples <- RoBMA:::.summary_heterogeneity_samples(
     tau_within_samples  = tau_within,
     tau_between_samples = tau_between,
+    rho_samples         = c(0.8, 0.2),
     v_tilde             = 2,
     is_multilevel       = TRUE
   )
@@ -56,6 +57,7 @@ test_that("multilevel scale heterogeneity partitions variance and I2", {
   expect_equal(samples[["tau2 [within]"]], rowMeans(sigma2_within))
   expect_equal(samples[["tau2 [between]"]], rowMeans(sigma2_between))
   expect_equal(samples[["tau2"]], rowMeans(sigma2_total))
+  expect_equal(samples[["rho"]], c(0.8, 0.2))
   expect_equal(samples[["I2"]], rowMeans(100 * sigma2_total / denominator))
   expect_equal(samples[["I2 [within]"]], rowMeans(100 * sigma2_within / denominator))
   expect_equal(samples[["I2 [between]"]], rowMeans(100 * sigma2_between / denominator))

@@ -21,11 +21,15 @@ prior(
 \item{prior_weights}{numeric prior model weight.}
 }
 \value{
-An object of class \code{prior}.
+An object inheriting from \code{prior}.
 }
 \description{
 Create prior distribution objects used by RoBMA and brma
 fitting functions.
+}
+\details{
+This is RoBMA's re-export of \code{BayesTools::prior()}; supported
+distribution names and parameter lists follow BayesTools.
 }
 \examples{
 prior("normal", list(mean = 0, sd = 0.5))

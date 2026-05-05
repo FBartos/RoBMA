@@ -21,9 +21,7 @@ set_convergence_checks(
   max_Rhat = 1.05,
   min_ESS = 500,
   max_error = NULL,
-  max_SD_error = NULL,
-  remove_failed = FALSE,
-  balance_probability = TRUE
+  max_SD_error = NULL
 )
 }
 \arguments{
@@ -44,7 +42,8 @@ Defaults to \code{NULL}.}
 
 \item{max_time}{list with the time and unit specifying the maximum
 autofitting process per model. Passed to \link[base]{difftime} function
-(possible units are \code{"secs", "mins", "hours", "days", "weeks", "years"}).
+(possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
+\code{"days"}, and \code{"weeks"}).
 Defaults to \code{list(time = 60, unit = "mins")}.}
 
 \item{sample_extend}{number of samples to extend the fitting process if
@@ -56,17 +55,16 @@ model fails to initialize. Defaults to \code{10}.}
 
 \item{max_extend}{number of times after which the automatic fitting function is stopped.
 Defaults to \code{10}.}
-
-\item{remove_failed}{whether models not satisfying the convergence checks should
-be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.}
-
-\item{balance_probability}{whether prior model probability should be balanced
-across the combinations of models with the same H0/H1 for effect / heterogeneity / bias
-in the case of non-convergence. Defaults to \code{TRUE}.}
 }
 \value{
 \code{set_autofit_control} returns a list of autofit control settings
-and \code{set_convergence_checks} returns a list of convergence checks settings.
+including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
+\code{max_SD_error}, \code{max_time}, \code{sample_extend},
+\code{restarts}, \code{max_extend}, and delegated
+\code{check_indicators}.
+\code{set_convergence_checks} returns a list with convergence thresholds
+\code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
+and delegated \code{check_indicators}.
 }
 \description{
 \code{set_autofit_control} and \code{set_convergence_checks} control settings for the
@@ -80,6 +78,13 @@ for determining whether a model has converged adequately.
 The autofit control manages computational resources by setting maximum time limits and
 determining how many additional samples to draw if convergence criteria are not met.
 The convergence checks determine the quality standards that fitted models must meet.
+Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
+\code{max_SD_error}, \code{max_time}, \code{restarts}, and
+\code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
+positive integer.
+Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
+at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
+\code{max_SD_error} must be between 0 and 1.
 }
 \examples{
 # Set custom autofit control with shorter time limit

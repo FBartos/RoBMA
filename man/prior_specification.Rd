@@ -24,11 +24,6 @@ priors. If omitted or \code{NULL}, default priors are used.}
 heterogeneity allocated to the cluster-level component in multilevel models
 (\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
 
-\item{prior_bias}{prior distribution for the publication bias adjustment parameters
-(selection models) or the publication bias indicator (PET-PEESE). For
-\code{bselmodel()}, \code{bPET()}, and \code{bPEESE()}, omitted or \code{NULL} uses the
-corresponding default bias prior.}
-
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
 base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
 to independent \code{Beta(1, 1)} priors.}
@@ -41,20 +36,23 @@ unit-information normal prior is used independently for each estimate.}
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged; publication-bias priors are not rescaled
-except for the default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged. For constructors with publication-bias
+prior distributions, \code{rescale_priors} does not rescale them except for the
+default PEESE prior's UISD adjustment. Defaults to 1.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults to \code{"treatment"}.}
+Defaults are constructor-specific and shown in each function usage; single-model
+constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
-Defaults to \code{NULL}.}
+Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Defaults to \code{NULL}.}
+Omit to use the field-specific default, such as \code{"Cochrane"} for
+\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 }
 \description{
 Prior distributions can be supplied for all model parameters. When omitted,
@@ -178,14 +176,15 @@ or related functions (e.g., \code{prior_factor()}).
 The \code{rescale_priors} argument allows rescaling supported prior distributions by a
 multiplicative factor. For example, \code{rescale_priors = 2} doubles the standard
 deviations/scales of normal, Cauchy, t, and inverse-gamma prior distributions,
-making them more diffuse. Point and none priors are unchanged. Publication-bias
-priors are not rescaled by this argument, except for the default PEESE prior's
-UISD adjustment.
+making them more diffuse. Point and none priors are unchanged. For publication-bias
+prior distributions, see \code{\link{publication_bias_prior_specification}}.
 }
 }
 \references{
 \insertAllCited{}
 }
 \seealso{
-\code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}}, \code{\link{brma}}
+\code{\link{publication_bias_prior_specification}},
+\code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}},
+\code{\link{brma}}
 }

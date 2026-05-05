@@ -246,6 +246,42 @@ test_that("summary.brma inclusion summaries support BF direction and log scale",
   )
 })
 
+test_that("summary.brma inclusion subtables preserve row-level BF bounds", {
+
+  inclusion_BF <- BayesTools::format_BF(
+    c(14999, 1.257, 0.588),
+    inclusion = TRUE
+  )
+  attr(inclusion_BF, "bound_operator") <- c(">", NA_character_, NA_character_)
+  class(inclusion_BF) <- unique(c("BayesTools_BF", class(inclusion_BF)))
+
+  table <- data.frame(
+    prior_prob   = c(0.5, 0.5, 0.5),
+    post_prob    = c(1.0, 0.557, 0.370),
+    inclusion_BF = inclusion_BF,
+    row.names    = c("(mu) intercept", "(mu) tailor", "tau"),
+    check.names  = FALSE
+  )
+  class(table)              <- c("BayesTools_table", class(table))
+  attr(table, "type")       <- c("prior_prob", "post_prob", "inclusion_BF")
+  attr(table, "parameters") <- c("mu_intercept", "mu_tailor", "tau")
+  attr(table, "rownames")   <- TRUE
+
+  mod_table <- .summary.inclusion_subtable(
+    table      = table,
+    indices    = 2L,
+    row_labels = "tailor",
+    title      = "Meta-Regression Inclusion"
+  )
+
+  expect_identical(
+    attr(mod_table[["inclusion_BF"]], "bound_operator"),
+    NA_character_
+  )
+  expect_false(any(grepl(">1.257", capture.output(print(mod_table)),
+                         fixed = TRUE)))
+})
+
 test_that("summary.brma standardized coefficients use the standardized scale", {
 
   name <- "bangertdrowns2004_location-scale"

@@ -24,7 +24,9 @@
 #' by the \pkg{posterior} package, enabling the use of posterior's
 #' rich set of diagnostics and summary functions.
 #'
-#' @param x a fitted \code{brma} object.
+#' @param x an object to convert. The \code{brma} methods expect a fitted
+#' \code{brma} object; default methods forward non-\code{brma} objects to the
+#' corresponding \pkg{posterior} conversion function.
 #' @param ... additional arguments passed to the corresponding
 #' \pkg{posterior} function.
 #'
@@ -44,9 +46,10 @@
 #' }
 #'
 #' These methods require the \pkg{posterior} package to be installed.
-#' The conversion is performed by first extracting the MCMC samples
-#' as a \code{mcmc.list} object and then using the corresponding
-#' \pkg{posterior} conversion function.
+#' For \code{brma} methods, conversion is performed by first extracting the MCMC
+#' samples as a \code{mcmc.list} object and then using the corresponding
+#' \pkg{posterior} conversion function. \code{brma_samples} objects have
+#' separate methods documented at \code{\link{as_draws.brma_samples}}.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'

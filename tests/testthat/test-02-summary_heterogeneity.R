@@ -51,6 +51,7 @@ test_that("Heterogeneity for model-averaged 3-level models is partitioned", {
 
   expected_rows <- c(
     "tau",
+    "rho",
     "tau [within]",
     "tau [between]",
     "tau2",

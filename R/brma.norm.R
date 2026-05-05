@@ -1,7 +1,9 @@
 #' @title Bayesian Meta-Analysis
 #'
-#' @description Function for fitting random-effects, meta-regression, multilevel,
-#' and location-scale meta-analytic models. `brma.norm()` is an alias for `brma()`.
+#' @description Function for fitting normal-likelihood/effect-size
+#' random-effects, meta-regression, multilevel, and location-scale
+#' meta-analytic models. `brma.norm()` is an alias for `brma()`; raw-count
+#' GLMM models use `brma.glmm()`.
 #'
 #' @inheritParams data_input
 #' @inheritParams prior_specification
@@ -133,7 +135,9 @@
 #' @return A fitted object of class `c("brma.norm", "brma")`. The object
 #' contains checked `data`, checked `priors`, the JAGS `fit`, cached `summary`,
 #' and cached `coefficients`. If the corresponding package options are enabled,
-#' it can also contain cached LOO, WAIC, or marginal likelihood results.
+#' it can also contain cached LOO, WAIC, or marginal likelihood results. The
+#' advanced internal `only_data = TRUE` and `only_priors = TRUE` paths return
+#' partially constructed objects.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&
@@ -177,7 +181,7 @@ brma <- brma.norm <- function(
     yi, vi, sei, weights, ni,
     mods, scale, cluster,
     data, slab, subset,
-    measure = "GEN",
+    measure,
 
     # prior specification
     prior_effect, prior_heterogeneity, prior_mods, prior_scale,
@@ -198,9 +202,16 @@ brma <- brma.norm <- function(
     ) {
 
   ### create the output object
-  dots         <- list(...)
-  dots         <- .validate_constructor_dots(dots, caller = "brma.norm()")
-  object       <- .createObject(
+  dots            <- list(...)
+  missing_measure <- missing(measure)
+  if (missing_measure && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure("brma.norm()")
+  }
+  if (missing_measure) {
+    measure <- "GEN"
+  }
+  dots            <- .validate_constructor_dots(dots, caller = "brma.norm()")
+  object          <- .createObject(
     dots = dots, class = c("brma.norm", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,

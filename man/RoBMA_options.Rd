@@ -11,11 +11,11 @@ RoBMA.options(...)
 RoBMA.get_option(name)
 }
 \arguments{
-\item{...}{named option(s) to change - for a list of available options, see
-details below.}
+\item{...}{named option(s) to change. Names must be exact public option names,
+nonempty, and unique.}
 
-\item{name}{the name of the option to get the current value of - for a list of
-available options, see details below.}
+\item{name}{a single non-missing character string matching one public option
+exactly; for available options, see details below.}
 }
 \value{
 \code{RoBMA.options()} invisibly returns a named list with all current
@@ -28,7 +28,7 @@ Inspect or change package-level defaults used by RoBMA.
 \details{
 The available options are:
 \describe{
-\item{\code{max_cores}}{number of cores to use for parallel computing (default to all available cores - 1)}
+\item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
 \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
 \item{\code{silent}}{whether to suppress output (default \code{FALSE})}
 \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
@@ -45,4 +45,9 @@ The available options are:
 \item{\code{default_bias_PET.scale}}{default scale for the PET (default \code{1})}
 \item{\code{default_bias_PEESE.scale}}{default scale for the PEESE (default \code{5})}
 }
+
+Boolean options require scalar \code{TRUE} or \code{FALSE} values.
+\code{max_cores} must be integer-like and at least 1;
+\code{cluster_likelihood.n_gamma} must be integer-like and at least 3.
+Scale and alpha defaults must be finite positive numbers.
 }

@@ -48,7 +48,7 @@ BMA <- BMA.norm <- function(
   yi, vi, sei, weights, ni,
   mods, scale, cluster,
   data, slab, subset,
-  measure = "GEN",
+  measure,
 
   # prior specification
   prior_effect, prior_heterogeneity, prior_mods, prior_scale,
@@ -71,9 +71,16 @@ BMA <- BMA.norm <- function(
 ) {
 
   ### create the output object
-  dots         <- list(...)
-  dots         <- .validate_constructor_dots(dots, caller = "BMA.norm()")
-  object       <- .createObject(
+  dots            <- list(...)
+  missing_measure <- missing(measure)
+  if (missing_measure && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure("BMA.norm()")
+  }
+  if (missing_measure) {
+    measure <- "GEN"
+  }
+  dots            <- .validate_constructor_dots(dots, caller = "BMA.norm()")
+  object          <- .createObject(
     dots = dots, class = c("BMA.norm", "RoBMA", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,

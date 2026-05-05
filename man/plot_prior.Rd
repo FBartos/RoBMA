@@ -33,8 +33,13 @@ distribution object.}
 
 \item{parameter}{character. Base parameter to plot. Defaults to \code{"mu"}.
 Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
-\code{"PEESE"}, \code{"omega"}, and \code{"bias"}. Moderator and scale
-terms can also be selected by name when unambiguous.}
+\code{"PEESE"}, \code{"omega"}, and \code{"bias"}, with aliases
+\code{"effect"} = \code{"mu"}, \code{"heterogeneity"} = \code{"tau"},
+and \code{"weightfunction"} = \code{"omega"}. \code{"bias"} plots only
+non-mixed or homogeneous bias priors; for mixed weightfunction and PET/PEESE
+mixtures use \code{"omega"}, \code{"PET"}, or \code{"PEESE"}. Moderator and
+scale terms can also be selected by name when unambiguous. A character vector
+requests multiple base parameters.}
 
 \item{parameter_mods}{character. Moderator term to plot.
 Use \code{"intercept"} for the adjusted effect in meta-regression models.}
@@ -61,13 +66,18 @@ and \code{"IRR"}.}
 \value{
 \code{plot_prior} returns either \code{NULL} invisibly if
 \code{plot_type = "base"} or a \code{ggplot2} object if
-\code{plot_type = "ggplot"}. If multiple parameters are requested with
-\code{plot_type = "ggplot"}, a named list of plots is returned.
+\code{plot_type = "ggplot"}. If multiple parameters are requested, a named
+list is returned, invisibly for base plots.
 }
 \description{
 \code{plot_prior} visualizes prior distributions stored in
 \code{brma}, \code{BMA}, and \code{RoBMA} objects.
 This is especially useful for objects created with \code{only_priors = TRUE}.
+}
+\details{
+\code{output_measure} and \code{transform} transform the prior
+plotting scale only for effect-size location priors (\code{"mu"} or the
+meta-regression intercept).
 }
 \examples{
 \dontrun{

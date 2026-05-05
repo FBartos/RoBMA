@@ -30,7 +30,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' If not specified and only one moderator is present, that moderator is used.
 #' If multiple moderators are present, this argument is required.
 #' @param pred logical; whether to show the prediction line. Defaults to \code{TRUE}.
-#' @param ci logical; whether to show confidence interval bands. Defaults to \code{TRUE}.
+#' @param ci logical; whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param pi logical; whether to show prediction interval bands. Defaults to \code{FALSE}.
 #' @param si logical; whether to show sampling interval bands. Defaults to \code{FALSE}.
 #' The sampling interval shows the expected range of observed effect sizes,
@@ -39,7 +39,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' publication bias adjustments and \code{sampling_bias = TRUE}, the
 #' sampling interval incorporates the expected distortion from the
 #' selection process.
-#' @param level numeric; confidence/prediction interval level in percent.
+#' @param level numeric; credible/prediction interval level in percent.
 #' Defaults to \code{95}.
 #' @param at numeric vector; for continuous moderators, values at which to
 #' evaluate the prediction. If not specified, uses a sequence across the
@@ -54,8 +54,8 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param refline numeric; position of horizontal reference line.
 #' Defaults to \code{NULL} (no reference line).
 #' @param psize numeric vector or \code{NULL}; point sizes for each study.
-#' If \code{NULL} (default), sizes are computed based on inverse sampling
-#' variance.
+#' If scalar, it is recycled to all studies. If \code{NULL} (default), sizes
+#' are computed based on inverse sampling variance.
 #' @param plim numeric vector of length 2; range for point sizes.
 #' Defaults to \code{c(0.5, 3)}.
 #' @param by character; name of a moderator variable to use for separate
@@ -69,11 +69,11 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param ylab character; y-axis label. Defaults to "Observed Effect Size".
 #' @param xlim numeric vector of length 2; x-axis limits. Defaults to data range.
 #' @param ylim numeric vector of length 2; y-axis limits. Defaults to data range.
-#' @param sampling_bias whether publication bias should be incorporated into the
-#' predicted effect shown in the regplot. Defaults to \code{TRUE}. When \code{TRUE}
-#' and the model includes PET/PEESE, incorporates the expected bias from these
-#' regression adjustments into predictions. When \code{FALSE}, shows bias-adjusted
-#' (corrected) predictions.
+#' @param sampling_bias whether publication bias should be incorporated into
+#' plotted predictions and sampling intervals. Defaults to \code{TRUE}. For
+#' PET/PEESE models, this includes the expected regression bias in predictions.
+#' For selection models, sampling-bias adjustment applies to sampling intervals
+#' when \code{si = TRUE}; the mean prediction is unchanged.
 #' @param sei single positive numeric value used as the reference standard
 #' error for sampling-bias and sampling-interval calculations. Defaults to the
 #' median observed standard error.
@@ -155,6 +155,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @seealso [funnel.brma()], [predict.brma()]
 #' @aliases regplot
 #' @export
+#' @exportS3Method metafor::regplot
 #' @rdname regplot
 regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si = FALSE,
                          level = 95, at = NULL, digits = 2,
@@ -171,8 +172,19 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   BayesTools::check_bool(pi, "pi")
   BayesTools::check_bool(si, "si")
   BayesTools::check_real(level, "level", lower = 50, upper = 99.9)
+  .check_plot_numeric(at, "at", allow_null = TRUE)
   BayesTools::check_int(digits, "digits", lower = 0)
+  .check_plot_function(transf, "transf")
+  .check_plot_numeric(refline, "refline", check_length = 1, allow_null = TRUE)
+  .check_plot_numeric(plim, "plim", check_length = 2, lower = 0, allow_null = FALSE)
+  if (plim[1] >= plim[2]) {
+    stop("'plim' must be an increasing numeric vector of length 2.", call. = FALSE)
+  }
   BayesTools::check_bool(legend, "legend")
+  .check_plot_label(xlab, "xlab")
+  .check_plot_label(ylab, "ylab")
+  .check_plot_limits(xlim, "xlim")
+  .check_plot_limits(ylim, "ylim")
   BayesTools::check_bool(sampling_bias, "sampling_bias")
   if (!is.null(sei)) {
     BayesTools::check_real(sei, "sei", lower = 0)
@@ -203,6 +215,17 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   mod_name <- mod_info$name
   mod_type <- mod_info$type
   mod_data <- mod_info$data
+  if (mod_type == "categorical" && !is.null(at)) {
+    stop("'at' is only available for continuous moderators.", call. = FALSE)
+  }
+
+  K <- length(.outcome_data_yi(x))
+  if (!is.null(psize)) {
+    .check_plot_numeric(psize, "psize", lower = 0, allow_null = FALSE)
+    if (!length(psize) %in% c(1L, K)) {
+      stop("'psize' must be either a scalar or have one value per study.", call. = FALSE)
+    }
+  }
 
   # identify grouping variable (explicit or auto-detected interaction)
   by_info <- .regplot_get_by(x, by, mod_name)
@@ -2080,6 +2103,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   # line styling
   if (is.null(dots[["lcol"]]))     dots[["lcol"]]     <- "black"
   if (is.null(dots[["lwd"]]))      dots[["lwd"]]      <- 2
+  .check_plot_positive_scalar(dots[["lwd"]], "lwd")
 
   # band styling
   if (is.null(dots[["shade"]]))    dots[["shade"]]    <- TRUE
@@ -2089,15 +2113,29 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   if (is.null(dots[["alpha.ci"]])) dots[["alpha.ci"]] <- 0.4
   if (is.null(dots[["alpha.pi"]])) dots[["alpha.pi"]] <- 0.2
   if (is.null(dots[["alpha.si"]])) dots[["alpha.si"]] <- 0.15
+  BayesTools::check_bool(dots[["shade"]], "shade")
+  .check_plot_numeric(dots[["alpha.ci"]], "alpha.ci", check_length = 1, lower = 0, upper = 1, allow_null = FALSE)
+  .check_plot_numeric(dots[["alpha.pi"]], "alpha.pi", check_length = 1, lower = 0, upper = 1, allow_null = FALSE)
+  .check_plot_numeric(dots[["alpha.si"]], "alpha.si", check_length = 1, lower = 0, upper = 1, allow_null = FALSE)
 
   # categorical moderator jitter
   if (is.null(dots[["jitter"]]))      dots[["jitter"]]      <- 0.2
   if (is.null(dots[["box.width"]]))   dots[["box.width"]]   <- 0.5
   if (is.null(dots[["dodge.width"]])) dots[["dodge.width"]] <- 0.75
+  .check_plot_numeric(dots[["jitter"]], "jitter", check_length = 1, lower = 0, allow_null = FALSE)
+  .check_plot_positive_scalar(dots[["box.width"]], "box.width")
+  .check_plot_numeric(dots[["dodge.width"]], "dodge.width", check_length = 1, lower = 0, allow_null = FALSE)
 
   # title (NULL = no title by default)
   if (is.null(dots[["main"]]))     dots[["main"]]     <- NULL
   if (is.null(dots[["las"]]))      dots[["las"]]      <- 1
+  .check_plot_label(dots[["main"]], "main")
+  BayesTools::check_int(dots[["las"]], "las", lower = 0)
+  if (!dots[["las"]] %in% 0:3) {
+    stop("'las' must be one of 0, 1, 2, or 3.", call. = FALSE)
+  }
+  .check_plot_positive_scalar(dots[["cex"]], "cex")
+  .check_plot_positive_scalar(dots[["size"]], "size")
 
   return(dots)
 }

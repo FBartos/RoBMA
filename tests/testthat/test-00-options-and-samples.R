@@ -25,6 +25,18 @@ test_that("RoBMA options expose only public options", {
 })
 
 
+test_that("convergence checks expose only active thresholds", {
+
+  checks <- set_convergence_checks()
+
+  expect_true(all(c("max_Rhat", "min_ESS", "max_error", "max_SD_error") %in% names(checks)))
+  expect_false("remove_failed" %in% names(checks))
+  expect_false("balance_probability" %in% names(checks))
+  expect_error(set_convergence_checks(remove_failed = TRUE), "unused argument")
+  expect_error(set_convergence_checks(balance_probability = FALSE), "unused argument")
+})
+
+
 test_that("brma_samples metadata must match sample rows", {
 
   expect_error(

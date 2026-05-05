@@ -2,15 +2,15 @@
 #'
 #' @description Inspect or change package-level defaults used by RoBMA.
 #'
-#' @param name the name of the option to get the current value of - for a list of
-#' available options, see details below.
-#' @param ... named option(s) to change - for a list of available options, see
-#' details below.
+#' @param name a single non-missing character string matching one public option
+#' exactly; for available options, see details below.
+#' @param ... named option(s) to change. Names must be exact public option names,
+#' nonempty, and unique.
 #'
 #' @details
 #' The available options are:
 #' \describe{
-#'   \item{\code{max_cores}}{number of cores to use for parallel computing (default to all available cores - 1)}
+#'   \item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
 #'   \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
 #'   \item{\code{silent}}{whether to suppress output (default \code{FALSE})}
 #'   \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
@@ -27,6 +27,11 @@
 #'   \item{\code{default_bias_PET.scale}}{default scale for the PET (default \code{1})}
 #'   \item{\code{default_bias_PEESE.scale}}{default scale for the PEESE (default \code{5})}
 #' }
+#'
+#' Boolean options require scalar \code{TRUE} or \code{FALSE} values.
+#' \code{max_cores} must be integer-like and at least 1;
+#' \code{cluster_likelihood.n_gamma} must be integer-like and at least 3.
+#' Scale and alpha defaults must be finite positive numbers.
 #'
 #' @return `RoBMA.options()` invisibly returns a named list with all current
 #' options after applying any changes. `RoBMA.get_option()` returns the current
@@ -262,16 +267,12 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' Defaults to \code{NULL}.
 #' @param max_time list with the time and unit specifying the maximum
 #' autofitting process per model. Passed to \link[base]{difftime} function
-#' (possible units are \code{"secs", "mins", "hours", "days", "weeks", "years"}).
+#' (possible units are \code{"secs"}, \code{"mins"}, \code{"hours"},
+#' \code{"days"}, and \code{"weeks"}).
 #' Defaults to \code{list(time = 60, unit = "mins")}.
 #' @param sample_extend number of samples to extend the fitting process if
 #' the criteria are not satisfied.
 #' Defaults to \code{1000}.
-#' @param remove_failed whether models not satisfying the convergence checks should
-#' be removed from the inference. Defaults to \code{FALSE} - only a warning is raised.
-#' @param balance_probability whether prior model probability should be balanced
-#' across the combinations of models with the same H0/H1 for effect / heterogeneity / bias
-#' in the case of non-convergence. Defaults to \code{TRUE}.
 #' @param restarts number of times new initial values should be generated in case a
 #' model fails to initialize. Defaults to \code{10}.
 #' @param max_extend number of times after which the automatic fitting function is stopped.
@@ -285,6 +286,13 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' The autofit control manages computational resources by setting maximum time limits and
 #' determining how many additional samples to draw if convergence criteria are not met.
 #' The convergence checks determine the quality standards that fitted models must meet.
+#' Autofit thresholds \code{max_Rhat}, \code{min_ESS}, \code{max_error},
+#' \code{max_SD_error}, \code{max_time}, \code{restarts}, and
+#' \code{max_extend} can be set to \code{NULL}; \code{sample_extend} must be a
+#' positive integer.
+#' Thresholds can be disabled with \code{NULL}; otherwise \code{max_Rhat} must be
+#' at least 1, \code{min_ESS} and \code{max_error} must be nonnegative, and
+#' \code{max_SD_error} must be between 0 and 1.
 #'
 #' @examples
 #' # Set custom autofit control with shorter time limit
@@ -315,7 +323,13 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' }
 #'
 #' @return \code{set_autofit_control} returns a list of autofit control settings
-#' and \code{set_convergence_checks} returns a list of convergence checks settings.
+#' including \code{max_Rhat}, \code{min_ESS}, \code{max_error},
+#' \code{max_SD_error}, \code{max_time}, \code{sample_extend},
+#' \code{restarts}, \code{max_extend}, and delegated
+#' \code{check_indicators}.
+#' \code{set_convergence_checks} returns a list with convergence thresholds
+#' \code{max_Rhat}, \code{min_ESS}, \code{max_error}, \code{max_SD_error},
+#' and delegated \code{check_indicators}.
 #'
 #' @export set_autofit_control
 #' @export set_convergence_checks
@@ -343,15 +357,13 @@ set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   return(autofit_settings)
 }
 #' @rdname RoBMA_control
-set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, remove_failed = FALSE, balance_probability = TRUE){
+set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL){
 
   convergence_checks <- list(
-    max_Rhat            = max_Rhat,
-    min_ESS             = min_ESS,
-    max_error           = max_error,
-    max_SD_error        = max_SD_error,
-    remove_failed       = remove_failed,
-    balance_probability = balance_probability
+    max_Rhat     = max_Rhat,
+    min_ESS      = min_ESS,
+    max_error    = max_error,
+    max_SD_error = max_SD_error
   )
   # allows NULL arguments so it can be used in this way too
   convergence_checks <- .check_and_list_convergence_checks(convergence_checks)
@@ -474,18 +486,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   }else{
     max_SD_error <- old_convergence_checks[["max_SD_error"]]
   }
-  if(!is.null(convergence_checks[["remove_failed"]])){
-    remove_failed <- convergence_checks[["remove_failed"]]
-  }else{
-    remove_failed <- old_convergence_checks[["remove_failed"]]
-  }
-  if(!is.null(convergence_checks[["balance_probability"]])){
-    balance_probability <- convergence_checks[["balance_probability"]]
-  }else{
-    balance_probability <- old_convergence_checks[["balance_probability"]]
-  }
-
-  new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error, remove_failed = remove_failed, balance_probability = balance_probability)
+  new_convergence_checks <- set_convergence_checks(max_Rhat = max_Rhat, min_ESS = min_ESS, max_error = max_error, max_SD_error = max_SD_error)
   new_convergence_checks <- .check_and_list_convergence_checks(new_convergence_checks)
 
   return(new_convergence_checks)
@@ -494,16 +495,8 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
 .check_and_list_convergence_checks <- function(convergence_checks){
 
-  remove_failed       <- convergence_checks[["remove_failed"]]
-  balance_probability <- convergence_checks[["balance_probability"]]
-  convergence_checks["remove_failed"]       <- NULL
-  convergence_checks["balance_probability"] <- NULL
   convergence_checks <- BayesTools::JAGS_check_and_list_autofit_settings(convergence_checks, skip_sample_extend = TRUE, call = "Checking 'convergence_checks':\n\t")
 
-  BayesTools::check_bool(remove_failed,       "remove_failed",       call = "Checking 'convergence_checks':\n\t")
-  BayesTools::check_bool(balance_probability, "balance_probability", call = "Checking 'convergence_checks':\n\t")
-  convergence_checks[["remove_failed"]]       <- remove_failed
-  convergence_checks[["balance_probability"]] <- balance_probability
   return(convergence_checks)
 }
 
@@ -517,4 +510,84 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   if (is.null(dots[["size"]])) dots[["size"]] <- 2
 
   return(dots)
+}
+
+.check_plot_numeric <- function(x, argument, check_length = NULL,
+                                lower = -Inf, upper = Inf,
+                                allow_null = TRUE) {
+
+  if (is.null(x)) {
+    if (allow_null) {
+      return(invisible(TRUE))
+    }
+    stop("'", argument, "' must not be NULL.", call. = FALSE)
+  }
+
+  if (!is.numeric(x) || length(x) == 0L || anyNA(x) || any(!is.finite(x))) {
+    stop("'", argument, "' must be a finite numeric vector.", call. = FALSE)
+  }
+  if (!is.null(check_length) && length(x) != check_length) {
+    stop("'", argument, "' must have length ", check_length, ".", call. = FALSE)
+  }
+  if (any(x < lower) || any(x > upper)) {
+    stop("'", argument, "' must be between ", lower, " and ", upper, ".", call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+.check_plot_limits <- function(x, argument) {
+
+  .check_plot_numeric(x, argument, check_length = 2, allow_null = TRUE)
+  if (is.null(x)) {
+    return(invisible(TRUE))
+  }
+  if (x[1] >= x[2]) {
+    stop("'", argument, "' must be an increasing numeric vector of length 2.", call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+.check_plot_label <- function(x, argument) {
+
+  if (is.null(x)) {
+    return(invisible(TRUE))
+  }
+  if (is.character(x) && length(x) == 1L && !is.na(x)) {
+    return(invisible(TRUE))
+  }
+  if (is.expression(x) && length(x) == 1L) {
+    return(invisible(TRUE))
+  }
+
+  stop("'", argument, "' must be a single character string or expression.", call. = FALSE)
+}
+
+.check_plot_function <- function(x, argument) {
+
+  if (!is.null(x) && !is.function(x)) {
+    stop("'", argument, "' must be a function or NULL.", call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+.check_plot_list <- function(x, argument) {
+
+  if (!is.null(x) && !is.list(x)) {
+    stop("'", argument, "' must be a list or NULL.", call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+.check_plot_positive_scalar <- function(x, argument, allow_zero = FALSE) {
+
+  .check_plot_numeric(x, argument, check_length = 1, lower = 0, allow_null = FALSE)
+  if (!allow_zero && x <= 0) {
+    stop("'", argument, "' must be positive.", call. = FALSE)
+  }
+
+  return(invisible(TRUE))
 }

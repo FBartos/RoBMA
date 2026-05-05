@@ -1,5 +1,5 @@
 
-Bayesian Model-Averaged Multilevel Location-Scale Model (k = 13, lvls = 3)
+Bayesian Model-Averaged Multilevel Location-Scale Model (k = 13, clusters = 3)
 
 Component Inclusion
               Prior prob. Post. prob. Inclusion BF

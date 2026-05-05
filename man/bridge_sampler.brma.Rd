@@ -24,6 +24,8 @@ a brma model. The marginal likelihood must first be computed using
 This function extracts the bridge sampling object that was previously
 computed and stored using \code{\link{add_marglik}}. If the marginal
 likelihood has not been computed, an error is thrown.
+Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
+and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
 
 The returned object can be used for Bayesian model comparison via
 \code{\link{bf}} and \code{\link{post_prob}}.

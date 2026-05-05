@@ -4,11 +4,14 @@
 #'   \code{brma} objects.
 #'
 #' @param object a fitted model object.
-#' @param ... additional arguments passed to methods.
+#' @param ... additional arguments passed to methods. The \code{brma} method
+#' reserves \code{...}; unused arguments error, except deprecated
+#' \code{output_scale}, which is accepted with a warning.
 #'
 #' @return A character vector with class \code{"interpret.brma"}. The
 #'   normalized BayesTools interpretation records are stored in the
-#'   \code{"records"} attribute.
+#'   \code{"records"} attribute; the \code{brma} method also stores
+#'   \code{"scope"}, \code{"conditional"}, and optionally \code{"priors"}.
 #'
 #' @export
 interpret <- function(object, ...) {
@@ -24,9 +27,13 @@ interpret.default <- function(object, ...) {
 }
 
 #' @rdname interpret
-#' @param output_measure optional effect-size measure used for the pooled effect.
-#' @param transform optional display transformation. Currently \code{"EXP"}
-#'   exponentiates log-scale measures.
+#' @param output_measure optional effect-size measure used for the pooled
+#'   effect only. Supported conversion targets include \code{"SMD"},
+#'   \code{"COR"}, \code{"ZCOR"}, and \code{"OR"} when the input scale allows
+#'   conversion.
+#' @param transform optional display transformation. \code{"EXP"} exponentiates
+#'   log-scale \code{"OR"}, \code{"RR"}, \code{"HR"}, and \code{"IRR"}
+#'   pooled effects; aliases for no transform are accepted.
 #' @param conditional whether to summarize conditional estimates for RoBMA
 #'   product-space objects. Defaults to \code{FALSE}.
 #' @param scope character vector specifying sections to include. Use
@@ -356,7 +363,11 @@ print.interpret.brma <- function(x, ...) {
         table   = moderator_estimates,
         probs   = probs,
         central = central,
-        units   = effect_transform[["label"]]
+        units   = if (.effect_output_requested(effect_transform)) {
+          NULL
+        } else {
+          effect_transform[["label"]]
+        }
       )
     }
   }
@@ -644,11 +655,21 @@ print.interpret.brma <- function(x, ...) {
       section = "notes",
       item_id = "effect_transform",
       order   = 900,
-      text    = effect_transform[["note"]]
+      text    = .interpret_effect_transform_note(effect_transform)
     )
   }
 
   return(plan)
+}
+
+.interpret_effect_transform_note <- function(effect_transform) {
+
+  note <- effect_transform[["note"]]
+  if (is.null(note)) {
+    return(NULL)
+  }
+
+  return(sub("^Effect estimates", "Pooled effect estimates", note))
 }
 
 .interpret_add_component_plan <- function(plan, table, order) {

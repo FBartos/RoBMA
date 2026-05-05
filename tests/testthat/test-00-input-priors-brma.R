@@ -99,6 +99,33 @@ test_that("Invalid measure is rejected", {
 })
 
 
+test_that("Normal constructors require explicit measure", {
+
+  skip_on_cran()
+
+  constructors <- list(
+    brma      = brma,
+    BMA       = BMA,
+    RoBMA     = RoBMA,
+    bPET      = bPET,
+    bPEESE    = bPEESE,
+    bselmodel = bselmodel
+  )
+
+  for (constructor in constructors) {
+    expect_error(
+      do.call(constructor, list(
+        yi                        = test_data$effect,
+        sei                       = test_data$std_err,
+        prior_unit_information_sd = 1,
+        only_priors               = TRUE
+      )),
+      regexp = "requires explicit 'measure'"
+    )
+  }
+})
+
+
 # ============================================================================
 # Tests for prior_unit_information_sd and estimate_unit_information_sd
 # ============================================================================
@@ -178,6 +205,7 @@ test_that("Invalid prior_unit_information_sd is rejected", {
       label  = "negative UISD",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
+        measure = "GEN",
         prior_unit_information_sd = -1, only_priors = TRUE
       )),
       regexp = "prior_unit_information_sd"
@@ -186,6 +214,7 @@ test_that("Invalid prior_unit_information_sd is rejected", {
       label  = "zero UISD",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
+        measure = "GEN",
         prior_unit_information_sd = 0, only_priors = TRUE
       )),
       regexp = "prior_unit_information_sd"
@@ -398,6 +427,7 @@ test_that("rescale_priors scales prior distributions", {
       label  = "negative rescale_priors",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
         rescale_priors = -1, only_priors = TRUE
       )),
       regexp = "rescale_priors"
@@ -406,6 +436,7 @@ test_that("rescale_priors scales prior distributions", {
       label  = "zero rescale_priors",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
         rescale_priors = 0, only_priors = TRUE
       )),
       regexp = "rescale_priors"
@@ -427,6 +458,7 @@ test_that("Custom prior_effect and prior_heterogeneity rescale", {
 
   result <- brma.norm(
     yi = effect, sei = std_err, data = test_data,
+    measure = "SMD",
     prior_effect = custom_effect, prior_heterogeneity = custom_het,
     only_priors = TRUE
   )[["priors"]]
@@ -437,6 +469,7 @@ test_that("Custom prior_effect and prior_heterogeneity rescale", {
   # With rescaling
   result_rescaled <- brma.norm(
     yi = effect, sei = std_err, data = test_data,
+    measure = "SMD",
     prior_effect = custom_effect, prior_heterogeneity = custom_het, rescale_priors = 2, only_priors = TRUE
   )[["priors"]]
   expect_equal(result_rescaled$outcome$mu$parameters$sd,  0.5 * 2)
@@ -522,6 +555,7 @@ test_that("Conflicting prior specifications are rejected", {
       label  = "invalid informed-prior field",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
         prior_informed_field = "invalid", only_priors = TRUE
       )),
       regexp = "prior_informed_field"
@@ -530,6 +564,7 @@ test_that("Conflicting prior specifications are rejected", {
       label  = "UISD conflicts with informed priors",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
         prior_unit_information_sd = 1.5, prior_informed_field = "medicine",
         only_priors = TRUE
       )),
@@ -750,6 +785,7 @@ test_that("Scale priors are assigned", {
   custom_prior <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.5), truncation = list(0, Inf))
   result_custom <- brma.norm(
     yi = effect, sei = std_err, scale = ~ scale_var, data = test_data,
+    measure = "SMD",
     prior_heterogeneity = custom_prior, prior_unit_information_sd = 10, only_priors = TRUE
   )[["priors"]]
   expect_equal(result_custom$scale$intercept$parameters$sd, 0.5)
@@ -801,6 +837,7 @@ test_that("set_contrast_factor_predictors options are applied", {
   expect_error(
     brma.norm(
       yi = effect, sei = std_err, mods = ~ mod_factor, data = test_data,
+      measure = "SMD",
       set_contrast_factor_predictors = "invalid", only_priors = TRUE
     ),
     regexp = "set_contrast_factor_predictors"

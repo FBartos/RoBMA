@@ -7,9 +7,11 @@
 \method{loo_compare}{loo}(x, ..., unit = "estimate")
 }
 \arguments{
-\item{x}{a loo object (the first model to compare).}
+\item{x}{a RoBMA-targeted \code{loo} or \code{waic} object (the first model
+to compare).}
 
-\item{...}{additional loo or brma objects to compare.}
+\item{...}{additional RoBMA-targeted \code{loo}/\code{waic} or \code{brma}
+objects to compare.}
 
 \item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
@@ -18,7 +20,8 @@ A matrix of class \code{"compare.loo"} as returned by
 \code{\link[loo]{loo_compare}}.
 }
 \description{
-Method for comparing loo objects directly.
+Method for comparing RoBMA-targeted \code{loo} or \code{waic}
+objects directly.
 }
 \seealso{
 \code{\link{loo.brma}}, \code{\link[loo]{loo_compare}}

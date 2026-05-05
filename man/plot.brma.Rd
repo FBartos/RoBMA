@@ -20,13 +20,14 @@
 )
 }
 \arguments{
-\item{x}{a fitted RoBMA object}
+\item{x}{a fitted \code{brma}, \code{BMA}, or \code{RoBMA} object.}
 
-\item{parameter}{a parameter to be plotted. Defaults to
-\code{"mu"} (for the effect size). The additional options
-are \code{"tau"} (for the heterogeneity),
-\code{"weightfunction"} (for the estimated weightfunction),
-or \code{"PET-PEESE"} (for the PET-PEESE regression).}
+\item{parameter}{a parameter to be plotted. Defaults to \code{"mu"} for
+the effect size, or to the meta-regression intercept when moderators are
+present. Additional options are \code{"tau"}, \code{"rho"} for multilevel
+models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
+\code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
+for PET/PEESE regression plots.}
 
 \item{parameter_mods}{character. Moderator term to plot. Use
 \code{"intercept"} for the adjusted effect in meta-regression models.}

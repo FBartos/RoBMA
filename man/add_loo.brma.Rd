@@ -12,19 +12,20 @@
 
 \item{unit}{output/deletion unit. \code{"estimate"} computes one contribution
 per effect-size estimate. \code{"cluster"} computes one contribution per
-cluster.}
+cluster and is available only for multilevel models.}
 
 \item{r_eff}{optional vector of relative effective sample sizes. If not
 provided, it is computed from the log-likelihood values.}
 
-\item{parallel}{Logical. If \code{TRUE} computations are parallelized and
-the number of cores is taken from \code{RoBMA.get_option("max_cores")}. If
-\code{FALSE} computations are run on a single core.}
+\item{parallel}{Logical. If \code{TRUE}, \code{loo::relative_eff()} and
+\code{loo::loo()} use \code{RoBMA.get_option("max_cores")}. Log-likelihood
+construction is unchanged. If \code{FALSE}, those computations use one core.}
 
 \item{...}{additional arguments (currently ignored).}
 }
 \value{
-The brma object with the LOO result stored in \code{object[["loo"]]}.
+The brma object with the LOO result stored in
+\code{object[["loo"]][[unit]]}.
 }
 \description{
 Compute approximate leave-one-out cross-validation (LOO-CV)

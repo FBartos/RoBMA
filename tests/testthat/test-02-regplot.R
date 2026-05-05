@@ -350,6 +350,29 @@ test_that("Regression plot data and argument validation are stable", {
   expect_error(regplot(fit_brma, sei = 0),
     info = "non-positive reference sei is rejected"
   )
+
+  expect_error(regplot(fit_brma, mod = "year", at = "bad"),
+    regexp = "at",
+    info = "non-numeric prediction grid is rejected"
+  )
+  expect_error(regplot(fit_brma, mod = "year", plim = c(3, 1)),
+    regexp = "plim",
+    info = "non-increasing point-size limits are rejected"
+  )
+  expect_error(regplot(fit_brma, mod = "year", psize = 1:2),
+    regexp = "psize",
+    info = "wrong-length point sizes are rejected"
+  )
+  expect_error(regplot(fit_brma, mod = "year", lwd = 0),
+    regexp = "lwd",
+    info = "non-positive line width is rejected"
+  )
+
+  fit_categorical <- fits[["bcg_meta-regression2"]]
+  expect_error(regplot(fit_categorical, mod = "alloc", at = 1),
+    regexp = "continuous moderators",
+    info = "at is rejected for categorical moderators"
+  )
 })
 
 test_that("Regression plot transforms effect-size data", {

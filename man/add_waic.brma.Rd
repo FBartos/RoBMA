@@ -10,12 +10,14 @@
 \arguments{
 \item{object}{a brma model object.}
 
-\item{unit}{output/deletion unit. See \code{\link{add_loo}}.}
+\item{unit}{output/deletion unit. See \code{\link{add_loo}}; the same
+accepted values and multilevel constraint apply.}
 
 \item{...}{additional arguments passed to \code{\link[loo]{waic}}.}
 }
 \value{
-The brma object with the WAIC result stored in \code{object[["waic"]]}.
+The brma object with the WAIC result stored in
+\code{object[["waic"]][[unit]]}.
 }
 \description{
 Compute the Widely Applicable Information Criterion (WAIC)

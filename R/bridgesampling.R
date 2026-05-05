@@ -124,6 +124,8 @@ bridgesampling::bayes_factor
 #' This function extracts the bridge sampling object that was previously
 #' computed and stored using \code{\link{add_marglik}}. If the marginal
 #' likelihood has not been computed, an error is thrown.
+#' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
+#' and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
 #'
 #' The returned object can be used for Bayesian model comparison via
 #' \code{\link{bf}} and \code{\link{post_prob}}.
@@ -150,6 +152,14 @@ bridgesampling::bayes_factor
 #' @export
 #' @exportS3Method bridgesampling::bridge_sampler
 bridge_sampler.brma <- function(samples, ...) {
+  if (inherits(samples, "RoBMA")) {
+    stop(
+      "Marginal likelihood is not available for product-space ",
+      "model-averaging objects (BMA.norm, BMA.glmm, RoBMA).",
+      call. = FALSE
+    )
+  }
+
   if (is.null(samples[["marglik"]])) {
     stop("Marginal likelihood has not been computed. Call 'object <- add_marglik(object)' first.",
       call. = FALSE
@@ -171,6 +181,8 @@ bridge_sampler.brma <- function(samples, ...) {
 #' @details
 #' This function extracts the log marginal likelihood from the bridge sampling
 #' object that was previously computed and stored using \code{\link{add_marglik}}.
+#' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
+#' and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
 #'
 #' @return A scalar numeric value representing the log marginal likelihood.
 #'
@@ -204,16 +216,19 @@ logml.brma <- function(x, ...) {
 #'
 #' @param x a brma model object.
 #' @param ... additional brma model objects.
-#' @param prior_prob numeric vector with prior model probabilities.
-#' If omitted, a uniform prior is used (i.e., all models are equally
-#' likely a priori). The default \code{NULL} corresponds to equal
-#' prior model weights.
+#' @param prior_prob numeric vector with prior model probabilities or weights.
+#' Values must be finite, nonnegative, have the same length as the retained
+#' models, and have a positive total. If omitted, a uniform prior is used.
+#' Supplied values are normalized internally.
 #' @param model_names character vector with model names. If \code{NULL}
 #' (the default), names will be derived from deparsing the call.
 #'
 #' @details
 #' The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
-#' All models must be fitted to the same \code{yi}/\code{sei} target.
+#' \code{x} and at least one additional \code{brma} model must be supplied.
+#' Non-\code{brma} objects in \code{...} are ignored with a warning. All retained
+#' models must be fitted to the same outcome target/data, including outcome type
+#' and, when present, weights and cluster identifiers.
 #'
 #' @return A named numeric vector with posterior model probabilities
 #' (i.e., which sum to one).
@@ -294,7 +309,8 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 #' Computes the Bayes factor in favor of the model \code{x1} over the
 #' model \code{x2}. The marginal likelihoods must first be computed using
 #' \code{\link{add_marglik}}. Both models must be fitted to the same
-#' \code{yi}/\code{sei} target.
+#' outcome target/data, including outcome type and, when present, weights and
+#' cluster identifiers.
 #'
 #' @return A list of class \code{"bf_default"} with components:
 #' \itemize{

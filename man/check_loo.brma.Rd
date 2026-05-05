@@ -21,3 +21,8 @@ NULL (throws warning if diagnostics are unreliable).
 Check Pareto k diagnostics for a brma model object and
 warn if any values are high.
 }
+\details{
+LOO must first be computed with
+\code{object <- add_loo(object, unit = unit)}. The method warns when any
+Pareto \eqn{k} diagnostic is greater than 0.7.
+}

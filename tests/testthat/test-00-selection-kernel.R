@@ -46,6 +46,7 @@ test_that("selection model fit data and syntax use only the selected-normal kern
   object <- bselmodel(
     yi                        = c(.1, .2, .3),
     sei                       = c(.1, .1, .1),
+    measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
@@ -75,6 +76,7 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
   object <- RoBMA(
     yi                        = c(.1, .2, .3),
     sei                       = c(.1, .1, .1),
+    measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_bias_null           = BayesTools::prior_none(),
     prior_effect              = BayesTools::prior("normal", parameters = list(0, 1)),
@@ -140,6 +142,7 @@ test_that("single two-sided bselmodel uses active full-grid omega in JAGS", {
   object <- bselmodel(
     yi                        = c(.24, .31, -.18, .05),
     sei                       = c(.10, .12, .09, .20),
+    measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
@@ -196,6 +199,7 @@ test_that("JAGS permits fixed zero weights for empty p-value bins", {
   object <- bselmodel(
     yi                        = yi,
     sei                       = sei,
+    measure                   = "SMD",
     prior_bias                = prior_bias,
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
@@ -770,6 +774,26 @@ test_that("funnel selected-normal CDF is finite at zero standard error", {
   expect_equal(out, expected, tolerance = 1e-12)
 })
 
+test_that("funnel max_samples helpers validate and stratify rows", {
+
+  bias_indicator <- c(rep(1L, 50), rep(2L, 30), rep(3L, 20))
+
+  expect_equal(.normalize_funnel_max_samples(10), 10L)
+  expect_equal(.normalize_funnel_max_samples(Inf), Inf)
+  expect_error(.normalize_funnel_max_samples(9), "at least 10")
+  expect_error(.normalize_funnel_max_samples(10.5), "positive integer or Inf")
+
+  rows <- .funnel_subsample_rows(
+    bias_indicator = bias_indicator,
+    max_samples    = 10
+  )
+
+  expect_equal(rows, .funnel_subsample_rows(bias_indicator, 10))
+  expect_equal(length(rows), 10)
+  expect_equal(as.integer(table(bias_indicator[rows])), c(5L, 3L, 2L))
+  expect_null(.funnel_subsample_rows(bias_indicator, Inf))
+})
+
 test_that("selection-only prior_bias wrapper is delegated to BayesTools priors", {
 
   selection <- BayesTools::prior_weightfunction(
@@ -779,6 +803,7 @@ test_that("selection-only prior_bias wrapper is delegated to BayesTools priors",
   object <- bselmodel(
     yi                        = c(.1, .2),
     sei                       = c(.1, .1),
+    measure                   = "SMD",
     prior_bias                = BayesTools::prior_bias(selection = selection),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
@@ -800,6 +825,7 @@ test_that("selection-only prior_bias wrapper is visible to zplot thresholds", {
   object <- bselmodel(
     yi                        = c(.1, .2),
     sei                       = c(.1, .1),
+    measure                   = "SMD",
     prior_bias                = BayesTools::prior_bias(selection = selection),
     prior_unit_information_sd = 1,
     only_priors               = TRUE,
@@ -1144,6 +1170,7 @@ test_that("p-hacking priors are deferred before RoBMA model construction", {
     bselmodel(
       yi                        = c(.1, .2),
       sei                       = c(.1, .1),
+      measure                   = "SMD",
       prior_bias                = phacking,
       prior_unit_information_sd = 1,
       only_priors               = TRUE,
@@ -1155,6 +1182,7 @@ test_that("p-hacking priors are deferred before RoBMA model construction", {
     bselmodel(
       yi                        = c(.1, .2),
       sei                       = c(.1, .1),
+      measure                   = "SMD",
       prior_bias                = BayesTools::prior_bias(
         selection = selection,
         phacking  = phacking
@@ -1169,6 +1197,7 @@ test_that("p-hacking priors are deferred before RoBMA model construction", {
     RoBMA(
       yi                        = c(.1, .2),
       sei                       = c(.1, .1),
+      measure                   = "SMD",
       prior_bias                = phacking,
       prior_unit_information_sd = 1,
       only_priors               = TRUE,
@@ -1180,6 +1209,7 @@ test_that("p-hacking priors are deferred before RoBMA model construction", {
     RoBMA(
       yi                        = c(.1, .2),
       sei                       = c(.1, .1),
+      measure                   = "SMD",
       prior_bias                = BayesTools::prior_bias(
         selection = selection,
         phacking  = phacking

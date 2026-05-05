@@ -19,7 +19,8 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' \eqn{i} changes if observation \eqn{i} is removed, standardized by the
 #' estimated standard error of the fit.
 #'
-#' @param model a fitted brma object.
+#' @param model a fitted normal-outcome \code{brma} object without a
+#' weightfunction component.
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
@@ -34,7 +35,12 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' LOO-PIT residuals, which are predictive outlier diagnostics rather than
 #' fitted-value deletion diagnostics.
 #'
-#' @return A numeric vector of DFFITS values, one for each observation.
+#' Estimate-unit LOO must first be computed with
+#' \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
+#' posterior SD of a fitted value is near zero, the corresponding DFFITS value
+#' is returned as \code{NA}.
+#'
+#' @return A named numeric vector of DFFITS values, one for each observation.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {

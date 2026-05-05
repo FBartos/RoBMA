@@ -1309,7 +1309,7 @@
 #
 # @param log_lik         S x G log-likelihood matrix.
 # @param cluster_indices named list of cluster index vectors.
-# @param data_hash       character; hash of the yi/sei target.
+# @param data_hash       character; hash of the outcome target.
 #
 # @return log-likelihood matrix with names and metadata.
 #

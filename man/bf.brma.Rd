@@ -35,7 +35,8 @@ Compute the Bayes factor comparing two brma models.
 Computes the Bayes factor in favor of the model \code{x1} over the
 model \code{x2}. The marginal likelihoods must first be computed using
 \code{\link{add_marglik}}. Both models must be fitted to the same
-\code{yi}/\code{sei} target.
+outcome target/data, including outcome type and, when present, weights and
+cluster identifiers.
 }
 \examples{
 \dontrun{

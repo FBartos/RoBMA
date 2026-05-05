@@ -277,6 +277,55 @@ test_that("prior_bias_null = NULL omits null bias hypothesis", {
 })
 
 
+test_that("NULL/FALSE omit bias mixture components", {
+
+  result_alt_null <- RoBMA(
+    yi          = effect,
+    sei         = std_err,
+    data        = test_data,
+    prior_bias  = NULL,
+    measure     = "SMD",
+    only_priors = TRUE
+  )[["priors"]]
+
+  result_alt_false <- RoBMA(
+    yi          = effect,
+    sei         = std_err,
+    data        = test_data,
+    prior_bias  = FALSE,
+    measure     = "SMD",
+    only_priors = TRUE
+  )[["priors"]]
+
+  result_null_null <- RoBMA(
+    yi              = effect,
+    sei             = std_err,
+    data            = test_data,
+    measure         = "SMD",
+    model_type      = "PP",
+    prior_bias_null = NULL,
+    only_priors     = TRUE
+  )[["priors"]]
+
+  result_null_false <- RoBMA(
+    yi              = effect,
+    sei             = std_err,
+    data            = test_data,
+    measure         = "SMD",
+    model_type      = "PP",
+    prior_bias_null = FALSE,
+    only_priors     = TRUE
+  )[["priors"]]
+
+  expect_true(BayesTools::is.prior.none(result_alt_null$outcome$bias))
+  expect_true(BayesTools::is.prior.none(result_alt_false$outcome$bias))
+
+  expect_bias_mixture_shape(result_null_null$outcome$bias, n_null = 0, n_wf = 0, n_pet = 1, n_peese = 1)
+  expect_equal(length(result_null_null$outcome$bias), length(result_null_false$outcome$bias))
+  expect_equal(.get_is_null(result_null_null$outcome$bias), .get_is_null(result_null_false$outcome$bias))
+})
+
+
 test_that("Bias presets only require UISD when PEESE is present", {
 
   custom_effect <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 0.5))
@@ -531,7 +580,10 @@ test_that("Informed priors with rescaling apply to alternative", {
 test_that("Invalid model_type is rejected", {
 
   expect_error(
-    RoBMA(yi = effect, sei = std_err, data = test_data, model_type = "invalid", only_priors = TRUE),
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data, measure = "SMD",
+      model_type = "invalid", only_priors = TRUE
+    ),
     regexp = "model_type"
   )
 })
@@ -542,7 +594,7 @@ test_that("Conflicting prior specifications are rejected", {
   # Both UISD and informed priors
   expect_error(
     RoBMA(
-      yi = effect, sei = std_err, data = test_data,
+      yi = effect, sei = std_err, data = test_data, measure = "SMD",
       prior_unit_information_sd = 1.5, prior_informed_field = "medicine", only_priors = TRUE
     ),
     regexp = "prior_unit_information_sd|prior_informed_field|mutually exclusive"
@@ -554,8 +606,20 @@ test_that("Invalid prior types are rejected", {
 
   # Non-prior object
   expect_error(
-    RoBMA(yi = effect, sei = std_err, data = test_data, prior_effect = "not a prior", only_priors = TRUE),
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data, measure = "SMD",
+      prior_effect = "not a prior", only_priors = TRUE
+    ),
     regexp = "prior_effect"
+  )
+})
+
+
+test_that("Missing measure is rejected before GEN UISD setup", {
+
+  expect_error(
+    RoBMA(yi = effect, sei = std_err, data = test_data, only_priors = TRUE),
+    regexp = "requires explicit 'measure'"
   )
 })
 

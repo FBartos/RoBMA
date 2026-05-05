@@ -7,11 +7,16 @@
 prior_informed(name, parameter = NULL, type = "smd")
 }
 \arguments{
-\item{name}{character. Informed prior name.}
+\item{name}{character. Informed prior name. Supported examples include
+\code{"van Erp"}, \code{"Oosterwijk"}, \code{"Cochrane"}, and medicine
+subfields from \code{BayesTools::prior_informed_medicine_names}.}
 
-\item{parameter}{character. Optional parameter subset.}
+\item{parameter}{character. Parameter subset. Required for medicine priors
+and not needed for psychology priors.}
 
-\item{type}{character. Effect-size type.}
+\item{type}{character. Effect-size type. Medicine priors use values such as
+\code{"smd"}, \code{"logOR"}, \code{"logRR"}, \code{"RD"}, and
+\code{"logHR"}.}
 }
 \value{
 An object of class \code{prior}.
@@ -21,8 +26,9 @@ Create empirical informed prior distributions.
 }
 \details{
 Further details can be found in \insertCite{erp2017estimates;textual}{RoBMA},
-\insertCite{gronau2017bayesian;textual}{RoBMA}, and
-\insertCite{bartos2021bayesian;textual}{RoBMA}.
+\insertCite{gronau2017bayesian;textual}{RoBMA},
+\insertCite{bartos2021bayesian;textual}{RoBMA}, and
+\insertCite{bartos2023empirical;textual}{RoBMA}.
 }
 \references{
 \insertAllCited{}

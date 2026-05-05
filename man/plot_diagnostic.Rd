@@ -29,6 +29,9 @@ plot_diagnostic_autocorrelation(x, ...)
 \method{plot_diagnostic_autocorrelation}{brma}(
   x,
   parameter = NULL,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
+  type = "autocorrelation",
   plot_type = "base",
   lags = 30,
   ...
@@ -36,27 +39,47 @@ plot_diagnostic_autocorrelation(x, ...)
 
 plot_diagnostic_trace(x, ...)
 
-\method{plot_diagnostic_trace}{brma}(x, parameter = NULL, plot_type = "base", ...)
+\method{plot_diagnostic_trace}{brma}(
+  x,
+  parameter = NULL,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
+  type = "trace",
+  plot_type = "base",
+  lags = 30,
+  ...
+)
 
 plot_diagnostic_density(x, ...)
 
-\method{plot_diagnostic_density}{brma}(x, parameter = NULL, plot_type = "base", ...)
+\method{plot_diagnostic_density}{brma}(
+  x,
+  parameter = NULL,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
+  type = "density",
+  plot_type = "base",
+  lags = 30,
+  ...
+)
 }
 \arguments{
 \item{x}{a fitted brma object}
 
-\item{...}{additional graphical arguments passed to
-\code{BayesTools::JAGS_diagnostics()}.}
+\item{...}{additional graphical arguments passed through RoBMA's diagnostic
+setup to \code{BayesTools::JAGS_diagnostics()}.}
 
-\item{parameter}{base parameter to plot. Defaults to \code{NULL}, which lets
-the plotting helper select the default parameter.}
+\item{parameter}{base parameter to plot. Defaults to \code{NULL}, which uses
+\code{"mu"} or the meta-regression intercept. Valid values include
+\code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"}, \code{"PEESE"},
+and \code{"omega"} or \code{"weightfunction"} when present.}
 
-\item{parameter_mods}{moderator parameter for location regression.}
+\item{parameter_mods}{moderator term for location regression.}
 
-\item{parameter_scale}{moderator parameter for scale regression.}
+\item{parameter_scale}{term for scale regression.}
 
-\item{type}{diagnostic plot type. Options are \code{"trace"},
-\code{"density"}, and \code{"autocorrelation"}.}
+\item{type}{diagnostic plot type. Convenience wrappers set a type-specific
+default but still forward this argument to \code{plot_diagnostic.brma()}.}
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}

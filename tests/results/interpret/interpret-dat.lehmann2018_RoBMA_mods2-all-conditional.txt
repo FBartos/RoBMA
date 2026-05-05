@@ -1,6 +1,6 @@
 Robust Bayesian Model-Averaged Mixed-Effect Model (k = 81).
 Effect inclusion: moderate evidence against the effect (BF01 = 4.865).
-Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf = 1999.000).
+Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf > 1999.000).
 Publication Bias inclusion: moderate evidence in favor of publication bias (BFpb = 6.752).
 Pooled effect: model-averaged mean standardized mean difference = 0.115, 95% CrI [-0.082, 0.287] (conditional on effect inclusion).
 Pooled heterogeneity: model-averaged mean tau = 0.302, 95% CrI [0.230, 0.386] (conditional on heterogeneity inclusion).

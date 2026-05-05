@@ -1,0 +1,207 @@
+---
+title: "Informed Bayesian Model-Averaged Meta-Analysis in Medicine"
+author: "František Bartoš"
+date: "3rd of November 2021 (updated: 29th of April 2026)"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Informed Bayesian Model-Averaged Meta-Analysis in Medicine}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r child = "_vignette-nowrap.md", echo = FALSE, eval = TRUE}
+```
+
+```{r setup, include = FALSE}
+source("vignette-cache.R", local = knitr::knit_global())
+
+cached_fits <- vignette_cache(
+  name    = "v34-bma-norm-medicine",
+  objects = c("fit_BMA", "fit_RoBMA")
+)
+
+knitr::opts_chunk$set(
+  collapse   = TRUE,
+  comment    = "#>",
+  eval       = vignette_cache_eval(cached_fits),
+  message    = FALSE,
+  warning    = FALSE,
+  dev        = "png",
+  fig.retina = 3
+)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+```{r include = FALSE}
+library(RoBMA)
+
+data("Poulsen2006", package = "RoBMA")
+
+vignette_cache_load(cached_fits)
+```
+
+```{r include = FALSE, eval = FALSE}
+# R package version updating
+library(RoBMA)
+
+data("Poulsen2006", package = "RoBMA")
+
+fit_BMA <- BMA(
+  yi = d, sei = se, measure = "SMD",
+  prior_informed_field    = "medicine",
+  prior_informed_subfield = "Oral Health",
+  data = Poulsen2006, slab = study,
+  seed = 1, parallel = TRUE
+)
+
+fit_RoBMA <- RoBMA(
+  yi = d, sei = se, measure = "SMD",
+  prior_informed_field    = "medicine",
+  prior_informed_subfield = "Oral Health",
+  data = Poulsen2006, slab = study,
+  seed = 1, parallel = TRUE
+)
+
+vignette_cache_save(cached_fits)
+```
+
+**This vignette accompanies the manuscript [Bayesian Model-Averaged Meta-Analysis in Medicine](https://doi.org/10.1002/sim.9170) published at *Statistics in Medicine* [@bartos2021bayesian].**
+
+Bayesian model-averaged meta-analysis lets researchers incorporate prior information from the literature into the analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian].
+This vignette illustrates how to do this with an example from @bartos2021bayesian, who developed informed prior distributions for meta-analyses of continuous outcomes based on the Cochrane database of systematic reviews.
+Then, we extend the example by incorporating publication-bias adjustment with robust Bayesian meta-analysis [@bartos2021no; @maier2020robust].
+
+## Reproducing Informed Bayesian Model-Averaged Meta-Analysis (BMA)
+
+We illustrate how to fit the informed BMA (not adjusting for publication bias) using the `RoBMA` R package.
+For this purpose, we reproduce the dentine hypersensitivity example from @bartos2021bayesian, who reanalyzed five studies with a tactile outcome assessment that were subjected to a meta-analysis by @poulsen2006potassium.
+
+We load the dentine hypersensitivity data included in the package.
+
+```{r}
+library(RoBMA)
+
+data("Poulsen2006", package = "RoBMA")
+Poulsen2006
+```
+
+To reproduce the analysis from the example, we need to set informed empirical prior distributions for the effect sizes ($\mu$) and heterogeneity ($\tau$) parameters that @bartos2021bayesian obtained from the Cochrane database of systematic reviews.
+The current interface allows us to request these prior distributions directly in the model call:
+``` r
+fit_BMA <- BMA(
+  yi = d, sei = se, measure = "SMD",
+  prior_informed_field    = "medicine",
+  prior_informed_subfield = "Oral Health",
+  data = Poulsen2006, slab = study,
+  seed = 1, parallel = TRUE
+)
+```
+with `prior_informed_field = "medicine"` and `prior_informed_subfield = "Oral Health"` corresponding to the $\delta \sim T(0,0.51,5)$ and $\tau \sim InvGamma(1.79,0.28)$ informed prior distributions for the "oral health" subfield when the `measure = "SMD"` argument is specified.
+Use `print(BayesTools::prior_informed_medicine_names)` to check names of all available medical subfields or use `?prior_informed` for more details regarding the informed prior distributions.
+
+The `BMA()` function uses `yi` with either `sei` or `vi`, to specify the effect sizes and standard errors or sampling variances from the dataset.
+The specified prior distributions can be printed by setting the `only_priors = TRUE` argument.
+
+We obtain the output with the `summary()` function.
+Adding the `conditional = TRUE` argument allows us to inspect the conditional estimates, i.e., the effect size estimate assuming that the models specifying the presence of the effect are true and the heterogeneity estimates assuming that the models specifying the presence of heterogeneity are true$^1$.
+
+```{r}
+summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
+```
+
+The output from the `summary()` function has 3 parts. The first one provides a basic summary of the fitted models by component types (presence of the effect and heterogeneity).
+The table summarizes the prior and posterior probabilities and the inclusion Bayes factors of the individual components.
+The results show that the inclusion Bayes factor for the effect is similar to the one reported in @bartos2021bayesian, $\text{BF}_{10} = 240.9$ and $\text{BF}_{\text{rf}} = 3.53$
+(minor differences are a consequence of the product-space estimation algorithm in the new version of the package).
+
+The second part under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero).
+We move to the last part.
+
+The third part under the 'Conditional estimates' heading displays the conditional effect size estimate corresponding to the one reported in @bartos2021bayesian, d = 1.080, 95% CI [0.661, 1.424], and a heterogeneity estimate (not reported previously).
+
+The dedicated helper functions can be used to extract the pooled effect and heterogeneity estimates directly (assuming the presence of the effect and heterogeneity respectively):
+
+```{r}
+pooled_effect(fit_BMA, conditional = TRUE)
+pooled_heterogeneity(fit_BMA, conditional = TRUE)
+```
+
+
+## Visualizing the Results
+
+The `RoBMA` R package provides several options for visualizing the results. Here, we visualize the prior distribution (grey) and posterior distribution (black) for the mean parameter.
+
+```{r fig_mu_BMA, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+par(mar = c(4, 4, 0, 4))
+plot(fit_BMA, parameter = "mu", prior = TRUE, xlim = c(-2, 2), lwd = 2)
+```
+
+By default, the function plots the model-averaged estimates across all models; the arrows represent the probability of a spike, and the lines represent the posterior density under models assuming a non-zero effect.
+The secondary y-axis (right) shows the probability of the spike (at zero) decreasing from 0.50 to 0.005 (also obtainable from the model summary).
+
+To visualize the conditional effect size estimate, we can add the `conditional = TRUE` argument,
+
+```{r fig_mu_BMA_cond, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+par(mar = c(4, 4, 0, 4))
+plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), lwd = 2)
+```
+which displays only the model-averaged posterior distribution of the effect size parameter for models assuming the presence of the effect.
+
+For more options provided by the plotting function, see its documentation by using `?plot.brma()`.
+
+
+## Adjusting for Publication Bias with Robust Bayesian Meta-Analysis
+
+Finally, we illustrate how to adjust our informed BMA for publication bias with robust Bayesian meta-analysis [@bartos2021no; @maier2020robust].
+In short, we specify additional models assuming the presence of the publication bias and correcting for it by either specifying a selection model operating on $p$-values [@vevea1995general] or by specifying a publication-bias adjustment method correcting for the relationship between effect sizes and standard errors (PET-PEESE) [@stanley2017limitations; @stanley2014meta]. See @bartos2020adjusting for a tutorial.
+
+To compare results before and after publication-bias adjustment, we contrast the informed BMA fit above with the publication-bias-adjusted model.
+
+Now, we fit the publication bias-adjusted model by switching from `BMA()` to `RoBMA()`, which uses the default 36-model RoBMA-PSMA ensemble [@bartos2021no].
+
+``` r
+fit_RoBMA <- RoBMA(
+  yi = d, sei = se, measure = "SMD",
+  prior_informed_field    = "medicine",
+  prior_informed_subfield = "Oral Health",
+  data = Poulsen2006, slab = study,
+  seed = 1, parallel = TRUE
+)
+```
+```{r}
+summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
+```
+
+We notice the additional values in the 'Component Inclusion' table in the 'Publication Bias' row. 
+The model is now extended with 32 publication bias adjustment models that account for 50% of the prior model probability. 
+When comparing the RoBMA to the second BMA fit, we notice a large decrease in the inclusion Bayes factor for the presence of the effect $\text{BF}_{10} = 2.42$ vs. $\text{BF}_{10} = 240.9$, which still presents weak evidence for the presence of the effect.
+We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias $\text{BF}_{pb} = 4.97$, which can be interpreted as moderate evidence in favor of publication bias.
+
+We can also compare the unadjusted and publication-bias-adjusted conditional effect size estimates.
+Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) decreases the estimated effect to d = 0.655, 95% CI [-0.384, 1.330] with a much wider credible interval.
+
+```{r}
+pooled_effect(fit_BMA, conditional = TRUE)
+pooled_effect(fit_RoBMA, conditional = TRUE)
+```
+
+The same shift is visible in the prior and posterior plot below.
+
+```{r fig_mu_RoBMA_cond, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
+par(mar = c(4, 4, 0, 4))
+plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), lwd = 2)
+```
+
+
+## Footnotes
+
+$^1$ The model-averaged estimates that the `RoBMA` R package returns by default are model-averaged across all specified models, a different behavior from the `metaBMA` package that by default returns what we call "conditional" estimates in the `RoBMA` R package.
+
+## References

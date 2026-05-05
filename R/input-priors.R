@@ -28,10 +28,6 @@
 #' @param prior_heterogeneity_allocation prior distribution for the fraction of
 #' heterogeneity allocated to the cluster-level component in multilevel models
 #' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`.
-#' @param prior_bias prior distribution for the publication bias adjustment parameters
-#' (selection models) or the publication bias indicator (PET-PEESE). For
-#' `bselmodel()`, `bPET()`, and `bPEESE()`, omitted or `NULL` uses the
-#' corresponding default bias prior.
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
 #' base-rate probability in binomial GLMM models. If omitted or `NULL`, defaults
 #' to independent `Beta(1, 1)` priors.
@@ -41,16 +37,19 @@
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.
-#' Point and none priors are unchanged; publication-bias priors are not rescaled
-#' except for the default PEESE prior's UISD adjustment. Defaults to 1.
+#' Point and none priors are unchanged. For constructors with publication-bias
+#' prior distributions, `rescale_priors` does not rescale them except for the
+#' default PEESE prior's UISD adjustment. Defaults to 1.
 #' @param standardize_continuous_predictors logical. Whether to standardize continuous predictors.
 #' Defaults to `TRUE`.
 #' @param set_contrast_factor_predictors character. How to set contrast for factor predictors.
-#' Defaults to `"treatment"`.
+#' Defaults are constructor-specific and shown in each function usage; single-model
+#' constructors use `"treatment"`, while model-averaging constructors use `"meandif"`.
 #' @param prior_informed_field character. The field of the informed prior distributions.
-#' Defaults to `NULL`.
+#' Omit to use the standard default prior specification; explicit `NULL` is invalid.
 #' @param prior_informed_subfield character. The subfield of the informed prior distributions.
-#' Defaults to `NULL`.
+#' Omit to use the field-specific default, such as `"Cochrane"` for
+#' `prior_informed_field = "medicine"`; explicit `NULL` is invalid.
 #'
 #' @details
 #' There are several ways to specify the prior distributions: \enumerate{
@@ -152,15 +151,110 @@
 #' The `rescale_priors` argument allows rescaling supported prior distributions by a
 #' multiplicative factor. For example, `rescale_priors = 2` doubles the standard
 #' deviations/scales of normal, Cauchy, t, and inverse-gamma prior distributions,
-#' making them more diffuse. Point and none priors are unchanged. Publication-bias
-#' priors are not rescaled by this argument, except for the default PEESE prior's
-#' UISD adjustment.
+#' making them more diffuse. Point and none priors are unchanged. For publication-bias
+#' prior distributions, see \code{\link{publication_bias_prior_specification}}.
 #'
 #' @references
 #' \insertAllCited{}
 #'
-#' @seealso \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}}, \code{\link{brma}}
+#' @seealso \code{\link{publication_bias_prior_specification}},
+#' \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}},
+#' \code{\link{brma}}
 #' @aliases prior_specification
+NULL
+
+
+#' @title Publication-bias prior specification
+#' @name publication_bias_prior_specification
+#'
+#' @description
+#' Publication-bias prior distributions are specified separately from the
+#' meta-analytic prior distributions documented in
+#' \code{\link{prior_specification}}. They define selection-model weights,
+#' PET/PEESE regression coefficients, or the publication-bias model space in
+#' \code{\link{RoBMA}}.
+#'
+#' @param prior_bias prior distribution for publication-bias adjustment. For
+#' \code{\link{bselmodel}}, this is usually a weightfunction prior created by
+#' \code{\link{prior_weightfunction}}. For \code{\link{bPET}}, use
+#' \code{\link{prior_PET}}. For \code{\link{bPEESE}}, use
+#' \code{\link{prior_PEESE}}. For \code{\link{RoBMA}}, this can be a single
+#' publication-bias prior distribution or a list of publication-bias prior
+#' distributions. In the single-model bias-adjustment constructors, omitted or
+#' \code{NULL} uses the corresponding default prior distribution.
+#' @param prior_bias_null prior distribution(s) for null publication-bias
+#' component(s) in \code{\link{RoBMA}}, usually \code{\link{prior_none}()}.
+#' A single prior distribution object creates one null component, a list creates
+#' multiple null components, and \code{NULL} or \code{FALSE} omits the null
+#' publication-bias component.
+#' @param model_type character string specifying predefined publication-bias
+#' model ensembles for \code{\link{RoBMA}}. One of \code{"PSMA"},
+#' \code{"6w"}, \code{"2w"}, or \code{"PP"}.
+#' @param steps numeric vector of one-sided p-value cut points for the default
+#' \code{\link{bselmodel}} weightfunction prior. If \code{prior_bias} is supplied,
+#' the prior distribution carries its own p-value cut points.
+#'
+#' @details
+#' ## Single-model bias-adjustment priors
+#'
+#' \code{\link{bselmodel}}, \code{\link{bPET}}, and \code{\link{bPEESE}} fit one
+#' publication-bias adjustment at a time. The \code{prior_bias} argument must
+#' match the fitted bias-adjustment type.
+#'
+#' \tabular{lll}{
+#' Constructor \tab Prior constructor \tab Default prior distribution \cr
+#' \code{bselmodel()} \tab \code{\link{prior_weightfunction}} \tab one-sided cumulative weightfunction with \code{steps = 0.025} \cr
+#' \code{bPET()} \tab \code{\link{prior_PET}} \tab positive Cauchy centered at 0 \cr
+#' \code{bPEESE()} \tab \code{\link{prior_PEESE}} \tab positive Cauchy centered at 0, with UISD-adjusted scale
+#' }
+#'
+#' The default PET prior distribution uses
+#' \code{RoBMA.get_option("default_bias_PET.scale")}. The default PEESE prior
+#' distribution uses \code{RoBMA.get_option("default_bias_PEESE.scale")} after
+#' rescaling to the analyzed effect-size measure. The default weightfunction
+#' prior distribution uses \code{RoBMA.get_option("default_bias_weightfunction.alpha")}
+#' for each cumulative-Dirichlet alpha parameter.
+#'
+#' ## Model-averaged publication-bias priors
+#'
+#' \code{\link{RoBMA}} averages over publication-bias components. By default,
+#' \code{prior_bias_null} is \code{\link{prior_none}()} and \code{model_type}
+#' determines the alternative components:
+#'
+#' \tabular{ll}{
+#' \code{"PSMA"} \tab six weight functions, PET, and PEESE \cr
+#' \code{"6w"} \tab six weight functions \cr
+#' \code{"2w"} \tab two two-sided weight functions \cr
+#' \code{"PP"} \tab PET and PEESE
+#' }
+#'
+#' Custom \code{prior_bias} replaces the preset alternative components. If
+#' \code{prior_bias} is omitted, \code{model_type} still supplies the default
+#' alternative components even when \code{prior_bias_null} is customized or
+#' omitted. Setting \code{prior_bias = NULL} or \code{prior_bias = FALSE}
+#' omits all alternative bias-adjustment models. Setting
+#' \code{prior_bias_null = NULL} or \code{prior_bias_null = FALSE} omits the
+#' no-bias component.
+#'
+#' Each publication-bias component has a prior model weight. User-specified
+#' components receive equal weights unless their prior objects set
+#' \code{prior_weights}. The \code{"2w"} and \code{"6w"} presets split the
+#' alternative bias mass equally across their weight functions, \code{"PP"}
+#' splits it equally across PET and PEESE, and \code{"PSMA"} assigns half of the
+#' alternative bias mass to the six weight functions combined and one quarter
+#' each to PET and PEESE.
+#'
+#' Publication-bias prior distributions are not rescaled by \code{rescale_priors}.
+#' The exception is the default PEESE prior distribution, whose scale is adjusted
+#' to the effect-size measure via the unit-information standard deviation.
+#'
+#' @seealso
+#' \code{\link{prior_weightfunction}}, \code{\link{prior_PET}},
+#' \code{\link{prior_PEESE}}, \code{\link{prior_none}},
+#' \code{\link{RoBMA_prior_specification}},
+#' \code{\link{prior_specification}}
+#'
+#' @aliases publication_bias_prior_specification bias_prior_specification
 NULL
 
 
@@ -195,7 +289,9 @@ NULL
 #'   \item A list of prior distributions (creates a mixture with multiple alternatives)
 #'   \item `NULL` or `FALSE` (omits the alternative hypothesis component)
 #' }
-#' See \code{\link{prior_specification}} for details on specifying individual priors.
+#' See \code{\link{publication_bias_prior_specification}} for details on
+#' specifying publication-bias priors and \code{\link{prior_specification}} for
+#' details on specifying meta-analytic parameter priors.
 #'
 #' @param prior_effect_null prior distribution(s) for the null effect
 #' component(s).
@@ -210,7 +306,8 @@ NULL
 #' @param prior_heterogeneity_allocation_null prior distribution(s) for the
 #' null cluster-level heterogeneity allocation component(s).
 #' @param prior_bias_null prior distribution(s) for null publication-bias
-#' component(s), usually `prior_none()`.
+#' component(s), usually `prior_none()`. See
+#' \code{\link{publication_bias_prior_specification}}.
 #'
 #' Null prior arguments can be:
 #' \itemize{
@@ -300,8 +397,8 @@ NULL
 #' \itemize{
 #'   \item `prior_effect_null = NULL`: No null hypothesis for effect (assumes effect exists)
 #'   \item `prior_effect = NULL`: No alternative hypothesis (assumes no effect)
-#'   \item `prior_bias_null = NULL`: No "no bias" model (assumes some bias mechanism)
-#'   \item `prior_bias = NULL`: No bias model (assumes no bias mechanism)
+#'   \item `prior_bias_null = NULL` or `FALSE`: No "no bias" model (assumes some bias mechanism)
+#'   \item `prior_bias = NULL` or `FALSE`: No bias model (assumes no bias mechanism)
 #' }
 #' For moderator and scale regression terms, an omitted or whole-argument `NULL`
 #' `prior_mods` / `prior_scale` means "use defaults". To omit a component for a
@@ -351,6 +448,8 @@ NULL
 #' RoBMA(..., model_type = "PSMA")  # Full ensemble (default)
 #' RoBMA(..., model_type = "PP")    # Only PET-PEESE models
 #' }
+#' See \code{\link{publication_bias_prior_specification}} for the bias-prior
+#' constructors and preset model spaces.
 #'
 #' ### Heterogeneity allocation (\eqn{\rho}) for multilevel models
 #'
@@ -382,8 +481,13 @@ NULL
 #' ## Model weights and prior odds
 #'
 #' Each component in a mixture prior has an associated prior weight (prior model
-#' probability). By default, all components receive equal weights. Custom weights can
-#' be specified via the `prior_weights` argument in individual prior objects.
+#' probability). User-specified components receive equal weights unless their
+#' prior objects set `prior_weights`. Publication-bias presets use fixed weights:
+#' `"2w"` and `"6w"` split the alternative bias mass equally across their
+#' weight functions, `"PP"` splits it equally across PET and PEESE, and `"PSMA"`
+#' assigns half of the alternative bias mass to the six weight functions
+#' combined and one quarter each to PET and PEESE. Custom weights can be
+#' specified via the `prior_weights` argument in individual prior objects.
 #'
 #' The prior odds between null and alternative hypotheses affect the Bayes factor
 #' interpretation. With equal prior weights on null and alternative, the posterior
@@ -394,6 +498,7 @@ NULL
 #'
 #' @seealso
 #' \code{\link{prior_specification}} for base prior specification options,
+#' \code{\link{publication_bias_prior_specification}} for publication-bias priors,
 #' \code{\link{RoBMA}} for the main model-averaging function,
 #' \code{\link[BayesTools]{prior}} for creating prior distribution objects
 #'
@@ -467,6 +572,19 @@ NULL
 
 
 
+
+# stop if public fitting constructors did not receive an explicit measure
+.stop_missing_measure <- function(caller) {
+
+  stop(
+    paste0(
+      caller, " requires explicit 'measure'. Use 'GEN' only for general ",
+      "effect sizes; otherwise specify one of 'SMD', 'ZCOR', 'RR', 'OR', ",
+      "'HR', 'RD', or 'IRR'."
+    ),
+    call. = FALSE
+  )
+}
 
 # verify that the the measure is available
 .check_measure <- function(measure, class = "norm") {
@@ -567,9 +685,10 @@ NULL
 #' sample sizes and standard errors. The UISD is used to scale weakly informative
 #' prior distributions for meta-analytic parameters.
 #'
-#' @param sei a numeric vector of standard errors for each study.
-#' @param ni a numeric vector of sample sizes for each study (must have the same
-#' length as `sei`).
+#' @param sei a complete numeric vector of strictly positive standard errors
+#' for each study.
+#' @param ni a complete numeric vector of strictly positive sample sizes for
+#' each study, with the same length as `sei`.
 #'
 #' @details
 #' The unit information standard deviation is computed following Equation 6 in
@@ -1266,6 +1385,12 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   if (length(priors_null) + length(priors_alt) == 0) {
     stop("At least one prior distribution needs to be defined for 'bias'.", call. = FALSE)
+  }
+
+  if (length(priors_alt) == 0 &&
+      length(priors_null) == 1 &&
+      BayesTools::is.prior.none(priors_null[[1]])) {
+    return(priors_null[[1]])
   }
 
   ### specify the corresponding mixture prior

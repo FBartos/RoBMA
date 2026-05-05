@@ -261,6 +261,23 @@ test_that("Radial plot data and alias interface are stable", {
     info = "invalid plot_type is rejected"
   )
 
+  expect_error(radial(fit_brma, level = 100),
+    regexp = "level",
+    info = "invalid confidence level is rejected"
+  )
+  expect_error(radial(fit_brma, xlim = c(1, 1)),
+    regexp = "xlim",
+    info = "non-increasing xlim is rejected"
+  )
+  expect_error(radial(fit_brma, arc.res = 1),
+    regexp = "arc.res",
+    info = "invalid arc resolution is rejected"
+  )
+  expect_error(radial(fit_brma, transf = 1),
+    regexp = "transf",
+    info = "invalid transformation is rejected"
+  )
+
   # --------------------------------------------------
   # Test galbraith alias works
   # --------------------------------------------------

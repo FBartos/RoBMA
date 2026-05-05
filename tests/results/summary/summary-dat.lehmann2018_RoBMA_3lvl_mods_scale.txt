@@ -1,5 +1,5 @@
 
-Robust Bayesian Model-Averaged Multilevel Location-Scale Model (k = 81, lvls = 41)
+Robust Bayesian Model-Averaged Multilevel Location-Scale Model (k = 81, clusters = 41)
 
 Component Inclusion
                  Prior prob. Post. prob. Inclusion BF

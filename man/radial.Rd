@@ -53,7 +53,7 @@ vertical axis). If not specified, positions are chosen automatically.}
 when \code{aty} is not specified. Defaults to \code{7}.}
 
 \item{level}{numeric value between 0 and 100 specifying the confidence level
-for the z-axis band. Defaults to \code{95}.}
+for the confidence band and pooled-effect CI arc. Defaults to \code{95}.}
 
 \item{digits}{integer specifying the number of decimal places for y-axis
 arc labels. Defaults to \code{2}.}
@@ -74,6 +74,7 @@ labels (e.g., \code{transf = exp} when effect sizes are on a log scale).}
 \item{bg}{point fill/background color (default: "#A6A6A6")}
 \item{cex}{point size multiplier for base graphics (default: 1)}
 \item{size}{point size for ggplot2 (default: 2)}
+\item{las}{axis-label style for base graphics (default: 1)}
 \item{back}{background color for the confidence band (default: "grey90").
 Set to \code{NA} to suppress.}
 \item{arc.res}{integer specifying the number of line segments used to
@@ -96,9 +97,10 @@ including: \code{points}, \code{refline}, \code{band}, \code{arc},
 \code{radial.brma} creates a radial (Galbraith) plot for a
 fitted brma object. The plot displays each study as a point with
 precision on the x-axis and the standardized effect size on the z-axis.
-A line from the origin through any point has slope equal to the observed
-effect size, and an arc on the right side maps standardized values back
-to the effect size scale.
+Without centering, a line from the origin through any point has slope equal
+to the observed effect size. With centering, slopes are relative to the
+pooled estimate. An arc on the right side maps standardized values back to
+the effect size scale.
 }
 \details{
 The radial (Galbraith) plot transforms each study's effect size and
@@ -110,14 +112,16 @@ standard error into a point in precision-standardized space:
 }
 
 Under the random-effects model, studies consistent with the pooled effect
-should fall within a horizontal confidence band centered at
-\eqn{z = \pm z_{\alpha/2}}. The arc on the right side allows reading
-individual effect sizes by projecting from the origin through a point
-to the arc.
+should fall within the sloped parallelogram confidence band around the
+pooled-effect line. The arc on the right side allows reading individual
+effect sizes by projecting from the origin through a point to the arc; when
+\code{center = TRUE}, the plotted slope is relative to the pooled effect.
 
 This function requires an intercept-only model; radial plots are not
 meaningful for meta-regression or location-scale models where the
 pooled effect varies across studies.
+
+\code{galbraith()} is a same-argument alias for \code{radial()}.
 }
 \examples{
 \dontrun{

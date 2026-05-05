@@ -14,9 +14,10 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{weights}{an optional vector of positive likelihood weights. For normal
-models, each weight powers the estimate likelihood. For GLMM models, each
-weight powers the paired two-arm likelihood for one study.}
+\item{weights}{an optional vector of positive likelihood weights. For
+normal/effect-size models, each weight powers the estimate likelihood. For
+constructors with GLMM raw-count input, each weight powers the paired
+two-arm likelihood for one study.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
@@ -39,9 +40,11 @@ meta-analysis.}
 data to be used.}
 
 \item{measure}{a character string specifying the effect size measure.
-Normal models default to \code{"GEN"} and support \code{"SMD"}, \code{"ZCOR"}, \code{"RR"},
-\code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}. GLMM models support only
-\code{"OR"} and \code{"IRR"} and default to \code{"OR"}.}
+Normal/effect-size constructors require an explicit value and support
+\code{"SMD"}, \code{"ZCOR"}, \code{"RR"}, \code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}.
+Use \code{"GEN"} only for general effect sizes without a known unit information
+standard deviation. GLMM raw-count constructors support only \code{"OR"} and
+\code{"IRR"} and default to \code{"OR"}.}
 
 \item{effect_direction}{direction used by publication-bias adjustments.
 \code{"positive"} assumes statistically significant positive estimates are more

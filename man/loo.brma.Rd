@@ -24,8 +24,11 @@ The LOO must first be computed using \code{\link{add_loo}}.
 }
 \details{
 This function extracts the LOO object that was previously computed and
-stored using \code{\link{add_loo}}. If LOO has not been computed,
-an error is thrown.
+stored using \code{object <- add_loo(object, unit = unit)}. If LOO has not
+been computed for the requested unit, an error is thrown.
+
+This is the RoBMA S3 generic and \code{brma} method. Use
+\code{\link[loo]{loo}} directly for raw log-likelihood arrays or matrices.
 }
 \examples{
 \dontrun{

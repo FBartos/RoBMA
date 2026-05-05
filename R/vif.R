@@ -75,7 +75,7 @@ vif <- function(object, ...) {
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
 #'
-#' For categorical moderators (factors) that produce multiple dummy variables,
+#' For multi-column terms, such as factor contrasts,
 #' the Generalized VIF (GVIF) of \insertCite{fox1992generalized;textual}{RoBMA}
 #' is reported. GVIF captures the joint inflation for all coefficients
 #' belonging to the same term. To enable comparison across terms with different
@@ -92,10 +92,10 @@ vif <- function(object, ...) {
 #'
 #' @return An object of class \code{vif.brma} containing:
 #' \item{vif}{A data frame with columns \code{term}, \code{df}, \code{GVIF},
-#' and \code{GVIF_df} (= \eqn{GVIF^{1/(2 \cdot df)}}). For single-df terms,
-#' GVIF equals the standard VIF.}
-#' \item{posterior_correlation}{(If requested) A correlation matrix of
-#' posterior regression coefficient samples.}
+#' and \code{GVIF^(1/(2*df))} (= \eqn{GVIF^{1/(2 \cdot df)}}). For single-df
+#' terms, GVIF equals the standard VIF.}
+#' \item{posterior_correlation}{A correlation matrix of posterior regression
+#' coefficient samples when requested and available; otherwise \code{NULL}.}
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&

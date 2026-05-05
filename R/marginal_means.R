@@ -13,10 +13,9 @@
 
 #' @title Estimated Marginal Means
 #'
-#' @description Computes estimated marginal means for fitted \code{brma}
-#' objects with moderators. The returned object stores the BayesTools
-#' marginal-inference object and can be summarized or plotted with
-#' \code{summary()} and \code{plot()}.
+#' @description S3 generic for estimated marginal means. The \code{brma}
+#' method works with fitted moderator models and stores the BayesTools
+#' marginal-inference object for \code{summary()} and \code{plot()}.
 #'
 #' @param object a fitted model object.
 #' @param ... additional arguments passed to methods.
@@ -198,7 +197,7 @@ summary.marginal_means.brma <- function(object, type = NULL,
                                         probs = c(.025, .50, .975),
                                         logBF = FALSE, BF01 = FALSE,
                                         bf = NULL,
-                                        output_measure, transform, ...) {
+                                        output_measure = NULL, transform = NULL, ...) {
 
   type <- .marginal_means_type(object = object, type = type)
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
@@ -268,7 +267,7 @@ summary.marginal_means.brma <- function(object, type = NULL,
 
 #' @title Print Estimated Marginal Means
 #'
-#' @description Prints the model-averaged estimated marginal means summary.
+#' @description Prints the estimated marginal means summary.
 #'
 #' @param x a \code{marginal_means.brma} object.
 #' @param ... additional arguments passed to \code{summary()}.
@@ -313,8 +312,9 @@ print.summary.marginal_means.brma <- function(x, ...) {
 #'
 #' @param x a \code{marginal_means.brma} object.
 #' @param parameter moderator term to plot. Use the original term name, for
-#' example \code{"measure"}, or the internal parameter name, for example
-#' \code{"mu_measure"}.
+#' example \code{"measure"}, \code{"intercept"} for the intercept when
+#' available, \code{"mu"} as an intercept alias, or the internal parameter name,
+#' for example \code{"mu_measure"}.
 #' @param type for RoBMA product-space objects, whether to plot model-averaged
 #' (\code{"averaged"}) or conditional (\code{"conditional"}) marginal means.
 #' Defaults to \code{"averaged"} and is available only for RoBMA marginal
@@ -336,7 +336,7 @@ print.summary.marginal_means.brma <- function(x, ...) {
 plot.marginal_means.brma <- function(x, parameter, type = NULL,
                                      prior = FALSE, plot_type = "base",
                                      dots_prior = NULL,
-                                     output_measure, transform, ...) {
+                                     output_measure = NULL, transform = NULL, ...) {
 
   type <- .marginal_means_type(object = x, type = type)
   BayesTools::check_bool(prior, "prior")

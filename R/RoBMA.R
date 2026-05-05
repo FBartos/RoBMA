@@ -20,6 +20,13 @@
 #' model averaging without publication-bias adjustment, or `brma()` for fitting
 #' a single meta-analytic model.
 #'
+#' `RoBMA()` uses normal/effect-size input (`yi` with `vi` or `sei`). Raw-count
+#' GLMM model averaging is provided by `BMA.glmm()`.
+#'
+#' Product-space objects support predictive comparison with `add_loo()` and
+#' `add_waic()`. Bridge-sampling marginal likelihood via `add_marglik()` is
+#' not available for product-space model-averaging objects.
+#'
 #' @return A fitted object of class `c("RoBMA", "brma")`. The object contains
 #' checked `data`, checked `priors`, the JAGS `fit`, cached `summary`, and
 #' cached `coefficients`. It can be passed to `summary()`, `plot()`,
@@ -43,15 +50,15 @@
 #' }
 #' }
 #'
-#' @seealso [BMA()], [brma()], [bselmodel()], [bPET()], [bPEESE()],
-#' [summary.brma()], [plot.brma()]
+#' @seealso [publication_bias_prior_specification], [BMA()], [brma()],
+#' [bselmodel()], [bPET()], [bPEESE()], [summary.brma()], [plot.brma()]
 #' @export
 RoBMA <- function(
   # input specification
   yi, vi, sei, weights, ni,
   mods, scale, cluster,
   data, slab, subset,
-  measure = "GEN", effect_direction = "detect",
+  measure, effect_direction = "detect",
 
   # prior specification
   prior_effect, prior_heterogeneity, prior_mods, prior_scale, prior_heterogeneity_allocation, prior_bias,
@@ -72,9 +79,16 @@ RoBMA <- function(
   seed = NULL, silent = TRUE, ...) {
 
   ### create the output object
-  dots         <- list(...)
-  dots         <- .validate_constructor_dots(dots, caller = "RoBMA()")
-  object       <- .createObject(
+  dots            <- list(...)
+  missing_measure <- missing(measure)
+  if (missing_measure && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure("RoBMA()")
+  }
+  if (missing_measure) {
+    measure <- "GEN"
+  }
+  dots            <- .validate_constructor_dots(dots, caller = "RoBMA()")
+  object          <- .createObject(
     dots = dots, class = c("RoBMA", "brma"),
     # MCMC and fitting settings
     chains = chains, adapt = adapt, burnin = burnin, sample = sample, thin = thin,

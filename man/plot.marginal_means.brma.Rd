@@ -11,8 +11,8 @@
   prior = FALSE,
   plot_type = "base",
   dots_prior = NULL,
-  output_measure,
-  transform,
+  output_measure = NULL,
+  transform = NULL,
   ...
 )
 }
@@ -20,8 +20,9 @@
 \item{x}{a \code{marginal_means.brma} object.}
 
 \item{parameter}{moderator term to plot. Use the original term name, for
-example \code{"measure"}, or the internal parameter name, for example
-\code{"mu_measure"}.}
+example \code{"measure"}, \code{"intercept"} for the intercept when
+available, \code{"mu"} as an intercept alias, or the internal parameter name,
+for example \code{"mu_measure"}.}
 
 \item{type}{for RoBMA product-space objects, whether to plot model-averaged
 (\code{"averaged"}) or conditional (\code{"conditional"}) marginal means.

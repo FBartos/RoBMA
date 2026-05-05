@@ -11,8 +11,8 @@
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Robust Bayesian Meta-Analyses">
-<meta name="description" content="A framework for estimating ensembles of meta-analytic, meta-regression, and multilevel models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;; Bartoš et al., 2025, &lt;doi:10.1037/met0000737&gt;). Users can define a wide range of prior distributions for the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
-<meta property="og:description" content="A framework for estimating ensembles of meta-analytic, meta-regression, and multilevel models (assuming either presence or absence of the effect, heterogeneity, publication bias, and moderators). The RoBMA framework uses Bayesian model-averaging to combine the competing meta-analytic models into a model ensemble, weights the posterior parameter distributions based on posterior model probabilities and uses Bayes factors to test for the presence or absence of the individual components (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;; Bartoš et al., 2025, &lt;doi:10.1037/met0000737&gt;). Users can define a wide range of prior distributions for the effect size, heterogeneity, publication bias (including selection models and PET-PEESE), and moderator components. The package provides convenient functions for summary, visualizations, and fit diagnostics.">
+<meta name="description" content="A framework for Bayesian meta-analysis, including model estimation, prior specification, model comparison, prediction, summaries, visualizations, and diagnostics. The package fits single and model-averaged meta-analytic, meta-regression, multilevel, publication bias adjusted, and generalized linear mixed models, with optional components for effect presence, heterogeneity, moderation, and publication bias. BMA and RoBMA use Bayesian model averaging to combine competing models, weight inference by posterior model probabilities, and test model components using Bayes factors (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;; Bartoš et al., 2025, &lt;doi:10.1037/met0000737&gt;). Users can specify prior distributions for effect sizes, heterogeneity, publication bias, including selection models and PET-PEESE, and moderators.">
+<meta property="og:description" content="A framework for Bayesian meta-analysis, including model estimation, prior specification, model comparison, prediction, summaries, visualizations, and diagnostics. The package fits single and model-averaged meta-analytic, meta-regression, multilevel, publication bias adjusted, and generalized linear mixed models, with optional components for effect presence, heterogeneity, moderation, and publication bias. BMA and RoBMA use Bayesian model averaging to combine competing models, weight inference by posterior model probabilities, and test model components using Bayes factors (e.g., effect vs. no effect; Bartoš et al., 2022, &lt;doi:10.1002/jrsm.1594&gt;; Maier, Bartoš &amp; Wagenmakers, 2022, &lt;doi:10.1037/met0000405&gt;; Bartoš et al., 2025, &lt;doi:10.1037/met0000737&gt;). Users can specify prior distributions for effect sizes, heterogeneity, publication bias, including selection models and PET-PEESE, and moderators.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,20 +31,36 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
-    <li><a class="dropdown-item" href="articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
-    <li><a class="dropdown-item" href="articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
-    <li><a class="dropdown-item" href="articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
-    <li><a class="dropdown-item" href="articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
+<li><h6 class="dropdown-header" data-toc-skip>Foundations</h6></li>
+    <li><a class="dropdown-item" href="articles/00-introduction.html">Introduction</a></li>
+    <li><a class="dropdown-item" href="articles/01-prior-distributions.html">Prior Distributions</a></li>
+    <li><a class="dropdown-item" href="articles/02-bayesian-meta-analysis.html">Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="articles/03-feature-coverage.html">Feature Coverage</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Correspondence with metafor</h6></li>
+    <li><a class="dropdown-item" href="articles/10-metafor-parity-multilevel.html">Multilevel Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="articles/11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
+    <li><a class="dropdown-item" href="articles/12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="articles/13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
+    <li><a class="dropdown-item" href="articles/20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
+    <li><a class="dropdown-item" href="articles/21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
+    <li><a class="dropdown-item" href="articles/30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
+    <li><a class="dropdown-item" href="articles/31-robma-metaregression.html">RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="articles/32-robma-multilevel.html">Multilevel RoBMA</a></li>
+    <li><a class="dropdown-item" href="articles/33-robma-multilevel-metaregression.html">Multilevel RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="articles/34-bma-norm-medicine.html">BMA in Medicine</a></li>
+    <li><a class="dropdown-item" href="articles/35-bma-glmm-medicine.html">BMA for Binary Outcomes</a></li>
+    <li><a class="dropdown-item" href="articles/36-zplot.html">Zplot Diagnostics</a></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
@@ -60,229 +76,276 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="readme">README<a class="anchor" aria-label="anchor" href="#readme"></a>
+<div class="page-header"><h1 id="robma">RoBMA<a class="anchor" aria-label="anchor" href="#robma"></a>
 </h1></div>
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-<!-- badges: start -->
-
+<!-- index.md is generated from index.Rmd. Please edit that file -->
 </div>
 <div class="section level1">
 <h1 id="robust-bayesian-meta-analysis-robma">Robust Bayesian Meta-Analysis (RoBMA)<a class="anchor" aria-label="anchor" href="#robust-bayesian-meta-analysis-robma"></a>
 </h1>
-<p>This package estimates an ensemble of meta-analytic models (assuming either the presence or absence of effect, heterogeneity, and publication bias) and uses Bayesian model averaging to combine them. The ensemble uses Bayes factors to test for the presence of absence of the individual components (e.g., effect vs. no effect) and model-averages parameter estimates based on posterior model probabilities. The user can define a wide range prior distributions for the effect size, heterogeneity, publication bias components (including selection, PET, and PEESE style models), and moderators. The package provides convenient functions for summary, visualizations, and fit diagnostics. The package is designed to be user-friendly and provides a wide range of customization options. The package is also integrated into the JASP software (JASP Team, 2020) and can be used via the graphical user interface.</p>
-<p>See our manuscripts that for technical details and examples:</p>
-<ul>
-<li>Bartoš et al. (2025) (<a href="https://doi.org/10.31234/osf.io/98xb5" class="external-link uri">https://doi.org/10.31234/osf.io/98xb5</a>) extends RoBMA-PSMA into meta-regression</li>
-<li>Bartoš, Otte, et al. (2023) (<a href="https://doi.org/10.48550/arXiv.2306.11468" class="external-link uri">https://doi.org/10.48550/arXiv.2306.11468</a>) outlines binomial-normal Bayesian model-averaged meta-analysis for binary outcomes (+ develops informed prior distributions for log OR, log RR, RD, and log HR in medical settings, also see Bartoš et al. (2021) for informed prior distributions for Cohen’s d, based on the Cochrane Database of Systematic Reviews)</li>
-<li>Bartoš, Maier, et al. (2023) (<a href="https://doi.org/10.1002/jrsm.1594" class="external-link uri">https://doi.org/10.1002/jrsm.1594</a>) describes the newest version of publication bias adjustment, RoBMA-PSMA, which combines selection models and PET-PEESE,</li>
-<li>Maier et al. (2023) (<a href="https://doi.org/10.1037/met0000405" class="external-link uri">https://doi.org/10.1037/met0000405</a>) introduces the RoBMA framework and the original version of the method,</li>
-<li>Bartoš et al. (2022) (<a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>) provides an accessible tutorial on the method including the implementation in the the user-friendly graphical user interface of JASP (JASP Team, 2020)</li>
-</ul>
-<p>We also prepared multiple vignettes that illustrate functionality of the package:</p>
-<ul>
-<li><a href="https://fbartos.github.io/RoBMA/articles/Tutorial.html" class="external-link">Tutorial: Adjusting for publication bias in JASP and R - Selection models, PET-PEESE, and Robust Bayesian meta-analysis</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html" class="external-link">Reproducing Bayesian model-averaged meta-analysis (BMA)</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/MetaRegression.html" class="external-link">Robust Bayesian model-averaged meta-regression</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html" class="external-link">Hierarchical Bayesian model-averaged meta-analysis</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/MedicineBMA.html" class="external-link">Informed Bayesian model-averaged meta-analysis in medicine</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html" class="external-link">Informed Bayesian model-averaged meta-analysis with binary outcomes</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html" class="external-link">Fitting custom meta-analytic ensembles</a></li>
-<li><a href="https://fbartos.github.io/RoBMA/articles/FastRoBMA.html" class="external-link">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
-</ul>
+<p>The <code>RoBMA</code> R package fits a comprehensive collection of Bayesian meta-analytic models (Bartoš &amp; Maier, 2020). It provides single-model fits, meta-regression, location-scale models, multilevel models, fully Bayesian model-averaged ensembles, and built-in publication-bias adjustment using selection models, PET-PEESE, and Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is performed by JAGS through a custom C++ module that implements the weighted distributions used in selection models. Prior handling, plotting, and Bayesian diagnostics are delegated to the companion <code>BayesTools</code> package.</p>
+<p>This introduction maps the package at a high level and points to the more detailed vignettes that follow.</p>
 <div class="section level2">
-<h2 id="updates">Updates<a class="anchor" aria-label="anchor" href="#updates"></a>
+<h2 id="system-requirements">System Requirements<a class="anchor" aria-label="anchor" href="#system-requirements"></a>
 </h2>
-<div class="section level3">
-<h3 id="backwards-compatibility">Backwards Compatibility<a class="anchor" aria-label="anchor" href="#backwards-compatibility"></a>
-</h3>
-<p>Please note that the major releases of RoBMA break backwards compatibility. The latest version of RoBMA 1 can be installed using</p>
+<p>The <code>RoBMA</code> R package requires JAGS 4.3.1 or newer (Plummer, 2003). Install JAGS from <a href="https://mcmc-jags.sourceforge.io/" class="external-link uri">https://mcmc-jags.sourceforge.io/</a> before installing the R package.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_version.html" class="external-link">install_version</a></span><span class="op">(</span><span class="st">"RoBMA"</span>, version <span class="op">=</span> <span class="st">"1.2.1"</span><span class="op">)</span></span></code></pre></div>
-<p>and the latest version of RoBMA 2 can be installed using</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_version.html" class="external-link">install_version</a></span><span class="op">(</span><span class="st">"RoBMA"</span>, version <span class="op">=</span> <span class="st">"2.3.2"</span><span class="op">)</span></span></code></pre></div>
-<p>(Or use the source packages archived with at OSF repositories associated with the corresponding projects.)</p>
-</div>
-<div class="section level3">
-<h3 id="news">News<a class="anchor" aria-label="anchor" href="#news"></a>
-</h3>
-<p>The 3.0 version brings several features to the package:</p>
-<ul>
-<li>meta-regression models via the <code><a href="reference/RoBMA.reg.html">RoBMA.reg()</a></code> function</li>
-<li>binomial-normal meta-analytic models via the <code><a href="reference/BiBMA.html">BiBMA()</a></code> function</li>
-<li>publication bias unadjusted models via the <code><a href="reference/NoBMA.html">NoBMA()</a></code> and <code><a href="reference/NoBMA.reg.html">NoBMA.reg()</a></code> functions (wrappers around <code><a href="reference/RoBMA.html">RoBMA()</a></code> and <code><a href="reference/RoBMA.reg.html">RoBMA.reg()</a></code>)</li>
-<li>marginal summaries and plots of the regression models via the <code><a href="reference/marginal_summary.html">marginal_summary()</a></code> and <code><a href="reference/marginal_plot.html">marginal_plot()</a></code> function</li>
-<li>prediction intervals, I^2, and H^2 statistics using <code><a href="reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> function</li>
-<li>the spike and slab algorithm for faster model estimation via the <code>algorithm = "ss"</code> argument</li>
-</ul>
-<p>The 2.0 version brought several updates to the package:</p>
-<ul>
-<li>naming of the arguments specifying prior distributions for the different parameters/components of the models changed (<code>priors_mu</code> -&gt; <code>priors_effect</code>, <code>priors_tau</code> -&gt; <code>priors_heterogeneity</code>, and <code>priors_omega</code> -&gt; <code>priors_bias</code>),</li>
-<li>prior distributions for specifying weight functions now use a dedicated function (<code>prior(distribution = "two.sided", parameters = ...)</code> -&gt; <code>prior_weightfunction(distribution = "two.sided", parameters = ...)</code>),</li>
-<li>new dedicated function for specifying no publication bias adjustment component / no heterogeneity component (<code><a href="reference/prior_none.html">prior_none()</a></code>),</li>
-<li>new dedicated functions for specifying models with the PET and PEESE publication bias adjustments (<code>prior_PET(distribution = "Cauchy", parameters = ...)</code> and <code>prior_PEESE(distribution = "Cauchy", parameters = ...)</code>),</li>
-<li>new default prior distribution specification for the publication bias adjustment part of the models (corresponding to the RoBMA-PSMA model from Bartoš, Maier, et al. (2023)),</li>
-<li>new <code>model_type</code> argument allowing to specify different “pre-canned” models (<code>"PSMA"</code> = RoBMA-PSMA, <code>"PP"</code> = RoBMA-PP, <code>"2w"</code> = corresponding to Maier et al. (2023)),</li>
-<li>
-<code>combine_data</code> function allows combination of different effect sizes / variability measures into a common effect size measure (also used from within the <code>RoBMA</code> function)</li>
-<li>better and improved automatic fitting procedure now enabled by default (can be turned of with <code>autofit = FALSE</code>)</li>
-<li>prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher’s z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen’s d by default, but both of them can be overwritten with the <code>prior_scale</code> and <code>transformation</code> arguments),</li>
-<li>new prior distributions, e.g., beta or fixed weight functions,</li>
-<li>and plenty of small changes to the arguments, output, and etc…</li>
-</ul>
-</div>
-</div>
-<div class="section level2">
-<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
-</h2>
-<p>The package requires <a href="https://mcmc-jags.sourceforge.io/" class="external-link">JAGS 4.3.2</a> to be installed. The release version can be installed from CRAN:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"RoBMA"</span><span class="op">)</span></span></code></pre></div>
-<p>and the development version of the package can be installed from GitHub:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"FBartos/RoBMA"</span><span class="op">)</span></span></code></pre></div>
+<p><strong>Note on backwards compatibility.</strong> The 4.0 release is not backwards compatible with earlier versions of the package. The <em>Manuscript Companions</em> section accompanies the methodological papers in which the <code>RoBMA</code> R package was originally developed and illustrated; the vignettes there have been updated to the 4.0 version of the package, and the numerical results differ from the published values because the underlying algorithms have changed. To reproduce the published analyses exactly, install <code>RoBMA</code> version 3.6.1 together with <code>BayesTools</code> version 0.2.23:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_version.html" class="external-link">install_version</a></span><span class="op">(</span><span class="st">"BayesTools"</span>, version <span class="op">=</span> <span class="st">"0.2.23"</span><span class="op">)</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_version.html" class="external-link">install_version</a></span><span class="op">(</span><span class="st">"RoBMA"</span>,      version <span class="op">=</span> <span class="st">"3.6.1"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+<h2 id="main-functions">Main Functions<a class="anchor" aria-label="anchor" href="#main-functions"></a>
 </h2>
-<p>To illustrate the functionality of the package, we fit the RoBMA-PSMA model from the example in Bartoš, Maier, et al. (2023) to adjust for publication bias in the infamous Bem (2011) “Feeling the future” pre-cognition study. The RoBMA-PSMA model combines six selection models and PET-PEESE to adjust for publication bias. As in the pre-print, we analyze the data as described by Bem et al. (2011) in his reply to methodological critiques.</p>
-<p>First, we load the package and the data set included in the package.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://fbartos.github.io/RoBMA/" class="external-link">RoBMA</a></span><span class="op">)</span></span>
-<span><span class="co">#&gt; Loading required namespace: runjags</span></span>
-<span><span class="co">#&gt; Loading required namespace: mvtnorm</span></span>
-<span><span class="co">#&gt; RoBMA version 3.3 now features spike-and-slab style model-averaging via the 'algorithm = "ss"' argument.</span></span>
-<span><span class="co">#&gt; See 'vignette("FastRoBMA", package = "RoBMA")' for more details ('algorithm = "ss"' argument will become the default setting in the future major release of the package).</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"Bem2011"</span>, package <span class="op">=</span> <span class="st">"RoBMA"</span><span class="op">)</span></span>
-<span><span class="va">Bem2011</span></span>
-<span><span class="co">#&gt;      d         se                                        study</span></span>
-<span><span class="co">#&gt; 1 0.25 0.10155048                  Detection of Erotic Stimuli</span></span>
-<span><span class="co">#&gt; 2 0.20 0.08246211                Avoidance of Negative Stimuli</span></span>
-<span><span class="co">#&gt; 3 0.26 0.10323629                        Retroactive Priming I</span></span>
-<span><span class="co">#&gt; 4 0.23 0.10182427                       Retroactive Priming II</span></span>
-<span><span class="co">#&gt; 5 0.22 0.10120277  Retroactive Habituation I - Negative trials</span></span>
-<span><span class="co">#&gt; 6 0.15 0.08210765 Retroactive Habituation II - Negative trials</span></span>
-<span><span class="co">#&gt; 7 0.09 0.07085372             Retroactive Induction of Boredom</span></span>
-<span><span class="co">#&gt; 8 0.19 0.10089846                     Facilitation of Recall I</span></span>
-<span><span class="co">#&gt; 9 0.42 0.14752627                    Facilitation of Recall II</span></span></code></pre></div>
-<p>Then, we fit the meta-analytic model ensemble that is composed of 36 models (the new default settings of RoBMA fitting function). These models represent all possible combinations of prior distributions for the following components:</p>
+<p>The package exposes a small set of high-level fitting functions.</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th align="left">Function</th>
+<th align="left">What it fits</th>
+</tr></thead>
+<tbody>
+<tr>
+<td align="left">
+<a href="reference/brma.html"><code>brma()</code></a>, <a href="reference/brma.html"><code>brma.norm()</code></a>
+</td>
+<td align="left">Bayesian random-effects meta-analysis</td>
+</tr>
+<tr>
+<td align="left"><a href="reference/brma.glmm.html"><code>brma.glmm()</code></a></td>
+<td align="left">Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR)</td>
+</tr>
+<tr>
+<td align="left"><a href="reference/bselmodel.html"><code>bselmodel()</code></a></td>
+<td align="left">Bayesian weight-function selection model</td>
+</tr>
+<tr>
+<td align="left">
+<a href="reference/bPET.html"><code>bPET()</code></a>, <a href="reference/bPEESE.html"><code>bPEESE()</code></a>
+</td>
+<td align="left">Bayesian PET / PEESE publication-bias adjustment</td>
+</tr>
+<tr>
+<td align="left">
+<a href="reference/BMA.html"><code>BMA()</code></a>, <a href="reference/BMA.html"><code>BMA.norm()</code></a>
+</td>
+<td align="left">Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment)</td>
+</tr>
+<tr>
+<td align="left"><a href="reference/BMA.glmm.html"><code>BMA.glmm()</code></a></td>
+<td align="left">Bayesian model-averaging for GLMM meta-analysis</td>
+</tr>
+<tr>
+<td align="left"><a href="reference/RoBMA.html"><code>RoBMA()</code></a></td>
+<td align="left">Robust Bayesian model-averaging including publication-bias models</td>
+</tr>
+</tbody>
+</table>
+<p><code><a href="reference/brma.html">brma()</a></code> and <code><a href="reference/RoBMA.html">RoBMA()</a></code> are the main workhorses. <code><a href="reference/brma.html">brma()</a></code> fits a single model in the same spirit as <code><a href="https://wviechtb.github.io/metafor/reference/rma.uni.html" class="external-link">metafor::rma()</a></code>; <code><a href="reference/RoBMA.html">RoBMA()</a></code> averages across an ensemble that includes publication-bias adjustment. <code><a href="reference/BMA.html">BMA()</a></code> is <code><a href="reference/RoBMA.html">RoBMA()</a></code> without the bias-adjustment models.</p>
+<p>All fitting functions</p>
 <ul>
-<li>effect size (the mean parameter <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>μ</mi><annotation encoding="application/x-tex">\mu</annotation></semantics></math>)
-<ul>
-<li>a spike at zero, representing the null hypothesis of the absence of effect</li>
-<li>a standard normal distribution, representing the alternative hypothesis of the presence of effect</li>
+<li>share an effect-size interface (<code>yi</code>, <code>sei</code> / <code>vi</code>, <code>measure</code> arguments; apart from glmm),</li>
+<li>can be extended into a meta-regression (<code>mods</code> argument),</li>
+<li>can be extended into a location-scale model (<code>scale</code> argument),</li>
+<li>can be extended into a multilevel model (<code>cluster</code> argument),</li>
+<li>and all produce objects that work with the same set of inference helpers (<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, <code><a href="reference/loo.brma.html">loo()</a></code>, <code><a href="reference/funnel.html">funnel()</a></code>, <code><a href="reference/regplot.html">regplot()</a></code>, residuals and influence diagnostics, …).</li>
 </ul>
-</li>
-<li>heterogeneity (the heterogeneity parameter <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>)
-<ul>
-<li>a spike at zero, representing the null hypothesis of the absence of heterogeneity (i.e., fixed effect meta-analysis)</li>
-<li>an inverse gamma distribution with shape = 1 and scale = 0.15, based on Erp et al. (2017), representing the alternative hypothesis of the presence of heterogeneity (i.e., random effect meta-analysis)</li>
-</ul>
-</li>
-<li>publication bias
-<ul>
-<li>no prior distribution, representing the absence of publication bias</li>
-<li>eight prior distributions specifying two two-sided weight functions, four one-sided weight functions, and PET and PEESE publication bias adjustment, representing the presence of publication bias</li>
-</ul>
-</li>
-</ul>
-<p>The prior odds of the components are by default set to make all three model categories equally likely a priory (0.5 prior probability of the presence of the effect, 0.5 prior probability of the presence of the heterogeneity, and 0.5 prior probability of the presence of the publication bias). The prior model probability of the publication bias adjustment component is further split equally among the selection models represented by the six weightfunctions and the PET-PEESE models.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">d</span>, se <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">se</span>, study_names <span class="op">=</span> <span class="va">Bem2011</span><span class="op">$</span><span class="va">study</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
-<p>The main summary can be obtained using the <code><a href="reference/summary.RoBMA.html">summary.RoBMA()</a></code> function.</p>
-<p>The first table shows an overview of the ensemble composition. The number of models, the prior and posterior model probabilities, and inclusion Bayes factor of the ensemble components representing the alternative hypothesis of the presence of the effect, heterogeneity, and publication bias, We can see the data show very weak evidence, barely worth mentioning, against the presence of the effect (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.479</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.479</annotation></semantics></math> -&gt; <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>01</mn></msub><mo>=</mo><mn>2.09</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{01} = 2.09</annotation></semantics></math>), moderate evidence for the absence of heterogeneity (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">rf</mtext></msub><mo>=</mo><mn>0.143</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{rf}} = 0.143</annotation></semantics></math> -&gt; <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><msub><mi>F</mi><mtext mathvariant="normal">fr</mtext></msub><mo>=</mo><mn>7.00</mn></mrow><annotation encoding="application/x-tex">BF_{\text{fr}} = 7.00</annotation></semantics></math>), and strong evidence for the presence of publication bias (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">pb</mtext></msub><mo>=</mo><mn>16.32</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{pb}} = 16.32</annotation></semantics></math>).</p>
-<p>The second table shows model-averaged estimates weighted by the individual models’ posterior probabilities. The mean estimate <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>μ</mi><mo>=</mo><mn>0.037</mn></mrow><annotation encoding="application/x-tex">\mu =0.037</annotation></semantics></math>, 95% CI [-0.041, 0.213], is very close to zero, corresponding to the a priory expected absence of pre-cognition. The heterogeneity estimate <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math> has most of its probability mass around zero due to the higher support of models assuming absence of the heterogeneity. The parameters omega, representing the publication weights at each <em>p</em>-value interval are decreasing with increasing <em>p</em>-values, showing the publication bias, as well as the non zero PET and PEESE estimates.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Call:</span></span>
-<span><span class="co">#&gt; RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, </span></span>
-<span><span class="co">#&gt;     seed = 1)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Robust Bayesian meta-analysis</span></span>
-<span><span class="co">#&gt; Components summary:</span></span>
-<span><span class="co">#&gt;               Models Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect         18/36       0.500       0.324        0.479</span></span>
-<span><span class="co">#&gt; Heterogeneity  18/36       0.500       0.125        0.143</span></span>
-<span><span class="co">#&gt; Bias           32/36       0.500       0.942       16.323</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Model-averaged estimates:</span></span>
-<span><span class="co">#&gt;                    Mean Median  0.025  0.975</span></span>
-<span><span class="co">#&gt; mu                0.037  0.000 -0.041  0.213</span></span>
-<span><span class="co">#&gt; tau               0.010  0.000  0.000  0.113</span></span>
-<span><span class="co">#&gt; omega[0,0.025]    1.000  1.000  1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.935  1.000  0.338  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.780  1.000  0.009  1.000</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.768  1.000  0.007  1.000</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.786  1.000  0.007  1.000</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.801  1.000  0.007  1.000</span></span>
-<span><span class="co">#&gt; PET               0.759  0.000  0.000  2.805</span></span>
-<span><span class="co">#&gt; PEESE             6.183  0.000  0.000 25.463</span></span>
-<span><span class="co">#&gt; The estimates are summarized on the Cohen's d scale (priors were specified on the Cohen's d scale).</span></span>
-<span><span class="co">#&gt; (Estimated publication weights omega correspond to one-sided p-values.)</span></span></code></pre></div>
-<p>We can visualize the estimated mean and heterogeneity parameters using the <code><a href="reference/plot.RoBMA.html">plot.RoBMA()</a></code> function. The arrows in both figures represent the point probability mass at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>μ</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\mu = 0</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\tau = 0</annotation></semantics></math>, corresponding to the null hypotheses of the absence of effect and heterogeneity, both increasing in the posterior model probability from 0.5 to 0.676 and 0.875 respectively.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">0.5</span>, <span class="fl">0.5</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_mu-1.png" width="80%" style="display: block; margin: auto;"></p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"tau"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_tau-1.png" width="80%" style="display: block; margin: auto;"></p>
-<p>We can further visualize the publication bias adjustments of selection models, visualizing the posterior estimate of the model-averaged weightfunction that shows a sharp decrease in the publication weights of studies with <em>p</em>-values above the “marginal significance” (0.10) level,</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"weightfunction"</span>, rescale_x <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_weightfunction-1.png" width="80%" style="display: block; margin: auto;"></p>
-<p>and the PET-PEESE publication bias adjustment, visualizing the individual studies’ standard errors and effect sizes as diamonds and the model-averaged estimate of the regression lines that shows a steady increase of effect sizes with increasing standard errors.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"PET-PEESE"</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.25</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_PETPEESE-1.png" width="80%" style="display: block; margin: auto;"></p>
-<p>The usual meta-analytic forest plot can be obtained with the <code><a href="reference/forest.html">forest()</a></code> function,</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/forest.html">forest</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_forest-1.png" width="100%" style="display: block; margin: auto;"></p>
-<p>and visualization of the effect size estimates from models assuming presence of the effect can be obtained with the <code><a href="reference/plot_models.html">plot_models()</a></code> function.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/plot_models.html">plot_models</a></span><span class="op">(</span><span class="va">fit</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_mu_ind-1.png" width="75%" style="display: block; margin: auto;"></p>
-<p>Apart from plotting, the individual model performance can be inspected using the <code><a href="reference/summary.RoBMA.html">summary.RoBMA()</a></code> function with argument <code>type = "models"</code> or the overview of the individual model MCMC diagnostics can be obtained by setting <code>type = "diagnostics"</code> (not shown here for the lack of space).</p>
-<p>We can also visualize the MCMC diagnostics using the diagnostics function. The function can display the chains <code>type = "chain"</code> / posterior sample densities <code>type = "densities"</code>, and averaged auto-correlations <code>type = "autocorrelation"</code>. Here, we request the chains trace plot of the <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>μ</mi><annotation encoding="application/x-tex">\mu</annotation></semantics></math> parameter of the most complex model by setting <code>show_models = 36</code> (the model numbers can be obtained from the summary function with <code>type = "models"</code> argument).</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/diagnostics.html">diagnostics</a></span><span class="op">(</span><span class="va">fit</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, type <span class="op">=</span> <span class="st">"chains"</span>, show_models <span class="op">=</span> <span class="fl">36</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-fig_mu_chain-1.png" width="80%" style="display: block; margin: auto;"></p>
-<p>The package allows to fit highly customized models with different prior distribution functions, prior model probabilities, and provides more visualization options. See the documentation to find out more about the specific functions: <code><a href="reference/RoBMA.html">RoBMA()</a></code>, <code>priors()</code>, <code><a href="reference/plot.RoBMA.html">plot.RoBMA()</a></code>. The main package functionality is also implemented within the Meta Analysis module of JASP 0.14 (JASP Team, 2020) and will be soon updated to accommodate the 2.0 version of the package.</p>
+</div>
+<div class="section level2">
+<h2 id="vignette-map">Vignette Map<a class="anchor" aria-label="anchor" href="#vignette-map"></a>
+</h2>
+<p>The vignettes are organized into four sections.</p>
 <div class="section level3">
-<h3 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+<h3 id="foundations">Foundations<a class="anchor" aria-label="anchor" href="#foundations"></a>
 </h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th align="left">Vignette</th>
+<th align="left">Topic</th>
+</tr></thead>
+<tbody>
+<tr>
+<td align="left"><a href="articles/00-introduction.html"><em>Introduction to RoBMA</em></a></td>
+<td align="left">Package overview, fitting functions, and vignette map</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/01-prior-distributions.html"><em>Prior Distributions</em></a></td>
+<td align="left">Default, informed, and custom prior distributions; rescaling guidance</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/02-bayesian-meta-analysis.html"><em>Bayesian Meta-Analysis</em></a></td>
+<td align="left">Random-effects meta-analysis with <code><a href="reference/brma.html">brma()</a></code>, compared with <code><a href="https://wviechtb.github.io/metafor/reference/rma.uni.html" class="external-link">metafor::rma()</a></code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/03-feature-coverage.html"><em>Feature Coverage</em></a></td>
+<td align="left">Overview of available functionality across model families</td>
+</tr>
+</tbody>
+</table>
+<p>The foundations section gives the package overview, prior specification, a baseline <code><a href="reference/brma.html">brma()</a></code> workflow, and current feature coverage. The <a href="articles/02-bayesian-meta-analysis.html"><em>Bayesian Meta-Analysis</em></a> vignette walks through the BCG-vaccine example from the <code>metafor</code> package in <code><a href="reference/brma.html">brma()</a></code>, covering summaries, meta-regression, marginal means, residuals, influence, LOO, and the standard meta-analytic plots.</p>
+</div>
+<div class="section level3">
+<h3 id="correspondence-with-metafor">Correspondence with <code>metafor</code>
+<a class="anchor" aria-label="anchor" href="#correspondence-with-metafor"></a>
+</h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th align="left">Vignette</th>
+<th align="left">Topic</th>
+</tr></thead>
+<tbody>
+<tr>
+<td align="left"><a href="articles/10-metafor-parity-multilevel.html"><em>Multilevel Meta-Analysis</em></a></td>
+<td align="left">
+<code><a href="reference/brma.html">brma()</a></code> with <code>cluster</code> and <code><a href="https://wviechtb.github.io/metafor/reference/rma.mv.html" class="external-link">metafor::rma.mv()</a></code> for 3-level data</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/11-metafor-parity-publication-bias.html"><em>Publication-Bias Adjustment</em></a></td>
+<td align="left">
+<code><a href="reference/bselmodel.html">bselmodel()</a></code> / <code><a href="reference/bPET.html">bPET()</a></code> / <code><a href="reference/bPEESE.html">bPEESE()</a></code> and <code><a href="https://wviechtb.github.io/metafor/reference/selmodel.html" class="external-link">metafor::selmodel()</a></code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/12-metafor-parity-location-scale.html"><em>Location-Scale Models</em></a></td>
+<td align="left">
+<code><a href="reference/brma.html">brma()</a></code> with <code>scale</code> and <code>metafor::rma.ls()</code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/13-metafor-parity-glmm.html"><em>Generalized Linear Mixed-Effects Meta-Analysis</em></a></td>
+<td align="left">
+<code><a href="reference/brma.glmm.html">brma.glmm()</a></code> and <code><a href="https://wviechtb.github.io/metafor/reference/rma.glmm.html" class="external-link">metafor::rma.glmm()</a></code> for binomial and Poisson outcomes</td>
+</tr>
+</tbody>
+</table>
+<p>Each vignette starts from a <code>metafor</code> package analysis and shows the matching <code>RoBMA</code> R package syntax, output, and diagnostics.</p>
+</div>
+<div class="section level3">
+<h3 id="bayesian-model-averaging">Bayesian Model Averaging<a class="anchor" aria-label="anchor" href="#bayesian-model-averaging"></a>
+</h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th align="left">Vignette</th>
+<th align="left">Topic</th>
+</tr></thead>
+<tbody>
+<tr>
+<td align="left"><a href="articles/20-bayesian-model-averaging.html"><em>Bayesian Model Averaging</em></a></td>
+<td align="left">Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/21-robust-bayesian-meta-analysis.html"><em>Robust Bayesian Meta-Analysis</em></a></td>
+<td align="left">Extending the ensemble to publication-bias models used in <code><a href="reference/RoBMA.html">RoBMA()</a></code>, with <code>PSMA</code>, <code>PP</code>, and bespoke ensemble specifications</td>
+</tr>
+</tbody>
+</table>
+<p>The first vignette introduces model averaging on an ensemble of models with and without effect and heterogeneity. The second extends the ensemble to publication-bias models used in <code><a href="reference/RoBMA.html">RoBMA()</a></code>.</p>
+</div>
+<div class="section level3">
+<h3 id="manuscript-companions">Manuscript Companions<a class="anchor" aria-label="anchor" href="#manuscript-companions"></a>
+</h3>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th align="left">Vignette</th>
+<th align="left">Companion paper / dataset</th>
+</tr></thead>
+<tbody>
+<tr>
+<td align="left"><a href="articles/30-tutorial.html"><em>Adjusting for Publication Bias Tutorial</em></a></td>
+<td align="left">Bartoš et al. (2022), JASP / R tutorial on <code>Lui2015</code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/31-robma-metaregression.html"><em>Robust Bayesian Meta-Regression</em></a></td>
+<td align="left">Bartoš et al. (2025), RoBMA-reg on <code>Andrews2021</code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/32-robma-multilevel.html"><em>Multilevel Robust Bayesian Meta-Analysis</em></a></td>
+<td align="left">Bartoš et al. (2026), Multilevel RoBMA on <code>Johnides2025</code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/33-robma-multilevel-metaregression.html"><em>Multilevel Robust Bayesian Meta-Regression</em></a></td>
+<td align="left">Multilevel RoBMA-reg on <code>Kroupova2021</code>
+</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/34-bma-norm-medicine.html"><em>Informed Bayesian Meta-Analysis in Medicine</em></a></td>
+<td align="left">Bartoš et al. (2021), informed prior distributions for medical meta-analysis (continuous outcomes)</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/35-bma-glmm-medicine.html"><em>Informed Bayesian Meta-Analysis with Binary Outcomes</em></a></td>
+<td align="left">Bartoš et al. (2023), informed prior distributions for medical meta-analysis (binary and time-to-event outcomes)</td>
+</tr>
+<tr>
+<td align="left"><a href="articles/36-zplot.html"><em>Zplot Publication-Bias Diagnostics</em></a></td>
+<td align="left">Bartoš &amp; Schimmack (2025), zplot diagnostics on <code>Hoppen2025</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p>These vignettes reproduce or update analyses from published papers and serve as references when citing the corresponding methodological work.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="where-to-start">Where to Start<a class="anchor" aria-label="anchor" href="#where-to-start"></a>
+</h2>
+<ul>
+<li>For readers familiar with the <code>metafor</code> package: read <a href="articles/02-bayesian-meta-analysis.html"><em>Bayesian Meta-Analysis</em></a>, then the <em>Correspondence with <code>metafor</code></em> vignettes for the model family they use most.</li>
+<li>For readers new to Bayesian meta-analysis: read <a href="articles/01-prior-distributions.html"><em>Prior Distributions</em></a> and then <a href="articles/02-bayesian-meta-analysis.html"><em>Bayesian Meta-Analysis</em></a>.</li>
+<li>For publication-bias adjustment: read <a href="articles/21-robust-bayesian-meta-analysis.html"><em>Robust Bayesian Meta-Analysis</em></a>, with <a href="articles/30-tutorial.html"><em>Adjusting for Publication Bias Tutorial</em></a> as a worked example.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+</h2>
 <div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0" line-spacing="2">
 <div id="ref-bartos2021bayesian" class="csl-entry">
 Bartoš, F., Gronau, Q. F., Timmers, B., Otte, W. M., Ly, A., &amp; Wagenmakers, E.-J. (2021). Bayesian model-averaged meta-analysis in medicine. <em>Statistics in Medicine</em>, <em>40</em>(30), 6743–6761. <a href="https://doi.org/10.1002/sim.9170" class="external-link uri">https://doi.org/10.1002/sim.9170</a>
 </div>
+<div id="ref-RoBMA" class="csl-entry">
+Bartoš, F., &amp; Maier, M. (2020). <em>RoBMA: An R package for robust Bayesian meta-analyses</em>. <a href="https://CRAN.R-project.org/package=RoBMA" class="external-link uri">https://CRAN.R-project.org/package=RoBMA</a>
+</div>
 <div id="ref-bartos2020adjusting" class="csl-entry">
-Bartoš, F., Maier, Maximilian, Quintana, D. S., &amp; Wagenmakers, E.-J. (2022). Adjusting for publication bias in JASP and R — Selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>
+Bartoš, F., Maier, M., Quintana, D. S., &amp; Wagenmakers, E.-J. (2022). Adjusting for publication bias in JASP and R — Selection models, PET-PEESE, and robust Bayesian meta-analysis. <em>Advances in Methods and Practices in Psychological Science</em>, <em>5</em>(3), 1–19. <a href="https://doi.org/10.1177/25152459221109259" class="external-link uri">https://doi.org/10.1177/25152459221109259</a>
 </div>
 <div id="ref-bartos2023robust" class="csl-entry">
 Bartoš, F., Maier, M., Stanley, T., &amp; Wagenmakers, E.-J. (2025). Robust Bayesian meta-regression: Model-averaged moderation analysis in the presence of publication bias. <em>Psychological Methods</em>. <a href="https://doi.org/10.1037/met0000737" class="external-link uri">https://doi.org/10.1037/met0000737</a>
 </div>
-<div id="ref-bartos2021no" class="csl-entry">
-Bartoš, F., Maier, M., Wagenmakers, E.-J., Doucouliagos, H., &amp; Stanley, T. D. (2023). Robust Bayesian meta-analysis: Model-averaging across complementary publication bias adjustment methods. <em>Research Synthesis Methods</em>, <em>14</em>(1), 99–116. <a href="https://doi.org/10.1002/jrsm.1594" class="external-link uri">https://doi.org/10.1002/jrsm.1594</a>
+<div id="ref-bartos2025robust" class="csl-entry">
+Bartoš, F., Maier, M., &amp; Wagenmakers, E.-J. (2026). Robust Bayesian multilevel meta-analysis: Adjusting for publication bias in the presence of dependent effect sizes. <em>Behavior Research Methods</em>. <a href="https://doi.org/10.31234/osf.io/9tgp2_v1" class="external-link uri">https://doi.org/10.31234/osf.io/9tgp2_v1</a>
 </div>
 <div id="ref-bartos2023empirical" class="csl-entry">
 Bartoš, F., Otte, W. M., Gronau, Q. F., Timmers, B., Ly, A., &amp; Wagenmakers, E.-J. (2023). <em>Empirical prior distributions for Bayesian meta-analyses of binary and time-to-event outcomes</em>. <a href="https://doi.org/10.48550/arXiv.2306.11468" class="external-link uri">https://doi.org/10.48550/arXiv.2306.11468</a>
 </div>
-<div id="ref-bem2011feeling" class="csl-entry">
-Bem, D. J. (2011). Feeling the future: Experimental evidence for anomalous retroactive influences on cognition and affect. <em>Journal of Personality and Social Psychology</em>, <em>100</em>(3), 407–425. <a href="https://doi.org/10.1037/a0021524" class="external-link uri">https://doi.org/10.1037/a0021524</a>
+<div id="ref-bartos2025zcurve" class="csl-entry">
+Bartoš, F., &amp; Schimmack, U. (2025). Zplot: A visual diagnostic for publication bias in meta-analysis. In <em>arXiv</em>. <a href="https://doi.org/10.48550/arXiv.2509.07171" class="external-link uri">https://doi.org/10.48550/arXiv.2509.07171</a>
 </div>
-<div id="ref-bem2011must" class="csl-entry">
-Bem, D. J., Utts, J., &amp; Johnson, W. O. (2011). Must psychologists change the way they analyze their data? <em>Journal of Personality and Social Psychology</em>, <em>101</em>(4), 716–719. <a href="https://doi.org/10.1037/a0024777" class="external-link uri">https://doi.org/10.1037/a0024777</a>
-</div>
-<div id="ref-erp2017estimates" class="csl-entry">
-Erp, S. van, Verhagen, J., Grasman, R. P., &amp; Wagenmakers, E.-J. (2017). Estimates of between-study heterogeneity for 705 meta-analyses reported in Psychological Bulletin from 1990–2013. <em>Journal of Open Psychology Data</em>, <em>5</em>(1), 1–5. <a href="https://doi.org/10.5334/jopd.33" class="external-link uri">https://doi.org/10.5334/jopd.33</a>
-</div>
-<div id="ref-jasp14" class="csl-entry">
-JASP Team. (2020). <em>JASP (Version 0.14)</em>. <a href="https://jasp-stats.org/" class="external-link uri">https://jasp-stats.org/</a>
-</div>
-<div id="ref-maier2020robust" class="csl-entry">
-Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2023). Robust Bayesian meta-analysis: Addressing publication bias with model-averaging. <em>Psychological Methods</em>, <em>28</em>(1), 107–122. <a href="https://doi.org/10.1037/met0000405" class="external-link uri">https://doi.org/10.1037/met0000405</a>
-</div>
+<div id="ref-plummer2003jags" class="csl-entry">
+Plummer, M. (2003). JAGS: A program for analysis of Bayesian graphical models using Gibbs sampling. <em>Proceedings of the 3rd International Workshop on Distributed Statistical Computing (DSC 2003)</em>, 1–10.
 </div>
 </div>
 </div>
@@ -321,15 +384,7 @@ Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2023). Robust Bayesian meta-an
 </ul>
 </div>
 
-<div class="dev-status">
-<h2 data-toc-skip>Dev status</h2>
-<ul class="list-unstyled">
-<li><a href="https://github.com/FBartos/RoBMA/actions" class="external-link"><img src="https://github.com/FBartos/RoBMA/workflows/R-CMD-check/badge.svg" alt="R-CRAN-check"></a></li>
-<li><a href="https://github.com/FBartos/RoBMA/actions" class="external-link"><img src="https://github.com/FBartos/RoBMA/workflows/R-CMD-tests/badge.svg" alt="R-tests"></a></li>
-<li><a href="https://app.codecov.io/gh/FBartos/RoBMA?branch=master" class="external-link"><img src="https://codecov.io/gh/FBartos/RoBMA/branch/master/graph/badge.svg" alt="Codecov test coverage"></a></li>
-<li><a href="https://CRAN.R-project.org/package=RoBMA" class="external-link"><img src="https://www.r-pkg.org/badges/version/RoBMA" alt="CRAN status"></a></li>
-</ul>
-</div>
+
 
   </aside>
 </div>
@@ -340,7 +395,7 @@ Maier, M., Bartoš, F., &amp; Wagenmakers, E.-J. (2023). Robust Bayesian meta-an
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>

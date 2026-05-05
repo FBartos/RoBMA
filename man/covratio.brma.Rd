@@ -14,10 +14,11 @@
 (for the effect size and meta-regression coefficients). Use \code{"scale"}
 for heterogeneity and scale-regression coefficients.}
 
-\item{...}{additional arguments (currently ignored).}
+\item{...}{additional arguments. The internal \code{.weights} argument can
+supply precomputed PSIS weights for callers that already extracted them.}
 }
 \value{
-A numeric vector of COVRATIO values, one for each observation.
+A named numeric vector of COVRATIO values, one for each observation.
 }
 \description{
 Computes COVRATIO for a fitted brma object. COVRATIO measures
@@ -27,15 +28,18 @@ when observation \eqn{i} is removed.
 \details{
 COVRATIO is computed using importance sampling weights to approximate the
 leave-one-out covariance matrices without refitting the model.
+Estimate-unit LOO must first be computed with
+\code{model <- add_loo(model, unit = "estimate")}, unless internal weights
+are supplied.
 
 \deqn{COVRATIO_i = \frac{\det(Cov(\beta)_{-i})}{\det(Cov(\beta))}}
 
 Values > 1 indicate that the observation improves precision (decreases
 variance), while values < 1 indicate that the observation decreases precision
 (increases variance).
-If any included parameter has zero posterior variance, the covariance
-determinant is zero and COVRATIO is undefined. In that case, values are
-reported as \code{NaN} with a printed note naming the affected parameters.
+If any included parameter has zero posterior variance, or if a full or LOO
+covariance determinant is zero or non-finite, COVRATIO is undefined. In that
+case, values are reported as \code{NaN} with a printed note when available.
 }
 \examples{
 \dontrun{

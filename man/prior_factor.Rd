@@ -21,11 +21,20 @@ prior_factor(
 
 \item{prior_weights}{numeric prior model weight.}
 
-\item{contrast}{character. Contrast coding used for factor levels.}
+\item{contrast}{character. Contrast coding used for factor levels. Common
+RoBMA model options are \code{"treatment"}, \code{"meandif"}, and
+\code{"orthonormal"}; the standalone helper also accepts BayesTools contrast
+aliases such as \code{"independent"}.}
 }
 \value{
-An object of class \code{prior}.
+An object inheriting from \code{prior}, \code{prior.factor}, and a
+contrast-specific marker class.
 }
 \description{
 Create priors on factor contrasts.
+}
+\details{
+Mean-difference and orthonormal contrasts require vector or
+multivariate priors. Treatment/dummy and independent contrasts use univariate
+simple priors per contrast coefficient.
 }

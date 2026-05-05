@@ -66,8 +66,11 @@ summary_heterogeneity <- function(object, ...) {
 #' For multilevel (3-level) models with nested effects, the function additionally
 #' partitions heterogeneity into estimate-level and cluster-level components:
 #' \itemize{
+#'   \item \code{rho}: Proportion of heterogeneity variance allocated to clusters
 #'   \item \code{tau [within]}: Estimate-level standard deviation
 #'   \item \code{tau [between]}: Cluster-level standard deviation
+#'   \item \code{tau2 [within]}: Estimate-level variance
+#'   \item \code{tau2 [between]}: Cluster-level variance
 #'   \item \code{I2 [within]}: Percentage of variance due to estimate-level heterogeneity
 #'   \item \code{I2 [between]}: Percentage of variance due to cluster-level heterogeneity
 #' }
@@ -79,7 +82,7 @@ summary_heterogeneity <- function(object, ...) {
 #'
 #' The I^2 and H^2 statistics are computed following the metafor package
 #' implementation, using the "typical" sampling variance formula from
-#' \insertCite{higgins2002quantifying;textual}{RoBMA} For multilevel models,
+#' \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 #' the partitioned I^2 follows the approach described in the metafor documentation.
 #'
 #' @return A list of class \code{summary_heterogeneity.brma} containing:
@@ -131,20 +134,24 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
 
   v_tilde <- (K - p) / sum(diag(P))
 
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+
   # extract tau samples using the evaluate helper
   tau_result <- .evaluate.brma.tau(
-    fit           = object[["fit"]],
-    scale_data    = object[["data"]][["scale"]],
-    scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
-    scale_priors  = object[["priors"]][["scale"]],
-    is_scale      = is_scale,
-    is_multilevel = is_multilevel,
-    K             = K
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = is_scale,
+    is_multilevel     = is_multilevel,
+    K                 = K,
+    posterior_samples = posterior_samples
   )
 
   samples_list <- .summary_heterogeneity_samples(
     tau_within_samples  = tau_result[["tau_within"]],
     tau_between_samples = tau_result[["tau_between"]],
+    rho_samples         = if (is_multilevel) posterior_samples[, "rho"] else NULL,
     v_tilde             = v_tilde,
     is_multilevel       = is_multilevel
   )
@@ -175,7 +182,8 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
 # Compute heterogeneity summaries from observation-level tau samples.
 #
 .summary_heterogeneity_samples <- function(tau_within_samples, tau_between_samples,
-                                           v_tilde, is_multilevel) {
+                                           v_tilde, is_multilevel,
+                                           rho_samples = NULL) {
 
   if (is.null(tau_between_samples)) {
     tau_between_samples <- matrix(0, nrow = nrow(tau_within_samples),
@@ -192,6 +200,11 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
   }
   if (!is.numeric(v_tilde) || length(v_tilde) != 1 || !is.finite(v_tilde) || v_tilde <= 0) {
     stop("'v_tilde' must be a positive finite number.", call. = FALSE)
+  }
+  if (is_multilevel && !is.null(rho_samples) &&
+      (!is.numeric(rho_samples) || length(rho_samples) != nrow(tau_within_samples))) {
+    stop("'rho_samples' must be a numeric vector matching posterior sample rows.",
+         call. = FALSE)
   }
 
   sigma2_within_matrix  <- tau_within_samples^2
@@ -211,9 +224,15 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
 
     I2_within  <- rowMeans(100 * sigma2_within_matrix / denominator_matrix)
     I2_between <- rowMeans(100 * sigma2_between_matrix / denominator_matrix)
+    if (is.null(rho_samples)) {
+      rho_samples <- ifelse(sigma2_total > 0, sigma2_between / sigma2_total, 0)
+    } else {
+      rho_samples <- pmin(pmax(rho_samples, 0), 1)
+    }
 
     return(list(
       "tau"             = sqrt(sigma2_total),
+      "rho"             = rho_samples,
       "tau [within]"    = sqrt(sigma2_within),
       "tau [between]"   = sqrt(sigma2_between),
       "tau2"            = sigma2_total,

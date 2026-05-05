@@ -100,6 +100,16 @@ test_that("interpret.brma handles options and errors", {
   exp_output <- interpret(fits[["bcg_BMA.glmm"]], transform = "EXP")
   expect_true(any(grepl("Pooled effect: model-averaged mode", exp_output,
                         fixed = TRUE)))
+  expect_true(any(grepl("Pooled effect estimates are summarized", exp_output,
+                        fixed = TRUE)))
+
+  transformed_mods <- interpret(
+    fits[["dat.lehmann2018_RoBMA_mods2"]],
+    scope          = "moderators",
+    output_measure = "COR"
+  )
+  expect_false(any(grepl("on the correlation scale", transformed_mods,
+                         fixed = TRUE)))
 
   prior_output <- interpret(fits[["dat.lehmann2018_RoBMA"]], priors = TRUE)
   expect_interpret_contract(prior_output, "dat.lehmann2018_RoBMA priors",

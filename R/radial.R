@@ -30,9 +30,10 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' @description \code{radial.brma} creates a radial (Galbraith) plot for a
 #' fitted brma object. The plot displays each study as a point with
 #' precision on the x-axis and the standardized effect size on the z-axis.
-#' A line from the origin through any point has slope equal to the observed
-#' effect size, and an arc on the right side maps standardized values back
-#' to the effect size scale.
+#' Without centering, a line from the origin through any point has slope equal
+#' to the observed effect size. With centering, slopes are relative to the
+#' pooled estimate. An arc on the right side maps standardized values back to
+#' the effect size scale.
 #'
 #' @param x a fitted brma object. Must be an intercept-only model
 #' (no moderators or scale regression).
@@ -50,7 +51,7 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' @param steps integer specifying the number of tick marks on the y-axis arc
 #' when \code{aty} is not specified. Defaults to \code{7}.
 #' @param level numeric value between 0 and 100 specifying the confidence level
-#' for the z-axis band. Defaults to \code{95}.
+#' for the confidence band and pooled-effect CI arc. Defaults to \code{95}.
 #' @param digits integer specifying the number of decimal places for y-axis
 #' arc labels. Defaults to \code{2}.
 #' @param transf optional transformation function applied to the y-axis arc
@@ -66,6 +67,7 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #'   \item{bg}{point fill/background color (default: "#A6A6A6")}
 #'   \item{cex}{point size multiplier for base graphics (default: 1)}
 #'   \item{size}{point size for ggplot2 (default: 2)}
+#'   \item{las}{axis-label style for base graphics (default: 1)}
 #'   \item{back}{background color for the confidence band (default: "grey90").
 #'     Set to \code{NA} to suppress.}
 #'   \item{arc.res}{integer specifying the number of line segments used to
@@ -85,14 +87,16 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' }
 #'
 #' Under the random-effects model, studies consistent with the pooled effect
-#' should fall within a horizontal confidence band centered at
-#' \eqn{z = \pm z_{\alpha/2}}. The arc on the right side allows reading
-#' individual effect sizes by projecting from the origin through a point
-#' to the arc.
+#' should fall within the sloped parallelogram confidence band around the
+#' pooled-effect line. The arc on the right side allows reading individual
+#' effect sizes by projecting from the origin through a point to the arc; when
+#' \code{center = TRUE}, the plotted slope is relative to the pooled effect.
 #'
 #' This function requires an intercept-only model; radial plots are not
 #' meaningful for meta-regression or location-scale models where the
 #' pooled effect varies across studies.
+#'
+#' \code{galbraith()} is a same-argument alias for \code{radial()}.
 #'
 #' @return \code{radial.brma} returns \code{NULL} invisibly if
 #' \code{plot_type = "base"} or a ggplot object if \code{plot_type = "ggplot"}.
@@ -141,6 +145,20 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
   # input validation
   BayesTools::check_bool(center, "center")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
+  .check_plot_limits(if (missing(xlim)) NULL else xlim, "xlim")
+  .check_plot_limits(if (missing(zlim)) NULL else zlim, "zlim")
+  .check_plot_label(if (missing(xlab)) NULL else xlab, "xlab")
+  .check_plot_label(if (missing(zlab)) NULL else zlab, "zlab")
+  .check_plot_numeric(if (missing(atz)) NULL else atz, "atz", allow_null = TRUE)
+  .check_plot_numeric(if (missing(aty)) NULL else aty, "aty", allow_null = TRUE)
+  BayesTools::check_int(steps, "steps", lower = 1)
+  BayesTools::check_real(level, "level", check_length = 1, allow_NA = FALSE)
+  if (level <= 0 || level >= 100) {
+    stop("'level' must be greater than 0 and less than 100.", call. = FALSE)
+  }
+  BayesTools::check_int(digits, "digits", lower = 0)
+  .check_plot_function(if (missing(transf)) NULL else transf, "transf")
+  .check_plot_list(if (missing(targs)) NULL else targs, "targs")
 
   # check model type - error on models with moderators or scale
   if (.is_mods(x)) {
@@ -936,16 +954,30 @@ galbraith.brma <- function(x, ...) {
 
   # confidence band
   if (is.null(dots[["back"]])) dots[["back"]] <- "grey90"
+  if (length(dots[["back"]]) != 1L ||
+      (!is.na(dots[["back"]]) &&
+       !(is.character(dots[["back"]]) || is.numeric(dots[["back"]])))) {
+    stop("'back' must be a single color value or NA.", call. = FALSE)
+  }
 
   # arc resolution
   if (is.null(dots[["arc.res"]])) dots[["arc.res"]] <- 100
+  BayesTools::check_int(dots[["arc.res"]], "arc.res", lower = 2)
 
   # title
   if (is.null(dots[["main"]])) dots[["main"]] <- NULL
   if (is.null(dots[["las"]]))  dots[["las"]]  <- 1
+  .check_plot_label(dots[["main"]], "main")
+  BayesTools::check_int(dots[["las"]], "las", lower = 0)
+  if (!dots[["las"]] %in% 0:3) {
+    stop("'las' must be one of 0, 1, 2, or 3.", call. = FALSE)
+  }
 
   # data return flag
   if (is.null(dots[["as_data"]])) dots[["as_data"]] <- FALSE
+  BayesTools::check_bool(dots[["as_data"]], "as_data")
+  .check_plot_positive_scalar(dots[["cex"]], "cex")
+  .check_plot_positive_scalar(dots[["size"]], "size")
 
   return(dots)
 }

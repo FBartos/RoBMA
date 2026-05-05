@@ -19,7 +19,9 @@ plot_weightfunction(x, ...)
 )
 }
 \arguments{
-\item{x}{a fitted RoBMA object}
+\item{x}{a fitted \code{brma} object with a weightfunction/selection
+component, such as \code{bselmodel()} or a \code{RoBMA()} object with
+weightfunction priors.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments
@@ -45,7 +47,8 @@ marks on the weightfunction axis. Defaults to \code{TRUE}.}
 \item{dots_data}{list of additional graphical arguments for observed
 p-value rug marks. Supported arguments include \code{col}/\code{color},
 \code{alpha}, \code{lwd}/\code{linewidth}/\code{size},
-\code{side}/\code{rug_side}, and \code{height}/\code{rug_height}.}
+\code{side}/\code{rug_side}, and
+\code{height}/\code{rug_height}/\code{ticksize}.}
 
 \item{dots_prior}{list of additional graphical arguments
 to be passed to the plotting function of the prior
@@ -58,6 +61,7 @@ of the prior distribution respectively.}
 \code{plot_weightfunction.brma} returns either \code{NULL} if
 \code{plot_type = "base"} or a \code{ggplot2} object if
 \code{plot_type = "ggplot"}.
+The method errors for fitted objects without a weightfunction component.
 }
 \description{
 \code{plot_weightfunction.brma} visualizes the posterior

@@ -13,6 +13,7 @@
   conditioning_depth = "marginal",
   sampling_heterogeneity = TRUE,
   sampling_bias = TRUE,
+  max_samples = 10000,
   plot_type = "base",
   ...
 )
@@ -23,12 +24,13 @@
 \item{residual}{whether to use residual mode. Defaults to not specified,
 which means the function automatically determines the mode:
 \itemize{
-\item \code{FALSE} (auto): For intercept-only models without scale
+\item not specified: For intercept-only models without scale
 regression, displays observed effect sizes against the fitted sampling
-distribution funnel.
-\item \code{TRUE} (auto or explicit): For models with moderators or scale
-regression, or when explicitly set to \code{TRUE}, displays residuals on
-the x-axis, using \code{type} to determine how those residuals are
+distribution funnel; for models with moderators or scale regression,
+automatically uses residual mode.
+\item \code{FALSE}: explicitly requests outcome mode.
+\item \code{TRUE}: explicitly requests residual mode, displaying residuals
+on the x-axis and using \code{type} to determine how those residuals are
 computed.
 }}
 
@@ -49,7 +51,9 @@ Only used when funnel is in residual mode.}
 implemented in this pass.}
 
 \item{conditioning_depth}{residual conditioning depth for residual mode.
-Options are \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.}
+Options are \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.
+The default LOO-PIT residual path is available only with marginal
+conditioning depth.}
 
 \item{sampling_heterogeneity}{whether heterogeneity should be incorporated
 into the sampling distribution funnel. Defaults to \code{TRUE}. Only used
@@ -62,6 +66,10 @@ in residual mode. When \code{TRUE} and the model
 includes selection models (weightfunction), uses selected-normal quantiles.
 When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 skew from these regression adjustments.}
+
+\item{max_samples}{maximum number of posterior samples used for
+model-averaged publication-bias funnel contours. Defaults to \code{10000}.
+Use \code{Inf} to use all posterior samples.}
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
@@ -76,6 +84,7 @@ skew from these regression adjustments.}
 \item{bg}{point fill/background color (default: "#A6A6A6")}
 \item{cex}{point size multiplier for base graphics (default: 1)}
 \item{size}{point size for ggplot2 (default: 2)}
+\item{las}{axis-label style for base graphics (default: 1)}
 \item{back}{background region color (default: "grey"). Set to \code{NA} to suppress.}
 \item{shade}{funnel region fill color (default: "white"). Set to \code{NA} to suppress.}
 \item{lty}{line type for funnel edges and center line (default: "dotted")}

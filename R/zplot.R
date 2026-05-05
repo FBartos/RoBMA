@@ -31,7 +31,7 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' @description Transforms an estimated brma model into a zplot object
 #' that can be summarized and plotted to assess replicability.
 #'
-#' @param object a brma object.
+#' @param object a normal-outcome \code{brma} object.
 #' @param significance_level z-value threshold for significance. Defaults
 #' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
 #' @param max_samples maximum number of posterior samples for estimation.
@@ -39,13 +39,14 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
-#' Zplot analysis estimates the Expected Discovery Rate (EDR), which
-#' represents the average power of statistically significant studies. This
-#' provides insight into the replicability of findings in a literature.
+#' Zplot analysis estimates the Expected Discovery Rate (EDR), the posterior
+#' mean probability that an exact replication would be statistically significant
+#' at the supplied threshold. This provides insight into the replicability of
+#' findings in a literature.
 #'
 #' The implementation uses extrapolation mode by default, which removes
-#' publication bias adjustments (PET/PEESE/selection weights) to estimate
-#' what the true power distribution would be without selective reporting.
+#' selection-model weights when evaluating the model-implied z-value density.
+#' PET/PEESE regression terms remain part of the fitted location model.
 #' Zplot diagnostics are available only for normal outcome models. GLMM
 #' objects are rejected because their raw likelihood is on a count scale while
 #' zplot diagnostics require observed effect-size z-statistics with standard
@@ -58,8 +59,10 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' @return The input object with added class \code{"zplot_brma"} and a new
 #' \code{zplot} list component containing:
 #' \describe{
-#'   \item{estimates}{posterior samples for EDR and weights}
-#'   \item{data}{observed z-statistics and significance counts}
+#'   \item{estimates}{a list with posterior samples for \code{EDR} and
+#'     missing-study \code{weights}}
+#'   \item{data}{a list with \code{significance_level}, observed
+#'     \code{z}-statistics, \code{N_significant}, and \code{N_observed}}
 #' }
 #'
 #' @seealso [summary.zplot_brma()], [plot.zplot_brma()], [hist.zplot_brma()]
@@ -139,13 +142,19 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @description Convenience wrapper for creating and plotting zplot diagnostics
 #' from a fitted \code{brma} object.
 #'
-#' @param object a brma or zplot_brma object.
+#' @param object a normal-outcome \code{brma} object, or a
+#' \code{zplot_brma} object.
 #' @param significance_level z-value threshold for significance. Defaults
 #' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
 #' @param summary_max_samples maximum number of posterior samples used for the
 #' EDR and missing-study summaries stored in the generated zplot object.
-#' Defaults to 1000.
+#' This is separate from the plot-density \code{max_samples} argument accepted
+#' by \code{plot.zplot_brma()} through \code{...}. Defaults to 1000.
 #' @param ... arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.
+#'
+#' @details When \code{object} already inherits from \code{zplot_brma},
+#' \code{zplot()} dispatches directly to \code{plot.zplot_brma()} without
+#' recomputing stored summaries.
 #'
 #' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
 #'

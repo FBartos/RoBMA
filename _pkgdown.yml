@@ -4,78 +4,79 @@ template:
 
 navbar:
   structure:
-    left: [intro, foundations, parity, tutorials, reference, news]
+    left: [intro, articles, reference, news]
   components:
-    foundations:
-      text: Foundations
+    articles:
+      text: Articles
       menu:
+      - text: Foundations
       - text: Introduction
-        href: articles/00-introduction.html
+        href: articles/v00-introduction.html
       - text: Prior Distributions
-        href: articles/01-prior-distributions.html
+        href: articles/v01-prior-distributions.html
       - text: Bayesian Meta-Analysis
-        href: articles/02-bayesian-meta-analysis.html
+        href: articles/v02-bayesian-meta-analysis.html
       - text: Feature Coverage
-        href: articles/03-feature-coverage.html
-      - text: Bayesian Model Averaging
-        href: articles/20-bayesian-model-averaging.html
-      - text: Robust Bayesian Meta-Analysis
-        href: articles/21-robust-bayesian-meta-analysis.html
-    parity:
-      text: Metafor Parity
-      menu:
+        href: articles/v03-feature-coverage.html
+      - text: -------
+      - text: metafor Parity
       - text: Multilevel Meta-Analysis
-        href: articles/10-metafor-parity-multilevel.html
+        href: articles/v10-metafor-parity-multilevel.html
       - text: Publication-Bias Adjustment
-        href: articles/11-metafor-parity-publication-bias.html
+        href: articles/v11-metafor-parity-publication-bias.html
       - text: Location-Scale Meta-Analysis
-        href: articles/12-metafor-parity-location-scale.html
+        href: articles/v12-metafor-parity-location-scale.html
       - text: Generalized Linear Mixed-Effects Meta-Analysis
-        href: articles/13-metafor-parity-glmm.html
-    tutorials:
-      text: Tutorials
-      menu:
-      - text: Publication Bias Tutorial
-        href: articles/30-tutorial.html
+        href: articles/v13-metafor-parity-glmm.html
+      - text: -------
+      - text: Bayesian Model Averaging
+      - text: Bayesian Model Averaging
+        href: articles/v20-bayesian-model-averaging.html
+      - text: Robust Bayesian Meta-Analysis
+        href: articles/v21-robust-bayesian-meta-analysis.html
+      - text: -------
+      - text: Manuscript Companions
+      - text: Adjusting for Publication Bias Tutorial
+        href: articles/v30-tutorial.html
       - text: RoBMA Meta-Regression
-        href: articles/31-robma-metaregression.html
+        href: articles/v31-robma-metaregression.html
       - text: Multilevel RoBMA
-        href: articles/32-robma-multilevel.html
+        href: articles/v32-robma-multilevel.html
       - text: Multilevel RoBMA Meta-Regression
-        href: articles/33-robma-multilevel-metaregression.html
+        href: articles/v33-robma-multilevel-metaregression.html
       - text: BMA in Medicine
-        href: articles/34-bma-norm-medicine.html
+        href: articles/v34-bma-norm-medicine.html
       - text: BMA for Binary Outcomes
-        href: articles/35-bma-glmm-medicine.html
+        href: articles/v35-bma-glmm-medicine.html
       - text: Zplot Diagnostics
-        href: articles/36-zplot.html
+        href: articles/v36-zplot.html
 
 articles:
 - title: Foundations
   contents:
-  - "00-introduction"
-  - "01-prior-distributions"
-  - "02-bayesian-meta-analysis"
-  - "03-feature-coverage"
-- title: Correspondence with metafor
+  - "v00-introduction"
+  - "v01-prior-distributions"
+  - "v02-bayesian-meta-analysis"
+  - "v03-feature-coverage"
+- title: metafor Parity
   contents:
-  - "10-metafor-parity-multilevel"
-  - "11-metafor-parity-publication-bias"
-  - "12-metafor-parity-location-scale"
-  - "13-metafor-parity-glmm"
-- title: Bayesian model averaging
+  - "v10-metafor-parity-multilevel"
+  - "v11-metafor-parity-publication-bias"
+  - "v12-metafor-parity-location-scale"
+  - "v13-metafor-parity-glmm"
+- title: Bayesian Model Averaging
   contents:
-  - "20-bayesian-model-averaging"
-  - "21-robust-bayesian-meta-analysis"
-- title: Tutorials and applications
+  - "v20-bayesian-model-averaging"
+  - "v21-robust-bayesian-meta-analysis"
+- title: Manuscript Companions
   contents:
-  - "30-tutorial"
-  - "31-robma-metaregression"
-  - "32-robma-multilevel"
-  - "33-robma-multilevel-metaregression"
-  - "34-bma-norm-medicine"
-  - "35-bma-glmm-medicine"
-  - "36-zplot"
+  - "v30-tutorial"
+  - "v31-robma-metaregression"
+  - "v32-robma-multilevel"
+  - "v33-robma-multilevel-metaregression"
+  - "v34-bma-norm-medicine"
+  - "v35-bma-glmm-medicine"
+  - "v36-zplot"
 
 reference:
 - title: Package
@@ -100,6 +101,7 @@ reference:
   - fitting_specification
   - prior_specification
   - RoBMA_prior_specification
+  - publication_bias_prior_specification
   - prior
   - prior_none
   - prior_factor

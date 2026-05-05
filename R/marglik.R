@@ -97,6 +97,7 @@ add_marglik.brma <- function(object, ...) {
   priors <- object[["priors"]]
   fit    <- object[["fit"]]
 
+  # Public constructors reject p-hacking/composed selection kernels earlier.
   if (.marglik_has_composed_bias(priors[["outcome"]][["bias"]])) {
     stop(
       "Marginal likelihood is not available for combined ",

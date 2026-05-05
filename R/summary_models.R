@@ -1,17 +1,25 @@
-#' @title Summarize RoBMA Model Weights
+#' @title Summarize Model-Averaged Component Weights
 #'
 #' @description Creates marginal or individual model-weight summaries for
-#' RoBMA product-space objects.
+#' RoBMA-class product-space objects.
 #'
-#' @param object a fitted RoBMA object
+#' @param object a fitted RoBMA-class product-space object, including
+#' \code{RoBMA}, \code{BMA}/\code{BMA.norm}, and \code{BMA.glmm}.
 #' @param type whether to summarize marginal component prior distributions
 #'   (\code{"marginal"}) or individual model combinations (\code{"individual"}).
+#' @param include_mcmc_diagnostics whether to include Bayes factor MCMC
+#'   diagnostics in the output. Defaults to \code{TRUE}.
 #' @param ... additional arguments
 #'
-#' @return A list of class \code{summary_models.RoBMA}. For
-#' `type = "marginal"`, it contains marginal component tables. For
-#' `type = "individual"`, it contains a table of individual model
-#' combinations and posterior probabilities.
+#' @details Only mixture-prior components are summarized; non-mixture
+#' components are omitted.
+#'
+#' @return A list of class \code{summary_models.RoBMA} with elements
+#' \code{name} and \code{type}. For \code{type = "marginal"}, element
+#' \code{marginal} contains component tables with columns such as
+#' \code{prior_prob}, \code{post_prob}, and \code{inclusion_BF}. For
+#' \code{type = "individual"}, element \code{individual} contains individual
+#' model combinations and posterior probabilities.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -37,17 +45,24 @@ summary_models.default <- function(object, ...) {
 
 #' @rdname summary_models
 #' @export
-summary_models.RoBMA <- function(object, type = "marginal", ...) {
+summary_models.RoBMA <- function(object, type = "marginal",
+                                 include_mcmc_diagnostics = TRUE, ...) {
 
   BayesTools::check_char(type, "type")
+  BayesTools::check_bool(include_mcmc_diagnostics, "include_mcmc_diagnostics")
   type <- match.arg(type, c("marginal", "individual"))
 
   if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0) {
     stop("'summary_models' requires a fitted RoBMA object.", call. = FALSE)
   }
 
-  components        <- .summary_models_components(object)
-  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  components             <- .summary_models_components(object)
+  posterior_samples      <- .get_posterior_samples(object[["fit"]])
+  posterior_samples_list <- if (include_mcmc_diagnostics) {
+    .summary_models_posterior_samples_list(object[["fit"]])
+  } else {
+    NULL
+  }
 
   if (length(components) == 0L) {
     stop("No mixture-prior model components found.", call. = FALSE)
@@ -60,13 +75,15 @@ summary_models.RoBMA <- function(object, type = "marginal", ...) {
 
   if (type == "marginal") {
     output[["marginal"]] <- .summary_models_marginal_tables(
-      components        = components,
-      posterior_samples = posterior_samples
+      components             = components,
+      posterior_samples      = posterior_samples,
+      posterior_samples_list = posterior_samples_list
     )
   } else {
     output[["individual"]] <- .summary_models_individual_table(
-      components        = components,
-      posterior_samples = posterior_samples
+      components             = components,
+      posterior_samples      = posterior_samples,
+      posterior_samples_list = posterior_samples_list
     )
   }
 
@@ -183,7 +200,8 @@ print.summary_models.RoBMA <- function(x, ...) {
   return(components)
 }
 
-.summary_models_marginal_tables <- function(components, posterior_samples) {
+.summary_models_marginal_tables <- function(components, posterior_samples,
+                                            posterior_samples_list = NULL) {
 
   tables <- list()
 
@@ -203,6 +221,16 @@ print.summary_models.RoBMA <- function(x, ...) {
       prior_probs = info[["prior_probs"]],
       post_probs  = post_probs
     )
+    BF_error_percent <- .summary_models_BF_error_percent(
+      indicator_matrices = .summary_models_marginal_indicator_matrices(
+        posterior_samples_list = posterior_samples_list,
+        parameter              = info[["parameter"]],
+        prior                  = info[["prior"]]
+      ),
+      prior_probs        = info[["prior_probs"]],
+      post_probs         = post_probs,
+      inclusion_BF       = inclusion_BF
+    )
 
     table <- data.frame(
       Hypothesis   = info[["hypothesis"]],
@@ -217,9 +245,16 @@ print.summary_models.RoBMA <- function(x, ...) {
       table[["inclusion_BF"]],
       inclusion = TRUE
     )
+    table <- .summary_models_add_BF_diagnostics(
+      table            = table,
+      BF_error_percent = BF_error_percent
+    )
 
     class(table)             <- c("BayesTools_table", "RoBMA_summary_models_marginal", class(table))
-    attr(table, "type")      <- c("string_left", "prior_prob", "post_prob", "inclusion_BF")
+    attr(table, "type")      <- c(
+      "string_left", "prior_prob", "post_prob", "inclusion_BF",
+      .summary_models_BF_diagnostic_types(BF_error_percent)
+    )
     attr(table, "rownames")  <- TRUE
     attr(table, "title")     <- component
     attr(table, "footnotes") <- NULL
@@ -231,7 +266,8 @@ print.summary_models.RoBMA <- function(x, ...) {
   return(tables)
 }
 
-.summary_models_individual_table <- function(components, posterior_samples) {
+.summary_models_individual_table <- function(components, posterior_samples,
+                                             posterior_samples_list = NULL) {
 
   component_names <- names(components)
   component_grid  <- expand.grid(
@@ -280,6 +316,16 @@ print.summary_models.RoBMA <- function(x, ...) {
     prior_probs = prior_probs,
     post_probs  = post_probs
   )
+  BF_error_percent <- .summary_models_BF_error_percent(
+    indicator_matrices = .summary_models_individual_indicator_matrices(
+      components             = components,
+      component_grid         = component_grid,
+      posterior_samples_list = posterior_samples_list
+    ),
+    prior_probs        = prior_probs,
+    post_probs         = post_probs,
+    inclusion_BF       = inclusion_BF
+  )
 
   table <- cbind(
     prior_columns,
@@ -290,11 +336,16 @@ print.summary_models.RoBMA <- function(x, ...) {
       check.names  = FALSE
     )
   )
+  table <- .summary_models_add_BF_diagnostics(
+    table            = table,
+    BF_error_percent = BF_error_percent
+  )
 
   class(table)             <- c("BayesTools_table", "RoBMA_summary_models_individual", class(table))
   attr(table, "type")      <- c(
     rep("string_left", length(components)),
-    "prior_prob", "post_prob", "inclusion_BF"
+    "prior_prob", "post_prob", "inclusion_BF",
+    .summary_models_BF_diagnostic_types(BF_error_percent)
   )
   attr(table, "rownames")  <- FALSE
   attr(table, "title")     <- "Individual Models"
@@ -347,6 +398,143 @@ print.summary_models.RoBMA <- function(x, ...) {
     parameter         = parameter,
     prior             = prior
   ))
+}
+
+.summary_models_posterior_samples_list <- function(fit) {
+
+  posterior_samples_list <- suppressWarnings(coda::as.mcmc.list(fit))
+  posterior_samples_list <- lapply(posterior_samples_list, as.matrix)
+
+  return(posterior_samples_list)
+}
+
+.summary_models_indicators_list <- function(posterior_samples_list, parameter,
+                                            prior) {
+
+  if (is.null(posterior_samples_list)) {
+    return(NULL)
+  }
+
+  indicators_list <- lapply(posterior_samples_list, function(samples) {
+
+    .summary_models_indicators(
+      posterior_samples = samples,
+      parameter         = parameter,
+      prior             = prior
+    )
+  })
+
+  return(indicators_list)
+}
+
+.summary_models_marginal_indicator_matrices <- function(posterior_samples_list,
+                                                        parameter, prior) {
+
+  indicators_list <- .summary_models_indicators_list(
+    posterior_samples_list = posterior_samples_list,
+    parameter              = parameter,
+    prior                  = prior
+  )
+  if (is.null(indicators_list)) {
+    return(NULL)
+  }
+
+  indicator_matrices <- lapply(indicators_list, function(indicators) {
+
+    out <- matrix(
+      as.numeric(outer(indicators, seq_len(length(prior)), "==")),
+      nrow = length(indicators),
+      ncol = length(prior)
+    )
+    colnames(out) <- paste0("component_", seq_len(length(prior)))
+
+    return(out)
+  })
+
+  return(indicator_matrices)
+}
+
+.summary_models_individual_indicator_matrices <- function(components,
+                                                          component_grid,
+                                                          posterior_samples_list) {
+
+  if (is.null(posterior_samples_list)) {
+    return(NULL)
+  }
+
+  indicators_list <- lapply(components, function(info) {
+
+    .summary_models_indicators_list(
+      posterior_samples_list = posterior_samples_list,
+      parameter              = info[["parameter"]],
+      prior                  = info[["prior"]]
+    )
+  })
+
+  indicator_matrices <- lapply(seq_along(posterior_samples_list), function(i) {
+
+    out <- matrix(
+      0,
+      nrow = nrow(posterior_samples_list[[i]]),
+      ncol = nrow(component_grid)
+    )
+    for (j in seq_len(nrow(component_grid))) {
+      selected <- rep(TRUE, nrow(posterior_samples_list[[i]]))
+      for (k in seq_along(components)) {
+        selected <- selected & indicators_list[[k]][[i]] == component_grid[j, k]
+      }
+      out[, j] <- as.numeric(selected)
+    }
+    colnames(out) <- paste0("model_", seq_len(nrow(component_grid)))
+
+    return(out)
+  })
+
+  return(indicator_matrices)
+}
+
+.summary_models_BF_error_percent <- function(indicator_matrices, prior_probs,
+                                             post_probs, inclusion_BF) {
+
+  if (is.null(indicator_matrices)) {
+    return(NULL)
+  }
+
+  indicator_mcmc <- coda::mcmc.list(lapply(indicator_matrices, coda::mcmc))
+  mcmc_summary   <- summary(indicator_mcmc, quantiles = NULL)[["statistics"]]
+  if (is.null(dim(mcmc_summary))) {
+    mcmc_summary <- t(mcmc_summary)
+  }
+
+  MCMC_error        <- mcmc_summary[, "Time-series SE"]
+  BF_error_percent <- 100 * MCMC_error / (post_probs * (1 - post_probs))
+  invalid          <- post_probs <= 0 | post_probs >= 1 |
+    prior_probs <= 0 | prior_probs >= 1 |
+    !is.finite(inclusion_BF) | !is.finite(MCMC_error)
+  BF_error_percent[invalid] <- NA_real_
+
+  return(BF_error_percent)
+}
+
+.summary_models_add_BF_diagnostics <- function(table, BF_error_percent) {
+
+  if (is.null(BF_error_percent)) {
+    return(table)
+  }
+
+  table[["BF_error_percent"]] <- BF_error_percent
+  attr(table[["BF_error_percent"]], "name") <- "error%(Inclusion BF)"
+
+  return(table)
+}
+
+.summary_models_BF_diagnostic_types <- function(BF_error_percent) {
+
+  if (is.null(BF_error_percent)) {
+    return(character())
+  }
+
+  return("BF_error")
 }
 
 .summary_models_inclusion_BF <- function(prior_probs, post_probs) {

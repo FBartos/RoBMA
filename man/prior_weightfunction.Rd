@@ -24,7 +24,9 @@ wf_independent(prior, scale = "omega")
 \arguments{
 \item{side}{character. Either \code{"one-sided"} or \code{"two-sided"}.}
 
-\item{steps}{numeric vector of p-value cut points.}
+\item{steps}{numeric vector of p-value cut points. These define
+\code{length(steps) + 1} p-value bins and must be ordered values in
+\code{(0, 1)}.}
 
 \item{weights}{a weight-prior object created by \code{wf_cumulative()},
 \code{wf_fixed()}, or \code{wf_independent()}.}
@@ -34,22 +36,34 @@ wf_independent(prior, scale = "omega")
 
 \item{prior_weights}{numeric prior model weight.}
 
-\item{alpha}{positive cumulative-Dirichlet concentration parameters.}
+\item{alpha}{optional positive cumulative-Dirichlet concentration parameters,
+one per p-value bin. If \code{NULL}, \code{prior_weightfunction()} uses
+\code{rep(1, length(steps) + 1)}. Cumulative weights encode monotone
+decreasing publication weights relative to the most-significant bin.}
 
-\item{omega}{fixed publication weights, one per bin.}
+\item{omega}{fixed publication weights, one per bin; values must be
+non-missing, nonnegative, and match \code{length(steps) + 1} when used in
+\code{prior_weightfunction()}.}
 
-\item{prior}{prior distribution for each non-reference weight.}
+\item{prior}{continuous simple prior distribution for each non-reference
+weight. Point, discrete, mixture, and other non-simple priors are invalid.}
 
 \item{scale}{latent scale for independent weights; either \code{"omega"},
-\code{"log_omega"}, or the \code{"log"} alias.}
+\code{"log_omega"}, or the \code{"log"} alias. Direct \code{"omega"} priors
+need nonnegative support; \code{"log"} is normalized to \code{"log_omega"}.}
 }
 \value{
-\code{prior_weightfunction()} returns an object of class
-\code{prior}; the \code{wf_*()} helpers return weight-prior objects.
+\code{prior_weightfunction()} returns an object inheriting from
+\code{prior} and \code{prior.weightfunction}; the \code{wf_*()} helpers
+return \code{weightfunction_weights} helper objects with subclass markers.
 }
 \description{
 Create weightfunction publication-bias priors and their
 weight-prior helper objects.
+}
+\details{
+Fixed weights must have one value per p-value bin
+(\code{length(steps) + 1}), and the reference bin must have weight 1.
 }
 \examples{
 prior_weightfunction("one-sided", steps = 0.025)
@@ -59,4 +73,7 @@ prior_weightfunction(
   weights = wf_fixed(c(1, 0.8, 0.6))
 )
 
+}
+\seealso{
+\code{\link{publication_bias_prior_specification}}
 }

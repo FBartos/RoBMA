@@ -43,7 +43,7 @@ If multiple moderators are present, this argument is required.}
 
 \item{pred}{logical; whether to show the prediction line. Defaults to \code{TRUE}.}
 
-\item{ci}{logical; whether to show confidence interval bands. Defaults to \code{TRUE}.}
+\item{ci}{logical; whether to show credible interval bands. Defaults to \code{TRUE}.}
 
 \item{pi}{logical; whether to show prediction interval bands. Defaults to \code{FALSE}.}
 
@@ -55,7 +55,7 @@ publication bias adjustments and \code{sampling_bias = TRUE}, the
 sampling interval incorporates the expected distortion from the
 selection process.}
 
-\item{level}{numeric; confidence/prediction interval level in percent.
+\item{level}{numeric; credible/prediction interval level in percent.
 Defaults to \code{95}.}
 
 \item{at}{numeric vector; for continuous moderators, values at which to
@@ -77,8 +77,8 @@ implemented and must be \code{NULL}.}
 Defaults to \code{NULL} (no reference line).}
 
 \item{psize}{numeric vector or \code{NULL}; point sizes for each study.
-If \code{NULL} (default), sizes are computed based on inverse sampling
-variance.}
+If scalar, it is recycled to all studies. If \code{NULL} (default), sizes
+are computed based on inverse sampling variance.}
 
 \item{plim}{numeric vector of length 2; range for point sizes.
 Defaults to \code{c(0.5, 3)}.}
@@ -100,11 +100,11 @@ Defaults to \code{TRUE}.}
 
 \item{ylim}{numeric vector of length 2; y-axis limits. Defaults to data range.}
 
-\item{sampling_bias}{whether publication bias should be incorporated into the
-predicted effect shown in the regplot. Defaults to \code{TRUE}. When \code{TRUE}
-and the model includes PET/PEESE, incorporates the expected bias from these
-regression adjustments into predictions. When \code{FALSE}, shows bias-adjusted
-(corrected) predictions.}
+\item{sampling_bias}{whether publication bias should be incorporated into
+plotted predictions and sampling intervals. Defaults to \code{TRUE}. For
+PET/PEESE models, this includes the expected regression bias in predictions.
+For selection models, sampling-bias adjustment applies to sampling intervals
+when \code{si = TRUE}; the mean prediction is unchanged.}
 
 \item{sei}{single positive numeric value used as the reference standard
 error for sampling-bias and sampling-interval calculations. Defaults to the

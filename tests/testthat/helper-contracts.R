@@ -193,6 +193,14 @@ expect_summary_heterogeneity_structure <- function(heterogeneity, expected_rows,
     )
   }
 
+  if ("rho" %in% expected_rows) {
+    rho_values <- as.matrix(heterogeneity$estimates["rho", columns, drop = FALSE])
+    testthat::expect_true(
+      all(rho_values >= 0 & rho_values <= 1),
+      info = paste0("summary_heterogeneity rho bounds for '", name, "'")
+    )
+  }
+
   testthat::expect_true(
     all(heterogeneity$estimates["H2", columns] >= 1),
     info = paste0("summary_heterogeneity H2 bounds for '", name, "'")

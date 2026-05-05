@@ -53,8 +53,11 @@ test_that("loo and WAIC expose cached diagnostics and missing-cache errors", {
 
     fit_waic <- suppressWarnings(add_waic(fit_missing))
     waic_brma <- waic(fit_waic)
+    waic_loo  <- loo::waic(fit_waic)
 
     expect_s3_class(waic_brma, "waic")
+    expect_s3_class(waic_loo, "waic")
+    expect_equal(waic_loo, waic_brma)
     expect_true(all(c("elpd_waic", "p_waic", "waic") %in% rownames(waic_brma[["estimates"]])),
                 info = name)
     expect_true(all(is.finite(waic_brma[["estimates"]][, "Estimate"])), info = name)

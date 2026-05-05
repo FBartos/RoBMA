@@ -271,18 +271,20 @@ pooled_effect <- function(object, ...) {
 #'
 #' @param object a fitted brma object
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
-#' \code{TRUE}, which returns bias-corrected estimates. Set to \code{FALSE}
-#' to obtain estimates that include publication bias effects.
+#' \code{TRUE}. For PET/PEESE models this removes the regression bias term from
+#' the pooled location effect. Selection-model weighting affects response
+#' predictions, not this \code{type = "terms"} wrapper.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
 #' @param conditional whether to return the pooled effect conditional on the
 #' effect component for RoBMA product-space objects. Defaults to \code{FALSE}.
 #' @inheritParams predict.brma
-#' @param ... additional arguments (currently ignored)
+#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
+#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "terms", newdata = TRUE)}.
+#' type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)}.
 #'
 #' For meta-regression models, the pooled effect averages the effect size
 #' estimate across moderator levels proportionately to the levels observed
@@ -374,7 +376,8 @@ pooled_heterogeneity <- function(object, ...) {
 #' @param conditional whether to return the pooled heterogeneity conditional on
 #' the heterogeneity component for RoBMA product-space objects. Defaults to
 #' \code{FALSE}.
-#' @param ... additional arguments (currently ignored)
+#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
+#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
@@ -468,21 +471,27 @@ blup <- function(object, ...) {
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
 #' @inheritParams predict.brma
-#' @param ... additional arguments (currently ignored)
+#' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
+#' arguments such as \code{newdata}, \code{type}, \code{quiet},
+#' \code{output_measure}, and \code{transform} are fixed by this method.
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
 #' type = "effect", newdata = NULL)}.
 #'
-#' For normal models, true effects are computed using empirical Bayes shrinkage:
+#' For unweighted two-level normal models, true effects are computed using
+#' empirical Bayes shrinkage:
 #' \deqn{\theta_i = \lambda_i \cdot y_i + (1 - \lambda_i) \cdot \mu_i}
 #' where \eqn{\lambda_i = \tau^2 / (\tau^2 + se_i^2)}.
+#' With likelihood weights, \eqn{se_i^2} is replaced by the weighted sampling
+#' variance \eqn{se_i^2 / w_i}.
 #'
 #' For GLMM models (binomial, Poisson), the estimate-level random effects
 #' are extracted directly from the posterior samples.
 #'
-#' For multilevel (3-level) models, the true effects incorporate both
-#' cluster-level (\eqn{\gamma}) and estimate-level random effects.
+#' For multilevel (3-level) normal models, cluster-level effects are estimated
+#' jointly within cluster blocks and estimate-level effects are then shrunk
+#' conditional on those cluster effects.
 #'
 #' @return A \code{brma_samples} object containing posterior draws of BLUP or
 #' empirical-Bayes true-effect summaries with one column per estimate. For
@@ -539,7 +548,8 @@ blup.brma <- function(object, bias_adjusted = FALSE,
 #' @title True Effects
 #'
 #' @description Computes the estimated true effects (theta) from a
-#' fitted model. This is an alias for \code{\link{blup}}.
+#' fitted model. This is a separate S3 generic whose \code{brma} method
+#' delegates to \code{\link{blup.brma}}.
 #'
 #' @param object a fitted model object
 #' @param ... additional arguments passed to methods
@@ -630,15 +640,18 @@ ranef <- function(object, ...) {
 #' @title Random Effects for brma Objects
 #'
 #' @description Extracts random effect deviations from a fitted brma object.
-#' These are the offsets from the fixed-effect predictions, corresponding
-#' to what \code{metafor::ranef()} returns.
+#' These are posterior-sample offsets from the fixed-effect predictions,
+#' analogous to random-effect deviations returned by \code{metafor::ranef()}.
 #'
 #' @param object a fitted brma object
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
 #' \code{FALSE}. See \code{\link{blup.brma}} for details.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
-#' @param ... additional arguments (currently ignored)
+#' @param ... additional arguments forwarded to \code{\link{predict.brma}} for
+#' supported options such as \code{conditional}. \code{newdata}, \code{type},
+#' \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
+#' this method.
 #'
 #' @details
 #' Random effects are computed as the difference between the true
@@ -648,7 +661,8 @@ ranef <- function(object, ...) {
 #' For standard (2-level) models, returns a single \code{brma_samples}
 #' object with the estimate-level random effects.
 #'
-#' For multilevel (3-level) models, returns a list with two components:
+#' For multilevel (3-level) models, returns a list with two observation-aligned
+#' \code{brma_samples} matrices, one column per estimate row:
 #' \describe{
 #'   \item{\code{cluster}}{Cluster-level random effects
 #'     (\eqn{\gamma_j \cdot \tau_{between}}), representing between-cluster

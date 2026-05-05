@@ -69,6 +69,7 @@ test_that("top-level fitting constructors validate internal dot types", {
     RoBMA(
       yi        = c(0.10, 0.20, 0.15),
       sei       = c(0.05, 0.06, 0.07),
+      measure   = "SMD",
       only_data = 1
     ),
     "only_data"

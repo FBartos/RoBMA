@@ -15,9 +15,16 @@
 \item{...}{currently unused.}
 }
 \value{
-A matrix of normalized PSIS weights.
+An \code{S x K} matrix for estimate-unit LOO, or \code{S x G}
+matrix for cluster-unit LOO, with posterior samples in rows and LOO targets
+in columns. Columns are normalized to sum to one.
 }
 \description{
 Extract the normalized Pareto smoothed importance sampling
 (PSIS) weights from a brma model object.
+}
+\details{
+LOO must first be computed with
+\code{object <- add_loo(object, unit = unit)}. This method extracts the
+stored PSIS object and does not compute LOO.
 }

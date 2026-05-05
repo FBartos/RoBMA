@@ -364,11 +364,14 @@ print.brma <- function(x, ...) {
     model_name <- paste(model_name, "PEESE")
   }
 
+  n_effects <- nrow(object[["data"]][["outcome"]])
+
   model_name <- paste(model_name, "Model")
   if (is_multilevel) {
-    model_name <- paste(model_name, sprintf("(k = %1$i, lvls = %2$i)", nrow(object[["data"]][["outcome"]]), length(unique(object[["data"]][["outcome"]][["cluster"]]))))
+    n_clusters <- length(unique(object[["data"]][["outcome"]][["cluster"]]))
+    model_name <- paste(model_name, sprintf("(k = %1$i, clusters = %2$i)", n_effects, n_clusters))
   } else {
-    model_name <- paste(model_name, sprintf("(k = %1$i)", nrow(object[["data"]][["outcome"]])))
+    model_name <- paste(model_name, sprintf("(k = %1$i)", n_effects))
   }
 
   return(model_name)
@@ -537,10 +540,28 @@ print.brma <- function(x, ...) {
   }
 
   output <- table[indices, , drop = FALSE]
+  output <- .summary.inclusion_subtable_restore_BF_attributes(
+    output  = output,
+    table   = table,
+    indices = indices
+  )
   rownames(output) <- row_labels
 
   attr(output, "parameters") <- row_labels
   attr(output, "title")      <- title
+
+  return(output)
+}
+
+# Restore row-level BayesTools_BF attributes after table subsetting.
+.summary.inclusion_subtable_restore_BF_attributes <- function(output, table,
+                                                              indices) {
+
+  for (column in intersect(colnames(output), colnames(table))) {
+    if (inherits(table[[column]], "BayesTools_BF")) {
+      output[[column]] <- table[[column]][indices]
+    }
+  }
 
   return(output)
 }

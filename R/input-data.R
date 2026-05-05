@@ -15,9 +15,10 @@
 #' supplied for normal models.
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
 #' supplied for normal models.
-#' @param weights an optional vector of positive likelihood weights. For normal
-#' models, each weight powers the estimate likelihood. For GLMM models, each
-#' weight powers the paired two-arm likelihood for one study.
+#' @param weights an optional vector of positive likelihood weights. For
+#' normal/effect-size models, each weight powers the estimate likelihood. For
+#' constructors with GLMM raw-count input, each weight powers the paired
+#' two-arm likelihood for one study.
 #' @param ni an optional vector of sample sizes. Used for `measure = "GEN"`
 #' or when estimating `"UISD"`).
 #' @param mods an optional matrix, data.frame, or formula specifying
@@ -32,9 +33,11 @@
 #' @param subset an optional logical or numeric vector specifying a subset of
 #' data to be used.
 #' @param measure a character string specifying the effect size measure.
-#' Normal models default to `"GEN"` and support `"SMD"`, `"ZCOR"`, `"RR"`,
-#' `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and `"GEN"`. GLMM models support only
-#' `"OR"` and `"IRR"` and default to `"OR"`.
+#' Normal/effect-size constructors require an explicit value and support
+#' `"SMD"`, `"ZCOR"`, `"RR"`, `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and `"GEN"`.
+#' Use `"GEN"` only for general effect sizes without a known unit information
+#' standard deviation. GLMM raw-count constructors support only `"OR"` and
+#' `"IRR"` and default to `"OR"`.
 #' @param effect_direction direction used by publication-bias adjustments.
 #' `"positive"` assumes statistically significant positive estimates are more
 #' likely to be selected; `"negative"` mirrors the selection direction;

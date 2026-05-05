@@ -5,12 +5,13 @@
 #' @description \code{plot.brma} visualizes posterior
 #' (and prior) distribution a brma object.
 #'
-#' @param x a fitted RoBMA object
-#' @param parameter a parameter to be plotted. Defaults to
-#' \code{"mu"} (for the effect size). The additional options
-#' are \code{"tau"} (for the heterogeneity),
-#' \code{"weightfunction"} (for the estimated weightfunction),
-#' or \code{"PET-PEESE"} (for the PET-PEESE regression).
+#' @param x a fitted \code{brma}, \code{BMA}, or \code{RoBMA} object.
+#' @param parameter a parameter to be plotted. Defaults to \code{"mu"} for
+#' the effect size, or to the meta-regression intercept when moderators are
+#' present. Additional options are \code{"tau"}, \code{"rho"} for multilevel
+#' models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
+#' \code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
+#' for PET/PEESE regression plots.
 #' @param parameter_mods character. Moderator term to plot. Use
 #' \code{"intercept"} for the adjusted effect in meta-regression models.
 #' @param parameter_scale character. Scale-regression term to plot. Use
@@ -96,9 +97,10 @@ plot.brma  <- function(
   }
 
   ### obtain posterior samples in the plotting format
+  sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
   samples <- BayesTools::as_mixed_posteriors(
     model            = x[["fit"]],
-    parameters       = parameter,
+    parameters       = sample_parameter,
     conditional      = if (conditional) parameter else NULL,
     transform_scaled = !standardized_coefficients
   )
@@ -151,8 +153,13 @@ plot.brma  <- function(
 #' distribution object.
 #' @param parameter character. Base parameter to plot. Defaults to \code{"mu"}.
 #' Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
-#' \code{"PEESE"}, \code{"omega"}, and \code{"bias"}. Moderator and scale
-#' terms can also be selected by name when unambiguous.
+#' \code{"PEESE"}, \code{"omega"}, and \code{"bias"}, with aliases
+#' \code{"effect"} = \code{"mu"}, \code{"heterogeneity"} = \code{"tau"},
+#' and \code{"weightfunction"} = \code{"omega"}. \code{"bias"} plots only
+#' non-mixed or homogeneous bias priors; for mixed weightfunction and PET/PEESE
+#' mixtures use \code{"omega"}, \code{"PET"}, or \code{"PEESE"}. Moderator and
+#' scale terms can also be selected by name when unambiguous. A character vector
+#' requests multiple base parameters.
 #' @param parameter_mods character. Moderator term to plot.
 #' Use \code{"intercept"} for the adjusted effect in meta-regression models.
 #' @param parameter_scale character. Scale-regression term to plot.
@@ -166,10 +173,14 @@ plot.brma  <- function(
 #' \code{"ggplot"} for plotting. Defaults to \code{"base"}.
 #' @param ... additional arguments passed to the prior plotting method.
 #'
+#' @details \code{output_measure} and \code{transform} transform the prior
+#' plotting scale only for effect-size location priors (\code{"mu"} or the
+#' meta-regression intercept).
+#'
 #' @return \code{plot_prior} returns either \code{NULL} invisibly if
 #' \code{plot_type = "base"} or a \code{ggplot2} object if
-#' \code{plot_type = "ggplot"}. If multiple parameters are requested with
-#' \code{plot_type = "ggplot"}, a named list of plots is returned.
+#' \code{plot_type = "ggplot"}. If multiple parameters are requested, a named
+#' list is returned, invisibly for base plots.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -362,13 +373,18 @@ plot.only_priors.brma <- function(x, ...) {
 #' @param parameter character. Base parameter to print. If omitted, all stored
 #' prior distributions are printed.
 #' Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
-#' \code{"PEESE"}, \code{"omega"}, and \code{"bias"}. Moderator and scale
-#' terms can also be selected by name when unambiguous.
+#' \code{"PEESE"}, \code{"omega"}, and \code{"bias"}, with aliases
+#' \code{"effect"} = \code{"mu"}, \code{"heterogeneity"} = \code{"tau"},
+#' and \code{"weightfunction"} = \code{"omega"}. GLMM outcome priors
+#' \code{"pi"} and \code{"phi"} are available when present. Moderator and
+#' scale terms can also be selected by name when unambiguous. A character vector
+#' requests multiple base parameters.
 #' @param parameter_mods character. Moderator term to print.
 #' Use \code{"intercept"} for the adjusted effect in meta-regression models.
 #' @param parameter_scale character. Scale-regression term to print.
 #' Use \code{"intercept"} for the heterogeneity intercept in location-scale models.
-#' @param ... additional arguments passed to the prior printing method.
+#' @param ... additional arguments passed to the prior printing method. Use
+#' \code{silent = TRUE} for programmatic inspection without console output.
 #'
 #' @return \code{print_prior} invisibly returns the selected prior distribution.
 #' If multiple parameters are requested, a named list of prior distributions is
@@ -486,7 +502,9 @@ print.only_priors.brma <- function(x, ...) {
 #' @description \code{plot_weightfunction.brma} visualizes the posterior
 #' (and optionally prior) publication-bias weight function of a brma object.
 #'
-#' @param x a fitted RoBMA object
+#' @param x a fitted \code{brma} object with a weightfunction/selection
+#' component, such as \code{bselmodel()} or a \code{RoBMA()} object with
+#' weightfunction priors.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
@@ -499,7 +517,8 @@ print.only_priors.brma <- function(x, ...) {
 #' @param dots_data list of additional graphical arguments for observed
 #' p-value rug marks. Supported arguments include \code{col}/\code{color},
 #' \code{alpha}, \code{lwd}/\code{linewidth}/\code{size},
-#' \code{side}/\code{rug_side}, and \code{height}/\code{rug_height}.
+#' \code{side}/\code{rug_side}, and
+#' \code{height}/\code{rug_height}/\code{ticksize}.
 #' @param dots_prior list of additional graphical arguments
 #' to be passed to the plotting function of the prior
 #' distribution. Supported arguments are \code{lwd},
@@ -535,6 +554,7 @@ print.only_priors.brma <- function(x, ...) {
 #' @return \code{plot_weightfunction.brma} returns either \code{NULL} if
 #' \code{plot_type = "base"} or a \code{ggplot2} object if
 #' \code{plot_type = "ggplot"}.
+#' The method errors for fitted objects without a weightfunction component.
 #'
 #' @seealso [RoBMA()]
 #' @export
@@ -565,7 +585,7 @@ plot_weightfunction.brma  <- function(
   ### obtain posterior samples in the plotting format
   samples <- BayesTools::as_mixed_posteriors(
     model      = x[["fit"]],
-    parameters = "omega"
+    parameters = .as_mixed_posteriors_parameters(x, "omega")
   )
 
   ### set up plotting arguments
@@ -650,6 +670,10 @@ plot_weightfunction.brma  <- function(
 #' x-label, y-label, title, x-axis range, y-axis range, and observed data
 #' point style respectively.
 #'
+#' @details The plot shows observed \code{yi} values against \code{sei}. PET
+#' regression uses \eqn{\mu + PET \cdot se_i}; PEESE regression uses
+#' \eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction.
+#'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
 #'   data(dat.lehmann2018, package = "metadat")
@@ -693,9 +717,18 @@ plot_pet_peese.brma  <- function(
   }
 
   ### obtain posterior samples in the plotting format
+  location_parameter <- .check_and_select_plot_parameter(
+    parameter       = "mu",
+    parameter_mods  = NULL,
+    parameter_scale = NULL,
+    object          = x
+  )
   samples <- BayesTools::as_mixed_posteriors(
     model      = x[["fit"]],
-    parameters = c("mu", if (.is_PET(x)) "PET", if (.is_PEESE(x)) "PEESE")
+    parameters = .as_mixed_posteriors_parameters(
+      x,
+      c(location_parameter, if (.is_PET(x)) "PET", if (.is_PEESE(x)) "PEESE")
+    )
   )
 
   ### set up plotting arguments
@@ -768,17 +801,19 @@ plot_pet_peese.brma  <- function(
 #' and autocorrelation plots.
 #'
 #' @param x a fitted brma object
-#' @param parameter base parameter to plot. Defaults to \code{NULL}, which lets
-#'   the plotting helper select the default parameter.
-#' @param parameter_mods moderator parameter for location regression.
-#' @param parameter_scale moderator parameter for scale regression.
-#' @param type diagnostic plot type. Options are \code{"trace"},
-#'   \code{"density"}, and \code{"autocorrelation"}.
+#' @param parameter base parameter to plot. Defaults to \code{NULL}, which uses
+#'   \code{"mu"} or the meta-regression intercept. Valid values include
+#'   \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"}, \code{"PEESE"},
+#'   and \code{"omega"} or \code{"weightfunction"} when present.
+#' @param parameter_mods moderator term for location regression.
+#' @param parameter_scale term for scale regression.
+#' @param type diagnostic plot type. Convenience wrappers set a type-specific
+#'   default but still forward this argument to \code{plot_diagnostic.brma()}.
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
 #'   \code{"ggplot"} for plotting. Defaults to \code{"base"}.
 #' @param lags number of lags for autocorrelation plots. Defaults to 30.
-#' @param ... additional graphical arguments passed to
-#'   \code{BayesTools::JAGS_diagnostics()}.
+#' @param ... additional graphical arguments passed through RoBMA's diagnostic
+#'   setup to \code{BayesTools::JAGS_diagnostics()}.
 #'
 #' @return \code{plot_diagnostic} returns the object returned by
 #'   \code{BayesTools::JAGS_diagnostics()}, invisibly for base graphics.
@@ -841,8 +876,20 @@ plot_diagnostic_autocorrelation <- function(x, ...) UseMethod("plot_diagnostic_a
 
 #' @export
 #' @rdname plot_diagnostic
-plot_diagnostic_autocorrelation.brma <- function(x, parameter = NULL, plot_type = "base", lags = 30, ...) {
-  plot_diagnostic(x = x, parameter = parameter, type = "autocorrelation", plot_type = plot_type, lags = lags, ...)
+plot_diagnostic_autocorrelation.brma <- function(
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    type = "autocorrelation", plot_type = "base", lags = 30, ...) {
+
+  plot_diagnostic(
+    x               = x,
+    parameter       = parameter,
+    parameter_mods  = parameter_mods,
+    parameter_scale = parameter_scale,
+    type            = type,
+    plot_type       = plot_type,
+    lags            = lags,
+    ...
+  )
 }
 
 #' @export
@@ -851,8 +898,20 @@ plot_diagnostic_trace <- function(x, ...) UseMethod("plot_diagnostic_trace")
 
 #' @export
 #' @rdname plot_diagnostic
-plot_diagnostic_trace.brma           <- function(x, parameter = NULL, plot_type = "base", ...) {
-  plot_diagnostic(x = x, parameter = parameter, type = "trace", plot_type = plot_type, ...)
+plot_diagnostic_trace.brma           <- function(
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    type = "trace", plot_type = "base", lags = 30, ...) {
+
+  plot_diagnostic(
+    x               = x,
+    parameter       = parameter,
+    parameter_mods  = parameter_mods,
+    parameter_scale = parameter_scale,
+    type            = type,
+    plot_type       = plot_type,
+    lags            = lags,
+    ...
+  )
 }
 
 #' @export
@@ -861,8 +920,20 @@ plot_diagnostic_density <- function(x, ...) UseMethod("plot_diagnostic_density")
 
 #' @export
 #' @rdname plot_diagnostic
-plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type = "base", ...) {
-  plot_diagnostic(x = x, parameter = parameter, type = "density", plot_type = plot_type, ...)
+plot_diagnostic_density.brma         <- function(
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    type = "density", plot_type = "base", lags = 30, ...) {
+
+  plot_diagnostic(
+    x               = x,
+    parameter       = parameter,
+    parameter_mods  = parameter_mods,
+    parameter_scale = parameter_scale,
+    type            = type,
+    plot_type       = plot_type,
+    lags            = lags,
+    ...
+  )
 }
 
 
@@ -1132,6 +1203,18 @@ plot_diagnostic_density.brma         <- function(x, parameter = NULL, plot_type 
   }
 
   return(n_levels)
+}
+
+.as_mixed_posteriors_parameters <- function(object, parameters) {
+
+  fit_priors <- attr(object[["fit"]], "prior_list")
+
+  if (!is.null(fit_priors[["bias"]])) {
+    parameters[parameters %in% c("omega", "PET", "PEESE")] <- "bias"
+    parameters <- unique(parameters)
+  }
+
+  return(parameters)
 }
 
 .plot_parameter_label <- function(parameter, effect_transform = NULL) {

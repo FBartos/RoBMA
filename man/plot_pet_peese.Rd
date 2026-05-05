@@ -54,6 +54,11 @@ of the prior distribution respectively.}
 \code{plot_pet_peese} visualizes posterior
 (and prior) PET-PEESE fit of a brma object.
 }
+\details{
+The plot shows observed \code{yi} values against \code{sei}. PET
+regression uses \eqn{\mu + PET \cdot se_i}; PEESE regression uses
+\eqn{\mu + PEESE \cdot se_i^2}, with the fitted effect direction.
+}
 \examples{
 \dontrun{
 if (requireNamespace("metadat", quietly = TRUE)) {

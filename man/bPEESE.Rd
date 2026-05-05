@@ -16,7 +16,7 @@ bPEESE(
   data,
   slab,
   subset,
-  measure = "GEN",
+  measure,
   prior_effect,
   prior_heterogeneity,
   prior_mods,
@@ -55,9 +55,10 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{weights}{an optional vector of positive likelihood weights. For normal
-models, each weight powers the estimate likelihood. For GLMM models, each
-weight powers the paired two-arm likelihood for one study.}
+\item{weights}{an optional vector of positive likelihood weights. For
+normal/effect-size models, each weight powers the estimate likelihood. For
+constructors with GLMM raw-count input, each weight powers the paired
+two-arm likelihood for one study.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
@@ -80,9 +81,11 @@ meta-analysis.}
 data to be used.}
 
 \item{measure}{a character string specifying the effect size measure.
-Normal models default to \code{"GEN"} and support \code{"SMD"}, \code{"ZCOR"}, \code{"RR"},
-\code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}. GLMM models support only
-\code{"OR"} and \code{"IRR"} and default to \code{"OR"}.}
+Normal/effect-size constructors require an explicit value and support
+\code{"SMD"}, \code{"ZCOR"}, \code{"RR"}, \code{"OR"}, \code{"HR"}, \code{"RD"}, \code{"IRR"}, and \code{"GEN"}.
+Use \code{"GEN"} only for general effect sizes without a known unit information
+standard deviation. GLMM raw-count constructors support only \code{"OR"} and
+\code{"IRR"} and default to \code{"OR"}.}
 
 \item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
 (the intercept). If omitted, a default prior is constructed. In single-model
@@ -104,29 +107,32 @@ priors. If omitted or \code{NULL}, default priors are used.}
 heterogeneity allocated to the cluster-level component in multilevel models
 (\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
 
-\item{prior_bias}{prior distribution for the publication bias adjustment parameters
-(selection models) or the publication bias indicator (PET-PEESE). For
-\code{bselmodel()}, \code{bPET()}, and \code{bPEESE()}, omitted or \code{NULL} uses the
-corresponding default bias prior.}
+\item{prior_bias}{PEESE regression-coefficient prior created by
+\code{prior_PEESE()}. If omitted or \code{NULL}, the default is a Cauchy
+prior centered at 0, truncated to positive values, with scale from
+\code{RoBMA.get_option("default_bias_PEESE.scale")} after UISD adjustment.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults to \code{"treatment"}.}
+Defaults are constructor-specific and shown in each function usage; single-model
+constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged; publication-bias priors are not rescaled
-except for the default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged. For constructors with publication-bias
+prior distributions, \code{rescale_priors} does not rescale them except for the
+default PEESE prior's UISD adjustment. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
-Defaults to \code{NULL}.}
+Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Defaults to \code{NULL}.}
+Omit to use the field-specific default, such as \code{"Cochrane"} for
+\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{effect_direction}{direction used by publication-bias adjustments.
 \code{"positive"} assumes statistically significant positive estimates are more
@@ -154,8 +160,8 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. For \code{brma()} and
-\code{brma.glmm()}, a missing value uses \code{RoBMA.get_option("silent")}.
+\item{silent}{logical. Whether to suppress output. Constructors with no
+explicit default use \code{RoBMA.get_option("silent")} when \code{silent} is omitted.
 Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
 
 \item{...}{additional advanced arguments. Fitting functions reject unused
@@ -191,6 +197,6 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
 }
 \seealso{
-\code{\link[=RoBMA]{RoBMA()}}, \code{\link[=bPET]{bPET()}}, \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=summary.brma]{summary.brma()}},
-\code{\link[=funnel.brma]{funnel.brma()}}
+\link{publication_bias_prior_specification}, \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=bPET]{bPET()}},
+\code{\link[=bselmodel]{bselmodel()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=funnel.brma]{funnel.brma()}}
 }

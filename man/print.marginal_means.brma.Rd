@@ -15,5 +15,5 @@
 Returns \code{x} invisibly.
 }
 \description{
-Prints the model-averaged estimated marginal means summary.
+Prints the estimated marginal means summary.
 }

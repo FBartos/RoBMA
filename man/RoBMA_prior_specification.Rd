@@ -30,7 +30,9 @@ Alternative prior arguments can be:
 \item A list of prior distributions (creates a mixture with multiple alternatives)
 \item \code{NULL} or \code{FALSE} (omits the alternative hypothesis component)
 }
-See \code{\link{prior_specification}} for details on specifying individual priors.}
+See \code{\link{publication_bias_prior_specification}} for details on
+specifying publication-bias priors and \code{\link{prior_specification}} for
+details on specifying meta-analytic parameter priors.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}
@@ -50,7 +52,8 @@ term-specific components.}
 null cluster-level heterogeneity allocation component(s).}
 
 \item{prior_bias_null}{prior distribution(s) for null publication-bias
-component(s), usually \code{prior_none()}.
+component(s), usually \code{prior_none()}. See
+\code{\link{publication_bias_prior_specification}}.
 
 Null prior arguments can be:
 \itemize{
@@ -149,8 +152,8 @@ removes that hypothesis component:
 \itemize{
 \item \code{prior_effect_null = NULL}: No null hypothesis for effect (assumes effect exists)
 \item \code{prior_effect = NULL}: No alternative hypothesis (assumes no effect)
-\item \code{prior_bias_null = NULL}: No "no bias" model (assumes some bias mechanism)
-\item \code{prior_bias = NULL}: No bias model (assumes no bias mechanism)
+\item \code{prior_bias_null = NULL} or \code{FALSE}: No "no bias" model (assumes some bias mechanism)
+\item \code{prior_bias = NULL} or \code{FALSE}: No bias model (assumes no bias mechanism)
 }
 For moderator and scale regression terms, an omitted or whole-argument \code{NULL}
 \code{prior_mods} / \code{prior_scale} means "use defaults". To omit a component for a
@@ -204,6 +207,8 @@ The \code{model_type} argument provides convenient presets:
 RoBMA(..., model_type = "PSMA")  # Full ensemble (default)
 RoBMA(..., model_type = "PP")    # Only PET-PEESE models
 }
+See \code{\link{publication_bias_prior_specification}} for the bias-prior
+constructors and preset model spaces.
 }
 
 \subsection{Heterogeneity allocation (\eqn{\rho}) for multilevel models}{
@@ -240,8 +245,13 @@ intercept.
 \subsection{Model weights and prior odds}{
 
 Each component in a mixture prior has an associated prior weight (prior model
-probability). By default, all components receive equal weights. Custom weights can
-be specified via the \code{prior_weights} argument in individual prior objects.
+probability). User-specified components receive equal weights unless their
+prior objects set \code{prior_weights}. Publication-bias presets use fixed weights:
+\code{"2w"} and \code{"6w"} split the alternative bias mass equally across their
+weight functions, \code{"PP"} splits it equally across PET and PEESE, and \code{"PSMA"}
+assigns half of the alternative bias mass to the six weight functions
+combined and one quarter each to PET and PEESE. Custom weights can be
+specified via the \code{prior_weights} argument in individual prior objects.
 
 The prior odds between null and alternative hypotheses affect the Bayes factor
 interpretation. With equal prior weights on null and alternative, the posterior
@@ -319,6 +329,7 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 }
 \seealso{
 \code{\link{prior_specification}} for base prior specification options,
+\code{\link{publication_bias_prior_specification}} for publication-bias priors,
 \code{\link{RoBMA}} for the main model-averaging function,
 \code{\link[BayesTools]{prior}} for creating prior distribution objects
 }
