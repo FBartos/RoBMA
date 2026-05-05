@@ -3,11 +3,9 @@
 ## Goal
 
 Add backend support for importance-weighted marginal density estimation (IWMDE)
-following Chen (1994, JASA), collected in StatsVault as:
+following Chen (1994, JASA):
 
-- `chen1994jasa_importance-weighted`
 - DOI: `10.1080/01621459.1994.10476815`
-- Local summary: `.StatsVault/resources/chen1994jasa_importance-weighted_summary.md`
 
 The target is marginal posterior density evaluation for selected continuous
 parameters using MCMC draws, without relying on kernel density bandwidths.
@@ -262,4 +260,3 @@ Regression tests:
   coefficients, `rho`, PET/PEESE, or `omega`?
 - Should multilevel random effects be treated as nuisance parameters in IWMDE
   or integrated out for density plots?
-

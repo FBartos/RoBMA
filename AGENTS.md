@@ -1,39 +1,38 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding assistants when working with code in this repository.
 
-In all interactions and commit messages, be extremely concise and sacrifice grammar for the sake of concision.
+In all interactions be extremely concise and sacrifice grammar for the sake of concision.
 
 ## Package Overview
 
-RoBMA (Robust Bayesian Meta-Analysis) is an R package for estimating ensembles of meta-analytic models using Bayesian model averaging. It combines models with/without effect, heterogeneity, publication bias, and moderation, using Bayes factors for component testing.
+RoBMA (Robust Bayesian Meta-Analysis) provides a framework for Bayesian meta-analysis, including model estimation, prior specification, model comparison, prediction, summaries, visualizations, and diagnostics. 
+The package fits single and model-averaged meta-analytic, meta-regression, multilevel, publication bias adjusted, and generalized linear mixed models, with optional components for effect presence, heterogeneity, moderation, and publication bias.
+BMA and RoBMA use Bayesian model averaging to combine competing models, weight inference by posterior model probabilities, and test model components using Bayes factors.
+Users can specify prior distributions for effect sizes, heterogeneity, publication bias, including selection models and PET-PEESE, and moderators.
 
 - **Backend**: JAGS (via `runjags`/`rjags`) with custom C++ module for specialized distributions
 - **Core Dependency**: `BayesTools` (handles priors, plotting, diagnostics, and generic Bayesian infrastructure)
-- **Estimation**: Refactored JAGS product-space fitting; no legacy algorithm-selection fitting path in active RoBMA.
+- **Estimation**: JAGS product-space fitting.
 
 **System Requirement**: JAGS 4.3.1+ must be installed (https://mcmc-jags.sourceforge.io/)
 
-**Current Status**: **Important**: The package is currently being completely refactored. The old obsolete code in in `R_old` folder. The main purpose of the obsolete files is for referencing the old functionality when pointed to specifically. No backwards compatibility is required (major version change).
-
 ## Supplementary Instructions
 
-Additional detailed instructions are available in `.claude/instructions/`:
+Additional detailed instructions are available in `.agents/instructions/`:
 
-- [r-development.md](.claude/instructions/r-development.md) - R coding standards and conventions
-- [testing.md](.claude/instructions/testing.md) - Unit testing workflow and cache system
-- [vignettes.md](.claude/instructions/vignettes.md) - Vignette writing and pre-computation patterns
-- [posterior-samples.md](.claude/instructions/posterior-samples.md) - Effect direction handling and core computation functions
-- [helper-functions.md](.claude/instructions/helper-functions.md) - Internal helper functions for data access
-- [metafor-comparison-tests.md](.claude/instructions/metafor-comparison-tests.md) - Testing against metafor reference
-- [test-file-template.md](.claude/instructions/test-file-template.md) - Template for test-02-*.R files
-- [s3-class-naming.md](.claude/instructions/s3-class-naming.md) - S3 class naming conventions
-- [use-normal-subdispatch.md](.claude/instructions/use-normal-subdispatch.md) - Performance optimization for mixed weighted/normal samples
-- [bias-indicator-extraction.md](.claude/instructions/bias-indicator-extraction.md) - RoBMA bias model identification from posterior
-- [predict-newdata-workaround.md](.claude/instructions/predict-newdata-workaround.md) - Outcome requirements for predict.brma() with newdata
-- [sampling-bias-parameter.md](.claude/instructions/sampling-bias-parameter.md) - sampling_bias parameter pattern for RoBMA/bPET/bPEESE/bselmodel
-
-
+- [r-development.md](.agents/instructions/r-development.md) - R coding standards and conventions
+- [testing.md](.agents/instructions/testing.md) - Unit testing workflow and cache system
+- [vignettes.md](.agents/instructions/vignettes.md) - Vignette writing and pre-computation patterns
+- [posterior-samples.md](.agents/instructions/posterior-samples.md) - Effect direction handling and core computation functions
+- [helper-functions.md](.agents/instructions/helper-functions.md) - Internal helper functions for data access
+- [metafor-comparison-tests.md](.agents/instructions/metafor-comparison-tests.md) - Testing against metafor reference
+- [test-file-template.md](.agents/instructions/test-file-template.md) - Template for test-02-*.R files
+- [s3-class-naming.md](.agents/instructions/s3-class-naming.md) - S3 class naming conventions
+- [use-normal-subdispatch.md](.agents/instructions/use-normal-subdispatch.md) - Performance optimization for mixed weighted/normal samples
+- [bias-indicator-extraction.md](.agents/instructions/bias-indicator-extraction.md) - RoBMA bias model identification from posterior
+- [predict-newdata-workaround.md](.agents/instructions/predict-newdata-workaround.md) - Outcome requirements for predict.brma() with newdata
+- [sampling-bias-parameter.md](.agents/instructions/sampling-bias-parameter.md) - sampling_bias parameter pattern for RoBMA/bPET/bPEESE/bselmodel
 
 Read these files when working on the corresponding areas.
 
@@ -47,55 +46,8 @@ devtools::test(filter = "topic", reporter = "llm")  # Run specific topic tests
 devtools::check()                 # Full R CMD check
 ```
 
-**Testing Note**: Always use testthat LLM reporting for unit tests (`reporter = "llm"`; or set `AGENT=1` if a wrapper cannot pass `reporter`). Long-running model fits are cached. Run `devtools::test(filter = "fit", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
-
-## MCP Tools (r-mcptools via btw)
-
-An MCP server (`btw` package) is configured in `.mcp.json` and `.claude/mcp-server.R`, providing R-aware tools. Prefer these over raw `Rscript` calls when available — they return structured output and handle R session state.
-
-### Available Tool Groups
-
-**`pkg`** — Package development (prefer over `Rscript -e "devtools::*"`)
-
-- `btw_tool_pkg_load_all` — `pkgload::load_all()`, hot loads package code
-- `btw_tool_pkg_document` — `devtools::document()`, updates documentation and exports
-- `btw_tool_pkg_test` — `devtools::test(reporter = "llm")`, accepts `filter` for specific tests; set `AGENT=1` if reporter passthrough is unavailable
-- `btw_tool_pkg_check` — `devtools::check()`, full R CMD check
-- `btw_tool_pkg_coverage` — `covr::package_coverage()`, file or line-level
-
-**`run`** — Execute arbitrary R code with captured output (values, plots, messages, warnings, errors)
-
-- `btw_tool_run_r` — run R code snippets; useful for testing functions interactively
-
-**`docs`** — R package documentation lookup
-
-- `btw_tool_docs_help_page` — read help page for a topic (e.g., `brma` in `RoBMA`)
-- `btw_tool_docs_package_help_topics` — list all help topics in a package
-- `btw_tool_docs_package_news` — read NEWS/changelog (supports regex search)
-- `btw_tool_docs_available_vignettes` / `btw_tool_docs_vignette` — list/read vignettes
-
-**`env`** — Inspect R session environment
-
-- `btw_tool_env_describe_environment` — list objects in global env with structure
-- `btw_tool_env_describe_data_frame` — describe data frame (skim/glimpse/json)
-
-**`cran`** — CRAN package search
-
-- `btw_tool_cran_search` — search CRAN packages by keyword
-- `btw_tool_cran_package` — describe a specific CRAN package
-
-**`sessioninfo`** — R session metadata
-
-- `btw_tool_sessioninfo_platform` — R version, OS, locale
-- `btw_tool_sessioninfo_package` — installed/attached package versions
-- `btw_tool_sessioninfo_is_package_installed` — check if package is installed
-
-### When to Use MCP Tools
-
-- **Looking up BayesTools or dependency API**: use `docs` tools instead of reading installed package source
-- **Running quick R expressions**: use `run_r` for interactive testing during development
-- **Package dev cycle**: use `pkg` tools for load/document/test/check — cleaner output than raw Rscript; unit tests must use LLM reporting
-- **Checking dependency changes**: use `docs_package_news` to read changelogs
+**Testing Note**: Always use testthat LLM reporting for unit tests (`reporter = "llm"`; or set `AGENT=1` if a wrapper cannot pass `reporter`). Long-running model fits are cached. 
+Run `devtools::test(filter = "fit", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
 
 ## Code Style
 
@@ -155,7 +107,7 @@ Weightfunction publication bias priors are **not supported** for GLMM outcomes:
 - If a feature is generic (not meta-analysis specific), it belongs in BayesTools
 
 ### Main User Interfaces
-- `brma()`, `brma.glmm()`, `bselmodel()`, `bPET()`, `bPEESE()` - Primary single-model fitting functions for simple models (mostly complete by now, closely matching metafor specification, use `brma` class)
+- `brma()`, `brma.norm()`, `brma.glmm()`, `bselmodel()`, `bPET()`, `bPEESE()` - Primary single-model fitting functions for simple models (mostly complete by now, closely matching metafor specification, use `brma` class)
 - `RoBMA()` - Primary ensemble fitting function with publication bias adjustment
 - `BMA()`, `BMA.norm()` - Model-averaging without publication bias (wrapper, omits `model_type`)
 - `BMA.glmm()` - Model-averaging for GLMM (binomial/Poisson) without publication bias
@@ -174,11 +126,6 @@ Classes are layered for S3 method dispatch:
 - posterior evaluation in `R/evaluate.R`, `R/pdf.R`, `R/cdf.R`, `R/rng.R`
 - weighted distributions in `R/distributions.R`
 
-### Key Obsolete Files
-- `R_old/fit-and-marglik.R` - Core MCMC fitting and marginal likelihood computation
-- `R_old/inference-and-model-averaging.R` - BMA weights, Bayes factors, posterior mixing
-- `R_old/check-input-and-settings.R` - Input validation, `check_setup()` for previewing ensembles
-- `R_old/transformations.R` - Effect size conversions (Cohen's d ↔ Fisher's z ↔ log OR ↔ r)
 
 ### JAGS Extension (src/)
 Custom C++ JAGS module with weighted distributions for publication bias:
@@ -209,35 +156,3 @@ When adding JAGS distributions: implement in `src/distributions/`, register in `
 - Never write to user directories without permission
 - Always use `::` for package functions
 
-## Meta-Analysis Knowledge Library
-
-`knowledge-base/` contains a comprehensive reference library built from all 196 CRAN meta-analysis packages (2,989 features, 5,511 implementations across 16 categories). Use it when implementing new features to study how other packages solve the same problem.
-
-### How to navigate
-
-1. **Start here**: Read `knowledge-base/_master_index.json` (~38K tokens) for the full landscape
-2. **Find a feature**: Grep `knowledge-base/_feature_lookup.json` for the feature name — returns category + reference package. Old merged names resolve via `merged_into` aliases.
-3. **Browse a category**: Read `knowledge-base/categories/<cat>.toc.json` (5-48K tokens, fits in context) to see all features. Features with a `family` array are merged groups.
-4. **Drill into detail**: Grep `knowledge-base/categories/<cat>.json` for the specific feature to see implementations with algorithm notes, key arguments, example usage, quality scores, and literature references. These files are large (50-460K tokens) — grep, don't read whole.
-5. **Research a package**: Read `knowledge-base/packages/profiles/<pkg>.md` for a quick summary.
-6. **Plan what to build**: Read `knowledge-base/_gap_analysis.md` (29K tokens) for prioritized feature gaps with design decisions.
-
-### Categories
-
-| Category | Features | Covers |
-|----------|----------|--------|
-| model-fitting | 422 | RE, FE, multivariate, GLM models |
-| data-preparation | 651 | Effect sizes, variance estimation |
-| utility | 558 | Helpers, formatting |
-| summary-print | 340 | Print/summary methods |
-| visualization-other | 262 | Baujat, radial, network graphs |
-| bayesian | 113 | Priors, MCMC, posterior summaries |
-| prediction-ci | 104 | Prediction intervals, BLUPs |
-| diagnostics-influence | 94 | Influence, outliers, GOSH |
-| forest-plot | 89 | Forest plot variants |
-| network-ma | 84 | NMA, node-splitting, ranking |
-| publication-bias | 77 | Funnel, trim-fill, selection models |
-| meta-regression | 60 | Moderator analysis |
-| heterogeneity | 53 | Tau-sq, I-sq, Q-profile |
-| model-comparison | 50 | LRT, AIC/BIC/DIC |
-| reporting | 31 | GRADE, PRISMA |

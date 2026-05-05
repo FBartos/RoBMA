@@ -1,7 +1,0 @@
-{
-  "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true,
-    "hookify@claude-plugins-official": true,
-    "mgrep@Mixedbread-Grep": false
-  }
-}

@@ -12,6 +12,8 @@ rm -rf man/.svn
 rm -f src/.DS_Store
 rm -f src/distributions/.DS_Store
 rm -f src/functions/.DS_Store
+rm -f src/matrix/.DS_Store
+rm -f src/source/.DS_Store
 rm -f src/transformations/.DS_Store
 
 rm -rf src/.deps
@@ -19,6 +21,10 @@ rm -rf src/distributions/.deps
 rm -rf src/distributions/.libs
 rm -rf src/functions/.deps
 rm -rf src/functions/.libs
+rm -rf src/matrix/.deps
+rm -rf src/matrix/.libs
+rm -rf src/source/.deps
+rm -rf src/source/.libs
 rm -rf src/transformations/.deps
 rm -rf src/transformations/.libs
 
@@ -30,14 +36,24 @@ rm -f config.status
 
 rm -f src/RoBMA.o
 rm -f src/RoBMA.so
+rm -f src/RoBMA.dll
+rm -f src/RoBMA.dylib
 rm -f src/testRoBMA.o
 rm -f src/testRoBMA.so
 rm -f src/symbols.rds
 
+rm -f src/*.o
+rm -f src/*.so
+rm -f src/*.dll
+rm -f src/*.dylib
 rm -f src/distributions/*.o
 rm -f src/distributions/*.so
 rm -f src/functions/*.o
 rm -f src/functions/*.so
+rm -f src/matrix/*.o
+rm -f src/matrix/*.so
+rm -f src/source/*.o
+rm -f src/source/*.so
 rm -f src/transformations/*.o
 rm -f src/transformations/*.so
 

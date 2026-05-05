@@ -1,7 +1,5 @@
 excluded_pkgdown_pages <- c(
-  "AGENTS.html",
-  "CLAUDE.html",
-  "copilot-instructions.html"
+  "AGENTS.html"
 )
 
 pkgdown_destination_path <- function(pkg, dest_dir = "docs") {
