@@ -9,13 +9,15 @@
 #' @details
 #' Model for odds ratios (`measure = "OR"`) corresponds to Model 4 described in
 #' \insertCite{jackson2018comparison;textual}{RoBMA}.
-#' `prior_baserate` defines the estimate-specific prior distribution on the base-rate
-#' probability.
+#' `logit(pi[i])` is the study-specific midpoint of the two arm logits.
+#' `prior_baserate` defines the estimate-specific prior distribution on `pi[i]`.
 #'
 #' Model for incidence rate ratios (`measure = "IRR"`) corresponds to
 #' \insertCite{bagos2009mixed;textual}{RoBMA}.
-#' `prior_lograte` defines the estimate-specific prior distribution on the log-rate.
-#' If unspecified, a unit-information prior is based on the data.
+#' `phi[i]` is the study-specific midpoint of the two arm log incidence rates.
+#' `prior_lograte` defines the estimate-specific prior distribution on `phi[i]`.
+#' If unspecified, a unit-information prior is based on the data and used
+#' independently for each estimate.
 #'
 #' When `weights` are supplied, they are treated as likelihood weights on the
 #' paired two-arm study contribution.
@@ -74,11 +76,7 @@ brma.glmm <- function(
 
   ### create the output object
   dots         <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
-    caller  = "brma.glmm()"
-  )
+  dots         <- .validate_constructor_dots(dots, caller = "brma.glmm()")
   object       <- .createObject(
     dots = dots, class = c("brma.glmm", "brma"),
     # MCMC and fitting settings
@@ -116,16 +114,7 @@ brma.glmm <- function(
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
 
-  ### autocompute
-  if (RoBMA.get_option("autocompute.loo")) {
-    object <- add_loo(object)
-  }
-  if (RoBMA.get_option("autocompute.waic")) {
-    object <- add_waic(object)
-  }
-  if (RoBMA.get_option("autocompute.marglik")) {
-    object <- add_marglik(object)
-  }
+  object               <- .autocompute_brma(object)
 
   return(object)
 }

@@ -27,7 +27,7 @@ test_that("Radial plot for simple meta-analysis matches metafor structure", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("radial_simple_comparison", function() {
+  expect_vdiffr_snapshot("radial_simple_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 5))
@@ -35,7 +35,7 @@ test_that("Radial plot for simple meta-analysis matches metafor structure", {
     radial(fit_brma, plot_type = "base", main = "brma")
   })
 
-  vdiffr::expect_doppelganger("radial_simple_centered_comparison", function() {
+  expect_vdiffr_snapshot("radial_simple_centered_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 5))
@@ -43,12 +43,12 @@ test_that("Radial plot for simple meta-analysis matches metafor structure", {
     radial(fit_brma, center = TRUE, plot_type = "base", main = "brma")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_simple_brma_ggplot",
     radial(fit_brma, plot_type = "ggplot")
   )
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_simple_centered_brma_ggplot",
     radial(fit_brma, center = TRUE, plot_type = "ggplot")
   )
@@ -65,11 +65,11 @@ test_that("Radial plot for 3-level model renders brma outputs", {
 
   # metafor does not support radial for rma.mv, brma-only tests
 
-  vdiffr::expect_doppelganger("radial_3lvl_brma_base", function() {
+  expect_vdiffr_snapshot("radial_3lvl_brma_base", function() {
     radial(fit_brma, plot_type = "base")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_3lvl_brma_ggplot",
     radial(fit_brma, plot_type = "ggplot")
   )
@@ -84,11 +84,11 @@ test_that("Radial plot for GLMM model renders brma outputs", {
   name     <- "nielweise2008_glmm"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("radial_glmm_brma_base", function() {
+  expect_vdiffr_snapshot("radial_glmm_brma_base", function() {
     radial(fit_brma, plot_type = "base")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_glmm_brma_ggplot",
     radial(fit_brma, plot_type = "ggplot")
   )
@@ -103,11 +103,11 @@ test_that("Radial plot for selection model renders brma outputs", {
   name     <- "dat.lehmann2018-3PSM"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("radial_selmodel_brma_base", function() {
+  expect_vdiffr_snapshot("radial_selmodel_brma_base", function() {
     radial(fit_brma, plot_type = "base")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_selmodel_brma_ggplot",
     radial(fit_brma, plot_type = "ggplot")
   )
@@ -122,11 +122,11 @@ test_that("Radial plot for PET model renders brma outputs", {
   name     <- "dat.lehmann2018-PET"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("radial_PET_brma_base", function() {
+  expect_vdiffr_snapshot("radial_PET_brma_base", function() {
     radial(fit_brma, plot_type = "base")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_PET_brma_ggplot",
     radial(fit_brma, plot_type = "ggplot")
   )
@@ -141,7 +141,7 @@ test_that("Radial plot for BMA.norm model renders base output", {
   name     <- "dat.lehmann2018_BMA.norm"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("radial_BMA", function() {
+  expect_vdiffr_snapshot("radial_BMA", function() {
     suppressWarnings(radial(fit_brma, plot_type = "base"))
   })
 })
@@ -155,7 +155,7 @@ test_that("Radial plot for BMA.glmm model renders base output", {
   name     <- "bcg_BMA.glmm"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("radial_BMA.glmm", function() {
+  expect_vdiffr_snapshot("radial_BMA.glmm", function() {
     suppressWarnings(radial(fit_brma, plot_type = "base"))
   })
 })
@@ -169,7 +169,7 @@ test_that("Radial plot for RoBMA model renders base output", {
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("radial_RoBMA", function() {
+  expect_vdiffr_snapshot("radial_RoBMA", function() {
     suppressWarnings(radial(fit_brma, plot_type = "base"))
   })
 })
@@ -287,11 +287,11 @@ test_that("Radial plot customization snapshots are stable", {
   # Test custom point aesthetics
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("radial_custom_points_base", function() {
+  expect_vdiffr_snapshot("radial_custom_points_base", function() {
     radial(fit_brma, plot_type = "base", pch = 21, col = "blue", bg = "lightblue", cex = 1.5)
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_custom_points_ggplot",
     radial(fit_brma, plot_type = "ggplot", pch = 21, col = "blue", bg = "lightblue", size = 3)
   )
@@ -300,11 +300,11 @@ test_that("Radial plot customization snapshots are stable", {
   # Test custom axis labels and title
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("radial_custom_labels_base", function() {
+  expect_vdiffr_snapshot("radial_custom_labels_base", function() {
     radial(fit_brma, plot_type = "base", xlab = "Precision", zlab = "z-score", main = "Radial Plot")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_custom_labels_ggplot",
     radial(fit_brma, plot_type = "ggplot", xlab = "Precision", zlab = "z-score", main = "Radial Plot")
   )
@@ -313,11 +313,11 @@ test_that("Radial plot customization snapshots are stable", {
   # Test suppressing background
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("radial_no_background_base", function() {
+  expect_vdiffr_snapshot("radial_no_background_base", function() {
     radial(fit_brma, plot_type = "base", back = NA)
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_no_background_ggplot",
     radial(fit_brma, plot_type = "ggplot", back = NA)
   )
@@ -326,11 +326,11 @@ test_that("Radial plot customization snapshots are stable", {
   # Test custom level
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("radial_custom_level_base", function() {
+  expect_vdiffr_snapshot("radial_custom_level_base", function() {
     radial(fit_brma, plot_type = "base", level = 99)
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "radial_custom_level_ggplot",
     radial(fit_brma, plot_type = "ggplot", level = 99)
   )

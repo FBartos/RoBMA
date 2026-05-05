@@ -28,7 +28,7 @@ test_that("Q-Q plot for simple meta-analysis matches metafor structure", {
   # Visual comparison: side-by-side (rstandard for comparability)
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_simple_comparison_rstandard", function() {
+  expect_vdiffr_snapshot("qqnorm_simple_comparison_rstandard", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -40,11 +40,11 @@ test_that("Q-Q plot for simple meta-analysis matches metafor structure", {
   # Default (rstudent) - brma only
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_simple_rstudent_base", function() {
+  expect_vdiffr_snapshot("qqnorm_simple_rstudent_base", function() {
     qqnorm(fit_brma, plot_type = "base")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_simple_rstudent_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot")
   )
@@ -65,7 +65,7 @@ test_that("Q-Q plot for meta-regression matches metafor residual quantiles", {
   # Visual comparison: side-by-side (rstandard for comparability)
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_regression_comparison_rstandard", function() {
+  expect_vdiffr_snapshot("qqnorm_regression_comparison_rstandard", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -73,7 +73,7 @@ test_that("Q-Q plot for meta-regression matches metafor residual quantiles", {
     qqnorm(fit_brma, plot_type = "base", main = "brma", type = "rstandard", ylim = c(-3, 3))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_regression_rstudent_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -92,7 +92,7 @@ test_that("Q-Q plot for interaction meta-regression renders residual quantiles",
   # Visual comparison: side-by-side (rstandard for comparability)
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_regression4_comparison_rstandard", function() {
+  expect_vdiffr_snapshot("qqnorm_regression4_comparison_rstandard", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -100,7 +100,7 @@ test_that("Q-Q plot for interaction meta-regression renders residual quantiles",
     qqnorm(fit_brma, plot_type = "base", main = "brma", type = "rstandard", ylim = c(-3, 3))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_regression4_rstudent_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -118,11 +118,11 @@ test_that("Q-Q plot for location-scale model renders residual quantiles", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_scale_rstandard_base", function() {
+  expect_vdiffr_snapshot("qqnorm_scale_rstandard_base", function() {
     qqnorm(fit_brma, plot_type = "base", type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_scale_rstudent_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -138,11 +138,11 @@ test_that("Q-Q plot for 3-level model renders residual quantiles", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_3lvl_base", function() {
+  expect_vdiffr_snapshot("qqnorm_3lvl_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_3lvl_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -156,11 +156,11 @@ test_that("Q-Q plot for 3-level meta-regression renders residual quantiles", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_3lvl2_base", function() {
+  expect_vdiffr_snapshot("qqnorm_3lvl2_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_3lvl2_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -177,11 +177,11 @@ test_that("Q-Q plot for GLMM model renders residual quantiles", {
   set.seed(1)
 
   # rstudent only (rstandard not available for GLMM)
-  vdiffr::expect_doppelganger("qqnorm_glmm_base", function() {
+  expect_vdiffr_snapshot("qqnorm_glmm_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_glmm_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -202,11 +202,11 @@ test_that("Q-Q plot for GLMM meta-regression renders residual quantiles", {
   set.seed(1)
 
   # rstudent only (rstandard not available for GLMM)
-  vdiffr::expect_doppelganger("qqnorm_glmm_reg_base", function() {
+  expect_vdiffr_snapshot("qqnorm_glmm_reg_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_glmm_reg_ggplot",
     suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   )
@@ -233,7 +233,7 @@ test_that("Q-Q plot for PET model matches metafor residual quantiles", {
   # Visual comparison: side-by-side (rstandard for comparability)
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_PET_base", function() {
+  expect_vdiffr_snapshot("qqnorm_PET_base", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -255,7 +255,7 @@ test_that("Q-Q plot for PET meta-regression matches metafor residual quantiles",
   # Visual comparison: side-by-side (rstandard for comparability)
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_PETreg_base", function() {
+  expect_vdiffr_snapshot("qqnorm_PETreg_base", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -274,12 +274,12 @@ test_that("Q-Q plot for selection model renders residual quantiles", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_selmodel_base", function() {
+  expect_vdiffr_snapshot("qqnorm_selmodel_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 
   # skip the ggplot version for to save test time
-  # vdiffr::expect_doppelganger(
+  # expect_vdiffr_snapshot(
   #   "qqnorm_selmodel_ggplot",
   #   suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   # )
@@ -299,12 +299,12 @@ test_that("Q-Q plot for selection meta-regression renders residual quantiles", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_selmodel_reg_base", function() {
+  expect_vdiffr_snapshot("qqnorm_selmodel_reg_base", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 
   # skip the ggplot version for to save test time
-  # vdiffr::expect_doppelganger(
+  # expect_vdiffr_snapshot(
   #   "qqnorm_selmodel_ggplot",
   #   suppressWarnings(qqnorm(fit_brma, plot_type = "ggplot"))
   # )
@@ -326,7 +326,7 @@ test_that("Q-Q plot for BMA.norm model renders base output", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_BMA", function() {
+  expect_vdiffr_snapshot("qqnorm_BMA", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 })
@@ -339,7 +339,7 @@ test_that("Q-Q plot for BMA.norm meta-regression renders base output", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_BMAreg", function() {
+  expect_vdiffr_snapshot("qqnorm_BMAreg", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 })
@@ -354,7 +354,7 @@ test_that("Q-Q plot for BMA.glmm model renders base output", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_BMA.glmm", function() {
+  expect_vdiffr_snapshot("qqnorm_BMA.glmm", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 })
@@ -369,7 +369,7 @@ test_that("Q-Q plot for RoBMA model renders base output", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_RoBMA", function() {
+  expect_vdiffr_snapshot("qqnorm_RoBMA", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base"))
   })
 })
@@ -382,7 +382,7 @@ test_that("Q-Q plot for RoBMA meta-regression renders LOO-PIT output", {
   fit_brma <- fits[[name]]
   set.seed(1)
 
-  vdiffr::expect_doppelganger("qqnorm_RoBMA_complex", function() {
+  expect_vdiffr_snapshot("qqnorm_RoBMA_complex", function() {
     suppressWarnings(qqnorm(fit_brma, plot_type = "base", type = "LOO-PIT"))
   })
 })
@@ -460,6 +460,26 @@ test_that("Q-Q plot data and argument validation are stable", {
     info = "envelope contains x, lower, upper columns"
   )
 
+  set.seed(1)
+  qq_env_1 <- qqnorm(
+    fit_brma,
+    as_data  = TRUE,
+    type     = "rstandard",
+    reps     = 10,
+    envelope = TRUE
+  )[["envelope"]]
+  set.seed(999)
+  qq_env_2 <- qqnorm(
+    fit_brma,
+    as_data  = TRUE,
+    type     = "rstandard",
+    reps     = 100,
+    envelope = TRUE
+  )[["envelope"]]
+  expect_equal(qq_env_1, qq_env_2,
+    info = "closed-form QQ envelope is deterministic and ignores reps"
+  )
+
   # --------------------------------------------------
   # Test error on invalid plot_type
   # --------------------------------------------------
@@ -493,12 +513,12 @@ test_that("Q-Q plot customization snapshots are stable", {
   # Test custom point aesthetics
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_custom_points_base", function() {
+  expect_vdiffr_snapshot("qqnorm_custom_points_base", function() {
     qqnorm(fit_brma, plot_type = "base", pch = 21, col = "blue",
            bg = "lightblue", cex = 1.5, type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_custom_points_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot", pch = 21, col = "blue",
            bg = "lightblue", size = 3, type = "rstandard")
@@ -508,12 +528,12 @@ test_that("Q-Q plot customization snapshots are stable", {
   # Test custom axis labels and title
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_custom_labels_base", function() {
+  expect_vdiffr_snapshot("qqnorm_custom_labels_base", function() {
     qqnorm(fit_brma, plot_type = "base", xlab = "Expected", ylab = "Observed",
            main = "QQ Plot", type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_custom_labels_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot", xlab = "Expected", ylab = "Observed",
            main = "QQ Plot", type = "rstandard")
@@ -523,11 +543,11 @@ test_that("Q-Q plot customization snapshots are stable", {
   # Test without envelope
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_no_envelope_base", function() {
+  expect_vdiffr_snapshot("qqnorm_no_envelope_base", function() {
     qqnorm(fit_brma, plot_type = "base", envelope = FALSE, type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_no_envelope_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot", envelope = FALSE, type = "rstandard")
   )
@@ -536,11 +556,11 @@ test_that("Q-Q plot customization snapshots are stable", {
   # Test custom envelope level
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_custom_level_base", function() {
+  expect_vdiffr_snapshot("qqnorm_custom_level_base", function() {
     qqnorm(fit_brma, plot_type = "base", level = 99, type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_custom_level_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot", level = 99, type = "rstandard")
   )
@@ -549,11 +569,11 @@ test_that("Q-Q plot customization snapshots are stable", {
   # Test Bonferroni correction
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_bonferroni_base", function() {
+  expect_vdiffr_snapshot("qqnorm_bonferroni_base", function() {
     qqnorm(fit_brma, plot_type = "base", bonferroni = TRUE, type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_bonferroni_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot", bonferroni = TRUE, type = "rstandard")
   )
@@ -562,11 +582,11 @@ test_that("Q-Q plot customization snapshots are stable", {
   # Test suppressing envelope shading
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("qqnorm_no_shade_base", function() {
+  expect_vdiffr_snapshot("qqnorm_no_shade_base", function() {
     qqnorm(fit_brma, plot_type = "base", shade = NA, type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "qqnorm_no_shade_ggplot",
     qqnorm(fit_brma, plot_type = "ggplot", shade = NA, type = "rstandard")
   )

@@ -27,7 +27,8 @@ You are an expert R developer specializing in Bayesian statistics, meta-analysis
 ## Testing
 - **Framework**: `testthat` in `tests/testthat/`
 - **Naming**: Test files are numbered `test-XX-topic.R` (e.g., `test-04-fit.R`, `test-05-methods.R`)
-- **Fast testing**: When developing, run `devtools::test(filter = "topic")` to focus on specific areas, model fits are cached to speed up tests (`devtools::test(filter = "fit")` must be run first to generate cached fits)
+- **Reporter**: Always use testthat LLM reporting for unit tests: `reporter = "llm"` or `AGENT=1`
+- **Fast testing**: When developing, run `devtools::test(filter = "topic", reporter = "llm")` to focus on specific areas, model fits are cached to speed up tests (`devtools::test(filter = "fit", reporter = "llm")` must be run first to generate cached fits)
 - **CRAN tests**: Use `skip_on_cran()` for computationally intensive model fitting tests
 - **Requirements**: Test edge cases, error conditions, reproducibility; ensure CRAN compliance
 
@@ -119,7 +120,7 @@ The package includes a compiled JAGS module with custom distributions for meta-a
 # Standard R CMD check workflow
 devtools::load_all()           # Load during development
 devtools::document()           # Update documentation
-devtools::test()               # Run tests
+devtools::test(reporter = "llm")  # Run tests
 devtools::check()              # Full package check
 ```
 

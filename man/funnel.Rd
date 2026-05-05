@@ -73,7 +73,7 @@ skew from these regression adjustments.}
 \item{main}{character string for plot title (default: no title)}
 \item{pch}{point symbol (default: 21, filled circle). Use standard R pch values.}
 \item{col}{point border color (default: "black")}
-\item{bg}{point fill/background color (default: "black")}
+\item{bg}{point fill/background color (default: "#A6A6A6")}
 \item{cex}{point size multiplier for base graphics (default: 1)}
 \item{size}{point size for ggplot2 (default: 2)}
 \item{back}{background region color (default: "grey"). Set to \code{NA} to suppress.}
@@ -135,7 +135,9 @@ The \code{sampling_heterogeneity} and \code{sampling_bias} arguments are
 ignored in residual mode.
 
 For GLMM models, observed effect sizes are computed from the raw frequency
-data using formulas equivalent to \code{metafor::escalc}.
+data using formulas equivalent to \code{metafor::escalc}. Residual-mode
+GLMM funnels use approximate effect-size-scale residual/PIT companions, not
+exact PIT diagnostics for the raw count likelihood.
 }
 \examples{
 \dontrun{

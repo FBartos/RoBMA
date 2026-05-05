@@ -2,7 +2,6 @@
 % Please edit documentation in R/bridgesampling.R
 \name{logml.brma}
 \alias{logml.brma}
-\alias{logml}
 \title{Log Marginal Likelihood for brma Objects}
 \usage{
 \method{logml}{brma}(x, ...)

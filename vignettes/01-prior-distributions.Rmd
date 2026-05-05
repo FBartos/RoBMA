@@ -54,9 +54,9 @@ Priors for the *publication-bias adjustment models*, used by `RoBMA()` and the r
 | Approach | Description | Main arguments |
 |:--|:--|:--|
 | Default priors | Standardized priors automatically scaled to the effect-size measure | `measure`, `rescale_priors`, `prior_unit_information_sd` |
-| Informed priors | Empirical priors derived from previous meta-analyses | `prior_informed_field`, `prior_informed_subfield`, `prior_informed()` |
+| Empirical/informed priors | Empirical priors derived from previous meta-analyses | `prior_informed_field`, `prior_informed_subfield`, `prior_informed()` |
 | Custom priors | Fully user-specified priors via `prior()` and helpers | `prior_effect`, `prior_heterogeneity`, `prior_mods`, `prior_scale` |
-| Publication-bias priors | Bias-adjustment ensembles for `RoBMA()` | `model_type`, `prior_bias`, `prior_bias_null` |
+| Publication-bias priors | Bias-adjustment models and ensembles | `model_type`, `prior_bias`, `prior_bias_null` |
 
 Throughout this vignette we pass `only_priors = TRUE` to ask the package to assemble the prior distributions and stop before fitting the model.
 This makes prior specifications visible without running MCMC.
@@ -115,7 +115,7 @@ Standardized effect sizes have known UISD values, and for non-standardized input
 | Log incidence rate ratio | `"IRR"` | `sqrt(4)` |
 | Generic / non-standardized | `"GEN"` | estimated from `sei` and `ni`, or set manually |
 
-The defaults then use fractions of the UISD to specify the scale of each prior.
+The default prior distributions then use fractions of the UISD to specify the scale of each prior.
 
 | Parameter | Meaning | Default prior |
 |:--|:--|:--|
@@ -208,10 +208,18 @@ print_prior(Havrankova_priors)
 
 The UISD can also be set directly when sample sizes are unavailable, when an alternative scale is more appropriate, or when performing subgroup analyses (it is sensible to compute UISD based on the full dataset so the priors match across models):
 
+```{r Havrankova-manual-uisd-calc}
+Havrankova_UISD <- estimate_unit_information_sd(
+  sei = Havrankova2025$se,
+  ni  = Havrankova2025$N
+)
+Havrankova_UISD
+```
+
 ```{r Havrankova-manual-uisd}
 Havrankova_manual_priors <- brma(
   yi = y, sei = se, measure = "GEN",
-  prior_unit_information_sd = 10,
+  prior_unit_information_sd = Havrankova_UISD,
   data = Havrankova2025, only_priors = TRUE
 )
 
@@ -409,70 +417,11 @@ print_prior(bcg_estimation_priors, parameter = "mu")
 
 ## Publication-Bias Priors
 
-Publication-bias priors describe which bias-adjustment models enter the ensemble.
-They are independent of the priors on the effect, heterogeneity, and moderators.
+Publication-bias priors describe the bias-adjustment component (`prior_bias`) and are independent of the priors on the effect, heterogeneity, and moderators.
+Because they typically attach to specialised single-model fits or to model-averaged ensembles, they are documented in the corresponding vignettes rather than here.
 
-The default `RoBMA()` setting is `model_type = "PSMA"`.
-It averages across a no-bias model, several weight-function models, PET, and PEESE [@maier2020robust; @bartos2021no].
-PET and PEESE adjust for relationship between effect sizes and standard errors [@stanley2014meta]; weight-function models adjust for selection across $p$-value regions [@vevea1995general].
-
-```{r publication-bias-default, eval = has_bcg}
-bcg_bias_priors <- RoBMA(
-  yi = yi, vi = vi, measure = "RR",
-  data = bcg, only_priors = TRUE
-)
-
-print_prior(bcg_bias_priors, parameter = "bias")
-```
-
-The preset can be changed with `model_type`.
-
-```{r publication-bias-presets, eval = has_bcg}
-bcg_pp_priors <- RoBMA(
-  yi = yi, vi = vi, measure = "RR",
-  model_type  = "PP",
-  data = bcg, only_priors = TRUE
-)
-
-print_prior(bcg_pp_priors, parameter = "bias")
-```
-
-The most common choices are:
-
-| `model_type` | Meaning |
-|:--|:--|
-| `"PSMA"` | default RoBMA-PSMA ensemble: weight functions plus PET-PEESE |
-| `"PP"`   | PET-PEESE only |
-| `"6w"`   | six weight-function models |
-| `"2w"`   | two weight-function models |
-
-Custom publication-bias priors are also possible.
-The example below keeps the no-bias model and adds one one-sided weight function plus one PET model:
-
-```{r publication-bias-custom, eval = has_bcg}
-bcg_custom_bias_priors <- RoBMA(
-  yi = yi, vi = vi, measure = "RR",
-  prior_bias_null = prior_none(),
-  prior_bias      = list(
-    prior_weightfunction(
-      "one-sided",
-      steps   = c(0.025, 0.05),
-      weights = wf_cumulative(c(1, 1, 1))
-    ),
-    prior_PET(
-      distribution = "cauchy",
-      parameters = list(location = 0, scale = 1),
-      truncation = list(lower = 0, upper = Inf)
-    )
-  ),
-  data = bcg, only_priors = TRUE
-)
-
-print_prior(bcg_custom_bias_priors, parameter = "bias")
-```
-
-Custom publication-bias priors change the model space being averaged over.
-They should be chosen before looking at the results and should reflect a publication process plausible in the field.
+For *single-model* bias adjustment with `bPET()`, `bPEESE()`, or `bselmodel()`, see the [*Publication-Bias Adjustment*](11-metafor-parity-publication-bias.html) vignette: it lists the default `prior_bias` for each function, the rationale for the one-sided defaults, and the flexible alternatives that drop the truncation or the monotonicity constraint.
+For *model-averaged* bias adjustment with `RoBMA()`, see the [*Robust Bayesian Meta-Analysis*](21-robust-bayesian-meta-analysis.html) vignette: it describes the `model_type` presets (`"PSMA"`, `"PP"`, `"6w"`, `"2w"`), the weight functions and PET/PEESE components they include, and how to build a custom ensemble via `prior_bias` and `prior_bias_null`.
 
 ## General Considerations and Reporting
 

@@ -91,8 +91,8 @@ fit3_brma <- add_marglik(fit3_brma)
 vignette_cache_save(cached_fits)
 ```
 
-This vignette is a starting point for using `RoBMA` [@RoBMA].
-It walks through the BCG vaccine dataset from `metafor` [@metafor], showing each `brma()` call alongside its `metafor::rma()` counterpart and building from a simple random-effects model up to meta-regression with a continuous and a categorical moderator.
+This vignette is a starting point for using `RoBMA` package [@RoBMA].
+It walks through the BCG vaccine dataset from `metafor` package [@metafor], showing each `brma()` call alongside its `metafor::rma()` counterpart and building from a simple random-effects model up to meta-regression with a continuous and a categorical moderator.
 The interface is intentionally close to `metafor`: the same effect-size columns, moderator formulas, and standard plotting and diagnostic functions apply.
 
 All `brma()` calls keep the default priors; see the [*Prior Distributions*](01-prior-distributions.html) vignette for the prior definitions and customization options.
@@ -299,13 +299,6 @@ qqnorm(fit3_brma, main = "RoBMA: LOO-PIT", xlim = c(-1.5, 1.5), ylim = c(-3, 3))
 ```{r influence}
 inf_brma <- influence(fit3_brma)
 head(inf_brma$inf)
-```
-
-The Bayesian framework adds Pareto-k diagnostics from the `loo` object, flagging studies for which the LOO approximation is unreliable [@vehtari2024pareto].
-
-```{r loo-plot, fig.width = 4.5, fig.height = 3.5}
-par(cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
-plot(loo(fit3_brma))
 ```
 
 ## References

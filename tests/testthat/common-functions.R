@@ -86,6 +86,30 @@ test_reference_text <- function(text, filename, info_msg = NULL,
   }
 }
 
+vdiffr_snapshots_available <- function() {
+
+  snap_dir <- testthat::test_path("_snaps")
+
+  return(
+    dir.exists(snap_dir) &&
+      length(list.files(snap_dir, pattern = "\\.svg$", recursive = TRUE)) > 0L
+  )
+}
+
+skip_if_no_vdiffr_snapshots <- function() {
+
+  if (!vdiffr_snapshots_available() &&
+      !is_true_env("ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS")) {
+    testthat::skip(paste(
+      "vdiffr snapshots are not available.",
+      "`tests/testthat/_snaps` is intentionally excluded from source builds.",
+      "Set ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE only when regenerating snapshots."
+    ))
+  }
+
+  return(invisible(FALSE))
+}
+
 # ============================================================================ #
 # HELPER FUNCTIONS: Cached Fit Catalog
 # ============================================================================ #
@@ -386,21 +410,11 @@ source_file_md5 <- function(source_file) {
 
 .package_source_md5_cache <- new.env(parent = emptyenv())
 
-.fit_cache_source_files <- function(package_root = NULL, relative = FALSE) {
-
-  if (is.null(package_root)) {
-    package_root <- normalizePath(
-      testthat::test_path("..", ".."),
-      winslash = "/",
-      mustWork = TRUE
-    )
-  } else {
-    package_root <- normalizePath(package_root, winslash = "/", mustWork = TRUE)
-  }
+.fit_cache_required_source_files <- function() {
 
   # Keep this scoped to code that can change saved fit objects or cached fit
   # extensions. Post-fit methods are tested against the cached objects.
-  r_files <- c(
+  r_files   <- c(
     "R/BMA.glmm.R",
     "R/BMA.norm.R",
     "R/RoBMA.R",
@@ -442,9 +456,89 @@ source_file_md5 <- function(source_file) {
     "src/source/selnorm.h"
   )
 
-  source_files <- sort(c(r_files, src_files))
+  return(sort(c(r_files, src_files)))
+}
+
+.path_ancestors <- function(path) {
+
+  path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  out  <- character()
+
+  repeat {
+    out    <- c(out, path)
+    parent <- dirname(path)
+    if (identical(parent, path)) {
+      break
+    }
+    path <- parent
+  }
+
+  return(unique(out))
+}
+
+.fit_cache_source_root_candidates <- function() {
+
+  package_name <- "RoBMA"
+  roots        <- c(
+    testthat::test_path("..", ".."),
+    getwd(),
+    system.file(package = package_name)
+  )
+  roots <- roots[nzchar(roots)]
+  roots <- normalizePath(roots, winslash = "/", mustWork = FALSE)
+
+  bases      <- unique(unlist(lapply(roots, .path_ancestors), use.names = FALSE))
+  candidates <- unique(c(
+    roots,
+    file.path(bases, package_name),
+    file.path(bases, "00_pkg_src", package_name)
+  ))
+
+  return(normalizePath(candidates, winslash = "/", mustWork = FALSE))
+}
+
+.fit_cache_source_tree_available <- function(package_root) {
+
+  package_root <- normalizePath(package_root, winslash = "/", mustWork = FALSE)
+  source_files <- .fit_cache_required_source_files()
+
+  return(all(file.exists(file.path(package_root, source_files))))
+}
+
+.fit_cache_source_root <- function() {
+
+  if (exists("source_root", envir = .package_source_md5_cache, inherits = FALSE)) {
+    return(get("source_root", envir = .package_source_md5_cache, inherits = FALSE))
+  }
+
+  candidates <- .fit_cache_source_root_candidates()
+  for (candidate in candidates) {
+    if (.fit_cache_source_tree_available(candidate)) {
+      assign("source_root", candidate, envir = .package_source_md5_cache)
+      return(candidate)
+    }
+  }
+
+  assign("source_root", NA_character_, envir = .package_source_md5_cache)
+  return(NA_character_)
+}
+
+.fit_cache_source_files <- function(package_root = NULL, relative = FALSE) {
+
+  if (is.null(package_root)) {
+    package_root <- .fit_cache_source_root()
+    if (is.na(package_root)) {
+      return(character())
+    }
+  } else {
+    package_root <- normalizePath(package_root, winslash = "/", mustWork = FALSE)
+  }
+
+  source_files <- .fit_cache_required_source_files()
   source_paths <- file.path(package_root, source_files)
-  source_files <- source_files[file.exists(source_paths)]
+  if (!all(file.exists(source_paths))) {
+    return(character())
+  }
 
   if (relative) {
     return(source_files)
@@ -484,13 +578,19 @@ package_source_md5 <- function() {
     return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
   }
 
-  package_root <- normalizePath(
-    testthat::test_path("..", ".."),
-    winslash = "/",
-    mustWork = TRUE
-  )
+  package_root <- .fit_cache_source_root()
+  if (is.na(package_root)) {
+    assign("value", NA_character_, envir = .package_source_md5_cache)
+    return(NA_character_)
+  }
+
   source_files <- .fit_cache_source_files(package_root = package_root)
-  file_hashes  <- vapply(source_files, .fit_cache_source_file_md5, character(1))
+  if (length(source_files) == 0L) {
+    assign("value", NA_character_, envir = .package_source_md5_cache)
+    return(NA_character_)
+  }
+
+  file_hashes    <- vapply(source_files, .fit_cache_source_file_md5, character(1))
   relative_files <- substring(source_files, nchar(package_root) + 2L)
   hash_input     <- paste(
     paste0(relative_files, ":", unname(file_hashes)),
@@ -657,7 +757,7 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
     }
 
     expected_package_md5 <- package_source_md5()
-    if (check_source &&
+    if (check_source && !is.na(expected_package_md5) &&
         (is.null(metadata[["package_source_md5"]]) ||
          !identical(metadata[["package_source_md5"]], expected_package_md5))) {
       messages <- c(messages, "cache source hash changed")

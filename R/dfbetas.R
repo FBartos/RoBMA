@@ -83,13 +83,18 @@
 #' }
 #'
 #' @seealso \code{\link{add_loo}}, \code{\link{loo_weights.brma}}
+#' @importFrom stats dfbetas
 #' @exportS3Method
-dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE, transform_factors = TRUE, return_loo_estimates = FALSE, ...) {
+dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE,
+                         transform_factors = TRUE,
+                         return_loo_estimates = FALSE, ...) {
 
+  dots <- list(...)
+  .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale", "bias"))
 
   # get PSIS weights (S x K matrix)
-  weights <- loo_weights(model)
+  weights <- .diagnostic_psis_weights(model, .weights)
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
   is_mods  <- .is_mods(model)
@@ -208,6 +213,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   if (return_loo_estimates) {
     beta_loo_df <- as.data.frame(beta_loo)
     colnames(beta_loo_df) <- colnames(samples_mat)
+    beta_loo_df <- .diagnostic_set_rownames(beta_loo_df, model)
     return(beta_loo_df)
   }
 
@@ -222,6 +228,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   # convert to data frame
   dfbetas_df <- as.data.frame(dfbetas_val)
   colnames(dfbetas_df) <- colnames(samples_mat)
+  dfbetas_df <- .diagnostic_set_rownames(dfbetas_df, model)
 
   if (any(undefined)) {
     dfbetas_df <- .diagnostic_with_note(
@@ -280,38 +287,4 @@ print.dfbetas.brma <- function(x, ...) {
   }
 
   return(do.call(cbind, bias_samples))
-}
-
-
-.diagnostic_zero_variance_note <- function(diagnostic, parameters,
-                                           variance = "LOO posterior") {
-
-  parameters <- paste(parameters, collapse = ", ")
-  return(paste0(
-    diagnostic,
-    " could not be computed for parameter(s) ",
-    parameters,
-    " because the ",
-    variance,
-    " variance is zero; values are reported as NaN."
-  ))
-}
-
-
-.diagnostic_with_note <- function(x, class, note) {
-
-  attr(x, "note") <- note
-  class(x)        <- c(class, class(x))
-
-  return(x)
-}
-
-
-.print_diagnostic_note <- function(note) {
-
-  if (!is.null(note) && nzchar(note)) {
-    cat("\nNote: ", note, "\n", sep = "")
-  }
-
-  return(invisible(NULL))
 }

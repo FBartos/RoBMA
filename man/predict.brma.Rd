@@ -97,7 +97,8 @@ prediction scale and bias adjustment.}
 \item{conditional}{whether to return conditional posterior predictions for
 RoBMA product-space objects. For location predictions, samples are conditioned
 on the effect component; for \code{type = "terms.scale"}, samples are
-conditioned on the heterogeneity component.}
+conditioned on the heterogeneity component. Conditional samples are flattened
+to one chain after subsetting posterior rows.}
 
 \item{...}{additional arguments}
 }
@@ -124,6 +125,11 @@ conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
 posterior draw. It is therefore an empirical-Bayes summary, not a draw from
 the full latent-effect posterior \eqn{\theta_i \mid y_i}. For new data,
 estimate-level random effects are sampled from their model distribution.
+
+For RoBMA product-space objects, conditional posterior predictions subset
+posterior rows according to model indicators. This removes the original
+chain structure, so returned \code{brma_samples} objects are intentionally
+stored as one flattened chain.
 
 Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 predictions for the new effect size estimates. To obtain results corresponding to

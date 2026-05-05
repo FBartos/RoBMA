@@ -42,12 +42,12 @@ Read these files when working on the corresponding areas.
 ```r
 devtools::load_all()              # Load during development
 devtools::document()              # Update roxygen2 documentation
-devtools::test()                  # Run all tests
-devtools::test(filter = "topic")  # Run specific topic tests
+devtools::test(reporter = "llm")                  # Run all tests
+devtools::test(filter = "topic", reporter = "llm")  # Run specific topic tests
 devtools::check()                 # Full R CMD check
 ```
 
-**Testing Note**: Long-running model fits are cached. Run `devtools::test(filter = "fit")` first to generate cached fits, then use `devtools::test(filter = "topic")` for faster iteration.
+**Testing Note**: Always use testthat LLM reporting for unit tests (`reporter = "llm"`; or set `AGENT=1` if a wrapper cannot pass `reporter`). Long-running model fits are cached. Run `devtools::test(filter = "fit", reporter = "llm")` first to generate cached fits, then use `devtools::test(filter = "topic", reporter = "llm")` for faster iteration.
 
 ## MCP Tools (r-mcptools via btw)
 
@@ -59,7 +59,7 @@ An MCP server (`btw` package) is configured in `.mcp.json` and `.claude/mcp-serv
 
 - `btw_tool_pkg_load_all` — `pkgload::load_all()`, hot loads package code
 - `btw_tool_pkg_document` — `devtools::document()`, updates documentation and exports
-- `btw_tool_pkg_test` — `devtools::test()`, accepts `filter` for specific tests
+- `btw_tool_pkg_test` — `devtools::test(reporter = "llm")`, accepts `filter` for specific tests; set `AGENT=1` if reporter passthrough is unavailable
 - `btw_tool_pkg_check` — `devtools::check()`, full R CMD check
 - `btw_tool_pkg_coverage` — `covr::package_coverage()`, file or line-level
 
@@ -94,7 +94,7 @@ An MCP server (`btw` package) is configured in `.mcp.json` and `.claude/mcp-serv
 
 - **Looking up BayesTools or dependency API**: use `docs` tools instead of reading installed package source
 - **Running quick R expressions**: use `run_r` for interactive testing during development
-- **Package dev cycle**: use `pkg` tools for load/document/test/check — cleaner output than raw Rscript
+- **Package dev cycle**: use `pkg` tools for load/document/test/check — cleaner output than raw Rscript; unit tests must use LLM reporting
 - **Checking dependency changes**: use `docs_package_news` to read changelogs
 
 ## Code Style
@@ -198,6 +198,7 @@ When adding JAGS distributions: implement in `src/distributions/`, register in `
 ## Testing
 
 - Framework: testthat in `tests/testthat/`
+- Reporter: always use `LlmReporter` for unit tests (`reporter = "llm"` or `AGENT=1`)
 - Files numbered `test-XX-topic.R` for execution order
 - Wrap computationally intensive tests with `skip_on_cran()`
 

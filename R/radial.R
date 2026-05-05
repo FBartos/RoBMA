@@ -63,7 +63,7 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' \describe{
 #'   \item{pch}{point symbol (default: 21, filled circle)}
 #'   \item{col}{point border color (default: "black")}
-#'   \item{bg}{point fill/background color (default: "black")}
+#'   \item{bg}{point fill/background color (default: "#A6A6A6")}
 #'   \item{cex}{point size multiplier for base graphics (default: 1)}
 #'   \item{size}{point size for ggplot2 (default: 2)}
 #'   \item{back}{background color for the confidence band (default: "grey90").
@@ -932,11 +932,7 @@ galbraith.brma <- function(x, ...) {
   dots <- list(...)
 
   # point styling
-  if (is.null(dots[["pch"]]))  dots[["pch"]]  <- 21
-  if (is.null(dots[["col"]]))  dots[["col"]]  <- "black"
-  if (is.null(dots[["bg"]]))   dots[["bg"]]   <- "black"
-  if (is.null(dots[["cex"]]))  dots[["cex"]]  <- 1
-  if (is.null(dots[["size"]])) dots[["size"]]  <- 2
+  dots <- .plot_point_style_defaults(dots)
 
   # confidence band
   if (is.null(dots[["back"]])) dots[["back"]] <- "grey90"

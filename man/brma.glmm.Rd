@@ -82,10 +82,10 @@ binomial GLMMs, it is computed as \code{ci + di}.}
 models, each weight powers the estimate likelihood. For GLMM models, each
 weight powers the paired two-arm likelihood for one study.}
 
-\item{mods}{an optional vector, matrix, data.frame, or formula specifying
+\item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
-\item{scale}{an optional vector, matrix, data.frame, or formula specifying
+\item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
 \code{data}.}
 
@@ -124,13 +124,13 @@ priors. If omitted or \code{NULL}, default priors are used.}
 heterogeneity allocated to the cluster-level component in multilevel models
 (\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
 
-\item{prior_baserate}{prior distribution for the estimate-specific base-rate
-probability in binomial GLMM models. If omitted or \code{NULL}, defaults to
-independent \code{Beta(1, 1)} priors.}
+\item{prior_baserate}{prior distribution for the estimate-specific midpoint
+base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
+to independent \code{Beta(1, 1)} priors.}
 
-\item{prior_lograte}{prior distribution for the estimate-specific log-rate in
-Poisson GLMM models. If omitted or \code{NULL}, a data-based unit-information normal
-prior is used.}
+\item{prior_lograte}{prior distribution for the estimate-specific midpoint
+log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
+unit-information normal prior is used independently for each estimate.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
@@ -193,13 +193,15 @@ and location-scale meta-analytic models directly to either binary or count data.
 \details{
 Model for odds ratios (\code{measure = "OR"}) corresponds to Model 4 described in
 \insertCite{jackson2018comparison;textual}{RoBMA}.
-\code{prior_baserate} defines the estimate-specific prior distribution on the base-rate
-probability.
+\code{logit(pi[i])} is the study-specific midpoint of the two arm logits.
+\code{prior_baserate} defines the estimate-specific prior distribution on \code{pi[i]}.
 
 Model for incidence rate ratios (\code{measure = "IRR"}) corresponds to
 \insertCite{bagos2009mixed;textual}{RoBMA}.
-\code{prior_lograte} defines the estimate-specific prior distribution on the log-rate.
-If unspecified, a unit-information prior is based on the data.
+\code{phi[i]} is the study-specific midpoint of the two arm log incidence rates.
+\code{prior_lograte} defines the estimate-specific prior distribution on \code{phi[i]}.
+If unspecified, a unit-information prior is based on the data and used
+independently for each estimate.
 
 When \code{weights} are supplied, they are treated as likelihood weights on the
 paired two-arm study contribution.

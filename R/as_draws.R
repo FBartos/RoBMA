@@ -29,6 +29,10 @@
 #' \pkg{posterior} function.
 #'
 #' @details
+#' These functions are S3 generics. Their default methods forward to the
+#' corresponding \pkg{posterior} generics so attaching \pkg{RoBMA} preserves
+#' the usual \pkg{posterior} behavior for non-\code{brma} objects.
+#'
 #' The following conversion functions are available:
 #' \itemize{
 #'   \item \code{as_draws}: converts to the default draws format
@@ -96,6 +100,15 @@ NULL
   }
 }
 
+.posterior_default_method <- function(generic) {
+
+  return(getS3method(
+    f     = generic,
+    class = "default",
+    envir = asNamespace("posterior")
+  ))
+}
+
 #' @rdname as_draws.brma
 #' @export
 as_draws <- function(x, ...) {
@@ -130,6 +143,60 @@ as_draws_matrix <- function(x, ...) {
 #' @export
 as_draws_rvars <- function(x, ...) {
   UseMethod("as_draws_rvars")
+}
+
+#' @rdname as_draws.brma
+#' @export
+as_draws.default <- function(x, ...) {
+
+  .check_posterior_package()
+
+  return(.posterior_default_method("as_draws")(x, ...))
+}
+
+#' @rdname as_draws.brma
+#' @export
+as_draws_array.default <- function(x, ...) {
+
+  .check_posterior_package()
+
+  return(.posterior_default_method("as_draws_array")(x, ...))
+}
+
+#' @rdname as_draws.brma
+#' @export
+as_draws_df.default <- function(x, ...) {
+
+  .check_posterior_package()
+
+  return(.posterior_default_method("as_draws_df")(x, ...))
+}
+
+#' @rdname as_draws.brma
+#' @export
+as_draws_list.default <- function(x, ...) {
+
+  .check_posterior_package()
+
+  return(.posterior_default_method("as_draws_list")(x, ...))
+}
+
+#' @rdname as_draws.brma
+#' @export
+as_draws_matrix.default <- function(x, ...) {
+
+  .check_posterior_package()
+
+  return(.posterior_default_method("as_draws_matrix")(x, ...))
+}
+
+#' @rdname as_draws.brma
+#' @export
+as_draws_rvars.default <- function(x, ...) {
+
+  .check_posterior_package()
+
+  return(.posterior_default_method("as_draws_rvars")(x, ...))
 }
 
 

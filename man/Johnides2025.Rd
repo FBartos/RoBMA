@@ -16,9 +16,6 @@ A data.frame with 3 columns and 412 observations:
 \usage{
 Johnides2025
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains Cohen's d effect sizes, standard errors, and study labels
 from a meta-analysis investigating the extent to which family-based treatments for children

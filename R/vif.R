@@ -225,10 +225,15 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 
   p <- ncol(vcov)
 
-  # term labels from formula
-  mods_data    <- object[["data"]][["mods"]]
-  mods_formula <- attr(mods_data, "formula")
-  term_labels  <- attr(terms(mods_formula), "term.labels")
+  term_labels <- attr(X, "term_labels")
+  if (is.null(term_labels)) {
+    term_labels <- .fitted_formula_terms(
+      object            = object,
+      parameter         = "mu",
+      include_intercept = FALSE,
+      display           = TRUE
+    )
+  }
 
   # compute GVIF per term from vcov correlation matrix
   terms_unique <- sort(unique(assign))

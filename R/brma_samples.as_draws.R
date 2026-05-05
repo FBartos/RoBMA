@@ -16,7 +16,9 @@
 #' The conversion reconstructs the MCMC chain structure from the stored
 #' \code{nchains} and \code{niter} attributes. The samples are assumed
 #' to be ordered with chains concatenated (i.e., all iterations from chain 1,
-#' then all from chain 2, etc.).
+#' then all from chain 2, etc.). Conditional RoBMA samples are intentionally
+#' stored as one flattened chain because conditioning subsets posterior rows
+#' across chains.
 #'
 #' @return An object of the corresponding \pkg{posterior} draws class.
 #'

@@ -496,6 +496,29 @@ marginal_means_cases <- function() {
   )
 }
 
+marginal_means_interaction_plot_cases <- function() {
+
+  data.frame(
+    name = c(
+      "bcg_meta-regression3",
+      "bcg_meta-regression4",
+      "dat.lehmann2018_RoBMA_mods2"
+    ),
+    label = c(
+      "factor by continuous interaction",
+      "factor by factor interaction",
+      "RoBMA factor by factor interaction"
+    ),
+    parameter = c(
+      "alloc:year",
+      "alloc:year_before1969",
+      "Preregistered:Gender"
+    ),
+    tier = c("core", "core", "core"),
+    stringsAsFactors = FALSE
+  )
+}
+
 skip_if_not_full_visuals <- function(reason = NULL) {
 
   if (!is_true_env("ROBMA_TEST_FULL_VISUALS")) {

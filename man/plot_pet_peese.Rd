@@ -17,15 +17,16 @@ plot_pet_peese(x, ...)
 )
 }
 \arguments{
-\item{x}{a fitted RoBMA object}
+\item{x}{a fitted brma object with a PET or PEESE component.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments
 are \code{lwd}, \code{lty}, \code{col}, \code{col.fill},
-\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim}
+\code{xlab}, \code{ylab}, \code{main}, \code{xlim}, \code{ylim},
+\code{pch}, \code{bg}, \code{cex}, and \code{size}
 to adjust the line thickness, line type, line color, fill color,
-x-label, y-label, title, x-axis range, and y-axis range
-respectively.}
+x-label, y-label, title, x-axis range, y-axis range, and observed data
+point style respectively.}
 
 \item{show_data}{whether the observed effect sizes should be added to
 figure. Defaults to \code{TRUE}.}
@@ -55,6 +56,20 @@ of the prior distribution respectively.}
 }
 \examples{
 \dontrun{
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+
+  fit <- bPET(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
+
+  plot_pet_peese(fit)
+}
 }
 
 

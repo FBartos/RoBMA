@@ -73,11 +73,7 @@ RoBMA <- function(
 
   ### create the output object
   dots         <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
-    caller  = "RoBMA()"
-  )
+  dots         <- .validate_constructor_dots(dots, caller = "RoBMA()")
   object       <- .createObject(
     dots = dots, class = c("RoBMA", "brma"),
     # MCMC and fitting settings
@@ -119,6 +115,7 @@ RoBMA <- function(
   ### store simple summary & coefficients
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
+  object               <- .autocompute_brma(object)
 
   return(object)
 }

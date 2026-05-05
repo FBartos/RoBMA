@@ -79,11 +79,7 @@ BMA.glmm <- function(
 
   ### create the output object
   dots         <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
-    caller  = "BMA.glmm()"
-  )
+  dots         <- .validate_constructor_dots(dots, caller = "BMA.glmm()")
   object       <- .createObject(
     dots = dots, class = c("BMA.glmm", "RoBMA", "brma.glmm", "brma"),
     # MCMC and fitting settings
@@ -126,6 +122,7 @@ BMA.glmm <- function(
   ### store simple summary & coefficients
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
+  object               <- .autocompute_brma(object)
 
   return(object)
 }

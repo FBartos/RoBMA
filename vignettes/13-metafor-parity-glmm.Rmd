@@ -118,9 +118,12 @@ pooled_effect(fit1_brma, transform = "EXP")
 ## Default Priors and the Auxiliary Parameter
 
 The default priors on `mu` and `tau` follow the unit-information set-up as elsewhere in the package, scaled by the known unit information standard deviation for the chosen `measure` (`sqrt(4)` for `OR` and `IRR`).
-Beyond `mu` and `tau`, GLMM models include an estimate-specific auxiliary parameter that captures the per-study baseline rate.
-For binomial outcomes (`measure = "OR"`), this is the study-specific event probability under the control arm, with the default `prior_baserate = Beta(1, 1)` placed independently on each study.
-For Poisson outcomes (`measure = "IRR"`), it is the study-specific log incidence rate; because the log-rate is unbounded a flat prior is not available, so the default `prior_lograte` is a data-based unit-information normal per study.
+Beyond `mu` and `tau`, GLMM models include estimate-specific nuisance parameters for the per-study baseline level.
+For binomial outcomes (`measure = "OR"`), `logit(pi[i])` is the midpoint of the two arm logits before applying half of the study-specific log odds ratio to each arm.
+The default `prior_baserate = Beta(1, 1)` is placed independently on each `pi[i]`.
+For Poisson outcomes (`measure = "IRR"`), `phi[i]` is the midpoint of the two arm log incidence rates before applying half of the study-specific log incidence rate ratio to each arm.
+Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper data-based unit-information normal used independently for each `phi[i]`.
+Thus the default nuisance-parameter priors are exchangeable in the iid prior sense, but they are not hierarchical priors with a learned common baseline-rate distribution.
 Both defaults can be overridden via the corresponding `prior_*` argument; see the [*Prior Distributions*](01-prior-distributions.html) vignette.
 The Poisson model corresponds to @bagos2009mixed and uses event counts and exposure times (`x1i`, `t1i`, `x2i`, `t2i`) in place of the four-way count layout.
 

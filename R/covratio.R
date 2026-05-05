@@ -53,10 +53,12 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' @exportS3Method
 covratio.brma <- function(model, type = "mods", ...) {
 
+  dots <- list(...)
+  .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale"))
 
   # Get PSIS weights (S x K matrix)
-  weights <- loo_weights(model)
+  weights <- .diagnostic_psis_weights(model, .weights)
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
   is_mods  <- .is_mods(model)
@@ -114,7 +116,7 @@ covratio.brma <- function(model, type = "mods", ...) {
   )
   if (any(undefined)) {
     return(.diagnostic_with_note(
-      rep(NaN, K),
+      .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
       note  = .diagnostic_zero_variance_note(
         diagnostic = "COVRATIO",
@@ -135,7 +137,7 @@ covratio.brma <- function(model, type = "mods", ...) {
   val_full <- as.numeric(determinant(cov_full_res$cov, logarithm = TRUE)$modulus)
   if (!is.finite(val_full)) {
     return(.diagnostic_with_note(
-      rep(NaN, K),
+      .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
       note  = "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
     ))
@@ -160,7 +162,7 @@ covratio.brma <- function(model, type = "mods", ...) {
     out[i] <- if (is.finite(val_loo)) exp(val_loo - val_full) else NaN
   }
 
-  names(out) <- NULL
+  out <- .diagnostic_set_names(out, model)
   if (any(is.nan(out))) {
     out <- .diagnostic_with_note(
       out,

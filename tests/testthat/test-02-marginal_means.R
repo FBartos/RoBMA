@@ -6,9 +6,74 @@ source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
 
+.marginal_means_test_object <- function() {
+
+  p <- stats::ppoints(200)
+
+  levels <- list(
+    alternate  = stats::qnorm(p, mean = -0.60, sd = 0.20),
+    random     = stats::qnorm(p, mean = -0.20, sd = 0.25),
+    systematic = stats::qnorm(p, mean =  0.20, sd = 0.30)
+  )
+  class(levels) <- c("marginal_posterior.factor", "marginal_posterior")
+
+  samples   <- list(mu_alloc = levels)
+  inference <- list(averaged = samples, conditional = samples, inference = list())
+  class(inference) <- c("marginal_inference", "list")
+
+  emm <- list(
+    inference        = inference,
+    parameters       = "mu_alloc",
+    term_map         = data.frame(
+      term             = "alloc",
+      parameter        = "mu_alloc",
+      label            = "alloc",
+      stringsAsFactors = FALSE
+    ),
+    input_measure    = "GEN",
+    effect_transform = .effect_output_setup_measure(input_measure = "GEN"),
+    model_averaged   = FALSE,
+    bf               = FALSE
+  )
+  class(emm) <- c("marginal_means.brma", "marginal_means")
+
+  return(emm)
+}
+
+
+test_that("marginal_means base plot keeps separate level colors", {
+
+  emm  <- .marginal_means_test_object()
+  file <- tempfile(fileext = ".svg")
+
+  grDevices::svg(filename = file)
+  device <- grDevices::dev.cur()
+  on.exit({
+    if (identical(grDevices::dev.cur(), device)) {
+      grDevices::dev.off()
+    }
+    unlink(file)
+  }, add = TRUE)
+
+  plot(emm, parameter = "alloc", legend = FALSE)
+  grDevices::dev.off()
+
+  svg_lines    <- readLines(file, warn = FALSE)
+  stroke_lines <- grep("stroke=\"", svg_lines, value = TRUE)
+  strokes      <- unique(sub(".*stroke=\"([^\"]+)\".*", "\\1", stroke_lines))
+  strokes      <- setdiff(strokes, "rgb(0%, 0%, 0%)")
+
+  expect_gte(length(strokes), 3L)
+})
+
+
 # list cached fits lazily
 skip_if_no_fits()
-fit_names <- c("bcg_meta-analysis", marginal_means_cases()[["name"]])
+fit_names <- unique(c(
+  "bcg_meta-analysis",
+  marginal_means_cases()[["name"]],
+  marginal_means_interaction_plot_cases()[["name"]]
+))
 fits <- lazy_fits(fit_names, validate = FALSE)
 
 
@@ -96,19 +161,15 @@ test_that("marginal_means plot labels effect axis and term legend", {
 
   emm  <- marginal_means(fits[["bcg_meta-regression2"]], n_samples = 1000)
   plot <- plot(emm, parameter = "alloc", plot_type = "ggplot")
+  colour_scale   <- plot[["scales"]][["get_scales"]]("colour")
+  linetype_scale <- plot[["scales"]][["get_scales"]]("linetype")
 
   expect_identical(
     plot[["scales"]][["get_scales"]]("x")[["name"]],
     "Effect Size"
   )
-  expect_identical(
-    plot[["guides"]][["guides"]][["colour"]][["params"]][["title"]],
-    "alloc"
-  )
-  expect_identical(
-    plot[["guides"]][["guides"]][["linetype"]][["params"]][["title"]],
-    "alloc"
-  )
+  expect_identical(colour_scale[["name"]], "alloc")
+  expect_identical(linetype_scale[["name"]], "alloc")
 
   plot_custom <- plot(
     emm,
@@ -119,6 +180,17 @@ test_that("marginal_means plot labels effect axis and term legend", {
   expect_identical(
     plot_custom[["scales"]][["get_scales"]]("x")[["name"]],
     "Custom Label"
+  )
+
+  plot_custom_legend <- plot(
+    emm,
+    parameter    = "alloc",
+    plot_type    = "ggplot",
+    legend_title = "Custom Legend"
+  )
+  expect_identical(
+    plot_custom_legend[["scales"]][["get_scales"]]("colour")[["name"]],
+    "Custom Legend"
   )
 })
 
@@ -250,6 +322,40 @@ test_that("marginal_means prior plot gallery snapshots are stable", {
       plot(emm, parameter = parameter, prior = TRUE, plot_type = "ggplot")
     )
   }, tier = visual_test_tier())
+})
+
+
+test_that("marginal_means interaction plots render moderator type combinations", {
+
+  skip_if_missing_fits(unique(marginal_means_interaction_plot_cases()[["name"]]))
+
+  for_each_case(marginal_means_interaction_plot_cases(), function(case) {
+
+    name      <- case_name(case)
+    parameter <- case_value(case, "parameter")
+    fit       <- fits[[name]]
+    emm       <- marginal_means(fit, n_samples = 1000)
+
+    expect_true(parameter %in% emm[["term_map"]][["term"]])
+
+    for (show_prior in c(FALSE, TRUE)) {
+      expect_s3_class(
+        plot(
+          emm,
+          parameter = parameter,
+          prior     = show_prior,
+          plot_type = "ggplot"
+        ),
+        "ggplot"
+      )
+
+      .with_temp_plot_device(expect_silent(plot(
+        emm,
+        parameter = parameter,
+        prior     = show_prior
+      )))
+    }
+  }, tier = test_tier())
 })
 
 

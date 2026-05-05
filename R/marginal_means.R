@@ -98,8 +98,9 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     transform      = transform
   )
 
-  formula          <- .create_fit_formula_list(data = object[["data"]], parameter = "mods")
-  terms            <- .marginal_means_terms(formula)
+  design           <- .fitted_formula_design(object, "mu", required = TRUE)
+  formula          <- .fitted_formula_evaluable(object, design, "mods")
+  terms            <- .marginal_means_terms(design)
   parameters       <- BayesTools::JAGS_parameter_names(
     parameters        = terms,
     formula_parameter = "mu"
@@ -364,11 +365,13 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
          selected[["term"]], "' and type = '", type, "'.", call. = FALSE)
   }
 
-  n_levels   <- length(samples[[selected[["parameter"]]]])
-  dots       <- .set_dots_plot(..., n_levels = n_levels)
-  term_label <- selected[["label"]]
+  n_levels <- length(samples[[selected[["parameter"]]]])
+  dots     <- .set_dots_plot(..., n_levels = n_levels)
   if (is.null(dots[["xlab"]])) {
     dots[["xlab"]] <- .plot_parameter_label("mu", effect_transform)
+  }
+  if (is.null(dots[["legend_title"]])) {
+    dots[["legend_title"]] <- selected[["label"]]
   }
   prior_component_counts <- .marginal_means_prior_component_counts(
     samples[[selected[["parameter"]]]]
@@ -390,24 +393,13 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   args$transformation_settings  <- FALSE
   args$par_name                 <- dots[["xlab"]]
   args$dots_prior               <- dots_prior
-  if (plot_type == "base" && !identical(dots[["legend"]], FALSE)) {
-    args$legend <- FALSE
-  }
 
   plot <- suppressMessages(do.call(BayesTools::plot_marginal, args))
 
   if (plot_type == "base") {
-    .marginal_means_add_base_legend(
-      samples_parameter = samples[[selected[["parameter"]]]],
-      term_label        = term_label,
-      dots              = dots
-    )
     return(invisible(plot))
   } else if (plot_type == "ggplot") {
-    return(.marginal_means_set_ggplot_legend_title(
-      plot       = plot,
-      term_label = term_label
-    ))
+    return(plot)
   }
 }
 
@@ -415,11 +407,15 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 # Extract model terms used by the moderator formula.
 .marginal_means_terms <- function(formula) {
 
-  formula_terms <- stats::terms(formula)
-  terms         <- c(
-    if (attr(formula_terms, "intercept") == 1L) "intercept",
-    attr(formula_terms, "term.labels")
-  )
+  if (inherits(formula, "BayesTools_formula_design")) {
+    terms <- .formula_design_display_names(formula[["model_terms"]])
+  } else {
+    formula_terms <- stats::terms(formula)
+    terms         <- c(
+      if (attr(formula_terms, "intercept") == 1L) "intercept",
+      attr(formula_terms, "term.labels")
+    )
+  }
 
   if (length(terms) == 0L) {
     stop("No moderator terms found.", call. = FALSE)
@@ -557,105 +553,6 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
 }
 
 
-# Add the moderator term as the legend title for base marginal-means plots.
-.marginal_means_add_base_legend <- function(samples_parameter, term_label,
-                                            dots) {
-
-  if (identical(dots[["legend"]], FALSE)) {
-    return(invisible(NULL))
-  }
-
-  level_names <- .marginal_means_level_names(samples_parameter)
-  if (length(level_names) == 0L) {
-    return(invisible(NULL))
-  }
-
-  graphics::legend(
-    if (is.null(dots[["legend_position"]])) "topright" else dots[["legend_position"]],
-    legend = level_names,
-    title  = term_label,
-    col    = .marginal_means_recycle_plot_value(dots[["col"]], length(level_names), "black"),
-    lty    = .marginal_means_recycle_plot_value(dots[["lty"]], length(level_names), 1),
-    lwd    = .marginal_means_recycle_plot_value(dots[["lwd"]], length(level_names), 1),
-    bty    = "n"
-  )
-
-  return(invisible(NULL))
-}
-
-
-# Add the moderator term as the legend title for ggplot marginal-means plots.
-.marginal_means_set_ggplot_legend_title <- function(plot, term_label) {
-
-  if (!requireNamespace("ggplot2", quietly = TRUE)) {
-    return(plot)
-  }
-
-  return(plot +
-    ggplot2::guides(
-      color    = ggplot2::guide_legend(title = term_label),
-      linetype = ggplot2::guide_legend(title = term_label)
-    ) +
-    ggplot2::theme(legend.title = ggplot2::element_text()))
-}
-
-
-# Extract and format marginal-means legend level names.
-.marginal_means_level_names <- function(samples_parameter) {
-
-  level_names <- names(samples_parameter)
-  if (is.null(level_names)) {
-    return(character(0L))
-  }
-
-  dif_matches <- gregexpr("[dif:", level_names, fixed = TRUE)
-  has_dif     <- vapply(dif_matches, function(x) x[1] != -1L, logical(1))
-  multi_dif   <- vapply(
-    dif_matches,
-    function(x) x[1] != -1L && length(x) > 1L,
-    logical(1)
-  )
-
-  if (any(multi_dif)) {
-    level_names[multi_dif] <- gsub("__xXx__", ":", level_names[multi_dif], fixed = TRUE)
-  }
-  if (any(has_dif & !multi_dif)) {
-    single_dif <- has_dif & !multi_dif
-    level_names[single_dif] <- substr(
-      level_names[single_dif],
-      regexpr("[dif:", level_names[single_dif], fixed = TRUE) + 5L,
-      regexpr("]", level_names[single_dif], fixed = TRUE) - 1L
-    )
-  }
-
-  no_dif <- !has_dif
-  if (any(no_dif & grepl("[", level_names, fixed = TRUE))) {
-    bracket_names <- no_dif & grepl("[", level_names, fixed = TRUE)
-    level_names[bracket_names] <- substr(
-      level_names[bracket_names],
-      regexpr("[", level_names[bracket_names], fixed = TRUE) + 1L,
-      regexpr("]", level_names[bracket_names], fixed = TRUE) - 1L
-    )
-  }
-
-  return(level_names)
-}
-
-
-# Recycle graphical legend values to one value per marginal level.
-.marginal_means_recycle_plot_value <- function(value, n, default) {
-
-  if (is.null(value)) {
-    value <- default
-  }
-  if (length(value) == 1L) {
-    value <- rep(value, n)
-  }
-
-  return(value)
-}
-
-
 # Format available marginal-means terms for error messages.
 .marginal_means_available_terms <- function(x) {
 
@@ -708,10 +605,7 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   if (is.null(dots_prior[["col"]]) && n_levels == 1L) {
     dots_prior[["col"]] <- "black"
   } else if (is.null(dots_prior[["col"]]) && n_levels > 1L) {
-    level_col <- grDevices::palette.colors(
-      n       = n_levels + 1L,
-      palette = "Okabe-Ito"
-    )[-1L]
+    level_col <- .plot_level_palette(n_levels)
     dots_prior[["col"]] <- rep(level_col, prior_component_counts)
   } else if (length(dots_prior[["col"]]) == 1L) {
     dots_prior[["col"]] <- rep(dots_prior[["col"]], n_prior_levels)

@@ -2,6 +2,7 @@
 % Please edit documentation in R/brma.norm.R
 \name{brma}
 \alias{brma}
+\alias{brma.norm}
 \title{Bayesian Meta-Analysis}
 \usage{
 brma(
@@ -45,7 +46,7 @@ brma(
 \arguments{
 \item{yi}{a vector of effect sizes, or a formula with the effect size on the
 left-hand side and location moderators on the right-hand side (for example
-\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} is ignored.}
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
 \item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
@@ -60,10 +61,10 @@ weight powers the paired two-arm likelihood for one study.}
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
 
-\item{mods}{an optional vector, matrix, data.frame, or formula specifying
+\item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
-\item{scale}{an optional vector, matrix, data.frame, or formula specifying
+\item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
 \code{data}.}
 
@@ -158,7 +159,7 @@ it can also contain cached LOO, WAIC, or marginal likelihood results.
 }
 \description{
 Function for fitting random-effects, meta-regression, multilevel,
-and location-scale meta-analytic models.
+and location-scale meta-analytic models. \code{brma.norm()} is an alias for \code{brma()}.
 }
 \details{
 \subsection{Prior distributions}{

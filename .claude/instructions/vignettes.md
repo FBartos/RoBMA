@@ -1,11 +1,10 @@
 # Vignette Writing Instructions
 
-Reference for writing vignettes in `vignettes/`. Two canonical references depending on vignette type:
+Reference for writing vignettes in `vignettes/`. Canonical references for general functionality:
 
-- **Methodological / display-only vignettes** (priors, distributions, theory): `vignettes/01-prior-distributions.Rmd`. Lede establishes the conceptual asymmetry/tension.
-- **Getting-started / `metafor` parity / paper-companion vignettes**: `vignettes/02-bayesian-meta-analysis.Rmd`. Lede positions the vignette as a starting point and uses side-by-side comparison with `metafor` as the pedagogical device.
-
-Mirror the matching reference whenever uncertain.
+- **Prior distributions / default prior distributions**: `vignettes/01-prior-distributions.Rmd`
+- **Getting-started / simple workflow**: `vignettes/02-bayesian-meta-analysis.Rmd`
+- **Comprehensive feature list**: `vignettes/03-feature-coverage.Rmd`
 
 ## Filename and Ordering
 
@@ -40,6 +39,8 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
 ```
+
+Use author `František Bartoš` unless instructed otherwise.
 
 Use a spelled date, not `\`r Sys.Date()\``. `link-citations: true` and the `_notangle` engine line are required.
 
@@ -355,6 +356,21 @@ plot(fit, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 - Cross-reference subsections by their human-readable title in italics (`see *Per-moderator overrides* below`), not by filename or numeric prefix.
 - Bolded sentence-leading paragraphs are the right format for re-iterating principles or warning notes (`**Wide priors are not "uninformative" in testing or model averaging.**`).
 - For tone, the lede should establish the asymmetry that motivates the rest of the vignette (e.g., the role of priors differs between estimation and hypothesis testing). Re-iterate the same point in the closing section.
+
+### Voice and word choice
+
+- Use both **Subject + active verb stuctures** ("This vignette illustrates", ...) and **"we" as the narrator.** ("We start by fitting...", "we can model-average over the two models..."). Do not relly too much on passive tense. 
+- The vignette is going through the analysis with the reader, not delivering a brochure.
+- **Nouns   Not "the vignette walks through" or bare imperatives. 
+- **Name the specific referent of nouns.** Prefer "mixture of *the two* models" over "mixture of models"; "the *prior distribution*" over "the prior"; "without fitting *the models*" over "without fitting". When the noun has a definite referent in context, name it; tightening this away reads as math jargon.
+- **Open the lede with the practical situation, not the abstract claim.** "In meta-analysis, analysts often have to balance different assumptions about the data-generating process and decide what kind of model to fit, which covariates to include, and what publication-bias adjustment method to use" beats "Choosing one meta-analytic model out of several plausible specifications discards the evidence the discarded models carry." The conceptual claim follows the practical setup; do not lead with abstract framing.
+- **Concrete, visible action over abstract metaphor.** "`regplot()` shrinks the difference towards zero" beats "shrinks the line toward a flat fit when the inclusion BF is modest". Describe what the figure or output literally shows, not what it metaphorically represents.
+- **Plain words over math jargon when describing visualizations.** "the corresponding visualization for the prior distribution" beats "the same decomposition for the prior"; "drops the null component on the effect (spike at zero)" beats "drops the spike". When introducing a technical term, follow with a parenthetical that grounds it.
+- **No clever paired phrasings.** "remove the component" beats "force the component in or out". List alternatives with "or"; do not stack parallels for symmetry.
+- **When introducing a paired naming convention, name the example.** "Every component has a paired `_null` argument (i.e. `prior_effect` and `prior_effect_null`)" beats "Every component has a paired `_null` argument". The example does the lifting that the rule alone cannot.
+- **Cross-references go in narrative voice.** "In a later vignette [*Robust Bayesian Meta-Analysis*](21-robust-bayesian-meta-analysis.html), we illustrate..." or "Note that we do not demonstrate all the diagnostics; see [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html)". Bare terminal pointers ("for X, see Y") are reserved for the closer's see-also list.
+- always use "prior distribution" / "default prior distribution" in full
+- always use "`RoBMA` package"  / "`metafor` package" in full 
 
 ## Common Pitfalls
 

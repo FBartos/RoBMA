@@ -95,7 +95,9 @@
 #' For GLMM models (binomial or Poisson), observed effect sizes and their
 #' sampling variances are computed from the raw frequency data using the
 #' same formulas as \code{metafor::escalc} with the default zero-cell
-#' adjustment (adding 0.5 to all cells when any cell is zero).
+#' adjustment (adding 0.5 to all cells when any cell is zero). GLMM residuals
+#' and LOO-PIT values are therefore approximate effect-size-scale diagnostics,
+#' not exact PIT diagnostics for the raw count likelihood.
 #'
 #' The residuals are computed separately for each posterior sample,
 #' naturally propagating uncertainty in model parameters to the residuals.
@@ -418,7 +420,7 @@ rstandard.brma <- function(model, unit = "estimate",
     se    = hat_res[["se"]],
     z     = hat_res[["z"]]
   )
-  rownames(out) <- NULL
+  out <- .diagnostic_set_rownames(out, model)
 
   return(out)
 }
@@ -463,7 +465,8 @@ rstandard.brma <- function(model, unit = "estimate",
 #' moments using the normalized PSIS weights. For selection models, these moments
 #' are computed from the fitted selected-normal predictive distribution. For
 #' GLMMs, they are computed on the approximate effect-size scale used by the
-#' LOO-PIT diagnostic.
+#' LOO-PIT diagnostic; they are not exact PIT diagnostics for the raw count
+#' likelihood.
 #'
 #' Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 #' residuals properly account for estimation uncertainty and leverage without
@@ -497,6 +500,8 @@ rstudent.brma <- function(model, unit = "estimate",
                           conditioning_depth = "marginal", ...) {
 
   dots                         <- list(...)
+  .psis_context                <- dots[[".psis_context"]]
+  dots[[".psis_context"]]      <- NULL
   conditioning_depth_specified <- !missing(conditioning_depth)
   .check_legacy_level_arg(dots, "rstudent()")
 
@@ -528,16 +533,12 @@ rstudent.brma <- function(model, unit = "estimate",
   setup <- .estimate_likelihood_setup.brma(model)
 
   # extract PSIS object once and reuse it for PIT and LOO expectations
-  loo_result   <- loo.brma(model, unit = "estimate")
-  psis_object  <- loo_result[["psis_object"]]
-  psis_weights <- loo::weights.importance_sampling(
-    psis_object,
-    log       = FALSE,
-    normalize = TRUE
-  )
+  psis_context <- .diagnostic_psis_context(model, .psis_context)
+  psis_object  <- psis_context[["psis_object"]]
+  psis_weights <- psis_context[["psis_weights"]]
 
   # get LOO-PIT z values using the estimate-unit LOO target
-  check_loo(model, unit = "estimate")
+  .diagnostic_check_loo(model, psis_context, unit = "estimate")
 
   if (setup[["outcome_type"]] == "norm" && setup[["is_weightfunction"]]) {
     summary <- .loo_predictive_selnorm_summary_estimate(
@@ -551,7 +552,7 @@ rstudent.brma <- function(model, unit = "estimate",
       se    = summary[["se"]],
       z     = summary[["z"]]
     )
-    rownames(out) <- NULL
+    out <- .diagnostic_set_rownames(out, model)
 
     return(out)
   }
@@ -578,7 +579,7 @@ rstudent.brma <- function(model, unit = "estimate",
     se    = se,
     z     = z
   )
-  rownames(out) <- NULL
+  out <- .diagnostic_set_rownames(out, model)
 
   return(out)
 }
@@ -746,157 +747,6 @@ rstudent.brma <- function(model, unit = "estimate",
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_data_yi
-# ---------------------------------------------------------------------------- #
-#
-# Extract or compute observed effect sizes from brma object.
-#
-# For normal models, yi is directly available in the data.
-# For GLMM models, yi is computed from raw frequency data using formulas
-# equivalent to metafor::escalc with default zero-cell adjustment (add = 0.5).
-#
-# @param object brma object
-#
-# @return numeric vector of observed effect sizes
-#
-# ---------------------------------------------------------------------------- #
-.outcome_data_yi <- function(object) {
-
-  outcome_type <- .outcome_type(object)
-  outcome_data <- object[["data"]][["outcome"]]
-
-  if (outcome_type == "norm") {
-    # normal models: yi is directly available
-    return(outcome_data[["yi"]])
-  } else if (outcome_type == "bin") {
-    # binomial models: compute log odds ratio from 2x2 table
-    # using metafor::escalc formula with default zero-cell adjustment (add = 0.5)
-    ai <- outcome_data[["ai"]]
-    bi <- outcome_data[["n1i"]] - outcome_data[["ai"]] # bi = n1i - ai
-    ci <- outcome_data[["ci"]]
-    di <- outcome_data[["n2i"]] - outcome_data[["ci"]] # di = n2i - ci
-    add <- 0.5
-
-    # vectorized computation with conditional zero-cell adjustment
-    needs_adj <- (ai == 0 | bi == 0 | ci == 0 | di == 0)
-    ai_adj <- ai + add * needs_adj
-    bi_adj <- bi + add * needs_adj
-    ci_adj <- ci + add * needs_adj
-    di_adj <- di + add * needs_adj
-
-    return(log((ai_adj * di_adj) / (bi_adj * ci_adj)))
-  } else if (outcome_type == "pois") {
-    # Poisson models: compute log incidence rate ratio
-    x1i <- outcome_data[["x1i"]]
-    t1i <- outcome_data[["t1i"]]
-    x2i <- outcome_data[["x2i"]]
-    t2i <- outcome_data[["t2i"]]
-    add <- 0.5
-
-    # vectorized computation with conditional zero-cell adjustment
-    needs_adj <- (x1i == 0 | x2i == 0)
-    x1i_adj <- x1i + add * needs_adj
-    x2i_adj <- x2i + add * needs_adj
-
-    return(log((x1i_adj / t1i) / (x2i_adj / t2i)))
-  }
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .outcome_data_sei
-# ---------------------------------------------------------------------------- #
-#
-# Extract or compute sampling standard errors from brma object.
-#
-# For normal models, sei is directly available in the data.
-# For GLMM models, sei is computed from raw frequency data using formulas
-# equivalent to metafor::escalc with default zero-cell adjustment (add = 0.5).
-#
-# @param object brma object
-#
-# @return numeric vector of sampling standard errors
-#
-# ---------------------------------------------------------------------------- #
-.outcome_data_sei <- function(object) {
-  outcome_type <- .outcome_type(object)
-  outcome_data <- object[["data"]][["outcome"]]
-
-  if (outcome_type == "norm") {
-    # normal models: sei is directly available
-    return(outcome_data[["sei"]])
-  } else if (outcome_type == "bin") {
-    # binomial models: compute approximate SE for log odds ratio
-    # SE(logOR) = sqrt(1/ai + 1/bi + 1/ci + 1/di) with zero-cell adjustment
-    ai <- outcome_data[["ai"]]
-    bi <- outcome_data[["n1i"]] - outcome_data[["ai"]]
-    ci <- outcome_data[["ci"]]
-    di <- outcome_data[["n2i"]] - outcome_data[["ci"]]
-    add <- 0.5
-
-    # vectorized computation with conditional zero-cell adjustment
-    needs_adj <- (ai == 0 | bi == 0 | ci == 0 | di == 0)
-    ai_adj <- ai + add * needs_adj
-    bi_adj <- bi + add * needs_adj
-    ci_adj <- ci + add * needs_adj
-    di_adj <- di + add * needs_adj
-
-    return(sqrt(1 / ai_adj + 1 / bi_adj + 1 / ci_adj + 1 / di_adj))
-  } else if (outcome_type == "pois") {
-    # Poisson models: compute approximate SE for log IRR
-    # SE(logIRR) = sqrt(1/x1i + 1/x2i)
-    x1i <- outcome_data[["x1i"]]
-    x2i <- outcome_data[["x2i"]]
-    add <- 0.5
-
-    # vectorized computation with conditional zero-cell adjustment
-    needs_adj <- (x1i == 0 | x2i == 0)
-    x1i_adj <- x1i + add * needs_adj
-    x2i_adj <- x2i + add * needs_adj
-
-    return(sqrt(1 / x1i_adj + 1 / x2i_adj))
-  }
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .outcome_data_vi
-# ---------------------------------------------------------------------------- #
-#
-# Extract or compute sampling variances from brma object.
-#
-# Convenience wrapper that returns sei^2 from .outcome_data_sei().
-#
-# @param object brma object
-#
-# @return numeric vector of sampling variances
-#
-# ---------------------------------------------------------------------------- #
-.outcome_data_vi <- function(object) {
-  return(.outcome_data_sei(object)^2)
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .outcome_data_weights
-# ---------------------------------------------------------------------------- #
-#
-# Extract likelihood weights from the outcome data, defaulting to unit weights.
-#
-# ---------------------------------------------------------------------------- #
-.outcome_data_weights <- function(object) {
-
-  outcome_data <- object[["data"]][["outcome"]]
-
-  if (.is_weights(object)) {
-    return(as.numeric(outcome_data[["weights"]]))
-  }
-
-  return(rep(1, nrow(outcome_data)))
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .standardized_residuals_loopit
 # ---------------------------------------------------------------------------- #
 #
@@ -1016,64 +866,4 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   return(invisible(NULL))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .get_model_matrix
-# ---------------------------------------------------------------------------- #
-#
-# Extract the model matrix X from a brma object.
-#
-# @param object brma object
-#
-# @return numeric matrix with K rows (one per observation)
-#
-# ---------------------------------------------------------------------------- #
-.get_model_matrix <- function(object) {
-  # check if there are moderators
-  is_mods  <- .is_mods(object)
-  is_PET   <- .is_PET(object)
-  is_PEESE <- .is_PEESE(object)
-
-  if (!is_mods) {
-    # intercept-only model: X is a column of 1s
-    K <- nrow(object[["data"]][["outcome"]])
-    X <- matrix(1, nrow = K, ncol = 1)
-    colnames(X) <- "(Intercept)"
-    attr(X, "assign") <- 0L
-  } else {
-    # for models with moderators, reconstruct the model matrix
-    # from the stored data and formula
-
-    # TODO: use BayesTools to obtain the actual adjusted model matrix
-    # (i.e., for handling different factor contrasts, etc.)
-    mods_data    <- object[["data"]][["mods"]]
-    mods_formula <- attr(mods_data, "formula")
-
-    # create the model matrix
-    X <- model.matrix(mods_formula, data = mods_data)
-  }
-
-  if (is_PET || is_PEESE) {
-    outcome_data <- object[["data"]][["outcome"]]
-    direction    <- if (.effect_direction(object) == "negative") -1 else 1
-    assign       <- attr(X, "assign")
-    next_assign  <- max(assign) + 1L
-
-    if (is_PET) {
-      X           <- cbind(X, PET = direction * outcome_data[["sei"]])
-      assign      <- c(assign, next_assign)
-      next_assign <- next_assign + 1L
-    }
-    if (is_PEESE) {
-      X           <- cbind(X, PEESE = direction * outcome_data[["sei"]]^2)
-      assign      <- c(assign, next_assign)
-      next_assign <- next_assign + 1L
-    }
-
-    attr(X, "assign") <- assign
-  }
-
-  return(X)
 }

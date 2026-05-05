@@ -169,9 +169,12 @@ Examples:
 
 ## Running Tests
 
+Always use testthat LLM reporting for unit tests: pass `reporter = "llm"` or
+set `AGENT=1` when using a wrapper that cannot pass reporter arguments.
+
 ```r
 # Generate/update reference snapshots
-devtools::test(filter = "plotname")  # First run creates snapshots
+devtools::test(filter = "plotname", reporter = "llm")  # First run creates snapshots
 
 # Accept new snapshots
 vdiffr::manage_cases()  # Interactive review

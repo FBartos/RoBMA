@@ -42,6 +42,7 @@
 #' }
 #'
 #' @seealso \code{\link{influence.brma}}, \code{\link{dffits.brma}}, \code{\link{hatvalues.brma}}
+#' @importFrom stats cooks.distance
 #' @exportS3Method
 cooks.distance.brma <- function(model, ...) {
 
@@ -58,9 +59,10 @@ cooks.distance.brma <- function(model, ...) {
   }
 
   fit_samples <- .influence_fit_samples(model)
-  weights     <- loo_weights(model)
+  weights     <- .diagnostic_psis_weights(model)
   P           <- qr(.get_model_matrix(model))[["rank"]]
   d_vec       <- .cooks.distance_internal(fit_samples, weights, P)
+  d_vec       <- .diagnostic_set_names(d_vec, model)
 
   return(d_vec)
 }

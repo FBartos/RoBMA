@@ -39,27 +39,20 @@ library(RoBMA)
 data("Johnides2025", package = "RoBMA")
 
 fit <- RoBMA(
-  d         = Johnides2025$d, 
-  se        = Johnides2025$se, 
-  cluster = Johnides2025$study,
-  adapt     = 5000, 
-  burnin    = 5000, 
-  sample    = 10000, 
-  parallel  = TRUE, 
-  seed      = 1, 
-  autofit   = FALSE
+  yi = d, sei = se, measure = "SMD", cluster = study,
+  prior_effect        = prior_effect_361,
+  prior_heterogeneity = prior_heterogeneity_361,
+  adapt = 5000, burnin = 5000, sample = 10000, 
+  parallel  = TRUE, seed = 1, data = Johnides2025
 )
 saveRDS(fit, file = "../models/MultilevelRoBMA/fit_Johnides2025.RDS", compress = "xz")
 
 fit_simple <- RoBMA(
-  d         = Johnides2025$d, 
-  se        = Johnides2025$se, 
-  adapt     = 5000, 
-  burnin    = 5000, 
-  sample    = 10000, 
-  parallel  = TRUE, 
-  seed      = 1, 
-  autofit   = FALSE
+  yi = d, sei = se, measure = "SMD", 
+  prior_effect        = prior_effect_361,
+  prior_heterogeneity = prior_heterogeneity_361,
+  adapt = 5000, burnin = 5000, sample = 10000, 
+  parallel  = TRUE, seed = 1, data = Johnides2025
 )
 saveRDS(fit_simple, file = "../models/MultilevelRoBMA/fit_Johnides2025_single.RDS", compress = "xz")
 ```
@@ -117,7 +110,7 @@ The `cluster` argument specifies which effect sizes belong together.
 
 ```{r, eval = FALSE}
 fit <- RoBMA(
-  yi = d, se = se, measure = "SMD", cluster = study,
+  yi = d, sei = se, measure = "SMD", cluster = study,
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
   adapt = 5000, burnin = 5000, sample = 10000, 
@@ -194,7 +187,7 @@ To understand the importance of accounting for nested structure, we compare our 
 
 ```{r, eval = FALSE}
 fit_simple <- RoBMA(
-  yi = d, se = se, measure = "SMD", 
+  yi = d, sei = se, measure = "SMD", 
   prior_effect        = prior_effect_361,
   prior_heterogeneity = prior_heterogeneity_361,
   adapt = 5000, burnin = 5000, sample = 10000, 

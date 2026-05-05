@@ -103,7 +103,9 @@ For models without moderators, all fitted values equal the pooled effect.
 For GLMM models (binomial or Poisson), observed effect sizes and their
 sampling variances are computed from the raw frequency data using the
 same formulas as \code{metafor::escalc} with the default zero-cell
-adjustment (adding 0.5 to all cells when any cell is zero).
+adjustment (adding 0.5 to all cells when any cell is zero). GLMM residuals
+and LOO-PIT values are therefore approximate effect-size-scale diagnostics,
+not exact PIT diagnostics for the raw count likelihood.
 
 The residuals are computed separately for each posterior sample,
 naturally propagating uncertainty in model parameters to the residuals.

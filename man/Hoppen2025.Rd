@@ -22,9 +22,6 @@ A data.frame with 9 columns and 37 observations:
 \usage{
 Hoppen2025
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains Cohen's d effect sizes, variances, and study
 characteristics including outcome type, feedback level, social comparison type,

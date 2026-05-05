@@ -17,9 +17,6 @@ A data.frame with 3 columns and 18 observations:
 \usage{
 Lui2015
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains correlation coefficients r,
 sample sizes n, and labels for each study assessing the

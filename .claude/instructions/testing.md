@@ -19,31 +19,35 @@ Tests are organized by prefix number indicating their role:
 
 ## Running Tests
 
+Always use testthat LLM reporting for unit tests. Prefer
+`devtools::test(..., reporter = "llm")`; if a wrapper cannot pass `reporter`,
+set `AGENT=1` so testthat selects `LlmReporter`.
+
 ```r
 # Run all tests (fits models on first run, caches them)
-devtools::test()
+devtools::test(reporter = "llm")
 
 # Run specific test file
-devtools::test(filter = "residuals")
+devtools::test(filter = "residuals", reporter = "llm")
 
 # Run only model fitting tests (populates cache)
-devtools::test(filter = "01-")
+devtools::test(filter = "01-", reporter = "llm")
 
 # Run tests matching multiple patterns
-devtools::test(filter = "predict|residuals")
+devtools::test(filter = "predict|residuals", reporter = "llm")
 ```
 
 ### Recommended Workflow
 
 ```r
 # 1. First run: populate the cache (slow)
-devtools::test(filter = "01-")
+devtools::test(filter = "01-", reporter = "llm")
 
 # 2. Iterate on your feature (fast, uses cached fits)
-devtools::test(filter = "your-feature")
+devtools::test(filter = "your-feature", reporter = "llm")
 
 # 3. Final verification before commit
-devtools::test()
+devtools::test(reporter = "llm")
 ```
 
 ## Cache System
@@ -253,7 +257,7 @@ Never update visual comparisons automatically. Ask the user to manually verify u
 
 | Problem | Solution |
 |---------|----------|
-| "Pre-fitted models not found" | Run `devtools::test(filter = "01-")` |
+| "Pre-fitted models not found" | Run `devtools::test(filter = "01-", reporter = "llm")` |
 | Tests pass locally, fail on CI | Check if CI has cached fits |
 | Stale cache causing failures | Run `clean_cached_fits()` then retest |
 | MCMC tolerance too tight | Increase `tolerance` in `expect_equal()` |
@@ -262,8 +266,9 @@ Never update visual comparisons automatically. Ask the user to manually verify u
 ## Agent Protocol
 
 1. **Always source common-functions.R** at the top of test files
-2. **Check `fit_catalog()` / `list_fits()`** to see available cached models before writing tests
-3. **Never fit models** outside `test-01-*` files
-4. **Reuse existing cached models** - check `fit_catalog()` and `test-01-*.R` for available model types
-5. **Use appropriate tolerances** for MCMC-based comparisons
-6. **Never modify `GENERATE_REFERENCE_FILES`** flag (maintainer only)
+2. **Always use LLM reporting** when running unit tests: `reporter = "llm"` or `AGENT=1`
+3. **Check `fit_catalog()` / `list_fits()`** to see available cached models before writing tests
+4. **Never fit models** outside `test-01-*` files
+5. **Reuse existing cached models** - check `fit_catalog()` and `test-01-*.R` for available model types
+6. **Use appropriate tolerances** for MCMC-based comparisons
+7. **Never modify `GENERATE_REFERENCE_FILES`** flag (maintainer only)

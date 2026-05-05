@@ -129,7 +129,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   }
 
   backend <- .selection_backend_spec(priors_list[keep])
-  return(backend[["step"]][["breaks"]])
+  breaks  <- backend[["step"]][["breaks"]]
+  if (is.null(breaks)) {
+    breaks <- c(0, 1)
+  }
+  return(.selection_assert_p_cuts(breaks))
 }
 
 .selection_kernel_mode <- function(mode) {
@@ -197,6 +201,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
 .selection_p_bin <- function(p_value, p_cuts) {
 
+  p_cuts <- .selection_assert_p_cuts(p_cuts)
+
   for (cut in p_cuts) {
     close <- !is.na(p_value) & abs(p_value - cut) <= 1e-12
     p_value[close] <- cut
@@ -219,6 +225,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
 .selection_segments <- function(p_cuts, phack_z_source = c(0, 0),
                                 phack_z_dest = c(0, 0), has_phacking = FALSE) {
+
+  p_cuts <- .selection_assert_p_cuts(p_cuts)
 
   z_lower <- stats::qnorm(1 - p_cuts[-1])
   z_upper <- stats::qnorm(1 - p_cuts[-length(p_cuts)])
@@ -260,6 +268,24 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(x)
 }
 
+.selection_assert_p_cuts <- function(p_cuts) {
+
+  if (!is.numeric(p_cuts) || length(p_cuts) < 2L ||
+      anyNA(p_cuts) || any(!is.finite(p_cuts))) {
+    stop("Selection p-value cut breaks must be finite numeric values.", call. = FALSE)
+  }
+  if (abs(p_cuts[1L]) > 1e-12 || abs(p_cuts[length(p_cuts)] - 1) > 1e-12) {
+    stop("Selection p-value cut breaks must include endpoints 0 and 1.", call. = FALSE)
+  }
+  if (any(diff(p_cuts) <= 0)) {
+    stop("Selection p-value cut breaks must be strictly increasing.", call. = FALSE)
+  }
+
+  p_cuts[1L]             <- 0
+  p_cuts[length(p_cuts)] <- 1
+  return(as.numeric(p_cuts))
+}
+
 .selection_spec <- function(priors, yi, sei, effect_direction, signed_data = FALSE) {
 
   priors_bias <- .selection_bias_priors(priors)
@@ -284,6 +310,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (is.null(p_cuts)) {
     p_cuts <- c(0, 1)
   }
+  p_cuts      <- .selection_assert_p_cuts(p_cuts)
   n_bins      <- length(p_cuts) - 1L
   has_step    <- backend[["mode"]] %in% c("step", "step_phack_power")
   has_phack   <- backend[["mode"]] %in% c("phack_power", "step_phack_power")
@@ -429,6 +456,33 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(z)
 }
 
+.selection_prepare_native_args <- function(selection_spec, S, alpha = NULL,
+                                           phack_kind = NULL,
+                                           kernel_mode = NULL) {
+
+  if (is.null(alpha)) {
+    alpha <- rep(0, S)
+  }
+  if (is.null(phack_kind)) {
+    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
+      stop(
+        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
+        call. = FALSE
+      )
+    }
+    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
+  }
+  if (is.null(kernel_mode)) {
+    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
+  }
+
+  return(list(
+    alpha       = alpha,
+    phack_kind  = phack_kind,
+    kernel_mode = kernel_mode
+  ))
+}
+
 .has_native_selnorm_kernel <- function() {
 
   symbols <- c(
@@ -458,21 +512,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (is.null(weights)) {
     weights <- rep(1, K)
   }
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
+  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  alpha       <- native_args[["alpha"]]
+  phack_kind  <- native_args[["phack_kind"]]
+  kernel_mode <- native_args[["kernel_mode"]]
 
   if (!.has_native_selnorm_kernel()) {
     stop("The selected-normal native kernel is not loaded.", call. = FALSE)
@@ -512,21 +555,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
+  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  alpha       <- native_args[["alpha"]]
+  phack_kind  <- native_args[["phack_kind"]]
+  kernel_mode <- native_args[["kernel_mode"]]
 
   if (!.has_native_selnorm_kernel()) {
     stop("The selected-normal native kernel is not loaded.", call. = FALSE)
@@ -562,21 +594,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
+  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  alpha       <- native_args[["alpha"]]
+  phack_kind  <- native_args[["phack_kind"]]
+  kernel_mode <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -620,21 +641,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
+  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  alpha       <- native_args[["alpha"]]
+  phack_kind  <- native_args[["phack_kind"]]
+  kernel_mode <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -676,21 +686,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
+  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  alpha       <- native_args[["alpha"]]
+  phack_kind  <- native_args[["phack_kind"]]
+  kernel_mode <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -732,21 +731,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
+  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  alpha       <- native_args[["alpha"]]
+  phack_kind  <- native_args[["phack_kind"]]
+  kernel_mode <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,

@@ -29,13 +29,13 @@ heterogeneity allocated to the cluster-level component in multilevel models
 \code{bselmodel()}, \code{bPET()}, and \code{bPEESE()}, omitted or \code{NULL} uses the
 corresponding default bias prior.}
 
-\item{prior_baserate}{prior distribution for the estimate-specific base-rate
-probability in binomial GLMM models. If omitted or \code{NULL}, defaults to
-independent \code{Beta(1, 1)} priors.}
+\item{prior_baserate}{prior distribution for the estimate-specific midpoint
+base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
+to independent \code{Beta(1, 1)} priors.}
 
-\item{prior_lograte}{prior distribution for the estimate-specific log-rate in
-Poisson GLMM models. If omitted or \code{NULL}, a data-based unit-information normal
-prior is used.}
+\item{prior_lograte}{prior distribution for the estimate-specific midpoint
+log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
+unit-information normal prior is used independently for each estimate.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}

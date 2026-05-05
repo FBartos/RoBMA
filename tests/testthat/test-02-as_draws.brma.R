@@ -3,9 +3,23 @@ context("as_draws methods for brma objects")
 # Load common test helpers
 source(testthat::test_path("common-functions.R"))
 
+skip_if_not_installed("posterior")
+
+test_that("RoBMA as_draws defaults forward to posterior", {
+
+  x <- matrix(seq_len(6), ncol = 2)
+  colnames(x) <- c("alpha", "beta")
+
+  expect_s3_class(RoBMA::as_draws(x), "draws")
+  expect_s3_class(RoBMA::as_draws_array(x), "draws_array")
+  expect_s3_class(RoBMA::as_draws_df(x), "draws_df")
+  expect_s3_class(RoBMA::as_draws_list(x), "draws_list")
+  expect_s3_class(RoBMA::as_draws_matrix(x), "draws_matrix")
+  expect_s3_class(RoBMA::as_draws_rvars(x), "draws_rvars")
+})
+
 # load prefitted model
 skip_if_no_fits()
-skip_if_not_installed("posterior")
 fit <- load_fit("bcg_meta-analysis")
 
 .fit_draw_dimensions <- function(fit) {
@@ -14,9 +28,9 @@ fit <- load_fit("bcg_meta-analysis")
   n_iter    <- vapply(mcmc_list, function(x) nrow(as.matrix(x)), integer(1))
 
   return(list(
-    n_draws = sum(n_iter),
+    n_draws  = sum(n_iter),
     n_chains = length(mcmc_list),
-    n_iter = unique(n_iter)
+    n_iter   = unique(n_iter)
   ))
 }
 

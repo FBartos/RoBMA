@@ -1,94 +1,282 @@
-# adapted from the runjags package version 2.2.0
-.onLoad <- function(libname, pkgname){
+#' @importFrom graphics hist lines
+#' @importFrom stats coef cooks.distance dfbetas fitted hatvalues influence logLik model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
+#' @importFrom utils capture.output getS3method
+NULL
 
+.onLoad <- function(libname, pkgname) {
+
+  requireNamespace("BayesTools")
   requireNamespace("runjags")
   requireNamespace("mvtnorm")
 
-  RoBMA.private$RoBMA_version <- utils::packageDescription(pkgname, fields = 'Version')
+  .check_bayestools_forward_api()
 
-  # Get and save the library location, getting rid of any trailing / caused by r_arch being empty:
-  module_location <- gsub('/$','', file.path(libname, pkgname, 'libs', if(.Platform$r_arch!="") .Platform$r_arch else ""))
-  if(!file.exists(file.path(module_location, paste('RoBMA', .Platform$dynlib.ext, sep='')))){
-    dev_module_location <- normalizePath(file.path(getwd(), "src"), mustWork = FALSE)
-    if (file.exists(file.path(dev_module_location, paste('RoBMA', .Platform$dynlib.ext, sep='')))) {
-      module_location <- dev_module_location
+  RoBMA.private$RoBMA_version   <- utils::packageDescription(pkgname, fields = "Version")
+  RoBMA.private$module_location <- .RoBMA_module_location(libname, pkgname)
+  RoBMA.private$lib_name        <- libname
+
+  .load_RoBMA_module(pkgname = pkgname, warn = TRUE)
+  .load_RoBMA_native_routines(pkgname = pkgname, libname = libname, warn = TRUE)
+  .check_RoBMA_native_routines(pkgname = pkgname)
+
+  setopts <- mget(".RoBMA.options", envir = .GlobalEnv, ifnotfound = list(.RoBMA.options = NULL))[[1]]
+  if (!is.null(setopts)) {
+    if (!is.list(setopts)) {
+      warning("Ignoring invalid non-list .RoBMA.options on loading RoBMA.",
+              call. = FALSE)
     } else {
-      module_location <- NULL
+      do.call("RoBMA.options", args = setopts)
     }
   }
 
-  if(is.null(module_location)){
-    warning('The RoBMA module could not be loaded.', call. = FALSE)
-  }else{
-    rjags::load.module("RoBMA", path = module_location, quiet = TRUE)
-    if(!"RoBMA" %in% rjags::list.modules()){
-      warning('The RoBMA module could not be loaded.', call. = FALSE)
+  .check_max_cores()
+  .register_posterior_methods()
+  .register_loo_methods()
+}
+
+.onAttach <- function(libname, pkgname) {
+
+  packageStartupMessage(paste0("Welcome to RoBMA ", utils::packageVersion(pkgname)))
+}
+
+.check_bayestools_forward_api <- function() {
+
+  required <- c(
+    "formula_add_intercept",
+    "plot_transformed_prior",
+    "JAGS_formula_design"
+  )
+  missing <- required[!vapply(
+    required,
+    function(x) exists(x, envir = asNamespace("BayesTools"), inherits = FALSE),
+    logical(1)
+  )]
+
+  posterior_plot_args         <- names(formals(BayesTools::plot_posterior))
+  marginal_plot_args          <- names(formals(BayesTools::plot_marginal))
+  missing_posterior_plot_args <- setdiff(
+    c("data", "show_data", "dots_data"),
+    posterior_plot_args
+  )
+  missing_marginal_plot_args  <- setdiff(
+    c("legend", "legend_title", "legend_labels", "legend_position"),
+    marginal_plot_args
+  )
+
+  if (length(missing) > 0 ||
+      length(missing_posterior_plot_args) > 0 ||
+      length(missing_marginal_plot_args) > 0) {
+    details <- character(0)
+    if (length(missing) > 0) {
+      details <- c(details, paste0("missing functions: ", paste(missing, collapse = ", ")))
+    }
+    if (length(missing_posterior_plot_args) > 0) {
+      details <- c(
+        details,
+        paste0(
+          "BayesTools::plot_posterior() missing arguments: ",
+          paste(missing_posterior_plot_args, collapse = ", ")
+        )
+      )
+    }
+    if (length(missing_marginal_plot_args) > 0) {
+      details <- c(
+        details,
+        paste0(
+          "BayesTools::plot_marginal() missing arguments: ",
+          paste(missing_marginal_plot_args, collapse = ", ")
+        )
+      )
     }
 
-    tryCatch(
-      {
-        if(!is.loaded("RoBMA_selnorm_kernel_loglik_matrix", PACKAGE = pkgname)){
-          library.dynam("RoBMA", pkgname, libname)
-        }
-      },
-      error = function(e){
-        warning('The RoBMA native routines could not be loaded.', call. = FALSE)
-      }
+    stop(
+      "RoBMA requires a BayesTools build with the forward APIs (",
+      paste(details, collapse = "; "),
+      ").",
+      call. = FALSE
     )
   }
 
-  RoBMA.private$module_location <- module_location
-  RoBMA.private$lib_name        <- libname
+  invisible(TRUE)
+}
 
-  setopts <- mget('.RoBMA.options', envir=.GlobalEnv, ifnotfound = list(.RoBMA.options = NULL))[[1]]
-  if(!is.null(setopts)){
-    if(!is.list(setopts)){
-      warning('Ignoring invalid (non-list) specification for .RoBMA.options on loading the RoBMA package', call.=FALSE)
-    }else{
-      newopts <- do.call('RoBMA.options', args = setopts)
+.onUnload <- function(libpath) {
+
+  tryCatch(
+    {
+      if ("RoBMA" %in% rjags::list.modules()) {
+        rjags::unload.module("RoBMA")
+      }
+    },
+    error = function(e) NULL
+  )
+}
+
+.RoBMA_module_location <- function(libname, pkgname) {
+
+  arch             <- if (.Platform$r_arch != "") .Platform$r_arch else ""
+  module_location  <- file.path(libname, pkgname, "libs", arch)
+  module_file      <- file.path(module_location, paste0("RoBMA", .Platform$dynlib.ext))
+
+  if (file.exists(module_file)) {
+    return(normalizePath(module_location, winslash = "/", mustWork = TRUE))
+  }
+
+  source_location <- .RoBMA_source_module_location(pkgname)
+  if (!is.null(source_location)) {
+    return(source_location)
+  }
+
+  dll_path <- .RoBMA_loaded_dll_path(pkgname)
+  if (is.null(dll_path)) {
+    return(NULL)
+  }
+
+  return(dirname(dll_path))
+}
+
+.RoBMA_source_module_location <- function(pkgname) {
+
+  source_path <- tryCatch(getNamespaceInfo(pkgname, "path"), error = function(e) NULL)
+  if (is.null(source_path)) {
+    return(NULL)
+  }
+
+  arch <- if (.Platform$r_arch != "") .Platform$r_arch else ""
+  paths <- c(
+    file.path(source_path, "src", arch),
+    file.path(source_path, "src")
+  )
+  paths <- unique(paths[nzchar(paths)])
+
+  for (path in paths) {
+    module_file <- file.path(path, paste0("RoBMA", .Platform$dynlib.ext))
+    if (file.exists(module_file)) {
+      return(normalizePath(path, winslash = "/", mustWork = TRUE))
     }
   }
 
-  # Check and fix number of threads (sometimes bugs out during installation)
-  .check_max_cores()
-
-  # Register S3 methods for posterior package (if available)
-  .register_posterior_methods()
-
-  # Register S3 methods for loo package (if available)
-  .register_loo_methods()
-
+  return(NULL)
 }
 
-.onAttach <- function(libname, pkgname){
+.RoBMA_loaded_dll_path <- function(pkgname) {
 
-  packageStartupMessage("Welcome to RoBMA 4.0")
+  dlls <- getLoadedDLLs()
+  if (!pkgname %in% names(dlls)) {
+    return(NULL)
+  }
 
+  dll_path <- dlls[[pkgname]][["path"]]
+  if (is.null(dll_path) || !file.exists(dll_path)) {
+    return(NULL)
+  }
+
+  return(normalizePath(dll_path, winslash = "/", mustWork = TRUE))
 }
 
-.onUnload <- function(libpath){
+.load_RoBMA_module <- function(pkgname = "RoBMA", path = RoBMA.private$module_location,
+                               quiet = TRUE, warn = FALSE) {
 
-  # tricking the dyn.library unload
-  if(!is.null(RoBMA.private$lib_name)){
-    library.dynam.unload("RoBMA", "RoBMA", RoBMA.private$lib_name)
+  loaded <- tryCatch("RoBMA" %in% rjags::list.modules(), error = function(e) FALSE)
+  if (loaded) {
+    return(TRUE)
   }
 
-  # Just in case it is not always safe to try and access an element of an env that is in the process of being deleted (when R quits):
-  if(!is.null(RoBMA.private$module_location)){
-    rjags::unload.module("RoBMA")
+  if (is.null(path) || !dir.exists(path)) {
+    if (warn) {
+      warning(
+        "RoBMA JAGS module was not found in the installed package library. ",
+        "Model fitting requires this module; reinstall RoBMA after installing JAGS >= 4.3.1.",
+        call. = FALSE
+      )
+    }
+    return(FALSE)
   }
+
+  load_error <- NULL
+  tryCatch(
+    rjags::load.module("RoBMA", path = path, quiet = quiet),
+    error = function(e) load_error <<- conditionMessage(e)
+  )
+
+  loaded <- tryCatch("RoBMA" %in% rjags::list.modules(), error = function(e) FALSE)
+  if (!loaded && warn) {
+    message <- paste0(
+      "RoBMA JAGS module failed to load from '", path, "'. ",
+      "Model fitting requires this module; reinstall RoBMA after installing JAGS >= 4.3.1."
+    )
+    if (!is.null(load_error)) {
+      message <- paste0(message, " rjags error: ", load_error)
+    }
+    warning(message, call. = FALSE)
+  }
+
+  return(loaded)
 }
 
-.load_RoBMA_module <- function(pkgname = "RoBMA"){
+.load_RoBMA_native_routines <- function(pkgname = "RoBMA", libname = RoBMA.private$lib_name,
+                                        warn = FALSE) {
 
-  if(is.null(RoBMA.private$module_location) || (!is.null(RoBMA.private$module_location) && RoBMA.private$module_location == "")){
-    libnames         <- .libPaths()
-    module_locations <- sapply(libnames, function(libname) gsub('/$','', file.path(libname, pkgname, 'libs', if(.Platform$r_arch!="") .Platform$r_arch else "")))
-    sapply(module_locations, function(module_location) rjags::load.module("RoBMA", path = module_location))
-  }else{
-    rjags::load.module("RoBMA", path = RoBMA.private$module_location)
+  if (isTRUE(.check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE))) {
+    return(TRUE)
   }
 
+  load_error <- NULL
+  tryCatch(
+    library.dynam("RoBMA", pkgname, libname),
+    error = function(e) load_error <<- conditionMessage(e)
+  )
+
+  if (!isTRUE(.check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE)) &&
+      !is.null(RoBMA.private$module_location)) {
+    module_file <- file.path(RoBMA.private$module_location, paste0("RoBMA", .Platform$dynlib.ext))
+    if (file.exists(module_file)) {
+      tryCatch(
+        dyn.load(module_file),
+        error = function(e) load_error <<- conditionMessage(e)
+      )
+    }
+  }
+
+  loaded <- .check_RoBMA_native_routines(pkgname = pkgname, warn = FALSE)
+  if (!isTRUE(loaded) && warn) {
+    message <- paste0(
+      "RoBMA native routines failed to load from the package DLL. ",
+      "Compiled likelihood helpers will be unavailable; reinstall RoBMA after installing JAGS >= 4.3.1."
+    )
+    if (!is.null(load_error)) {
+      message <- paste0(message, " R loader error: ", load_error)
+    }
+    warning(message, call. = FALSE)
+  }
+
+  return(isTRUE(loaded))
+}
+
+.check_RoBMA_native_routines <- function(pkgname = "RoBMA", warn = TRUE) {
+
+  required_symbols <- c(
+    "RoBMA_selnorm_kernel_loglik_matrix",
+    "RoBMA_glmm_binom_marginal_loglik",
+    "RoBMA_glmm_pois_marginal_loglik"
+  )
+
+  loaded <- vapply(
+    required_symbols,
+    is.loaded,
+    FUN.VALUE = logical(1),
+    PACKAGE   = pkgname
+  )
+
+  if (!all(loaded) && warn) {
+    warning(
+      "RoBMA native routines are not loaded from the package DLL. ",
+      "Compiled likelihood helpers will be unavailable.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(all(loaded)))
 }
 
 

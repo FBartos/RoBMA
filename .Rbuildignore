@@ -7,6 +7,7 @@
 ^tests/results$
 ^tests/testthat/test_files$
 ^tests/testthat/_snaps$
+^tests/testthat/Rplots\.pdf$
 tests/testthat/test-01-load.R
 tests/testthat/test-02-distributions.R
 tests/testthat/test-03-setup.R
@@ -30,6 +31,13 @@ README.html
 ^codecov\.yml$
 _pkgdown.yml
 ^\.claude$
+^\.mcp\.json$
+^\.StatsVault$
+^AGENTS\.md$
 CLAUDE.md
+^figure$
 ^knowledge-base$
 ^\.positai$
+^resources$
+^todo$
+^vignettes/21-robust-bayesian-meta-analysis\.Rmd$

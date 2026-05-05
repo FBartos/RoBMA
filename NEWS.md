@@ -4,6 +4,7 @@
 
 ### Changes
 - renames the multilevel clustering argument to `cluster`
+- renames the zplot diagnostic API to `as_zplot()` and adds the direct plotting wrapper `zplot()`
 - routes selection-weightfunction priors through the BayesTools selection backend and selected-normal kernel, removing legacy weighted-normal mapping paths
 - requires the upcoming BayesTools 0.3.0 release for the selection-backend prior compiler
 
@@ -15,14 +16,14 @@
 - `Explanation` vignette that helps navigate users through the vignettes
 - two vignettes demonstrating robust Bayesian meta-analysis and meta-regressions
 - `summary()` function now provides publication bias model type summary (`type = "models"`) for models fitted using `algorithm = "ss"`
-- improves control over `plot.zcurve_RoBMA` (i.e., specifying col, border, etc for the individual elements)
+- improves control over zplot diagnostics (i.e., specifying col, border, etc for the individual elements)
 
 ## version 3.6
 ### Features
 - `funnel()` plot to visualize residuals vs the expected sampling distribution for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
 - `residuals()` method for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
-- `as_zcurve()` function to transform meta-analytic models into a z-curve style object, only available for `RoBMA()` and `RoBMA.reg()` fitted using the `algorithm = "ss"`
-- `plot()`, `summary()`, and `print()` functions for the `as_zcurve` objects
+- `as_zplot()` function to transform meta-analytic models into a zplot object, only available for `RoBMA()` and `RoBMA.reg()` fitted using the `algorithm = "ss"`
+- `plot()`, `summary()`, and `print()` functions for the `as_zplot` objects
 
 ## version 3.5.1
 ### Features

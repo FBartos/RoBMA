@@ -2,7 +2,6 @@
 % Please edit documentation in R/bridgesampling.R
 \name{post_prob.brma}
 \alias{post_prob.brma}
-\alias{post_prob}
 \title{Posterior Model Probabilities for brma Objects}
 \usage{
 \method{post_prob}{brma}(x, ..., prior_prob = NULL, model_names = NULL)

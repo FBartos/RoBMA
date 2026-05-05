@@ -173,6 +173,79 @@ test_that("summary.brma options change table schema", {
   expect_false(any(grepl("error\\(MCMC\\)|ESS|R-hat", cols)))
 })
 
+test_that("summary.brma controls BayesTools diagnostic columns", {
+
+  name <- "dat.lehmann2018_RoBMA"
+  skip_if_missing_fits(name)
+
+  old_options <- options(
+    BayesTools.JAGS_estimates_diagnostic_columns = c("ESS", "R_hat"),
+    BayesTools.JAGS_BF_diagnostic_columns        = c("ESS", "MCMC_error", "BF_error_percent")
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  out <- summary(fits[[name]], include_mcmc_diagnostics = TRUE)
+  estimate_diagnostics <- c("MCMC_error", "MCMC_SD_error", "ESS", "R_hat")
+  BF_diagnostics       <- c("ESS", "MCMC_error", "BF_error_percent")
+
+  expect_true(all(estimate_diagnostics %in% colnames(out[["estimates"]])))
+  expect_true("BF_error_percent" %in% colnames(out[["inclusion_components"]]))
+  expect_false(any(c("ESS", "MCMC_error") %in%
+                     colnames(out[["inclusion_components"]])))
+
+  out_none <- summary(fits[[name]], include_mcmc_diagnostics = FALSE)
+  expect_false(any(estimate_diagnostics %in% colnames(out_none[["estimates"]])))
+  expect_false(any(BF_diagnostics %in%
+                     colnames(out_none[["inclusion_components"]])))
+})
+
+test_that("summary.brma inclusion summaries support BF direction and log scale", {
+
+  name <- "dat.lehmann2018_RoBMA"
+  skip_if_missing_fits(name)
+
+  bf_column <- function(x) {
+
+    return(as.data.frame(x[["inclusion_components"]])[["inclusion_BF"]])
+  }
+
+  out_default <- summary(fits[[name]], include_mcmc_diagnostics = FALSE)
+  out_log     <- summary(fits[[name]], include_mcmc_diagnostics = FALSE, logBF = TRUE)
+  out_BF01    <- summary(fits[[name]], include_mcmc_diagnostics = FALSE, BF01 = TRUE)
+  out_both    <- summary(
+    fits[[name]],
+    include_mcmc_diagnostics = FALSE,
+    logBF                    = TRUE,
+    BF01                     = TRUE
+  )
+
+  expect_false(isTRUE(attr(bf_column(out_default), "logBF")))
+  expect_false(isTRUE(attr(bf_column(out_default), "BF01")))
+  expect_true(isTRUE(attr(bf_column(out_log), "logBF")))
+  expect_false(isTRUE(attr(bf_column(out_log), "BF01")))
+  expect_false(isTRUE(attr(bf_column(out_BF01), "logBF")))
+  expect_true(isTRUE(attr(bf_column(out_BF01), "BF01")))
+  expect_true(isTRUE(attr(bf_column(out_both), "logBF")))
+  expect_true(isTRUE(attr(bf_column(out_both), "BF01")))
+
+  default_effect <- as.numeric(bf_column(out_default)["Effect"])
+  expect_equal(
+    as.numeric(bf_column(out_log)["Effect"]),
+    log(default_effect),
+    tolerance = sqrt(.Machine$double.eps)
+  )
+  expect_equal(
+    as.numeric(bf_column(out_BF01)["Effect"]),
+    1 / default_effect,
+    tolerance = sqrt(.Machine$double.eps)
+  )
+  expect_equal(
+    as.numeric(bf_column(out_both)["Effect"]),
+    log(1 / default_effect),
+    tolerance = sqrt(.Machine$double.eps)
+  )
+})
+
 test_that("summary.brma standardized coefficients use the standardized scale", {
 
   name <- "bangertdrowns2004_location-scale"

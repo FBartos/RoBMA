@@ -35,3 +35,25 @@ test_that("COVRATIO note objects print and preserve numeric values", {
   expect_true(all(is.nan(as.numeric(x))))
   expect_true(any(grepl("Note: COVRATIO could not be computed", capture.output(print(x)))))
 })
+
+
+test_that("Diagnostic label helpers preserve study labels and repair invalid row names", {
+
+  object <- brma.norm(
+    yi        = c(.10, .20, .30),
+    sei       = c(.10, .20, .30),
+    slab      = c("Study A", "Study A", "Study C"),
+    only_data = TRUE
+  )
+  object[["data"]][["outcome"]][["slab"]][3] <- NA
+
+  labels <- RoBMA:::.diagnostic_study_labels(object)
+
+  expect_equal(labels, c("Study A", "Study A.1", "3"))
+
+  out <- RoBMA:::.diagnostic_set_rownames(data.frame(x = 1:3), object)
+  expect_equal(rownames(out), labels)
+
+  vec <- RoBMA:::.diagnostic_set_names(1:3, object)
+  expect_equal(names(vec), labels)
+})

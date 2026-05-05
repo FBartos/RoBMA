@@ -60,3 +60,38 @@ test_that("Poisson GLMM lograte priors are assigned", {
 
   expect_equal(result_custom$outcome$phi$parameters$sd, 2)
 })
+
+
+test_that("Poisson GLMM default lograte prior requires observed events", {
+
+  expect_error(
+    brma.glmm(
+      x1i           = c(0L, 0L),
+      x2i           = c(0L, 0L),
+      t1i           = c(10, 12),
+      t2i           = c(11, 13),
+      measure       = "IRR",
+      prior_lograte = NULL,
+      only_priors   = TRUE
+    ),
+    regexp = "prior_lograte.*observed Poisson event|all-zero"
+  )
+})
+
+
+test_that("Poisson GLMM validates custom lograte prior before transformation", {
+
+  expect_error(
+    brma.glmm(
+      x1i           = x1i,
+      x2i           = x2i,
+      t1i           = t1i,
+      t2i           = t2i,
+      data           = test_data_pois,
+      measure        = "IRR",
+      prior_lograte  = list(distribution = "normal"),
+      only_priors    = TRUE
+    ),
+    regexp = "prior_lograte.*prior distribution"
+  )
+})

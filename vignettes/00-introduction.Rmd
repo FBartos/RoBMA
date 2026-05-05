@@ -40,7 +40,7 @@ install.packages("RoBMA")
 
 **Note on backwards compatibility.**
 The 4.0 release is not backwards compatible with earlier versions of the package.
-The *Paper Companions* section accompanies the methodological papers in which `RoBMA` was originally developed and illustrated; the vignettes there have been rewritten in the 4.0 syntax, and the numerical results may differ slightly from the published values because the underlying algorithms and defaults have changed.
+The *Paper Companions* section accompanies the methodological papers in which `RoBMA` was originally developed and illustrated; the vignettes there have been updated to the 4.0 version of the package and the numerical results differ from the published values because the underlying algorithms have changed.
 To reproduce the published analyses exactly, install `RoBMA` 3.6.1 together with `BayesTools` 0.2.23:
 
 ```r
@@ -51,17 +51,16 @@ remotes::install_version("RoBMA",      version = "3.6.1")
 ## Main Functions
 
 The package exposes a small set of high-level fitting functions.
-Most users will only need one or two of them.
 
 | Function              | What it fits                                                               |
 |:----------------------|:---------------------------------------------------------------------------|
-| `brma()`              | Bayesian random-effects meta-analysis                                      |
-| `brma.glmm()`         | Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR)       |
-| `bselmodel()`         | Bayesian weight-function selection model                                   |
-| `bPET()`, `bPEESE()`  | Bayesian PET / PEESE publication-bias adjustment                           |
-| `BMA()`, `BMA.norm()` | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
-| `BMA.glmm()`          | Bayesian model-averaging for GLMM meta-analysis                            |
-| `RoBMA()`             | Robust Bayesian model-averaging including publication-bias models          |
+| [`brma()`](../reference/brma.html), [`brma.norm()`](../reference/brma.html) | Bayesian random-effects meta-analysis                                      |
+| [`brma.glmm()`](../reference/brma.glmm.html) | Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR)       |
+| [`bselmodel()`](../reference/bselmodel.html) | Bayesian weight-function selection model                                   |
+| [`bPET()`](../reference/bPET.html), [`bPEESE()`](../reference/bPEESE.html) | Bayesian PET / PEESE publication-bias adjustment                           |
+| [`BMA()`](../reference/BMA.html), [`BMA.norm()`](../reference/BMA.html) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
+| [`BMA.glmm()`](../reference/BMA.glmm.html) | Bayesian model-averaging for GLMM meta-analysis                            |
+| [`RoBMA()`](../reference/RoBMA.html) | Robust Bayesian model-averaging including publication-bias models          |
 
 `brma()` and `RoBMA()` are the main workhorses.
 `brma()` fits a single model in the same spirit as `metafor::rma()`; `RoBMA()` averages across an ensemble that includes publication-bias adjustment.
@@ -83,20 +82,21 @@ The vignettes are organized into four sections.
 
 | Vignette                  | Topic                                                                 |
 |:--------------------------|:----------------------------------------------------------------------|
-| Prior Distributions       | Default, informed, and custom priors; rescaling guidance              |
-| Bayesian Meta-Analysis    | Random-effects meta-analysis with `brma()`, compared with `metafor::rma()` |
+| [*Prior Distributions*](01-prior-distributions.html) | Default, informed, and custom priors; rescaling guidance              |
+| [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) | Random-effects meta-analysis with `brma()`, compared with `metafor::rma()` |
+| [*Feature Coverage*](03-feature-coverage.html) | Overview of available functionality across model families             |
 
-These two vignettes cover prior specification and a baseline `brma()` workflow.
+These three vignettes cover prior specification, a baseline `brma()` workflow, and current feature coverage.
 The Bayesian meta-analysis vignette walks through the BCG-vaccine example from `metafor` in `brma()`, covering summaries, meta-regression, marginal means, residuals, influence, LOO, and the standard meta-analytic plots.
 
 ### Correspondence with `metafor`
 
 | Vignette                                          | Topic                                                |
 |:--------------------------------------------------|:-----------------------------------------------------|
-| Multilevel Meta-Analysis                          | `brma()` with `cluster` ↔ `metafor::rma.mv()` for 3-level data |
-| Publication-Bias Adjustment                       | `bselmodel()` / `bPET()` / `bPEESE()` ↔ `metafor::selmodel()` |
-| Location-Scale Models                             | `brma()` with `scale` ↔ `metafor::rma.ls()`          |
-| Generalized Linear Mixed-Effects Meta-Analysis    | `brma.glmm()` ↔ `metafor::rma.glmm()` for binomial and Poisson outcomes |
+| [*Multilevel Meta-Analysis*](10-metafor-parity-multilevel.html) | `brma()` with `cluster` ↔ `metafor::rma.mv()` for 3-level data |
+| [*Publication-Bias Adjustment*](11-metafor-parity-publication-bias.html) | `bselmodel()` / `bPET()` / `bPEESE()` ↔ `metafor::selmodel()` |
+| [*Location-Scale Models*](12-metafor-parity-location-scale.html) | `brma()` with `scale` ↔ `metafor::rma.ls()`          |
+| [*Generalized Linear Mixed-Effects Meta-Analysis*](13-metafor-parity-glmm.html) | `brma.glmm()` ↔ `metafor::rma.glmm()` for binomial and Poisson outcomes |
 
 Each vignette starts from a `metafor` analysis and shows the matching `RoBMA` syntax, output, and diagnostics.
 
@@ -104,8 +104,8 @@ Each vignette starts from a `metafor` analysis and shows the matching `RoBMA` sy
 
 | Vignette                       | Topic                                                                  |
 |:-------------------------------|:-----------------------------------------------------------------------|
-| Bayesian Model Averaging       | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
-| Robust Bayesian Meta-Analysis  | Extending the ensemble to publication-bias models used in `RoBMA()`, with `PSMA`, `PP`, and bespoke ensemble specifications |
+| [*Bayesian Model Averaging*](20-bayesian-model-averaging.html) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
+| [*Robust Bayesian Meta-Analysis*](21-robust-bayesian-meta-analysis.html) | Extending the ensemble to publication-bias models used in `RoBMA()`, with `PSMA`, `PP`, and bespoke ensemble specifications |
 
 The first vignette introduces model averaging on an ensemble of models with and without effect and heterogeneity.
 The second extends the ensemble to publication-bias models used in `RoBMA()`.
@@ -114,12 +114,12 @@ The second extends the ensemble to publication-bias models used in `RoBMA()`.
 
 | Vignette                                  | Companion paper / dataset                                          |
 |:------------------------------------------|:-------------------------------------------------------------------|
-| Adjusting for Publication Bias Tutorial     | @bartos2020adjusting — JASP / R tutorial on `Lui2015`              |
-| Robust Bayesian Meta-Regression             | @bartos2023robust — RoBMA-reg on `Andrews2021`                     |
-| Multilevel Robust Bayesian Meta-Analysis    | @bartos2025robust — Multilevel RoBMA on `Johnides2025`                                |
-| Informed Bayesian Meta-Analysis in Medicine | @bartos2021bayesian — Informed priors for medical meta-analysis (continuous outcomes) |
-| Informed Bayesian Meta-Analysis with Binary Outcomes | @bartos2023empirical — Informed priors for medical meta-analysis (binary and time-to-event outcomes) |
-| Z-Curve Publication-Bias Diagnostics        | @bartos2025zcurve — Z-curve diagnostics on `Hoppen2025`                               |
+| [*Adjusting for Publication Bias Tutorial*](30-tutorial.html) | @bartos2020adjusting — JASP / R tutorial on `Lui2015`              |
+| [*Robust Bayesian Meta-Regression*](31-robma-metaregression.html) | @bartos2023robust — RoBMA-reg on `Andrews2021`                     |
+| [*Multilevel Robust Bayesian Meta-Analysis*](32-robma-multilevel.html) | @bartos2025robust — Multilevel RoBMA on `Johnides2025`                                |
+| [*Informed Bayesian Meta-Analysis in Medicine*](34-bma-norm-medicine.html) | @bartos2021bayesian — Informed priors for medical meta-analysis (continuous outcomes) |
+| [*Informed Bayesian Meta-Analysis with Binary Outcomes*](35-bma-glmm-medicine.html) | @bartos2023empirical — Informed priors for medical meta-analysis (binary and time-to-event outcomes) |
+| [*Zplot Publication-Bias Diagnostics*](36-zplot.html) | @bartos2025zcurve — zplot diagnostics on `Hoppen2025`                                |
 
 These vignettes reproduce or update analyses from published papers and serve as references when citing the corresponding methodological work.
 

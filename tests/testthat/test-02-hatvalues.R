@@ -39,6 +39,15 @@ test_that("Hatvalues for BMA.norm fits are internally consistent", {
   }
 })
 
+test_that("Hatvalues use study labels as names", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit <- fits[[name]]
+  expect_equal(names(hatvalues(fit)), RoBMA:::.diagnostic_study_labels(fit))
+})
+
 test_that("Hatvalues reject unsupported model-averaging families", {
 
   model_names <- c("bcg_BMA.glmm", "dat.lehmann2018_RoBMA")

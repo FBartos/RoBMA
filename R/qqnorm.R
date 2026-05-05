@@ -8,7 +8,8 @@
 # standard normal quantiles. Under a correctly specified model, residuals
 # should fall approximately along the y = x diagonal reference line.
 #
-# Supports pseudo confidence envelope via simulation (iid N(0,1) draws).
+# Supports deterministic pointwise confidence envelopes from normal order
+# statistic distributions.
 #
 # ============================================================================ #
 
@@ -46,8 +47,9 @@
 #' @param bonferroni logical indicating whether to apply Bonferroni correction
 #' to the envelope, so it can be regarded as a simultaneous confidence region
 #' for all \eqn{k} residuals. Defaults to \code{FALSE}.
-#' @param reps integer specifying the number of simulation replications for
-#' the envelope. Defaults to \code{1000}.
+#' @param reps retained for compatibility with earlier simulation-based
+#' envelopes. The current envelope is deterministic and does not use this
+#' argument.
 #' @param smooth logical indicating whether to smooth the envelope bounds using
 #' Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 #' \code{TRUE}.
@@ -63,7 +65,7 @@
 #' \describe{
 #'   \item{pch}{point symbol (default: 21, filled circle)}
 #'   \item{col}{point border color (default: "black")}
-#'   \item{bg}{point fill/background color (default: "black")}
+#'   \item{bg}{point fill/background color (default: "#A6A6A6")}
 #'   \item{cex}{point size multiplier for base graphics (default: 1)}
 #'   \item{size}{point size for ggplot2 (default: 2)}
 #'   \item{shade}{fill color for the envelope region (default: "grey90").
@@ -91,12 +93,17 @@
 #' types (including GLMMs and selection models) and properly account for
 #' estimation uncertainty via leave-one-out cross-validation.
 #'
-#' The pseudo confidence envelope is constructed by simulation: for each
-#' replication, \eqn{k} values are drawn from a standard normal distribution
-#' and sorted. Pointwise quantile bounds are computed across replications.
-#' When \code{smooth = TRUE}, bounds are smoothed using Friedman's
-#' SuperSmoother. When \code{bonferroni = TRUE}, the confidence level is
-#' adjusted for simultaneous inference across all \eqn{k} comparisons.
+#' The confidence envelope is computed in closed form from the distribution of
+#' normal order statistics. For the \eqn{i}-th sorted residual,
+#' \eqn{\Phi(Z_{(i)})} follows a beta distribution with shape parameters
+#' \eqn{i} and \eqn{k + 1 - i}. Pointwise quantile bounds are transformed back
+#' with \eqn{\Phi^{-1}}. When \code{smooth = TRUE}, bounds are smoothed using
+#' Friedman's SuperSmoother. When \code{bonferroni = TRUE}, the confidence
+#' level is adjusted for simultaneous inference across all \eqn{k} comparisons.
+#'
+#' For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
+#' approximate effect-size scale used by \code{loo}; they are not exact
+#' count-scale PIT diagnostics.
 #'
 #' @return For \code{plot_type = "base"}, returns an invisible list with
 #' components \code{x} (theoretical quantiles) and \code{y} (sorted
@@ -339,12 +346,12 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 # .qqnorm_envelope
 # ---------------------------------------------------------------------------- #
 #
-# Simulate pseudo confidence envelope for the QQ plot.
+# Deterministic pointwise confidence envelope for the QQ plot.
 #
-# Under a correctly specified model, standardized residuals (especially
-# LOO-PIT) should be approximately iid N(0,1). The envelope is constructed
-# by simulating sorted standard normal samples and computing pointwise
-# quantile bounds.
+# Under a correctly specified model, standardized residuals should be
+# approximately iid N(0,1). If U = Phi(Z), the i-th order statistic U_(i)
+# has a Beta(i, K + 1 - i) distribution. This gives a deterministic envelope
+# without RNG state or simulation error.
 #
 # @param K          number of observations
 # @param level      confidence level (0-100)
@@ -364,13 +371,17 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     alpha <- alpha / K
   }
 
-  # simulate sorted standard normal samples
-  sim_matrix <- matrix(stats::rnorm(reps * K), nrow = reps, ncol = K)
-  sim_matrix <- t(apply(sim_matrix, 1, sort))
-
-  # pointwise quantile bounds
-  lower <- apply(sim_matrix, 2, stats::quantile, probs = alpha / 2)
-  upper <- apply(sim_matrix, 2, stats::quantile, probs = 1 - alpha / 2)
+  index <- seq_len(K)
+  lower <- stats::qnorm(stats::qbeta(
+    alpha / 2,
+    shape1 = index,
+    shape2 = K + 1L - index
+  ))
+  upper <- stats::qnorm(stats::qbeta(
+    1 - alpha / 2,
+    shape1 = index,
+    shape2 = K + 1L - index
+  ))
 
   # smooth bounds (skip if too few points)
   if (smooth && K >= 4) {
@@ -555,11 +566,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 .set_dots_qqnorm <- function(dots) {
 
   # point styling
-  if (is.null(dots[["pch"]]))  dots[["pch"]]  <- 21
-  if (is.null(dots[["col"]]))  dots[["col"]]  <- "black"
-  if (is.null(dots[["bg"]]))   dots[["bg"]]   <- "black"
-  if (is.null(dots[["cex"]]))  dots[["cex"]]  <- 1
-  if (is.null(dots[["size"]])) dots[["size"]] <- 2
+  dots <- .plot_point_style_defaults(dots)
 
   # envelope styling
   if (is.null(dots[["shade"]]))        dots[["shade"]]        <- "grey90"

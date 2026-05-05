@@ -72,7 +72,7 @@ It walks through the school-calendar dataset from @konstantopoulos2011fixed, sho
 All `brma()` calls keep the default priors; see the [*Prior Distributions*](01-prior-distributions.html) vignette for the prior definitions and customization options.
 For the non-multilevel workflow showing more features (also applicable to the multilevel models) see the [*Bayesian Meta-Analysis*](02-bayesian-meta-analysis.html) vignette.
 
-`RoBMA` currently supports the simple multilevel structure shown here, with one cluster grouping above the estimate level (parameterized by total heterogeneity $\tau$ and cluster-level allocation $\rho$). Broader support for multivariate models and more complex random-effects structures is planned for a future release.
+`RoBMA` currently supports the simple multilevel structure shown here, with one cluster grouping above the estimate level (parameterized by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$). Broader support for multivariate models and more complex random-effects structures is planned for a future release.
 
 ## Multilevel Random-Effects Model
 

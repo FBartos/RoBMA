@@ -27,7 +27,7 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_simple_comparison_no_tau", function() {
+  expect_vdiffr_snapshot("funnel_simple_comparison_no_tau", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -35,7 +35,7 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
     funnel(fit_brma, plot_type = "base", xlim = c(-3, 3), ylim = c(0, 0.8), main = "brma", sampling_heterogeneity = FALSE)
   })
 
-  vdiffr::expect_doppelganger("funnel_simple_comparison", function() {
+  expect_vdiffr_snapshot("funnel_simple_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -43,7 +43,7 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
     funnel(fit_brma, plot_type = "base", xlim = c(-3, 3), ylim = c(0, 0.8), main = "brma")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_simple_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
@@ -63,7 +63,7 @@ test_that("Funnel plot for meta-regression matches metafor residual views", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_regression_comparison-standard", function() {
+  expect_vdiffr_snapshot("funnel_regression_comparison-standard", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -71,7 +71,7 @@ test_that("Funnel plot for meta-regression matches metafor residual views", {
     funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger("funnel_regression_comparison-rstudent", function() {
+  expect_vdiffr_snapshot("funnel_regression_comparison-rstudent", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -79,7 +79,7 @@ test_that("Funnel plot for meta-regression matches metafor residual views", {
     suppressWarnings(funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstudent"))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_regression_brma_ggplot",
     suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
   )
@@ -97,7 +97,7 @@ test_that("Funnel plot for interaction meta-regression renders residual views", 
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_regression4_comparison-standard", function() {
+  expect_vdiffr_snapshot("funnel_regression4_comparison-standard", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -105,7 +105,7 @@ test_that("Funnel plot for interaction meta-regression renders residual views", 
     suppressWarnings(funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.8), xlim = c(-2, 2), type = "rstandard"))
   })
 
-  vdiffr::expect_doppelganger("funnel_regression4_comparison-rstudent", function() {
+  expect_vdiffr_snapshot("funnel_regression4_comparison-rstudent", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -130,7 +130,7 @@ test_that("Funnel plot for location-scale model matches metafor residual view", 
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_scale_comparison", function() {
+  expect_vdiffr_snapshot("funnel_scale_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -138,7 +138,7 @@ test_that("Funnel plot for location-scale model matches metafor residual view", 
     funnel(fit_brma, plot_type = "base", main = "brma", ylim = c(0, 0.6), sampling_heterogeneity = FALSE, type = "rstandard")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_scale_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
@@ -158,7 +158,7 @@ test_that("Funnel plot for 3-level model matches metafor structure", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_3lvl_comparison", function() {
+  expect_vdiffr_snapshot("funnel_3lvl_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -166,7 +166,7 @@ test_that("Funnel plot for 3-level model matches metafor structure", {
     funnel(fit_brma, plot_type = "base", main = "brma", sampling_heterogeneity = FALSE, xlim = c(-1, 1.5), ylim = c(0.4, 0))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_3lvl_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
@@ -184,7 +184,7 @@ test_that("Funnel plot for 3-level meta-regression renders residual views", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_3lvl2_comparison", function() {
+  expect_vdiffr_snapshot("funnel_3lvl2_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -192,7 +192,7 @@ test_that("Funnel plot for 3-level meta-regression renders residual views", {
     suppressWarnings(suppressWarnings(funnel(fit_brma, plot_type = "base", type = "rstandard", conditioning_depth = "marginal", main = "brma", sampling_heterogeneity = FALSE, xlim = c(-1, 1.5), ylim = c(0.5, 0))))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_3lvl2_brma_ggplot",
     suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
   )
@@ -208,7 +208,7 @@ test_that("Funnel plot for GLMM model renders ggplot output", {
   fit_brma <- fits[[name]]
 
   # there is no funnel plot for metafor
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_glmm_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
@@ -222,7 +222,7 @@ test_that("Funnel plot for GLMM meta-regression renders ggplot output", {
   fit_brma <- fits[[name]]
 
   # there is no funnel plot for metafor
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_glmm_reg_ggplot",
     suppressWarnings(funnel(fit_brma, plot_type = "ggplot"))
   )
@@ -242,7 +242,7 @@ test_that("Funnel plot for selection model matches metafor structure", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_selmodel_pos_comparison", function() {
+  expect_vdiffr_snapshot("funnel_selmodel_pos_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -250,7 +250,7 @@ test_that("Funnel plot for selection model matches metafor structure", {
     funnel(fit_brma, plot_type = "base", main = "brma", xlim = c(-2, 2), ylim = c(0.8, 0), sampling_bias = FALSE, sampling_heterogeneity = FALSE)
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_selmodel_pos_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot", sampling_bias = TRUE, sampling_heterogeneity = TRUE, xlim = c(-2, 2))
   )
@@ -268,7 +268,7 @@ test_that("Funnel plot for selection meta-regression renders residual view", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_selmodelreg_comparison", function() {
+  expect_vdiffr_snapshot("funnel_selmodelreg_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     # not available for metafor
@@ -290,7 +290,7 @@ test_that("Funnel plot for negative-direction selection model matches metafor st
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_selmodel_neg_comparison", function() {
+  expect_vdiffr_snapshot("funnel_selmodel_neg_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -313,7 +313,7 @@ test_that("Funnel plot for PET model matches metafor residual view", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_PET_pos_comparison", function() {
+  expect_vdiffr_snapshot("funnel_PET_pos_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -322,7 +322,7 @@ test_that("Funnel plot for PET model matches metafor residual view", {
     suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0)))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_PET_pos_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
@@ -340,7 +340,7 @@ test_that("Funnel plot for PET meta-regression matches metafor residual view", {
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_PETreg_comparison", function() {
+  expect_vdiffr_snapshot("funnel_PETreg_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -362,7 +362,7 @@ test_that("Funnel plot for negative-direction PET model matches metafor residual
   # Visual comparison: side-by-side plots
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_PET_neg_comparison", function() {
+  expect_vdiffr_snapshot("funnel_PET_neg_comparison", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
@@ -371,7 +371,7 @@ test_that("Funnel plot for negative-direction PET model matches metafor residual
     suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_bias = FALSE, sampling_heterogeneity = FALSE, residual = TRUE, type = "rstudent", xlim = c(-2, 2), ylim = c(0.8, 0)))
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_PET_neg_brma_ggplot",
     funnel(fit_brma, plot_type = "ggplot")
   )
@@ -386,7 +386,7 @@ test_that("Funnel plot for BMA.norm model renders base output", {
   name     <- "dat.lehmann2018_BMA.norm"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("funnel_BMA", function() {
+  expect_vdiffr_snapshot("funnel_BMA", function() {
     suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE))
   })
 })
@@ -398,7 +398,7 @@ test_that("Funnel plot for BMA.norm meta-regression renders base output", {
   name     <- "dat.lehmann2018_BMA.norm_mods"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("funnel_BMAreg", function() {
+  expect_vdiffr_snapshot("funnel_BMAreg", function() {
     suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE))
   })
 })
@@ -412,7 +412,7 @@ test_that("Funnel plot for BMA.glmm model renders base output", {
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("funnel_BMA.glmm", function() {
+  expect_vdiffr_snapshot("funnel_BMA.glmm", function() {
     suppressWarnings(funnel(fit_brma, plot_type = "base"))
   })
 })
@@ -426,7 +426,7 @@ test_that("Funnel plot for RoBMA model renders base output", {
   name     <- "dat.lehmann2018_RoBMA"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("funnel_RoBMA", function() {
+  expect_vdiffr_snapshot("funnel_RoBMA", function() {
     suppressWarnings(funnel(fit_brma, plot_type = "base", sampling_heterogeneity = TRUE, sampling_bias = TRUE))
   })
 })
@@ -438,7 +438,7 @@ test_that("Funnel plot for RoBMA meta-regression renders LOO-PIT output", {
   name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
   fit_brma <- fits[[name]]
 
-  vdiffr::expect_doppelganger("funnel_RoBMA_complex", function() {
+  expect_vdiffr_snapshot("funnel_RoBMA_complex", function() {
     suppressWarnings(funnel(fit_brma, plot_type = "base", type = "LOO-PIT"))
   })
 })
@@ -499,6 +499,22 @@ test_that("Funnel plot data and argument validation are stable", {
   expect_error(funnel(fit_brma, sampling_heterogeneity = "yes"),
     info = "invalid sampling_heterogeneity is rejected"
   )
+
+  expect_no_error(
+    funnel(
+      fit_brma,
+      residual           = FALSE,
+      type               = "not-a-residual-type",
+      unit               = "not-a-unit",
+      conditioning_depth = "not-a-depth",
+      as_data            = TRUE
+    )
+  )
+
+  expect_error(
+    funnel(fit_brma, residual = TRUE, type = "not-a-residual-type", as_data = TRUE),
+    info = "residual mode validates residual type"
+  )
 })
 
 # ============================================================================ #
@@ -516,11 +532,11 @@ test_that("Funnel plot customization snapshots are stable", {
   # Test custom point aesthetics
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_custom_points_base", function() {
+  expect_vdiffr_snapshot("funnel_custom_points_base", function() {
     funnel(fit_brma, plot_type = "base", pch = 21, col = "blue", bg = "lightblue", cex = 1.5)
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_custom_points_ggplot",
     funnel(fit_brma, plot_type = "ggplot", pch = 19, col = "blue", bg = "lightblue", size = 3)
   )
@@ -529,11 +545,11 @@ test_that("Funnel plot customization snapshots are stable", {
   # Test custom funnel region styling
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_custom_regions_base", function() {
+  expect_vdiffr_snapshot("funnel_custom_regions_base", function() {
     funnel(fit_brma, plot_type = "base", back = "lightgrey", shade = "lightyellow", lty = "dashed")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_custom_regions_ggplot",
     funnel(fit_brma, plot_type = "ggplot", back = "lightblue", shade = "lightyellow", lty = "dashed")
   )
@@ -542,11 +558,11 @@ test_that("Funnel plot customization snapshots are stable", {
   # Test suppressing background/shade
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_no_background_base", function() {
+  expect_vdiffr_snapshot("funnel_no_background_base", function() {
     funnel(fit_brma, plot_type = "base", back = NA, shade = "white")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_no_shade_ggplot",
     funnel(fit_brma, plot_type = "ggplot", back = "grey", shade = NA)
   )
@@ -555,11 +571,11 @@ test_that("Funnel plot customization snapshots are stable", {
   # Test custom axis labels and title
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_custom_labels_base", function() {
+  expect_vdiffr_snapshot("funnel_custom_labels_base", function() {
     funnel(fit_brma, plot_type = "base", xlab = "Effect Size Residual", ylab = "SE", main = "Funnel Plot")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_custom_labels_ggplot",
     funnel(fit_brma, plot_type = "ggplot", xlab = "Effect Size Residual", ylab = "SE", main = "Funnel Plot")
   )
@@ -568,11 +584,11 @@ test_that("Funnel plot customization snapshots are stable", {
   # Test line color customization
   # --------------------------------------------------
 
-  vdiffr::expect_doppelganger("funnel_custom_lines_base", function() {
+  expect_vdiffr_snapshot("funnel_custom_lines_base", function() {
     funnel(fit_brma, plot_type = "base", col.line = "darkgrey", col.refline = "red", lty = "solid")
   })
 
-  vdiffr::expect_doppelganger(
+  expect_vdiffr_snapshot(
     "funnel_custom_lines_ggplot",
     funnel(fit_brma, plot_type = "ggplot", col.line = "darkgrey", col.refline = "red", lty = "solid")
   )

@@ -10,9 +10,10 @@ plot_weightfunction(x, ...)
 \method{plot_weightfunction}{brma}(
   x,
   rescale_p_values = TRUE,
-  show_data = TRUE,
   prior = FALSE,
   plot_type = "base",
+  show_data = TRUE,
+  dots_data = NULL,
   dots_prior = NULL,
   ...
 )
@@ -31,15 +32,20 @@ respectively.}
 \item{rescale_p_values}{whether to rescale p-values to the interval shown
 by the weightfunction plot. Defaults to \code{TRUE}.}
 
-\item{show_data}{whether to add observed one-sided p-values to the plot.
-Defaults to \code{TRUE}.}
-
 \item{prior}{whether prior distribution should be added to
 figure. Defaults to \code{FALSE}.}
 
 \item{plot_type}{whether to use a base plot \code{"base"}
 or ggplot2 \code{"ggplot"} for plotting. Defaults to
 \code{"base"}.}
+
+\item{show_data}{whether observed one-sided p-values should be shown as rug
+marks on the weightfunction axis. Defaults to \code{TRUE}.}
+
+\item{dots_data}{list of additional graphical arguments for observed
+p-value rug marks. Supported arguments include \code{col}/\code{color},
+\code{alpha}, \code{lwd}/\code{linewidth}/\code{size},
+\code{side}/\code{rug_side}, and \code{height}/\code{rug_height}.}
 
 \item{dots_prior}{list of additional graphical arguments
 to be passed to the plotting function of the prior
@@ -71,7 +77,7 @@ if (requireNamespace("metadat", quietly = TRUE)) {
   )
 
   plot_weightfunction(fit)
-  plot_weightfunction(fit, prior = TRUE, show_data = FALSE)
+  plot_weightfunction(fit, prior = TRUE)
 }
 }
 

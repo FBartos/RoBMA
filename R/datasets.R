@@ -3,8 +3,7 @@
 #'
 #' @description The data set contains correlation coefficients, sample
 #' sizes, and labels for 23 experimental studies focusing on the effect of
-#' violent video games on aggressive behavior. The full original data can
-#' found at https://github.com/Joe-Hilgard/Anderson-meta.
+#' violent video games on aggressive behavior.
 #'
 #'
 #' @format A data.frame with 3 columns and 23 observations:
@@ -13,8 +12,7 @@
 #'   \item{\code{n}}{Sample size.}
 #'   \item{\code{name}}{Study label.}
 #' }
-#'
-#' @return a data.frame.
+#' @source \url{https://github.com/Joe-Hilgard/Anderson-meta}
 #'
 #' @references
 #' \insertAllCited{}
@@ -36,9 +34,6 @@
 #'   \item{\code{se}}{Standard error of d.}
 #'   \item{\code{study}}{Study label.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Bem2011"
@@ -60,9 +55,6 @@
 #'   \item{\code{se}}{Standard error of d.}
 #'   \item{\code{study}}{Study label.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Poulsen2006"
@@ -71,11 +63,11 @@
 #' educational outcomes collected by \insertCite{kroupova2021student;textual}{RoBMA}
 #'
 #' @description The data set contains partial correlation coefficients, standard errors,
-#' study labels, samples sizes, type of the educational outcome, intensity of the
+#' study labels, sample sizes, type of the educational outcome, intensity of the
 #' employment, gender of the student population, study location, study design, whether
-#' the study controlled for endogenity, and whether the study controlled for motivation.
-#' The original data set including additional variables and the publication can be found
-#' at http://meta-analysis.cz/students.
+#' the study controlled for endogeneity, and whether the study controlled for motivation.
+#' The original data set including additional variables and the publication are
+#' available from the project page.
 #' (Note that some standard errors and employment intensities are missing.)
 #'
 #' @format A data.frame with 11 columns and 881 observations:
@@ -92,8 +84,7 @@
 #'   \item{\code{endogenity_control}}{Whether endogeneity was controlled.}
 #'   \item{\code{motivation_control}}{Whether motivation was controlled.}
 #' }
-#'
-#' @return a data.frame.
+#' @source \url{http://meta-analysis.cz/students}
 #'
 #' @references
 #' \insertAllCited{}
@@ -117,9 +108,6 @@
 #'   \item{\code{n}}{Sample size.}
 #'   \item{\code{study}}{Study label.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Lui2015"
@@ -156,9 +144,6 @@
 #'   \item{\code{hc_dimension}}{Household-chaos dimension using the source coding.}
 #'   \item{\code{measure}}{Executive-function assessment type, direct or informant.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Andrews2021"
@@ -188,9 +173,6 @@
 #'   \item{\code{Area_of_ChatGPT_application}}{Application area.}
 #'   \item{\code{se}}{Standard error of g.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Wang2025"
@@ -209,9 +191,6 @@
 #'   \item{\code{y}}{Standardized mean difference.}
 #'   \item{\code{se}}{Standard error of y.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "ManyLabs16"
@@ -237,9 +216,6 @@
 #'   \item{\code{sample_size}}{Sample size.}
 #'   \item{\code{country}}{Country.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Hoppen2025"
@@ -250,7 +226,7 @@
 #' @description The data set contains correlation coefficients between the manipulation
 #' and outcome variable (r_xy), sample sizes (N), and various study characteristics
 #' including publication status, country (USA vs. other), number of few and many
-#' examples requested, whether memory the trial targeted episodic memory, paradigm type (standard vs. other),
+#' examples requested, whether the trial targeted episodic memory, paradigm type (standard vs. other),
 #' dataset type (proximal vs. distal), and mediation variables (r_xm, r_my).
 #' The meta-analysis examined whether subjective ease mediates the ease-of-retrieval effect,
 #' where participants list either few or many examples and then make judgments
@@ -271,9 +247,6 @@
 #'   \item{\code{r_xm}}{Correlation between manipulation and mediator.}
 #'   \item{\code{r_my}}{Correlation between mediator and outcome.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Weingarten2018"
@@ -293,9 +266,6 @@
 #'   \item{\code{d}}{Cohen's d effect size.}
 #'   \item{\code{se}}{Standard error of d.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Johnides2025"
@@ -317,9 +287,6 @@
 #'   \item{\code{study_id}}{Study identifier.}
 #'   \item{\code{N}}{Sample size.}
 #' }
-#'
-#' @return a data.frame.
-#'
 #' @references
 #' \insertAllCited{}
 "Havrankova2025"

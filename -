@@ -1,0 +1,123 @@
+_P_l_o_t _d_i_a_g_n_o_s_t_i_c_s _o_f _a '_J_A_G_S' _m_o_d_e_l
+
+_D_e_s_c_r_i_p_t_i_o_n:
+
+     Creates density plots, trace plots, and autocorrelation plots for
+     a given parameter of a JAGS model.
+
+_U_s_a_g_e:
+
+     JAGS_diagnostics(
+       fit,
+       parameter,
+       type,
+       plot_type = "base",
+       xlim = NULL,
+       ylim = NULL,
+       lags = 30,
+       n_points = 1000,
+       transformations = NULL,
+       transform_factors = FALSE,
+       transform_orthonormal = FALSE,
+       short_name = FALSE,
+       parameter_names = FALSE,
+       formula_prefix = TRUE,
+       ...
+     )
+     
+     JAGS_diagnostics_density(
+       fit,
+       parameter,
+       plot_type = "base",
+       xlim = NULL,
+       n_points = 1000,
+       transformations = NULL,
+       transform_factors = FALSE,
+       transform_orthonormal = FALSE,
+       short_name = FALSE,
+       parameter_names = FALSE,
+       formula_prefix = TRUE,
+       ...
+     )
+     
+     JAGS_diagnostics_trace(
+       fit,
+       parameter,
+       plot_type = "base",
+       ylim = NULL,
+       transformations = NULL,
+       transform_factors = FALSE,
+       transform_orthonormal = FALSE,
+       short_name = FALSE,
+       parameter_names = FALSE,
+       formula_prefix = TRUE,
+       ...
+     )
+     
+     JAGS_diagnostics_autocorrelation(
+       fit,
+       parameter,
+       plot_type = "base",
+       lags = 30,
+       transformations = NULL,
+       transform_factors = FALSE,
+       transform_orthonormal = FALSE,
+       short_name = FALSE,
+       parameter_names = FALSE,
+       formula_prefix = TRUE,
+       ...
+     )
+     
+_A_r_g_u_m_e_n_t_s:
+
+     fit: a JAGS model fitted via 'JAGS_fit()'
+
+parameter: parameter to be plotted
+
+    type: what type of model diagnostic should be plotted. The
+          available options are '"density"', '"trace"', and
+          '"autocorrelation"'
+
+plot_type: whether to use a base plot '"base"' or ggplot2 '"ggplot"'
+          for plotting.
+
+    xlim: x plotting range
+
+    ylim: y plotting range
+
+    lags: number of lags to be shown for the autocorrelation plot.
+          Defaults to '30'.
+
+n_points: number of equally spaced points in the 'x_range' if 'x_seq'
+          is unspecified
+
+transformations: named list of transformations to be applied to
+          specific parameters
+
+transform_factors: whether factors with orthonormal/meandif prior
+          distribution should be transformed to differences from the
+          grand mean
+
+transform_orthonormal: (to be depreciated) whether factors with
+          orthonormal prior distributions should be transformed to
+          differences from the grand mean
+
+short_name: whether prior distribution names should be shorted
+
+parameter_names: whether parameter names should be printed
+
+formula_prefix: whether the parameter prefix from formula should be
+          printed. Defaults to 'TRUE'.
+
+     ...: additional arguments
+
+_V_a_l_u_e:
+
+     'diagnostics' returns either 'NULL' if 'plot_type = "base"' or an
+     object/list of objects (depending on the number of parameters to
+     be plotted) of class 'ggplot2' if 'plot_type = "ggplot2"'.
+
+_S_e_e _A_l_s_o:
+
+     'JAGS_fit()' 'JAGS_check_convergence()'
+

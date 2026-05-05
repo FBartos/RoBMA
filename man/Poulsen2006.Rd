@@ -17,9 +17,6 @@ A data.frame with 3 columns and 5 observations:
 \usage{
 Poulsen2006
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains Cohen's d effect sizes, standard errors,
 and labels for 5 studies assessing the tactile outcome from a meta-analysis of

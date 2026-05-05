@@ -5,6 +5,7 @@
 #'
 #' @inheritParams data_input
 #' @inheritParams RoBMA_prior_specification
+#' @inheritParams prior_specification
 #' @inheritParams fitting_specification
 #'
 #' @details
@@ -39,6 +40,7 @@
 #'
 #' @seealso [RoBMA()] [brma()] [summary.brma()] [plot.brma()]
 #'
+#' @aliases BMA.norm
 #' @export BMA.norm
 #' @export
 BMA <- BMA.norm <- function(
@@ -70,11 +72,7 @@ BMA <- BMA.norm <- function(
 
   ### create the output object
   dots         <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
-    caller  = "BMA.norm()"
-  )
+  dots         <- .validate_constructor_dots(dots, caller = "BMA.norm()")
   object       <- .createObject(
     dots = dots, class = c("BMA.norm", "RoBMA", "brma"),
     # MCMC and fitting settings
@@ -116,6 +114,7 @@ BMA <- BMA.norm <- function(
   ### store simple summary & coefficients
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
+  object               <- .autocompute_brma(object)
 
   return(object)
 }

@@ -210,12 +210,22 @@
 # .has_native_glmm
 # ---------------------------------------------------------------------------- #
 #
-# @return TRUE when native GLMM likelihood kernels are available.
+# @param outcome_type character; GLMM outcome type, either "bin" or "pois".
+#
+# @return TRUE when native GLMM likelihood kernels are available for the
+# requested outcome type.
 #
 # ---------------------------------------------------------------------------- #
-.has_native_glmm <- function() {
+.has_native_glmm <- function(outcome_type) {
 
-  return(is.loaded("RoBMA_glmm_binom_marginal_loglik", PACKAGE = "RoBMA"))
+  if (outcome_type == "bin") {
+    return(is.loaded("RoBMA_glmm_binom_marginal_loglik", PACKAGE = "RoBMA"))
+  }
+  if (outcome_type == "pois") {
+    return(is.loaded("RoBMA_glmm_pois_marginal_loglik", PACKAGE = "RoBMA"))
+  }
+
+  stop("Unknown GLMM outcome type.", call. = FALSE)
 }
 
 .has_native_glmm_cluster <- function() {
@@ -374,7 +384,7 @@
 .outcome_pdf.binom <- function(ai, ci, n1i, n2i, mu_samples, tau_within, prior_pi,
                                weights = NULL, n_theta = 15, n_pi = 30) {
 
-  if (!.has_native_glmm()) {
+  if (!.has_native_glmm("bin")) {
     return(.outcome_pdf.binom_r(
       ai         = ai,
       ci         = ci,
@@ -664,7 +674,7 @@
 .outcome_pdf.pois <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, prior_phi,
                               weights = NULL, n_theta = 15, n_phi = 30) {
 
-  if (!.has_native_glmm()) {
+  if (!.has_native_glmm("pois")) {
     return(.outcome_pdf.pois_r(
       x1i        = x1i,
       x2i        = x2i,
@@ -826,7 +836,7 @@
 # @param t1i        numeric vector of length K; treatment exposure times
 # @param t2i        numeric vector of length K; control exposure times
 # @param mu_samples S x K matrix of log incidence rate ratio samples
-# @param log_phi    S x K matrix of log baseline-rate samples
+# @param log_phi    S x K matrix of midpoint log-rate samples
 #
 # @return S x K matrix of conditional log-likelihood values
 #

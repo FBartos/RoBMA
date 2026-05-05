@@ -16,6 +16,12 @@ test_that("RoBMA options expose only public options", {
   expect_error(RoBMA.options(RoBMA_version = "bad"), "Unmatched or ambiguous option")
   expect_error(RoBMA.get_option("RoBMA_version"), "Unmatched or ambiguous option")
   expect_error(RoBMA.options(TRUE), "All options must be named")
+  expect_error(RoBMA.options(silent = 1), "must be TRUE or FALSE")
+  expect_error(RoBMA.options(max_cores = 0), "must be an integer")
+  expect_error(RoBMA.options(default_bias_PET.scale = expression(stop("boom"))), "finite number")
+
+  updated <- RoBMA.options(max_cores = 1L)
+  expect_equal(updated[["max_cores"]], 1L)
 })
 
 

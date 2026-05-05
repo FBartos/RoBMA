@@ -89,6 +89,39 @@ NULL
   return(object)
 }
 
+.validate_constructor_dots <- function(dots, caller) {
+
+  allowed <- c("only_data", "only_priors", "is_JASP", "is_JASP_prefix")
+  .check_unused_dots(
+    dots    = dots,
+    allowed = allowed,
+    caller  = caller
+  )
+
+  bool_arguments <- intersect(
+    c("only_data", "only_priors", "is_JASP"),
+    names(dots)
+  )
+  for (argument in bool_arguments) {
+    BayesTools::check_bool(
+      dots[[argument]],
+      argument,
+      allow_NA = FALSE
+    )
+  }
+
+  if ("is_JASP_prefix" %in% names(dots)) {
+    BayesTools::check_char(
+      dots[["is_JASP_prefix"]],
+      "is_JASP_prefix",
+      check_length = 1,
+      allow_NA     = FALSE
+    )
+  }
+
+  return(dots)
+}
+
 .check_unused_dots <- function(dots, allowed, caller) {
 
   if (length(dots) == 0L) {
@@ -112,6 +145,55 @@ NULL
     paste0("'", unused, "'", collapse = ", "),
     call. = FALSE
   )
+}
+
+.autocompute_brma <- function(object, marglik = !inherits(object, "RoBMA")) {
+
+  if (RoBMA.get_option("autocompute.loo")) {
+    object <- add_loo(object)
+  }
+  if (RoBMA.get_option("autocompute.waic")) {
+    object <- add_waic(object)
+  }
+  if (marglik && RoBMA.get_option("autocompute.marglik")) {
+    object <- add_marglik(object)
+  }
+
+  return(object)
+}
+
+.extract_posterior_indicator <- function(posterior_samples, parameter,
+                                         prior = NULL, column = NULL) {
+
+  if (is.null(column)) {
+    column <- paste0(parameter, "_indicator")
+  }
+  if (!column %in% colnames(posterior_samples)) {
+    stop("Missing posterior model indicator: '", column, "'.",
+         call. = FALSE)
+  }
+
+  indicator <- posterior_samples[, column]
+  if (!is.numeric(indicator) && !is.integer(indicator)) {
+    stop("Invalid posterior model indicator: '", column, "'.",
+         call. = FALSE)
+  }
+  if (any(!is.finite(indicator)) ||
+      any(abs(indicator - round(indicator)) > sqrt(.Machine$double.eps))) {
+    stop("Invalid posterior model indicator: '", column, "'.",
+         call. = FALSE)
+  }
+
+  indicator <- as.integer(round(indicator))
+  if (!is.null(prior)) {
+    valid_values <- seq_len(length(prior))
+    if (any(!indicator %in% valid_values)) {
+      stop("Invalid posterior model indicator range: '", column, "'.",
+           call. = FALSE)
+    }
+  }
+
+  return(indicator)
 }
 
 

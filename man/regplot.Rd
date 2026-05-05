@@ -28,6 +28,7 @@
   xlim = NULL,
   ylim = NULL,
   sampling_bias = TRUE,
+  sei = NULL,
   plot_type = "base",
   as_data = FALSE,
   ...
@@ -49,7 +50,7 @@ If multiple moderators are present, this argument is required.}
 \item{si}{logical; whether to show sampling interval bands. Defaults to \code{FALSE}.
 The sampling interval shows the expected range of observed effect sizes,
 incorporating both heterogeneity (tau) and a representative level of
-sampling error (mean SE across studies). When the model includes
+sampling error (median SE across studies by default). When the model includes
 publication bias adjustments and \code{sampling_bias = TRUE}, the
 sampling interval incorporates the expected distortion from the
 selection process.}
@@ -105,6 +106,10 @@ and the model includes PET/PEESE, incorporates the expected bias from these
 regression adjustments into predictions. When \code{FALSE}, shows bias-adjusted
 (corrected) predictions.}
 
+\item{sei}{single positive numeric value used as the reference standard
+error for sampling-bias and sampling-interval calculations. Defaults to the
+median observed standard error.}
+
 \item{plot_type}{character; whether to use base R graphics (\code{"base"})
 or ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.}
 
@@ -116,7 +121,7 @@ creating plot. Defaults to \code{FALSE}.}
 \item{main}{character string for plot title}
 \item{pch}{point symbol (default: 21)}
 \item{col}{point border color (default: "black")}
-\item{bg}{point fill color (default: "gray")}
+\item{bg}{point fill color (default: "#A6A6A6")}
 \item{lcol}{line color (default: "black")}
 \item{lwd}{line width (default: 2)}
 \item{shade}{CI/PI/SI band shading (default: TRUE)}

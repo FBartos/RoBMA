@@ -87,10 +87,10 @@ binomial GLMMs, it is computed as \code{ci + di}.}
 models, each weight powers the estimate likelihood. For GLMM models, each
 weight powers the paired two-arm likelihood for one study.}
 
-\item{mods}{an optional vector, matrix, data.frame, or formula specifying
+\item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
-\item{scale}{an optional vector, matrix, data.frame, or formula specifying
+\item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
 \code{data}.}
 
@@ -126,13 +126,13 @@ term-specific components.}
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
 alternative cluster-level heterogeneity allocation component(s).}
 
-\item{prior_baserate}{prior distribution for the estimate-specific base-rate
-probability in binomial GLMM models. If omitted or \code{NULL}, defaults to
-independent \code{Beta(1, 1)} priors.}
+\item{prior_baserate}{prior distribution for the estimate-specific midpoint
+base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
+to independent \code{Beta(1, 1)} priors.}
 
-\item{prior_lograte}{prior distribution for the estimate-specific log-rate in
-Poisson GLMM models. If omitted or \code{NULL}, a data-based unit-information normal
-prior is used.}
+\item{prior_lograte}{prior distribution for the estimate-specific midpoint
+log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
+unit-information normal prior is used independently for each estimate.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}

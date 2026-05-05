@@ -5,7 +5,7 @@
 \alias{add_loo}
 \title{Add LOO-PSIS to brma Objects}
 \usage{
-\method{add_loo}{brma}(object, unit = "estimate", r_eff = NULL, parallel = FALSE)
+\method{add_loo}{brma}(object, unit = "estimate", r_eff = NULL, parallel = FALSE, ...)
 }
 \arguments{
 \item{object}{a brma model object.}
@@ -20,6 +20,8 @@ provided, it is computed from the log-likelihood values.}
 \item{parallel}{Logical. If \code{TRUE} computations are parallelized and
 the number of cores is taken from \code{RoBMA.get_option("max_cores")}. If
 \code{FALSE} computations are run on a single core.}
+
+\item{...}{additional arguments (currently ignored).}
 }
 \value{
 The brma object with the LOO result stored in \code{object[["loo"]]}.

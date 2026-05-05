@@ -55,11 +55,13 @@ influence.brma <- function(model, ...) {
   # hatvalues, dffit, and cooks distance are possible only for normal-normal models
   outcome_type       <- .outcome_type(model)
   is_weightfunction  <- .is_weightfunction(model)
+  psis_context       <- .diagnostic_psis_context(model)
+  loo_wts            <- psis_context[["psis_weights"]]
 
 
   ### Precomputed Shared Components
   # rstudent (LOO-PIT residuals)
-  rstud_df     <- rstudent(model)
+  rstud_df     <- rstudent.brma(model, .psis_context = psis_context)
   rstudent_val <- rstud_df[["z"]]
 
   # Hat Matrix Samples (S x K)
@@ -76,7 +78,6 @@ influence.brma <- function(model, ...) {
     hat_val <- colMeans(hat_samples)
 
     fit_samples <- .influence_fit_samples(model)
-    loo_wts     <- loo_weights(model)
   }
 
   ### Compute Individual Diagnostics using Shared Components
@@ -95,16 +96,17 @@ influence.brma <- function(model, ...) {
 
   # COVRATIO
   # covratio uses weights and beta samples, not hat_samples directly.
-  cov_val <- covratio(model)
+  cov_val  <- covratio.brma(model, .weights = loo_wts)
   cov_note <- attr(cov_val, "note")
   cov_val <- as.numeric(cov_val)
 
   # DFBETAS
   # dfbetas uses weights and beta samples.
-  dfb_val <- dfbetas(model)
+  dfb_val  <- dfbetas.brma(model, .weights = loo_wts)
+  dfb_note <- attr(dfb_val, "note")
 
   # Compute tau.del (LOO aggregate heterogeneity estimate)
-  tau_del_val <- .influence_tau_del(model)
+  tau_del_val <- .influence_tau_del(model, weights = loo_wts)
 
   # Construct 'inf' data frame
   if (outcome_type == "norm" && !is_weightfunction) {
@@ -123,6 +125,7 @@ influence.brma <- function(model, ...) {
       tau.del  = tau_del_val
     )
   }
+  inf_df <- .diagnostic_set_rownames(inf_df, model)
 
 
   ### Return list structure matching metafor
@@ -130,8 +133,9 @@ influence.brma <- function(model, ...) {
     inf  = inf_df,
     dfbs = dfb_val
   )
-  if (!is.null(cov_note)) {
-    attr(res, "note") <- cov_note
+  note <- .diagnostic_collect_notes(cov_note, dfb_note)
+  if (!is.null(note)) {
+    attr(res, "note") <- note
   }
 
   class(res) <- "infl.brma"
@@ -145,9 +149,9 @@ influence.brma <- function(model, ...) {
 #
 # PSIS leave-one-out aggregate tau estimates for influence diagnostics.
 #
-.influence_tau_del <- function(model) {
+.influence_tau_del <- function(model, weights = NULL) {
 
-  weights           <- loo_weights(model)
+  weights           <- .diagnostic_psis_weights(model, weights)
   is_scale          <- .is_scale(model)
   is_multilevel     <- .is_multilevel(model)
   K                 <- ncol(weights)

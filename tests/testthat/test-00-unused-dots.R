@@ -1,3 +1,9 @@
+test_that("brma.norm is exported alias for brma", {
+
+  expect_true("brma.norm" %in% getNamespaceExports("RoBMA"))
+  expect_identical(brma.norm, brma)
+})
+
 test_that("top-level fitting constructors reject stale algorithm argument", {
 
   norm_args <- list(
@@ -54,5 +60,29 @@ test_that("top-level fitting constructors reject other named dots", {
       only_data        = TRUE
     ),
     "Unused argument.*legacy_algorithm"
+  )
+})
+
+test_that("top-level fitting constructors validate internal dot types", {
+
+  expect_error(
+    RoBMA(
+      yi        = c(0.10, 0.20, 0.15),
+      sei       = c(0.05, 0.06, 0.07),
+      only_data = 1
+    ),
+    "only_data"
+  )
+
+  expect_error(
+    brma.glmm(
+      ai             = c(5, 8, 6),
+      bi             = c(45, 42, 44),
+      ci             = c(4, 7, 5),
+      di             = c(46, 43, 45),
+      only_data      = TRUE,
+      is_JASP_prefix = TRUE
+    ),
+    "is_JASP_prefix"
   )
 })

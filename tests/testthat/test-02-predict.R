@@ -120,6 +120,96 @@ test_that("Wrapper functions have correct interface", {
                info = "true_effects are identical to blup")
 })
 
+test_that("fitted returns in-sample posterior means", {
+
+  model_names <- c(
+    "bcg_meta-regression",
+    "bangertdrowns2004_location-scale",
+    "konstantopoulos2011_3lvl",
+    "dat.lehmann2018_RoBMA"
+  )
+  skip_if_missing_fits(model_names)
+
+  fit_reg <- fits[["bcg_meta-regression"]]
+  n_reg   <- nobs(fit_reg)
+
+  fitted_reg <- fitted(fit_reg)
+  terms_reg  <- predict(fit_reg, type = "terms", quiet = TRUE)
+  expect_finite_vector(fitted_reg, n_reg, "fitted vector")
+  expect_equal(
+    unname(fitted_reg),
+    unname(.sample_means(terms_reg)),
+    tolerance = 1e-12,
+    info      = "default fitted values wrap marginal predictions"
+  )
+  expect_equal(
+    unname(fitted_reg),
+    unname(stats::fitted(info[["bcg_meta-regression"]][["metafor"]])),
+    tolerance = 0.05,
+    info      = "default fitted values match metafor"
+  )
+  expect_equal(
+    unname(residuals(fit_reg)),
+    unname(.outcome_data_yi(fit_reg) - fitted_reg),
+    tolerance = 1e-12,
+    info      = "default residuals use default fitted values"
+  )
+
+  fit_3lvl <- fits[["konstantopoulos2011_3lvl"]]
+  expect_equal(
+    unname(fitted(fit_3lvl, conditioning_depth = "cluster")),
+    unname(.sample_means(predict(fit_3lvl, type = "cluster", quiet = TRUE))),
+    tolerance = 1e-12,
+    info      = "cluster fitted values wrap cluster predictions"
+  )
+  expect_equal(
+    unname(fitted(fit_3lvl, conditioning_depth = "estimate")),
+    unname(.sample_means(blup(fit_3lvl))),
+    tolerance = 1e-12,
+    info      = "estimate fitted values wrap BLUPs"
+  )
+
+  fit_scale <- fits[["bangertdrowns2004_location-scale"]]
+  fitted_scale <- fitted(fit_scale, component = "scale")
+  expect_equal(
+    unname(fitted_scale),
+    unname(.sample_means(predict(fit_scale, type = "terms.scale", quiet = TRUE))),
+    tolerance = 1e-12,
+    info      = "scale fitted values wrap scale predictions"
+  )
+  fitted_all <- fitted(fit_scale, component = "all")
+  expect_equal(names(fitted_all), c("location", "scale"),
+               info = "component all returns location and scale")
+  expect_equal(unname(fitted_all[["location"]]), unname(fitted(fit_scale)),
+               tolerance = 1e-12)
+  expect_equal(unname(fitted_all[["scale"]]), unname(fitted_scale),
+               tolerance = 1e-12)
+
+  fit_robma <- fits[["dat.lehmann2018_RoBMA"]]
+  expect_equal(
+    unname(fitted(fit_robma, bias_adjusted = TRUE, conditional = TRUE)),
+    unname(.sample_means(predict(
+      fit_robma,
+      type          = "terms",
+      bias_adjusted = TRUE,
+      conditional   = TRUE,
+      quiet         = TRUE
+    ))),
+    tolerance = 1e-12,
+    info      = "conditional fitted values wrap conditional predictions"
+  )
+
+  expect_error(fitted(fit_reg, unit = "cluster"), "multilevel models")
+  expect_error(
+    fitted(fit_scale, component = "scale", conditioning_depth = "estimate"),
+    "component = 'scale'"
+  )
+  expect_error(
+    fitted(fit_scale, component = "scale", transform = "EXP"),
+    "location fitted values"
+  )
+})
+
 test_that("Conditional pooled wrappers condition RoBMA draws", {
 
   product_names <- c("dat.lehmann2018_RoBMA", "dat.lehmann2018_RoBMA_mods")
@@ -133,14 +223,29 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       parameters = .conditional_effect_parameters(fit_brma)
     )
     pooled_effect_averaged <- pooled_effect(fit_brma)
-    pooled_effect_cond     <- pooled_effect(fit_brma, conditional = TRUE)
-    pooled_effect_predict  <- predict(
-      fit_brma,
-      newdata       = TRUE,
-      type          = "terms",
-      bias_adjusted = TRUE,
-      conditional   = TRUE,
-      quiet         = TRUE
+    pooled_effect_cond     <- expect_silent(
+      pooled_effect(fit_brma, conditional = TRUE)
+    )
+    pooled_effect_predict  <- expect_silent(
+      predict(
+        fit_brma,
+        newdata       = TRUE,
+        type          = "terms",
+        bias_adjusted = TRUE,
+        conditional   = TRUE,
+        quiet         = TRUE
+      )
+    )
+    expect_message(
+      predict(
+        fit_brma,
+        newdata       = TRUE,
+        type          = "terms",
+        bias_adjusted = TRUE,
+        conditional   = TRUE,
+        quiet         = FALSE
+      ),
+      "flattened"
     )
 
     expect_equal(
@@ -158,7 +263,7 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
 
   fit_brma       <- fits[["dat.lehmann2018_RoBMA"]]
   summary_brma   <- summary(fit_brma, conditional = TRUE)
-  summary_effect <- summary(pooled_effect(fit_brma, conditional = TRUE))
+  summary_effect <- summary(suppressMessages(pooled_effect(fit_brma, conditional = TRUE)))
   expect_equal(
     unname(summary_effect["mu", "Mean"]),
     unname(summary_brma[["estimates_conditional"]]["mu", "Mean"]),
@@ -170,13 +275,27 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
     parameters = .conditional_heterogeneity_parameters(fit_brma)
   )
   pooled_het_averaged <- pooled_heterogeneity(fit_brma)
-  pooled_het_cond     <- pooled_heterogeneity(fit_brma, conditional = TRUE)
-  pooled_het_predict  <- predict(
-    fit_brma,
-    newdata     = TRUE,
-    type        = "terms.scale",
-    conditional = TRUE,
-    quiet       = TRUE
+  pooled_het_cond     <- expect_silent(
+    pooled_heterogeneity(fit_brma, conditional = TRUE)
+  )
+  pooled_het_predict  <- expect_silent(
+    predict(
+      fit_brma,
+      newdata     = TRUE,
+      type        = "terms.scale",
+      conditional = TRUE,
+      quiet       = TRUE
+    )
+  )
+  expect_message(
+    predict(
+      fit_brma,
+      newdata     = TRUE,
+      type        = "terms.scale",
+      conditional = TRUE,
+      quiet       = FALSE
+    ),
+    "flattened"
   )
 
   expect_equal(

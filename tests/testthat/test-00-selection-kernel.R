@@ -246,6 +246,18 @@ test_that("selection p-value bins are upper-closed at step boundaries", {
   expect_equal(.selection_step_bin_from_z(stats::qnorm(.025, lower.tail = FALSE), p_cuts), 1L)
 })
 
+test_that("selection p-value cut breaks include endpoints and are sorted", {
+
+  expect_error(
+    .selection_p_bin(c(.01, .20), c(.025, .05, 1)),
+    regexp = "endpoints 0 and 1"
+  )
+  expect_error(
+    .selection_p_bin(c(.01, .20), c(0, .05, .025, 1)),
+    regexp = "strictly increasing"
+  )
+})
+
 test_that("selection omega extraction orders indexed posterior columns numerically", {
 
   posterior_samples <- matrix(
@@ -779,7 +791,7 @@ test_that("selection-only prior_bias wrapper is delegated to BayesTools priors",
   expect_equal(BayesTools::JAGS_to_monitor(priors), c("mu", "tau", "omega"))
 })
 
-test_that("selection-only prior_bias wrapper is visible to z-curve thresholds", {
+test_that("selection-only prior_bias wrapper is visible to zplot thresholds", {
 
   selection <- BayesTools::prior_weightfunction(
     "one-sided", c(.025), BayesTools::wf_fixed(c(1, .5))
@@ -794,12 +806,12 @@ test_that("selection-only prior_bias wrapper is visible to z-curve thresholds", 
     silent                    = TRUE
   )
 
-  expect_equal(.zcurve_threshold(object[["priors"]]), stats::qnorm(1 - .025))
+  expect_equal(.zplot_threshold(object[["priors"]]), stats::qnorm(1 - .025))
 })
 
-test_that("native z-curve density matches selected-normal R reference", {
+test_that("native zplot density matches selected-normal R reference", {
 
-  skip_if_not(.has_native_zcurve_density(selection = TRUE))
+  skip_if_not(.has_native_zplot_density(selection = TRUE))
 
   S        <- 4L
   K        <- 3L
@@ -891,7 +903,7 @@ test_that("native z-curve density matches selected-normal R reference", {
 
   for (extrapolate in c(FALSE, TRUE)) {
     expect_equal(
-      .zcurve_density_vectorized(
+      .zplot_density_vectorized(
         z_sequence       = z_values,
         mu_samples       = mu,
         tau_within       = tau,
@@ -907,7 +919,7 @@ test_that("native z-curve density matches selected-normal R reference", {
 })
 
 
-test_that("z-curve threshold separates fitted, extrapolated, and missing-study targets", {
+test_that("zplot threshold separates fitted, extrapolated, and missing-study targets", {
 
   skip_if_not(.has_native_selnorm_kernel())
 
@@ -991,7 +1003,7 @@ test_that("z-curve threshold separates fitted, extrapolated, and missing-study t
     lower.tail        = TRUE
   )
 
-  extrapolated <- .zcurve_threshold_vectorized(
+  extrapolated <- .zplot_threshold_vectorized(
     z_threshold      = threshold,
     mu_samples       = mu,
     tau_within       = tau,
@@ -1000,7 +1012,7 @@ test_that("z-curve threshold separates fitted, extrapolated, and missing-study t
     extrapolate      = TRUE,
     effect_direction = "positive"
   )
-  fitted <- .zcurve_threshold_vectorized(
+  fitted <- .zplot_threshold_vectorized(
     z_threshold      = threshold,
     mu_samples       = mu,
     tau_within       = tau,

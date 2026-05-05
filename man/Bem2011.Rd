@@ -17,9 +17,6 @@ A data.frame with 3 columns and 9 observations:
 \usage{
 Bem2011
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains Cohen's d effect sizes, standard errors,
 and labels for 9 experimental studies of precognition from the infamous

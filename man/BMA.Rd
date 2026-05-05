@@ -2,6 +2,7 @@
 % Please edit documentation in R/BMA.norm.R
 \name{BMA}
 \alias{BMA}
+\alias{BMA.norm}
 \title{Bayesian Model-Averaged Meta-Analysis}
 \usage{
 BMA(
@@ -50,7 +51,7 @@ BMA(
 \arguments{
 \item{yi}{a vector of effect sizes, or a formula with the effect size on the
 left-hand side and location moderators on the right-hand side (for example
-\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} is ignored.}
+\code{yi ~ x1 + x2}). If a formula is supplied, \code{mods} must not be specified.}
 
 \item{vi}{a vector of sampling variances. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
@@ -65,10 +66,10 @@ weight powers the paired two-arm likelihood for one study.}
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
 or when estimating \code{"UISD"}).}
 
-\item{mods}{an optional vector, matrix, data.frame, or formula specifying
+\item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
 
-\item{scale}{an optional vector, matrix, data.frame, or formula specifying
+\item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
 \code{data}.}
 
@@ -120,6 +121,25 @@ term-specific components.}
 
 \item{prior_heterogeneity_allocation_null}{prior distribution(s) for the
 null cluster-level heterogeneity allocation component(s).}
+
+\item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
+Defaults to \code{TRUE}.}
+
+\item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
+Defaults to \code{"treatment"}.}
+
+\item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
+Cannot be used together with \code{prior_informed_field}.}
+
+\item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
+Point and none priors are unchanged; publication-bias priors are not rescaled
+except for the default PEESE prior's UISD adjustment. Defaults to 1.}
+
+\item{prior_informed_field}{character. The field of the informed prior distributions.
+Defaults to \code{NULL}.}
+
+\item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
+Defaults to \code{NULL}.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 

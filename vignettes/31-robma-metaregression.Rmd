@@ -134,9 +134,10 @@ To explore the moderation effect further, we estimate the estimated marginal mea
 
 ```{r}
 emm_rma <- emmeans::emmeans(metafor::emmprep(fit_rma), specs = "measure")
-metafor::transf.ztor
+emm_rma
+metafor::transf.ztor(as.data.frame(emm_rma)[, c("emmean", "asymp.LCL", "asymp.UCL")])
 ```
-TODO: update
+
 Studies using the informant-completed questionnaires show a stronger effect of household chaos on child executive functions, r = 0.227, 95\% CI [0.160, 0.293], than the direct assessment, r = 0.111, 95\% CI [0.050, 0.172]; both types of studies show statistically significant effects.
 
 The mean age of the children does not significantly moderate the effect (p = 0.600) with the estimated regression coefficient of b = 0.003, 95\% CI [-0.009, 0.016] on Fisher's $z$ scale.
@@ -192,7 +193,7 @@ fit_BMA <- BMA(
 ```
 
 `BMA()` specifies the combination of all models assuming presence vs. absence of the effect, heterogeneity, moderation by `measure`, and moderation by `age`, which corresponds to 2\*2\*2\*2=16 models.
-The new version of the package uses product-space parameterization which greatly improves the estimation time.
+The new version of the package uses product-space parameterization which greatly improves the estimation time by fitting all of the models simultaneously within one MCMC.
 
 Once the ensemble is estimated, `summary()` reports model-averaging results on the fitted Fisher's $z$ scale.
 Dedicated effect-summary helpers handle transformations to the correlation scale.
@@ -228,7 +229,7 @@ The estimated marginal means are similar to the frequentist results.
 Studies using the informant-completed questionnaires again show a stronger effect of household chaos on child executive functions, r = 0.210, 95\% CI [0.128, 0.289], than the direct assessment, r = 0.124, 95\% CI [0.054, 0.196]. 
 
 The last column summarizes results from a test against a null hypothesis of marginal means equals 0. 
-Here, we find extreme evidence for the effect size of studies using the informant-completed questionnaires differing from zero, $\text{BF}_{10} > 10{,}000$ and strong evidence for the effect size of studies using the direct assessment differing from zero, $\text{BF}_{10} > 23.6$. 
+Here, we find extreme evidence for the effect size of studies using the informant-completed questionnaires differing from zero, $\text{BF}_{10} > 10{,}000$ and strong evidence for the effect size of studies using the direct assessment differing from zero, $\text{BF}_{10} = 23.6$. 
 The test is performed using the change from prior to posterior distribution at 0 (i.e., the Savage-Dickey density ratio) assuming the presence of the overall effect or the presence of difference according to the tested factor. 
 Because the tests use prior and posterior samples, calculating the Bayes factor can be problematic when the posterior distribution is far from the tested value. 
 In such cases, warning messages are printed and $\text{BF}_{10} = \infty$ returned (like here); while the actual Bayes factor is less than infinity, it is still too large to be computed precisely given the posterior samples.
@@ -261,16 +262,16 @@ pooled_effect(fit_RoBMA, output_measure = "COR")
 All previously described functions for manipulating the fitted model work identically with the publication bias adjusted model. 
 As such, we just briefly mention the main differences found after adjusting for publication bias.
 
-RoBMA-reg reveals moderate evidence of publication bias $\text{BF}_{\text{pb}} = 4.81$. 
-Furthermore, accounting for publication bias turns the previously found evidence for the overall effect into a weak evidence against the effect $\text{BF}_{10} = 1.16$ and notably reduces the mean effect estimate r = 0.066$, 95\% CI [-0.016, 0.198].
+RoBMA-reg reveals moderate evidence of publication bias $\text{BF}_{\text{pb}} = 4.26$. 
+Furthermore, accounting for publication bias turns the previously found evidence for the overall effect into a weak evidence for the effect $\text{BF}_{10} = 1.25$ and notably reduces the mean effect estimate r = 0.061$, 95\% CI [-0.020, 0.189].
 
 ```{r}
 RoBMA_marginal <- marginal_means(fit_RoBMA, output_measure = "COR")
 summary(RoBMA_marginal)
 ```
 
-The estimated marginal means now suggest that studies using the informant-completed questionnaires show a much smaller effect of household chaos on child executive functions, r = 0.125, 95\% CI [0.000, 0.261] with moderate evidence in favor of the effect, $\text{BF}_{10} = 5.23$, 
-while studies using direct assessment even provide weak evidence against the effect of household chaos on child executive functions, $\text{BF}_{10} = 0.561$, with most likely effect sizes around zero, r = 0.008, 95\% CI [-0.112, 0.171].
+The estimated marginal means now suggest that studies using the informant-completed questionnaires show a much smaller effect of household chaos on child executive functions, r = 0.128, 95\% CI [0.000, 0.116] with moderate evidence in favor of the effect, $\text{BF}_{10} = 6.33$, 
+while studies using direct assessment even provide weak evidence against the effect of household chaos on child executive functions, $\text{BF}_{10} = 0.626$, with most likely effect sizes around zero, r = 0.013, 95\% CI [-0.115, 0.175].
 
 A visual summary of the estimated marginal means highlights the considerably wider model-averaged posterior distributions of the marginal means, a consequence of accounting and adjusting for publication bias.
 

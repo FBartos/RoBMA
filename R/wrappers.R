@@ -6,6 +6,7 @@
 # tasks with brma model fits. These wrappers simplify the interface to
 # predict.brma() for typical use cases:
 #
+# - fitted.brma(): In-sample fitted values
 # - pooled_effect.brma(): Aggregated pooled effect size (mu)
 # - pooled_heterogeneity.brma(): Aggregated pooled heterogeneity (tau)
 # - blup.brma(): Best Linear Unbiased Predictions (true effects)
@@ -53,6 +54,191 @@ nobs.brma <- function(object, ...) {
 #' @export
 coef.brma <- function(object, ...) {
   return(object[["coefficients"]])
+}
+
+
+#' @title Fitted Values for brma Objects
+#'
+#' @description Extract in-sample fitted values from a fitted \code{brma}
+#' object.
+#'
+#' @param object a fitted brma object.
+#' @param unit output unit. Only \code{"estimate"} is implemented currently.
+#' @param conditioning_depth conditioning depth for location fitted values.
+#' \code{"marginal"} uses fixed effects only, \code{"cluster"} conditions on
+#' cluster-level random effects, and \code{"estimate"} conditions on the full
+#' estimate-level fitted value.
+#' @param component fitted component to return. \code{"location"} returns
+#' location fitted values, \code{"scale"} returns fitted heterogeneity
+#' \eqn{\tau_i}, and \code{"all"} returns both as a named list.
+#' @param bias_adjusted whether location fitted values should adjust for
+#' publication bias. Defaults to \code{FALSE}.
+#' @param conditional whether to return fitted values from conditional posterior
+#' predictions for RoBMA product-space objects.
+#' @inheritParams predict.brma
+#' @param ... additional arguments. Currently only \code{quiet} is honored.
+#'
+#' @details
+#' This method is a compact adapter around \code{\link{predict.brma}}. It
+#' summarizes posterior prediction draws by their column means and returns a
+#' base numeric vector, matching the usual \code{\link[stats]{fitted}} contract.
+#' Use \code{predict()} directly when posterior draws or intervals are needed.
+#'
+#' The default \code{conditioning_depth = "marginal"} corresponds to
+#' \code{predict(object, type = "terms")} and matches the usual fitted-value
+#' convention for meta-regression. For normal models,
+#' \code{conditioning_depth = "estimate"} corresponds to BLUP means for the
+#' observed estimates.
+#'
+#' For \code{component = "all"}, \code{conditioning_depth},
+#' \code{output_measure}, and \code{transform} apply only to the
+#' \code{location} component. The \code{scale} component always returns
+#' fitted \eqn{\tau_i} values.
+#'
+#' @return A numeric vector of fitted values, or a named list with
+#' \code{location} and \code{scale} components when \code{component = "all"}.
+#'
+#' @seealso [predict.brma()], [residuals.brma()], [blup.brma()]
+#' @export
+fitted.brma <- function(object, unit = "estimate",
+                        conditioning_depth = "marginal",
+                        component = "location",
+                        bias_adjusted = FALSE,
+                        output_measure = NULL,
+                        transform = NULL,
+                        conditional = FALSE, ...) {
+
+  dots                         <- list(...)
+  quiet                        <- .fitted_brma_quiet(dots)
+  conditioning_depth_specified <- !missing(conditioning_depth)
+
+  unit                         <- .normalize_unit(unit)
+  conditioning_depth           <- .normalize_conditioning_depth(conditioning_depth)
+  component                    <- match.arg(component, c("location", "scale", "all"))
+
+  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+  BayesTools::check_bool(conditional, "conditional")
+
+  .check_unit_conditioning_depth(
+    object             = object,
+    unit               = unit,
+    conditioning_depth = conditioning_depth,
+    caller             = "fitted()"
+  )
+
+  if (unit == "cluster") {
+    .check_cluster_unit_deferred("fitted()")
+  }
+
+  if (component == "scale" && conditioning_depth_specified &&
+      conditioning_depth != "marginal") {
+    stop(
+      "'conditioning_depth' is not available for component = 'scale'.",
+      call. = FALSE
+    )
+  }
+
+  if (component == "scale" &&
+      (!is.null(output_measure) || !is.null(transform))) {
+    stop(
+      "'output_measure' and 'transform' are only available for location ",
+      "fitted values.",
+      call. = FALSE
+    )
+  }
+
+  if (component == "location") {
+    return(.fitted_brma_location(
+      object             = object,
+      conditioning_depth = conditioning_depth,
+      bias_adjusted      = bias_adjusted,
+      output_measure     = output_measure,
+      transform          = transform,
+      conditional        = conditional,
+      quiet              = quiet
+    ))
+  }
+
+  if (component == "scale") {
+    return(.fitted_brma_scale(
+      object      = object,
+      conditional = conditional,
+      quiet       = quiet
+    ))
+  }
+
+  return(list(
+    location = .fitted_brma_location(
+      object             = object,
+      conditioning_depth = conditioning_depth,
+      bias_adjusted      = bias_adjusted,
+      output_measure     = output_measure,
+      transform          = transform,
+      conditional        = conditional,
+      quiet              = quiet
+    ),
+    scale = .fitted_brma_scale(
+      object      = object,
+      conditional = conditional,
+      quiet       = quiet
+    )
+  ))
+}
+
+
+.fitted_brma_quiet <- function(dots) {
+
+  if (is.null(dots[["quiet"]])) {
+    return(TRUE)
+  }
+
+  BayesTools::check_bool(dots[["quiet"]], "quiet")
+  return(dots[["quiet"]])
+}
+
+
+.fitted_brma_location <- function(object, conditioning_depth,
+                                  bias_adjusted, output_measure,
+                                  transform, conditional, quiet) {
+
+  pred_type <- switch(conditioning_depth,
+    "marginal" = "terms",
+    "cluster"  = "cluster",
+    "estimate" = "estimate"
+  )
+
+  samples <- predict.brma(
+    object         = object,
+    newdata        = NULL,
+    type           = pred_type,
+    output_measure = output_measure,
+    transform      = transform,
+    bias_adjusted  = bias_adjusted,
+    conditional    = conditional,
+    quiet          = quiet
+  )
+
+  out <- colMeans(as.matrix(samples))
+  out <- .diagnostic_set_names(out, object)
+
+  return(out)
+}
+
+
+.fitted_brma_scale <- function(object, conditional, quiet) {
+
+  samples <- predict.brma(
+    object      = object,
+    newdata     = NULL,
+    type        = "terms.scale",
+    conditional = conditional,
+    quiet       = quiet
+  )
+
+  out <- colMeans(as.matrix(samples))
+  out <- .diagnostic_set_names(out, object)
+
+  return(out)
 }
 
 

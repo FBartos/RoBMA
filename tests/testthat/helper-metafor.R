@@ -675,7 +675,7 @@ expect_hatvalues_match_metafor <- function(case) {
   tolerance   <- case_value(case, "tolerance", 0.05)
 
   testthat::expect_equal(
-    hatvalues(fit_brma),
+    unname(hatvalues(fit_brma)),
     as.vector(hatvalues(fit_metafor)),
     tolerance = tolerance,
     info      = paste(name, "hatvalues match metafor")
@@ -944,7 +944,7 @@ expect_influence_matches_metafor <- function(case) {
                            tolerance = 1e-12)
     testthat::expect_equal(inf_brma$inf$cook.d, unname(cooks.distance(fit_brma)),
                            tolerance = 1e-12)
-    testthat::expect_equal(inf_metafor$inf$cov.r, covratio(fit_brma),
+    testthat::expect_equal(inf_metafor$inf$cov.r, unname(covratio(fit_brma)),
                            tolerance = 0.05)
   }
 }

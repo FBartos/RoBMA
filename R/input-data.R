@@ -10,7 +10,7 @@
 #'
 #' @param yi a vector of effect sizes, or a formula with the effect size on the
 #' left-hand side and location moderators on the right-hand side (for example
-#' `yi ~ x1 + x2`). If a formula is supplied, `mods` is ignored.
+#' `yi ~ x1 + x2`). If a formula is supplied, `mods` must not be specified.
 #' @param vi a vector of sampling variances. Either `vi` or `sei` must be
 #' supplied for normal models.
 #' @param sei a vector of standard errors. Either `vi` or `sei` must be
@@ -20,9 +20,9 @@
 #' weight powers the paired two-arm likelihood for one study.
 #' @param ni an optional vector of sample sizes. Used for `measure = "GEN"`
 #' or when estimating `"UISD"`).
-#' @param mods an optional vector, matrix, data.frame, or formula specifying
+#' @param mods an optional matrix, data.frame, or formula specifying
 #' location moderators (meta-regressors). Formula input is evaluated in `data`.
-#' @param scale an optional vector, matrix, data.frame, or formula specifying
+#' @param scale an optional matrix, data.frame, or formula specifying
 #' scale predictors for location-scale models. Formula input is evaluated in
 #' `data`.
 #' @param cluster an optional vector of cluster identifiers for multilevel
@@ -830,6 +830,9 @@ NULL
     # Check for NAs in subset
     if (any(is.na(subset)))
       stop("The 'subset' argument must not contain NA values.", call. = FALSE)
+
+    if (any(!is.finite(subset)) || any(subset != floor(subset)))
+      stop("The 'subset' argument must contain integer numeric indices.", call. = FALSE)
 
     if (any(subset < 1) || any(subset > k))
       stop(paste0("The 'subset' argument must contain values between 1 and ", k, "."), call. = FALSE)

@@ -31,16 +31,20 @@ Extended diagnostic tests use `skip_if_not_full_diagnostics()` when they duplica
 
 ### Recommended TDD Workflow
 
+Always use testthat LLM reporting for unit tests. Prefer
+`devtools::test(..., reporter = "llm")`; if a wrapper cannot pass `reporter`,
+set `AGENT=1` so testthat selects `LlmReporter`.
+
 ```r
 # 1. Run full suite once to verify current code and populate cache (if missing) 
-devtools::test()
+devtools::test(reporter = "llm")
 
 # 2. Iterate on your feature - uses cached fits unless you are modifing model fitting!
-devtools::test(filter = "your-feature")
+devtools::test(filter = "your-feature", reporter = "llm")
 
 # 3. Final verification (disable cache if fit / marglik code or its dependencies changed)
 clean_cached_fits()
-devtools::test()
+devtools::test(reporter = "llm")
 ```
 
 ### When to Clear Cache
@@ -77,15 +81,16 @@ source(testthat::test_path("common-functions.R"))
 ## AI Agent Protocol
 
 1. **Scan `test-01-*` first** - understand available models
-2. **Reuse existing models** - don't create duplicates
-3. **Never fit models** outside `test-01-*`
-4. **Never modify** `GENERATE_REFERENCE_FILES` flag (maintainer only)
+2. **Always use LLM reporting** when running unit tests: `reporter = "llm"` or `AGENT=1`
+3. **Reuse existing models** - don't create duplicates
+4. **Never fit models** outside `test-01-*`
+5. **Never modify** `GENERATE_REFERENCE_FILES` flag (maintainer only)
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| "Pre-fitted models not available" | Run `devtools::test(filter = "01-")` |
+| "Pre-fitted models not available" | Run `devtools::test(filter = "01-", reporter = "llm")` |
 | Stale cache causing failures | `clean_cached_fits()` then rerun |
 | Tests pass locally, fail on CI | Clear cache, run full suite |
 

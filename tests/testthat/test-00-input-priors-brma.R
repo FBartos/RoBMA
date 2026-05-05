@@ -70,6 +70,23 @@ test_that("GEN measure without ni is rejected", {
   )
 })
 
+test_that("GEN measure rejects incomplete ni for UISD defaults", {
+
+  skip_on_cran()
+
+  expect_error(
+    brma.norm(
+      yi          = effect,
+      sei         = std_err,
+      ni          = c(50L, NA, 60L, 40L, 90L),
+      data        = test_data,
+      measure     = "GEN",
+      only_priors = TRUE
+    ),
+    regexp = "ni.*complete|unit information"
+  )
+})
+
 
 test_that("Invalid measure is rejected", {
 
@@ -185,11 +202,16 @@ test_that("brma.norm alias is not overwritten by bselmodel", {
 
   skip_on_cran()
 
-  result <- brma.norm(
+  result_alias <- brma(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", only_data = TRUE
+  )
+  result       <- brma.norm(
     yi = effect, sei = std_err, data = test_data,
     measure = "SMD", only_data = TRUE
   )
 
+  expect_identical(class(result_alias), class(result))
   expect_s3_class(result, "brma.norm")
   expect_false("bselmodel" %in% class(result))
   expect_false("prior_bias" %in% names(formals(brma.norm)))
@@ -665,6 +687,49 @@ test_that("No-intercept moderator formulas use fixed-zero intercept", {
   expect_true(BayesTools::is.prior.point(formula_output[["prior_list"]][["mu_intercept"]]))
   expect_equal(mean(formula_output[["prior_list"]][["mu_intercept"]]), 0)
   expect_match(formula_output[["formula_syntax"]], "mu_intercept", fixed = TRUE)
+})
+
+test_that("Scale formulas repair no-intercept terms through BayesTools public API", {
+
+  env <- new.env(parent = emptyenv())
+
+  data <- list(
+    scale = test_data
+  )
+  formula_minus <- ~ scale_var - 1
+  environment(formula_minus) <- env
+  attr(data[["scale"]], "formula") <- formula_minus
+
+  expect_warning(
+    repaired <- .create_fit_formula_list(data = data, parameter = "scale"),
+    "Intercept cannot be omitted"
+  )
+  expect_equal(attr(stats::terms(repaired), "intercept"), 1)
+  expect_equal(attr(stats::terms(repaired), "term.labels"), "scale_var")
+  expect_true(identical(environment(repaired), env))
+  expect_true(isTRUE(attr(repaired, "log(intercept)")))
+
+  formula_zero <- ~ 0 + scale_var
+  environment(formula_zero) <- env
+  attr(data[["scale"]], "formula") <- formula_zero
+  expect_warning(
+    repaired_zero <- .create_fit_formula_list(data = data, parameter = "scale"),
+    "Intercept cannot be omitted"
+  )
+  expect_equal(attr(stats::terms(repaired_zero), "intercept"), 1)
+  expect_equal(attr(stats::terms(repaired_zero), "term.labels"), "scale_var")
+
+  formula_special <- ~ I(scale_var - 1) + offset(n - 1)
+  environment(formula_special) <- env
+  attr(data[["scale"]], "formula") <- formula_special
+  expect_silent(
+    repaired_special <- .create_fit_formula_list(data = data, parameter = "scale")
+  )
+  expect_equal(
+    attr(stats::terms(repaired_special), "term.labels"),
+    "I(scale_var - 1)"
+  )
+  expect_equal(attr(stats::terms(repaired_special), "offset"), 2)
 })
 
 

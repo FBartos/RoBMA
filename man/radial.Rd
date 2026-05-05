@@ -71,7 +71,7 @@ labels (e.g., \code{transf = exp} when effect sizes are on a log scale).}
 \describe{
 \item{pch}{point symbol (default: 21, filled circle)}
 \item{col}{point border color (default: "black")}
-\item{bg}{point fill/background color (default: "black")}
+\item{bg}{point fill/background color (default: "#A6A6A6")}
 \item{cex}{point size multiplier for base graphics (default: 1)}
 \item{size}{point size for ggplot2 (default: 2)}
 \item{back}{background color for the confidence band (default: "grey90").

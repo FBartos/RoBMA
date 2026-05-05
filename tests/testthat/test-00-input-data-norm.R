@@ -1349,6 +1349,21 @@ test_that("NA handling supports subset argument", {
   expect_equal(result$outcome$yi, c(0.10, 0.15, 0.30))
 })
 
+test_that("Numeric subset must use integer indices", {
+
+  skip_on_cran()
+
+  expect_error(
+    brma.norm(
+      yi        = c(0.10, 0.25, 0.15),
+      sei       = c(0.20, 0.24, 0.22),
+      subset    = c(1, 2.5),
+      only_data = TRUE
+    ),
+    regexp = "integer numeric indices"
+  )
+})
+
 
 test_that("Formula attributes are preserved after NA dropping", {
 

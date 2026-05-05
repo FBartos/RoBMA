@@ -35,7 +35,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param si logical; whether to show sampling interval bands. Defaults to \code{FALSE}.
 #' The sampling interval shows the expected range of observed effect sizes,
 #' incorporating both heterogeneity (tau) and a representative level of
-#' sampling error (mean SE across studies). When the model includes
+#' sampling error (median SE across studies by default). When the model includes
 #' publication bias adjustments and \code{sampling_bias = TRUE}, the
 #' sampling interval incorporates the expected distortion from the
 #' selection process.
@@ -74,6 +74,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' and the model includes PET/PEESE, incorporates the expected bias from these
 #' regression adjustments into predictions. When \code{FALSE}, shows bias-adjusted
 #' (corrected) predictions.
+#' @param sei single positive numeric value used as the reference standard
+#' error for sampling-bias and sampling-interval calculations. Defaults to the
+#' median observed standard error.
 #' @param plot_type character; whether to use base R graphics (\code{"base"})
 #' or ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.
 #' @param as_data logical; if \code{TRUE}, returns plot data instead of
@@ -83,7 +86,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #'   \item{main}{character string for plot title}
 #'   \item{pch}{point symbol (default: 21)}
 #'   \item{col}{point border color (default: "black")}
-#'   \item{bg}{point fill color (default: "gray")}
+#'   \item{bg}{point fill color (default: "#A6A6A6")}
 #'   \item{lcol}{line color (default: "black")}
 #'   \item{lwd}{line width (default: 2)}
 #'   \item{shade}{CI/PI/SI band shading (default: TRUE)}
@@ -159,7 +162,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
                          refline = NULL, psize = NULL, plim = c(0.5, 3),
                          by = NULL, legend = TRUE,
                          xlab = NULL, ylab = NULL, xlim = NULL, ylim = NULL,
-                         sampling_bias = TRUE,
+                         sampling_bias = TRUE, sei = NULL,
                          plot_type = "base", as_data = FALSE, ...) {
 
   # input validation
@@ -171,6 +174,12 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   BayesTools::check_int(digits, "digits", lower = 0)
   BayesTools::check_bool(legend, "legend")
   BayesTools::check_bool(sampling_bias, "sampling_bias")
+  if (!is.null(sei)) {
+    BayesTools::check_real(sei, "sei", lower = 0)
+    if (sei <= 0) {
+      stop("'sei' must be positive.", call. = FALSE)
+    }
+  }
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(as_data, "as_data")
 
@@ -221,6 +230,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     ylab          = ylab,
     refline       = refline,
     sampling_bias = sampling_bias,
+    reference_sei = sei,
     dots          = dots
   )
 
@@ -254,13 +264,13 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 .regplot_get_moderator <- function(x, mod) {
 
   mods_data <- x[["data"]][["mods"]]
+  design    <- .fitted_formula_design(x, "mu", required = TRUE)
 
   if (is.null(mods_data)) {
     stop("No moderator data found in the model.", call. = FALSE)
   }
 
-  # get list of moderator variable names (excluding formula attribute)
-  mod_names <- names(mods_data)
+  mod_names <- design[["predictors"]]
 
   if (is.null(mod)) {
     # auto-detect: use single moderator or error if multiple
@@ -293,12 +303,19 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
   # extract moderator data and determine type
   mod_values <- mods_data[[mod_name]]
+  predictor_type <- design[["predictor_types"]][[mod_name]]
 
-  if (is.factor(mod_values) || is.character(mod_values)) {
+  if (identical(predictor_type, "factor") ||
+      is.factor(mod_values) || is.character(mod_values)) {
     mod_type <- "categorical"
-    if (is.character(mod_values)) {
-      mod_values <- factor(mod_values)
-    }
+    mod_values <- factor(
+      mod_values,
+      levels = if (!is.null(design[["xlevels"]][[mod_name]])) {
+        design[["xlevels"]][[mod_name]]
+      } else {
+        levels(factor(mod_values))
+      }
+    )
   } else {
     mod_type <- "continuous"
   }
@@ -321,6 +338,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 .regplot_get_by <- function(x, by, mod_name) {
 
   mods_data <- x[["data"]][["mods"]]
+  design    <- .fitted_formula_design(x, "mu", required = TRUE)
 
   if (is.null(by)) {
     by <- .regplot_detect_interaction_by(x, mod_name)
@@ -330,7 +348,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     return(NULL)
   }
 
-  mod_names <- names(mods_data)
+  mod_names <- design[["predictors"]]
 
   if (!is.character(by) || length(by) != 1L) {
     stop("'by' must be NULL or a single moderator name.", call. = FALSE)
@@ -345,12 +363,19 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   }
 
   by_values <- mods_data[[by]]
+  predictor_type <- design[["predictor_types"]][[by]]
 
-  if (is.factor(by_values) || is.character(by_values)) {
+  if (identical(predictor_type, "factor") ||
+      is.factor(by_values) || is.character(by_values)) {
     by_type <- "categorical"
-    if (is.character(by_values)) {
-      by_values <- factor(by_values)
-    }
+    by_values <- factor(
+      by_values,
+      levels = if (!is.null(design[["xlevels"]][[by]])) {
+        design[["xlevels"]][[by]]
+      } else {
+        levels(factor(by_values))
+      }
+    )
   } else {
     by_type <- "continuous"
   }
@@ -374,13 +399,17 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 .regplot_detect_interaction_by <- function(x, mod_name) {
 
   mods_data <- x[["data"]][["mods"]]
-  formula   <- attr(mods_data, "formula")
 
-  if (is.null(formula)) {
+  if (is.null(mods_data)) {
     return(NULL)
   }
 
-  term_labels <- attr(stats::terms(formula), "term.labels")
+  term_labels <- .fitted_formula_terms(
+    object            = x,
+    parameter         = "mu",
+    include_intercept = FALSE,
+    display           = TRUE
+  )
   term_labels <- term_labels[grepl(":", term_labels, fixed = TRUE)]
 
   if (length(term_labels) == 0L) {
@@ -458,6 +487,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
                                      by_info, at, digits) {
 
   mods_data <- x[["data"]][["mods"]]
+  design    <- .fitted_formula_design(x, "mu", required = TRUE)
 
   if (mod_type == "continuous") {
     if (is.null(at)) {
@@ -500,7 +530,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   n_pred       <- nrow(grid)
   newdata_list <- list()
 
-  for (nm in names(mods_data)) {
+  for (nm in design[["predictors"]]) {
     if (nm == mod_name) {
       if (mod_type == "continuous") {
         newdata_list[[nm]] <- x_values[grid[["x_id"]]]
@@ -519,7 +549,11 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     } else {
       other_vals <- mods_data[[nm]]
       if (is.factor(other_vals) || is.character(other_vals)) {
-        other_levels <- levels(factor(other_vals))
+        other_levels <- if (!is.null(design[["xlevels"]][[nm]])) {
+          design[["xlevels"]][[nm]]
+        } else {
+          levels(factor(other_vals))
+        }
         newdata_list[[nm]] <- factor(
           rep(other_levels[1], n_pred),
           levels = other_levels
@@ -697,6 +731,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # @param ylab     y-axis label
 # @param refline       reference line position
 # @param sampling_bias logical; incorporate bias into predictions
+# @param reference_sei numeric; reference standard error for sampling paths
 # @param dots          graphical parameters
 #
 # @return list with plot data components
@@ -705,13 +740,13 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 .regplot_data <- function(x, mod_name, mod_type, mod_data, by_info,
                           pred, ci, pi, si, level, at, digits, psize, plim,
                           transf, xlim, ylim, xlab, ylab, refline,
-                          sampling_bias, dots) {
+                          sampling_bias, reference_sei, dots) {
 
-  yi     <- .outcome_data_yi(x)
-  sei    <- .outcome_data_sei(x)
-  vi     <- sei^2
-  K      <- length(yi)
-  se_rep <- mean(sei)
+  yi      <- .outcome_data_yi(x)
+  sei_obs <- .outcome_data_sei(x)
+  vi      <- sei_obs^2
+  K       <- length(yi)
+  se_rep  <- if (is.null(reference_sei)) stats::median(sei_obs) else reference_sei
 
   alpha <- (100 - level) / 100
   probs <- c(alpha / 2, 1 - alpha / 2)
@@ -979,7 +1014,8 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     by_name  = if (!is.null(by_info)) by_info[["name"]] else NULL,
     by_type  = if (!is.null(by_info)) by_info[["type"]] else NULL,
     groups   = groups,
-    levels   = if (mod_type == "categorical") levels(mod_data) else NULL
+    levels   = if (mod_type == "categorical") levels(mod_data) else NULL,
+    sei      = se_rep
   ))
 }
 
@@ -1484,14 +1520,23 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       out <- out +
         ggplot2::geom_polygon(
           data    = df_band,
-          mapping = ggplot2::aes(x = x, y = y, group = group, fill = group),
+          mapping = ggplot2::aes(
+            x     = .data[["x"]],
+            y     = .data[["y"]],
+            group = .data[["group"]],
+            fill  = .data[["group"]]
+          ),
           alpha   = alpha
         )
     } else {
       out <- out +
         ggplot2::geom_polygon(
           data    = df_band,
-          mapping = ggplot2::aes(x = x, y = y, group = group),
+          mapping = ggplot2::aes(
+            x     = .data[["x"]],
+            y     = .data[["y"]],
+            group = .data[["group"]]
+          ),
           fill    = fill_col[1],
           alpha   = alpha
         )
@@ -1503,14 +1548,23 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     out <- out +
       ggplot2::geom_line(
         data    = df_edges,
-        mapping = ggplot2::aes(x = x, y = y, group = interaction(group, edge), colour = group),
+        mapping = ggplot2::aes(
+          x      = .data[["x"]],
+          y      = .data[["y"]],
+          group  = interaction(.data[["group"]], .data[["edge"]]),
+          colour = .data[["group"]]
+        ),
         linewidth = 0.35
       )
   } else {
     out <- out +
       ggplot2::geom_line(
         data    = df_edges,
-        mapping = ggplot2::aes(x = x, y = y, group = edge),
+        mapping = ggplot2::aes(
+          x     = .data[["x"]],
+          y     = .data[["y"]],
+          group = .data[["edge"]]
+        ),
         colour  = border_col[1],
         linewidth = 0.35
       )
@@ -1539,8 +1593,14 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     out <- out +
       ggplot2::geom_crossbar(
         data    = df_band,
-        mapping = ggplot2::aes(x = x_plot, y = middle, ymin = lower, ymax = upper,
-                               colour = group, fill = group),
+        mapping = ggplot2::aes(
+          x      = .data[["x_plot"]],
+          y      = .data[["middle"]],
+          ymin   = .data[["lower"]],
+          ymax   = .data[["upper"]],
+          colour = .data[["group"]],
+          fill   = .data[["group"]]
+        ),
         width   = width,
         alpha   = alpha,
         linewidth = 0.35
@@ -1549,8 +1609,13 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     out <- out +
       ggplot2::geom_crossbar(
         data    = df_band,
-        mapping = ggplot2::aes(x = x_plot, y = middle, ymin = lower, ymax = upper,
-                               colour = group),
+        mapping = ggplot2::aes(
+          x      = .data[["x_plot"]],
+          y      = .data[["middle"]],
+          ymin   = .data[["lower"]],
+          ymax   = .data[["upper"]],
+          colour = .data[["group"]]
+        ),
         width   = width,
         fill    = NA,
         alpha   = 1,
@@ -1560,7 +1625,12 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     out <- out +
       ggplot2::geom_crossbar(
         data    = df_band,
-        mapping = ggplot2::aes(x = x_plot, y = middle, ymin = lower, ymax = upper),
+        mapping = ggplot2::aes(
+          x    = .data[["x_plot"]],
+          y    = .data[["middle"]],
+          ymin = .data[["lower"]],
+          ymax = .data[["upper"]]
+        ),
         width   = width,
         colour  = border_col[1],
         fill    = if (.regplot_has_shade(shade)) fill_col[1] else NA,
@@ -1863,14 +1933,19 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
         out <- out +
           ggplot2::geom_line(
             data    = df_pred,
-            mapping = ggplot2::aes(x = x, y = y, colour = group, group = group),
+            mapping = ggplot2::aes(
+              x      = .data[["x"]],
+              y      = .data[["y"]],
+              colour = .data[["group"]],
+              group  = .data[["group"]]
+            ),
             linewidth = lwd / 2
           )
       } else {
         out <- out +
           ggplot2::geom_line(
             data    = df_pred,
-            mapping = ggplot2::aes(x = x, y = y),
+            mapping = ggplot2::aes(x = .data[["x"]], y = .data[["y"]]),
             colour  = lcol[1],
             linewidth = lwd / 2
           )
@@ -1881,7 +1956,11 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
         out <- out +
           ggplot2::geom_point(
             data    = df_pred,
-            mapping = ggplot2::aes(x = x_plot, y = y, colour = group),
+            mapping = ggplot2::aes(
+              x      = .data[["x_plot"]],
+              y      = .data[["y"]],
+              colour = .data[["group"]]
+            ),
             shape   = 18,
             size    = 4
           )
@@ -1889,7 +1968,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
         out <- out +
           ggplot2::geom_point(
             data    = df_pred,
-            mapping = ggplot2::aes(x = x_plot, y = y),
+            mapping = ggplot2::aes(x = .data[["x_plot"]], y = .data[["y"]]),
             shape   = 18,
             colour  = lcol[1],
             size    = 4
@@ -1912,15 +1991,24 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     out <- out +
       ggplot2::geom_point(
         data    = df_points,
-        mapping = ggplot2::aes(x = x_plot, y = y, size = size,
-                               colour = group, fill = group),
+        mapping = ggplot2::aes(
+          x      = .data[["x_plot"]],
+          y      = .data[["y"]],
+          size   = .data[["size"]],
+          colour = .data[["group"]],
+          fill   = .data[["group"]]
+        ),
         shape   = pch
       )
   } else {
     out <- out +
       ggplot2::geom_point(
         data    = df_points,
-        mapping = ggplot2::aes(x = x_plot, y = y, size = size),
+        mapping = ggplot2::aes(
+          x    = .data[["x_plot"]],
+          y    = .data[["y"]],
+          size = .data[["size"]]
+        ),
         shape   = pch,
         colour  = col,
         fill    = bg
@@ -1987,10 +2075,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   dots <- list(...)
 
   # point styling
-  if (is.null(dots[["pch"]]))      dots[["pch"]]      <- 21
-  if (is.null(dots[["col"]]))      dots[["col"]]      <- "black"
-  if (is.null(dots[["bg"]]))       dots[["bg"]]       <- "gray"
-  if (is.null(dots[["size"]]))     dots[["size"]]     <- 2
+  dots <- .plot_point_style_defaults(dots)
 
   # line styling
   if (is.null(dots[["lcol"]]))     dots[["lcol"]]     <- "black"

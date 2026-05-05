@@ -18,9 +18,6 @@ A data.frame with 5 columns and 1159 observations:
 \usage{
 Havrankova2025
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains effect sizes (percent increase in earnings), standard errors,
 study identifiers, sample sizes, and the type of customer contact (no, some, or direct).

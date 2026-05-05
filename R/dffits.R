@@ -63,8 +63,9 @@ dffits.brma <- function(model, ...) {
     }
 
     fit_samples <- .influence_fit_samples(model)
-    weights     <- loo_weights(model)
+    weights     <- .diagnostic_psis_weights(model)
     dffits_vec  <- .dffits_internal(fit_samples, weights)
+    dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
 
     return(dffits_vec)
 }

@@ -2,8 +2,6 @@
 % Please edit documentation in R/bridgesampling.R
 \name{bf.brma}
 \alias{bf.brma}
-\alias{bf}
-\alias{bayes_factor}
 \alias{bayes_factor.brma}
 \title{Bayes Factor for brma Objects}
 \usage{

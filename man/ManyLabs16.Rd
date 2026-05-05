@@ -15,9 +15,6 @@ A data.frame with 2 columns and 55 observations:
 \usage{
 ManyLabs16
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains standardized mean differences (y) and standard errors (se)
 from 55 replication studies of the framing effect originally described by

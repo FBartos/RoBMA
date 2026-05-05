@@ -119,7 +119,7 @@
     # if so, warn the user and return it back (intercepts cannot be omitted from scale models)
     if (attr(terms(formula), "intercept") == 0) {
       warning("Intercept cannot be omitted from scale models (the regression estimates a multiplicative constant for the intercept). The intercept removal term has been ignored.", call. = FALSE)
-      formula <- BayesTools:::.add_intercept_to_formula(formula)
+      formula <- BayesTools::formula_add_intercept(formula)
     }
 
     # add the corresponding attribute

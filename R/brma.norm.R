@@ -1,7 +1,7 @@
 #' @title Bayesian Meta-Analysis
 #'
 #' @description Function for fitting random-effects, meta-regression, multilevel,
-#' and location-scale meta-analytic models.
+#' and location-scale meta-analytic models. `brma.norm()` is an alias for `brma()`.
 #'
 #' @inheritParams data_input
 #' @inheritParams prior_specification
@@ -168,6 +168,9 @@
 #'
 #' @seealso [RoBMA()], [BMA()], [brma.glmm()], [summary.brma()],
 #' [plot.brma()], [predict.brma()]
+#'
+#' @aliases brma.norm
+#' @export brma.norm
 #' @export
 brma <- brma.norm <- function(
     # input specification
@@ -196,11 +199,7 @@ brma <- brma.norm <- function(
 
   ### create the output object
   dots         <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = c("only_data", "only_priors", "is_JASP", "is_JASP_prefix"),
-    caller  = "brma.norm()"
-  )
+  dots         <- .validate_constructor_dots(dots, caller = "brma.norm()")
   object       <- .createObject(
     dots = dots, class = c("brma.norm", "brma"),
     # MCMC and fitting settings
@@ -238,16 +237,7 @@ brma <- brma.norm <- function(
   object$summary       <- .object_summary(object)
   object$coefficients  <- .object_coefficients(object)
 
-  ### autocompute
-  if (RoBMA.get_option("autocompute.loo")) {
-    object <- add_loo(object)
-  }
-  if (RoBMA.get_option("autocompute.waic")) {
-    object <- add_waic(object)
-  }
-  if (RoBMA.get_option("autocompute.marglik")) {
-    object <- add_marglik(object)
-  }
+  object               <- .autocompute_brma(object)
 
   return(object)
 }

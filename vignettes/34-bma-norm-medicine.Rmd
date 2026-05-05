@@ -69,10 +69,11 @@ fit_RoBMA <- RoBMA(
 vignette_cache_save(cached_fits)
 ```
 
+**This vignette accompanies the manuscript [Bayesian Model-Averaged Meta-Analysis in Medicine](https://doi.org/10.1002/sim.9170) published at *Statistics in Medicine* [@bartos2021bayesian].**
+
 Bayesian model-averaged meta-analysis allows researchers to seamlessly incorporate available prior information into the analysis [@gronau2017bayesian; @gronau2020primer; @bartos2021bayesian]. 
 This vignette illustrates how to do this with an example from @bartos2021bayesian, who developed informed prior distributions for meta-analyses of continuous outcomes based on the Cochrane database of systematic reviews. 
 Then, we extend the example by incorporating publication bias adjustment with robust Bayesian meta-analysis [@bartos2021no; @maier2020robust].
-
 
 ### Reproducing Informed Bayesian Model-Averaged Meta-Analysis (BMA)
 
@@ -120,7 +121,7 @@ The results show that the inclusion Bayes factor for the effect is similar to th
 The second part under the 'Model-averaged estimates' heading displays the parameter estimates model-averaged across all specified models (i.e., including models specifying the effect size to be zero). 
 We ignore this section and move to the last part.
 
-The third part under the 'Conditional estimates' heading displays the conditional effect size estimate corresponding to the one reported in @bartos2021bayesian, d = 1.080, 95% CI [0.661, 1.422], and a heterogeneity estimate (not reported previously).
+The third part under the 'Conditional estimates' heading displays the conditional effect size estimate corresponding to the one reported in @bartos2021bayesian, d = 1.080, 95% CI [0.661, 1.424], and a heterogeneity estimate (not reported previously).
 
 The dedicated helper functions can be used to extract the pooled effect and heterogeneity estimates directly (assuming the presence of the effect and heterogeneity respectively):
 
@@ -181,7 +182,7 @@ When comparing the RoBMA to the second BMA fit, we notice a large decrease in th
 We can further quantify the evidence in favor of the publication bias with the inclusion Bayes factor for publication bias $\text{BF}_{pb} = 4.97$, which can be interpreted as a moderate evidence in favor of publication bias.
 
 We can also compare the publication bias unadjusted and publication bias-adjusted conditional effect size estimates. 
-Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) decreases the estimated effect to d = TODO, 95% CI [-0.035, 1.297] with a much wider confidence interval, as visualized in the prior and posterior conditional effect size estimate plot.
+Including models assuming publication bias into our model-averaged estimate (assuming the presence of the effect) decreases the estimated effect to d = 0.655, 95% CI [-0.384, 1.330] with a much wider confidence interval, as visualized in the prior and posterior conditional effect size estimate plot.
 
 ```{r}
 pooled_effect(fit_BMA, conditional = TRUE)

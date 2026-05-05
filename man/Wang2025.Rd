@@ -25,9 +25,6 @@ A data.frame with 12 columns and 70 observations:
 \usage{
 Wang2025
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains Hedges' g effect sizes, standard errors,
 sample sizes for experimental and control groups, and various study characteristics

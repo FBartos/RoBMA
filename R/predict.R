@@ -69,7 +69,8 @@
 #' @param conditional whether to return conditional posterior predictions for
 #' RoBMA product-space objects. For location predictions, samples are conditioned
 #' on the effect component; for \code{type = "terms.scale"}, samples are
-#' conditioned on the heterogeneity component.
+#' conditioned on the heterogeneity component. Conditional samples are flattened
+#' to one chain after subsetting posterior rows.
 #' @param quiet logical; whether to suppress informational messages about
 #' prediction scale and bias adjustment.
 #'
@@ -86,6 +87,11 @@
 #' posterior draw. It is therefore an empirical-Bayes summary, not a draw from
 #' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For new data,
 #' estimate-level random effects are sampled from their model distribution.
+#'
+#' For RoBMA product-space objects, conditional posterior predictions subset
+#' posterior rows according to model indicators. This removes the original
+#' chain structure, so returned \code{brma_samples} objects are intentionally
+#' stored as one flattened chain.
 #'
 #' Note that in contrast to \link[metafor]{predict}, the \code{type = "response"} produces
 #' predictions for the new effect size estimates. To obtain results corresponding to
@@ -328,7 +334,8 @@ predict.brma <- function(object, newdata = NULL,
       object      = object,
       samples     = out,
       conditional = conditional,
-      parameters  = .conditional_heterogeneity_parameters(object)
+      parameters  = .conditional_heterogeneity_parameters(object),
+      quiet       = quiet
     ))
   }
 
@@ -383,7 +390,8 @@ predict.brma <- function(object, newdata = NULL,
       object      = object,
       samples     = out,
       conditional = conditional,
-      parameters  = .conditional_effect_parameters(object)
+      parameters  = .conditional_effect_parameters(object),
+      quiet       = quiet
     ))
   }
 
@@ -468,7 +476,8 @@ predict.brma <- function(object, newdata = NULL,
       object      = object,
       samples     = out,
       conditional = conditional,
-      parameters  = .conditional_effect_parameters(object)
+      parameters  = .conditional_effect_parameters(object),
+      quiet       = quiet
     ))
   }
 
@@ -523,7 +532,8 @@ predict.brma <- function(object, newdata = NULL,
       object      = object,
       samples     = out,
       conditional = conditional,
-      parameters  = .conditional_effect_parameters(object)
+      parameters  = .conditional_effect_parameters(object),
+      quiet       = quiet
     ))
 
   }
@@ -676,7 +686,8 @@ predict.brma <- function(object, newdata = NULL,
       object      = object,
       samples     = out,
       conditional = conditional,
-      parameters  = .conditional_effect_parameters(object)
+      parameters  = .conditional_effect_parameters(object),
+      quiet       = quiet
     ))
   }
 }
@@ -793,7 +804,7 @@ predict.brma <- function(object, newdata = NULL,
 }
 
 .condition_prediction_samples <- function(object, samples, conditional,
-                                          parameters) {
+                                          parameters, quiet = FALSE) {
 
   if (!conditional) {
     return(samples)
@@ -808,6 +819,10 @@ predict.brma <- function(object, newdata = NULL,
 
   if (nrow(sample_matrix) == 0L) {
     stop("No posterior samples remain after conditioning.", call. = FALSE)
+  }
+
+  if (!quiet) {
+    message("Conditional posterior samples flattened to one chain.")
   }
 
   return(.new_brma_samples(
@@ -904,7 +919,11 @@ predict.brma <- function(object, newdata = NULL,
   S     <- nrow(posterior_samples)
 
   if (BayesTools::is.prior.spike_and_slab(prior)) {
-    indicator <- .conditional_indicator_column(posterior_samples, parameter)
+    indicator <- .extract_posterior_indicator(
+      posterior_samples = posterior_samples,
+      parameter         = parameter,
+      prior             = prior
+    )
     return(indicator == 1)
   }
 
@@ -917,7 +936,11 @@ predict.brma <- function(object, newdata = NULL,
         call. = FALSE
       )
     }
-    indicator <- .conditional_indicator_column(posterior_samples, parameter)
+    indicator <- .extract_posterior_indicator(
+      posterior_samples = posterior_samples,
+      parameter         = parameter,
+      prior             = prior
+    )
     return(indicator %in% which(components == "alternative"))
   }
 
@@ -932,11 +955,8 @@ predict.brma <- function(object, newdata = NULL,
 
 .conditional_indicator_column <- function(posterior_samples, parameter) {
 
-  column <- paste0(parameter, "_indicator")
-  if (!column %in% colnames(posterior_samples)) {
-    stop("Missing posterior model indicator: '", column, "'.",
-         call. = FALSE)
-  }
-
-  return(as.integer(posterior_samples[, column]))
+  return(.extract_posterior_indicator(
+    posterior_samples = posterior_samples,
+    parameter         = parameter
+  ))
 }

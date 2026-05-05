@@ -33,7 +33,7 @@ See our manuscripts for technical details and examples:
 
 - Bartoš & Schimmack (2025)
   (<https://doi.org/10.48550/arXiv.2509.07171>) introduces meta-analytic
-  z-curve plots for assessing model fit with respect to publication bias
+  zplots for assessing model fit with respect to publication bias
 - Bartoš, Maier, & Wagenmakers (2025)
   (<https://doi.org/10.31234/osf.io/9tgp2_v1>) extends RoBMA-PSMA into
   multilevel meta-analysis
@@ -58,31 +58,33 @@ See our manuscripts for technical details and examples:
   JASP (JASP Team, 2020)
 
 We also prepared multiple vignettes that illustrate functionality of the
-package. See the [Guide to RoBMA
-Vignettes](https://fbartos.github.io/RoBMA/articles/Explanation.html)
+package. See the [Introduction to
+RoBMA](https://fbartos.github.io/RoBMA/articles/00-introduction.html)
 for an overview or explore them directly:
 
+- [Prior
+  distributions](https://fbartos.github.io/RoBMA/articles/01-prior-distributions.html)
+- [Bayesian
+  meta-analysis](https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.html)
+- [Bayesian model
+  averaging](https://fbartos.github.io/RoBMA/articles/20-bayesian-model-averaging.html)
+- [Robust Bayesian
+  meta-analysis](https://fbartos.github.io/RoBMA/articles/21-robust-bayesian-meta-analysis.html)
 - [Tutorial: Adjusting for publication bias in JASP and R - Selection
   models, PET-PEESE, and Robust Bayesian
   meta-analysis](https://fbartos.github.io/RoBMA/articles/30-tutorial.html)
-- [Reproducing Bayesian model-averaged meta-analysis
-  (BMA)](https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html)
 - [Robust Bayesian model-averaged
-  meta-regression](https://fbartos.github.io/RoBMA/articles/MetaRegression.html)
+  meta-regression](https://fbartos.github.io/RoBMA/articles/31-robma-metaregression.html)
 - [Multilevel Robust Bayesian
-  Meta-Analysis](https://fbartos.github.io/RoBMA/articles/MultilevelRoBMA.html)
+  Meta-Analysis](https://fbartos.github.io/RoBMA/articles/32-robma-multilevel.html)
 - [Multilevel Robust Bayesian Model-Averaged
-  Meta-Regression](https://fbartos.github.io/RoBMA/articles/MultilevelRoBMARegression.html)
-- [Hierarchical Bayesian model-averaged
-  meta-analysis](https://fbartos.github.io/RoBMA/articles/HierarchicalBMA.html)
+  Meta-Regression](https://fbartos.github.io/RoBMA/articles/33-robma-multilevel-metaregression.html)
 - [Informed Bayesian model-averaged meta-analysis in
-  medicine](https://fbartos.github.io/RoBMA/articles/MedicineBMA.html)
+  medicine](https://fbartos.github.io/RoBMA/articles/34-bma-norm-medicine.html)
 - [Informed Bayesian model-averaged meta-analysis with binary
-  outcomes](https://fbartos.github.io/RoBMA/articles/MedicineBiBMA.html)
-- [Fitting custom meta-analytic
-  ensembles](https://fbartos.github.io/RoBMA/articles/CustomEnsembles.html)
-- [Z-Curve Publication Bias
-  Diagnostics](https://fbartos.github.io/RoBMA/articles/ZCurveDiagnostics.html)
+  outcomes](https://fbartos.github.io/RoBMA/articles/35-bma-glmm-medicine.html)
+- [Zplot Publication Bias
+  Diagnostics](https://fbartos.github.io/RoBMA/articles/36-zplot.html)
 
 ## Updates
 
@@ -112,7 +114,7 @@ The 3.0 version brings several features to the package:
 - meta-regression models via the `RoBMA.reg()` function
 - binomial-normal meta-analytic models via the `BiBMA()` function
 - residual funnel plots via the `funnel()` function and meta-analytic
-  z-curve plots via the `as_zcurve()` and `plot()` functions
+  zplot diagnostics via the `as_zplot()`/`zplot()` functions
 - publication bias unadjusted models via the `NoBMA()` and `NoBMA.reg()`
   functions (wrappers around `RoBMA()` and `RoBMA.reg()`)
 - marginal summaries and plots of the regression models via the
@@ -437,7 +439,7 @@ meta-analyses of binary and time-to-event outcomes*.
 
 <div id="ref-bartos2025zcurve" class="csl-entry">
 
-Bartoš, F., & Schimmack, U. (2025). Z-curve plot: A visual diagnostic
+Bartoš, F., & Schimmack, U. (2025). Zplot: A visual diagnostic
 for publication bias in meta-analysis. In *arXiv*.
 <https://doi.org/10.48550/arXiv.2509.07171>
 

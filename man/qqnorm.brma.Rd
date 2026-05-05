@@ -55,8 +55,9 @@ for the envelope bounds. Defaults to \code{95}.}
 to the envelope, so it can be regarded as a simultaneous confidence region
 for all \eqn{k} residuals. Defaults to \code{FALSE}.}
 
-\item{reps}{integer specifying the number of simulation replications for
-the envelope. Defaults to \code{1000}.}
+\item{reps}{retained for compatibility with earlier simulation-based
+envelopes. The current envelope is deterministic and does not use this
+argument.}
 
 \item{smooth}{logical indicating whether to smooth the envelope bounds using
 Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
@@ -79,7 +80,7 @@ Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 \describe{
 \item{pch}{point symbol (default: 21, filled circle)}
 \item{col}{point border color (default: "black")}
-\item{bg}{point fill/background color (default: "black")}
+\item{bg}{point fill/background color (default: "#A6A6A6")}
 \item{cex}{point size multiplier for base graphics (default: 1)}
 \item{size}{point size for ggplot2 (default: 2)}
 \item{shade}{fill color for the envelope region (default: "grey90").
@@ -123,12 +124,17 @@ LOO-PIT residuals are preferred because they are available for all model
 types (including GLMMs and selection models) and properly account for
 estimation uncertainty via leave-one-out cross-validation.
 
-The pseudo confidence envelope is constructed by simulation: for each
-replication, \eqn{k} values are drawn from a standard normal distribution
-and sorted. Pointwise quantile bounds are computed across replications.
-When \code{smooth = TRUE}, bounds are smoothed using Friedman's
-SuperSmoother. When \code{bonferroni = TRUE}, the confidence level is
-adjusted for simultaneous inference across all \eqn{k} comparisons.
+The confidence envelope is computed in closed form from the distribution of
+normal order statistics. For the \eqn{i}-th sorted residual,
+\eqn{\Phi(Z_{(i)})} follows a beta distribution with shape parameters
+\eqn{i} and \eqn{k + 1 - i}. Pointwise quantile bounds are transformed back
+with \eqn{\Phi^{-1}}. When \code{smooth = TRUE}, bounds are smoothed using
+Friedman's SuperSmoother. When \code{bonferroni = TRUE}, the confidence
+level is adjusted for simultaneous inference across all \eqn{k} comparisons.
+
+For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
+approximate effect-size scale used by \code{loo}; they are not exact
+count-scale PIT diagnostics.
 }
 \examples{
 \dontrun{

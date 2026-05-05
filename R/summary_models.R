@@ -192,7 +192,8 @@ print.summary_models.RoBMA <- function(x, ...) {
     info       <- components[[component]]
     indicators <- .summary_models_indicators(
       posterior_samples = posterior_samples,
-      parameter         = info[["parameter"]]
+      parameter         = info[["parameter"]],
+      prior             = info[["prior"]]
     )
     post_probs <- vapply(seq_along(info[["names"]]), function(i) {
 
@@ -261,7 +262,8 @@ print.summary_models.RoBMA <- function(x, ...) {
 
     .summary_models_indicators(
       posterior_samples = posterior_samples,
-      parameter         = info[["parameter"]]
+      parameter         = info[["parameter"]],
+      prior             = info[["prior"]]
     )
   })
 
@@ -338,14 +340,13 @@ print.summary_models.RoBMA <- function(x, ...) {
   return(prior_probs)
 }
 
-.summary_models_indicators <- function(posterior_samples, parameter) {
+.summary_models_indicators <- function(posterior_samples, parameter, prior) {
 
-  column <- paste0(parameter, "_indicator")
-  if (!column %in% colnames(posterior_samples)) {
-    stop("Missing posterior model indicator: '", column, "'.", call. = FALSE)
-  }
-
-  return(as.integer(posterior_samples[, column]))
+  return(.extract_posterior_indicator(
+    posterior_samples = posterior_samples,
+    parameter         = parameter,
+    prior             = prior
+  ))
 }
 
 .summary_models_inclusion_BF <- function(prior_probs, post_probs) {

@@ -233,7 +233,7 @@ test_that("non-core measures are not converted across measures", {
   )
 })
 
-test_that("plot transformations match BayesTools density Jacobian convention", {
+test_that("plot transformations use BayesTools forward Jacobian convention", {
 
   original_x    <- c(-1, 0, 1)
   transformed_x <- exp(original_x)
@@ -241,16 +241,21 @@ test_that("plot transformations match BayesTools density Jacobian convention", {
     input_measure = "RR",
     transform     = "EXP"
   )
+  transformation <- .effect_plot_transformation(info)
 
+  expect_equal(
+    transformation[["jac"]](original_x),
+    transformed_x,
+    tolerance = sqrt(.Machine$double.eps)
+  )
   expect_warning(
     density_y <- BayesTools:::.density.prior_transformation_y(
       x              = transformed_x,
       y              = rep(1, length(transformed_x)),
-      transformation = .effect_plot_transformation(info)
+      transformation = transformation
     ),
     NA
   )
-
   expect_equal(
     density_y,
     1 / transformed_x,

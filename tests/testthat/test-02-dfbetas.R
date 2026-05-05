@@ -30,6 +30,21 @@ test_that("DFBETAS for location-scale models expose location and scale terms", {
                        info = paste(name, "scale"))
 })
 
+test_that("DFBETAS outputs use study-label row names", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  labels   <- RoBMA:::.diagnostic_study_labels(fit_brma)
+
+  expect_equal(rownames(dfbetas(fit_brma)), labels)
+  expect_equal(
+    rownames(dfbetas(fit_brma, return_loo_estimates = TRUE)),
+    labels
+  )
+})
+
 test_that("DFBETAS for selection models expose bias terms", {
 
   model_names <- c("dat.lehmann2018-3PSM", "dat.lehmann2018-3PSM_neg", "dat.lehmann2018-3PSMreg")

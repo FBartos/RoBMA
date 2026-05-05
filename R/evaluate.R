@@ -734,9 +734,8 @@
 #
 # Extract base-rate (pi) samples for binomial GLMM models.
 #
-# For binomial outcomes, the base-rate pi[i] represents the probability of
-# success in the control/reference condition. The log-odds ratio effect size
-# is then applied relative to this baseline.
+# For binomial outcomes, logit(pi[i]) is the midpoint of the two arm logits.
+# The log-odds ratio effect size is applied symmetrically around this midpoint.
 #
 # @param fit              runjags fit object containing posterior samples
 # @param K                integer; number of observations
@@ -787,8 +786,9 @@
 #
 # Extract log-rate (phi) samples for Poisson GLMM models.
 #
-# For Poisson outcomes, phi[i] represents the log of the baseline event rate.
-# The incidence rate ratio effect size is then applied relative to this baseline.
+# For Poisson outcomes, phi[i] is the midpoint of the two arm log incidence
+# rates. The incidence rate ratio effect size is applied symmetrically around
+# this midpoint.
 #
 # @param fit              runjags fit object containing posterior samples
 # @param K                integer; number of observations

@@ -137,6 +137,22 @@ test_that("Influence stats for selection model are available", {
   expect_true(!is.null(inf_brma))
 })
 
+test_that("Influence diagnostics and scalar outputs use study labels", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  labels   <- RoBMA:::.diagnostic_study_labels(fit_brma)
+  inf_brma <- suppressWarnings(influence(fit_brma))
+
+  expect_equal(rownames(inf_brma[["inf"]]), labels)
+  expect_equal(rownames(inf_brma[["dfbs"]]), labels)
+  expect_equal(names(covratio(fit_brma)), labels)
+  expect_equal(names(dffits(fit_brma)), labels)
+  expect_equal(names(cooks.distance(fit_brma)), labels)
+})
+
 test_that("DFFITS rejects unsupported model families", {
 
   model_names <- c(

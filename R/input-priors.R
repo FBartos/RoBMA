@@ -32,12 +32,12 @@
 #' (selection models) or the publication bias indicator (PET-PEESE). For
 #' `bselmodel()`, `bPET()`, and `bPEESE()`, omitted or `NULL` uses the
 #' corresponding default bias prior.
-#' @param prior_baserate prior distribution for the estimate-specific base-rate
-#' probability in binomial GLMM models. If omitted or `NULL`, defaults to
-#' independent `Beta(1, 1)` priors.
-#' @param prior_lograte prior distribution for the estimate-specific log-rate in
-#' Poisson GLMM models. If omitted or `NULL`, a data-based unit-information normal
-#' prior is used.
+#' @param prior_baserate prior distribution for the estimate-specific midpoint
+#' base-rate probability in binomial GLMM models. If omitted or `NULL`, defaults
+#' to independent `Beta(1, 1)` priors.
+#' @param prior_lograte prior distribution for the estimate-specific midpoint
+#' log-rate in Poisson GLMM models. If omitted or `NULL`, a data-based
+#' unit-information normal prior is used independently for each estimate.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.
@@ -501,10 +501,14 @@ NULL
     prior_unit_information_sd <- .get_unit_information_sd.known(measure)
   } else {
     # compute sd based on the sample sizes for the general effect sizes
-    if (all(is.na(data[["outcome"]][["ni"]]))){
+    ni <- data[["outcome"]][["ni"]]
+    if (all(is.na(ni))) {
       stop("Sample size 'ni' or unit information sd 'unit_information_sd' must be specified to set-up prior distributions without known UISD.", call. = FALSE)
     }
-    prior_unit_information_sd <- .get_unit_information_sd.norm(sei = data[["outcome"]][["sei"]], ni = data[["outcome"]][["ni"]])
+    if (any(is.na(ni))) {
+      stop("Sample size 'ni' must be complete to estimate unit information sd for measures without known UISD.", call. = FALSE)
+    }
+    prior_unit_information_sd <- .get_unit_information_sd.norm(sei = data[["outcome"]][["sei"]], ni = ni)
 
   }
 
@@ -715,8 +719,8 @@ estimate_unit_information_sd <- function(sei, ni) {
   return(prior)
 }
 .assign_prior.lograte                  <- function(prior, data) {
-  # an uninformative prior distribution is not possible in JAGS (the log-rate is unbounded)
-  # therefore, we set independent unit information priors on the log-rate if user unspecified
+  # the log-rate is unbounded, so use a proper data-based default prior
+  # rather than an improper flat nuisance-parameter prior
 
   if (missing(prior) || is.null(prior)) {
     return(.get_unit_information_lograte_prior(
@@ -726,6 +730,9 @@ estimate_unit_information_sd <- function(sei, ni) {
       t2i = data[["outcome"]][["t2i"]])
     )
   }
+
+  # check the user specified prior distribution
+  prior <- .check_prior.simple_or_point(prior, prior_name = "prior_lograte")
 
   # transform the prior into independent factor prior
   prior <- BayesTools::prior_factor(prior[["distribution"]], parameters = prior[["parameters"]], truncation = prior[["truncation"]], contrast = "independent")
@@ -1481,21 +1488,13 @@ estimate_unit_information_sd <- function(sei, ni) {
 ### check specified prior distributions whether they follow basic requirements
 .check_prior.effect                   <- function(prior) {
 
-  # check object type
-  if (!BayesTools::is.prior(prior))
-    stop("The 'prior_effect' argument must be a prior distribution.", call. = FALSE)
-  if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
-    stop("The 'prior_effect' argument must be a either a simple or point prior distribution.", call. = FALSE)
+  prior <- .check_prior.simple_or_point(prior, prior_name = "prior_effect")
 
   return(prior)
 }
 .check_prior.heterogeneity            <- function(prior) {
 
-  # check object type
-  if (!BayesTools::is.prior(prior))
-    stop("The 'prior_heterogeneity' argument must be a prior distribution.", call. = FALSE)
-  if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
-    stop("The 'prior_heterogeneity' argument must be a either a simple or point prior distribution.", call. = FALSE)
+  prior <- .check_prior.simple_or_point(prior, prior_name = "prior_heterogeneity")
 
   # check range restriction
   if (BayesTools::is.prior.point(prior) && mean(prior) < 0) {
@@ -1509,13 +1508,19 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   return(prior)
 }
-.check_prior.restricted_01            <- function(prior, prior_name) {
+.check_prior.simple_or_point          <- function(prior, prior_name) {
 
   # check object type
   if (!BayesTools::is.prior(prior))
     stop(sprintf("The '%s' argument must be a prior distribution.", prior_name), call. = FALSE)
   if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
     stop(sprintf("The '%s' argument must be a either a simple or point prior distribution.", prior_name), call. = FALSE)
+
+  return(prior)
+}
+.check_prior.restricted_01            <- function(prior, prior_name) {
+
+  prior <- .check_prior.simple_or_point(prior, prior_name)
 
   # check range restriction
   if (BayesTools::is.prior.point(prior) && (mean(prior) < 0 || mean(prior) > 1)) {
@@ -1576,13 +1581,27 @@ estimate_unit_information_sd <- function(sei, ni) {
 # helper function for defining unit information prior on lograte for IRR models
 .get_unit_information_lograte_prior   <- function(x1i, x2i, t1i, t2i) {
 
+  if (anyNA(x1i) || anyNA(x2i) || anyNA(t1i) || anyNA(t2i)) {
+    stop("Default 'prior_lograte' requires complete Poisson event counts and person-times.", call. = FALSE)
+  }
+
+  total_events <- sum(x1i + x2i)
+  total_time   <- sum(t1i + t2i)
+  if (!is.finite(total_events) || total_events <= 0) {
+    stop("Default 'prior_lograte' requires at least one observed Poisson event. Specify 'prior_lograte' manually for all-zero event counts.", call. = FALSE)
+  }
+  if (!is.finite(total_time) || total_time <= 0) {
+    stop("Default 'prior_lograte' requires positive finite total person-time.", call. = FALSE)
+  }
+
   # compute the unit information standard deviation from Poisson data
   sigma_prior <- .get_unit_information_sd.pois(x1i, x2i, t1i, t2i)
 
   # compute the pooled crude log-rate for the mean
-  total_events <- sum(x1i + x2i)
-  total_time   <- sum(t1i + t2i)
   mu_prior     <- log(total_events / total_time)
+  if (!is.finite(mu_prior) || !is.finite(sigma_prior)) {
+    stop("Default 'prior_lograte' could not be computed from the supplied Poisson data.", call. = FALSE)
+  }
 
   # define the prior object
   prior <- BayesTools::prior_factor("normal", parameters = list(mean = mu_prior, sd = sigma_prior), contrast = "independent")

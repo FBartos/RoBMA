@@ -114,6 +114,10 @@ source(testthat::test_path("common-functions.R"))
 test_that("cache source hash tracks only cache-affecting fitting sources", {
 
   source_files <- .fit_cache_source_files(relative = TRUE)
+  skip_if_not(
+    length(source_files) > 0L,
+    "Complete package R/src source tree is not available under source-build checks."
+  )
 
   expect_equal(anyDuplicated(source_files), 0L)
   expect_true(all(c(
@@ -139,6 +143,20 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/summary.R",
     "src/r-regplot.cc"
   ) %in% source_files))
+})
+
+test_that("cache source hash requires a complete source root", {
+
+  package_root <- tempfile("robma-incomplete-source-")
+  dir.create(file.path(package_root, "R"), recursive = TRUE)
+  writeLines("Package: RoBMA", file.path(package_root, "DESCRIPTION"), useBytes = TRUE)
+  writeLines("fit <- function() NULL", file.path(package_root, "R", "fit.R"), useBytes = TRUE)
+  on.exit(unlink(package_root, recursive = TRUE), add = TRUE)
+
+  expect_equal(
+    .fit_cache_source_files(package_root = package_root, relative = TRUE),
+    character()
+  )
 })
 
 test_that("R source hashes ignore comments and formatting", {
@@ -253,17 +271,19 @@ test_that("cache validation rejects corrupted synthetic metadata", {
 
   stale_package <- metadata
   stale_package[["package_source_md5"]] <- "not-current"
-  expect_true(
-    "cache source hash changed" %in% validate_cached_fit(
-      name        = name,
-      fit         = fit,
-      info        = info,
-      metadata    = stale_package,
-      check_files = FALSE,
-      deep        = TRUE
-    ),
-    info = "cache source hash is enforced"
-  )
+  if (!is.na(package_source_md5())) {
+    expect_true(
+      "cache source hash changed" %in% validate_cached_fit(
+        name        = name,
+        fit         = fit,
+        info        = info,
+        metadata    = stale_package,
+        check_files = FALSE,
+        deep        = TRUE
+      ),
+      info = "cache source hash is enforced"
+    )
+  }
 
   missing_marglik <- metadata
   missing_marglik[["has_marglik"]] <- FALSE
@@ -313,6 +333,8 @@ test_that("cache validation rejects corrupted synthetic metadata", {
 })
 
 test_that("cached fits are catalogued and valid", {
+
+  skip_on_cran()
 
   cached_names <- list_fits(validate = FALSE)
   if (length(cached_names) == 0) {

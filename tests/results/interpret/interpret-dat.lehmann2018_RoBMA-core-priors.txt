@@ -1,0 +1,30 @@
+Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
+Effect inclusion: moderate evidence against the effect (BF01 = 3.292).
+Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf > 1999.000).
+Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 14.504).
+Pooled effect: model-averaged mean standardized mean difference = 0.026, 95% CrI [0.000, 0.224].
+Pooled heterogeneity: model-averaged mean tau = 0.305, 95% CrI [0.228, 0.404].
+
+Prior distributions:
+mu:
+  alternative:
+    (1/2) * Normal(0, 0.71)
+  null:
+    (1/2) * Spike(0)
+tau:
+  alternative:
+    (1/2) * Normal(0, 0.35)[0, Inf]
+  null:
+    (1/2) * Spike(0)
+bias:
+  alternative:
+    (0.08/2) * omega[two-sided: .05] ~ CumDirichlet(1, 1)
+    (0.08/2) * omega[two-sided: .05, .1] ~ CumDirichlet(1, 1, 1)
+    (0.08/2) * omega[one-sided: .05] ~ CumDirichlet(1, 1)
+    (0.08/2) * omega[one-sided: .025, .05] ~ CumDirichlet(1, 1, 1)
+    (0.08/2) * omega[one-sided: .05, .5] ~ CumDirichlet(1, 1, 1)
+    (0.08/2) * omega[one-sided: .025, .05, .5] ~ CumDirichlet(1, 1, 1, 1)
+    (0.25/2) * PET ~ Cauchy(0, 1)[0, Inf]
+    (0.25/2) * PEESE ~ Cauchy(0, 5)[0, Inf]
+  null:
+    (1/2) * None

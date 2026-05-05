@@ -1,0 +1,10 @@
+Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
+Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 14.504).
+Publication-bias estimate (omega[0,0.025]): model-averaged mean omega[0,0.025] = 1.000, 95% CrI [1.000, 1.000].
+Publication-bias estimate (omega[0.025,0.05]): model-averaged mean omega[0.025,0.05] = 0.991, 95% CrI [0.852, 1.000].
+Publication-bias estimate (omega[0.05,0.5]): model-averaged mean omega[0.05,0.5] = 0.976, 95% CrI [0.512, 1.000].
+Publication-bias estimate (omega[0.5,0.95]): model-averaged mean omega[0.5,0.95] = 0.966, 95% CrI [0.322, 1.000].
+Publication-bias estimate (omega[0.95,0.975]): model-averaged mean omega[0.95,0.975] = 0.966, 95% CrI [0.322, 1.000].
+Publication-bias estimate (omega[0.975,1]): model-averaged mean omega[0.975,1] = 0.967, 95% CrI [0.322, 1.000].
+Publication-bias estimate (PET): model-averaged mean PET = 0.608, 95% CrI [0.000, 1.214].
+Publication-bias estimate (PEESE): model-averaged mean PEESE = 0.439, 95% CrI [0.000, 3.086].

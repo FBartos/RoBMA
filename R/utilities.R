@@ -40,7 +40,7 @@ NULL
 
 
 #' @rdname RoBMA_options
-RoBMA.options    <- function(...){
+RoBMA.options    <- function(...) {
 
   opts <- list(...)
 
@@ -50,33 +50,37 @@ RoBMA.options    <- function(...){
 
   option_names <- RoBMA.private[["option_names"]]
 
+  if (length(opts) > 0 && anyDuplicated(names(opts))) {
+    stop("Option names must be unique.", call. = FALSE)
+  }
+
   for (i in seq_along(opts)) {
 
     if (!names(opts)[i] %in% option_names) {
-      stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""))
+      stop(paste("Unmatched or ambiguous option '", names(opts)[i], "'", sep = ""), call. = FALSE)
     }
 
-    assign(names(opts)[i], opts[[i]], envir = RoBMA.private)
+    value <- .RoBMA_validate_option(names(opts)[i], opts[[i]])
+    assign(names(opts)[i], value, envir = RoBMA.private)
   }
 
   return(invisible(.RoBMA_current_options()))
 }
 
 #' @rdname RoBMA_options
-RoBMA.get_option <- function(name){
+RoBMA.get_option <- function(name) {
 
-  if (length(name) != 1) {
+  if (!is.character(name) || length(name) != 1 || is.na(name)) {
     stop("Only 1 option can be retrieved at a time", call. = FALSE)
   }
 
   option_names <- RoBMA.private[["option_names"]]
 
   if (!name %in% option_names) {
-    stop(paste("Unmatched or ambiguous option '", name, "'", sep = ""))
+    stop(paste("Unmatched or ambiguous option '", name, "'", sep = ""), call. = FALSE)
   }
 
-  # Use eval as some defaults are put in using 'expression' to avoid evaluating at load time:
-  return(eval(RoBMA.private[[name]]))
+  return(RoBMA.private[[name]])
 }
 
 # export the function directly to suppress import warnings
@@ -84,7 +88,7 @@ RoBMA.get_option <- function(name){
 
 # adapted from the runjags package version 2.2.0
 RoBMA.private <- new.env()
-# Use 'expression' for functions to avoid having to evaluate before the package is fully loaded:
+
 assign("defaultoptions",  list(
   jagspath = expression(.runjags__findjags())
 ), envir = RoBMA.private)
@@ -93,50 +97,132 @@ assign("options",         RoBMA.private$defaultoptions,   envir = RoBMA.private)
 assign("RoBMA_version",   "notset",                       envir = RoBMA.private)
 assign("min_jags_major",  4,                              envir = RoBMA.private)
 assign("max_jags_major",  4,                              envir = RoBMA.private)
-assign("max_cores",       max(1L, parallel::detectCores(logical = TRUE) - 1L, na.rm = TRUE), envir = RoBMA.private)
-assign("check_scaling",   TRUE,                                       envir = RoBMA.private) # TODO: remove?
 
-assign("silent", FALSE,  envir = RoBMA.private)
+.RoBMA_default_max_cores <- function() {
 
-assign("autocompute.loo",     FALSE, envir = RoBMA.private)
-assign("autocompute.waic",    FALSE, envir = RoBMA.private)
-assign("autocompute.marglik", FALSE, envir = RoBMA.private)
-assign("cluster_likelihood.n_gamma", 15, envir = RoBMA.private)
+  cores <- parallel::detectCores(logical = TRUE)
+  if (length(cores) != 1 || is.na(cores) || !is.finite(cores)) {
+    return(1L)
+  }
 
+  return(max(1L, as.integer(cores) - 1L))
+}
 
-### default scaling of unit information prior for different parameters
-assign("default_UISD.effect",          1/2,  envir = RoBMA.private)
-assign("default_UISD.heterogeneity",   1/4,  envir = RoBMA.private)
-assign("default_UISD.mods",            1/4,  envir = RoBMA.private)
-assign("default_UISD.scale",           1/2,  envir = RoBMA.private)
+.RoBMA_check_option_bool <- function(value, name) {
 
-### default scaling of informed priors for moderators
-assign("default_informed_priors.mods",  1/2,  envir = RoBMA.private)
-assign("default_informed_priors.scale", 1/2,  envir = RoBMA.private)
+  if (!is.logical(value) || length(value) != 1 || is.na(value)) {
+    stop(paste0("Option '", name, "' must be TRUE or FALSE."), call. = FALSE)
+  }
 
-### default setting for the publication bias priors
-assign("default_bias_weightfunction.alpha",  1,  envir = RoBMA.private)
-assign("default_bias_PET.scale",             1,  envir = RoBMA.private)
-assign("default_bias_PEESE.scale",           5,  envir = RoBMA.private)
+  return(value)
+}
 
-assign("option_names", c(
-  "max_cores",
-  "check_scaling",
-  "silent",
-  "autocompute.loo",
-  "autocompute.waic",
-  "autocompute.marglik",
-  "cluster_likelihood.n_gamma",
-  "default_UISD.effect",
-  "default_UISD.heterogeneity",
-  "default_UISD.mods",
-  "default_UISD.scale",
-  "default_informed_priors.mods",
-  "default_informed_priors.scale",
-  "default_bias_weightfunction.alpha",
-  "default_bias_PET.scale",
-  "default_bias_PEESE.scale"
-), envir = RoBMA.private)
+.RoBMA_check_option_int <- function(value, name, lower = -Inf) {
+
+  if (!is.numeric(value) || length(value) != 1 || is.na(value) ||
+      !is.finite(value) || value != as.integer(value) || value < lower) {
+    stop(paste0("Option '", name, "' must be an integer >= ", lower, "."), call. = FALSE)
+  }
+
+  return(as.integer(value))
+}
+
+.RoBMA_check_option_real <- function(value, name, lower = -Inf, allow_bound = TRUE) {
+
+  if (!is.numeric(value) || length(value) != 1 || is.na(value) || !is.finite(value)) {
+    stop(paste0("Option '", name, "' must be a finite number."), call. = FALSE)
+  }
+
+  below_bound <- if (allow_bound) value < lower else value <= lower
+  if (below_bound) {
+    bound_text <- if (allow_bound) " >= " else " > "
+    stop(paste0("Option '", name, "' must be", bound_text, lower, "."), call. = FALSE)
+  }
+
+  return(as.numeric(value))
+}
+
+.RoBMA_option_schema <- list(
+  "max_cores" = list(
+    default  = .RoBMA_default_max_cores,
+    validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 1L)
+  ),
+  "check_scaling" = list(
+    default  = TRUE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "silent" = list(
+    default  = FALSE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "autocompute.loo" = list(
+    default  = FALSE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "autocompute.waic" = list(
+    default  = FALSE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "autocompute.marglik" = list(
+    default  = FALSE,
+    validate = .RoBMA_check_option_bool
+  ),
+  "cluster_likelihood.n_gamma" = list(
+    default  = 15L,
+    validate = function(value, name) .RoBMA_check_option_int(value, name, lower = 3L)
+  ),
+  "default_UISD.effect" = list(
+    default  = 1/2,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_UISD.heterogeneity" = list(
+    default  = 1/4,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_UISD.mods" = list(
+    default  = 1/4,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_UISD.scale" = list(
+    default  = 1/2,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_informed_priors.mods" = list(
+    default  = 1/2,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_informed_priors.scale" = list(
+    default  = 1/2,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_bias_weightfunction.alpha" = list(
+    default  = 1,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_bias_PET.scale" = list(
+    default  = 1,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  ),
+  "default_bias_PEESE.scale" = list(
+    default  = 5,
+    validate = function(value, name) .RoBMA_check_option_real(value, name, lower = 0, allow_bound = FALSE)
+  )
+)
+
+assign("option_names", names(.RoBMA_option_schema), envir = RoBMA.private)
+
+for (option_name in names(.RoBMA_option_schema)) {
+
+  default <- .RoBMA_option_schema[[option_name]][["default"]]
+  value   <- if (is.function(default)) default() else default
+  assign(option_name, value, envir = RoBMA.private)
+}
+
+.RoBMA_validate_option <- function(name, value) {
+
+  validator <- .RoBMA_option_schema[[name]][["validate"]]
+  return(validator(value, name))
+}
 
 
 .RoBMA_current_options <- function() {
@@ -149,15 +235,15 @@ assign("option_names", c(
 
 
 # check and fix number of threads (sometimes bugs out during installation)
-.check_max_cores <- function(){
-  max_cores <- max(1L, parallel::detectCores(logical = TRUE) - 1L, na.rm = TRUE)
-  if(RoBMA.private$max_cores > max_cores || RoBMA.private$max_cores < 1){
+.check_max_cores <- function() {
+
+  max_cores <- .RoBMA_default_max_cores()
+  if (RoBMA.private$max_cores > max_cores || RoBMA.private$max_cores < 1) {
     RoBMA.options(max_cores = max_cores)
   }
 }
 
 
-# TODO: find a better home for those functions
 #' @title Control MCMC fitting process
 #'
 #' @description \code{set_autofit_control} and \code{set_convergence_checks} control settings for the
@@ -421,4 +507,14 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   return(convergence_checks)
 }
 
+# Apply shared metafor-style defaults for observed-study point markers.
+.plot_point_style_defaults <- function(dots) {
 
+  if (is.null(dots[["pch"]]))  dots[["pch"]]  <- 21
+  if (is.null(dots[["col"]]))  dots[["col"]]  <- "black"
+  if (is.null(dots[["bg"]]))   dots[["bg"]]   <- "#A6A6A6"
+  if (is.null(dots[["cex"]]))  dots[["cex"]]  <- 1
+  if (is.null(dots[["size"]])) dots[["size"]] <- 2
+
+  return(dots)
+}

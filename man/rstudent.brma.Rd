@@ -56,7 +56,8 @@ and \code{se} columns are raw-scale companions computed from LOO predictive
 moments using the normalized PSIS weights. For selection models, these moments
 are computed from the fitted selected-normal predictive distribution. For
 GLMMs, they are computed on the approximate effect-size scale used by the
-LOO-PIT diagnostic.
+LOO-PIT diagnostic; they are not exact PIT diagnostics for the raw count
+likelihood.
 
 Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 residuals properly account for estimation uncertainty and leverage without

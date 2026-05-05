@@ -72,7 +72,7 @@ funnel <- function(x, ...) UseMethod("funnel")
 #'   \item{main}{character string for plot title (default: no title)}
 #'   \item{pch}{point symbol (default: 21, filled circle). Use standard R pch values.}
 #'   \item{col}{point border color (default: "black")}
-#'   \item{bg}{point fill/background color (default: "black")}
+#'   \item{bg}{point fill/background color (default: "#A6A6A6")}
 #'   \item{cex}{point size multiplier for base graphics (default: 1)}
 #'   \item{size}{point size for ggplot2 (default: 2)}
 #'   \item{back}{background region color (default: "grey"). Set to \code{NA} to suppress.}
@@ -121,7 +121,9 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' ignored in residual mode.
 #'
 #' For GLMM models, observed effect sizes are computed from the raw frequency
-#' data using formulas equivalent to \code{metafor::escalc}.
+#' data using formulas equivalent to \code{metafor::escalc}. Residual-mode
+#' GLMM funnels use approximate effect-size-scale residual/PIT companions, not
+#' exact PIT diagnostics for the raw count likelihood.
 #'
 #' @return If \code{as_data = TRUE}, \code{funnel.brma} returns a list with the
 #' data used for plotting, including the plotted points, funnel polygons,
@@ -176,30 +178,9 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   dots                         <- list(...)
   .check_legacy_level_arg(dots, "funnel()")
 
-  BayesTools::check_char(type, "type", allow_values = c("outcome", "rstandard", "LOO-PIT", "rstudent"))
-  unit               <- .normalize_unit(unit)
-  conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
   BayesTools::check_bool(sampling_heterogeneity, "sampling_heterogeneity")
   BayesTools::check_bool(sampling_bias, "sampling_bias")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  .check_unit_conditioning_depth(
-    object             = x,
-    unit               = unit,
-    conditioning_depth = conditioning_depth,
-    caller             = "funnel()"
-  )
-
-  if (unit == "cluster") {
-    .check_cluster_unit_deferred("funnel()")
-  }
-
-  if ((type == "LOO-PIT" || type == "rstudent") && conditioning_depth_specified) {
-    stop(
-      "LOO-PIT residuals use the estimate-unit LOO target; ",
-      "do not set 'conditioning_depth'.",
-      call. = FALSE
-    )
-  }
 
   # set up graphical arguments with defaults
   dots <- .set_dots_funnel(dots)
@@ -219,6 +200,28 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
   # generate funnel data based on mode
   if (is_residual) {
+    BayesTools::check_char(type, "type", allow_values = c("outcome", "rstandard", "LOO-PIT", "rstudent"))
+    unit               <- .normalize_unit(unit)
+    conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+    .check_unit_conditioning_depth(
+      object             = x,
+      unit               = unit,
+      conditioning_depth = conditioning_depth,
+      caller             = "funnel()"
+    )
+
+    if (unit == "cluster") {
+      .check_cluster_unit_deferred("funnel()")
+    }
+
+    if ((type == "LOO-PIT" || type == "rstudent") && conditioning_depth_specified) {
+      stop(
+        "LOO-PIT residuals use the estimate-unit LOO target; ",
+        "do not set 'conditioning_depth'.",
+        call. = FALSE
+      )
+    }
+
     # sampling heterogeneity/bias ignored in residual mode - explicitly set to FALSE
     sampling_heterogeneity <- FALSE
     sampling_bias          <- FALSE
@@ -271,7 +274,6 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 # ---------------------------------------------------------------------------- #
 .funnel_data_outcome <- function(x, sampling_heterogeneity, sampling_bias, dots) {
   # get model characteristics
-  is_multilevel     <- .is_multilevel(x)
   is_weightfunction <- .is_weightfunction(x)
   is_PET            <- .is_PET(x)
   is_PEESE          <- .is_PEESE(x)
@@ -290,7 +292,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 
   # get tau for incorporating heterogeneity into sampling distribution
   if (sampling_heterogeneity) {
-    tau <- .get_funnel_tau(x, is_multilevel)
+    tau <- .get_funnel_tau(x)
   } else {
     tau <- 0
   }
@@ -832,7 +834,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   return(out +
     ggplot2::geom_path(
       data    = data,
-      mapping = ggplot2::aes(x = x, y = y),
+      mapping = ggplot2::aes(x = .data[["x"]], y = .data[["y"]]),
       linetype = lty,
       colour   = colour
     )
@@ -912,12 +914,10 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 # For multilevel models, returns total tau (combining within and between components).
 #
 # @param object       brma object
-# @param is_multilevel logical; whether the model is multilevel
-#
 # @return numeric scalar representing the mean tau estimate
 #
 # ---------------------------------------------------------------------------- #
-.get_funnel_tau <- function(object, is_multilevel) {
+.get_funnel_tau <- function(object) {
   # use pooled_heterogeneity to get mean tau
   tau_samples <- pooled_heterogeneity(object)
   tau_summary <- summary(tau_samples)
@@ -1494,11 +1494,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 .set_dots_funnel <- function(dots) {
 
   # point styling (use metafor-style argument names)
-  if (is.null(dots[["pch"]])) dots[["pch"]] <- 21 # open circle with fill
-  if (is.null(dots[["col"]])) dots[["col"]] <- "black" # point border color
-  if (is.null(dots[["bg"]])) dots[["bg"]] <- "black" # point fill color
-  if (is.null(dots[["cex"]])) dots[["cex"]] <- 1 # point size (base)
-  if (is.null(dots[["size"]])) dots[["size"]] <- 2 # point size (ggplot)
+  dots <- .plot_point_style_defaults(dots)
 
   # funnel region styling
   if (is.null(dots[["back"]])) dots[["back"]] <- "grey" # background fill

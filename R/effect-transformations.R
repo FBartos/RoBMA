@@ -89,19 +89,20 @@
   BayesTools::check_char(transform, "transform", check_length = 1, allow_NA = FALSE)
 
   transform_key <- toupper(gsub("[^A-Za-z0-9]", "", transform))
-  transform_key <- switch(
-    transform_key,
-    "NONE"     = "identity",
-    "IDENTITY" = "identity",
-    "ID"       = "identity",
-    "EXP"      = "EXP",
+  transform_map <- c(
+    NONE     = "identity",
+    IDENTITY = "identity",
+    ID       = "identity",
+    EXP      = "EXP"
+  )
+  if (!transform_key %in% names(transform_map)) {
     stop(
       "Unknown 'transform'. Available options are 'EXP' and 'identity'.",
       call. = FALSE
     )
-  )
+  }
 
-  return(transform_key)
+  return(unname(transform_map[[transform_key]]))
 }
 
 .identity_effect_transformation <- function() {

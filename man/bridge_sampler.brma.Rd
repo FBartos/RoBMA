@@ -2,7 +2,6 @@
 % Please edit documentation in R/bridgesampling.R
 \name{bridge_sampler.brma}
 \alias{bridge_sampler.brma}
-\alias{bridge_sampler}
 \title{Bridge Sampling for brma Objects}
 \usage{
 \method{bridge_sampler}{brma}(samples, ...)

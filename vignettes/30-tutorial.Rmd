@@ -356,7 +356,7 @@ The first table called `Component Inclusion` contains information about the fitt
 The second column summarizes the prior model probabilities of models assuming either presence of the individual components. 
 The third column contains information about the posterior probability of models assuming the presence of the components -- we can observe that the posterior model probabilities of models assuming the presence of an effect slightly increased. 
 The last column contains information about the evidence in favor of the presence of any of those components. 
-Evidence for the presence of an effect is undecided; the models assuming the presence of an effect are only ~1.3 times more likely given the data than the models assuming the absence of an effect. 
+Evidence for the presence of an effect is undecided; the models assuming the presence of an effect are only ~1.2 times more likely given the data than the models assuming the absence of an effect. 
 However, we find overwhelming evidence in favor of heterogeneity, with the models assuming the presence of heterogeneity being more than 10,000 times more likely given the data than models assuming the absence of heterogeneity, and moderate evidence in favor of publication bias. 
 
 The second table called `Estimates` contains information about the model-averaged estimates. 
@@ -393,9 +393,9 @@ Finally, we can also plot the model-averaged posterior distribution with the `pl
 We set the `prior = TRUE` argument to include the prior distribution as a grey line (and arrow for the point density at zero) and `output_measure = "COR"` to transform the posterior distribution to the correlation scale. 
 (The `par(mar = c(4, 4, 1, 4))` call increases the left margin of the figure, so the secondary y-axis text is not cut off.)
 
-```{r, fig.width = 6, fig.height = 4, out.width = "50%", fig.align = "center"}
+```{r, fig.width = 6, fig.height = 4, out.width = "75%", fig.align = "center"}
 par(mar = c(4, 4, 1, 4))
-plot(fit_RoBMA, parameter = "mu", prior = TRUE, output_measure = "COR")
+plot(fit_RoBMA, parameter = "mu", prior = TRUE, output_measure = "COR", xlim = c(-1, 1))
 ```
 
 #### Specifying Different Priors

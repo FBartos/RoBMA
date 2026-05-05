@@ -42,6 +42,8 @@ Imports:
     BayesTools (>= 0.3.0),
     bridgesampling,
     loo,
+    MASS,
+    parallel,
     runjags,
     rjags,
     stats,
@@ -53,7 +55,6 @@ Imports:
     coda,
     ggplot2
 Suggests:
-    parallel,
     metafor,
     posterior,
     weightr,

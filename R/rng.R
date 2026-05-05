@@ -184,10 +184,10 @@
 #   x1i ~ Pois(t1i * exp(phi + 0.5 * mu))  (treatment/exposed)
 #   x2i ~ Pois(t2i * exp(phi - 0.5 * mu))  (control/unexposed)
 #
-# where phi is the log baseline rate and t1i, t2i are exposure times.
+# where phi is the midpoint log rate and t1i, t2i are exposure times.
 #
 # @param mu_samples       S x K matrix of log incidence rate ratio samples
-# @param log_phi          S x K matrix of log baseline rate samples
+# @param log_phi          S x K matrix of midpoint log-rate samples
 # @param t1i              numeric vector of length K; treatment exposure times
 # @param t2i              numeric vector of length K; control exposure times
 #

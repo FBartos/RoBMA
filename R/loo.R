@@ -39,6 +39,7 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' @param parallel Logical. If \code{TRUE} computations are parallelized and
 #' the number of cores is taken from \code{RoBMA.get_option("max_cores")}. If
 #' \code{FALSE} computations are run on a single core.
+#' @param ... additional arguments (currently ignored).
 #'
 #' @details
 #' With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
@@ -88,7 +89,7 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #'
 #' @aliases add_loo
 #' @export
-add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FALSE) {
+add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FALSE, ...) {
   unit <- .normalize_unit(unit)
   BayesTools::check_bool(parallel, "parallel")
 

@@ -14,31 +14,102 @@
 
 
 # ---------------------------------------------------------------------------- #
-# Generics
-# ---------------------------------------------------------------------------- #
-# These generics mirror the bridgesampling package functions. They enable
-# the S3 dispatch to work regardless of package load order.
+# Re-export bridgesampling generics
 # ---------------------------------------------------------------------------- #
 
+#' @importFrom bridgesampling bridge_sampler
 #' @export
-bridge_sampler <- function(samples, ...) UseMethod("bridge_sampler")
+bridgesampling::bridge_sampler
 
+#' @importFrom bridgesampling logml
 #' @export
-logml <- function(x, ...) UseMethod("logml")
+bridgesampling::logml
 
+#' @importFrom bridgesampling post_prob
 #' @export
-post_prob <- function(x, ...) UseMethod("post_prob")
+bridgesampling::post_prob
 
+#' @importFrom bridgesampling bf
 #' @export
-bf <- function(x1, x2, log = FALSE, ...) UseMethod("bf")
+bridgesampling::bf
 
+#' @importFrom bridgesampling bayes_factor
 #' @export
-bayes_factor <- function(x1, x2, log = FALSE, ...) UseMethod("bayes_factor")
+bridgesampling::bayes_factor
 
 
 # ---------------------------------------------------------------------------- #
 # S3 Methods for brma Objects
 # ---------------------------------------------------------------------------- #
+
+.log_sum_exp <- function(x) {
+
+  max_x <- max(x)
+  return(max_x + log(sum(exp(x - max_x))))
+}
+
+.post_prob_from_logml <- function(logml, prior_prob = NULL, model_names = NULL) {
+
+  BayesTools::check_real(logml, "logml", check_length = 0, allow_NA = FALSE)
+  if (any(!is.finite(logml))) {
+    stop("'logml' must contain only finite values.", call. = FALSE)
+  }
+
+  if (length(logml) < 2L) {
+    stop("At least two log marginal likelihoods are required.", call. = FALSE)
+  }
+
+  if (is.null(prior_prob)) {
+    prior_prob <- rep(1 / length(logml), length(logml))
+  } else {
+    BayesTools::check_real(prior_prob, "prior_prob", lower = 0, check_length = 0, allow_NA = FALSE)
+    if (any(!is.finite(prior_prob))) {
+      stop("'prior_prob' must contain only finite values.", call. = FALSE)
+    }
+    if (length(prior_prob) != length(logml)) {
+      stop("'prior_prob' must have the same length as the number of models.", call. = FALSE)
+    }
+    if (sum(prior_prob) <= 0) {
+      stop("'prior_prob' must contain at least one positive value.", call. = FALSE)
+    }
+    prior_prob <- prior_prob / sum(prior_prob)
+  }
+
+  if (!is.null(model_names)) {
+    BayesTools::check_char(model_names, "model_names", check_length = 0, allow_NA = FALSE)
+    if (length(model_names) != length(logml)) {
+      stop("'model_names' must have the same length as the number of models.", call. = FALSE)
+    }
+  }
+
+  log_posterior <- logml + log(prior_prob)
+  posterior     <- exp(log_posterior - .log_sum_exp(log_posterior))
+
+  if (!is.null(model_names)) {
+    names(posterior) <- model_names
+  }
+
+  return(posterior)
+}
+
+.bf_from_logml <- function(logml1, logml2, log = FALSE) {
+
+  BayesTools::check_real(logml1, "logml1", check_length = 1, allow_NA = FALSE)
+  BayesTools::check_real(logml2, "logml2", check_length = 1, allow_NA = FALSE)
+  if (!is.finite(logml1) || !is.finite(logml2)) {
+    stop("'logml1' and 'logml2' must be finite.", call. = FALSE)
+  }
+  BayesTools::check_bool(log, "log")
+
+  log_bf <- logml1 - logml2
+  out    <- list(
+    bf  = if (log) log_bf else exp(log_bf),
+    log = log
+  )
+
+  class(out) <- "bf_default"
+  return(out)
+}
 
 #' @title Bridge Sampling for brma Objects
 #'
@@ -76,7 +147,6 @@ bayes_factor <- function(x1, x2, log = FALSE, ...) UseMethod("bayes_factor")
 #' }
 #' }
 #'
-#' @aliases bridge_sampler
 #' @export
 #' @exportS3Method bridgesampling::bridge_sampler
 bridge_sampler.brma <- function(samples, ...) {
@@ -119,7 +189,6 @@ bridge_sampler.brma <- function(samples, ...) {
 #' }
 #' }
 #'
-#' @aliases logml
 #' @export
 #' @exportS3Method bridgesampling::logml
 logml.brma <- function(x, ...) {
@@ -172,7 +241,6 @@ logml.brma <- function(x, ...) {
 #' }
 #' }
 #'
-#' @aliases post_prob
 #' @export
 #' @exportS3Method bridgesampling::post_prob
 post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
@@ -204,12 +272,11 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
     vapply(models[-1], function(obj) bridge_sampler.brma(obj)$logml, 0)
   )
 
-  # delegate to bridgesampling's implementation
-  bridgesampling:::post_prob.default(
-    logml_values,
-    prior_prob  = prior_prob,
+  return(.post_prob_from_logml(
+    logml       = logml_values,
+    prior_prob = prior_prob,
     model_names = model_names
-  )
+  ))
 }
 
 
@@ -260,7 +327,6 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 #' }
 #' }
 #'
-#' @aliases bf bayes_factor
 #' @export
 #' @exportS3Method bridgesampling::bf
 bf.brma <- function(x1, x2, log = FALSE, ...) {
@@ -269,10 +335,15 @@ bf.brma <- function(x1, x2, log = FALSE, ...) {
   }
   .check_brma_compare_targets(list(x1, x2), "bf()")
 
-  # compute log marginal likelihoods and delegate to bridgesampling
+  # compute log marginal likelihoods
   logml1 <- bridge_sampler.brma(x1)$logml
   logml2 <- bridge_sampler.brma(x2)$logml
-  bridgesampling:::bf.default(logml1, logml2, log = log)
+
+  return(.bf_from_logml(
+    logml1 = logml1,
+    logml2 = logml2,
+    log    = log
+  ))
 }
 
 

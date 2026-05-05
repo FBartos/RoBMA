@@ -1,5 +1,214 @@
-url: 'https://fbartos.github.io/RoBMA/'
+url: https://fbartos.github.io/RoBMA/
 template:
   bootstrap: 5
-redirects:
-  - ["articles/Tutorial.html", "articles/30-tutorial.html"]
+
+navbar:
+  structure:
+    left: [intro, foundations, parity, tutorials, reference, news]
+  components:
+    foundations:
+      text: Foundations
+      menu:
+      - text: Introduction
+        href: articles/00-introduction.html
+      - text: Prior Distributions
+        href: articles/01-prior-distributions.html
+      - text: Bayesian Meta-Analysis
+        href: articles/02-bayesian-meta-analysis.html
+      - text: Feature Coverage
+        href: articles/03-feature-coverage.html
+      - text: Bayesian Model Averaging
+        href: articles/20-bayesian-model-averaging.html
+      - text: Robust Bayesian Meta-Analysis
+        href: articles/21-robust-bayesian-meta-analysis.html
+    parity:
+      text: Metafor Parity
+      menu:
+      - text: Multilevel Meta-Analysis
+        href: articles/10-metafor-parity-multilevel.html
+      - text: Publication-Bias Adjustment
+        href: articles/11-metafor-parity-publication-bias.html
+      - text: Location-Scale Meta-Analysis
+        href: articles/12-metafor-parity-location-scale.html
+      - text: Generalized Linear Mixed-Effects Meta-Analysis
+        href: articles/13-metafor-parity-glmm.html
+    tutorials:
+      text: Tutorials
+      menu:
+      - text: Publication Bias Tutorial
+        href: articles/30-tutorial.html
+      - text: RoBMA Meta-Regression
+        href: articles/31-robma-metaregression.html
+      - text: Multilevel RoBMA
+        href: articles/32-robma-multilevel.html
+      - text: Multilevel RoBMA Meta-Regression
+        href: articles/33-robma-multilevel-metaregression.html
+      - text: BMA in Medicine
+        href: articles/34-bma-norm-medicine.html
+      - text: BMA for Binary Outcomes
+        href: articles/35-bma-glmm-medicine.html
+      - text: Zplot Diagnostics
+        href: articles/36-zplot.html
+
+articles:
+- title: Foundations
+  contents:
+  - "00-introduction"
+  - "01-prior-distributions"
+  - "02-bayesian-meta-analysis"
+  - "03-feature-coverage"
+- title: Correspondence with metafor
+  contents:
+  - "10-metafor-parity-multilevel"
+  - "11-metafor-parity-publication-bias"
+  - "12-metafor-parity-location-scale"
+  - "13-metafor-parity-glmm"
+- title: Bayesian model averaging
+  contents:
+  - "20-bayesian-model-averaging"
+  - "21-robust-bayesian-meta-analysis"
+- title: Tutorials and applications
+  contents:
+  - "30-tutorial"
+  - "31-robma-metaregression"
+  - "32-robma-multilevel"
+  - "33-robma-multilevel-metaregression"
+  - "34-bma-norm-medicine"
+  - "35-bma-glmm-medicine"
+  - "36-zplot"
+
+reference:
+- title: Package
+  contents:
+  - RoBMA-package
+  - RoBMA_options
+  - RoBMA_control
+- title: Model fitting
+  contents:
+  - brma
+  - brma.glmm
+  - RoBMA
+  - BMA
+  - BMA.glmm
+  - bselmodel
+  - bPET
+  - bPEESE
+  - update.brma
+- title: Inputs, priors, and model specification
+  contents:
+  - data_input
+  - fitting_specification
+  - prior_specification
+  - RoBMA_prior_specification
+  - prior
+  - prior_none
+  - prior_factor
+  - prior_informed
+  - prior_PET
+  - prior_PEESE
+  - prior_weightfunction
+  - estimate_unit_information_sd
+  - contr.BayesTools
+- title: Summaries and estimates
+  contents:
+  - summary.brma
+  - interpret
+  - summary_models
+  - summary_heterogeneity
+  - summary_heterogeneity.brma
+  - pooled_effect
+  - pooled_effect.brma
+  - pooled_heterogeneity
+  - pooled_heterogeneity.brma
+  - marginal_means
+  - marginal_means.brma
+  - summary.marginal_means.brma
+  - true_effects
+  - true_effects.brma
+  - ranef
+  - ranef.brma
+  - blup
+  - blup.brma
+  - coef.brma
+  - fitted.brma
+  - nobs.brma
+  - predict.brma
+- title: Model comparison
+  contents:
+  - add_marglik.brma
+  - bridge_sampler.brma
+  - logml.brma
+  - post_prob.brma
+  - bf.brma
+  - add_loo.brma
+  - loo.brma
+  - loo_compare.brma
+  - loo_compare.loo
+  - loo_weights.brma
+  - check_loo.brma
+  - add_waic.brma
+  - waic.brma
+  - logLik.brma
+  - reexports
+- title: Diagnostics and influence
+  contents:
+  - influence.brma
+  - cooks.distance.brma
+  - dfbetas.brma
+  - dffits.brma
+  - covratio.brma
+  - hatvalues.brma
+  - residuals.brma
+  - rstandard.brma
+  - rstudent.brma
+  - vif
+  - vif.brma
+- title: Plots
+  contents:
+  - plot.brma
+  - funnel.brma
+  - radial.brma
+  - regplot.brma
+  - qqnorm.brma
+  - plot_prior
+  - print_prior
+  - plot_weightfunction
+  - plot_pet_peese
+  - plot_diagnostic
+  - plot.marginal_means.brma
+- title: Posterior samples and zplot diagnostics
+  contents:
+  - as_draws.brma
+  - as_draws.brma_samples
+  - as.matrix.brma_samples
+  - print.brma_samples
+  - summary.brma_samples
+  - print.summary.brma_samples
+  - as_zplot.brma
+  - zplot.brma
+  - summary.zplot_brma
+  - print.summary.zplot_brma
+  - plot.zplot_brma
+  - hist.zplot_brma
+  - lines.zplot_brma
+- title: Example datasets
+  contents:
+  - Anderson2010
+  - Andrews2021
+  - Bem2011
+  - Havrankova2025
+  - Hoppen2025
+  - Johnides2025
+  - Kroupova2021
+  - Lui2015
+  - ManyLabs16
+  - Poulsen2006
+  - Wang2025
+  - Weingarten2018
+- title: Print helpers
+  contents:
+  - print.RoBMA_data
+  - print.marginal_means.brma
+  - print.summary.marginal_means.brma
+  - print.summary_heterogeneity.brma
+  - print.vif.brma

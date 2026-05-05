@@ -72,6 +72,7 @@ hatvalues.brma <- function(model, ...) {
 
   # return only the posterior mean for consistency with metafor
   res <- colMeans(res)
+  res <- .diagnostic_set_names(res, model)
 
   return(res)
 }

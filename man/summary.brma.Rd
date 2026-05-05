@@ -12,6 +12,8 @@
   include_mcmc_diagnostics = TRUE,
   standardized_coefficients = FALSE,
   conditional = FALSE,
+  logBF = FALSE,
+  BF01 = FALSE,
   ...
 )
 
@@ -36,6 +38,12 @@ correspond to the standardized scale on which prior distributions are specified 
 
 \item{conditional}{whether to include conditional estimates for RoBMA
 product-space objects. Defaults to \code{FALSE}.}
+
+\item{logBF}{whether to show inclusion Bayes factors on the log scale.
+Defaults to \code{FALSE}.}
+
+\item{BF01}{whether to show inverse inclusion Bayes factors. Defaults to
+\code{FALSE}.}
 
 \item{...}{additional arguments}
 

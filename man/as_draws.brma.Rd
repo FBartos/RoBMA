@@ -8,6 +8,12 @@
 \alias{as_draws_list}
 \alias{as_draws_matrix}
 \alias{as_draws_rvars}
+\alias{as_draws.default}
+\alias{as_draws_array.default}
+\alias{as_draws_df.default}
+\alias{as_draws_list.default}
+\alias{as_draws_matrix.default}
+\alias{as_draws_rvars.default}
 \alias{as_draws_array.brma}
 \alias{as_draws_df.brma}
 \alias{as_draws_list.brma}
@@ -26,6 +32,18 @@ as_draws_list(x, ...)
 as_draws_matrix(x, ...)
 
 as_draws_rvars(x, ...)
+
+\method{as_draws}{default}(x, ...)
+
+\method{as_draws_array}{default}(x, ...)
+
+\method{as_draws_df}{default}(x, ...)
+
+\method{as_draws_list}{default}(x, ...)
+
+\method{as_draws_matrix}{default}(x, ...)
+
+\method{as_draws_rvars}{default}(x, ...)
 
 \method{as_draws}{brma}(x, ...)
 
@@ -56,6 +74,10 @@ by the \pkg{posterior} package, enabling the use of posterior's
 rich set of diagnostics and summary functions.
 }
 \details{
+These functions are S3 generics. Their default methods forward to the
+corresponding \pkg{posterior} generics so attaching \pkg{RoBMA} preserves
+the usual \pkg{posterior} behavior for non-\code{brma} objects.
+
 The following conversion functions are available:
 \itemize{
 \item \code{as_draws}: converts to the default draws format

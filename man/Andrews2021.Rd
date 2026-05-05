@@ -29,9 +29,6 @@ A data.frame with 15 columns and 39 observations:
 \usage{
 Andrews2021
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains raw correlation coefficients and
 sampling information using \pkg{metafor}-compatible column names
