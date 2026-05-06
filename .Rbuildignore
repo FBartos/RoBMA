@@ -2,6 +2,7 @@
 ^renv\.lock$
 ^\.dev$
 ^RoBMA\.Rproj$
+^configure\.ac$
 ^src/.*\.(o|so|dll|dylib)$
 ^\.Rproj\.user$
 ^do-not-share$

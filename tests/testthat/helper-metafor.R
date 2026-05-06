@@ -147,12 +147,12 @@ expect_residuals_match_metafor <- function(case) {
       rows = which(valid),
       label = "conditional rstandard"
     )
-    testthat::expect_equal(brma_conditional$resid[!valid], 0, tolerance = 1e-8,
-                           info = paste(name, "saturated residuals are zero"))
+    testthat::expect_true(all(abs(brma_conditional$resid[!valid]) < 1e-8),
+                          info = paste(name, "saturated residuals are zero"))
     testthat::expect_true(all(brma_conditional$se[!valid] < 1e-8),
                           info = paste(name, "saturated SEs collapse"))
-    testthat::expect_equal(brma_conditional$z[!valid], 0, tolerance = 1e-8,
-                           info = paste(name, "saturated z values are zero"))
+    testthat::expect_true(all(abs(brma_conditional$z[!valid]) < 1e-8),
+                          info = paste(name, "saturated z values are zero"))
   }
 
   if (kind %in% c("multilevel", "multilevel_no_loo")) {

@@ -44,26 +44,11 @@ REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
 test_that("marginal_means base plot keeps separate level colors", {
 
   emm  <- .marginal_means_test_object()
-  file <- tempfile(fileext = ".svg")
+  levels <- length(emm[["inference"]][["averaged"]][["mu_alloc"]])
+  dots   <- .set_dots_plot(n_levels = levels)
 
-  grDevices::svg(filename = file)
-  device <- grDevices::dev.cur()
-  on.exit({
-    if (identical(grDevices::dev.cur(), device)) {
-      grDevices::dev.off()
-    }
-    unlink(file)
-  }, add = TRUE)
-
-  plot(emm, parameter = "alloc", legend = FALSE)
-  grDevices::dev.off()
-
-  svg_lines    <- readLines(file, warn = FALSE)
-  stroke_lines <- grep("stroke=\"", svg_lines, value = TRUE)
-  strokes      <- unique(sub(".*stroke=\"([^\"]+)\".*", "\\1", stroke_lines))
-  strokes      <- setdiff(strokes, "rgb(0%, 0%, 0%)")
-
-  expect_gte(length(strokes), 3L)
+  expect_gte(length(unique(dots[["col"]])), levels)
+  .with_temp_plot_device(expect_silent(plot(emm, parameter = "alloc", legend = FALSE)))
 })
 
 

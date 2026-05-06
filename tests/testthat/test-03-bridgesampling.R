@@ -130,7 +130,7 @@ test_that("post_prob respects prior model probabilities", {
   pp_unequal <- RoBMA::post_prob(fit_brma, fit_brma2, prior_prob = c(0.9, 0.1))
 
   # with stronger prior on first model, its posterior should increase
-  expect_true(pp_equal[1] <  pp_unequal[1])
+  expect_lt(unname(pp_equal[1]), unname(pp_unequal[1]))
   expect_equal(sum(pp_unequal), 1)
 })
 
