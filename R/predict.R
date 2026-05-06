@@ -153,6 +153,8 @@ predict.brma <- function(object, newdata = NULL,
                          conditional = FALSE,
                          ...){
 
+  dots <- list(...)
+
   # normalize type aliases
   type <- match.arg(type, c("terms", "marginal", "cluster", "estimate", "effect", "blup",
                             "response", "outcome", "terms.scale"))
@@ -239,7 +241,7 @@ predict.brma <- function(object, newdata = NULL,
   is_weights        <- .is_weights(object)
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
-  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  posterior_samples <- .get_posterior_samples(object[["fit"]], dots[[".posterior_samples"]])
   effect_transform  <- .effect_output_setup(
     object         = object,
     output_measure = output_measure,
@@ -331,11 +333,12 @@ predict.brma <- function(object, newdata = NULL,
       data     = if (aggregate) NULL else new_data
     )
     return(.condition_prediction_samples(
-      object      = object,
-      samples     = out,
-      conditional = conditional,
-      parameters  = .conditional_heterogeneity_parameters(object),
-      quiet       = quiet
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_heterogeneity_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
     ))
   }
 
@@ -387,11 +390,12 @@ predict.brma <- function(object, newdata = NULL,
       effect_transform = effect_transform
     )
     return(.condition_prediction_samples(
-      object      = object,
-      samples     = out,
-      conditional = conditional,
-      parameters  = .conditional_effect_parameters(object),
-      quiet       = quiet
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_effect_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
     ))
   }
 
@@ -473,11 +477,12 @@ predict.brma <- function(object, newdata = NULL,
       effect_transform = effect_transform
     )
     return(.condition_prediction_samples(
-      object      = object,
-      samples     = out,
-      conditional = conditional,
-      parameters  = .conditional_effect_parameters(object),
-      quiet       = quiet
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_effect_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
     ))
   }
 
@@ -529,11 +534,12 @@ predict.brma <- function(object, newdata = NULL,
       effect_transform = effect_transform
     )
     return(.condition_prediction_samples(
-      object      = object,
-      samples     = out,
-      conditional = conditional,
-      parameters  = .conditional_effect_parameters(object),
-      quiet       = quiet
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_effect_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
     ))
 
   }
@@ -683,11 +689,12 @@ predict.brma <- function(object, newdata = NULL,
       effect_transform = effect_transform
     )
     return(.condition_prediction_samples(
-      object      = object,
-      samples     = out,
-      conditional = conditional,
-      parameters  = .conditional_effect_parameters(object),
-      quiet       = quiet
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_effect_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
     ))
   }
 }
@@ -804,16 +811,18 @@ predict.brma <- function(object, newdata = NULL,
 }
 
 .condition_prediction_samples <- function(object, samples, conditional,
-                                          parameters, quiet = FALSE) {
+                                          parameters, posterior_samples = NULL,
+                                          quiet = FALSE) {
 
   if (!conditional) {
     return(samples)
   }
 
   keep <- .conditional_parameter_rows(
-    object     = object,
-    parameters = parameters,
-    rule       = "OR"
+    object            = object,
+    parameters        = parameters,
+    posterior_samples = posterior_samples,
+    rule              = "OR"
   )
   sample_matrix <- as.matrix(samples)[keep, , drop = FALSE]
 

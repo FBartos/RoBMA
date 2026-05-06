@@ -6,9 +6,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
+#include <limits>
 #include <vector>
 
-#include "source/selnorm.h"
+#include "selnorm/selnorm.h"
 
 static int regplot_matrix_nrow(SEXP x, const char *name)
 {
@@ -39,6 +40,13 @@ static void regplot_check_integer(SEXP x, const char *name)
 {
   if (TYPEOF(x) != INTSXP) {
     Rf_error("'%s' must be integer.", name);
+  }
+}
+
+static void regplot_check_logical(SEXP x, const char *name)
+{
+  if (TYPEOF(x) != LGLSXP || Rf_length(x) != 1) {
+    Rf_error("'%s' must be a logical scalar.", name);
   }
 }
 
@@ -85,7 +93,8 @@ static void regplot_set_kernel_data(SelNormKernelData *data, int B,
                                     SEXP phack_z_dest,
                                     SEXP segment_bounds,
                                     SEXP segment_step_bin,
-                                    SEXP segment_phack_region)
+                                    SEXP segment_phack_region,
+                                    SEXP telescope_probabilities)
 {
   data->n_bins                 = B;
   data->n_segments             = n_segments;
@@ -100,6 +109,11 @@ static void regplot_set_kernel_data(SelNormKernelData *data, int B,
   data->segment_phack_region   = INTEGER(segment_phack_region);
   data->segment_step_bin_real  = 0;
   data->segment_phack_region_real = 0;
+  data->trusted_step_partition = selnorm_is_descending_step_partition(
+    data->z_lower, data->z_upper, data->n_bins
+  );
+  data->telescope_probabilities = data->trusted_step_partition &&
+    LOGICAL(telescope_probabilities)[0] == TRUE;
 }
 
 static bool regplot_row_has_active_phack(int mode, double alpha, int phack_kind)
@@ -163,20 +177,19 @@ static double regplot_normal_mixture_cdf(double q, const double *mean,
   return cdf_sum / static_cast<double>(S);
 }
 
-static double regplot_selnorm_mixture_cdf(
+static double regplot_selnorm_mixture_cdf_cached(
   double q,
   const double *mean,
   const double *sd,
   double se,
   const double *omega,
-  const double *alpha,
-  const int *phack_kind,
-  const int *kernel_mode,
+  const std::vector<double> &row_alpha,
+  const std::vector<int> &row_phack,
+  const std::vector<int> &row_mode,
+  const std::vector<bool> &row_active_phack,
+  const std::vector<double> &row_log_norm,
   const SelNormKernelData &data,
-  int S,
-  int alpha_len,
-  int phack_kind_len,
-  int kernel_mode_len)
+  int S)
 {
   const double eps_sd = std::sqrt(DBL_EPSILON);
   double cdf_sum = 0;
@@ -185,33 +198,24 @@ static double regplot_selnorm_mixture_cdf(
     double cdf_s;
     if (sd[s] < eps_sd) {
       cdf_s = q >= mean[s] ? 1.0 : 0.0;
+    } else if (row_active_phack[static_cast<size_t>(s)]) {
+      cdf_s = NA_REAL;
     } else {
-      const double alpha_s = regplot_scalar_or_row_real(alpha, alpha_len, s, "alpha");
-      const int phack_s = regplot_scalar_or_row_int(
-        phack_kind, phack_kind_len, s, "phack_kind"
+      cdf_s = cpp_selnorm_kernel_cdf_with_log_norm(
+        q,
+        mean[s],
+        sd[s],
+        se,
+        omega + s,
+        row_alpha[static_cast<size_t>(s)],
+        row_phack[static_cast<size_t>(s)],
+        row_mode[static_cast<size_t>(s)],
+        data,
+        row_log_norm[static_cast<size_t>(s)],
+        S,
+        true,
+        false
       );
-      const int mode_s = regplot_scalar_or_row_int(
-        kernel_mode, kernel_mode_len, s, "kernel_mode"
-      );
-
-      if (regplot_row_has_active_phack(mode_s, alpha_s, phack_s)) {
-        cdf_s = NA_REAL;
-      } else {
-        cdf_s = cpp_selnorm_kernel_cdf(
-          q,
-          mean[s],
-          sd[s],
-          se,
-          omega + s,
-          alpha_s,
-          phack_s,
-          mode_s,
-          data,
-          S,
-          true,
-          false
-        );
-      }
     }
     cdf_sum += regplot_clamp_probability(cdf_s);
   }
@@ -546,7 +550,8 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
   SEXP mean, SEXP sd, SEXP se, SEXP probs, SEXP omega, SEXP alpha,
   SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
   SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
-  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region)
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
 {
   int S, K;
   regplot_validate_mean_sd(mean, sd, &S, &K);
@@ -565,6 +570,7 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
   regplot_check_real(segment_bounds, "segment_bounds");
   regplot_check_integer(segment_step_bin, "segment_step_bin");
   regplot_check_integer(segment_phack_region, "segment_phack_region");
+  regplot_check_logical(telescope_probabilities, "telescope_probabilities");
 
   if (Rf_length(se) != 1 || !(REAL(se)[0] > 0)) {
     Rf_error("'se' must be a positive scalar.");
@@ -621,33 +627,77 @@ extern "C" SEXP RoBMA_regplot_selnorm_mixture_interval(
   regplot_set_kernel_data(
     &data, B, n_segments, sign, q, z_lower, z_upper,
     phack_z_source, phack_z_dest, segment_bounds,
-    segment_step_bin, segment_phack_region
+    segment_step_bin, segment_phack_region, telescope_probabilities
   );
 
   std::vector<double> lower(static_cast<size_t>(K));
   std::vector<double> upper(static_cast<size_t>(K));
+  std::vector<double> row_alpha(static_cast<size_t>(S));
+  std::vector<int> row_phack(static_cast<size_t>(S));
+  std::vector<int> row_mode(static_cast<size_t>(S));
+  std::vector<bool> row_active_phack(static_cast<size_t>(S));
+
+  for (int s = 0; s < S; ++s) {
+    row_alpha[static_cast<size_t>(s)] = regplot_scalar_or_row_real(
+      alpha_p, Rf_length(alpha), s, "alpha"
+    );
+    row_phack[static_cast<size_t>(s)] = regplot_scalar_or_row_int(
+      phack_kind_p, Rf_length(phack_kind), s, "phack_kind"
+    );
+    row_mode[static_cast<size_t>(s)] = regplot_scalar_or_row_int(
+      kernel_mode_p, Rf_length(kernel_mode), s, "kernel_mode"
+    );
+    row_active_phack[static_cast<size_t>(s)] = regplot_row_has_active_phack(
+      row_mode[static_cast<size_t>(s)],
+      row_alpha[static_cast<size_t>(s)],
+      row_phack[static_cast<size_t>(s)]
+    );
+  }
 
   for (int k = 0; k < K; ++k) {
     const double *mean_k = mean_p + static_cast<size_t>(S) * static_cast<size_t>(k);
     const double *sd_k   = sd_p   + static_cast<size_t>(S) * static_cast<size_t>(k);
+    std::vector<double> row_log_norm(static_cast<size_t>(S), 0);
 
-    auto cdf_fun = [mean_k, sd_k, se_p, omega_p, alpha_p, phack_kind_p,
-                    kernel_mode_p, &data, S, alpha, phack_kind,
-                    kernel_mode](double q_val) {
-      return regplot_selnorm_mixture_cdf(
+    for (int s = 0; s < S; ++s) {
+      if (sd_k[s] < std::sqrt(DBL_EPSILON)) {
+        continue;
+      }
+      if (row_active_phack[static_cast<size_t>(s)]) {
+        row_log_norm[static_cast<size_t>(s)] =
+          std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
+      row_log_norm[static_cast<size_t>(s)] = cpp_selnorm_kernel_log_norm(
+        mean_k[s],
+        sd_k[s],
+        se_p,
+        omega_p + s,
+        row_alpha[static_cast<size_t>(s)],
+        row_phack[static_cast<size_t>(s)],
+        row_mode[static_cast<size_t>(s)],
+        data,
+        S,
+        false
+      );
+    }
+
+    auto cdf_fun = [mean_k, sd_k, se_p, omega_p, &row_alpha, &row_phack,
+                    &row_mode, &row_active_phack, &row_log_norm,
+                    &data, S](double q_val) {
+      return regplot_selnorm_mixture_cdf_cached(
         q_val,
         mean_k,
         sd_k,
         se_p,
         omega_p,
-        alpha_p,
-        phack_kind_p,
-        kernel_mode_p,
+        row_alpha,
+        row_phack,
+        row_mode,
+        row_active_phack,
+        row_log_norm,
         data,
-        S,
-        Rf_length(alpha),
-        Rf_length(phack_kind),
-        Rf_length(kernel_mode)
+        S
       );
     };
 

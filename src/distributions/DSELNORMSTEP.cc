@@ -5,12 +5,12 @@
 
 #include <cmath>
 
-#include "../source/selnorm.h"
+#include "../selnorm/selnorm.h"
 
 namespace jags {
 namespace RoBMA {
 
-DSELNORMSTEP::DSELNORMSTEP() : VectorDist("dselnorm_step", 9) {}
+DSELNORMSTEP::DSELNORMSTEP() : VectorDist("dselnorm_step", 10) {}
 
 bool DSELNORMSTEP::checkParameterLength(std::vector<unsigned int> const &len) const
 {
@@ -18,7 +18,8 @@ bool DSELNORMSTEP::checkParameterLength(std::vector<unsigned int> const &len) co
     len[4] == len[5] &&
     len[5] == len[6] &&
     len[7] == 1 &&
-    len[8] == 1;
+    len[8] == 1 &&
+    len[9] == 1;
 }
 
 bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
@@ -27,9 +28,11 @@ bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
   const int n_bins = static_cast<int>(len[4]);
   const int obs_bin = static_cast<int>(*par[7]);
   const int sign = static_cast<int>(*par[8]);
+  const int telescope_probabilities = static_cast<int>(*par[9]);
 
   if (!(*par[1] > 0 && *par[2] > 0 && *par[3] > 0) ||
       !(sign == 1 || sign == -1) ||
+      !(telescope_probabilities == 0 || telescope_probabilities == 1) ||
       obs_bin < 1 || obs_bin > n_bins) {
     return false;
   }
@@ -41,7 +44,7 @@ bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
     }
   }
 
-  return true;
+  return selnorm_is_descending_step_partition(par[5], par[6], n_bins);
 }
 
 double DSELNORMSTEP::logDensity(double const *x, unsigned int length,
@@ -68,6 +71,8 @@ double DSELNORMSTEP::logDensity(double const *x, unsigned int length,
   data.segment_phack_region = segment_zero;
   data.segment_step_bin_real = 0;
   data.segment_phack_region_real = 0;
+  data.trusted_step_partition = true;
+  data.telescope_probabilities = static_cast<int>(*par[9]) == 1;
 
   return cpp_selnorm_kernel_lpdf(
     *x,

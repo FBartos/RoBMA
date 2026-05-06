@@ -8,6 +8,27 @@ if (!exists("FIT_CACHE_VERSION")) {
   FIT_CACHE_VERSION <- 3L
 }
 
+.common_functions_dir <- function() {
+
+  frames <- sys.frames()
+  ofiles <- vapply(frames, function(frame) {
+    ofile <- frame[["ofile"]]
+    if (is.null(ofile)) "" else ofile
+  }, character(1))
+  ofiles <- ofiles[nzchar(ofiles)]
+
+  if (length(ofiles) > 0L) {
+    return(dirname(normalizePath(ofiles[length(ofiles)], winslash = "/", mustWork = FALSE)))
+  }
+
+  fallback <- file.path("tests", "testthat", "common-functions.R")
+  if (file.exists(fallback)) {
+    return(dirname(normalizePath(fallback, winslash = "/", mustWork = TRUE)))
+  }
+
+  return(normalizePath(getwd(), winslash = "/", mustWork = FALSE))
+}
+
 # Get the directory where prefitted models are stored. Local development uses
 # a persistent ignored folder; CRAN checks fall back to tempdir().
 test_files_dir <- Sys.getenv("ROBMA_TEST_FILES_DIR")
@@ -16,9 +37,10 @@ if (test_files_dir == "") {
   test_files_dir <- if (on_cran()) {
     file.path(tempdir(), "RoBMA_test_files")
   } else {
-    testthat::test_path("test_files")
+    file.path(.common_functions_dir(), "test_files")
   }
 }
+test_files_dir <- normalizePath(test_files_dir, winslash = "/", mustWork = FALSE)
 
 # Setup directory for saving fitted models
 temp_fits_dir     <- file.path(test_files_dir, "fits")
@@ -452,8 +474,8 @@ source_file_md5 <- function(source_file) {
     "src/distributions/DWP.h",
     "src/r-glmm.cc",
     "src/r-selnorm.cc",
-    "src/source/selnorm.cc",
-    "src/source/selnorm.h"
+    "src/selnorm/selnorm.cc",
+    "src/selnorm/selnorm.h"
   )
 
   return(sort(c(r_files, src_files)))
@@ -1119,6 +1141,8 @@ clean_cached_fits <- function(name) {
     dir.create(temp_metadata_dir, showWarnings = FALSE, recursive = TRUE)
     dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
   }
+
+  message("Cleaned cached fits in: ", test_files_dir)
 
   return(invisible(TRUE))
 }

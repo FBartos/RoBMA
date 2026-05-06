@@ -1050,6 +1050,14 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     max_samples            = max_samples
   )
 
+  if (.has_native_funnel_model_averaged_quantiles(setup)) {
+    return(.funnel_model_averaged_quantiles_native(
+      se_sequence      = se_sequence,
+      setup            = setup,
+      effect_direction = effect_direction
+    ))
+  }
+
   lower <- vapply(
     se_sequence,
     .funnel_model_averaged_quantile,
@@ -1076,6 +1084,55 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   )
 
   return(list(lower = lower, upper = upper, mid = mid))
+}
+
+.has_native_funnel_model_averaged_quantiles <- function(setup) {
+
+  if (is.null(setup[["selection"]])) {
+    return(FALSE)
+  }
+
+  return(is.loaded("RoBMA_funnel_model_averaged_quantiles", PACKAGE = "RoBMA"))
+}
+
+.funnel_model_averaged_quantiles_native <- function(se_sequence, setup,
+                                                    effect_direction) {
+
+  selection <- setup[["selection"]]
+  if (any(setup[["is_weightfunction"]])) {
+    .selection_require_step_evaluable(
+      selection,
+      ".funnel_model_averaged_quantiles()"
+    )
+  }
+
+  direction <- ifelse(effect_direction == "negative", -1L, 1L)
+
+  return(.Call(
+    "RoBMA_funnel_model_averaged_quantiles",
+    .native_numeric_vector(se_sequence),
+    .native_numeric_vector(setup[["mu"]]),
+    .native_numeric_vector(setup[["tau"]]),
+    .native_numeric_vector(setup[["PET"]]),
+    .native_numeric_vector(setup[["PEESE"]]),
+    .native_integer_vector(setup[["is_weightfunction"]]),
+    .native_numeric_matrix(selection[["omega"]]),
+    .native_numeric_vector(selection[["alpha"]]),
+    .native_integer_vector(selection[["phack_kind"]]),
+    .native_integer_vector(selection[["kernel_mode"]]),
+    .native_numeric_vector(selection[["z_lower"]]),
+    .native_numeric_vector(selection[["z_upper"]]),
+    .native_integer_vector(selection[["sign"]]),
+    .native_integer_vector(selection[["phack_q"]]),
+    .native_numeric_vector(selection[["phack_z_source"]]),
+    .native_numeric_vector(selection[["phack_z_dest"]]),
+    .native_numeric_vector(selection[["segments"]][["bounds"]]),
+    .native_integer_vector(selection[["segments"]][["step_bin"]]),
+    .native_integer_vector(selection[["segments"]][["phack_region"]]),
+    .native_integer_vector(direction),
+    .selection_telescope_probabilities(selection),
+    PACKAGE = "RoBMA"
+  ))
 }
 
 
@@ -1162,41 +1219,10 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 # ---------------------------------------------------------------------------- #
 .funnel_subsample_rows <- function(bias_indicator, max_samples) {
 
-  S <- length(bias_indicator)
-  if (is.infinite(max_samples) || S <= max_samples) {
-    return(NULL)
-  }
-
-  max_samples <- as.integer(max_samples)
-  tab         <- table(bias_indicator)
-  raw_n       <- as.numeric(tab) / S * max_samples
-  branch_n    <- floor(raw_n)
-  remaining   <- max_samples - sum(branch_n)
-
-  if (remaining > 0L) {
-    order_remainder <- order(raw_n - branch_n, decreasing = TRUE)
-    branch_n[order_remainder[seq_len(remaining)]] <-
-      branch_n[order_remainder[seq_len(remaining)]] + 1L
-  }
-
-  branch_n <- pmin(branch_n, as.numeric(tab))
-  rows     <- integer(0)
-
-  for (i in seq_along(tab)) {
-    branch_rows <- which(bias_indicator == as.integer(names(tab)[i]))
-    n_i         <- branch_n[i]
-    if (n_i == 0L) {
-      next
-    }
-    selected <- branch_rows[round(seq(
-      from       = 1,
-      to         = length(branch_rows),
-      length.out = n_i
-    ))]
-    rows     <- c(rows, selected)
-  }
-
-  return(sort(unique(rows)))
+  return(.thin_sample_rows_by_group(
+    group       = bias_indicator,
+    max_samples = max_samples
+  ))
 }
 
 
@@ -1402,29 +1428,56 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 .funnel_step_selection_precompute <- function(rows, se, location, total_sd,
                                               selection) {
 
-  sign   <- selection[["sign"]]
-  omega  <- selection[["omega"]][rows, , drop = FALSE]
-  mean   <- sign * location[rows]
-  sd     <- total_sd[rows]
-  denom  <- rep(0, length(rows))
+  sign          <- selection[["sign"]]
+  omega         <- selection[["omega"]][rows, , drop = FALSE]
+  mean          <- sign * location[rows]
+  sd            <- total_sd[rows]
+  n_bins        <- selection[["n_bins"]]
+  use_telescope <- isTRUE(selection[["telescope_probabilities"]]) && n_bins > 1L
 
-  for (b in seq_len(selection[["n_bins"]])) {
-    lower <- selection[["z_lower"]][b] * se
-    upper <- selection[["z_upper"]][b] * se
-    denom <- denom + omega[, b] * .selection_interval_prob_vec(lower, upper, mean, sd)
+  if (use_telescope) {
+    boundary <- selection[["z_lower"]][seq_len(n_bins - 1L)] * se
+    tails    <- vapply(
+      boundary,
+      stats::pnorm,
+      numeric(length(rows)),
+      mean       = mean,
+      sd         = sd,
+      lower.tail = FALSE
+    )
+    tails      <- matrix(tails, nrow = length(rows), ncol = n_bins - 1L)
+    omega_diff <- omega[, seq_len(n_bins - 1L), drop = FALSE] -
+      omega[, seq_len(n_bins - 1L) + 1L, drop = FALSE]
+    denom <- omega[, n_bins] + rowSums(omega_diff * tails)
+
+    use_telescope <- all(is.finite(denom) & denom > 0)
+  }
+
+  if (!use_telescope) {
+    denom <- rep(0, length(rows))
+
+    for (b in seq_len(n_bins)) {
+      lower <- selection[["z_lower"]][b] * se
+      upper <- selection[["z_upper"]][b] * se
+      denom <- denom + omega[, b] * .selection_interval_prob_vec(lower, upper, mean, sd)
+    }
   }
 
   return(list(
-    rows    = rows,
-    se      = se,
-    sign    = sign,
-    omega   = omega,
-    mean    = mean,
-    sd      = sd,
-    denom   = denom,
-    z_lower = selection[["z_lower"]],
-    z_upper = selection[["z_upper"]],
-    n_bins  = selection[["n_bins"]]
+    rows                    = rows,
+    se                      = se,
+    sign                    = sign,
+    omega                   = omega,
+    omega_diff              = if (use_telescope) omega_diff else NULL,
+    mean                    = mean,
+    sd                      = sd,
+    denom                   = denom,
+    boundary                = if (use_telescope) boundary else NULL,
+    boundary_tail           = if (use_telescope) tails else NULL,
+    telescope_probabilities = use_telescope,
+    z_lower                 = selection[["z_lower"]],
+    z_upper                 = selection[["z_upper"]],
+    n_bins                  = n_bins
   ))
 }
 
@@ -1510,6 +1563,48 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 .funnel_step_selected_cdf_precomputed <- function(q, step_selection) {
 
   q_signed <- step_selection[["sign"]] * q
+
+  if (isTRUE(step_selection[["telescope_probabilities"]])) {
+    q_tail <- stats::pnorm(
+      q_signed,
+      mean       = step_selection[["mean"]],
+      sd         = step_selection[["sd"]],
+      lower.tail = FALSE
+    )
+    q_cdf <- stats::pnorm(
+      q_signed,
+      mean = step_selection[["mean"]],
+      sd   = step_selection[["sd"]]
+    )
+
+    if (step_selection[["sign"]] == 1L) {
+      mass <- step_selection[["omega"]][, step_selection[["n_bins"]]] * q_cdf
+
+      for (b in seq_len(step_selection[["n_bins"]] - 1L)) {
+        if (q_signed > step_selection[["boundary"]][b]) {
+          mass <- mass + step_selection[["omega_diff"]][, b] *
+            (step_selection[["boundary_tail"]][, b] - q_tail)
+        }
+      }
+    } else {
+      mass <- step_selection[["omega"]][, step_selection[["n_bins"]]] * q_tail
+
+      for (b in seq_len(step_selection[["n_bins"]] - 1L)) {
+        tail_part <- if (q_signed >= step_selection[["boundary"]][b]) {
+          q_tail
+        } else {
+          step_selection[["boundary_tail"]][, b]
+        }
+        mass <- mass + step_selection[["omega_diff"]][, b] *
+          tail_part
+      }
+    }
+
+    out <- mass / step_selection[["denom"]]
+    out <- pmin(pmax(out, 0), 1)
+    return(out)
+  }
+
   mass     <- rep(0, length(step_selection[["rows"]]))
 
   for (b in seq_len(step_selection[["n_bins"]])) {
@@ -1713,24 +1808,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
 # ---------------------------------------------------------------------------- #
 .normalize_funnel_max_samples <- function(max_samples) {
 
-  valid <- is.numeric(max_samples) &&
-    length(max_samples) == 1L &&
-    !is.na(max_samples) &&
-    max_samples > 0
-
-  if (!valid || (!is.infinite(max_samples) && max_samples != floor(max_samples))) {
-    stop("'max_samples' must be a single positive integer or Inf.", call. = FALSE)
-  }
-
-  if (!is.infinite(max_samples) && max_samples < 10L) {
-    stop("'max_samples' must be at least 10.", call. = FALSE)
-  }
-
-  if (is.infinite(max_samples)) {
-    return(Inf)
-  }
-
-  return(as.integer(max_samples))
+  return(.normalize_max_samples(max_samples, "max_samples"))
 }
 
 

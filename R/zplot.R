@@ -35,7 +35,7 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' @param significance_level z-value threshold for significance. Defaults
 #' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
 #' @param max_samples maximum number of posterior samples for estimation.
-#' Defaults to 1000.
+#' Defaults to 10000. Use \code{Inf} to use all posterior samples.
 #' @param ... additional arguments (currently unused).
 #'
 #' @details
@@ -80,10 +80,10 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #'
 #' @aliases as_zplot
 #' @export
-as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975), max_samples = 1000, ...) {
+as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975), max_samples = 10000, ...) {
 
   BayesTools::check_real(significance_level, "significance_level", lower = 0)
-  BayesTools::check_int(max_samples, "max_samples", lower = 10)
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
 
   if (.outcome_type(object) != "norm") {
     stop(
@@ -149,7 +149,8 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @param summary_max_samples maximum number of posterior samples used for the
 #' EDR and missing-study summaries stored in the generated zplot object.
 #' This is separate from the plot-density \code{max_samples} argument accepted
-#' by \code{plot.zplot_brma()} through \code{...}. Defaults to 1000.
+#' by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
+#' \code{Inf} to use all posterior samples.
 #' @param ... arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.
 #'
 #' @details When \code{object} already inherits from \code{zplot_brma},
@@ -172,7 +173,7 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @aliases zplot
 #' @export
 zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
-                       summary_max_samples = 1000, ...) {
+                       summary_max_samples = 10000, ...) {
 
   zplot_object <- as_zplot(
     object             = object,
@@ -307,7 +308,7 @@ print.zplot_brma <- function(x, ...) {
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
 #' @param max_samples maximum posterior samples for density estimation.
-#' Defaults to 500.
+#' Defaults to 10000. Use \code{Inf} to use all posterior samples.
 #' @param plot_fit whether to show fitted density (with bias adjustments).
 #' Defaults to \code{TRUE}.
 #' @param plot_extrapolation whether to show extrapolated density (bias removed).
@@ -344,7 +345,7 @@ print.zplot_brma <- function(x, ...) {
 #'
 #' @export
 plot.zplot_brma <- function(x, plot_type = "base",
-                             probs = c(.025, .975), max_samples = 500,
+                             probs = c(.025, .975), max_samples = 10000,
                              plot_fit = TRUE, plot_extrapolation = TRUE,
                              plot_ci = TRUE, plot_thresholds = TRUE,
                              from = -6, to = 6,
@@ -359,6 +360,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
   BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
 
   dots <- list(...)
 
@@ -670,7 +672,8 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
-#' @param max_samples maximum posterior samples for density. Defaults to 500.
+#' @param max_samples maximum posterior samples for density. Defaults to 10000.
+#' Use \code{Inf} to use all posterior samples.
 #' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
 #' @param from,to z-value range for density. Defaults to \code{-6} and \code{6}.
@@ -696,14 +699,14 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #'
 #' @export
 lines.zplot_brma <- function(x, plot_type = "base",
-                              probs = c(.025, .975), max_samples = 500,
+                              probs = c(.025, .975), max_samples = 10000,
                               plot_ci = TRUE, extrapolate = FALSE,
                               from = -6, to = 6, by = 0.05, length.out = NULL,
                               col = "black", as_data = FALSE, ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_real(probs, "probs", lower = 0, upper = 1, check_length = 2)
-  BayesTools::check_int(max_samples, "max_samples", lower = 10)
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
   BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(extrapolate, "extrapolate")
   BayesTools::check_real(from, "from")
@@ -817,7 +820,9 @@ lines.zplot_brma <- function(x, plot_type = "base",
 #
 # ---------------------------------------------------------------------------- #
 .zplot_fun.brma <- function(object, z_threshold = NULL, z_sequence = NULL,
-                             max_samples = 1000, extrapolate = FALSE) {
+                             max_samples = 10000, extrapolate = FALSE) {
+
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
 
   ### extract model info
   is_multilevel     <- .is_multilevel(object)
@@ -862,13 +867,13 @@ lines.zplot_brma <- function(x, plot_type = "base",
   tau_within <- tau_result[["tau_within"]]
 
   ### 3. Subsample for efficiency
-  S <- nrow(mu_samples)
-  if (S > max_samples) {
-    selected_ind <- round(seq(from = 1, to = S, length.out = max_samples))
-    mu_samples   <- mu_samples[selected_ind, , drop = FALSE]
-    tau_within   <- tau_within[selected_ind, , drop = FALSE]
+  S            <- nrow(mu_samples)
+  selected_ind <- .thin_sample_rows(S, max_samples)
+  if (!is.null(selected_ind)) {
+    mu_samples        <- mu_samples[selected_ind, , drop = FALSE]
+    tau_within        <- tau_within[selected_ind, , drop = FALSE]
     posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))[selected_ind, ]
-    S <- max_samples
+    S                 <- length(selected_ind)
   } else {
     posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
   }
@@ -928,6 +933,18 @@ lines.zplot_brma <- function(x, plot_type = "base",
   K         <- ncol(mu_samples)
   sei_mat   <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd  <- sqrt(tau_within^2 + sei_mat^2)
+
+  if (!is.null(selection) && .has_native_zplot_threshold()) {
+    return(.zplot_selnorm_threshold_summary(
+      z_threshold       = z_threshold,
+      mean              = mu_samples,
+      sd                = total_sd,
+      sei               = sei,
+      selection_context = selection,
+      extrapolate       = extrapolate
+    ))
+  }
+
   q_upper   <- z_threshold * sei
   q_lower   <- -z_threshold * sei
 
@@ -985,6 +1002,52 @@ lines.zplot_brma <- function(x, plot_type = "base",
   return(list(
     EDR     = EDR,
     weights = rowMeans(weights)
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .zplot_selnorm_threshold_summary
+# ---------------------------------------------------------------------------- #
+#
+# Native EDR and inverse-selection-weight reductions for zplot thresholds.
+#
+# ---------------------------------------------------------------------------- #
+.has_native_zplot_threshold <- function() {
+
+  return(is.loaded(
+    "RoBMA_selnorm_zcurve_threshold_summary",
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.zplot_selnorm_threshold_summary <- function(z_threshold, mean, sd, sei,
+                                             selection_context, extrapolate) {
+
+  .selection_require_step_evaluable(selection_context, ".zplot_threshold_vectorized()")
+
+  return(.Call(
+    "RoBMA_selnorm_zcurve_threshold_summary",
+    .native_numeric_vector(z_threshold),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(selection_context[["omega"]]),
+    .native_numeric_vector(selection_context[["alpha"]]),
+    .native_integer_vector(selection_context[["phack_kind"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    .native_numeric_vector(selection_context[["z_lower"]]),
+    .native_numeric_vector(selection_context[["z_upper"]]),
+    .native_integer_vector(selection_context[["sign"]]),
+    .native_integer_vector(selection_context[["phack_q"]]),
+    .native_numeric_vector(selection_context[["phack_z_source"]]),
+    .native_numeric_vector(selection_context[["phack_z_dest"]]),
+    .native_numeric_vector(selection_context[["segments"]][["bounds"]]),
+    .native_integer_vector(selection_context[["segments"]][["step_bin"]]),
+    .native_integer_vector(selection_context[["segments"]][["phack_region"]]),
+    as.logical(extrapolate),
+    .selection_telescope_probabilities(selection_context),
+    PACKAGE = "RoBMA"
   ))
 }
 
@@ -1051,6 +1114,7 @@ lines.zplot_brma <- function(x, plot_type = "base",
     .native_integer_vector(selection_context[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_context[["segments"]][["phack_region"]]),
     as.logical(extrapolate),
+    .selection_telescope_probabilities(selection_context),
     PACKAGE = "RoBMA"
   ))
 }

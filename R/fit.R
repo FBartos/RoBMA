@@ -270,7 +270,8 @@
           "sei[i],", likelihood_weight_expr, ",",
           selection_spec[["jags_omega"]], ",",
           "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
-          selection_spec[["jags_kernel_mode"]], ")\n"
+          selection_spec[["jags_kernel_mode"]], ",",
+          "sel_telescope_probabilities)\n"
         )
       } else if (identical(selection_spec[["mode"]], "step")) {
         model_syntax <- paste0(
@@ -279,7 +280,8 @@
           mu_estimate, ",", total_sd_node, ",",
           "sei[i],", likelihood_weight_expr, ",",
           selection_spec[["jags_omega"]], ",",
-          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign)\n"
+          "sel_z_lower,sel_z_upper,sel_obs_bin[i],sel_sign,",
+          "sel_telescope_probabilities)\n"
         )
       } else {
         model_syntax <- paste0(

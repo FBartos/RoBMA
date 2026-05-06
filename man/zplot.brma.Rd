@@ -9,7 +9,7 @@
 \method{zplot}{brma}(
   object,
   significance_level = stats::qnorm(0.975),
-  summary_max_samples = 1000,
+  summary_max_samples = 10000,
   ...
 )
 
@@ -25,7 +25,8 @@ to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 \item{summary_max_samples}{maximum number of posterior samples used for the
 EDR and missing-study summaries stored in the generated zplot object.
 This is separate from the plot-density \code{max_samples} argument accepted
-by \code{plot.zplot_brma()} through \code{...}. Defaults to 1000.}
+by \code{plot.zplot_brma()} through \code{...}. Defaults to 10000. Use
+\code{Inf} to use all posterior samples.}
 
 \item{...}{arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.}
 }

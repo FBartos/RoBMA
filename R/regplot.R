@@ -77,6 +77,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' @param sei single positive numeric value used as the reference standard
 #' error for sampling-bias and sampling-interval calculations. Defaults to the
 #' median observed standard error.
+#' @param max_samples maximum number of posterior samples used for prediction
+#' summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
+#' use all posterior samples.
 #' @param plot_type character; whether to use base R graphics (\code{"base"})
 #' or ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.
 #' @param as_data logical; if \code{TRUE}, returns plot data instead of
@@ -163,7 +166,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
                          refline = NULL, psize = NULL, plim = c(0.5, 3),
                          by = NULL, legend = TRUE,
                          xlab = NULL, ylab = NULL, xlim = NULL, ylim = NULL,
-                         sampling_bias = TRUE, sei = NULL,
+                         sampling_bias = TRUE, sei = NULL, max_samples = 10000,
                          plot_type = "base", as_data = FALSE, ...) {
 
   # input validation
@@ -186,6 +189,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   .check_plot_limits(xlim, "xlim")
   .check_plot_limits(ylim, "ylim")
   BayesTools::check_bool(sampling_bias, "sampling_bias")
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
   if (!is.null(sei)) {
     BayesTools::check_real(sei, "sei", lower = 0)
     if (sei <= 0) {
@@ -253,6 +257,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     ylab          = ylab,
     refline       = refline,
     sampling_bias = sampling_bias,
+    max_samples   = max_samples,
     reference_sei = sei,
     dots          = dots
   )
@@ -754,6 +759,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # @param ylab     y-axis label
 # @param refline       reference line position
 # @param sampling_bias logical; incorporate bias into predictions
+# @param max_samples   maximum posterior samples for plot summaries
 # @param reference_sei numeric; reference standard error for sampling paths
 # @param dots          graphical parameters
 #
@@ -763,7 +769,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 .regplot_data <- function(x, mod_name, mod_type, mod_data, by_info,
                           pred, ci, pi, si, level, at, digits, psize, plim,
                           transf, xlim, ylim, xlab, ylab, refline,
-                          sampling_bias, reference_sei, dots) {
+                          sampling_bias, max_samples, reference_sei, dots) {
 
   yi      <- .outcome_data_yi(x)
   sei_obs <- .outcome_data_sei(x)
@@ -808,14 +814,25 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     sei     = prediction_se
   )
 
+  posterior_samples <- .get_posterior_samples(x[["fit"]])
+  selected_rows     <- .thin_sample_rows(nrow(posterior_samples), max_samples)
+  if (!is.null(selected_rows)) {
+    posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
+  }
+
   pred_samples <- predict.brma(
-    object        = x,
-    newdata       = newdata,
-    type          = "terms",
-    bias_adjusted = !sampling_bias,
-    quiet         = TRUE
+    object             = x,
+    newdata            = newdata,
+    type               = "terms",
+    bias_adjusted      = !sampling_bias,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
   )
   pred_samples <- as.matrix(pred_samples)
+
+  if (nrow(pred_samples) != nrow(posterior_samples)) {
+    stop("Posterior sample count mismatch in regplot().", call. = FALSE)
+  }
 
   pred_mean  <- colMeans(pred_samples)
   pred_lower <- apply(pred_samples, 2, stats::quantile, probs = probs[1], names = FALSE)
@@ -833,7 +850,6 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
       scale_formula     <- .create_fit_formula_list(data = new_data_prepared, "scale")
     }
 
-    posterior_samples <- .get_posterior_samples(x[["fit"]])
     tau_result <- .evaluate.brma.tau(
       fit               = x[["fit"]],
       scale_data        = scale_data,
@@ -865,11 +881,12 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
     if (sampling_bias && .is_weightfunction(x)) {
       si_bounds <- .regplot_selection_mixture_interval_quantiles(
-        x            = x,
-        mean_samples = pred_samples,
-        sd_samples   = sd_si,
-        se           = se_rep,
-        probs        = probs
+        x                 = x,
+        mean_samples      = pred_samples,
+        sd_samples        = sd_si,
+        se                = se_rep,
+        probs             = probs,
+        posterior_samples = posterior_samples
       )
     } else {
       si_bounds <- .regplot_mixture_interval_quantiles(
@@ -1115,11 +1132,15 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # ---------------------------------------------------------------------------- #
 .regplot_selection_mixture_interval_quantiles <- function(x, mean_samples,
                                                           sd_samples, se,
-                                                          probs) {
+                                                          probs,
+                                                          posterior_samples = NULL) {
 
   mean_samples     <- as.matrix(mean_samples)
   sd_samples       <- as.matrix(sd_samples)
-  setup            <- .regplot_selection_setup(x)
+  setup            <- .regplot_selection_setup(
+    x                 = x,
+    posterior_samples = posterior_samples
+  )
   effect_direction <- .effect_direction(x)
 
   if (!is.null(setup[["selection"]]) &&
@@ -1173,6 +1194,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     .native_numeric_vector(selection_context[["segments"]][["bounds"]]),
     .native_integer_vector(selection_context[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_context[["segments"]][["phack_region"]]),
+    .selection_telescope_probabilities(selection_context),
     PACKAGE = "RoBMA"
   ))
 }
@@ -1344,16 +1366,18 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 # ---------------------------------------------------------------------------- #
 # .regplot_selection_setup
 # ---------------------------------------------------------------------------- #
-.regplot_selection_setup <- function(x) {
+.regplot_selection_setup <- function(x, posterior_samples = NULL) {
 
-  posterior_samples <- .get_posterior_samples(x[["fit"]])
-  S                 <- nrow(posterior_samples)
-  bias_indicator           <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
-  selection                <- .selection_context(
+  if (is.null(posterior_samples)) {
+    posterior_samples <- .get_posterior_samples(x[["fit"]])
+  }
+  S              <- nrow(posterior_samples)
+  bias_indicator <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
+  selection      <- .selection_context(
     object            = x,
     posterior_samples = posterior_samples
   )
-  use_normal <- if (is.null(selection)) {
+  use_normal     <- if (is.null(selection)) {
     rep(TRUE, S)
   } else {
     selection[["use_normal"]]

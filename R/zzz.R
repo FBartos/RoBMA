@@ -36,7 +36,10 @@ NULL
 
 .onAttach <- function(libname, pkgname) {
 
-  packageStartupMessage(paste0("Welcome to RoBMA ", utils::packageVersion(pkgname)))
+  packageStartupMessage(paste0(
+    "Welcome to RoBMA ", utils::packageVersion(pkgname), ".\n",
+    "See `vignette('v00-introduction', package = 'RoBMA')` for introduction to the package."
+  ))
 }
 
 .check_bayestools_forward_api <- function() {

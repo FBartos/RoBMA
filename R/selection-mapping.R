@@ -286,6 +286,110 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(as.numeric(p_cuts))
 }
 
+.selection_prior_quantile <- function(prior, probability) {
+
+  distribution <- prior[["distribution"]]
+  parameters   <- prior[["parameters"]]
+  truncation   <- prior[["truncation"]]
+  lower        <- truncation[["lower"]]
+  upper        <- truncation[["upper"]]
+
+  q <- switch(
+    distribution,
+    "beta" = stats::qbeta(
+      probability,
+      shape1 = parameters[["alpha"]],
+      shape2 = parameters[["beta"]]
+    ),
+    "normal" = stats::qnorm(
+      probability,
+      mean = parameters[["mean"]],
+      sd   = parameters[["sd"]]
+    ),
+    Inf
+  )
+
+  if (is.finite(lower)) {
+    q <- max(q, lower)
+  }
+  if (is.finite(upper)) {
+    q <- min(q, upper)
+  }
+
+  return(q)
+}
+
+.selection_weightfunction_omega_bound <- function(prior, probability = .999) {
+
+  weights <- prior[["weights"]]
+  if (is.null(weights[["type"]])) {
+    return(Inf)
+  }
+
+  if (identical(weights[["type"]], "fixed")) {
+    return(max(weights[["omega"]], 1, na.rm = TRUE))
+  }
+  if (identical(weights[["type"]], "cumulative")) {
+    return(1)
+  }
+  if (!identical(weights[["type"]], "independent")) {
+    return(Inf)
+  }
+
+  prior <- weights[["prior"]]
+  if (identical(weights[["scale"]], "omega")) {
+    upper <- prior[["truncation"]][["upper"]]
+    if (is.finite(upper)) {
+      return(max(upper, 1))
+    }
+    return(max(.selection_prior_quantile(prior, probability), 1))
+  }
+  if (identical(weights[["scale"]], "log_omega")) {
+    q <- .selection_prior_quantile(prior, probability)
+    if (!is.finite(q) || q >= log(.Machine$double.xmax)) {
+      return(Inf)
+    }
+    return(max(exp(q), 1))
+  }
+
+  return(Inf)
+}
+
+.selection_telescope_probability_check <- function(priors_bias, z_lower, z_upper) {
+
+  z_threshold     <- 8
+  omega_threshold <- 100
+  finite_z        <- c(z_lower, z_upper)
+  finite_z        <- finite_z[is.finite(finite_z)]
+  reasons         <- character()
+
+  if (any(abs(finite_z) > z_threshold)) {
+    reasons <- c(reasons, "extreme selection cutpoints")
+  }
+
+  step_priors <- priors_bias[vapply(priors_bias, .prior_has_selection, logical(1))]
+  omega_bound <- vapply(
+    step_priors,
+    .selection_weightfunction_omega_bound,
+    numeric(1)
+  )
+  if (any(!is.finite(omega_bound) | omega_bound > omega_threshold)) {
+    reasons <- c(reasons, "wide selection-weight priors")
+  }
+
+  if (length(reasons) > 0L) {
+    warning(
+      "Selection-model probability telescoping disabled: ",
+      paste(unique(reasons), collapse = " and "),
+      ".",
+      call. = FALSE
+    )
+    return(FALSE)
+  }
+
+  return(TRUE)
+}
+
 .selection_spec <- function(priors, yi, sei, effect_direction, signed_data = FALSE) {
 
   priors_bias <- .selection_bias_priors(priors)
@@ -318,6 +422,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   sign        <- if (signed_data || effect_direction != "negative") 1L else -1L
   z_lower     <- stats::qnorm(1 - p_cuts[-1])
   z_upper     <- stats::qnorm(1 - p_cuts[-length(p_cuts)])
+  telescope_probabilities <- has_step &&
+    .selection_telescope_probability_check(priors_bias, z_lower, z_upper)
   phack_q_values <- if (has_phack) .selection_phack_q_values(phack[["q"]]) else 1L
   phack_q        <- .selection_phack_static_q(phack_q_values)
   phack_source <- if (has_phack) .selection_phack_static_geometry(phack[["z_source"]], "source") else c(0, 0)
@@ -342,7 +448,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     sel_z_lower             = .selection_jags_bounds(z_lower),
     sel_z_upper             = .selection_jags_bounds(z_upper),
     sel_obs_bin             = .selection_obs_bin(yi, sei, p_cuts, sign),
-    sel_sign                = sign
+    sel_sign                = sign,
+    sel_telescope_probabilities = as.integer(telescope_probabilities)
   )
 
   if (!identical(backend[["mode"]], "step")) {
@@ -378,6 +485,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     obs_bin         = jags_data[["sel_obs_bin"]],
     sign            = sign,
     n_bins          = n_bins,
+    telescope_probabilities = telescope_probabilities,
     has_step        = has_step,
     has_phack       = has_phack,
     phack_q         = phack_q,
@@ -483,6 +591,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   ))
 }
 
+.selection_telescope_probabilities <- function(selection_spec) {
+
+  return(isTRUE(selection_spec[["telescope_probabilities"]]))
+}
+
 .has_native_selnorm_kernel <- function() {
 
   symbols <- c(
@@ -544,6 +657,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
     .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    .selection_telescope_probabilities(selection_spec),
     PACKAGE = "RoBMA"
   ))
 }
@@ -582,6 +696,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
     .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    .selection_telescope_probabilities(selection_spec),
     PACKAGE = "RoBMA"
   ))
 }
@@ -630,6 +745,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
     as.logical(lower.tail),
+    .selection_telescope_probabilities(selection_spec),
     PACKAGE = "RoBMA"
   ))
 }
@@ -675,6 +791,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
     .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    .selection_telescope_probabilities(selection_spec),
     PACKAGE = "RoBMA"
   ))
 }
@@ -720,6 +837,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
     .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    .selection_telescope_probabilities(selection_spec),
     PACKAGE = "RoBMA"
   ))
 }
@@ -767,6 +885,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
     .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
     .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    .selection_telescope_probabilities(selection_spec),
     PACKAGE = "RoBMA"
   ))
 }

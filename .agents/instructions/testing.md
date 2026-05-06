@@ -54,8 +54,10 @@ devtools::test(reporter = "llm")
 
 ### How It Works
 
-- Fitted models are saved to `ROBMA_TEST_FILES_DIR`
-- Default local cache: `tests/testthat/test_files`
+- Fitted models are saved to `ROBMA_TEST_FILES_DIR` when that environment
+  variable is set
+- Default local cache when `ROBMA_TEST_FILES_DIR` is unset:
+  `tests/testthat/test_files`, resolved relative to `common-functions.R`
 - CRAN cache: `tempdir()/RoBMA_test_files`
 - Subdirectories: `fits/`, `info/`, `metadata/`, `temp/`
 - Cache persists across R sessions by default in local development
@@ -127,6 +129,10 @@ Clear cache when:
 source(testthat::test_path("common-functions.R"))
 clean_cached_fits()
 ```
+
+`clean_cached_fits()` cleans the active cache root. If
+`ROBMA_TEST_FILES_DIR` is set, it cleans that directory rather than the
+repo-local default.
 
 ## Writing New Tests
 

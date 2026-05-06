@@ -12,6 +12,11 @@ fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
+.test_regplot <- function(..., max_samples = 1000) {
+
+  regplot(..., max_samples = max_samples)
+}
+
 # ============================================================================ #
 # Test: Continuous Moderator Regression Plot
 # ============================================================================ #
@@ -31,12 +36,12 @@ test_that("Regression plot for continuous moderator matches metafor", {
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::regplot(fit_metafor, mod = "year", main = "metafor", ylim = c(-2, 0.5))
-    regplot(fit_brma, mod = "year", plot_type = "base", main = "brma", ylim = c(-2, 0.5))
+    .test_regplot(fit_brma, mod = "year", plot_type = "base", main = "brma", ylim = c(-2, 0.5))
   })
 
   expect_vdiffr_snapshot(
     "regplot_continuous_brma_ggplot",
-    regplot(fit_brma, mod = "year", plot_type = "ggplot")
+    .test_regplot(fit_brma, mod = "year", plot_type = "ggplot")
   )
 })
 
@@ -52,12 +57,12 @@ test_that("Regression plot renders prediction intervals", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_continuous_pi_base", function() {
-    regplot(fit_brma, mod = "year", plot_type = "base", pi = TRUE, main = "with PI")
+    .test_regplot(fit_brma, mod = "year", plot_type = "base", pi = TRUE, main = "with PI")
   })
 
   expect_vdiffr_snapshot(
     "regplot_continuous_pi_ggplot",
-    regplot(fit_brma, mod = "year", plot_type = "ggplot", pi = TRUE)
+    .test_regplot(fit_brma, mod = "year", plot_type = "ggplot", pi = TRUE)
   )
 })
 
@@ -70,12 +75,12 @@ test_that("Regression plot renders categorical dummy moderator", {
   expect_vdiffr_snapshot("regplot_categorical_brma", function() {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
-    regplot(fit_brma, mod = "alloc", plot_type = "base", main = "brma")
+    .test_regplot(fit_brma, mod = "alloc", plot_type = "base", main = "brma")
   })
 
   expect_vdiffr_snapshot(
     "regplot_categorical_brma_ggplot",
-    regplot(fit_brma, plot_type = "ggplot")
+    .test_regplot(fit_brma, plot_type = "ggplot")
   )
 })
 
@@ -90,8 +95,8 @@ test_that("Regression plot renders alternative categorical coding", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    regplot(fit_brma1, mod = "alloc", plot_type = "base", main = "brma", si = TRUE)
-    regplot(fit_brma2, mod = "alloc", plot_type = "base", main = "brma", si = TRUE)
+    .test_regplot(fit_brma1, mod = "alloc", plot_type = "base", main = "brma", si = TRUE)
+    .test_regplot(fit_brma2, mod = "alloc", plot_type = "base", main = "brma", si = TRUE)
   })
 })
 
@@ -106,13 +111,13 @@ test_that("Regression plot renders interaction moderators", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    regplot(fit_brma3, mod = "year",            plot_type = "base", by = "alloc")
-    regplot(fit_brma4, mod = "year_before1969", plot_type = "base", by = "alloc")
+    .test_regplot(fit_brma3, mod = "year",            plot_type = "base", by = "alloc")
+    .test_regplot(fit_brma4, mod = "year_before1969", plot_type = "base", by = "alloc")
   })
 
   expect_vdiffr_snapshot(
     "regplot_interaction_coding_ggplot",
-    regplot(fit_brma4, mod = "year_before1969", plot_type = "ggplot", by = "alloc")
+    .test_regplot(fit_brma4, mod = "year_before1969", plot_type = "ggplot", by = "alloc")
   )
 })
 
@@ -137,13 +142,37 @@ test_that("Regression plot for location-scale model matches metafor view", {
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::regplot(fit_metafor, mod = "ni100", main = "metafor", ylim = c(-1, 1.5))
-    regplot(fit_brma, mod = "ni100", plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+    .test_regplot(fit_brma, mod = "ni100", plot_type = "base", main = "brma", ylim = c(-1, 1.5))
   })
 
   expect_vdiffr_snapshot(
     "regplot_scale_brma_ggplot",
-    regplot(fit_brma, plot_type = "ggplot", mod = "ni100")
+    .test_regplot(fit_brma, plot_type = "ggplot", mod = "ni100")
   )
+})
+
+test_that("Regression plot thins location-scale prediction intervals", {
+
+  name <- "bangertdrowns2004_location-scale"
+  skip_if_missing_fits(name)
+
+  fit_brma     <- fits[[name]]
+  regplot_data <- NULL
+
+  expect_no_error({
+    regplot_data <- .test_regplot(
+      fit_brma,
+      mod         = "ni100",
+      pi          = TRUE,
+      as_data     = TRUE,
+      at          = c(0, 3, 6),
+      max_samples = 200
+    )
+  })
+
+  expect_equal(nrow(regplot_data[["pi"]]), 2 * nrow(regplot_data[["pred"]]))
+  expect_true(all(is.finite(regplot_data[["pi"]][["lower"]])))
+  expect_true(all(is.finite(regplot_data[["pi"]][["upper"]])))
 })
 
 # ============================================================================ #
@@ -162,10 +191,10 @@ test_that("Regression plot for multilevel model renders fitted moderator", {
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::regplot(fit_metafor, mod = mod, main = "metafor", ylim = c(-1, 1.5))
-    regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+    .test_regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
   })
 
-  expect_s3_class(regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+  expect_s3_class(.test_regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
 })
 
 # ============================================================================ #
@@ -184,10 +213,10 @@ test_that("Regression plot for selection model renders fitted moderator", {
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::regplot(fit_metafor, mod = mod, main = "metafor", ylim = c(-1, 1.5))
-    regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+    .test_regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
   })
 
-  expect_s3_class(regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+  expect_s3_class(.test_regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
 })
 
 # ============================================================================ #
@@ -206,10 +235,10 @@ test_that("Regression plot for PET model renders fitted moderator", {
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
     metafor::regplot(fit_metafor, mod = mod, main = "metafor", ylim = c(-1, 1.5))
-    regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
+    .test_regplot(fit_brma, mod = mod, plot_type = "base", main = "brma", ylim = c(-1, 1.5))
   })
 
-  expect_s3_class(regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
+  expect_s3_class(.test_regplot(fit_brma, plot_type = "ggplot", mod = mod), "ggplot")
 })
 
 # ============================================================================ #
@@ -222,7 +251,7 @@ test_that("Regression plot for BMA.norm meta-regression renders base output", {
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("regplot_BMAreg", function() {
-    suppressWarnings(regplot(fit_brma, plot_type = "base"))
+    suppressWarnings(.test_regplot(fit_brma, plot_type = "base"))
   })
 })
 
@@ -238,7 +267,7 @@ test_that("Regression plot for BMA.glmm model renders base output", {
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("regplot_BMA.glmm", function() {
-    suppressWarnings(regplot(fit_brma, mod = "year", plot_type = "base"))
+    suppressWarnings(.test_regplot(fit_brma, mod = "year", plot_type = "base"))
   })
 })
 
@@ -252,7 +281,7 @@ test_that("Regression plot for RoBMA meta-regression renders base output", {
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("regplot_RoBMA_complex", function() {
-    suppressWarnings(regplot(fit_brma, mod = "Preregistered", plot_type = "base"))
+    suppressWarnings(.test_regplot(fit_brma, mod = "Preregistered", plot_type = "base"))
   })
 })
 
@@ -269,10 +298,10 @@ test_that("Regression plot data and argument validation are stable", {
   # Test as_data = TRUE returns list with expected components
   # --------------------------------------------------
 
-  regplot_data <- regplot(fit_brma, mod = "year", pi = TRUE, si = TRUE, as_data = TRUE)
+  regplot_data <- .test_regplot(fit_brma, mod = "year", pi = TRUE, si = TRUE, as_data = TRUE)
   expect_equal(regplot_data[["sei"]], stats::median(RoBMA:::.outcome_data_sei(fit_brma)))
 
-  regplot_data_custom_sei <- regplot(
+  regplot_data_custom_sei <- .test_regplot(
     fit_brma,
     mod     = "year",
     si      = TRUE,
@@ -334,7 +363,7 @@ test_that("Regression plot data and argument validation are stable", {
   name_simple <- "bcg_meta-analysis"
   fit_simple  <- fits[[name_simple]]
 
-  expect_error(regplot(fit_simple),
+  expect_error(.test_regplot(fit_simple),
     regexp = "regplot requires a model with moderators",
     info = "intercept-only model is rejected"
   )
@@ -343,33 +372,33 @@ test_that("Regression plot data and argument validation are stable", {
   # Test error on invalid plot_type
   # --------------------------------------------------
 
-  expect_error(regplot(fit_brma, plot_type = "invalid"),
+  expect_error(.test_regplot(fit_brma, plot_type = "invalid"),
     info = "invalid plot_type is rejected"
   )
 
-  expect_error(regplot(fit_brma, sei = 0),
+  expect_error(.test_regplot(fit_brma, sei = 0),
     info = "non-positive reference sei is rejected"
   )
 
-  expect_error(regplot(fit_brma, mod = "year", at = "bad"),
+  expect_error(.test_regplot(fit_brma, mod = "year", at = "bad"),
     regexp = "at",
     info = "non-numeric prediction grid is rejected"
   )
-  expect_error(regplot(fit_brma, mod = "year", plim = c(3, 1)),
+  expect_error(.test_regplot(fit_brma, mod = "year", plim = c(3, 1)),
     regexp = "plim",
     info = "non-increasing point-size limits are rejected"
   )
-  expect_error(regplot(fit_brma, mod = "year", psize = 1:2),
+  expect_error(.test_regplot(fit_brma, mod = "year", psize = 1:2),
     regexp = "psize",
     info = "wrong-length point sizes are rejected"
   )
-  expect_error(regplot(fit_brma, mod = "year", lwd = 0),
+  expect_error(.test_regplot(fit_brma, mod = "year", lwd = 0),
     regexp = "lwd",
     info = "non-positive line width is rejected"
   )
 
   fit_categorical <- fits[["bcg_meta-regression2"]]
-  expect_error(regplot(fit_categorical, mod = "alloc", at = 1),
+  expect_error(.test_regplot(fit_categorical, mod = "alloc", at = 1),
     regexp = "continuous moderators",
     info = "at is rejected for categorical moderators"
   )
@@ -386,8 +415,8 @@ test_that("Regression plot transforms effect-size data", {
     oldpar <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(mfrow = oldpar[["mfrow"]], mar = oldpar[["mar"]]))
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    regplot(fit_brma, mod = "year", plot_type = "base", main = "log RR")
-    regplot(fit_brma, mod = "year", transf = exp, plot_type = "base", main = "RR")
+    .test_regplot(fit_brma, mod = "year", plot_type = "base", main = "log RR")
+    .test_regplot(fit_brma, mod = "year", transf = exp, plot_type = "base", main = "RR")
   })
 })
 
@@ -407,12 +436,12 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_custom_points_base", function() {
-    regplot(fit_brma, mod = "year", plot_type = "base", pch = 21, col = "blue", bg = "lightblue")
+    .test_regplot(fit_brma, mod = "year", plot_type = "base", pch = 21, col = "blue", bg = "lightblue")
   })
 
   expect_vdiffr_snapshot(
     "regplot_custom_points_ggplot",
-    regplot(fit_brma, mod = "year", plot_type = "ggplot", pch = 21, col = "blue", bg = "lightblue")
+    .test_regplot(fit_brma, mod = "year", plot_type = "ggplot", pch = 21, col = "blue", bg = "lightblue")
   )
 
   # --------------------------------------------------
@@ -420,13 +449,13 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_custom_bands_base", function() {
-    regplot(fit_brma, mod = "year", plot_type = "base", lcol = "darkblue", col.ci = "lightblue",
+    .test_regplot(fit_brma, mod = "year", plot_type = "base", lcol = "darkblue", col.ci = "lightblue",
             pi = TRUE, col.pi = "lightyellow")
   })
 
   expect_vdiffr_snapshot(
     "regplot_custom_bands_ggplot",
-    regplot(fit_brma, mod = "year", plot_type = "ggplot", lcol = "darkblue", col.ci = "lightblue",
+    .test_regplot(fit_brma, mod = "year", plot_type = "ggplot", lcol = "darkblue", col.ci = "lightblue",
             pi = TRUE, col.pi = "lightyellow")
   )
 
@@ -435,12 +464,12 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_refline_base", function() {
-    regplot(fit_brma, mod = "year", plot_type = "base", refline = 0)
+    .test_regplot(fit_brma, mod = "year", plot_type = "base", refline = 0)
   })
 
   expect_vdiffr_snapshot(
     "regplot_refline_ggplot",
-    regplot(fit_brma, mod = "year", plot_type = "ggplot", refline = 0)
+    .test_regplot(fit_brma, mod = "year", plot_type = "ggplot", refline = 0)
   )
 
   # --------------------------------------------------
@@ -448,14 +477,14 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_custom_labels_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base",
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base",
             xlab = "Absolute Latitude", ylab = "Log Risk Ratio",
             main = "BCG Meta-Regression")
   })
 
   expect_vdiffr_snapshot(
     "regplot_custom_labels_ggplot",
-    regplot(fit_brma, mod = "ablat", plot_type = "ggplot",
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "ggplot",
             xlab = "Absolute Latitude", ylab = "Log Risk Ratio",
             main = "BCG Meta-Regression")
   )
@@ -465,12 +494,12 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_no_shade_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base", shade = FALSE)
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base", shade = FALSE)
   })
 
   expect_vdiffr_snapshot(
     "regplot_no_shade_ggplot",
-    regplot(fit_brma, mod = "ablat", plot_type = "ggplot", shade = FALSE)
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "ggplot", shade = FALSE)
   )
 
   # --------------------------------------------------
@@ -478,12 +507,12 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_custom_limits_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base", xlim = c(0, 60), ylim = c(-3, 1))
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base", xlim = c(0, 60), ylim = c(-3, 1))
   })
 
   expect_vdiffr_snapshot(
     "regplot_custom_limits_ggplot",
-    regplot(fit_brma, mod = "ablat", plot_type = "ggplot", xlim = c(0, 60), ylim = c(-3, 1))
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "ggplot", xlim = c(0, 60), ylim = c(-3, 1))
   )
 
   # --------------------------------------------------
@@ -491,7 +520,7 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_ci_only_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base", ci = TRUE, pi = FALSE)
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base", ci = TRUE, pi = FALSE)
   })
 
   # --------------------------------------------------
@@ -499,7 +528,7 @@ test_that("Regression plot customization snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_no_bands_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base", ci = FALSE, pi = FALSE)
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base", ci = FALSE, pi = FALSE)
   })
 })
 
@@ -519,11 +548,11 @@ test_that("Regression plot confidence-level snapshots are stable", {
   # --------------------------------------------------
 
   expect_vdiffr_snapshot("regplot_level_90_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base", level = 90, main = "90% CI")
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base", level = 90, main = "90% CI")
   })
 
   expect_vdiffr_snapshot("regplot_level_99_base", function() {
-    regplot(fit_brma, mod = "ablat", plot_type = "base", level = 99, main = "99% CI")
+    .test_regplot(fit_brma, mod = "ablat", plot_type = "base", level = 99, main = "99% CI")
   })
 })
 

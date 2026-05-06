@@ -35,6 +35,32 @@ skip_on_cran()
   )
 }
 
+.test_step_log_norm_reference <- function(mean, sd, sei, omega, spec) {
+
+  S   <- nrow(mean)
+  K   <- ncol(mean)
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    for (k in seq_len(K)) {
+      mean_z   <- spec[["sign"]] * mean[s, k] / sei[k]
+      sd_z     <- sd[s, k] / sei[k]
+      log_mass <- vapply(seq_len(spec[["n_bins"]]), function(b) {
+        log(omega[s, b]) + .test_interval_log_prob(
+          spec[["z_lower"]][b],
+          spec[["z_upper"]][b],
+          mean_z,
+          sd_z
+        )
+      }, numeric(1))
+
+      out[s, k] <- .test_logsumexp(log_mass)
+    }
+  }
+
+  return(out)
+}
+
 test_that("selection model fit data and syntax use only the selected-normal kernel", {
 
   prior_bias <- BayesTools::prior_weightfunction(
@@ -98,6 +124,46 @@ test_that("mixed normal-step bias syntax uses scalar step switch", {
   expect_match(syntax, "sel_kernel_mode_active", fixed = TRUE)
   expect_match(syntax, "dselnorm_step_switch", fixed = TRUE)
   expect_false(grepl("dselnorm_kernel", syntax, fixed = TRUE))
+})
+
+test_that("selection spec sets probability telescoping flag once", {
+
+  yi  <- c(.1, .2, .3)
+  sei <- c(.1, .1, .1)
+  safe_prior <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = .05,
+    weights = BayesTools::wf_fixed(c(1, .5))
+  )
+  safe_spec <- .selection_spec(
+    priors           = list(outcome = list(bias = safe_prior)),
+    yi               = yi,
+    sei              = sei,
+    effect_direction = "positive",
+    signed_data      = TRUE
+  )
+
+  expect_true(safe_spec[["telescope_probabilities"]])
+  expect_identical(safe_spec[["jags_data"]][["sel_telescope_probabilities"]], 1L)
+
+  wide_prior <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = .05,
+    weights = BayesTools::wf_fixed(c(1, 200))
+  )
+  expect_warning(
+    wide_spec <- .selection_spec(
+      priors           = list(outcome = list(bias = wide_prior)),
+      yi               = yi,
+      sei              = sei,
+      effect_direction = "positive",
+      signed_data      = TRUE
+    ),
+    "probability telescoping disabled"
+  )
+
+  expect_false(wide_spec[["telescope_probabilities"]])
+  expect_identical(wide_spec[["jags_data"]][["sel_telescope_probabilities"]], 0L)
 })
 
 test_that("branch kernel modes follow BayesTools phack and combined labels", {
@@ -382,6 +448,339 @@ test_that("unit weights reduce one- and two-sided step kernels to normal", {
     ), tolerance = 1e-12)
     expect_equal(moments[["mean"]], mu, tolerance = 1e-12)
     expect_equal(moments[["second"]], sigma^2 + mu^2, tolerance = 1e-12)
+  }
+})
+
+test_that("default RoBMA step normalizer matches independent Bem2011 reference", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  object <- RoBMA(
+    yi           = Bem2011[["d"]],
+    sei          = Bem2011[["se"]],
+    measure      = "SMD",
+    only_priors  = TRUE,
+    silent       = TRUE
+  )
+  spec <- .selection_spec(
+    priors           = object[["priors"]],
+    yi               = object[["data"]][["outcome"]][["yi"]],
+    sei              = object[["data"]][["outcome"]][["sei"]],
+    effect_direction = attr(object[["data"]], "effect_direction")
+  )
+
+  set.seed(107)
+  S     <- 4L
+  K     <- length(Bem2011[["d"]])
+  mean  <- matrix(stats::rnorm(S * K, mean = .12, sd = .08), nrow = S)
+  sd    <- matrix(stats::runif(S * K, min = .09, max = .42), nrow = S)
+  omega <- matrix(stats::runif(S * spec[["n_bins"]], min = .05, max = 1.50), nrow = S)
+
+  log_norm <- .selnorm_kernel_log_norm_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = Bem2011[["se"]],
+    omega          = omega,
+    selection_spec = spec
+  )
+
+  expect_equal(
+    log_norm,
+    .test_step_log_norm_reference(mean, sd, Bem2011[["se"]], omega, spec),
+    tolerance = 1e-12
+  )
+  expect_true(all(is.finite(log_norm)))
+})
+
+test_that("trusted step normalizer handles nonmonotone weights and tail underflow", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  yi    <- Bem2011[["d"]][1:3]
+  sei   <- Bem2011[["se"]][1:3]
+  spec  <- .test_step_spec(yi, sei)
+  mean  <- matrix(c(.07, .15, .23, -.04, .05, .17), nrow = 2, byrow = TRUE)
+  sd    <- matrix(c(.12, .19, .31, .10, .21, .28), nrow = 2, byrow = TRUE)
+  omega <- matrix(c(.2, 1.4, .3, 1.1, 1.3, .1, 1.2, .2), nrow = 2, byrow = TRUE)
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    ),
+    .test_step_log_norm_reference(mean, sd, sei, omega, spec),
+    tolerance = 1e-12
+  )
+
+  tail_spec              <- .test_step_spec(0, 1)
+  tail_spec[["n_bins"]]  <- 3L
+  tail_spec[["z_lower"]] <- c(40, 39, -Inf)
+  tail_spec[["z_upper"]] <- c(Inf, 40, 39)
+  tail_spec[["obs_bin"]] <- 1L
+  tail_spec[["telescope_probabilities"]] <- FALSE
+  tail_omega             <- matrix(c(1e300, 0, 1e-300), nrow = 1)
+  tail_mean              <- matrix(0, nrow = 1, ncol = 1)
+  tail_sd                <- matrix(1, nrow = 1, ncol = 1)
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = tail_mean,
+      sd             = tail_sd,
+      sei            = 1,
+      omega          = tail_omega,
+      selection_spec = tail_spec
+    )[1, 1],
+    .test_step_log_norm_reference(tail_mean, tail_sd, 1, tail_omega, tail_spec)[1, 1],
+    tolerance = 1e-10
+  )
+
+  cancellation_spec              <- .test_step_spec(0, 1)
+  cancellation_spec[["n_bins"]]  <- 3L
+  cancellation_spec[["z_lower"]] <- c(1e-8, 0, -Inf)
+  cancellation_spec[["z_upper"]] <- c(Inf, 1e-8, 0)
+  cancellation_spec[["obs_bin"]] <- 2L
+  cancellation_omega             <- matrix(c(1, 1e16, 1), nrow = 1)
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = tail_mean,
+      sd             = tail_sd,
+      sei            = 1,
+      omega          = cancellation_omega,
+      selection_spec = cancellation_spec
+    )[1, 1],
+    .test_step_log_norm_reference(
+      tail_mean, tail_sd, 1, cancellation_omega, cancellation_spec
+    )[1, 1],
+    tolerance = 1e-10
+  )
+})
+
+test_that("step normalizer handles normal mode and full-support unit weights", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  yi    <- Bem2011[["d"]][1:4]
+  sei   <- Bem2011[["se"]][1:4]
+  spec  <- .test_step_spec(yi, sei)
+  mean  <- matrix(c(.05, .12, .18, .24, .03, .10, .20, .30), nrow = 2, byrow = TRUE)
+  sd    <- matrix(c(.12, .16, .20, .28, .10, .18, .22, .35), nrow = 2, byrow = TRUE)
+  omega <- matrix(c(1, .6, .6, .2, 1, 1.4, .7, .7), nrow = 2, byrow = TRUE)
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec,
+      kernel_mode    = SELKERNEL_NORMAL
+    ),
+    matrix(0, nrow = nrow(mean), ncol = ncol(mean)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = matrix(1, nrow = nrow(mean), ncol = spec[["n_bins"]]),
+      selection_spec = spec
+    ),
+    matrix(0, nrow = nrow(mean), ncol = ncol(mean)),
+    tolerance = 1e-12
+  )
+  expect_false(all(abs(.selnorm_kernel_log_norm_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = sei,
+    omega          = omega,
+    selection_spec = spec
+  )) < 1e-12))
+})
+
+test_that("step normalizer is unchanged by sentinels and adjacent repeated bins", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  yi      <- Bem2011[["d"]][1:3]
+  sei     <- Bem2011[["se"]][1:3]
+  spec    <- .test_step_spec(yi, sei)
+  mean    <- matrix(c(.06, .12, .18, -.03, .04, .10), nrow = 2, byrow = TRUE)
+  sd      <- matrix(c(.11, .18, .25, .14, .20, .30), nrow = 2, byrow = TRUE)
+  omega   <- matrix(c(1, .5, .5, .2, 1, .8, .8, .3), nrow = 2, byrow = TRUE)
+  sentinel_spec <- spec
+
+  sentinel_spec[["z_lower"]] <- .selection_jags_bounds(sentinel_spec[["z_lower"]])
+  sentinel_spec[["z_upper"]] <- .selection_jags_bounds(sentinel_spec[["z_upper"]])
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = sentinel_spec
+    ),
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    ),
+    tolerance = 1e-12
+  )
+
+  collapsed_spec              <- spec
+  collapsed_spec[["n_bins"]]  <- 3L
+  collapsed_spec[["z_lower"]] <- c(spec[["z_lower"]][1L], spec[["z_lower"]][3L], spec[["z_lower"]][4L])
+  collapsed_spec[["z_upper"]] <- c(spec[["z_upper"]][1L], spec[["z_upper"]][2L], spec[["z_upper"]][4L])
+  collapsed_omega             <- omega[, c(1L, 2L, 4L), drop = FALSE]
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = collapsed_omega,
+      selection_spec = collapsed_spec
+    ),
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    ),
+    tolerance = 1e-12
+  )
+})
+
+test_that("step normalizer sign handling is symmetric for negative effects", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  yi_pos <- Bem2011[["d"]][1:4]
+  yi_neg <- -yi_pos
+  sei    <- Bem2011[["se"]][1:4]
+  mean   <- matrix(c(.04, .10, .16, .22, .02, .08, .14, .20), nrow = 2, byrow = TRUE)
+  sd     <- matrix(c(.10, .14, .18, .22, .12, .16, .20, .24), nrow = 2, byrow = TRUE)
+  omega  <- matrix(c(1, .7, .4, .2, 1, .9, .5, .3), nrow = 2, byrow = TRUE)
+
+  spec_pos <- .test_step_spec(yi_pos, sei, effect_direction = "positive")
+  spec_neg <- .test_step_spec(yi_neg, sei, effect_direction = "negative")
+
+  expect_equal(
+    .selnorm_kernel_log_norm_matrix(
+      mean           = -mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec_neg
+    ),
+    .selnorm_kernel_log_norm_matrix(
+      mean           = mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec_pos
+    ),
+    tolerance = 1e-12
+  )
+})
+
+test_that("trusted step CDF, moments, and RNG match exact fallback paths", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  yi    <- c(.04, .18, .31, .47)
+  sei   <- c(.08, .12, .17, .24)
+  mean  <- matrix(c(
+    .02, .10, .18, .26,
+    .05, .08, .20, .33,
+    .01, .14, .22, .29
+  ), nrow = 3, byrow = TRUE)
+  sd    <- matrix(c(
+    .11, .19, .25, .31,
+    .13, .22, .28, .36,
+    .16, .20, .30, .42
+  ), nrow = 3, byrow = TRUE)
+  omega <- matrix(c(
+    1, .35, 1.60, .20,
+    .80, .80, .25, 1.10,
+    1.40, .10, .95, .30
+  ), nrow = 3, byrow = TRUE)
+
+  for (effect_direction in c("positive", "negative")) {
+    sign <- if (effect_direction == "positive") 1 else -1
+    spec <- .test_step_spec(sign * yi, sei, effect_direction = effect_direction)
+    spec_fallback <- spec
+    spec_fallback[["telescope_probabilities"]] <- FALSE
+
+    cdf_lower <- .selnorm_kernel_cdf_matrix(
+      q              = sign * yi,
+      mean           = sign * mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    )
+    cdf_upper <- .selnorm_kernel_cdf_matrix(
+      q              = sign * yi,
+      mean           = sign * mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec,
+      lower.tail     = FALSE
+    )
+    moments <- .selnorm_kernel_moments_matrix(
+      mean           = sign * mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    )
+
+    expect_equal(
+      cdf_lower,
+      .test_step_cdf_reference(sign * yi, sign * mean, sd, sei, omega, spec),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      cdf_upper,
+      .test_step_cdf_reference(
+        sign * yi, sign * mean, sd, sei, omega, spec, lower.tail = FALSE
+      ),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      moments,
+      .test_step_moments_reference(sign * mean, sd, sei, omega, spec),
+      tolerance = 1e-12
+    )
+
+    set.seed(511)
+    rng_fast <- .selnorm_kernel_rng_matrix(
+      mean           = sign * mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec
+    )
+    set.seed(511)
+    rng_fallback <- .selnorm_kernel_rng_matrix(
+      mean           = sign * mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec_fallback
+    )
+    expect_equal(rng_fast, rng_fallback, tolerance = 1e-12)
   }
 })
 
@@ -774,24 +1173,221 @@ test_that("funnel selected-normal CDF is finite at zero standard error", {
   expect_equal(out, expected, tolerance = 1e-12)
 })
 
+test_that("funnel and regplot selected CDF paths match non-telescoped fallback", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  skip_if_not(.has_native_regplot_selection_mixture())
+
+  set.seed(109)
+  S     <- 11L
+  K     <- 3L
+  yi    <- c(.08, .20, .42)
+  sei   <- c(.09, .14, .22)
+  spec  <- .test_step_spec(yi, sei)
+  omega <- matrix(runif(S * spec[["n_bins"]], .10, 1.80), nrow = S)
+
+  selection <- spec
+  selection[["omega"]]       <- omega
+  selection[["alpha"]]       <- rep(0, S)
+  selection[["phack_kind"]]  <- rep(0L, S)
+  selection[["kernel_mode"]] <- rep(SELKERNEL_STEP, S)
+  selection[["use_normal"]]  <- rep(FALSE, S)
+  selection[["has_phack"]]   <- FALSE
+
+  selection_fallback <- selection
+  selection_fallback[["telescope_probabilities"]] <- FALSE
+
+  setup <- list(
+    mu                = seq(-.12, .20, length.out = S),
+    tau               = seq(.03, .18, length.out = S),
+    PET               = rep(0, S),
+    PEESE             = rep(0, S),
+    is_weightfunction = rep(TRUE, S),
+    selection         = selection
+  )
+  setup_fallback <- setup
+  setup_fallback[["selection"]] <- selection_fallback
+
+  expect_equal(
+    .funnel_model_averaged_cdf(.14, .13, setup, "positive"),
+    .funnel_model_averaged_cdf(.14, .13, setup_fallback, "positive"),
+    tolerance = 1e-12
+  )
+
+  mean_samples <- matrix(rnorm(S * K, .05, .18), nrow = S)
+  sd_samples   <- matrix(runif(S * K, .08, .35), nrow = S)
+
+  expect_equal(
+    .regplot_selnorm_mixture_interval_quantiles(
+      mean_samples      = mean_samples,
+      sd_samples        = sd_samples,
+      se                = .13,
+      probs             = c(.10, .90),
+      selection_context = selection
+    ),
+    .regplot_selnorm_mixture_interval_quantiles(
+      mean_samples      = mean_samples,
+      sd_samples        = sd_samples,
+      se                = .13,
+      probs             = c(.10, .90),
+      selection_context = selection_fallback
+    ),
+    tolerance = 1e-8
+  )
+})
+
+test_that("native funnel model-averaged quantiles match R fallback", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  skip_if_not(.has_native_funnel_model_averaged_quantiles(list(
+    selection = list()
+  )))
+
+  set.seed(127)
+  S     <- 19L
+  yi    <- c(.08, .20, .42)
+  sei   <- c(.09, .14, .22)
+  omega <- matrix(runif(S * 4L, .10, 1.80), nrow = S)
+
+  for (effect_direction in c("positive", "negative")) {
+    sign <- if (effect_direction == "positive") 1 else -1
+    spec <- .test_step_spec(sign * yi, sei, effect_direction = effect_direction)
+
+    for (telescope_probabilities in c(TRUE, FALSE)) {
+      selection <- spec
+      selection[["omega"]] <- omega[
+        , seq_len(spec[["n_bins"]]), drop = FALSE
+      ]
+      selection[["alpha"]]       <- rep(0, S)
+      selection[["phack_kind"]]  <- rep(0L, S)
+      selection[["kernel_mode"]] <- rep(SELKERNEL_STEP, S)
+      selection[["kernel_mode"]][seq(3, S, by = 5)] <- SELKERNEL_NORMAL
+      selection[["use_normal"]] <- selection[["kernel_mode"]] == SELKERNEL_NORMAL
+      selection[["has_phack"]]  <- FALSE
+      selection[["telescope_probabilities"]] <- telescope_probabilities
+
+      setup <- list(
+        mu                = sign * seq(-.12, .20, length.out = S),
+        tau               = seq(.00, .18, length.out = S),
+        PET               = rnorm(S, 0, .03),
+        PEESE             = rnorm(S, 0, .02),
+        is_weightfunction = !selection[["use_normal"]],
+        selection         = selection
+      )
+      se_sequence <- c(0, .05, .13, .27)
+
+      native <- .funnel_model_averaged_quantiles_native(
+        se_sequence      = se_sequence,
+        setup            = setup,
+        effect_direction = effect_direction
+      )
+      ref <- list(
+        lower = vapply(
+          se_sequence,
+          .funnel_model_averaged_quantile,
+          numeric(1),
+          p                = .025,
+          setup            = setup,
+          effect_direction = effect_direction
+        ),
+        upper = vapply(
+          se_sequence,
+          .funnel_model_averaged_quantile,
+          numeric(1),
+          p                = .975,
+          setup            = setup,
+          effect_direction = effect_direction
+        ),
+        mid = vapply(
+          se_sequence,
+          .funnel_model_averaged_quantile,
+          numeric(1),
+          p                = .5,
+          setup            = setup,
+          effect_direction = effect_direction
+        )
+      )
+
+      expect_equal(native[["lower"]], ref[["lower"]], tolerance = 1e-5)
+      expect_equal(native[["upper"]], ref[["upper"]], tolerance = 1e-5)
+      expect_equal(native[["mid"]],   ref[["mid"]],   tolerance = 1e-5)
+    }
+  }
+})
+
+test_that("native funnel model-averaged quantiles reject active p-hacking", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  skip_if_not(.has_native_funnel_model_averaged_quantiles(list(
+    selection = list()
+  )))
+
+  S    <- 3L
+  spec <- .test_step_spec(c(.08, .20), c(.09, .14))
+
+  selection <- spec
+  selection[["omega"]]       <- matrix(
+    runif(S * spec[["n_bins"]], .10, 1.80),
+    nrow = S
+  )
+  selection[["alpha"]]       <- rep(.20, S)
+  selection[["phack_kind"]]  <- rep(1L, S)
+  selection[["kernel_mode"]] <- rep(SELKERNEL_STEP_PHACK_POWER, S)
+  selection[["use_normal"]] <- rep(FALSE, S)
+  selection[["has_phack"]]  <- TRUE
+
+  setup <- list(
+    mu                = seq(-.12, .20, length.out = S),
+    tau               = seq(.00, .18, length.out = S),
+    PET               = rep(0, S),
+    PEESE             = rep(0, S),
+    is_weightfunction = rep(TRUE, S),
+    selection         = selection
+  )
+
+  expect_error(
+    .funnel_model_averaged_quantiles_native(
+      se_sequence      = c(.05, .13),
+      setup            = setup,
+      effect_direction = "positive"
+    ),
+    "active p-hacking"
+  )
+})
+
 test_that("funnel max_samples helpers validate and stratify rows", {
 
-  bias_indicator <- c(rep(1L, 50), rep(2L, 30), rep(3L, 20))
+  bias_indicator <- c(rep(1L, 5000), rep(2L, 3000), rep(3L, 2000))
 
+  expect_equal(.normalize_max_samples(10), 10L)
+  expect_equal(.normalize_max_samples(Inf), Inf)
+  expect_error(.normalize_max_samples(9), "at least 10")
+  expect_error(.normalize_max_samples(10.5), "positive integer or Inf")
   expect_equal(.normalize_funnel_max_samples(10), 10L)
   expect_equal(.normalize_funnel_max_samples(Inf), Inf)
   expect_error(.normalize_funnel_max_samples(9), "at least 10")
   expect_error(.normalize_funnel_max_samples(10.5), "positive integer or Inf")
 
+  plain_rows <- .thin_sample_rows(10000, 1000)
+  expect_equal(plain_rows, round(seq(from = 1, to = 10000, length.out = 1000)))
+  expect_true(max(diff(plain_rows)) - min(diff(plain_rows)) <= 1)
+  expect_null(.thin_sample_rows(1000, 1000))
+  expect_null(.thin_sample_rows(100, Inf))
+
   rows <- .funnel_subsample_rows(
     bias_indicator = bias_indicator,
-    max_samples    = 10
+    max_samples    = 1000
   )
 
-  expect_equal(rows, .funnel_subsample_rows(bias_indicator, 10))
-  expect_equal(length(rows), 10)
-  expect_equal(as.integer(table(bias_indicator[rows])), c(5L, 3L, 2L))
+  expect_equal(rows, .funnel_subsample_rows(bias_indicator, 1000))
+  expect_equal(length(rows), 1000)
+  expect_equal(as.integer(table(bias_indicator[rows])), c(500L, 300L, 200L))
+  expect_equal(rows, .thin_sample_rows_by_group(bias_indicator, 1000))
   expect_null(.funnel_subsample_rows(bias_indicator, Inf))
+
+  rare_group <- c(1L, rep(2L, 9999))
+  rare_rows  <- .thin_sample_rows_by_group(rare_group, 1000)
+  expect_true(1L %in% rare_group[rare_rows])
 })
 
 test_that("selection-only prior_bias wrapper is delegated to BayesTools priors", {

@@ -93,6 +93,39 @@ test_that("Newdata prediction preserves duplicate rows and rejects novel factor 
   )
 })
 
+test_that("Predictions can use an already thinned posterior", {
+
+  name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
+  fit_brma          <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+  selected_rows     <- unique(round(seq(
+    from       = 1,
+    to         = nrow(posterior_samples),
+    length.out = min(1000L, nrow(posterior_samples))
+  )))
+
+  full_prediction <- as.matrix(predict(
+    fit_brma,
+    type  = "terms",
+    quiet = TRUE
+  ))
+  thinned_prediction <- as.matrix(predict(
+    fit_brma,
+    type               = "terms",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples[selected_rows, , drop = FALSE]
+  ))
+
+  expect_equal(
+    thinned_prediction,
+    full_prediction[selected_rows, , drop = FALSE],
+    tolerance = 1e-12,
+    info      = "formula-based predictions use the caller-supplied posterior rows"
+  )
+})
+
 test_that("Wrapper functions have correct interface", {
 
   name <- "bcg_meta-analysis"

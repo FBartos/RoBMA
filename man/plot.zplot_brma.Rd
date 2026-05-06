@@ -8,7 +8,7 @@
   x,
   plot_type = "base",
   probs = c(0.025, 0.975),
-  max_samples = 500,
+  max_samples = 10000,
   plot_fit = TRUE,
   plot_extrapolation = TRUE,
   plot_ci = TRUE,
@@ -35,7 +35,7 @@ Defaults to \code{"base"}.}
 \item{probs}{quantiles for credible intervals. Defaults to \code{c(.025, .975)}.}
 
 \item{max_samples}{maximum posterior samples for density estimation.
-Defaults to 500.}
+Defaults to 10000. Use \code{Inf} to use all posterior samples.}
 
 \item{plot_fit}{whether to show fitted density (with bias adjustments).
 Defaults to \code{TRUE}.}

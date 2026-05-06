@@ -512,6 +512,96 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   return(dots)
 }
 
+.normalize_max_samples <- function(max_samples, argument = "max_samples",
+                                   minimum = 10L) {
+
+  valid <- is.numeric(max_samples) &&
+    length(max_samples) == 1L &&
+    !is.na(max_samples) &&
+    max_samples > 0
+
+  if (!valid || (!is.infinite(max_samples) && max_samples != floor(max_samples))) {
+    stop("'", argument, "' must be a single positive integer or Inf.", call. = FALSE)
+  }
+
+  if (!is.infinite(max_samples) && max_samples < minimum) {
+    stop("'", argument, "' must be at least ", minimum, ".", call. = FALSE)
+  }
+
+  if (is.infinite(max_samples)) {
+    return(Inf)
+  }
+
+  return(as.integer(max_samples))
+}
+
+.thin_sample_rows <- function(n_samples, max_samples) {
+
+  if (is.infinite(max_samples) || n_samples <= max_samples) {
+    return(NULL)
+  }
+
+  return(unique(round(seq(
+    from       = 1,
+    to         = n_samples,
+    length.out = as.integer(max_samples)
+  ))))
+}
+
+.thin_sample_rows_by_group <- function(group, max_samples) {
+
+  n_samples <- length(group)
+  if (is.infinite(max_samples) || n_samples <= max_samples) {
+    return(NULL)
+  }
+  if (anyNA(group)) {
+    stop("'group' must not contain missing values.", call. = FALSE)
+  }
+
+  max_samples <- as.integer(max_samples)
+  group       <- factor(group)
+  group_rows  <- split(seq_len(n_samples), group)
+  group_n     <- as.integer(vapply(group_rows, length, integer(1)))
+  raw_n       <- group_n / n_samples * max_samples
+  selected_n  <- floor(raw_n)
+  remaining   <- max_samples - sum(selected_n)
+
+  while (remaining > 0L && any(selected_n < group_n)) {
+    available  <- which(selected_n < group_n)
+    remainders <- raw_n - selected_n
+    add_to     <- available[which.max(remainders[available])]
+    selected_n[add_to] <- selected_n[add_to] + 1L
+    remaining          <- remaining - 1L
+  }
+
+  if (max_samples >= length(group_n) && any(selected_n == 0L)) {
+    for (i in which(selected_n == 0L)) {
+      donors <- which(selected_n > 1L)
+      if (length(donors) == 0L) {
+        break
+      }
+      donor <- donors[which.max(selected_n[donors])]
+      selected_n[donor] <- selected_n[donor] - 1L
+      selected_n[i]     <- 1L
+    }
+  }
+
+  rows <- integer(0)
+  for (i in seq_along(group_rows)) {
+    if (selected_n[i] == 0L) {
+      next
+    }
+    selected <- group_rows[[i]][round(seq(
+      from       = 1,
+      to         = length(group_rows[[i]]),
+      length.out = selected_n[i]
+    ))]
+    rows     <- c(rows, selected)
+  }
+
+  return(sort(unique(rows)))
+}
+
 .check_plot_numeric <- function(x, argument, check_length = NULL,
                                 lower = -Inf, upper = Inf,
                                 allow_null = TRUE) {

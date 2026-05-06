@@ -37,9 +37,8 @@ OBJECTS = distributions/DWN.o \
 		  distributions/DSELNORMSTEP.o \
 		  distributions/DSELNORMSTEPSWITCH.o \
 		  distributions/DSELNORMKERNEL.o \
-		  matrix/matrix.o \
-		  source/selnorm.o \
-		  r-glmm.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o \
+		  selnorm/selnorm.o \
+		  r-glmm.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############
 

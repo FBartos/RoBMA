@@ -6,12 +6,12 @@
 #include <JRmath.h>
 #include <cmath>
 
-#include "../source/selnorm.h"
+#include "../selnorm/selnorm.h"
 
 namespace jags {
 namespace RoBMA {
 
-DSELNORMSTEPSWITCH::DSELNORMSTEPSWITCH() : VectorDist("dselnorm_step_switch", 10) {}
+DSELNORMSTEPSWITCH::DSELNORMSTEPSWITCH() : VectorDist("dselnorm_step_switch", 11) {}
 
 bool DSELNORMSTEPSWITCH::checkParameterLength(std::vector<unsigned int> const &len) const
 {
@@ -20,7 +20,8 @@ bool DSELNORMSTEPSWITCH::checkParameterLength(std::vector<unsigned int> const &l
     len[5] == len[6] &&
     len[7] == 1 &&
     len[8] == 1 &&
-    len[9] == 1;
+    len[9] == 1 &&
+    len[10] == 1;
 }
 
 bool DSELNORMSTEPSWITCH::checkParameterValue(std::vector<double const *> const &par,
@@ -30,9 +31,11 @@ bool DSELNORMSTEPSWITCH::checkParameterValue(std::vector<double const *> const &
   const int obs_bin     = static_cast<int>(*par[7]);
   const int sign        = static_cast<int>(*par[8]);
   const int kernel_mode = static_cast<int>(*par[9]);
+  const int telescope_probabilities = static_cast<int>(*par[10]);
 
   if (!(*par[1] > 0 && *par[2] > 0 && *par[3] > 0) ||
       !(sign == 1 || sign == -1) ||
+      !(telescope_probabilities == 0 || telescope_probabilities == 1) ||
       !(kernel_mode == SELKERNEL_NORMAL || kernel_mode == SELKERNEL_STEP)) {
     return false;
   }
@@ -52,7 +55,7 @@ bool DSELNORMSTEPSWITCH::checkParameterValue(std::vector<double const *> const &
     }
   }
 
-  return true;
+  return selnorm_is_descending_step_partition(par[5], par[6], n_bins);
 }
 
 double DSELNORMSTEPSWITCH::logDensity(double const *x, unsigned int length,
@@ -64,7 +67,8 @@ double DSELNORMSTEPSWITCH::logDensity(double const *x, unsigned int length,
   const int kernel_mode = static_cast<int>(*par[9]);
 
   if (kernel_mode == SELKERNEL_NORMAL) {
-    return *par[3] * dnorm(*x, *par[0], *par[1], true);
+    const double log_lik = dnorm(*x, *par[0], *par[1], true);
+    return *par[3] == 1 ? log_lik : *par[3] * log_lik;
   }
 
   double phack_z_zero[2] = {0, 0};
@@ -85,6 +89,8 @@ double DSELNORMSTEPSWITCH::logDensity(double const *x, unsigned int length,
   data.segment_phack_region = segment_zero;
   data.segment_step_bin_real = 0;
   data.segment_phack_region_real = 0;
+  data.trusted_step_partition = true;
+  data.telescope_probabilities = static_cast<int>(*par[10]) == 1;
 
   return cpp_selnorm_kernel_lpdf(
     *x,

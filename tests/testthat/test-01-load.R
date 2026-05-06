@@ -25,7 +25,8 @@ test_that("RoBMA JAGS module exposes scalar selected-normal step kernel", {
     "  mu ~ dnorm(0, 1)\n",
     "  for(i in 1:K){\n",
     "    yi[i] ~ dselnorm_step(mu, sigma, sei[i], 1, omega,",
-    "sel_z_lower, sel_z_upper, sel_obs_bin[i], sel_sign)\n",
+    "sel_z_lower, sel_z_upper, sel_obs_bin[i], sel_sign, ",
+    "sel_telescope_probabilities)\n",
     "  }\n",
     "}\n"
   )
@@ -86,7 +87,7 @@ test_that("RoBMA JAGS module exposes scalar selected-normal step switch kernel",
     "  for(i in 1:K){\n",
     "    yi[i] ~ dselnorm_step_switch(mu, sigma, sei[i], 1, omega,",
     "sel_z_lower, sel_z_upper, sel_obs_bin[i], sel_sign, ",
-    "sel_kernel_mode_active)\n",
+    "sel_kernel_mode_active, sel_telescope_probabilities)\n",
     "  }\n",
     "}\n"
   )

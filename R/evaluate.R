@@ -128,6 +128,28 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .posterior_formula_fit
+# ---------------------------------------------------------------------------- #
+#
+# Build a BayesTools::JAGS_evaluate_formula() input from already selected
+# posterior rows while preserving formula scaling metadata from the JAGS fit.
+#
+# ---------------------------------------------------------------------------- #
+.posterior_formula_fit <- function(fit, posterior_samples) {
+
+  formula_fit <- if (inherits(posterior_samples, "mcmc")) {
+    posterior_samples
+  } else {
+    coda::as.mcmc(as.matrix(posterior_samples))
+  }
+
+  attr(formula_fit, "formula_scale") <- attr(fit, "formula_scale")
+
+  return(formula_fit)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .evaluate.brma.tau
 # ---------------------------------------------------------------------------- #
 #
@@ -176,7 +198,7 @@
     # scale regression: evaluate log_tau formula then exponentiate
     # BayesTools::JAGS_evaluate_formula returns K x S matrix, we need S x K
     log_tau_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = fit,
+      fit        = .posterior_formula_fit(fit, posterior_samples),
       formula    = scale_formula,
       parameter  = "log_tau",
       data       = scale_data,
@@ -278,7 +300,7 @@
     # meta-regression: evaluate mu formula with moderators
     # returns K x S, transpose to S x K
     mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = fit,
+      fit        = .posterior_formula_fit(fit, posterior_samples),
       formula    = mods_formula,
       parameter  = "mu",
       data       = mods_data,

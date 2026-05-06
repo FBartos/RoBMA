@@ -4,7 +4,7 @@
 #include <util/nainf.h>
 
 #include <cmath>
-#include "../source/selnorm.h"
+#include "../selnorm/selnorm.h"
 
 namespace jags {
 namespace RoBMA {
@@ -56,6 +56,8 @@ double DSELNORMKERNEL::logDensity(double const *x, unsigned int length,
   data.segment_phack_region = 0;
   data.segment_step_bin_real = par[16];
   data.segment_phack_region_real = par[17];
+  data.trusted_step_partition = false;
+  data.telescope_probabilities = false;
 
   return cpp_selnorm_kernel_lpdf(
     *x,

@@ -22,7 +22,13 @@ struct SelNormKernelData {
   const int *segment_phack_region;
   const double *segment_step_bin_real;
   const double *segment_phack_region_real;
+  bool trusted_step_partition;
+  bool telescope_probabilities;
 };
+
+bool selnorm_is_descending_step_partition(const double *z_lower,
+                                          const double *z_upper,
+                                          int n_bins);
 
 double cpp_selnorm_kernel_lpdf(
   double y,
@@ -70,6 +76,22 @@ double cpp_selnorm_kernel_cdf(
   bool validate_omega = true
 );
 
+double cpp_selnorm_kernel_cdf_with_log_norm(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double alpha,
+  int phack_kind,
+  int kernel_mode,
+  const SelNormKernelData &data,
+  double log_normalizer,
+  int omega_stride = 1,
+  bool lower_tail = true,
+  bool validate_omega = true
+);
+
 void cpp_selnorm_kernel_moments(
   double mean,
   double sd,
@@ -81,6 +103,39 @@ void cpp_selnorm_kernel_moments(
   const SelNormKernelData &data,
   double *moment_mean,
   double *moment_second,
+  int omega_stride = 1,
+  bool validate_omega = true
+);
+
+void cpp_selnorm_kernel_summary(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double alpha,
+  int phack_kind,
+  int kernel_mode,
+  const SelNormKernelData &data,
+  double *cdf,
+  double *moment_mean,
+  double *moment_second,
+  int omega_stride = 1,
+  bool lower_tail = true,
+  bool validate_omega = true
+);
+
+double cpp_selnorm_kernel_threshold(
+  double z_threshold,
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double alpha,
+  int phack_kind,
+  int kernel_mode,
+  const SelNormKernelData &data,
+  double *inverse_weight,
   int omega_stride = 1,
   bool validate_omega = true
 );

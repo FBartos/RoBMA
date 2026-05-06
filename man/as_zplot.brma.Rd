@@ -8,7 +8,7 @@
 \method{as_zplot}{brma}(
   object,
   significance_level = stats::qnorm(0.975),
-  max_samples = 1000,
+  max_samples = 10000,
   ...
 )
 }
@@ -19,7 +19,7 @@
 to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
 
 \item{max_samples}{maximum number of posterior samples for estimation.
-Defaults to 1000.}
+Defaults to 10000. Use \code{Inf} to use all posterior samples.}
 
 \item{...}{additional arguments (currently unused).}
 }

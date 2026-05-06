@@ -29,6 +29,7 @@
   ylim = NULL,
   sampling_bias = TRUE,
   sei = NULL,
+  max_samples = 10000,
   plot_type = "base",
   as_data = FALSE,
   ...
@@ -109,6 +110,10 @@ when \code{si = TRUE}; the mean prediction is unchanged.}
 \item{sei}{single positive numeric value used as the reference standard
 error for sampling-bias and sampling-interval calculations. Defaults to the
 median observed standard error.}
+
+\item{max_samples}{maximum number of posterior samples used for prediction
+summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
+use all posterior samples.}
 
 \item{plot_type}{character; whether to use base R graphics (\code{"base"})
 or ggplot2 (\code{"ggplot"}). Defaults to \code{"base"}.}
