@@ -107,6 +107,14 @@ jobs:
           sudo mkdir -p $(brew --prefix)/libexec
           sudo ln -sf $(brew --prefix jags)/bin/jags $(brew --prefix)/libexec/jags-terminal
 
+      - name: Install autoreconf dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          if ! command -v aclocal >/dev/null 2>&1; then
+            brew install automake
+          fi
+          command -v aclocal
+
       - name: Resolve BayesTools source
         id: bayestools
         run: Rscript .github/scripts/resolve-bayestools-source.R
