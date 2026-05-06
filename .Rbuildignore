@@ -33,6 +33,7 @@ tests/testthat/test-11-zcurve.R
 ^docs$
 ^doc$
 ^Meta$
+^build$
 ^RoBMA.Rcheck$
 README.Rmd
 README.html
