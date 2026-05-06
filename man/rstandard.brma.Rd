@@ -14,7 +14,7 @@
 \item{conditioning_depth}{conditioning depth. Options are:
 \itemize{
 \item \code{"marginal"} (default): Residuals from fixed effects predictions
-(observed - \eqn{X\beta}).
+(\eqn{observed - X\beta}).
 \item \code{"cluster"}: Residuals from cluster-level predictions (observed -
 (\eqn{X\beta + gamma})). Only available for multilevel (3-level) models.
 \item \code{"estimate"}: Residuals from BLUPs,
