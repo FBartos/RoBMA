@@ -85,12 +85,12 @@ jobs:
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
-          if ! command -v jags &> /dev/null; then
-            echo "JAGS not found in cache, installing via brew..."
+          if ! brew list jags >/dev/null 2>&1; then
+            echo "JAGS not installed, installing via brew..."
             brew update
             brew install jags
           else
-            echo "JAGS found in cache, skipping installation"
+            echo "JAGS already installed, skipping installation"
           fi
 
       - name: Set JAGS environment variables (macOS)
@@ -106,12 +106,12 @@ jobs:
         run: |
           JAGS_PREFIX=$(brew --prefix jags)
           BREW_PREFIX=$(brew --prefix)
-          sudo mkdir -p "$BREW_PREFIX/lib" "$BREW_PREFIX/libexec"
-          for dylib in "$JAGS_PREFIX"/lib/libjags*.dylib; do
-            sudo ln -sf "$dylib" "$BREW_PREFIX/lib/$(basename "$dylib")"
-          done
+          brew link --overwrite jags
+          sudo mkdir -p "$BREW_PREFIX/libexec"
           sudo ln -sf "$JAGS_PREFIX/bin/jags" "$BREW_PREFIX/libexec/jags-terminal"
+          test -f "$BREW_PREFIX/lib/JAGS/modules-4/basemod.so"
           ls -l "$BREW_PREFIX"/lib/libjags*.dylib
+          ls -l "$BREW_PREFIX"/lib/JAGS/modules-4/basemod.so
 
       - name: Install autoreconf dependencies (macOS)
         if: runner.os == 'macOS'
