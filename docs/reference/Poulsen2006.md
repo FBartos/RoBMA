@@ -33,8 +33,8 @@ A data.frame with 3 columns and 5 observations:
 Bartoš F, Gronau QF, Timmers B, Otte WM, Ly A, Wagenmakers E (2021).
 “Bayesian model-averaged meta-analysis in medicine.” *Statistics in
 Medicine*, **40**(30), 6743–6761.
-[doi:10.1002/sim.9170](https://doi.org/10.1002/sim.9170) .  
-  
+[doi:10.1002/sim.9170](https://doi.org/10.1002/sim.9170) .\
+\
 Poulsen S, Errboe M, Mevil YL, Glenny A (2006). “Potassium containing
 toothpastes for dentine hypersensitivity.” *Cochrane Database of
 Systematic Reviews*.

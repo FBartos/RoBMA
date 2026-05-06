@@ -34,6 +34,7 @@ adjustment using the two algorithms. First, we load the package and
 inspect the data set.
 
 ``` r
+
 library(RoBMA)
 data("Andrews2021", package = "RoBMA")
 head(Andrews2021)
@@ -61,6 +62,7 @@ process for comparison using the
 [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html) function.
 
 ``` r
+
 ## Bridge sampling
 t1_bridge <- Sys.time()
 fit_RoBMA.bridge <- RoBMA.reg(
@@ -93,6 +95,7 @@ t2_ss <- Sys.time()
 Once the models are fitted, we compute the time taken to fit each model.
 
 ``` r
+
 bridge_time <- difftime(t2_bridge, t1_bridge, units = "mins")
 ss_time     <- difftime(t2_ss, t1_ss, units = "mins")
 ```
@@ -114,6 +117,7 @@ Below we compare the numeric summaries using the
 object.
 
 ``` r
+
 summary(fit_RoBMA.bridge)
 #> Call:
 #> RoBMA.reg(formula = ~measure + age, data = Andrews2021, algorithm = "bridge", 
@@ -209,6 +213,7 @@ the moderators reveals that the two algorithms produce nearly identical
 results.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 5))
 plot(fit_RoBMA.bridge, parameter = "mu", prior = TRUE, main = "Bridge Sampling")
 plot(fit_RoBMA.ss,     parameter = "mu", prior = TRUE, main = "Spike-and-Slab")
@@ -224,6 +229,7 @@ each factor level. We use the
 function to extract these summaries.
 
 ``` r
+
 marginal_summary(fit_RoBMA.bridge)
 #> Call:
 #> RoBMA.reg(formula = ~measure + age, data = Andrews2021, algorithm = "bridge", 
@@ -268,6 +274,7 @@ level). A visual comparison of the estimated marginal means reveals that
 the two algorithms produce nearly identical results.
 
 ``` r
+
 par(mfrow = c(1, 2))
 marginal_plot(fit_RoBMA.bridge, parameter = "measure", conditional = TRUE, prior = TRUE, xlim = c(-1, 1), ylim = c(0, 7), main = "Bridge Sampling")
 marginal_plot(fit_RoBMA.ss,     parameter = "measure", conditional = TRUE, prior = TRUE, xlim = c(-1, 1), ylim = c(0, 7), main = "Spike-and-Slab")

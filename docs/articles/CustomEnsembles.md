@@ -35,6 +35,7 @@ coding of the results as summarized by Bem in one of his later replies
 (Bem et al., 2011).
 
 ``` r
+
 library(RoBMA)
 #> Loading required namespace: runjags
 #> Loading required namespace: mvtnorm
@@ -102,6 +103,7 @@ and set the prior distributions to correspond to the null hypotheses and
 set the seed to ensure reproducibility of the results.
 
 ``` r
+
 fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
              priors_effect = NULL, priors_heterogeneity = NULL, priors_bias = NULL,
              priors_effect_null        = prior("spike", parameters = list(location = 0)),
@@ -115,6 +117,7 @@ with the [`summary()`](https://rdrr.io/r/base/summary.html) function by
 setting `type = "models"`.
 
 ``` r
+
 summary(fit, type = "models")
 #> Call:
 #> RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, 
@@ -146,6 +149,7 @@ created using the ggplot2 package by adding `plot_type = "ggplot"`
 argument).
 
 ``` r
+
 plot(prior("normal", parameters = list(mean = .15, sd = .10), truncation = list(lower = 0)))
 ```
 
@@ -171,6 +175,7 @@ function are `prior_X` - in singular, in comparison to
 that uses `priors_X` in plural.)
 
 ``` r
+
 fit <- update(fit,
               prior_effect             = prior("normal", parameters = list(mean = .15, sd = .10), truncation = list(lower = 0)),
               prior_heterogeneity_null = prior("spike",  parameters = list(location = 0)),
@@ -182,6 +187,7 @@ both models. We see that Model 2 notably outperformed the first model
 and attained all of the posterior model probability.
 
 ``` r
+
 summary(fit, type = "models")
 #> Call:
 #> RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, 
@@ -221,6 +227,7 @@ Now, we just need to add the remaining models to the ensemble using the
 illustrated.
 
 ``` r
+
 ### adding Model 3
 fit <- update(fit,
               prior_effect        = prior("normal", parameters = list(mean = .15, sd = .10), truncation = list(lower = 0)),
@@ -257,6 +264,7 @@ ensemble using the `summary())` function with `type = "models"`
 argument.
 
 ``` r
+
 summary(fit, type = "models")
 #> Call:
 #> RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, 
@@ -305,6 +313,7 @@ and moderate evidence for the presence of the publication bias,
 $`\text{BF}_{\text{pb}} = 3.21`$.
 
 ``` r
+
 summary(fit)
 #> Call:
 #> RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, 
@@ -349,6 +358,7 @@ the zero effect size, which increased from the prior probability of 0.71
 to the posterior the posterior probability of 0.81.
 
 ``` r
+
 plot(fit, parameter = "mu", prior = TRUE)
 ```
 
@@ -361,6 +371,7 @@ light gray prior distribution and the dark gray the posterior
 distribution.
 
 ``` r
+
 plot(fit, parameter = "weightfunction", prior = TRUE)
 ```
 
@@ -371,6 +382,7 @@ relationship between the standard errors and effect sizes by setting
 `parameter = "PET-PEESE"`.
 
 ``` r
+
 plot(fit, parameter = "PET-PEESE", prior = TRUE)
 ```
 

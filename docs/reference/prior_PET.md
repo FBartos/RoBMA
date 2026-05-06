@@ -42,3 +42,7 @@ This forwards to
 and uses the same distribution and parameter conventions as
 [`prior()`](https://fbartos.github.io/RoBMA/reference/prior.md). By
 default, PET priors are truncated to the positive half-line.
+
+## See also
+
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)

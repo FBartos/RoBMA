@@ -32,8 +32,8 @@ Investigating variation in replicability across samples and settings.”
 *Advances in Methods and Practices in Psychological Science*, **1**(4),
 443–490.
 [doi:10.1177/2515245918810225](https://doi.org/10.1177/2515245918810225)
-.  
-  
+.\
+\
 Tversky A, Kahneman D (1981). “The framing of decisions and the
 psychology of choice.” *Science*, **211**(4481), 453–458.
 [doi:10.1126/science.7455683](https://doi.org/10.1126/science.7455683) .

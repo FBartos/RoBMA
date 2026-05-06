@@ -18,6 +18,7 @@ funnel(
   conditioning_depth = "marginal",
   sampling_heterogeneity = TRUE,
   sampling_bias = TRUE,
+  max_samples = 10000,
   plot_type = "base",
   ...
 )
@@ -89,6 +90,12 @@ funnel(
   models (weightfunction), uses selected-normal quantiles. When `TRUE`
   and the model includes PET/PEESE, incorporates the expected skew from
   these regression adjustments.
+
+- max_samples:
+
+  maximum number of posterior samples used for model-averaged
+  publication-bias funnel contours. Defaults to `10000`. Use `Inf` to
+  use all posterior samples.
 
 - plot_type:
 

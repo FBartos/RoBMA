@@ -26,6 +26,7 @@ We load the RoBMA package and specify the number of adverse events and
 sample sizes in each arm as described on p. 73 (Oduwole et al., 2018).
 
 ``` r
+
 library(RoBMA)
 
 events_experimental        <- c(5, 2)
@@ -51,6 +52,7 @@ specify the observed events (`x1` and `x2`) and sample size (`n1` and
 for the individual medical subfields automatically.
 
 ``` r
+
 fit <- BiBMA(
   x1          = events_experimental,
   x2          = events_control,
@@ -78,6 +80,7 @@ heterogeneity are true. We also set the `output_scale = "OR"` argument
 to display the effect size estimates on the odds ratio scale.
 
 ``` r
+
 summary(fit, conditional = TRUE, output_scale = "OR")
 #> Call:
 #> BiBMA(x1 = events_experimental, x2 = events_control, n1 = observations_experimental, 
@@ -138,6 +141,7 @@ effect size estimate and `prior = TRUE` to include the prior
 distribution in the plot.
 
 ``` r
+
 plot(fit, parameter = "mu", prior = TRUE, conditional = TRUE)
 ```
 

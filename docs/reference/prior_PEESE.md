@@ -41,3 +41,7 @@ This forwards to
 [`BayesTools::prior_PEESE()`](https://fbartos.github.io/BayesTools/reference/prior_PP.html)
 and uses the same distribution and parameter conventions as
 [`prior()`](https://fbartos.github.io/RoBMA/reference/prior.md).
+
+## See also
+
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)

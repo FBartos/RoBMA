@@ -38,6 +38,7 @@ install the R packages with the
 function.
 
 ``` r
+
 install.packages(c("RoBMA", "weightr", "metafor"))
 ```
 
@@ -46,6 +47,7 @@ workspace with the [`library()`](https://rdrr.io/r/base/library.html)
 function.
 
 ``` r
+
 library("metafor")
 library("weightr")
 library("RoBMA")
@@ -72,10 +74,12 @@ also included in the package and can be accessed via the
 `data("Lui2015", package = "RoBMA")` call).
 
 ``` r
+
 df <- read.csv(file = "Lui2015.csv")
 ```
 
 ``` r
+
 head(df)
 #>      r   n                   study
 #> 1 0.21 115 Ahn, Kim, & Park (2008)
@@ -96,6 +100,7 @@ dollar (`$`) sign followed by the name of the column. For example, we
 can print all of the effect sizes with the `df$r` command.
 
 ``` r
+
 df$r
 #>  [1]  0.21  0.29  0.22  0.26  0.23  0.54  0.56  0.29  0.26  0.02 -0.06  0.38  0.25  0.08  0.17  0.33  0.36  0.13
 ```
@@ -127,6 +132,7 @@ transformation of the correlation coefficient and `vi` column
 corresponds to the sampling variance of Fisher’s *z*.
 
 ``` r
+
 dfz <- metafor::escalc(
   ri = r, ni = n, measure = "ZCOR",
   data = df
@@ -155,6 +161,7 @@ variances, and the `data` argument is used to pass the data frame
 containing both variables.
 
 ``` r
+
 fit_rma <- metafor::rma(yi = yi, vi = vi, data = dfz)
 fit_rma
 #> 
@@ -186,6 +193,7 @@ size estimate to the correlation coefficients, we can use
 [`metafor::transf.ztor()`](https://wviechtb.github.io/metafor/reference/transf.html),
 
 ``` r
+
 metafor::transf.ztor(fit_rma$b)
 #>              [,1]
 #> intrcpt 0.2484877
@@ -212,6 +220,7 @@ which specifies that all of the variables come from the transformed,
 `dfz`, data set.
 
 ``` r
+
 fit_PET <- lm(yi ~ I(sqrt(vi)), weights = 1/vi, data = dfz)
 summary(fit_PET)
 #> 
@@ -246,6 +255,7 @@ function (we pass the estimated effect size using the
 which extracts the estimate from the fitted model).
 
 ``` r
+
 metafor::transf.ztor(summary(fit_PET)$coefficients["(Intercept)", "Estimate"])
 #> [1] -0.000872208
 ```
@@ -261,6 +271,7 @@ replacing the predictor of standard errors with standard errors squared,
 which corresponds to the sampling variances in `vi`.
 
 ``` r
+
 fit_PEESE <- lm(yi ~ vi, weights = 1/vi, data = dfz)
 summary(fit_PEESE)
 #> 
@@ -312,6 +323,7 @@ the appropriate cut-points (note that the steps correspond to one-sided
 values in each of the specified intervals.
 
 ``` r
+
 fit_4PSM <- weightr::weightfunct(
   effect = dfz$yi, v = dfz$vi,
   steps = c(0.025, 0.05), table = TRUE
@@ -366,6 +378,7 @@ significant and non-significant *p*-value interval, resulting in the
 “3PSM” model.
 
 ``` r
+
 fit_3PSM <- weightr::weightfunct(
   effect = dfz$yi, v = dfz$vi,
   steps = c(0.025), table = TRUE
@@ -428,6 +441,7 @@ corresponds to the second value in the `fit_3PSM$adj_est` object for the
 random effect model.
 
 ``` r
+
 metafor::transf.ztor(fit_3PSM$adj_est[2])
 #> [1] 0.2037403
 ```
@@ -439,6 +453,7 @@ weight function and set the appropriate steps with the
 `steps = c(0.025)` argument.
 
 ``` r
+
 fit_sel_z <- metafor::selmodel(fit_rma, type = "stepfun", steps = c(0.025))
 fit_sel_z
 #> 
@@ -494,6 +509,7 @@ The default prior distributions and estimation algorithm changed after
 version 3.6.1, so we specify the prior distributions explicitly.
 
 ``` r
+
 prior_effect_361        <- prior("normal", list(mean = 0, sd = 0.5))
 prior_heterogeneity_361 <- prior("invgamma", list(shape = 1, scale = 0.075))
 prior_bias_361          <- list(
@@ -515,6 +531,7 @@ heterogeneity prior was InvGamma(1, 0.15), and the PEESE prior scale was
 5.
 
 ``` r
+
 fit_RoBMA <- RoBMA(
   yi = yi, vi = vi, measure = "ZCOR",
   prior_effect                 = prior_effect_361,
@@ -533,6 +550,7 @@ We use the [`summary()`](https://rdrr.io/r/base/summary.html) function
 to explore details of the fitted model.
 
 ``` r
+
 summary(fit_RoBMA)
 #> 
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 18)
@@ -589,6 +607,7 @@ scale with
 [`pooled_effect()`](https://fbartos.github.io/RoBMA/reference/pooled_effect.md).
 
 ``` r
+
 pooled_effect(fit_RoBMA, output_measure = "COR")
 #> 
 #> Pooled Effect Size (correlation)
@@ -605,6 +624,7 @@ heterogeneity, and publication bias, we could add the
 [`summary()`](https://rdrr.io/r/base/summary.html) function.
 
 ``` r
+
 summary(fit_RoBMA, conditional = TRUE)
 #> 
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 18)
@@ -656,6 +676,7 @@ The resulting table shows the prior and posterior model probabilities
 and inclusion Bayes factors for the individual models.
 
 ``` r
+
 summary_models(fit_RoBMA, type = "individual")
 #> 
 #> Individual Models
@@ -706,6 +727,7 @@ and
 [`plot_diagnostic_autocorrelation()`](https://fbartos.github.io/RoBMA/reference/plot_diagnostic.md).
 
 ``` r
+
 plot_diagnostic_trace(fit_RoBMA, parameter = "mu")
 ```
 
@@ -720,6 +742,7 @@ correlation scale. (The `par(mar = c(4, 4, 1, 4))` call increases the
 left margin of the figure, so the secondary y-axis text is not cut off.)
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(fit_RoBMA, parameter = "mu", prior = TRUE, output_measure = "COR", xlim = c(-1, 1))
 ```
@@ -740,6 +763,7 @@ for the models assuming absence of the effect with a perinull hypothesis
 with the `prior_effect_null` argument.
 
 ``` r
+
 prior_effect_perinull_361      <- prior("normal", list(mean = 0.30, sd = 0.10), truncation = list(0, Inf))
 prior_effect_null_perinull_361 <- prior("normal", list(mean = 0, sd = 0.05))
 ```
@@ -749,6 +773,7 @@ prior distributions Normal(0.60, 0.20) truncated to positive values and
 Normal(0, 0.10).
 
 ``` r
+
 fit_RoBMA2 <- RoBMA(
   yi = yi, vi = vi, measure = "ZCOR",
   prior_effect                 = prior_effect_perinull_361,
@@ -765,6 +790,7 @@ to inspect the model fit and verify that the specified models correspond
 to the settings.
 
 ``` r
+
 summary_models(fit_RoBMA2, type = "individual")
 #> 
 #> Individual Models

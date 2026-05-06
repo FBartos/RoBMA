@@ -22,6 +22,7 @@ Install JAGS from <https://mcmc-jags.sourceforge.io/> before installing
 the R package.
 
 ``` r
+
 install.packages("RoBMA")
 ```
 
@@ -36,6 +37,7 @@ exactly, install `RoBMA` version 3.6.1 together with `BayesTools`
 version 0.2.23:
 
 ``` r
+
 remotes::install_version("BayesTools", version = "0.2.23")
 remotes::install_version("RoBMA",      version = "3.6.1")
 ```
@@ -90,15 +92,15 @@ The vignettes are organized into four sections.
 
 | Vignette | Topic |
 |:---|:---|
-| [*Introduction to RoBMA*](https://fbartos.github.io/RoBMA/articles/00-introduction.md) | Package overview, fitting functions, and vignette map |
-| [*Prior Distributions*](https://fbartos.github.io/RoBMA/articles/01-prior-distributions.md) | Default, informed, and custom prior distributions; rescaling guidance |
-| [*Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.md) | Random-effects meta-analysis with [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md), compared with [`metafor::rma()`](https://wviechtb.github.io/metafor/reference/rma.uni.html) |
-| [*Feature Coverage*](https://fbartos.github.io/RoBMA/articles/03-feature-coverage.md) | Overview of available functionality across model families |
+| [*Introduction to RoBMA*](https://fbartos.github.io/RoBMA/articles/v00-introduction.md) | Package overview, fitting functions, and vignette map |
+| [*Prior Distributions*](https://fbartos.github.io/RoBMA/articles/v01-prior-distributions.md) | Default, informed, and custom prior distributions; rescaling guidance |
+| [*Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md) | Random-effects meta-analysis with [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md), compared with [`metafor::rma()`](https://wviechtb.github.io/metafor/reference/rma.uni.html) |
+| [*Feature Coverage*](https://fbartos.github.io/RoBMA/articles/v03-feature-coverage.md) | Overview of available functionality across model families |
 
 The foundations section gives the package overview, prior specification,
 a baseline [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md)
 workflow, and current feature coverage. The [*Bayesian
-Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.md)
+Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md)
 vignette walks through the BCG-vaccine example from the `metafor`
 package in
 [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md), covering
@@ -109,10 +111,10 @@ and the standard meta-analytic plots.
 
 | Vignette | Topic |
 |:---|:---|
-| [*Multilevel Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/10-metafor-parity-multilevel.md) | [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) with `cluster` and [`metafor::rma.mv()`](https://wviechtb.github.io/metafor/reference/rma.mv.html) for 3-level data |
-| [*Publication-Bias Adjustment*](https://fbartos.github.io/RoBMA/articles/11-metafor-parity-publication-bias.md) | [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md) / [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md) / [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) and [`metafor::selmodel()`](https://wviechtb.github.io/metafor/reference/selmodel.html) |
-| [*Location-Scale Models*](https://fbartos.github.io/RoBMA/articles/12-metafor-parity-location-scale.md) | [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) with `scale` and `metafor::rma.ls()` |
-| [*Generalized Linear Mixed-Effects Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/13-metafor-parity-glmm.md) | [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md) and [`metafor::rma.glmm()`](https://wviechtb.github.io/metafor/reference/rma.glmm.html) for binomial and Poisson outcomes |
+| [*Multilevel Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v10-metafor-parity-multilevel.md) | [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) with `cluster` and [`metafor::rma.mv()`](https://wviechtb.github.io/metafor/reference/rma.mv.html) for 3-level data |
+| [*Publication-Bias Adjustment*](https://fbartos.github.io/RoBMA/articles/v11-metafor-parity-publication-bias.md) | [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md) / [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md) / [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) and [`metafor::selmodel()`](https://wviechtb.github.io/metafor/reference/selmodel.html) |
+| [*Location-Scale Models*](https://fbartos.github.io/RoBMA/articles/v12-metafor-parity-location-scale.md) | [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) with `scale` and `metafor::rma.ls()` |
+| [*Generalized Linear Mixed-Effects Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v13-metafor-parity-glmm.md) | [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md) and [`metafor::rma.glmm()`](https://wviechtb.github.io/metafor/reference/rma.glmm.html) for binomial and Poisson outcomes |
 
 Each vignette starts from a `metafor` package analysis and shows the
 matching `RoBMA` R package syntax, output, and diagnostics.
@@ -121,8 +123,8 @@ matching `RoBMA` R package syntax, output, and diagnostics.
 
 | Vignette | Topic |
 |:---|:---|
-| [*Bayesian Model Averaging*](https://fbartos.github.io/RoBMA/articles/20-bayesian-model-averaging.md) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
-| [*Robust Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/21-robust-bayesian-meta-analysis.md) | Extending the ensemble to publication-bias models used in [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md), with `PSMA`, `PP`, and bespoke ensemble specifications |
+| [*Bayesian Model Averaging*](https://fbartos.github.io/RoBMA/articles/v20-bayesian-model-averaging.md) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
+| [*Robust Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v21-robust-bayesian-meta-analysis.md) | Extending the ensemble to publication-bias models used in [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md), with `PSMA`, `PP`, and bespoke ensemble specifications |
 
 The first vignette introduces model averaging on an ensemble of models
 with and without effect and heterogeneity. The second extends the
@@ -133,13 +135,13 @@ ensemble to publication-bias models used in
 
 | Vignette | Companion paper / dataset |
 |:---|:---|
-| [*Adjusting for Publication Bias Tutorial*](https://fbartos.github.io/RoBMA/articles/30-tutorial.md) | Bartoš et al. (2022), JASP / R tutorial on `Lui2015` |
-| [*Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/articles/31-robma-metaregression.md) | Bartoš et al. (2025), RoBMA-reg on `Andrews2021` |
-| [*Multilevel Robust Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/32-robma-multilevel.md) | Bartoš et al. (2026), Multilevel RoBMA on `Johnides2025` |
-| [*Multilevel Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/articles/33-robma-multilevel-metaregression.md) | Multilevel RoBMA-reg on `Kroupova2021` |
-| [*Informed Bayesian Meta-Analysis in Medicine*](https://fbartos.github.io/RoBMA/articles/34-bma-norm-medicine.md) | Bartoš et al. (2021), informed prior distributions for medical meta-analysis (continuous outcomes) |
-| [*Informed Bayesian Meta-Analysis with Binary Outcomes*](https://fbartos.github.io/RoBMA/articles/35-bma-glmm-medicine.md) | Bartoš et al. (2023), informed prior distributions for medical meta-analysis (binary and time-to-event outcomes) |
-| [*Zplot Publication-Bias Diagnostics*](https://fbartos.github.io/RoBMA/articles/36-zplot.md) | Bartoš & Schimmack (2025), zplot diagnostics on `Hoppen2025` |
+| [*Adjusting for Publication Bias Tutorial*](https://fbartos.github.io/RoBMA/articles/v30-tutorial.md) | Bartoš et al. (2022), JASP / R tutorial on `Lui2015` |
+| [*Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/articles/v31-robma-metaregression.md) | Bartoš et al. (2025), RoBMA-reg on `Andrews2021` |
+| [*Multilevel Robust Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v32-robma-multilevel.md) | Bartoš et al. (2026), Multilevel RoBMA on `Johnides2025` |
+| [*Multilevel Robust Bayesian Meta-Regression*](https://fbartos.github.io/RoBMA/articles/v33-robma-multilevel-metaregression.md) | Multilevel RoBMA-reg on `Kroupova2021` |
+| [*Informed Bayesian Meta-Analysis in Medicine*](https://fbartos.github.io/RoBMA/articles/v34-bma-norm-medicine.md) | Bartoš et al. (2021), informed prior distributions for medical meta-analysis (continuous outcomes) |
+| [*Informed Bayesian Meta-Analysis with Binary Outcomes*](https://fbartos.github.io/RoBMA/articles/v35-bma-glmm-medicine.md) | Bartoš et al. (2023), informed prior distributions for medical meta-analysis (binary and time-to-event outcomes) |
+| [*Zplot Publication-Bias Diagnostics*](https://fbartos.github.io/RoBMA/articles/v36-zplot.md) | Bartoš & Schimmack (2025), zplot diagnostics on `Hoppen2025` |
 
 These vignettes reproduce or update analyses from published papers and
 serve as references when citing the corresponding methodological work.
@@ -147,18 +149,18 @@ serve as references when citing the corresponding methodological work.
 ## Where to Start
 
 - For readers familiar with the `metafor` package: read [*Bayesian
-  Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.md),
+  Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md),
   then the *Correspondence with `metafor`* vignettes for the model
   family they use most.
 - For readers new to Bayesian meta-analysis: read [*Prior
-  Distributions*](https://fbartos.github.io/RoBMA/articles/01-prior-distributions.md)
+  Distributions*](https://fbartos.github.io/RoBMA/articles/v01-prior-distributions.md)
   and then [*Bayesian
-  Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.md).
+  Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md).
 - For publication-bias adjustment: read [*Robust Bayesian
-  Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/21-robust-bayesian-meta-analysis.md),
+  Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v21-robust-bayesian-meta-analysis.md),
   with [*Adjusting for Publication Bias
-  Tutorial*](https://fbartos.github.io/RoBMA/articles/30-tutorial.md) as
-  a worked example.
+  Tutorial*](https://fbartos.github.io/RoBMA/articles/v30-tutorial.md)
+  as a worked example.
 
 ## References
 

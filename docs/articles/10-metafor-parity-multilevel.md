@@ -32,6 +32,7 @@ sizes `yi` and sampling variances `vi` are already provided, so no
 `escalc()` step is needed.
 
 ``` r
+
 data("dat.konstantopoulos2011", package = "metadat")
 dat <- dat.konstantopoulos2011
 head(dat)
@@ -51,6 +52,7 @@ structure `random = ~ school | district`, parameterized by the total
 heterogeneity $`\tau`$ and the within-district correlation $`\rho`$.
 
 ``` r
+
 fit1_metafor <- metafor::rma.mv(yi, vi, random = ~ school | district, data = dat)
 fit1_metafor
 #> 
@@ -87,6 +89,7 @@ $`\tau_{within} = \tau\sqrt{1 - \rho}`$. `measure = "SMD"` selects the
 default prior distributions for standardized mean differences.
 
 ``` r
+
 fit1_brma <- brma(
   yi = yi, vi = vi, measure = "SMD",
   cluster = district,
@@ -99,6 +102,7 @@ means, credible intervals, and (suppressed here) MCMC convergence
 diagnostics for `mu`, `tau`, and `rho`.
 
 ``` r
+
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Multilevel Random-Effects Model (k = 56, clusters = 11)
@@ -121,6 +125,7 @@ reports profile-likelihood confidence intervals for `tau^2`, `tau`, and
 `rho`.
 
 ``` r
+
 confint(fit1_metafor)
 #> 
 #>       estimate  ci.lb  ci.ub 
@@ -137,6 +142,7 @@ quantities along with the partitioned within- and between-cluster
 components.
 
 ``` r
+
 summary_heterogeneity(fit1_brma)
 #> 
 #> Heterogeneity Estimates:
@@ -161,6 +167,7 @@ and `rho` show the bulk of the posterior moving away from the weakly
 informative defaults.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(fit1_brma, parameter = "tau", prior = TRUE, main = "tau", xlim = c(0, 1))
 plot(fit1_brma, parameter = "rho", prior = TRUE, main = "rho", xlim = c(0, 1))

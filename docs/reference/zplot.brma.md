@@ -10,7 +10,7 @@ fitted `brma` object.
 zplot(
   object,
   significance_level = stats::qnorm(0.975),
-  summary_max_samples = 1000,
+  summary_max_samples = 10000,
   ...
 )
 
@@ -35,7 +35,8 @@ zplot(object, ...)
   summaries stored in the generated zplot object. This is separate from
   the plot-density `max_samples` argument accepted by
   [`plot.zplot_brma()`](https://fbartos.github.io/RoBMA/reference/plot.zplot_brma.md)
-  through `...`. Defaults to 1000.
+  through `...`. Defaults to 10000. Use `Inf` to use all posterior
+  samples.
 
 - ...:
 

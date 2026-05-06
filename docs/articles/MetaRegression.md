@@ -32,6 +32,7 @@ executive function assessment (`measure`), and the mean age of the
 children (`age`) in each study.
 
 ``` r
+
 library(RoBMA)
 data("Andrews2021", package = "RoBMA")
 head(Andrews2021)
@@ -56,6 +57,7 @@ however, note that Fisher’s z transformation is recommended for
 estimating meta-analytic models (e.g., Stanley et al. (2024)).
 
 ``` r
+
 fit_rma <- metafor::rma(yi = r, sei = se, mods = ~ measure + age, data = Andrews2021)
 fit_rma
 #> 
@@ -92,6 +94,7 @@ executive function assessment type using the `emmeans` R package (Lenth
 et al., 2017).
 
 ``` r
+
 emmeans::emmeans(metafor::emmprep(fit_rma), specs = "measure")
 #>  measure   emmean     SE  df asymp.LCL asymp.UCL
 #>  direct     0.109 0.0305 Inf    0.0492     0.169
@@ -199,6 +202,7 @@ argument to speed up the computation by running the chains in parallel
 and `seed = 1` argument to ensure reproducibility.
 
 ``` r
+
 fit_BMA <- NoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
 ```
 
@@ -217,6 +221,7 @@ Once the ensemble is estimated, we can use the
 that are transformed to the correlation scale.
 
 ``` r
+
 summary(fit_BMA, output_scale = "r")
 #> Call:
 #> RoBMA.reg(formula = formula, data = data, test_predictors = test_predictors, 
@@ -302,6 +307,7 @@ Similarly to the frequentist meta-regression, we can use the
 function to obtain the marginal estimates for each of the factor levels.
 
 ``` r
+
 marginal_summary(fit_BMA, output_scale = "r")
 #> Call:
 #> RoBMA.reg(formula = formula, data = data, test_predictors = test_predictors, 
@@ -365,6 +371,7 @@ visualized by the
 function.
 
 ``` r
+
 marginal_plot(fit_BMA, parameter = "measure", output_scale = "r", lwd = 2)
 ```
 
@@ -383,10 +390,12 @@ estimation time further increases as the ensemble now contains 144
 models.
 
 ``` r
+
 fit_RoBMA <- RoBMA.reg(~ measure + age, data = Andrews2021, parallel = TRUE, seed = 1)
 ```
 
 ``` r
+
 summary(fit_RoBMA, output_scale = "r")
 #> Call:
 #> RoBMA.reg(formula = ~measure + age, data = Andrews2021, chains = 1, 
@@ -441,6 +450,7 @@ and notably reduces the mean effect estimate $`\rho = 0.032`$, 95% CI
 \[0.000, 0.164\].
 
 ``` r
+
 marginal_summary(fit_RoBMA, output_scale = "r")
 #> Call:
 #> RoBMA.reg(formula = ~measure + age, data = Andrews2021, chains = 1, 
@@ -475,6 +485,7 @@ marginal means—a consequence of accounting and adjusting for publication
 bias.
 
 ``` r
+
 marginal_plot(fit_RoBMA, parameter = "measure", output_scale = "r", lwd = 2)
 ```
 

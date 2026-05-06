@@ -10,7 +10,7 @@ summarized and plotted to assess replicability.
 as_zplot(
   object,
   significance_level = stats::qnorm(0.975),
-  max_samples = 1000,
+  max_samples = 10000,
   ...
 )
 ```
@@ -28,7 +28,8 @@ as_zplot(
 
 - max_samples:
 
-  maximum number of posterior samples for estimation. Defaults to 1000.
+  maximum number of posterior samples for estimation. Defaults to 10000.
+  Use `Inf` to use all posterior samples.
 
 - ...:
 

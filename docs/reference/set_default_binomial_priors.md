@@ -75,6 +75,7 @@ and weight function prior distributions are scale-invariant.
 ## Examples
 
 ``` r
+
 set_default_binomial_priors("effect")
 #> Student-t(0, 0.58, 4)
 set_default_binomial_priors("heterogeneity")

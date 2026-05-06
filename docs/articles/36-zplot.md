@@ -38,6 +38,7 @@ accompanying manuscript ([Bartoš & Schimmack,
 Before we start, we load the `RoBMA` R package:
 
 ``` r
+
 library("RoBMA")
 ```
 
@@ -117,6 +118,7 @@ dataset and examining its structure, focusing on studies using the
 standard paradigm in proximal dataset conditions:
 
 ``` r
+
 data("Weingarten2018", package = "RoBMA")
 Weingarten2018 <- Weingarten2018[Weingarten2018$standard_paradigm & Weingarten2018$proximal_dataset, ]
 head(Weingarten2018)
@@ -142,6 +144,7 @@ to compute Fisher’s z effect sizes from the correlation coefficients and
 sample sizes prior to fitting.
 
 ``` r
+
 Weingarten2018_z <- metafor::escalc(
   ri = r_xy, ni = round(N), measure = "ZCOR", data = Weingarten2018
 )
@@ -163,6 +166,7 @@ fit_RoBMA_Weingarten2018 <- RoBMA(
 [`summary()`](https://rdrr.io/r/base/summary.html) function.
 
 ``` r
+
 summary(fit_RE_Weingarten2018)
 #> 
 #> Bayesian Multilevel Random-Effects Model (k = 298, clusters = 111)
@@ -224,6 +228,7 @@ object that [`hist()`](https://rdrr.io/r/graphics/hist.html),
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) can consume:
 
 ``` r
+
 hist(as_zplot(fit_RoBMA_Weingarten2018), from = -3, to = 6, by = 0.25)
 
 lines(as_zplot(fit_RE_Weingarten2018),    from = -3, to = 6, col = "black", lty = 2, lwd = 2)
@@ -269,6 +274,7 @@ function (with the default `plot_extrapolation = TRUE` argument), which
 builds the diagnostic plot directly from a fitted model.
 
 ``` r
+
 zplot(fit_RoBMA_Weingarten2018, from = -3, to = 6, by.hist = 0.25)
 ```
 
@@ -290,6 +296,7 @@ additional statistics provided by the
 `zplot_brma` object.
 
 ``` r
+
 summary(as_zplot(fit_RoBMA_Weingarten2018))
 #> 
 #> Zplot Estimates:
@@ -324,6 +331,7 @@ performance, and service outcomes.
 comparison dataset and examining its structure:
 
 ``` r
+
 data("Hoppen2025", package = "RoBMA")
 head(Hoppen2025)
 #>           d            v        outcome feedback_level  social_comparison_type sessions      sample_type sample_size country
@@ -342,6 +350,7 @@ publication-bias-adjusted model using
 [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md):
 
 ``` r
+
 fit_RE_Hoppen2025 <- brma(
   yi = d, sei = sqrt(v), measure = "SMD",
   data = Hoppen2025,
@@ -358,6 +367,7 @@ fit_RoBMA_Hoppen2025 <- RoBMA(
 **Model results.** We examine the key results from both models:
 
 ``` r
+
 summary(fit_RE_Hoppen2025)
 #> 
 #> Bayesian Random-Effects Model (k = 37)
@@ -373,6 +383,7 @@ positive effect of social comparison interventions. However, this
 analysis does not account for potential publication bias.
 
 ``` r
+
 summary(fit_RoBMA_Hoppen2025)
 #> 
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 37)
@@ -409,6 +420,7 @@ evidence against the presence of an effect.
 **Zplot diagnostics.**
 
 ``` r
+
 hist(as_zplot(fit_RoBMA_Hoppen2025))
 
 lines(as_zplot(fit_RE_Hoppen2025),    col = "black", lty = 2, lwd = 2)
@@ -449,6 +461,7 @@ the [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md)
 function (with the default `plot_extrapolation = TRUE` argument).
 
 ``` r
+
 zplot(fit_RoBMA_Hoppen2025)
 ```
 
@@ -470,6 +483,7 @@ additional statistics provided by the
 [`summary()`](https://rdrr.io/r/base/summary.html) function.
 
 ``` r
+
 summary(as_zplot(fit_RoBMA_Hoppen2025))
 #> 
 #> Zplot Estimates:
@@ -504,6 +518,7 @@ learning outcomes such as exam scores and final grades.
 previous example:
 
 ``` r
+
 data("Wang2025", package = "RoBMA")
 Wang2025 <- Wang2025[Wang2025$Learning_effect == "Learning performance", ]
 head(Wang2025)
@@ -517,6 +532,7 @@ head(Wang2025)
 ```
 
 ``` r
+
 fit_RE_Wang2025 <- brma(
   yi = g, sei = se, measure = "SMD",
   data = Wang2025,
@@ -532,6 +548,7 @@ fit_RoBMA_Wang2025 <- RoBMA(
 **Zplot diagnostics.**
 
 ``` r
+
 hist(as_zplot(fit_RoBMA_Wang2025), from = -2, to = 8)
 lines(as_zplot(fit_RE_Wang2025),    col = "black", lty = 2, lwd = 2, from = -2, to = 8)
 lines(as_zplot(fit_RoBMA_Wang2025), col = "blue",  lty = 2, lwd = 2, from = -2, to = 8)
@@ -566,6 +583,7 @@ provides a more complete account of the data patterns.
 extrapolation to assess the impact of publication bias:
 
 ``` r
+
 zplot(fit_RoBMA_Wang2025, from = -2, to = 8)
 ```
 
@@ -583,6 +601,7 @@ in this literature.
 model summaries:
 
 ``` r
+
 summary(fit_RE_Wang2025)
 #> 
 #> Bayesian Random-Effects Model (k = 42)
@@ -634,6 +653,7 @@ publication bias, and the evidence for the effect becomes weak.
 reflected in the summary statistics,
 
 ``` r
+
 summary(as_zplot(fit_RoBMA_Wang2025))
 #> 
 #> Zplot Estimates:
@@ -661,6 +681,7 @@ framing influences decision-making preferences.
 **Data and model fitting.**
 
 ``` r
+
 data("ManyLabs16", package = "RoBMA")
 head(ManyLabs16)
 #>           y        se
@@ -673,6 +694,7 @@ head(ManyLabs16)
 ```
 
 ``` r
+
 fit_RE_ManyLabs16 <- brma(
   yi = y, sei = se, measure = "SMD",
   data = ManyLabs16,
@@ -688,6 +710,7 @@ fit_RoBMA_ManyLabs16 <- RoBMA(
 **Zplot diagnostics.**
 
 ``` r
+
 hist(as_zplot(fit_RoBMA_ManyLabs16))
 lines(as_zplot(fit_RE_ManyLabs16),    col = "black", lty = 2, lwd = 2)
 lines(as_zplot(fit_RoBMA_ManyLabs16), col = "blue",  lty = 2, lwd = 2)
@@ -722,6 +745,7 @@ explain the data equally well.
 would be any difference in the absence of publication bias:
 
 ``` r
+
 zplot(fit_RoBMA_ManyLabs16)
 ```
 
@@ -740,6 +764,7 @@ meta-analytic approaches are fully justified.
 impression:
 
 ``` r
+
 summary(fit_RE_ManyLabs16)
 summary(fit_RoBMA_ManyLabs16)
 ```
@@ -756,6 +781,7 @@ in the publication-bias assessment statistics: a moderate EDR matching
 the ODR and no missing studies.
 
 ``` r
+
 summary(as_zplot(fit_RoBMA_ManyLabs16))
 #> 
 #> Zplot Estimates:

@@ -13,10 +13,10 @@
 
 - **Joris Goosen**. Contributor.
 
-- **Matthew Denwood**. Copyright holder.  
+- **Matthew Denwood**. Copyright holder.\
   Original copyright holder of some modified code where indicated.
 
-- **Martyn Plummer**. Copyright holder.  
+- **Martyn Plummer**. Copyright holder.\
   Original copyright holder of some modified code where indicated.
 
 ## Citation

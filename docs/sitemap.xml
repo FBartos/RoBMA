@@ -1,5 +1,6 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://fbartos.github.io/RoBMA/404.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/AGENTS.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/articles/00-introduction.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/articles/01-prior-distributions.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/articles/02-bayesian-meta-analysis.html</loc></url>
@@ -26,6 +27,23 @@
 <url><loc>https://fbartos.github.io/RoBMA/articles/MetaRegression.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/articles/ReproducingBMA.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/articles/Tutorial.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v00-introduction.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v01-prior-distributions.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v03-feature-coverage.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v10-metafor-parity-multilevel.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v11-metafor-parity-publication-bias.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v12-metafor-parity-location-scale.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v13-metafor-parity-glmm.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v20-bayesian-model-averaging.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v21-robust-bayesian-meta-analysis.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v30-tutorial.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v31-robma-metaregression.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v32-robma-multilevel.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v33-robma-multilevel-metaregression.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v34-bma-norm-medicine.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v35-bma-glmm-medicine.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/articles/v36-zplot.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/authors.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/index.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/news/index.html</loc></url>
@@ -161,6 +179,7 @@
 <url><loc>https://fbartos.github.io/RoBMA/reference/prior_PET.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/reference/prior_specification.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/reference/prior_weightfunction.html</loc></url>
+<url><loc>https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/reference/pwnorm.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/reference/qqnorm.brma.html</loc></url>
 <url><loc>https://fbartos.github.io/RoBMA/reference/qwnorm.html</loc></url>

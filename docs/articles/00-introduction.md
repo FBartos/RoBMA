@@ -21,6 +21,7 @@ The `RoBMA` R package requires JAGS 4.3.1 or newer ([Plummer,
 <https://mcmc-jags.sourceforge.io/> before installing the R package.
 
 ``` r
+
 install.packages("RoBMA")
 ```
 
@@ -35,6 +36,7 @@ exactly, install `RoBMA` version 3.6.1 together with `BayesTools`
 version 0.2.23:
 
 ``` r
+
 remotes::install_version("BayesTools", version = "0.2.23")
 remotes::install_version("RoBMA",      version = "3.6.1")
 ```

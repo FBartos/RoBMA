@@ -10,7 +10,7 @@ lines(
   x,
   plot_type = "base",
   probs = c(0.025, 0.975),
-  max_samples = 500,
+  max_samples = 10000,
   plot_ci = TRUE,
   extrapolate = FALSE,
   from = -6,
@@ -39,7 +39,8 @@ lines(
 
 - max_samples:
 
-  maximum posterior samples for density. Defaults to 500.
+  maximum posterior samples for density. Defaults to 10000. Use `Inf` to
+  use all posterior samples.
 
 - plot_ci:
 

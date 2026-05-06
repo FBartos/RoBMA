@@ -38,6 +38,7 @@ distribution formulation and scaling settings we need to specify the
 prior distributions manually.[^1]
 
 ``` r
+
 prior_effect_361        <- prior("normal",   list(mean = 0, sd = 25.8))
 prior_heterogeneity_361 <- prior("invgamma", list(shape = 1, scale = 0.15 * 25.8))
 prior_mods_361          <- list(
@@ -67,6 +68,7 @@ the `prior_*` arguments (omitting them would result in a model fit using
 the current default prior distributions based on the UISD).
 
 ``` r
+
 fit_reg <- RoBMA(
   yi = y, sei = se, measure = "GEN",
   mods = ~ facing_customer,
@@ -90,6 +92,7 @@ The [`summary()`](https://rdrr.io/r/base/summary.html) function reports
 inclusion Bayes factors and model parameters.
 
 ``` r
+
 summary(fit_reg, include_mcmc_diagnostics = FALSE)
 #> 
 #> Robust Bayesian Model-Averaged Multilevel Mixed-Effect Model (k = 1159, clusters = 67)
@@ -141,6 +144,7 @@ contact, between-study heterogeneity, and publication bias (all BFs \>
 10,000).
 
 ``` r
+
 pooled_effect(fit_reg)
 #> 
 #> Pooled Effect Size
@@ -164,6 +168,7 @@ examine the effect at each level of the moderator, we use the estimated
 marginal means.
 
 ``` r
+
 mm_reg <- marginal_means(fit_reg)
 summary(mm_reg)
 #> 
@@ -197,6 +202,7 @@ significant and statistically significant $`p`$-values, and $`z = 0`$,
 corresponding to selection on the direction of the effect.
 
 ``` r
+
 par(mar = c(4, 4, 0, 0))
 zplot(fit_reg, by.hist = 0.25, plot_extrapolation = FALSE, from = -4, to = 8)
 ```

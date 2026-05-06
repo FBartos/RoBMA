@@ -252,8 +252,8 @@ Bartoš F, Otte WM, Gronau QF, Timmers B, Ly A, Wagenmakers E (2023).
 “Empirical prior distributions for Bayesian meta-analyses of binary and
 time-to-event outcomes.”
 [doi:10.48550/arXiv.2306.11468](https://doi.org/10.48550/arXiv.2306.11468)
-, Preprint available at https://doi.org/10.48550/arXiv.2306.11468.  
-  
+, Preprint available at https://doi.org/10.48550/arXiv.2306.11468.\
+\
 Oduwole O, Udoh EE, Oyo-Ita A, Meremikwu MM (2018). “Honey for acute
 cough in children.” *Cochrane Database of Systematic Reviews*.
 [doi:10.1002/14651858.CD007094.pub5](https://doi.org/10.1002/14651858.CD007094.pub5)

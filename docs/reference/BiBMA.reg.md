@@ -329,8 +329,8 @@ function.
 Bartoš F, Maier M, Stanley TD, Wagenmakers E (2025). “Robust Bayesian
 meta-regression: Model-averaged moderation analysis in the presence of
 publication bias.” *Psychological Methods*.
-[doi:10.1037/met0000737](https://doi.org/10.1037/met0000737) .  
-  
+[doi:10.1037/met0000737](https://doi.org/10.1037/met0000737) .\
+\
 Bartoš F, Otte WM, Gronau QF, Timmers B, Ly A, Wagenmakers E (2023).
 “Empirical prior distributions for Bayesian meta-analyses of binary and
 time-to-event outcomes.”

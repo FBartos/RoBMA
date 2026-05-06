@@ -2,23 +2,266 @@
 
 ## version 4.0.0
 
+### Breaking changes
+
+- rewrites the package around the unified `brma` class hierarchy.
+  Single-model fits now use
+  [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md),
+  [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md),
+  [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
+  [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md), and
+  [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md);
+  model-averaged fits use
+  [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md),
+  [`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md),
+  and [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md).
+- removes the legacy `RoBMA.reg()`, `NoBMA()`, `NoBMA.reg()`, `BiBMA()`,
+  and `BiBMA.reg()` constructors. Use `mods`, `scale`, and `cluster` in
+  the new constructors,
+  [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md) for
+  no-bias normal-likelihood model averaging, and
+  [`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md)
+  for GLMM model averaging.
+- replaces old input aliases such as `d`, `r`, `logOR`, `OR`, `z`, `y`,
+  `se`, `v`, `n`, `study_names`, `study_ids`, `weight`, and
+  `transformation` with `yi`, `vi`/`sei`, `ni`, `slab`, `cluster`,
+  `weights`, `measure`, `output_measure`, and `transform`.
+- removes legacy helper APIs including `combine_data()`,
+  `check_setup()`, `extract_posterior()`, `marginal_summary()`,
+  `marginal_plot()`, `plot_models()`, `adjusted_effect()`,
+  `as_zcurve()`, and the old z-curve plotting methods.
+- normal-likelihood fitting functions now require an explicit `measure`
+  for fitted models. Use `measure = "GEN"` for generic effect sizes
+  without a known unit-information scale.
+- [`update()`](https://rdrr.io/r/stats/update.html) for `brma` objects
+  now focuses on extending MCMC samples, updating labels, and refreshing
+  cached quantities, not changing model structure.
+- [`set_convergence_checks()`](https://fbartos.github.io/RoBMA/reference/RoBMA_control.md)
+  no longer accepts the old `remove_failed` and `balance_probability`
+  arguments.
+
 ### Features
 
-- adds interface to the `posterior` package via the `as_draws` functions
-  for all fitted models
-
-### Changes
-
-- renames the multilevel clustering argument to `cluster`
+- adds [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) /
+  [`brma.norm()`](https://fbartos.github.io/RoBMA/reference/brma.md) for
+  single normal-likelihood Bayesian meta-analysis, including
+  random-effects, meta-regression, multilevel, and location-scale
+  models.
+- adds
+  [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md)
+  for binomial-normal and Poisson-normal GLMM meta-analysis from raw
+  two-arm counts (`measure = "OR"` and `"IRR"`).
+- adds single-model publication-bias constructors
+  [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
+  [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md), and
+  [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md).
+- adds [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md) /
+  [`BMA.norm()`](https://fbartos.github.io/RoBMA/reference/BMA.md) for
+  Bayesian model averaging without publication-bias adjustment.
+- adds
+  [`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md)
+  for Bayesian model averaging of GLMM meta-analyses without
+  publication-bias adjustment.
+- rewrites
+  [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) as a
+  product-space model-averaged ensemble over effect, heterogeneity,
+  moderator, scale, and publication-bias components.
+- adds formula/data-frame input handling for effect sizes, moderators,
+  scale predictors, clusters, labels, subsets, likelihood weights, and
+  raw GLMM counts.
+- adds default prior construction from standardized effect-size
+  measures, estimated or manually supplied unit-information standard
+  deviations, and informed empirical priors.
+- adds
+  [`prior_weightfunction()`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md),
+  [`wf_cumulative()`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md),
+  [`wf_fixed()`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md),
+  and
+  [`wf_independent()`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md)
+  for BayesTools-backed selection-weightfunction priors.
+- adds
+  [`prior_PET()`](https://fbartos.github.io/RoBMA/reference/prior_PET.md),
+  [`prior_PEESE()`](https://fbartos.github.io/RoBMA/reference/prior_PEESE.md),
+  [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md),
+  [`prior_factor()`](https://fbartos.github.io/RoBMA/reference/prior_factor.md),
+  [`prior_informed()`](https://fbartos.github.io/RoBMA/reference/prior_informed.md),
+  and BayesTools contrast helpers as package-level prior utilities.
+- adds `posterior` package interfaces via
+  [`as_draws()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md),
+  [`as_draws_array()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md),
+  [`as_draws_df()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md),
+  [`as_draws_list()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md),
+  [`as_draws_matrix()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md),
+  and
+  [`as_draws_rvars()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md)
+  for fitted models and `brma_samples`.
+- adds the `brma_samples` posterior-sample class with print, summary,
+  matrix, and `posterior` conversion methods.
+- adds
+  [`predict.brma()`](https://fbartos.github.io/RoBMA/reference/predict.brma.md)
+  for posterior predictions of fixed terms, cluster effects, latent true
+  effects, observed responses, and scale terms, with `newdata`,
+  `conditional`, `bias_adjusted`, `output_measure`, and `transform`
+  support.
+- adds convenience wrappers
+  [`fitted()`](https://rdrr.io/r/stats/fitted.values.html),
+  [`pooled_effect()`](https://fbartos.github.io/RoBMA/reference/pooled_effect.md),
+  [`pooled_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/pooled_heterogeneity.md),
+  [`blup()`](https://fbartos.github.io/RoBMA/reference/blup.md),
+  [`true_effects()`](https://fbartos.github.io/RoBMA/reference/true_effects.md),
+  and [`ranef()`](https://fbartos.github.io/RoBMA/reference/ranef.md)
+  for `brma` objects.
+- adds model-comparison helpers
+  [`add_loo()`](https://fbartos.github.io/RoBMA/reference/add_loo.brma.md),
+  [`loo()`](https://fbartos.github.io/RoBMA/reference/loo.brma.md),
+  [`loo_compare()`](https://fbartos.github.io/RoBMA/reference/loo_compare.brma.md),
+  [`loo_weights()`](https://fbartos.github.io/RoBMA/reference/loo_weights.brma.md),
+  [`check_loo()`](https://fbartos.github.io/RoBMA/reference/check_loo.brma.md),
+  [`add_waic()`](https://fbartos.github.io/RoBMA/reference/add_waic.brma.md),
+  [`waic()`](https://fbartos.github.io/RoBMA/reference/waic.brma.md),
+  and [`logLik()`](https://rdrr.io/r/stats/logLik.html) using the `loo`
+  package.
+- adds bridge-sampling marginal likelihood support for single-model
+  `brma` fits via
+  [`add_marglik()`](https://fbartos.github.io/RoBMA/reference/add_marglik.brma.md),
+  [`bridge_sampler()`](https://rdrr.io/pkg/bridgesampling/man/bridge_sampler.html),
+  [`logml()`](https://rdrr.io/pkg/bridgesampling/man/logml.html),
+  [`bf()`](https://rdrr.io/pkg/bridgesampling/man/bf.html),
+  [`bayes_factor()`](https://rdrr.io/pkg/bridgesampling/man/bf.html),
+  and
+  [`post_prob()`](https://rdrr.io/pkg/bridgesampling/man/post_prob.html).
+- adds residual and influence diagnostics:
+  [`residuals()`](https://rdrr.io/r/stats/residuals.html),
+  [`rstandard()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`rstudent()`](https://rdrr.io/r/stats/influence.measures.html) /
+  `LOO-PIT`,
+  [`hatvalues()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`influence()`](https://rdrr.io/r/stats/lm.influence.html),
+  [`dfbetas()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`dffits()`](https://fbartos.github.io/RoBMA/reference/dffits.brma.md),
+  [`cooks.distance()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`covratio()`](https://fbartos.github.io/RoBMA/reference/covratio.brma.md),
+  and [`vif()`](https://fbartos.github.io/RoBMA/reference/vif.md).
+- adds plotting methods for `brma` objects: posterior/prior plots,
+  [`funnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md),
+  [`regplot()`](https://fbartos.github.io/RoBMA/reference/regplot.md),
+  [`qqnorm()`](https://rdrr.io/r/stats/qqnorm.html),
+  [`radial()`](https://fbartos.github.io/RoBMA/reference/radial.md) /
+  [`galbraith()`](https://fbartos.github.io/RoBMA/reference/radial.md),
+  MCMC diagnostic plots, weightfunction plots, and PET-PEESE plots.
+- adds
+  [`marginal_means()`](https://fbartos.github.io/RoBMA/reference/marginal_means.md)
+  with summary and plotting methods for moderator models.
+- adds
+  [`summary_models()`](https://fbartos.github.io/RoBMA/reference/summary_models.md)
+  for marginal and individual model-weight summaries of product-space
+  `RoBMA`, `BMA`, and `BMA.glmm` objects.
+- adds
+  [`interpret()`](https://fbartos.github.io/RoBMA/reference/interpret.md)
+  for concise textual interpretation of fitted `brma` and model-averaged
+  objects.
 - renames the zplot diagnostic API to
   [`as_zplot()`](https://fbartos.github.io/RoBMA/reference/as_zplot.brma.md)
   and adds the direct plotting wrapper
-  [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md)
+  [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md),
+  with [`plot()`](https://rdrr.io/r/graphics/plot.default.html),
+  [`hist()`](https://rdrr.io/r/graphics/hist.html),
+  [`lines()`](https://rdrr.io/r/graphics/lines.html),
+  [`summary()`](https://rdrr.io/r/base/summary.html), and print methods
+  for zplot objects.
+- adds
+  [`RoBMA.options()`](https://fbartos.github.io/RoBMA/reference/RoBMA_options.md)
+  and
+  [`RoBMA.get_option()`](https://fbartos.github.io/RoBMA/reference/RoBMA_options.md)
+  package options for defaults such as core count, automatic
+  LOO/WAIC/marginal-likelihood computation, prior scaling defaults, and
+  selection-bias defaults.
+
+### Changes
+
+- renames the multilevel clustering argument to `cluster`.
+- renames study labels to `slab`, matching `metafor` naming.
+- renames likelihood weights to `weights` and applies them consistently
+  to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics.
+- uses `measure`, `output_measure`, and `transform` for effect-size
+  scale handling. Supported conversions include `SMD`, `COR`, `ZCOR`,
+  and `OR`; `transform = "EXP"` exponentiates log ratio measures for
+  display.
+- standardizes continuous predictors by default and transforms reported
+  coefficients back to the original scale unless standardized
+  coefficients are requested.
+- uses treatment contrasts by default for single-model constructors and
+  mean-difference contrasts by default for model-averaged constructors.
+- changes
+  [`predict.brma()`](https://fbartos.github.io/RoBMA/reference/predict.brma.md)
+  default to `type = "terms"`. GLMM `type = "response"` predictions
+  return continuity-corrected effect-size estimators by default via
+  `as_measure = TRUE`.
+- separates output `unit` from `conditioning_depth` for residuals,
+  fitted values, LOO, WAIC, and related diagnostics.
+- supports estimate-level and, for multilevel models, cluster-level
+  LOO/WAIC targets with target metadata to prevent invalid comparisons.
+- keeps bridge-sampling marginal likelihoods for single-model `brma`
+  objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects relly on
+  product-space only.
 - routes selection-weightfunction priors through the BayesTools
   selection backend and selected-normal kernel, removing legacy
-  weighted-normal mapping paths
-- requires the upcoming BayesTools 0.3.0 release for the
-  selection-backend prior compiler
+  weighted-normal mapping paths.
+- uses `bias_indicator` and branch-aware selected-normal contexts for
+  RoBMA publication-bias mixtures instead of inferring selection
+  branches from `omega`.
+- increases zplot default posterior thinning controls to `10000` samples
+  and accepts `Inf` where full posterior evaluation is requested.
+- adds `max_samples` controls to expensive funnel, regplot, and zplot
+  summaries.
+- updates the package startup message to point users to
+  [`vignette("v00-introduction", package = "RoBMA")`](https://fbartos.github.io/RoBMA/articles/v00-introduction.md).
+- requires BayesTools 0.3.0 for forward API and selection-backend
+  support.
+- adds `bridgesampling`, `loo`, `MASS`, and `parallel` as imports and
+  `posterior` as a suggested package.
+
+### Fixes
+
+- fixes loading and runtime checks for the RoBMA JAGS module and native
+  R routines.
+
+### Performance and internals
+
+- moves fitting to JAGS product-space models with mixture-prior
+  indicators for model averaging.
+- replaces legacy weighted-normal and multivariate-normal native code
+  with selected-normal kernels shared by JAGS and R-native calls.
+- adds native selected-normal routines for log likelihoods, normalizers,
+  CDFs, moments, RNG, weighted summaries, funnel contours, regplot
+  intervals, and zplot densities/threshold summaries.
+- adds native GLMM marginal and cluster log-likelihood helpers for
+  binomial and Poisson models.
+- caches selected-normal normalizers and uses telescoping selection
+  probabilities with log-space fallbacks for better numerical stability.
+- relocates selected-normal C++ code to `src/selnorm/` and updates
+  `Makevars*`, native registration, cleanup rules, and JAGS distribution
+  registration.
+- removes unused native matrix/LAPACK helper sources and older
+  source-level transformation helpers.
+
+### Documentation and tests
+
+- reorganizes vignettes into numbered workflows covering introduction,
+  prior distributions, baseline Bayesian meta-analysis, feature
+  coverage, metafor parity, model averaging, RoBMA, multilevel models,
+  medicine examples, and zplot diagnostics.
+- regenerates roxygen documentation for the new constructors, priors,
+  predictions, summaries, diagnostics, plots, model-comparison methods,
+  and datasets.
+- refreshes the README and pkgdown site for the 4.0.0 API.
+- adds cached model fits under numbered vignette/model directories.
+- refactors tests into ordered input, fitting, prediction, plotting,
+  diagnostics, model-comparison, selected-normal kernel, and
+  vignette-cache coverage.
+- adds regression tests for selected-normal telescope probabilities,
+  native/R fallback parity, posterior-row alignment, GLMM response
+  conversion, LOO/WAIC targets, bridge sampling, and visual outputs.
 
 ## version 3.6.1
 
@@ -108,7 +351,7 @@ CRAN release: 2025-07-28
 
 - passing and checks of the `cluster` and `study_labels` arguments
 - PEESE prior distribution now scale as 1/scale instead of 1/scale^2
-  with the `rescale_priors` argument  
+  with the `rescale_priors` argument\
 - the conditional prediction interval based on
   [`summary_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.md)
   is now conditional on the presence of the effect

@@ -36,6 +36,7 @@ models the clustering structure through the `cluster` argument, which:
 We load the package and examine the dataset structure.
 
 ``` r
+
 library(RoBMA)
 data("Johnides2025", package = "RoBMA")
 ```
@@ -44,6 +45,7 @@ The dataset contains effect sizes (`d`), standard errors (`se`), and
 study identifiers (`study`).
 
 ``` r
+
 head(Johnides2025)
 #>                 study       d        se
 #> 1 Price et al. (2012)  0.0000 0.1337909
@@ -68,6 +70,7 @@ Distributions*](https://fbartos.github.io/RoBMA/articles/01-prior-distributions.
 vignette for more details on specifying prior distributions).
 
 ``` r
+
 prior_effect_361        <- prior("normal",   list(mean = 0, sd = 1))
 prior_heterogeneity_361 <- prior("invgamma", list(shape = 1, scale = 0.15))
 ```
@@ -84,6 +87,7 @@ publication-bias specification remains the same). The `cluster` argument
 specifies which effect sizes belong together.
 
 ``` r
+
 fit <- RoBMA(
   yi = d, sei = se, measure = "SMD", cluster = study,
   prior_effect        = prior_effect_361,
@@ -102,6 +106,7 @@ The [`summary()`](https://rdrr.io/r/base/summary.html) output contains
 two main sections.
 
 ``` r
+
 summary(fit)
 #> 
 #> Robust Bayesian Model-Averaged Multilevel Random-Effects Model (k = 412, clusters = 128)
@@ -171,6 +176,7 @@ distribution of true effect sizes can be obtained from the
 function:
 
 ``` r
+
 summary_heterogeneity(fit)
 #> 
 #> Heterogeneity Estimates:
@@ -198,6 +204,7 @@ To understand which publication bias mechanisms the data support, we
 examine the posterior distribution across model types:
 
 ``` r
+
 summary_models(fit)
 #> 
 #> Effect
@@ -235,6 +242,7 @@ The weight function shows how publication probability varies across
 p-value ranges:
 
 ``` r
+
 plot_weightfunction(fit)
 ```
 
@@ -257,6 +265,7 @@ compare our results with a standard single-level RoBMA that ignores
 dependencies among effect sizes from the same study.
 
 ``` r
+
 fit_simple <- RoBMA(
   yi = d, sei = se, measure = "SMD", 
   prior_effect        = prior_effect_361,
@@ -267,6 +276,7 @@ fit_simple <- RoBMA(
 ```
 
 ``` r
+
 summary(fit_simple)
 #> 
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 412)

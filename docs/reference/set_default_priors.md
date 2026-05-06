@@ -96,6 +96,7 @@ and weight function prior distributions are scale-invariant.
 ## Examples
 
 ``` r
+
 set_default_priors("effect")
 #> Normal(0, 1)
 set_default_priors("heterogeneity")

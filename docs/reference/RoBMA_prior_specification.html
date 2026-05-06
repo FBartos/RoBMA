@@ -28,29 +28,29 @@ where a single MCMC chain explores a joint model space containing all competing 
       <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><h6 class="dropdown-header" data-toc-skip>Foundations</h6></li>
-    <li><a class="dropdown-item" href="../articles/00-introduction.html">Introduction</a></li>
-    <li><a class="dropdown-item" href="../articles/01-prior-distributions.html">Prior Distributions</a></li>
-    <li><a class="dropdown-item" href="../articles/02-bayesian-meta-analysis.html">Bayesian Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/03-feature-coverage.html">Feature Coverage</a></li>
+    <li><a class="dropdown-item" href="../articles/v00-introduction.html">Introduction</a></li>
+    <li><a class="dropdown-item" href="../articles/v01-prior-distributions.html">Prior Distributions</a></li>
+    <li><a class="dropdown-item" href="../articles/v02-bayesian-meta-analysis.html">Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v03-feature-coverage.html">Feature Coverage</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><h6 class="dropdown-header" data-toc-skip>Correspondence with metafor</h6></li>
-    <li><a class="dropdown-item" href="../articles/10-metafor-parity-multilevel.html">Multilevel Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
-    <li><a class="dropdown-item" href="../articles/12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>metafor Parity</h6></li>
+    <li><a class="dropdown-item" href="../articles/v10-metafor-parity-multilevel.html">Multilevel Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
+    <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
-    <li><a class="dropdown-item" href="../articles/20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
-    <li><a class="dropdown-item" href="../articles/21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
+    <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
-    <li><a class="dropdown-item" href="../articles/30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
-    <li><a class="dropdown-item" href="../articles/31-robma-metaregression.html">RoBMA Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="../articles/32-robma-multilevel.html">Multilevel RoBMA</a></li>
-    <li><a class="dropdown-item" href="../articles/33-robma-multilevel-metaregression.html">Multilevel RoBMA Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="../articles/34-bma-norm-medicine.html">BMA in Medicine</a></li>
-    <li><a class="dropdown-item" href="../articles/35-bma-glmm-medicine.html">BMA for Binary Outcomes</a></li>
-    <li><a class="dropdown-item" href="../articles/36-zplot.html">Zplot Diagnostics</a></li>
+    <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
+    <li><a class="dropdown-item" href="../articles/v31-robma-metaregression.html">RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/v32-robma-multilevel.html">Multilevel RoBMA</a></li>
+    <li><a class="dropdown-item" href="../articles/v33-robma-multilevel-metaregression.html">Multilevel RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/v34-bma-norm-medicine.html">BMA in Medicine</a></li>
+    <li><a class="dropdown-item" href="../articles/v35-bma-glmm-medicine.html">BMA for Binary Outcomes</a></li>
+    <li><a class="dropdown-item" href="../articles/v36-zplot.html">Zplot Diagnostics</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -117,7 +117,9 @@ component(s), such as weight functions, PET, or PEESE.</p>
 <p>Alternative prior arguments can be:</p><ul><li><p>A single prior distribution object (creates a mixture with one alternative)</p></li>
 <li><p>A list of prior distributions (creates a mixture with multiple alternatives)</p></li>
 <li><p><code>NULL</code> or <code>FALSE</code> (omits the alternative hypothesis component)</p></li>
-</ul><p>See <code><a href="prior_specification.html">prior_specification</a></code> for details on specifying individual priors.</p></dd>
+</ul><p>See <code><a href="publication_bias_prior_specification.html">publication_bias_prior_specification</a></code> for details on
+specifying publication-bias priors and <code><a href="prior_specification.html">prior_specification</a></code> for
+details on specifying meta-analytic parameter priors.</p></dd>
 
 
 <dt id="arg-prior-effect-null">prior_effect_null<a class="anchor" aria-label="anchor" href="#arg-prior-effect-null"></a></dt>
@@ -149,7 +151,8 @@ null cluster-level heterogeneity allocation component(s).</p></dd>
 
 <dt id="arg-prior-bias-null">prior_bias_null<a class="anchor" aria-label="anchor" href="#arg-prior-bias-null"></a></dt>
 <dd><p>prior distribution(s) for null publication-bias
-component(s), usually <code><a href="prior_none.html">prior_none()</a></code>.</p>
+component(s), usually <code><a href="prior_none.html">prior_none()</a></code>. See
+<code><a href="publication_bias_prior_specification.html">publication_bias_prior_specification</a></code>.</p>
 <p>Null prior arguments can be:</p><ul><li><p>A single prior distribution object (creates a mixture with one null)</p></li>
 <li><p>A list of prior distributions (creates a mixture with multiple nulls)</p></li>
 <li><p><code>NULL</code> or <code>FALSE</code> (omits the null hypothesis component)</p></li>
@@ -227,8 +230,8 @@ inference about which specific prior specification is most supported by the data
 <p>For top-level mixture components, setting a prior argument to <code>NULL</code> or <code>FALSE</code>
 removes that hypothesis component:</p><ul><li><p><code>prior_effect_null = NULL</code>: No null hypothesis for effect (assumes effect exists)</p></li>
 <li><p><code>prior_effect = NULL</code>: No alternative hypothesis (assumes no effect)</p></li>
-<li><p><code>prior_bias_null = NULL</code>: No "no bias" model (assumes some bias mechanism)</p></li>
-<li><p><code>prior_bias = NULL</code>: No bias model (assumes no bias mechanism)</p></li>
+<li><p><code>prior_bias_null = NULL</code> or <code>FALSE</code>: No "no bias" model (assumes some bias mechanism)</p></li>
+<li><p><code>prior_bias = NULL</code> or <code>FALSE</code>: No bias model (assumes no bias mechanism)</p></li>
 </ul><p>For moderator and scale regression terms, an omitted or whole-argument <code>NULL</code>
 <code>prior_mods</code> / <code>prior_scale</code> means "use defaults". To omit a component for a
 specific term, use a named list entry such as <code>prior_mods_null = list(x1 = NULL)</code>.</p>
@@ -279,8 +282,8 @@ are always included or excluded.</p>
 <li><p>PET/PEESE: Regression-based bias adjustment</p></li>
 </ul><p>The <code>model_type</code> argument provides convenient presets:</p><div class="sourceCode"><pre><code><span></span>
 <span><span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span><span class="va">...</span>, model_type <span class="op">=</span> <span class="st">"PSMA"</span><span class="op">)</span>  <span class="co"># Full ensemble (default)</span></span>
-<span><span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span><span class="va">...</span>, model_type <span class="op">=</span> <span class="st">"PP"</span><span class="op">)</span>    <span class="co"># Only PET-PEESE models</span></span></code></pre></div>
-
+<span><span class="fu"><a href="../reference/RoBMA.html">RoBMA</a></span><span class="op">(</span><span class="va">...</span>, model_type <span class="op">=</span> <span class="st">"PP"</span><span class="op">)</span>    <span class="co"># Only PET-PEESE models</span></span></code></pre></div><p>See <code><a href="publication_bias_prior_specification.html">publication_bias_prior_specification</a></code> for the bias-prior
+constructors and preset model spaces.</p>
 </div>
 
 <div class="section">
@@ -349,6 +352,7 @@ odds equal the Bayes factor.</p>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="prior_specification.html">prior_specification</a></code> for base prior specification options,
+<code><a href="publication_bias_prior_specification.html">publication_bias_prior_specification</a></code> for publication-bias priors,
 <code><a href="RoBMA.html">RoBMA</a></code> for the main model-averaging function,
 <code><a href="https://fbartos.github.io/BayesTools/reference/prior.html" class="external-link">prior</a></code> for creating prior distribution objects</p></div>
     </div>

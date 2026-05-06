@@ -20,6 +20,7 @@ subjected to a meta-analysis by Poulsen et al. (2006).
 We load the dentine hypersensitivity data included in the package.
 
 ``` r
+
 library(RoBMA)
 
 data("Poulsen2006", package = "RoBMA")
@@ -39,6 +40,7 @@ from the Cochrane database of systematic reviews. We can either set them
 manually,
 
 ``` r
+
 fit_BMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
                  priors_effect        = prior(distribution = "t", parameters = list(location = 0, scale = 0.51, df = 5)),
                  priors_heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1.79, scale = 0.28)),
@@ -59,6 +61,7 @@ prepares informed prior distributions for the individual medical
 subfields automatically.
 
 ``` r
+
 fit_BMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
                  priors_effect        = prior_informed(name = "oral health", parameter = "effect", type = "smd"),
                  priors_heterogeneity = prior_informed(name = "oral health", parameter = "heterogeneity", type = "smd"),
@@ -83,6 +86,7 @@ estimates assuming that the models specifying the presence of
 heterogeneity are true$`^2`$.
 
 ``` r
+
 summary(fit_BMA, conditional = TRUE)
 #> Call:
 #> RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, 
@@ -138,6 +142,7 @@ results. Here, we visualize the prior (grey) and posterior (black)
 distribution for the mean parameter.
 
 ``` r
+
 plot(fit_BMA, parameter = "mu", prior = TRUE)
 ```
 
@@ -156,6 +161,7 @@ To visualize the conditional effect size estimate, we can add the
 `conditional = TRUE` argument,
 
 ``` r
+
 plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE)
 ```
 
@@ -181,6 +187,7 @@ averaged-estimate that is a combination of the individual model
 posterior distributions weighted by the posterior model probabilities.
 
 ``` r
+
 plot_models(fit_BMA)
 ```
 
@@ -201,6 +208,7 @@ display the conditional model-averaged effect size estimate at the
 bottom.
 
 ``` r
+
 forest(fit_BMA, conditional = TRUE)
 ```
 
@@ -226,6 +234,7 @@ comparison, we fit the informed BMA model but using the default effect
 size transformation (Fisher’s $`z`$).
 
 ``` r
+
 fit_BMAb <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
                   priors_effect        = prior_informed(name = "oral health", parameter = "effect", type = "smd"),
                   priors_heterogeneity = prior_informed(name = "oral health", parameter = "heterogeneity", type = "smd"),
@@ -234,6 +243,7 @@ fit_BMAb <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2
 ```
 
 ``` r
+
 summary(fit_BMAb, conditional = TRUE)
 #> Call:
 #> RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, 
@@ -276,6 +286,7 @@ Now, we fit the publication bias-adjusted model by simply removing the
 models ensemble called RoBMA-PSMA (Bartoš et al., 2023).
 
 ``` r
+
 fit_RoBMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study,
                    priors_effect        = prior_informed(name = "oral health", parameter = "effect", type = "smd"),
                    priors_heterogeneity = prior_informed(name = "oral health", parameter = "heterogeneity", type = "smd"),
@@ -283,6 +294,7 @@ fit_RoBMA <- RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen
 ```
 
 ``` r
+
 summary(fit_RoBMA, conditional = TRUE)
 #> Call:
 #> RoBMA(d = Poulsen2006$d, se = Poulsen2006$se, study_names = Poulsen2006$study, 
@@ -350,6 +362,7 @@ confidence interval, as visualized in the prior and posterior
 conditional effect size estimate plot.
 
 ``` r
+
 plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE)
 ```
 

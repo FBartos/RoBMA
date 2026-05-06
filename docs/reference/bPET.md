@@ -174,8 +174,9 @@ bPET(
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged; publication-bias priors are not rescaled
-  except for the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged. For constructors with publication-bias
+  prior distributions, `rescale_priors` does not rescale them except for
+  the default PEESE prior's UISD adjustment. Defaults to 1.
 
 - prior_informed_field:
 
@@ -259,6 +260,7 @@ publication-bias model fit.
 
 ## See also
 
+[publication_bias_prior_specification](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md),
 [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md),
 [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md),
 [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),

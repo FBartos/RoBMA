@@ -44,6 +44,9 @@
   : Prior specification
 - [`RoBMA_prior_specification`](https://fbartos.github.io/RoBMA/reference/RoBMA_prior_specification.md)
   : Prior specification for model-averaging
+- [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+  [`bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+  : Publication-bias prior specification
 - [`prior()`](https://fbartos.github.io/RoBMA/reference/prior.md) :
   Prior Distribution
 - [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md)

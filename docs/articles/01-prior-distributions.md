@@ -75,6 +75,7 @@ the default prior distributions for a simple random-effects
 meta-analysis.
 
 ``` r
+
 data("dat.bcg", package = "metadat")
 
 bcg <- metafor::escalc(
@@ -84,6 +85,7 @@ bcg <- metafor::escalc(
 ```
 
 ``` r
+
 bcg_priors <- brma(
   yi = yi, vi = vi, measure = "RR",
   data = bcg, only_priors = TRUE
@@ -95,12 +97,14 @@ plot_prior(bcg_priors,  parameter = "mu")
 ![](01-prior-distributions_files/figure-html/bcg-default-priors-1.png)
 
 ``` r
+
 plot_prior(bcg_priors,  parameter = "tau")
 ```
 
 ![](01-prior-distributions_files/figure-html/bcg-default-priors-2.png)
 
 ``` r
+
 print_prior(bcg_priors)
 #> mu:
 #>   Normal(0, 1)
@@ -162,6 +166,7 @@ The default prior distributions can be made wider or narrower with
 wider; values smaller than one make them narrower.
 
 ``` r
+
 bcg_wider_priors <- brma(
   yi = yi, vi = vi, measure = "RR",
   rescale_priors = 2,
@@ -203,6 +208,7 @@ to convert correlations and sample sizes into Fisher’s $`z`$ effect
 sizes and their sampling variances:
 
 ``` r
+
 data("Kroupova2021", package = "RoBMA")
 
 Kroupova2021 <- metafor::escalc( 
@@ -216,6 +222,7 @@ Kroupova2021 <- metafor::escalc(
 distributions:
 
 ``` r
+
 Kroupova2021_priors <- brma(
   yi = yi, vi = vi, measure = "ZCOR",
   data = Kroupova2021, only_priors = TRUE
@@ -260,6 +267,7 @@ The `Havrankova2025` dataset reports regression coefficients estimating
 the beauty premium across studies on a non-standardized scale.
 
 ``` r
+
 data("Havrankova2025", package = "RoBMA")
 head(Havrankova2025)
 #>        y        se facing_customer study_id    N
@@ -275,6 +283,7 @@ The simplest specification passes the sample sizes in `ni` so that the
 package estimates the UISD:
 
 ``` r
+
 Havrankova_priors <- brma(
   yi = y, sei = se, ni = N, measure = "GEN",
   data = Havrankova2025, only_priors = TRUE
@@ -293,6 +302,7 @@ subgroup analyses (it is sensible to compute UISD based on the full
 dataset so the prior distributions match across models):
 
 ``` r
+
 Havrankova_UISD <- estimate_unit_information_sd(
   sei = Havrankova2025$se,
   ni  = Havrankova2025$N
@@ -302,6 +312,7 @@ Havrankova_UISD
 ```
 
 ``` r
+
 Havrankova_manual_priors <- brma(
   yi = y, sei = se, measure = "GEN",
   prior_unit_information_sd = Havrankova_UISD,
@@ -375,6 +386,7 @@ The two contrast schemes can be compared on the categorical moderator
 while the continuous moderator is included in the same model:
 
 ``` r
+
 Havrankova_treatment <- brma(
   yi = y, sei = se, ni = N, measure = "GEN",
   mods = ~ facing_customer + N,
@@ -388,6 +400,7 @@ print_prior(Havrankova_treatment, parameter_mods = "facing_customer")
 ```
 
 ``` r
+
 Havrankova_meandif <- brma(
   yi = y, sei = se, ni = N, measure = "GEN",
   mods = ~ facing_customer + N,
@@ -422,12 +435,14 @@ We inspect the prior distribution on the continuous moderator `N` from
 the same `Havrankova_meandif` fit:
 
 ``` r
+
 plot_prior(Havrankova_meandif, parameter_mods = "N")
 ```
 
 ![](01-prior-distributions_files/figure-html/Havrankova-continuous-1.png)
 
 ``` r
+
 plot_prior(Havrankova_meandif, parameter_mods = "N", 
   standardized_coefficients = FALSE)
 ```
@@ -459,6 +474,7 @@ switching its contrast and tightening its scale, while leaving `N` on
 the default per-standard-deviation prior distribution:
 
 ``` r
+
 Havrankova_per_mod <- brma(
   yi = y, sei = se, ni = N, measure = "GEN",
   mods = ~ facing_customer + N,
@@ -505,6 +521,7 @@ in Bartoš et al. ([2023](#ref-bartos2023empirical)). The shortcut is
 package uses the full Cochrane database.
 
 ``` r
+
 bcg_informed_priors <- brma(
   yi = yi, vi = vi, measure = "RR",
   prior_informed_field    = "medicine",
@@ -529,6 +546,7 @@ or the heterogeneity prior distribution from Erp et al.
 arguments:
 
 ``` r
+
 psychology_priors <- brma(
   yi = yi, vi = vi, measure = "ZCOR",
   prior_effect        = prior_informed("Oosterwijk"),
@@ -553,6 +571,7 @@ are created with
 related helper functions.
 
 ``` r
+
 bcg_custom_priors <- brma(
   yi = yi, vi = vi, measure = "RR",
   prior_effect        = prior(
@@ -589,6 +608,7 @@ the model that excludes the parameter, and a continuous prior
 distribution (the slab) for the model that includes it.
 
 ``` r
+
 bcg_bma_priors <- BMA(
   yi = yi, vi = vi, measure = "RR",
   data = bcg, only_priors = TRUE
@@ -615,6 +635,7 @@ the no-effect model and yields estimation under an assumed effect rather
 than a test of effect versus no effect.
 
 ``` r
+
 bcg_estimation_priors <- BMA(
   yi = yi, vi = vi, measure = "RR",
   prior_effect_null = NULL,

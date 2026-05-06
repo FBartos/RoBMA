@@ -29,6 +29,7 @@ Poulsen et al. ([2006](#ref-poulsen2006potassium)).
 We load the dentine hypersensitivity data included in the package.
 
 ``` r
+
 library(RoBMA)
 
 data("Poulsen2006", package = "RoBMA")
@@ -49,6 +50,7 @@ systematic reviews. The current interface allows us to request these
 prior distributions directly in the model call:
 
 ``` r
+
 fit_BMA <- BMA(
   yi = d, sei = se, measure = "SMD",
   prior_informed_field    = "medicine",
@@ -83,6 +85,7 @@ estimates assuming that the models specifying the presence of
 heterogeneity are true$`^1`$.
 
 ``` r
+
 summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Model-Averaged Random-Effects Model (k = 5)
@@ -131,6 +134,7 @@ and heterogeneity estimates directly (assuming the presence of the
 effect and heterogeneity respectively):
 
 ``` r
+
 pooled_effect(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
@@ -150,6 +154,7 @@ results. Here, we visualize the prior distribution (grey) and posterior
 distribution (black) for the mean parameter.
 
 ``` r
+
 par(mar = c(4, 4, 0, 4))
 plot(fit_BMA, parameter = "mu", prior = TRUE, xlim = c(-2, 2), lwd = 2)
 ```
@@ -167,6 +172,7 @@ To visualize the conditional effect size estimate, we can add the
 `conditional = TRUE` argument,
 
 ``` r
+
 par(mar = c(4, 4, 0, 4))
 plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), lwd = 2)
 ```
@@ -204,6 +210,7 @@ uses the default 36-model RoBMA-PSMA ensemble ([Bartoš et al.,
 2023](#ref-bartos2021no)).
 
 ``` r
+
 fit_RoBMA <- RoBMA(
   yi = d, sei = se, measure = "SMD",
   prior_informed_field    = "medicine",
@@ -214,6 +221,7 @@ fit_RoBMA <- RoBMA(
 ```
 
 ``` r
+
 summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 5)
@@ -278,6 +286,7 @@ effect) decreases the estimated effect to d = 0.655, 95% CI \[-0.384,
 1.330\] with a much wider credible interval.
 
 ``` r
+
 pooled_effect(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
@@ -293,6 +302,7 @@ pooled_effect(fit_RoBMA, conditional = TRUE)
 The same shift is visible in the prior and posterior plot below.
 
 ``` r
+
 par(mar = c(4, 4, 0, 4))
 plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), lwd = 2)
 ```

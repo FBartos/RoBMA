@@ -34,6 +34,7 @@ and sample sizes in each arm as described on p. 73 of Oduwole et al.
 ([2018](#ref-oduwole2018honey)).
 
 ``` r
+
 library(RoBMA)
 
 events_experimental        <- c(5, 2)
@@ -61,6 +62,7 @@ arguments request the informed prior distributions for the individual
 medical subfields automatically.
 
 ``` r
+
 fit_BMA <- BMA.glmm(
   ai = events_experimental, n1i = observations_experimental,
   ci = events_control, n2i = observations_control,
@@ -91,6 +93,7 @@ with `transform = "EXP"` to obtain the estimates on the odds-ratio
 scale.
 
 ``` r
+
 summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Model-Averaged Random-Effects Model (k = 2)
@@ -145,6 +148,7 @@ and heterogeneity estimates directly on the odds-ratio scale (assuming
 the presence of the effect and heterogeneity respectively):
 
 ``` r
+
 pooled_effect(fit_BMA, conditional = TRUE, transform = "EXP")
 #> 
 #> Conditional Pooled Effect Size (odds ratio)
@@ -166,6 +170,7 @@ effect size estimate and `prior = TRUE` to include the prior
 distribution in the plot.
 
 ``` r
+
 par(mar = c(4, 4, 0, 4))
 plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE, lwd = 2)
 ```

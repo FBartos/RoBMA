@@ -33,6 +33,7 @@ randomized trials on tuberculosis prevention. Treated and control event
 counts (`tpos`, `tneg`, `cpos`, `cneg`) are passed in directly.
 
 ``` r
+
 data("dat.bcg", package = "metadat")
 head(dat.bcg)
 #>   trial               author year tpos  tneg cpos  cneg ablat     alloc
@@ -52,6 +53,7 @@ formulation that corresponds to the binomial GLMM in
 (Model 4 in Jackson et al. ([2018](#ref-jackson2018comparison))).
 
 ``` r
+
 fit1_metafor <- metafor::rma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR", 
   model = "UM.FS", data = dat.bcg
@@ -83,6 +85,7 @@ The matching Bayesian fit takes the same count columns and
 `measure = "OR"`.
 
 ``` r
+
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
   data = dat.bcg, seed = 1
@@ -95,6 +98,7 @@ diagnostics for the pooled log odds ratio `mu` and the heterogeneity
 `tau`.
 
 ``` r
+
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Model (k = 13)
@@ -112,6 +116,7 @@ returns the same summary backtransformed to the odds-ratio scale via
 `transform = "EXP"`:
 
 ``` r
+
 pooled_effect(fit1_brma, transform = "EXP")
 #> 
 #> Pooled Effect Size (odds ratio)

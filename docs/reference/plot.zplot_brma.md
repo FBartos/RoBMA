@@ -11,7 +11,7 @@ plot(
   x,
   plot_type = "base",
   probs = c(0.025, 0.975),
-  max_samples = 500,
+  max_samples = 10000,
   plot_fit = TRUE,
   plot_extrapolation = TRUE,
   plot_ci = TRUE,
@@ -46,7 +46,8 @@ plot(
 
 - max_samples:
 
-  maximum posterior samples for density estimation. Defaults to 500.
+  maximum posterior samples for density estimation. Defaults to 10000.
+  Use `Inf` to use all posterior samples.
 
 - plot_fit:
 

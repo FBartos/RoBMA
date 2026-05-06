@@ -40,6 +40,7 @@ children (`age`). The analyses below use the 36 rows with complete
 effect-size inputs.
 
 ``` r
+
 library(RoBMA)
 data("Andrews2021", package = "RoBMA")
 head(Andrews2021)[,c("slab", "ri", "ni", "measure", "age")]
@@ -59,6 +60,7 @@ coefficients and sample sizes which we will use for all the subsequent
 analyses.
 
 ``` r
+
 Andrews2021_z <- metafor::escalc(
   ri = ri, ni = ni,
   measure = "ZCOR", data = Andrews2021
@@ -76,6 +78,7 @@ scale and the pooled estimates are transformed to correlation
 coefficients only for reporting.
 
 ``` r
+
 fit_rma <- metafor::rma(yi, vi, mods = ~ measure + age, data = Andrews2021_z)
 fit_rma
 #> 
@@ -112,6 +115,7 @@ function assessment type using the `emmeans` R package ([Lenth et al.,
 2017](#ref-emmeans)) and back-transform the estimates to correlations.
 
 ``` r
+
 emm_rma <- emmeans::emmeans(metafor::emmprep(fit_rma), specs = "measure")
 emm_rma
 #>  measure   emmean     SE  df asymp.LCL asymp.UCL
@@ -186,6 +190,7 @@ distributions, expressed on the fitted Fisher’s $`z`$ scale, are
 specified explicitly.[^1]
 
 ``` r
+
 prior_effect_361 <- prior("normal", list(mean = 0, sd = 0.5))
 prior_heterogeneity_361 <- prior("invgamma", list(shape = 1, scale = 0.075))
 ```
@@ -204,6 +209,7 @@ formula, here `~ measure + age`. We also set `parallel = TRUE` to speed
 up computation and `seed = 1` for reproducibility.
 
 ``` r
+
 fit_BMA <- BMA(
   yi = yi, vi = vi, measure = "ZCOR",
   mods = ~ measure + age,
@@ -227,6 +233,7 @@ model-averaging results on the fitted Fisher’s $`z`$ scale. Dedicated
 effect-summary helpers handle transformations to the correlation scale.
 
 ``` r
+
 summary(fit_BMA, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Model-Averaged Mixed-Effect Model (k = 36)
@@ -303,6 +310,7 @@ and [`summary()`](https://rdrr.io/r/base/summary.html) to obtain the
 marginal estimates for each factor level on the correlation scale.
 
 ``` r
+
 BMA_marginal <- marginal_means(fit_BMA, output_measure = "COR")
 summary(BMA_marginal)
 #> 
@@ -349,6 +357,7 @@ visualized by the
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) method.
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(BMA_marginal, parameter = "measure", lwd = 2)
 ```
@@ -367,6 +376,7 @@ weight functions and PET-PEESE ([Bartoš et al.,
 ensemble now contains 144 models.
 
 ``` r
+
 fit_RoBMA <- RoBMA(
   yi = yi, vi = vi, measure = "ZCOR",
   mods = ~ measure + age,
@@ -377,6 +387,7 @@ fit_RoBMA <- RoBMA(
 ```
 
 ``` r
+
 summary(fit_RoBMA, include_mcmc_diagnostics = FALSE)
 #> 
 #> Robust Bayesian Model-Averaged Mixed-Effect Model (k = 36)
@@ -435,6 +446,7 @@ notably reduces the mean effect estimate to r = 0.061, 95% CI \[-0.020,
 0.189\].
 
 ``` r
+
 RoBMA_marginal <- marginal_means(fit_RoBMA, output_measure = "COR")
 summary(RoBMA_marginal)
 #> 
@@ -464,6 +476,7 @@ marginal means, a consequence of accounting and adjusting for
 publication bias.
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(RoBMA_marginal, parameter = "measure", lwd = 2)
 ```

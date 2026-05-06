@@ -166,8 +166,9 @@ brma(
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged; publication-bias priors are not rescaled
-  except for the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged. For constructors with publication-bias
+  prior distributions, `rescale_priors` does not rescale them except for
+  the default PEESE prior's UISD adjustment. Defaults to 1.
 
 - prior_informed_field:
 
@@ -417,23 +418,23 @@ deviations from the grand mean.
 Bartoš F, Gronau QF, Timmers B, Otte WM, Ly A, Wagenmakers E (2021).
 “Bayesian model-averaged meta-analysis in medicine.” *Statistics in
 Medicine*, **40**(30), 6743–6761.
-[doi:10.1002/sim.9170](https://doi.org/10.1002/sim.9170) .  
-  
+[doi:10.1002/sim.9170](https://doi.org/10.1002/sim.9170) .\
+\
 Bartoš F, Otte WM, Gronau QF, Timmers B, Ly A, Wagenmakers E (2023).
 “Empirical prior distributions for Bayesian meta-analyses of binary and
 time-to-event outcomes.”
 [doi:10.48550/arXiv.2306.11468](https://doi.org/10.48550/arXiv.2306.11468)
-. Preprint available at https://doi.org/10.48550/arXiv.2306.11468.  
-  
+. Preprint available at https://doi.org/10.48550/arXiv.2306.11468.\
+\
 Grieve AP (2022). *Hybrid frequentist/Bayesian power and Bayesian power
-in planning clinical trials*. Chapman and Hall/CRC.  
-  
+in planning clinical trials*. Chapman and Hall/CRC.\
+\
 Röver C, Bender R, Dias S, Schmid CH, Schmidli H, Sturtz S, Weber S,
 Friede T (2021). “On weakly informative prior distributions for the
 heterogeneity parameter in Bayesian random-effects meta-analysis.”
 *Research Synthesis Methods*, **12**(4), 448–474.
-[doi:10.1002/jrsm.1475](https://doi.org/10.1002/jrsm.1475) .  
-  
+[doi:10.1002/jrsm.1475](https://doi.org/10.1002/jrsm.1475) .\
+\
 Spiegelhalter DJ, Abrams KR, Myles JP (2004). *Bayesian approaches to
 clinical trials and health-care evaluation*. John Wiley and Sons.
 [doi:10.1002/0470092602](https://doi.org/10.1002/0470092602) .

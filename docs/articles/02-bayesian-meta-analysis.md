@@ -25,6 +25,7 @@ randomized trials on tuberculosis prevention. `escalc()` computes log
 risk ratios `yi` and their sampling variances `vi`.
 
 ``` r
+
 data("dat.bcg", package = "metadat")
 
 dat <- metafor::escalc(
@@ -37,6 +38,7 @@ dat <- metafor::escalc(
 fits the random-effects model.
 
 ``` r
+
 fit1_metafor <- metafor::rma(yi, vi, data = dat, method = "REML")
 fit1_metafor
 #> 
@@ -67,6 +69,7 @@ distributions are weakly informative and provide slight regularization
 toward zero.
 
 ``` r
+
 fit1_brma <- brma(
   yi = yi, vi = vi, measure = "RR",
   data = dat, seed = 1
@@ -83,6 +86,7 @@ and
 [`plot_diagnostic_autocorrelation()`](https://fbartos.github.io/RoBMA/reference/plot_diagnostic.md).
 
 ``` r
+
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Model (k = 13)
@@ -101,6 +105,7 @@ returns the same summary, backtransformed to the risk-ratio scale via
 `transform = "EXP"`:
 
 ``` r
+
 pooled_effect(fit1_brma, transform = "EXP")
 #> 
 #> Pooled Effect Size (risk ratio)
@@ -114,6 +119,7 @@ posterior distribution, and `prior = TRUE` overlays the prior
 distribution so the shift from prior to posterior is visible.
 
 ``` r
+
 par(mar = c(4, 4, 1, 1))
 plot(fit1_brma, parameter = "mu", prior = TRUE, xlim = c(-3, 3))
 ```
@@ -130,6 +136,7 @@ is the Bayesian counterpart, returning posterior summaries of the same
 quantities.
 
 ``` r
+
 confint(fit1_metafor)
 #> 
 #>        estimate   ci.lb   ci.ub 
@@ -140,6 +147,7 @@ confint(fit1_metafor)
 ```
 
 ``` r
+
 summary_heterogeneity(fit1_brma)
 #> 
 #> Heterogeneity Estimates:
@@ -158,6 +166,7 @@ off the `sampling_heterogeneity` argument, since the `RoBMA` R package
 shows the full sampling distribution under the model by default.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 metafor::funnel(fit1_metafor, main = "metafor", xlim = c(-2, 1), ylim = c(0, 0.8))
 funnel(fit1_brma, main = "RoBMA", xlim = c(-2, 1), ylim = c(0, 0.8), sampling_heterogeneity = FALSE)
@@ -172,6 +181,7 @@ the `mods` argument. `ablat` is the absolute latitude of the trial,
 frequently used to explain BCG effect-size variation.
 
 ``` r
+
 fit2_metafor <- metafor::rma(yi, vi, mods = ~ ablat, data = dat)
 fit2_metafor
 #> 
@@ -200,6 +210,7 @@ fit2_metafor
 ```
 
 ``` r
+
 fit2_brma <- brma(
   yi = yi, vi = vi, measure = "RR",
   mods = ~ ablat,
@@ -208,6 +219,7 @@ fit2_brma <- brma(
 ```
 
 ``` r
+
 summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Mixed-Effect Model (k = 13)
@@ -226,6 +238,7 @@ summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 produces the familiar bubble plot with the fitted regression line.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 metafor::regplot(fit2_metafor, main = "metafor", xlim = c(10, 60), ylim = c(-2, 0.5))
 regplot(fit2_brma, main = "RoBMA", xlim = c(10, 60), ylim = c(-2, 0.5))
@@ -237,6 +250,7 @@ regplot(fit2_brma, main = "RoBMA", xlim = c(10, 60), ylim = c(-2, 0.5))
 summaries for user-specified moderator values.
 
 ``` r
+
 new_data <- data.frame(ablat = c(15, 35, 55))
 predict(fit2_brma, newdata = new_data, type = "terms")
 #> 
@@ -257,11 +271,13 @@ likelihoods to both fits with
 Bayes factor for one model against another.
 
 ``` r
+
 fit1_brma <- add_marglik(fit1_brma)
 fit2_brma <- add_marglik(fit2_brma)
 ```
 
 ``` r
+
 bf(fit2_brma, fit1_brma)
 #> Bayes factor in favor of Model 1 over Model 2: 14.76119
 ```
@@ -277,10 +293,12 @@ evidence in favor of the model including the `ablat` predictor.
 meta-regression.
 
 ``` r
+
 fit3_metafor <- metafor::rma(yi, vi, mods = ~ ablat + alloc, data = dat)
 ```
 
 ``` r
+
 fit3_brma <- brma(
   yi = yi, vi = vi, measure = "RR",
   mods = ~ ablat + alloc,
@@ -289,6 +307,7 @@ fit3_brma <- brma(
 ```
 
 ``` r
+
 summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Mixed-Effect Model (k = 13)
@@ -310,6 +329,7 @@ moderators in the bubble plot (the `metafor` package only supports a
 single dummy coefficient at the moment).
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 metafor::regplot(fit3_metafor, mod = "allocrandom", main = "metafor: random dummy", ylim = c(-2, 0.5))
 regplot(fit3_brma, mod = "alloc", main = "RoBMA: alloc factor", ylim = c(-2, 0.5))
@@ -324,6 +344,7 @@ over the other moderators in the fit. Continuous moderators (here
 of the predictor; categorical moderators (here `alloc`) at each level.
 
 ``` r
+
 emm <- marginal_means(fit3_brma)
 summary(emm)
 #> 
@@ -342,6 +363,7 @@ The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
 visualizes the posterior distribution of the estimated marginal means.
 
 ``` r
+
 par(mar = c(4, 4, 1, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(emm, parameter = "alloc", xlim = c(-2, 0.5), lwd = 2)
 ```
@@ -363,10 +385,12 @@ first require LOO computation via
 [`add_loo()`](https://fbartos.github.io/RoBMA/reference/add_loo.brma.md).
 
 ``` r
+
 fit3_brma <- add_loo(fit3_brma)
 ```
 
 ``` r
+
 head(rstudent(fit3_metafor)$z)
 #> [1]  0.4369227 -0.2024807 -0.3084436 -0.1187827 -0.4726194  0.4726194
 head(rstudent(fit3_brma)$z)
@@ -377,6 +401,7 @@ head(rstudent(fit3_brma)$z)
 against a standard normal reference.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 qqnorm(fit3_metafor, main = "metafor: studentized", xlim = c(-1.5, 1.5), ylim = c(-3, 3))
 qqnorm(fit3_brma, main = "RoBMA: LOO-PIT", xlim = c(-1.5, 1.5), ylim = c(-3, 3))
@@ -389,6 +414,7 @@ DFFITS, Cook’s distance, COVRATIO, leverage, and DFBETAS where the
 diagnostic is available.
 
 ``` r
+
 inf_brma <- influence(fit3_brma)
 head(inf_brma$inf)
 #>           rstudent      dffits      cook.d    cov.r   tau.del        hat

@@ -29,6 +29,7 @@ First, we load the power posing data provided within the metaBMA package
 and reproduce the analysis performed by Gronau et al. (2017).
 
 ``` r
+
 data("power_pose", package = "metaBMA")
 power_pose[,c("study", "effectSize", "SE")]
 #>                study effectSize        SE
@@ -41,6 +42,7 @@ power_pose[,c("study", "effectSize", "SE")]
 ```
 
 ``` r
+
 fit_BMA_test <- metaBMA::meta_bma(y   = power_pose$effectSize, SE = power_pose$SE,
                                   d   = metaBMA::prior(family = "halfcauchy", param = 1/sqrt(2)),
                                   tau = metaBMA::prior(family = "invgamma", param = c(1, .15)))
@@ -51,6 +53,7 @@ fit_BMA_est  <- metaBMA::meta_bma(y   = power_pose$effectSize, SE = power_pose$S
 ```
 
 ``` r
+
 fit_BMA_test$inclusion
 #> ### Inclusion Bayes factor ###
 #>       Model Prior Posterior included
@@ -109,6 +112,7 @@ prior distributions. We speed up the computation by setting
 `parallel = TRUE`, and set a seed for reproducibility.
 
 ``` r
+
 library(RoBMA)
 
 fit_RoBMA_test <- RoBMA(d = power_pose$effectSize, se = power_pose$SE, study_names = power_pose$study,
@@ -135,6 +139,7 @@ fit_RoBMA_est  <- RoBMA(d = power_pose$effectSize, se = power_pose$SE, study_nam
 ```
 
 ``` r
+
 summary(fit_RoBMA_test)
 #> Call:
 #> RoBMA(d = power_pose$effectSize, se = power_pose$SE, study_names = power_pose$study, 
@@ -202,6 +207,7 @@ visualize the prior (grey) and posterior (black) distribution for the
 mean parameter.
 
 ``` r
+
 plot(fit_RoBMA_est, parameter = "mu", prior = TRUE, xlim = c(-1, 1))
 ```
 
@@ -221,6 +227,7 @@ positive values, reflecting the assumption that the effect size cannot
 be negative.
 
 ``` r
+
 plot(fit_RoBMA_test, parameter = "mu", prior = TRUE, xlim = c(-.5, 1))
 ```
 
@@ -239,6 +246,7 @@ model-averaged estimate that is a combination of the individual model
 posterior distributions weighted by the posterior model probabilities.
 
 ``` r
+
 plot_models(fit_RoBMA_est)
 ```
 
@@ -251,6 +259,7 @@ the [`forest()`](https://fbartos.github.io/RoBMA/reference/forest.md)
 function.
 
 ``` r
+
 forest(fit_RoBMA_est)
 ```
 

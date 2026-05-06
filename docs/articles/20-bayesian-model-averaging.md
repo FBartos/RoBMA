@@ -47,6 +47,7 @@ protocol (0); we treat it as a factor and use it as a moderator later in
 the vignette.
 
 ``` r
+
 library("RoBMA")
 
 data("dat.baskerville2012", package = "metadat")
@@ -69,6 +70,7 @@ fits the conventional random-effects model on the standardized mean
 differences.
 
 ``` r
+
 res <- metafor::rma.uni(
   yi = smd, sei = se,
   data = dat, method = "REML"
@@ -101,6 +103,7 @@ distribution on the effect and a `Normal(0, 0.35)[0, Inf]` half-normal
 prior distribution on the heterogeneity.
 
 ``` r
+
 fit_RE <- brma(
   yi = smd, sei = se, measure = "SMD",
   data = dat, seed = 1
@@ -109,6 +112,7 @@ fit_RE <- add_marglik(fit_RE)
 ```
 
 ``` r
+
 summary(fit_RE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Model (k = 23)
@@ -123,6 +127,7 @@ Setting the heterogeneity prior distribution to a spike at zero turns
 the random-effects model into a fixed-effect model.
 
 ``` r
+
 fit_FE <- brma(
   yi = smd, sei = se, measure = "SMD",
   prior_heterogeneity = prior("spike", list(location = 0)),
@@ -132,6 +137,7 @@ fit_FE <- add_marglik(fit_FE)
 ```
 
 ``` r
+
 summary(fit_FE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Model (k = 23)
@@ -147,6 +153,7 @@ With marginal likelihoods attached to the models via
 Bayes factor between the two fits.
 
 ``` r
+
 bf(fit_RE, fit_FE)
 #> Bayes factor in favor of Model 1 over Model 2: 0.76191
 ```
@@ -167,6 +174,7 @@ average over presence vs absence of heterogeneity, which is the BMA
 analogue of the comparison above.
 
 ``` r
+
 fit_BMA_he <- BMA(
   yi = smd, sei = se, measure = "SMD",
   prior_effect_null = NULL,
@@ -175,6 +183,7 @@ fit_BMA_he <- BMA(
 ```
 
 ``` r
+
 summary(fit_BMA_he)
 #> 
 #> Bayesian Model-Averaged Random-Effects Model (k = 23)
@@ -215,6 +224,7 @@ call also averages over the presence vs absence of the effect, giving a
 absent).
 
 ``` r
+
 fit_BMA <- BMA(
   yi = smd, sei = se, measure = "SMD",
   data = dat, seed = 1
@@ -222,6 +232,7 @@ fit_BMA <- BMA(
 ```
 
 ``` r
+
 summary(fit_BMA)
 #> 
 #> Bayesian Model-Averaged Random-Effects Model (k = 23)
@@ -250,6 +261,7 @@ probability (right axis), the curve is the slab’s density, and the grey
 shapes show the corresponding visualization for the prior distribution.
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(fit_BMA, parameter = "mu", prior = TRUE, xlim = c(-1, 1.5), lwd = 2)
 ```
@@ -257,6 +269,7 @@ plot(fit_BMA, parameter = "mu", prior = TRUE, xlim = c(-1, 1.5), lwd = 2)
 ![](20-bayesian-model-averaging_files/figure-html/plot-BMA-mu-1.png)
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(fit_BMA, parameter = "tau", prior = TRUE, xlim = c(0, 1), lwd = 2)
 ```
@@ -271,6 +284,7 @@ posterior weight on the spike, and coincide for $`\mu`$, where the
 spike’s posterior weight is essentially zero.
 
 ``` r
+
 summary(fit_BMA, conditional = TRUE)
 #> 
 #> Bayesian Model-Averaged Random-Effects Model (k = 23)
@@ -300,6 +314,7 @@ over 8 sub-models (effect $`\times`$ heterogeneity $`\times`$`tailor`
 coefficient, each present or absent).
 
 ``` r
+
 res_mod <- metafor::rma.uni(
   yi = smd, sei = se, mods = ~ tailor,
   data = dat, method = "REML"
@@ -331,6 +346,7 @@ res_mod
 ```
 
 ``` r
+
 fit_BMA_mod <- BMA(
   yi = smd, sei = se, measure = "SMD",
   mods = ~ tailor,
@@ -339,6 +355,7 @@ fit_BMA_mod <- BMA(
 ```
 
 ``` r
+
 summary(fit_BMA_mod)
 #> 
 #> Bayesian Model-Averaged Mixed-Effect Model (k = 23)
@@ -370,6 +387,7 @@ zero,
 shrinks the difference towards zero when the inclusion BF is modest.
 
 ``` r
+
 par(mar = c(4, 4, 1, 1))
 regplot(fit_BMA_mod, mod = "tailor")
 ```
@@ -383,6 +401,7 @@ function and visualize the prior and posterior distributions at each
 moderator level.
 
 ``` r
+
 par(mar = c(4, 4, 1, 1))
 emm <- marginal_means(fit_BMA_mod)
 emm
@@ -414,6 +433,7 @@ structure without fitting the models.
 Tighten the effect slab with `rescale_priors = 0.5`:
 
 ``` r
+
 fit_priors <- BMA(
   yi = smd, sei = se, measure = "SMD",
   rescale_priors = 0.5,
@@ -431,6 +451,7 @@ Replace the point-zero null on the effect with a small spread around
 zero (a perinull) to test against a region of practical equivalence:
 
 ``` r
+
 fit_priors <- BMA(
   yi = smd, sei = se, measure = "SMD",
   prior_effect_null = prior("normal", list(mean = 0, sd = 0.05)),
@@ -447,6 +468,7 @@ print_prior(fit_priors, parameter = "mu")
 Force `tailor` into every model by dropping its null:
 
 ``` r
+
 fit_priors <- BMA(
   yi = smd, sei = se, measure = "SMD",
   mods = ~ tailor,
@@ -462,6 +484,7 @@ print_prior(fit_priors, parameter_mods = "tailor")
 A tighter half-normal slab on $`\tau`$:
 
 ``` r
+
 fit_priors <- BMA(
   yi = smd, sei = se, measure = "SMD",
   prior_heterogeneity = prior(

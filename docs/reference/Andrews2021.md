@@ -85,8 +85,8 @@ A data.frame with 15 columns and 39 observations:
 Andrews K, Atkinson L, Harris M, Gonzalez A (2021). “Examining the
 effects of household chaos on child executive functions: A
 meta-analysis.” *Psychological Bulletin*, **147**(1), 16–32.
-[doi:10.1037/bul0000311](https://doi.org/10.1037/bul0000311) .  
-  
+[doi:10.1037/bul0000311](https://doi.org/10.1037/bul0000311) .\
+\
 Bartoš F, Maier M, Stanley TD, Wagenmakers E (2025). “Robust Bayesian
 meta-regression: Model-averaged moderation analysis in the presence of
 publication bias.” *Psychological Methods*.

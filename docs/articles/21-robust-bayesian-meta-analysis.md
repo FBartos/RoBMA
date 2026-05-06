@@ -49,6 +49,7 @@ Adjustment*](https://fbartos.github.io/RoBMA/articles/11-metafor-parity-publicat
 vignette.
 
 ``` r
+
 library("RoBMA")
 
 data("dat.lehmann2018", package = "metadat")
@@ -76,6 +77,7 @@ Adjustment*](https://fbartos.github.io/RoBMA/articles/11-metafor-parity-publicat
 vignette.
 
 ``` r
+
 fit_RoBMA <- RoBMA(
   yi = yi, vi = vi, measure = "SMD",
   data = dat, seed = 1
@@ -83,6 +85,7 @@ fit_RoBMA <- RoBMA(
 ```
 
 ``` r
+
 summary(fit_RoBMA)
 #> 
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 81)
@@ -123,6 +126,7 @@ their individual sub-models and reports their prior weight, posterior
 weight, and individual inclusion Bayes factor.
 
 ``` r
+
 summary_models(fit_RoBMA)
 #> 
 #> Effect
@@ -165,6 +169,7 @@ that the effect is null and the slab carries the rest; the grey shapes
 are the corresponding prior distribution.
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(fit_RoBMA, parameter = "mu", prior = TRUE, xlim = c(-1, 1), lwd = 2)
 ```
@@ -176,6 +181,7 @@ distills the components and the pooled estimates into prose. With
 `scope = "all"`, the bias section is included.
 
 ``` r
+
 interpret(fit_RoBMA, scope = "all")
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
 #> Effect inclusion: moderate evidence against the effect (BF01 = 4.712).
@@ -216,6 +222,7 @@ Bias-adjustment prior distributions are not affected by
 components and prior weights inside any preset:
 
 ``` r
+
 fit_priors <- RoBMA(
   yi = yi, vi = vi, measure = "SMD",
   model_type = "PP",
@@ -250,6 +257,7 @@ so the ensemble averages over the same three bias mechanisms that
 vignette fit one at a time, plus the no-bias spike.
 
 ``` r
+
 fit_RoBMA_custom <- RoBMA(
   yi = yi, vi = vi, measure = "SMD",
   prior_bias = list(
@@ -274,6 +282,7 @@ fit_RoBMA_custom <- RoBMA(
 ```
 
 ``` r
+
 interpret(fit_RoBMA_custom, scope = c("components", "estimates"))
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
 #> Effect inclusion: moderate evidence against the effect (BF01 = 4.894).

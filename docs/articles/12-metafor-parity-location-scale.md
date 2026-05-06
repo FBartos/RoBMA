@@ -33,6 +33,7 @@ on academic achievement. Effect sizes `yi` and sampling variances `vi`
 are already provided.
 
 ``` r
+
 data("dat.bangertdrowns2004", package = "metadat")
 dat <- dat.bangertdrowns2004
 dat$ni100 <- dat$ni / 100
@@ -43,6 +44,7 @@ dat$imag  <- as.factor(dat$imag)
 We start from a standard random-effects model with no scale predictor.
 
 ``` r
+
 fit1_metafor <- metafor::rma(yi, vi, data = dat)
 fit1_metafor
 #> 
@@ -66,6 +68,7 @@ fit1_metafor
 ```
 
 ``` r
+
 fit1_brma <- brma(
   yi = yi, vi = vi, measure = "SMD",
   data = dat, seed = 1
@@ -73,6 +76,7 @@ fit1_brma <- brma(
 ```
 
 ``` r
+
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Model (k = 48)
@@ -94,6 +98,7 @@ the rescaled total sample size (`ni100 = ni / 100`) on both the location
 and the scale side.
 
 ``` r
+
 fit2_metafor <- suppressWarnings(metafor::rma(
   yi, vi,
   mods  = ~ ni100,
@@ -130,6 +135,7 @@ fit2_metafor
 ```
 
 ``` r
+
 fit2_brma <- brma(
   yi = yi, vi = vi, measure = "SMD",
   mods  = ~ ni100,
@@ -139,6 +145,7 @@ fit2_brma <- brma(
 ```
 
 ``` r
+
 summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Location-Scale Model (k = 48)
@@ -179,6 +186,7 @@ so only the regression line and confidence band appear in the left
 panel.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 metafor::regplot(fit2_metafor, mod = "ni100", pi = TRUE,
                  main = "metafor", xlim = c(0, 6), ylim = c(-1, 2))
@@ -195,6 +203,7 @@ metacognitive reflection (`meta`) on the location side and
 imaginative-component coding (`imag`) on the scale side.
 
 ``` r
+
 fit3_metafor <- suppressWarnings(metafor::rma(
   yi, vi,
   mods  = ~ ni100 + meta,
@@ -233,6 +242,7 @@ fit3_metafor
 ```
 
 ``` r
+
 fit3_brma <- brma(
   yi = yi, vi = vi, measure = "SMD",
   mods  = ~ ni100 + meta,
@@ -242,6 +252,7 @@ fit3_brma <- brma(
 ```
 
 ``` r
+
 summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Location-Scale Model (k = 46)
@@ -285,6 +296,7 @@ coefficient (the analogous selector on the location side is
 `parameter_mods = "ni100"`).
 
 ``` r
+
 par(mar = c(4, 4, 1, 1))
 plot(fit2_brma, parameter_scale = "ni100", prior = TRUE, xlim = c(-2, 2))
 ```

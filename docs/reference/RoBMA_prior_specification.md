@@ -51,8 +51,10 @@ MCMC chain explores a joint model space containing all competing models.
   - `NULL` or `FALSE` (omits the alternative hypothesis component)
 
   See
+  [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+  for details on specifying publication-bias priors and
   [`prior_specification`](https://fbartos.github.io/RoBMA/reference/prior_specification.md)
-  for details on specifying individual priors.
+  for details on specifying meta-analytic parameter priors.
 
 - prior_effect_null:
 
@@ -83,6 +85,8 @@ MCMC chain explores a joint model space containing all competing models.
 
   prior distribution(s) for null publication-bias component(s), usually
   [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md).
+  See
+  [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md).
 
   Null prior arguments can be:
 
@@ -196,10 +200,11 @@ For top-level mixture components, setting a prior argument to `NULL` or
 
 - `prior_effect = NULL`: No alternative hypothesis (assumes no effect)
 
-- `prior_bias_null = NULL`: No "no bias" model (assumes some bias
-  mechanism)
+- `prior_bias_null = NULL` or `FALSE`: No "no bias" model (assumes some
+  bias mechanism)
 
-- `prior_bias = NULL`: No bias model (assumes no bias mechanism)
+- `prior_bias = NULL` or `FALSE`: No bias model (assumes no bias
+  mechanism)
 
 For moderator and scale regression terms, an omitted or whole-argument
 `NULL` `prior_mods` / `prior_scale` means "use defaults". To omit a
@@ -211,6 +216,7 @@ component for a specific term, use a named list entry such as
 For moderator priors (`prior_mods`, `prior_mods_null`), you can specify
 different priors for different predictors using named lists. A single
 prior object applies to all moderator terms:
+
 
     RoBMA(...,
       mods = ~ x1 + x2,
@@ -225,6 +231,7 @@ assuming others are always included or excluded.
 #### Effect size (\\\mu\\) and heterogeneity (\\\tau\\)
 
 Effect and heterogeneity priors combine spike-and-slab components:
+
 
     # Default: spike(0) null + normal alternative
     # Custom: multiple alternatives with different scales
@@ -247,8 +254,13 @@ Bias priors combine different publication bias adjustment mechanisms:
 
 The `model_type` argument provides convenient presets:
 
+
     RoBMA(..., model_type = "PSMA")  # Full ensemble (default)
     RoBMA(..., model_type = "PP")    # Only PET-PEESE models
+
+See
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+for the bias-prior constructors and preset model spaces.
 
 #### Heterogeneity allocation (\\\rho\\) for multilevel models
 
@@ -257,6 +269,7 @@ variance allocation. The decomposition is \\\tau\_{between} =
 \tau\sqrt{\rho}\\ and \\\tau\_{within} = \tau\sqrt{1 - \rho}\\. By
 default, only an alternative (Beta(1,1)) is specified, but null
 hypotheses can be added:
+
 
     RoBMA(...,
       cluster = study,
@@ -298,8 +311,8 @@ the posterior odds equal the Bayes factor.
 Carlin BP, Chib S (1995). “Bayesian model choice via Markov chain Monte
 Carlo methods.” *Journal of the Royal Statistical Society: Series B
 (Methodological)*, **57**(3), 473–484.
-[10.1111/j.2517-6161.1995.tb02042.x](https://fbartos.github.io/RoBMA/reference/10.1111/j.2517-6161.1995.tb02042.x).  
-  
+[10.1111/j.2517-6161.1995.tb02042.x](https://fbartos.github.io/RoBMA/reference/10.1111/j.2517-6161.1995.tb02042.x).\
+\
 Lodewyckx T, Kim W, Lee MD, Tuerlinckx F, Kuppens P, Wagenmakers E
 (2011). “A tutorial on Bayes factor estimation with the product space
 method.” *Journal of Mathematical Psychology*, **55**(5), 331–347.
@@ -310,6 +323,8 @@ method.” *Journal of Mathematical Psychology*, **55**(5), 331–347.
 
 [`prior_specification`](https://fbartos.github.io/RoBMA/reference/prior_specification.md)
 for base prior specification options,
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+for publication-bias priors,
 [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) for the
 main model-averaging function,
 [`prior`](https://fbartos.github.io/BayesTools/reference/prior.html) for

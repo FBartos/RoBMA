@@ -92,6 +92,7 @@ standardized mean differences from the ego-depletion meta-analysis.
 Effect sizes `yi` and sampling variances `vi` are already provided.
 
 ``` r
+
 data("dat.lehmann2018", package = "metadat")
 dat <- dat.lehmann2018
 ```
@@ -111,6 +112,7 @@ meta-regression (with a random-effects heterogeneity component) rather
 than the UWLS variant, for consistency with the rest of the framework.
 
 ``` r
+
 fit_PET_metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi), data = dat)
 fit_PET_metafor
 #> 
@@ -144,6 +146,7 @@ PET coefficient. `measure = "SMD"` selects the default prior
 distributions for standardized mean differences.
 
 ``` r
+
 fit_PET_brma <- bPET(
   yi = yi, vi = vi, measure = "SMD",
   data = dat, seed = 1
@@ -151,6 +154,7 @@ fit_PET_brma <- bPET(
 ```
 
 ``` r
+
 summary(fit_PET_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects PET Model (k = 81)
@@ -175,6 +179,7 @@ error from
 with the prior band overlaid.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(fit_PET_brma,  parameter = "PET", prior = TRUE, main = "PET coefficient", xlim = c(0, 4))
 plot_pet_peese(fit_PET_brma, prior = TRUE, main = "PET regression")
@@ -199,6 +204,7 @@ meta-regression version (retaining the heterogeneity component), not the
 UWLS variant.
 
 ``` r
+
 fit_PEESE_metafor <- metafor::rma(yi, vi, mods = ~ vi, data = dat)
 fit_PEESE_metafor
 #> 
@@ -232,6 +238,7 @@ the same model with the default Cauchy prior distribution on the
 effect-size measure.
 
 ``` r
+
 fit_PEESE_brma <- bPEESE(
   yi = yi, vi = vi, measure = "SMD",
   data = dat, seed = 1
@@ -239,6 +246,7 @@ fit_PEESE_brma <- bPEESE(
 ```
 
 ``` r
+
 summary(fit_PEESE_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects PEESE Model (k = 81)
@@ -258,6 +266,7 @@ coefficient and the right panel shows the implied PEESE regression of
 effect on sampling variance.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(fit_PEESE_brma, parameter = "PEESE", prior = TRUE, main = "PEESE coefficient", xlim = c(0, 8))
 plot_pet_peese(fit_PEESE_brma, prior = TRUE, main = "PEESE regression")
@@ -278,6 +287,7 @@ to
 [`metafor::selmodel()`](https://wviechtb.github.io/metafor/reference/selmodel.html).
 
 ``` r
+
 fit_rma_metafor      <- metafor::rma(yi, vi, data = dat, method = "ML")
 fit_selmodel_metafor <- metafor::selmodel(fit_rma_metafor, type = "stepfun", steps = .025, decreasing = TRUE)
 fit_selmodel_metafor
@@ -319,6 +329,7 @@ intervals. The default Dirichlet prior distribution on `omega` in the
 matches `metafor::selmodel(..., decreasing = TRUE)` above.
 
 ``` r
+
 fit_selmodel_brma <- bselmodel(
   yi = yi, vi = vi, measure = "SMD",
   data = dat, seed = 1
@@ -326,6 +337,7 @@ fit_selmodel_brma <- bselmodel(
 ```
 
 ``` r
+
 summary(fit_selmodel_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Selection Model (k = 81)
@@ -355,6 +367,7 @@ then visualizes the same weights as a step function over the one-sided
 p-value scale, with the prior band overlaid.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot(fit_selmodel_brma, parameter = "omega", prior = TRUE, xlim = c(0, 1))
 ```
@@ -362,6 +375,7 @@ plot(fit_selmodel_brma, parameter = "omega", prior = TRUE, xlim = c(0, 1))
 ![](11-metafor-parity-publication-bias_files/figure-html/selmodel-omega-1.png)
 
 ``` r
+
 par(mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 plot_weightfunction(fit_selmodel_brma, prior = TRUE, main = "Weight-function")
 ```
@@ -386,6 +400,7 @@ Comparing the three default fits side by side shows how each adjustment
 encodes a different mechanism.
 
 ``` r
+
 par(mfrow = c(1, 3), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
 xlim <- c(-2, 2.5); ylim <- c(0, 0.8)
 funnel(fit_PET_brma,      main = "PET",       xlim = xlim, ylim = ylim)
@@ -436,6 +451,7 @@ lower bound; the prior distribution now puts equal mass on negative-bias
 regions, where small studies pull the estimate *up* rather than down.
 
 ``` r
+
 fit_PET_brma_flex <- bPET(
   yi = yi, vi = vi, measure = "SMD",
   prior_bias = prior_PET(
@@ -448,6 +464,7 @@ fit_PET_brma_flex <- bPET(
 ```
 
 ``` r
+
 summary(fit_PET_brma_flex, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects PET Model (k = 81)
@@ -469,6 +486,7 @@ at `PET = 0` marks where the default prior distribution is bounded and
 where the relaxed prior distribution places mass on both sides.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.85)
 plot(fit_PET_brma,      parameter = "PET", prior = TRUE,
   main = "PET (default)",     xlim = c(-2, 4))
@@ -486,6 +504,7 @@ PEESE is relaxed analogously: keep `Cauchy(0, 5)` and remove the lower
 bound, so the prior distribution is symmetric around zero.
 
 ``` r
+
 fit_PEESE_brma_flex <- bPEESE(
   yi = yi, vi = vi, measure = "SMD",
   prior_bias = prior_PEESE(
@@ -498,6 +517,7 @@ fit_PEESE_brma_flex <- bPEESE(
 ```
 
 ``` r
+
 summary(fit_PEESE_brma_flex, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects PEESE Model (k = 81)
@@ -513,6 +533,7 @@ summary(fit_PEESE_brma_flex, include_mcmc_diagnostics = FALSE)
 ```
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.85)
 plot(fit_PEESE_brma, parameter = "PEESE", prior = TRUE, main = "PEESE (default)", xlim = c(-5, 10))
 abline(v = 0, lty = 2, col = "grey50")
@@ -547,6 +568,7 @@ places roughly 95% of its prior mass on `omega` between $`0.37`$ and
 $`2.7`$:
 
 ``` r
+
 fit_selmodel_brma_flex <- bselmodel(
   yi = yi, vi = vi, measure = "SMD",
   prior_bias = prior_weightfunction(
@@ -562,6 +584,7 @@ fit_selmodel_brma_flex <- bselmodel(
 ```
 
 ``` r
+
 summary(fit_selmodel_brma_flex, include_mcmc_diagnostics = FALSE)
 #> 
 #> Bayesian Random-Effects Selection Model (k = 81)
@@ -583,6 +606,7 @@ Dirichlet weight, where the `log_omega` prior distribution places equal
 mass on both sides.
 
 ``` r
+
 par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.85)
 plot(fit_selmodel_brma, parameter = "omega", prior = TRUE, main = "omega (default)", xlim = c(0, 3))
 abline(v = 1, lty = 2, col = "grey50")
@@ -591,6 +615,7 @@ abline(v = 1, lty = 2, col = "grey50")
 ![](11-metafor-parity-publication-bias_files/figure-html/selmodel-flex-comparison-1.png)
 
 ``` r
+
 plot(fit_selmodel_brma_flex, parameter = "omega", prior = TRUE, main = "omega (log_omega)", xlim = c(0, 3))
 abline(v = 1, lty = 2, col = "grey50")
 ```

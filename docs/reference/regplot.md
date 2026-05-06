@@ -33,6 +33,7 @@ regplot(
   ylim = NULL,
   sampling_bias = TRUE,
   sei = NULL,
+  max_samples = 10000,
   plot_type = "base",
   as_data = FALSE,
   ...
@@ -162,6 +163,12 @@ regplot(
   single positive numeric value used as the reference standard error for
   sampling-bias and sampling-interval calculations. Defaults to the
   median observed standard error.
+
+- max_samples:
+
+  maximum number of posterior samples used for prediction summaries and
+  interval bands. Defaults to `10000`. Use `Inf` to use all posterior
+  samples.
 
 - plot_type:
 

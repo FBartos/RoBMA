@@ -80,6 +80,10 @@ wf_independent(prior, scale = "omega")
 Fixed weights must have one value per p-value bin (`length(steps) + 1`),
 and the reference bin must have weight 1.
 
+## See also
+
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+
 ## Examples
 
 ``` r

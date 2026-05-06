@@ -379,14 +379,14 @@ function.
 Bartoš F, Maier M, Stanley TD, Wagenmakers E (2025). “Robust Bayesian
 meta-regression: Model-averaged moderation analysis in the presence of
 publication bias.” *Psychological Methods*.
-[doi:10.1037/met0000737](https://doi.org/10.1037/met0000737) .  
-  
+[doi:10.1037/met0000737](https://doi.org/10.1037/met0000737) .\
+\
 Bartoš F, Maier M, Wagenmakers E, Doucouliagos H, Stanley TD (2023).
 “Robust Bayesian meta-analysis: Model-averaging across complementary
 publication bias adjustment methods.” *Research Synthesis Methods*,
 **14**(1), 99–116.
-[doi:10.1002/jrsm.1594](https://doi.org/10.1002/jrsm.1594) .  
-  
+[doi:10.1002/jrsm.1594](https://doi.org/10.1002/jrsm.1594) .\
+\
 van Erp S, Verhagen J, Grasman RP, Wagenmakers E (2017). “Estimates of
 between-study heterogeneity for 705 meta-analyses reported in
 Psychological Bulletin from 1990–2013.” *Journal of Open Psychology

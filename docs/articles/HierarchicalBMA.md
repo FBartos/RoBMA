@@ -56,6 +56,7 @@ First, we load the data set, assign it to the `dat` object, and inspect
 the first few rows.
 
 ``` r
+
 data("dat.konstantopoulos2011", package = "metadat")
 dat <- dat.konstantopoulos2011
 
@@ -86,6 +87,7 @@ simple model as our starting point and as a comparison with the later
 models.
 
 ``` r
+
 fit_metafor.0 <- metafor::rma(yi = yi, vi = vi, data = dat)
 fit_metafor.0
 #> 
@@ -118,6 +120,7 @@ from the `metafor` package and extending it with the
 `random = ~ school | district` argument.
 
 ``` r
+
 fit_metafor <- metafor::rma.mv(yi, vi, random = ~ school | district, data = dat)
 fit_metafor
 #> 
@@ -176,7 +179,6 @@ random errors $`\text{se}_{k,j}`$.
 
 Mathematically, we can describe such a model as:
 ``` math
-
 \begin{aligned}
   \gamma_k     &\sim \text{N}(\mu,          \tau_b^2),\\
   \theta_{k,j} &\sim \text{N}(\gamma_k,     \tau_w^2),\\
@@ -191,7 +193,6 @@ and we sample the observed effect sizes from each district $`y_{k,.}`$
 directly from a multivariate normal distributions, MN(), with a common
 mean $`\mu`$ and covariance matrix S:
 ``` math
-
 \begin{aligned}
    y_{k,.}  &\sim \text{MN}(\mu, \text{S}),\\
    \text{S} &= \begin{bmatrix} 
@@ -215,7 +216,6 @@ distributions of all the preceding levels).
 We can further re-parameterize the model by performing the following
 substitution,
 ``` math
-
 \begin{aligned}
    \tau^2 &= \tau_b^2 + \tau_w^2,\\
    \rho   &= \frac{\tau_w^2}{\tau_b^2 + \tau_w^2},
@@ -225,7 +225,6 @@ and specifying the covariance matrix using the inter-study correlation
 $`\rho`$, total heterogeneity $`\tau`$, and the standard errors
 $`\text{se}_{.}`$:
 ``` math
-
 \begin{aligned}
    \text{S} &= \begin{bmatrix} 
       \tau^2 + \text{se}_1^2 & \rho\tau^2 & \dots & \rho\tau^2  \\
@@ -260,6 +259,7 @@ models assuming the absence of the effect, heterogeneity, and the
 publication bias adjustment components.
 
 ``` r
+
 fit.0 <- RoBMA(d = dat$yi, v = dat$vi,
                priors_effect_null        = NULL,
                priors_heterogeneity_null = NULL,
@@ -272,6 +272,7 @@ the `type = "individual"` argument to the
 [`summary()`](https://rdrr.io/r/base/summary.html) function.
 
 ``` r
+
 summary(fit.0, type = "individual")
 #> Call:
 #> RoBMA(d = dat$yi, v = dat$vi, priors_bias = NULL, priors_effect_null = NULL, 
@@ -309,6 +310,7 @@ correlation parameter `\rho \sim \text{Beta}(1, 1)`, set via the
 positive and uniformly distributed on the interval $`(0, 1)`$.
 
 ``` r
+
 fit <- RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district,
              priors_effect_null        = NULL,
              priors_heterogeneity_null = NULL,
@@ -319,6 +321,7 @@ fit <- RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district,
 Again, we generate the complete summary for the only estimated model,
 
 ``` r
+
 summary(fit, type = "individual")
 #> Call:
 #> RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district, priors_bias = NULL, 
@@ -351,6 +354,7 @@ $`\rho`$ parameter using the
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function.
 
 ``` r
+
 par(mar = c(2, 4, 0, 0))
 plot(fit, parameter = "rho", prior = TRUE)
 ```
@@ -373,6 +377,7 @@ previous function calls, which include the previously omitted models of
 no effect and/or no heterogeneity.
 
 ``` r
+
 fit_BMA <- RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district,
                  priors_bias = NULL,
                  parallel = TRUE, seed = 1)
@@ -383,6 +388,7 @@ not specifying any additional arguments in the
 [`summary()`](https://rdrr.io/r/base/summary.html) function.
 
 ``` r
+
 summary(fit_BMA)
 #> Call:
 #> RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district, priors_bias = NULL, 
@@ -450,6 +456,7 @@ hierarchical structure by adding the
 argument.
 
 ``` r
+
 hierarchical_test <- RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district,
                            priors_heterogeneity_null = NULL,
                            priors_hierarchical_null = prior(distribution = "spike", parameters = list("location" = 0)),
@@ -458,6 +465,7 @@ hierarchical_test <- RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district,
 ```
 
 ``` r
+
 summary(hierarchical_test)
 #> Call:
 #> RoBMA(d = dat$yi, v = dat$vi, cluster = dat$district, priors_bias = NULL, 

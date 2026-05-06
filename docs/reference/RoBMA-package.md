@@ -24,20 +24,20 @@ publication bias in JASP and R — Selection models, PET-PEESE, and robust
 Bayesian meta-analysis.” *Advances in Methods and Practices in
 Psychological Science*, **5**(3), 1–19.
 [doi:10.1177/25152459221109259](https://doi.org/10.1177/25152459221109259)
-.  
-  
+.\
+\
 Bartoš F, Maier M, Wagenmakers E (2026). “Robust Bayesian multilevel
 meta-analysis: Adjusting for publication bias in the presence of
 dependent effect sizes.” *Behavior Research Methods*. Preprint available
 at https://doi.org/10.31234/osf.io/9tgp2_v1,
-<https://doi.org/10.31234/osf.io/9tgp2_v1>.  
-  
+<https://doi.org/10.31234/osf.io/9tgp2_v1>.\
+\
 Bartoš F, Maier M, Wagenmakers E, Doucouliagos H, Stanley TD (2023).
 “Robust Bayesian meta-analysis: Model-averaging across complementary
 publication bias adjustment methods.” *Research Synthesis Methods*,
 **14**(1), 99–116.
-[doi:10.1002/jrsm.1594](https://doi.org/10.1002/jrsm.1594) .  
-  
+[doi:10.1002/jrsm.1594](https://doi.org/10.1002/jrsm.1594) .\
+\
 Maier M, Bartoš F, Wagenmakers E (2023). “Robust Bayesian Meta-Analysis:
 Addressing publication bias with model-averaging.” *Psychological
 Methods*, **28**(1), 107–122.

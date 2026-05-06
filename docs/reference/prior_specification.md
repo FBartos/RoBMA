@@ -45,22 +45,6 @@ distributions for the scale regression coefficients are required.
   cluster-level component in multilevel models (\\\rho\\). If omitted or
   `NULL`, defaults to `Beta(1, 1)`.
 
-- prior_bias:
-
-  prior distribution for publication-bias adjustment: selection-model
-  weights for
-  [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md)/weightfunction
-  components, PET regression coefficient for
-  [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md), PEESE
-  regression coefficient for
-  [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md), or
-  publication-bias mixture components for
-  [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md). For
-  [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
-  [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md), and
-  [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md),
-  omitted or `NULL` uses the corresponding default bias prior.
-
 - prior_baserate:
 
   prior distribution for the estimate-specific midpoint base-rate
@@ -81,8 +65,9 @@ distributions for the scale regression coefficients are required.
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged; publication-bias priors are not rescaled
-  except for the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged. For constructors with publication-bias
+  prior distributions, `rescale_priors` does not rescale them except for
+  the default PEESE prior's UISD adjustment. Defaults to 1.
 
 - standardize_continuous_predictors:
 
@@ -245,38 +230,39 @@ The `rescale_priors` argument allows rescaling supported prior
 distributions by a multiplicative factor. For example,
 `rescale_priors = 2` doubles the standard deviations/scales of normal,
 Cauchy, t, and inverse-gamma prior distributions, making them more
-diffuse. Point and none priors are unchanged. Publication-bias priors
-are not rescaled by this argument, except for the default PEESE prior's
-UISD adjustment.
+diffuse. Point and none priors are unchanged. For publication-bias prior
+distributions, see
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md).
 
 ## References
 
 Bartoš F, Gronau QF, Timmers B, Otte WM, Ly A, Wagenmakers E (2021).
 “Bayesian model-averaged meta-analysis in medicine.” *Statistics in
 Medicine*, **40**(30), 6743–6761.
-[doi:10.1002/sim.9170](https://doi.org/10.1002/sim.9170) .  
-  
+[doi:10.1002/sim.9170](https://doi.org/10.1002/sim.9170) .\
+\
 Bartoš F, Otte WM, Gronau QF, Timmers B, Ly A, Wagenmakers E (2023).
 “Empirical prior distributions for Bayesian meta-analyses of binary and
 time-to-event outcomes.”
 [doi:10.48550/arXiv.2306.11468](https://doi.org/10.48550/arXiv.2306.11468)
-. Preprint available at https://doi.org/10.48550/arXiv.2306.11468.  
-  
+. Preprint available at https://doi.org/10.48550/arXiv.2306.11468.\
+\
 Grieve AP (2022). *Hybrid frequentist/Bayesian power and Bayesian power
-in planning clinical trials*. Chapman and Hall/CRC.  
-  
+in planning clinical trials*. Chapman and Hall/CRC.\
+\
 Röver C, Bender R, Dias S, Schmid CH, Schmidli H, Sturtz S, Weber S,
 Friede T (2021). “On weakly informative prior distributions for the
 heterogeneity parameter in Bayesian random-effects meta-analysis.”
 *Research Synthesis Methods*, **12**(4), 448–474.
-[doi:10.1002/jrsm.1475](https://doi.org/10.1002/jrsm.1475) .  
-  
+[doi:10.1002/jrsm.1475](https://doi.org/10.1002/jrsm.1475) .\
+\
 Spiegelhalter DJ, Abrams KR, Myles JP (2004). *Bayesian approaches to
 clinical trials and health-care evaluation*. John Wiley and Sons.
 [doi:10.1002/0470092602](https://doi.org/10.1002/0470092602) .
 
 ## See also
 
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md),
 [`prior`](https://fbartos.github.io/BayesTools/reference/prior.html),
 [`RoBMA.options`](https://fbartos.github.io/RoBMA/reference/RoBMA_options.md),
 [`brma`](https://fbartos.github.io/RoBMA/reference/brma.md)

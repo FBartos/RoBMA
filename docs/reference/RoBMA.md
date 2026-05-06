@@ -171,8 +171,10 @@ RoBMA(
   - `NULL` or `FALSE` (omits the alternative hypothesis component)
 
   See
+  [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+  for details on specifying publication-bias priors and
   [`prior_specification`](https://fbartos.github.io/RoBMA/reference/prior_specification.md)
-  for details on specifying individual priors.
+  for details on specifying meta-analytic parameter priors.
 
 - prior_effect_null:
 
@@ -203,6 +205,8 @@ RoBMA(
 
   prior distribution(s) for null publication-bias component(s), usually
   [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md).
+  See
+  [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md).
 
   Null prior arguments can be:
 
@@ -236,8 +240,9 @@ RoBMA(
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged; publication-bias priors are not rescaled
-  except for the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged. For constructors with publication-bias
+  prior distributions, `rescale_priors` does not rescale them except for
+  the default PEESE prior's UISD adjustment. Defaults to 1.
 
 - prior_informed_field:
 
@@ -365,6 +370,7 @@ is not available for product-space model-averaging objects.
 
 ## See also
 
+[publication_bias_prior_specification](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md),
 [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md),
 [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md),
 [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),

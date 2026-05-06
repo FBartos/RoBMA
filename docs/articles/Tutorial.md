@@ -48,6 +48,7 @@ workspace with the [`library()`](https://rdrr.io/r/base/library.html)
 function.
 
 ``` r
+
 library("metafor")
 #> Warning: package 'Matrix' was built under R version 4.4.3
 library("weightr")
@@ -74,10 +75,12 @@ also included in the package and can be accessed via the
 `data("Lui2015", package = "RoBMA")` call).
 
 ``` r
+
 df <- read.csv(file = "Lui2015.csv")
 ```
 
 ``` r
+
 head(df)
 #>      r   n                   study
 #> 1 0.21 115 Ahn, Kim, & Park (2008)
@@ -98,6 +101,7 @@ dollar (`$`) sign followed by the name of the column. For example, we
 can print all of the effect sizes with the `df$r` command.
 
 ``` r
+
 df$r
 #>  [1]  0.21  0.29  0.22  0.26  0.23  0.54  0.56  0.29  0.26  0.02 -0.06  0.38
 #> [13]  0.25  0.08  0.17  0.33  0.36  0.13
@@ -131,6 +135,7 @@ transformation of the correlation coefficient and `se` column
 corresponds to the standard error of Fisher’s *z*.
 
 ``` r
+
 dfz <- combine_data(r = df$r, n = df$n, study_names = df$study, transformation = "fishers_z")
 head(dfz)
 #>           y         se             study_names cluster weight
@@ -146,6 +151,7 @@ We can also transform the effect sizes according to Cohen’s *d*
 transformation (which we utilize later to fit the selection models).
 
 ``` r
+
 dfd <- combine_data(r = df$r, n = df$n, study_names = df$study, transformation = "cohens_d")
 head(dfd)
 #>           y        se             study_names cluster weight
@@ -169,6 +175,7 @@ standard errors, and the `data` argument is used to pass the data frame
 containing both variables.
 
 ``` r
+
 fit_rma <- rma(yi = y, sei = se, data = dfz)
 fit_rma
 #> 
@@ -201,6 +208,7 @@ can use the
 function from the `RoBMA` package,
 
 ``` r
+
 z2r(fit_rma$b)
 #>              [,1]
 #> intrcpt 0.2484877
@@ -226,6 +234,7 @@ inverse variance and set the `data = dfz` argument, which specifies that
 all of the variables come from the transformed, `dfz`, data set.
 
 ``` r
+
 fit_PET <- lm(y ~ se, weights = 1/se^2, data = dfz)
 summary(fit_PET)
 #> 
@@ -261,6 +270,7 @@ which extracts the estimate from the fitted model, it is equivalent to
 simply pasting the value directly `z2r(-0.0008722083)`).
 
 ``` r
+
 z2r(summary(fit_PET)$coefficients["(Intercept)", "Estimate"])
 #> [1] -0.000872208
 ```
@@ -278,6 +288,7 @@ replacing the predictor of standard errors with standard errors squared
 predictor prior to fitting the model).
 
 ``` r
+
 fit_PEESE <- lm(y ~ I(se^2), weights = 1/se^2, data = dfz)
 summary(fit_PEESE)
 #> 
@@ -329,6 +340,7 @@ the appropriate cut-points (note that the steps correspond to one-sided
 values in each of the specified intervals.
 
 ``` r
+
 fit_4PSM <- weightfunct(effect = dfd$y, v = dfd$se^2, steps = c(0.025, 0.05), table = TRUE)
 #> Warning in weightfunct(effect = dfd$y, v = dfd$se^2, steps = c(0.025, 0.05), :
 #> At least one of the p-value intervals contains three or fewer effect sizes,
@@ -383,6 +395,7 @@ significant and non-significant *p*-value interval, resulting in the
 “3PSM” model.
 
 ``` r
+
 fit_3PSM <- weightfunct(effect = dfd$y, v = dfd$se^2, steps = c(0.025), table = TRUE)
 fit_3PSM
 #> 
@@ -446,6 +459,7 @@ the effect size estimate corresponds to the second value in the
 could simply use `d2r(0.3219641)`).
 
 ``` r
+
 d2r(fit_3PSM$adj_est[2])
 #> [1] 0.1589358
 ```
@@ -455,6 +469,7 @@ the `metafor` package. First, we would fit a random effect meta-analysis
 with the Cohen’s *d* transformed effect sizes.
 
 ``` r
+
 fit_rma_d <- rma(yi = y, sei = se, data = dfd)
 ```
 
@@ -464,6 +479,7 @@ estimated random effect meta-analysis object and specifying the
 the appropriate steps with the `steps = c(0.025)` argument.
 
 ``` r
+
 fit_sel_d <- selmodel(fit_rma_d, type = "stepfun", steps = c(0.025))
 fit_sel_d
 #> 
@@ -524,6 +540,7 @@ some cases fail, try rerunning the model one more time or turning the
 parallel processing off in that case).
 
 ``` r
+
 fit_RoBMA <- RoBMA(r = df$r, n = df$n, seed = 1, model = "PSMA", parallel = TRUE)
 ```
 
@@ -536,6 +553,7 @@ We use the [`summary()`](https://rdrr.io/r/base/summary.html) function
 to explore details of the fitted model.
 
 ``` r
+
 summary(fit_RoBMA)
 #> Call:
 #> RoBMA(r = df$r, n = df$n, model_type = "PSMA", parallel = TRUE, 
@@ -597,6 +615,7 @@ estimates to the correlation coefficients by adding the
 `output_scale = "r"` argument to the summary function.
 
 ``` r
+
 summary(fit_RoBMA, output_scale = "r")
 #> Call:
 #> RoBMA(r = df$r, n = df$n, model_type = "PSMA", parallel = TRUE, 
@@ -637,6 +656,7 @@ textual summary of the model can also be generated with the
 function.
 
 ``` r
+
 interpret(fit_RoBMA, output_scale = "r")
 #> [1] "Robust Bayesian meta-analysis found weak evidence in favor of the effect, BF_10 = 1.23, with mean model-averaged estimate correlation = 0.095, 95% CI [-0.004,  0.286]. Robust Bayesian meta-analysis found strong evidence in favor of the heterogeneity, BF^rf = 19060.03, with mean model-averaged estimate tau = 0.165, 95% CI [0.083, 0.299]. Robust Bayesian meta-analysis found moderate evidence in favor of the publication bias, BF_pb = 5.42."
 ```
@@ -649,6 +669,7 @@ reducing the width of the output by abbreviating names of the prior
 distributions).
 
 ``` r
+
 summary(fit_RoBMA, type = "models", short_name = TRUE)
 #> Call:
 #> RoBMA(r = df$r, n = df$n, model_type = "PSMA", parallel = TRUE, 
@@ -777,6 +798,7 @@ model. As we can see, we obtain acceptable ESS and R-hat diagnostic
 values.
 
 ``` r
+
 summary(fit_RoBMA, type = "diagnostics")
 #> Call:
 #> RoBMA(r = df$r, n = df$n, model_type = "PSMA", parallel = TRUE, 
@@ -907,6 +929,7 @@ scale). (The `par(mar = c(4, 4, 1, 4))` call increases the left margin
 of the figure, so the secondary y-axis text is not cut off.)
 
 ``` r
+
 par(mar = c(4, 4, 1, 4))
 plot(fit_RoBMA, prior = TRUE, output_scale = "r", )
 ```
@@ -935,6 +958,7 @@ argument that sets 95% prior probability mass to values in the $`\rho`$
 = (-0.10, 0.10) interval.
 
 ``` r
+
 fit_RoBMA2 <- RoBMA(r = df$r, n = df$n, seed = 2, parallel = TRUE,
                     priors_effect      = prior("normal", parameters = list(mean = 0.60, sd = 0.20), truncation = list(0, Inf)),
                     priors_effect_null = prior("normal", parameters = list(mean = 0,    sd = 0.10)))
@@ -946,6 +970,7 @@ the model fit and verify that the specified models correspond to the
 settings.
 
 ``` r
+
 summary(fit_RoBMA2, type = "models")
 #> Call:
 #> RoBMA(r = df$r, n = df$n, priors_effect = prior("normal", parameters = list(mean = 0.6, 
