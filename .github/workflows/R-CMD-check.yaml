@@ -42,19 +42,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-jags-
 
-      - name: Cache JAGS (macOS)
-        if: runner.os == 'macOS'
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/Cellar/jags
-            /usr/local/opt/jags
-            /opt/homebrew/Cellar/jags
-            /opt/homebrew/opt/jags
-          key: ${{ runner.os }}-jags-${{ hashFiles('.github/workflows/R-CMD-check.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-jags-
-
       - name: Install JAGS and system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -85,43 +72,34 @@ jobs:
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
-          if ! brew list jags >/dev/null 2>&1; then
-            echo "JAGS not installed, installing via brew..."
-            brew update
-            brew install jags
-          else
-            echo "JAGS already installed, skipping installation"
-          fi
+          brew update
+          brew install jags openblas automake
+          brew link --overwrite jags
+          command -v aclocal
 
       - name: Set JAGS environment variables (macOS)
         if: runner.os == 'macOS'
         run: |
           JAGS_PREFIX=$(brew --prefix jags)
+          OPENBLAS_PREFIX=$(brew --prefix openblas)
           JAGS_BIN="$JAGS_PREFIX/bin"
           echo "JAGS_ROOT=$JAGS_PREFIX" >> $GITHUB_ENV
           echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$JAGS_PREFIX/lib/pkgconfig" >> $GITHUB_ENV
-          echo "DYLD_FALLBACK_LIBRARY_PATH=$JAGS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$JAGS_PREFIX/lib:$OPENBLAS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
 
-      - name: Link JAGS runtime files (macOS)
+      - name: Verify JAGS runtime files (macOS)
         if: runner.os == 'macOS'
         run: |
           JAGS_PREFIX=$(brew --prefix jags)
           BREW_PREFIX=$(brew --prefix)
-          brew link --overwrite jags
           sudo mkdir -p "$BREW_PREFIX/libexec"
           sudo ln -sf "$JAGS_PREFIX/bin/jags" "$BREW_PREFIX/libexec/jags-terminal"
           test -f "$BREW_PREFIX/lib/JAGS/modules-4/basemod.so"
+          test -f "$BREW_PREFIX/lib/JAGS/modules-4/bugs.so"
+          test -f "$(brew --prefix openblas)/lib/libopenblas.0.dylib"
           ls -l "$BREW_PREFIX"/lib/libjags*.dylib
           ls -l "$BREW_PREFIX"/lib/JAGS/modules-4/basemod.so
-
-      - name: Install autoreconf dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          if ! command -v aclocal >/dev/null 2>&1; then
-            brew install automake
-          fi
-          command -v aclocal
 
       - name: Resolve BayesTools source
         id: bayestools
@@ -137,20 +115,6 @@ jobs:
             ${{ steps.bayestools.outputs.pak_spec }}
             any::rcmdcheck
             any::posterior
-
-      - name: Reinstall JAGS R bindings from source (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          install.packages(
-            "rjags",
-            type           = "source",
-            repos          = "https://cloud.r-project.org",
-            configure.args = "--enable-rpath")
-          install.packages(
-            "runjags",
-            type  = "source",
-            repos = "https://cloud.r-project.org")
-        shell: Rscript {0}
 
       - name: Verify rjags JAGS runtime (macOS)
         if: runner.os == 'macOS'
