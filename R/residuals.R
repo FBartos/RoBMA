@@ -320,9 +320,9 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' @param conditioning_depth conditioning depth. Options are:
 #' \itemize{
 #'   \item \code{"marginal"} (default): Residuals from fixed effects predictions
-#'     (observed - Xβ).
+#'     (\eqn{observed - X\beta}).
 #'   \item \code{"cluster"}: Residuals from cluster-level predictions (observed -
-#'     (Xβ + gamma)). Only available for multilevel (3-level) models.
+#'     (\eqn{X\beta + gamma})). Only available for multilevel (3-level) models.
 #'   \item \code{"estimate"}: Residuals from BLUPs,
 #'     i.e., deviations of the observed effect sizes from the best linear
 #'     unbiased predictions of the estimate-specific true effects (observed - theta).

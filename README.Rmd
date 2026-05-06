@@ -19,11 +19,11 @@ if (.Platform$OS.type == "windows") {
 }
 
 article_url <- function(page) {
-  paste0("https://fbartos.github.io/RoBMA/articles/", page, ".html")
+  paste0("vignettes/", page, ".Rmd")
 }
 
 reference_url <- function(page) {
-  paste0("https://fbartos.github.io/RoBMA/reference/", page, ".html")
+  paste0("man/", page, ".Rd")
 }
 ```
 
