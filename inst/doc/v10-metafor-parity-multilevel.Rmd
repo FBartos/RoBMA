@@ -1,0 +1,151 @@
+---
+title: "Multilevel Meta-Analysis"
+author: "František Bartoš"
+date: "28th of April 2026"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Multilevel Meta-Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r child = "_vignette-nowrap.md", echo = FALSE, eval = TRUE}
+```
+
+```{r setup, include = FALSE}
+source("vignette-cache.R", local = knitr::knit_global())
+
+cached_fits <- vignette_cache(
+  name     = "v10-metafor-parity-multilevel",
+  objects  = c("fit1_brma"),
+  packages = c("metafor", "metadat")
+)
+
+knitr::opts_chunk$set(
+  collapse    = TRUE,
+  comment     = "#>",
+  eval        = vignette_cache_eval(cached_fits),
+  message     = FALSE,
+  warning     = FALSE,
+  fig.width   = 7,
+  fig.height  = 3.5,
+  dev         = "png",
+  fig.retina  = 3
+)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+```{r load-models, include = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.konstantopoulos2011", package = "metadat")
+dat <- dat.konstantopoulos2011
+
+vignette_cache_load(cached_fits)
+```
+
+```{r precompute-models, include = FALSE, eval = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.konstantopoulos2011", package = "metadat")
+dat <- dat.konstantopoulos2011
+
+fit1_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  cluster = district,
+  data = dat, seed = 1
+)
+
+vignette_cache_save(cached_fits)
+```
+
+This vignette illustrates how to use the `RoBMA` R package [@RoBMA] with multilevel meta-analytic data.
+We walk through the school-calendar dataset from @konstantopoulos2011fixed, showing the `brma()` call with the `cluster` argument alongside its `metafor::rma.mv()` counterpart [@metafor].
+
+All `brma()` calls keep the default prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for the prior definitions and customization options.
+For the non-multilevel workflow showing more features (also applicable to the multilevel models) see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
+
+The `RoBMA` R package currently supports the simple multilevel structure shown here, with one cluster grouping above the estimate level (parameterized by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$). Broader support for multivariate models and more complex random-effects structures is planned for a future release.
+
+## Multilevel Random-Effects Model
+
+The school-calendar dataset from the `metadat` package contains 56 standardized mean differences nested in 11 school districts.
+Effect sizes `yi` and sampling variances `vi` are already provided, so no `escalc()` step is needed.
+
+```{r data}
+data("dat.konstantopoulos2011", package = "metadat")
+dat <- dat.konstantopoulos2011
+head(dat)
+```
+
+`metafor::rma.mv()` fits a multilevel random-effects model with the compound-symmetric structure `random = ~ school | district`, parameterized by the total heterogeneity $\tau$ and the within-district correlation $\rho$.
+
+```{r fit1-metafor}
+fit1_metafor <- metafor::rma.mv(yi, vi, random = ~ school | district, data = dat)
+fit1_metafor
+```
+
+The matching Bayesian fit replaces the `random = ...` argument with `cluster = district`.
+`brma()` parameterizes the multilevel model in the same compound-symmetric form: a total heterogeneity $\tau$ and a cluster-level allocation $\rho$ where $\tau_{between} = \tau\sqrt{\rho}$ and $\tau_{within} = \tau\sqrt{1 - \rho}$.
+`measure = "SMD"` selects the default prior distributions for standardized mean differences.
+
+```{r fit1-brma, eval = FALSE}
+fit1_brma <- brma(
+  yi = yi, vi = vi, measure = "SMD",
+  cluster = district,
+  data = dat, seed = 1
+)
+```
+
+`summary()` reports posterior means, credible intervals, and (suppressed here) MCMC convergence diagnostics for `mu`, `tau`, and `rho`.
+
+```{r fit1-brma-summary}
+summary(fit1_brma, include_mcmc_diagnostics = FALSE)
+```
+
+The posterior mean for the pooled effect tracks the REML estimate from the `metafor` package, with comparable cluster-level allocation `rho` and total heterogeneity `tau`.
+
+## Heterogeneity: $\tau$ and $\rho$
+
+`metafor::confint()` reports profile-likelihood confidence intervals for `tau^2`, `tau`, and `rho`.
+
+```{r heterogeneity-confint}
+confint(fit1_metafor)
+```
+
+`summary_heterogeneity()` is the Bayesian counterpart, reporting posterior summaries of the same quantities along with the partitioned within- and between-cluster components.
+
+```{r heterogeneity-bayes}
+summary_heterogeneity(fit1_brma)
+```
+
+`plot()` visualizes the posterior, and `prior = TRUE` overlays the prior distribution so the shift from prior to posterior is visible.
+Side-by-side panels for `tau` and `rho` show the bulk of the posterior moving away from the weakly informative defaults.
+
+```{r tau-rho-posterior, fig.width = 7, fig.height = 3.2}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex.axis = 0.8, cex.lab = 0.8, cex.main = 0.75)
+plot(fit1_brma, parameter = "tau", prior = TRUE, main = "tau", xlim = c(0, 1))
+plot(fit1_brma, parameter = "rho", prior = TRUE, main = "rho", xlim = c(0, 1))
+```
+
+The `tau` posterior concentrates around 0.3 with credible interval comparable to the profile-likelihood bounds, while the `rho` posterior favors a moderate-to-high cluster-level allocation, broadly consistent with the REML point estimate of 0.67.
+
+
+## Other Inference Helpers
+
+All inference helpers available for any other `brma()` fit work the same way for the multilevel fit specified via `cluster`.
+This includes meta-regression and location-scale models, model comparison, and fit diagnostics.
+See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the full walkthrough; the only thing that changes here is the addition of `cluster = district`.
+
+
+## References
