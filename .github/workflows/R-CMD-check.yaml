@@ -96,10 +96,12 @@ jobs:
       - name: Set JAGS environment variables (macOS)
         if: runner.os == 'macOS'
         run: |
-          JAGS_BIN=$(brew --prefix jags)/bin
-          echo "JAGS_ROOT=$(brew --prefix jags)" >> $GITHUB_ENV
+          JAGS_PREFIX=$(brew --prefix jags)
+          JAGS_BIN="$JAGS_PREFIX/bin"
+          echo "JAGS_ROOT=$JAGS_PREFIX" >> $GITHUB_ENV
           echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=$(brew --prefix jags)/lib/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$JAGS_PREFIX/lib/pkgconfig" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$JAGS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
 
       - name: Link JAGS runtime files (macOS)
         if: runner.os == 'macOS'
@@ -136,14 +138,50 @@ jobs:
             any::rcmdcheck
             any::posterior
 
+      - name: Reinstall JAGS R bindings from source (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          install.packages(
+            "rjags",
+            type           = "source",
+            repos          = "https://cloud.r-project.org",
+            configure.args = "--enable-rpath")
+          install.packages(
+            "runjags",
+            type  = "source",
+            repos = "https://cloud.r-project.org")
+        shell: Rscript {0}
+
+      - name: Verify rjags JAGS runtime (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          library(rjags)
+          rjags::load.module("bugs", quiet = TRUE)
+          cat("rjags JAGS runtime OK\n")
+        shell: Rscript {0}
+
       - name: Check
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
         run: |
           options(crayon.enabled = TRUE)
           rcmdcheck::rcmdcheck(
             args        = c("--no-manual", "--as-cran", "--ignore-vignettes"),
+            build_args  = c("--no-build-vignettes"),
+            error_on    = "warning",
+            check_dir   = "check")
+        shell: Rscript {0}
+
+      - name: Check
+        if: runner.os == 'macOS'
+        env:
+          _R_CHECK_CRAN_INCOMING_REMOTE_: false
+        run: |
+          options(crayon.enabled = TRUE)
+          rcmdcheck::rcmdcheck(
+            args        = c("--no-manual", "--as-cran", "--ignore-vignettes",
+                            "--install-args=--configure-args=--enable-rpath"),
             build_args  = c("--no-build-vignettes"),
             error_on    = "warning",
             check_dir   = "check")
