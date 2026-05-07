@@ -6,21 +6,34 @@
 \title{881 estimates from 69 studies of a relationship between employment and
 educational outcomes collected by \insertCite{kroupova2021student;textual}{RoBMA}}
 \format{
-A data.frame with 11 columns and 881 observations.
+A data.frame with 11 columns and 881 observations:
+\describe{
+\item{\code{r}}{Partial correlation coefficient.}
+\item{\code{se}}{Standard error of r.}
+\item{\code{study}}{Study label.}
+\item{\code{sample_size}}{Sample size.}
+\item{\code{education_outcome}}{Type of educational outcome.}
+\item{\code{employment_intensity}}{Employment intensity.}
+\item{\code{students_gender}}{Gender composition of the student sample.}
+\item{\code{location}}{Study location.}
+\item{\code{design}}{Study design.}
+\item{\code{endogenity_control}}{Whether endogeneity was controlled.}
+\item{\code{motivation_control}}{Whether motivation was controlled.}
+}
+}
+\source{
+\url{http://meta-analysis.cz/students}
 }
 \usage{
 Kroupova2021
 }
-\value{
-a data.frame.
-}
 \description{
 The data set contains partial correlation coefficients, standard errors,
-study labels, samples sizes, type of the educational outcome, intensity of the
+study labels, sample sizes, type of the educational outcome, intensity of the
 employment, gender of the student population, study location, study design, whether
-the study controlled for endogenity, and whether the study controlled for motivation.
-The original data set including additional variables and the publication can be found
-at http://meta-analysis.cz/students.
+the study controlled for endogeneity, and whether the study controlled for motivation.
+The original data set including additional variables and the publication are
+available from the project page.
 (Note that some standard errors and employment intensities are missing.)
 }
 \references{

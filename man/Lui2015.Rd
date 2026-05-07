@@ -7,13 +7,15 @@
 intergenerational cultural conflict collected by
 \insertCite{lui2015intergenerational;textual}{RoBMA}}
 \format{
-A data.frame with 3 columns and 18 observations.
+A data.frame with 3 columns and 18 observations:
+\describe{
+\item{\code{r}}{Correlation coefficient.}
+\item{\code{n}}{Sample size.}
+\item{\code{study}}{Study label.}
+}
 }
 \usage{
 Lui2015
-}
-\value{
-a data.frame.
 }
 \description{
 The data set contains correlation coefficients r,

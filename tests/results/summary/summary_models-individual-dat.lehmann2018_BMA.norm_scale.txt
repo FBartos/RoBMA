@@ -1,0 +1,8 @@
+
+Individual Models
+ Effect          Heterogeneity           Scale: Preregistered                      Prior prob. Post. prob. Inclusion BF
+ Spike(0)        Normal(0, 0.35)[0, Inf] mean difference contrast: mSpike(0)             0.250       0.000        0.001
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] mean difference contrast: mSpike(0)             0.250       0.393        1.940
+ Spike(0)        Normal(0, 0.35)[0, Inf] mean difference contrast: mNormal(0, 0.5)       0.250       0.011        0.034
+ Normal(0, 0.71) Normal(0, 0.35)[0, Inf] mean difference contrast: mNormal(0, 0.5)       0.250       0.596        4.420
+

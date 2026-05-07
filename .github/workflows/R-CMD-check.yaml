@@ -6,16 +6,22 @@ on:
   pull_request:
     branches: [main, master, pre-release]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest, r: 'release'}
-          - {os: macOS-latest, r: 'release'}
+          - {os: windows-latest, r: '4.6'}
+          - {os: ubuntu-latest, r: '4.6'}
+          - {os: macos-15-intel, r: '4.6'}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,66 +30,24 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
 
-      # Cache R packages
-      - name: Cache R packages
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-${{ matrix.config.r }}-${{ hashFiles('**/DESCRIPTION') }}
-          restore-keys: |
-            ${{ runner.os }}-r-${{ matrix.config.r }}-
-            ${{ runner.os }}-r-
+      - name: Setup Pandoc
+        uses: r-lib/actions/setup-pandoc@v2
 
-      # Cache system dependencies
-      - name: Cache system dependencies
-        if: runner.os == 'Linux'
-        uses: actions/cache@v3
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/R-CMD-check.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
-
-      # Cache JAGS installation (Windows)
       - name: Cache JAGS (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: C:\Program Files\JAGS
           key: ${{ runner.os }}-jags-4.3.1
           restore-keys: |
             ${{ runner.os }}-jags-
 
-      # Cache JAGS installation (macOS)
-      - name: Cache JAGS (macOS)
-        if: runner.os == 'macOS'
-        uses: actions/cache@v3
-        with:
-          path: /opt/homebrew
-          key: ${{ runner.os }}-jags-${{ hashFiles('.github/workflows/R-CMD-check.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-jags-
-
-      # Install JAGS and system dependencies on Linux
-      - name: Install System Dependencies (Linux)
+      - name: Install JAGS and system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libssl-dev \
-            libcurl4-openssl-dev \
-            libxml2-dev \
-            libfontconfig1-dev \
-            libharfbuzz-dev \
-            libfribidi-dev \
-            libfreetype6-dev \
-            libpng-dev \
-            libtiff5-dev \
-            libjpeg-dev \
-            libcairo2-dev \
-            jags
+          sudo apt-get install -y jags
 
-      # Install JAGS on Windows
       - name: Install JAGS (Windows)
         if: runner.os == 'Windows'
         shell: cmd
@@ -97,74 +61,91 @@ jobs:
             echo "JAGS found in cache, skipping installation"
           )
 
-      # Set JAGS environment variables on Windows
       - name: Set JAGS environment variables (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          echo JAGS_ROOT=C:\Program Files\JAGS\JAGS-4.3.1>> %GITHUB_ENV%
+          echo JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1>> %GITHUB_ENV%
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
-          echo PATH=C:\Program Files\JAGS\JAGS-4.3.1\bin;%PATH%>> %GITHUB_ENV%
+          echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
 
-      # Install JAGS on macOS and ensure rjags can find its modules
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
-          if ! command -v jags &> /dev/null; then
-            echo "JAGS not found in cache, installing via brew..."
-            # Install JAGS via Homebrew
-            brew update
-            brew install jags
-          else
-            echo "JAGS found in cache, skipping installation"
-          fi
+          brew update
+          brew install jags openblas automake
+          brew link --overwrite jags
+          command -v aclocal
 
-          # Locate the Homebrew installation prefix for jags
-          jags_prefix=$(brew --prefix jags)
-
-          # Export useful variables for rjags configure and runtime
-          echo "JAGS_PREFIX=${jags_prefix}" >> $GITHUB_ENV
-          echo "JAGS_LIBDIR=${jags_prefix}/lib" >> $GITHUB_ENV
-          echo "PATH=${jags_prefix}/bin:$PATH" >> $GITHUB_ENV
-          echo "DYLD_LIBRARY_PATH=${jags_prefix}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
-
-          # Create a stable path that rjags might expect (/usr/local/lib/JAGS/modules-*)
-          # and point it to the Homebrew-installed JAGS modules so load.module() works.
-          sudo mkdir -p /usr/local/lib
-          sudo ln -sfn "${jags_prefix}/lib/JAGS" /usr/local/lib/JAGS
-
-          # Pre-install rjags with the detected prefix so configure can find JAGS.
-          # This follows the rjags installation advice: pass --with-jags-prefix when needed.
-          Rscript -e "install.packages('rjags', configure.args=c('--with-jags-prefix=${jags_prefix}'), repos='https://cloud.r-project.org')"
-
-
-      # Install the package
-      - name: Install devtools and the RoBMA Package
+      - name: Set JAGS environment variables (macOS)
+        if: runner.os == 'macOS'
         run: |
-          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          JAGS_PREFIX=$(brew --prefix jags)
+          OPENBLAS_PREFIX=$(brew --prefix openblas)
+          JAGS_BIN="$JAGS_PREFIX/bin"
+          echo "JAGS_ROOT=$JAGS_PREFIX" >> $GITHUB_ENV
+          echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$JAGS_PREFIX/lib/pkgconfig" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$JAGS_PREFIX/lib:$OPENBLAS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
 
-          # Check if packages are already installed before installing
-          required_packages <- c('devtools', 'rcmdcheck', 'metaBMA', 'metafor', 'weightr', 'lme4', 'fixest', 'emmeans', 'metadat', 'vdiffr', 'testthat', 'covr', 'pandoc', 'cli')
-          missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
+      - name: Verify JAGS runtime files (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          JAGS_PREFIX=$(brew --prefix jags)
+          BREW_PREFIX=$(brew --prefix)
+          sudo mkdir -p "$BREW_PREFIX/libexec"
+          sudo ln -sf "$JAGS_PREFIX/bin/jags" "$BREW_PREFIX/libexec/jags-terminal"
+          test -f "$BREW_PREFIX/lib/JAGS/modules-4/basemod.so"
+          test -f "$BREW_PREFIX/lib/JAGS/modules-4/bugs.so"
+          test -f "$(brew --prefix openblas)/lib/libopenblas.0.dylib"
+          ls -l "$BREW_PREFIX"/lib/libjags*.dylib
+          ls -l "$BREW_PREFIX"/lib/JAGS/modules-4/basemod.so
 
-          if (length(missing_packages) > 0) {
-            cat("Installing missing packages:", paste(missing_packages, collapse = ", "), "\n")
-            install.packages(missing_packages)
-          } else {
-            cat("All required packages are already installed\n")
-          }
+      - name: Resolve BayesTools source
+        id: bayestools
+        run: Rscript .github/scripts/resolve-bayestools-source.R
 
-          devtools::install()
+      - name: Install R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"all"'
+          cache-version: 3
+          install-pandoc: false
+          extra-packages: |
+            ${{ steps.bayestools.outputs.pak_spec }}
+            any::rcmdcheck
+            any::posterior
+
+      - name: Verify rjags JAGS runtime (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          library(rjags)
+          rjags::load.module("bugs", quiet = TRUE)
+          cat("rjags JAGS runtime OK\n")
         shell: Rscript {0}
 
       - name: Check
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
         run: |
           options(crayon.enabled = TRUE)
           rcmdcheck::rcmdcheck(
             args        = c("--no-manual", "--as-cran", "--ignore-vignettes"),
+            build_args  = c("--no-build-vignettes"),
+            error_on    = "warning",
+            check_dir   = "check")
+        shell: Rscript {0}
+
+      - name: Check
+        if: runner.os == 'macOS'
+        env:
+          _R_CHECK_CRAN_INCOMING_REMOTE_: false
+        run: |
+          options(crayon.enabled = TRUE)
+          rcmdcheck::rcmdcheck(
+            args        = c("--no-manual", "--as-cran", "--ignore-vignettes",
+                            "--install-args=--configure-args=--enable-rpath"),
             build_args  = c("--no-build-vignettes"),
             error_on    = "warning",
             check_dir   = "check")
@@ -185,10 +166,9 @@ jobs:
             check_dir   = "check")
         shell: Rscript {0}
 
-
       - name: Upload check results
         if: failure()
-        uses: actions/upload-artifact@main
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ runner.os }}-r${{ matrix.config.r }}-results
           path: check

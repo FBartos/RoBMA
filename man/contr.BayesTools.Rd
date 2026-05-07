@@ -32,7 +32,7 @@ by \insertCite{rouder2012default;textual}{BayesTools}. Returns a matrix with n r
 k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n if \code{contrasts = FALSE}.}
 \item{\code{contr.meandif}}{Return a matrix of mean difference contrasts.
 This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
-distributions on difference between the gran mean and factor level are identical independent
+distributions on difference between the grand mean and factor level are identical independent
 of the number of factor levels (which does not hold for the orthonormal contrast). Furthermore,
 the contrast is re-scaled so the specified prior distribution exactly corresponds to the prior
 distribution on difference between each factor level and the grand mean -- this is approximately

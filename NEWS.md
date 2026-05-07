@@ -1,16 +1,90 @@
+## version 4.0.0
+### Breaking changes
+- rewrites the package around the unified `brma` class hierarchy. Single-model fits now use `brma()`, `brma.glmm()`, `bselmodel()`, `bPET()`, and `bPEESE()`; model-averaged fits use `BMA()`, `BMA.glmm()`, and `RoBMA()`.
+- removes the legacy `RoBMA.reg()`, `NoBMA()`, `NoBMA.reg()`, `BiBMA()`, and `BiBMA.reg()` constructors. Use `mods`, `scale`, and `cluster` in the new constructors, `BMA()` for no-bias normal-likelihood model averaging, and `BMA.glmm()` for GLMM model averaging.
+- replaces old input aliases such as `d`, `r`, `logOR`, `OR`, `z`, `y`, `se`, `v`, `n`, `study_names`, `study_ids`, `weight`, and `transformation` with `yi`, `vi`/`sei`, `ni`, `slab`, `cluster`, `weights`, `measure`, `output_measure`, and `transform`.
+- removes legacy helper APIs including `combine_data()`, `check_setup()`, `extract_posterior()`, `marginal_summary()`, `marginal_plot()`, `plot_models()`, `adjusted_effect()`, `as_zcurve()`, and the old z-curve plotting methods.
+- normal-likelihood fitting functions now require an explicit `measure` for fitted models. Use `measure = "GEN"` for generic effect sizes without a known unit-information scale.
+- `update()` for `brma` objects now focuses on extending MCMC samples, updating labels, and refreshing cached quantities, not changing model structure.
+- `set_convergence_checks()` no longer accepts the old `remove_failed` and `balance_probability` arguments.
+
+### Features
+- adds `brma()` / `brma.norm()` for single normal-likelihood Bayesian meta-analysis, including random-effects, meta-regression, multilevel, and location-scale models.
+- adds `brma.glmm()` for binomial-normal and Poisson-normal GLMM meta-analysis from raw two-arm counts (`measure = "OR"` and `"IRR"`).
+- adds single-model publication-bias constructors `bselmodel()`, `bPET()`, and `bPEESE()`.
+- adds `BMA()` / `BMA.norm()` for Bayesian model averaging without publication-bias adjustment.
+- adds `BMA.glmm()` for Bayesian model averaging of GLMM meta-analyses without publication-bias adjustment.
+- rewrites `RoBMA()` as a product-space model-averaged ensemble over effect, heterogeneity, moderator, scale, and publication-bias components.
+- adds formula/data-frame input handling for effect sizes, moderators, scale predictors, clusters, labels, subsets, likelihood weights, and raw GLMM counts.
+- adds default prior construction from standardized effect-size measures, estimated or manually supplied unit-information standard deviations, and informed empirical priors.
+- adds `prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, and `wf_independent()` for BayesTools-backed selection-weightfunction priors.
+- adds `prior_PET()`, `prior_PEESE()`, `prior_none()`, `prior_factor()`, `prior_informed()`, and BayesTools contrast helpers as package-level prior utilities.
+- adds `posterior` package interfaces via `as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`, `as_draws_matrix()`, and `as_draws_rvars()` for fitted models and `brma_samples`.
+- adds the `brma_samples` posterior-sample class with print, summary, matrix, and `posterior` conversion methods.
+- adds `predict.brma()` for posterior predictions of fixed terms, cluster effects, latent true effects, observed responses, and scale terms, with `newdata`, `conditional`, `bias_adjusted`, `output_measure`, and `transform` support.
+- adds convenience wrappers `fitted()`, `pooled_effect()`, `pooled_heterogeneity()`, `blup()`, `true_effects()`, and `ranef()` for `brma` objects.
+- adds model-comparison helpers `add_loo()`, `loo()`, `loo_compare()`, `loo_weights()`, `check_loo()`, `add_waic()`, `waic()`, and `logLik()` using the `loo` package.
+- adds bridge-sampling marginal likelihood support for single-model `brma` fits via `add_marglik()`, `bridge_sampler()`, `logml()`, `bf()`, `bayes_factor()`, and `post_prob()`.
+- adds residual and influence diagnostics: `residuals()`, `rstandard()`, `rstudent()` / `LOO-PIT`, `hatvalues()`, `influence()`, `dfbetas()`, `dffits()`, `cooks.distance()`, `covratio()`, and `vif()`.
+- adds plotting methods for `brma` objects: posterior/prior plots, `funnel()`, `regplot()`, `qqnorm()`, `radial()` / `galbraith()`, MCMC diagnostic plots, weightfunction plots, and PET-PEESE plots.
+- adds `marginal_means()` with summary and plotting methods for moderator models.
+- adds `summary_models()` for marginal and individual model-weight summaries of product-space `RoBMA`, `BMA`, and `BMA.glmm` objects.
+- adds `interpret()` for concise textual interpretation of fitted `brma` and model-averaged objects.
+- renames the zplot diagnostic API to `as_zplot()` and adds the direct plotting wrapper `zplot()`, with `plot()`, `hist()`, `lines()`, `summary()`, and print methods for zplot objects.
+- adds `RoBMA.options()` and `RoBMA.get_option()` package options for defaults such as core count, automatic LOO/WAIC/marginal-likelihood computation, prior scaling defaults, and selection-bias defaults.
+
+### Changes
+- renames the multilevel clustering argument to `cluster`.
+- renames study labels to `slab`, matching `metafor` naming.
+- renames likelihood weights to `weights` and applies them consistently to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics.
+- uses `measure`, `output_measure`, and `transform` for effect-size scale handling. Supported conversions include `SMD`, `COR`, `ZCOR`, and `OR`; `transform = "EXP"` exponentiates log ratio measures for display.
+- standardizes continuous predictors by default and transforms reported coefficients back to the original scale unless standardized coefficients are requested.
+- uses treatment contrasts by default for single-model constructors and mean-difference contrasts by default for model-averaged constructors.
+- changes `predict.brma()` default to `type = "terms"`. GLMM `type = "response"` predictions return continuity-corrected effect-size estimators by default via `as_measure = TRUE`.
+- separates output `unit` from `conditioning_depth` for residuals, fitted values, LOO, WAIC, and related diagnostics.
+- supports estimate-level and, for multilevel models, cluster-level LOO/WAIC targets with target metadata to prevent invalid comparisons.
+- keeps bridge-sampling marginal likelihoods for single-model `brma` objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects relly on product-space only.
+- routes selection-weightfunction priors through the BayesTools selection backend and selected-normal kernel, removing legacy weighted-normal mapping paths.
+- uses `bias_indicator` and branch-aware selected-normal contexts for RoBMA publication-bias mixtures instead of inferring selection branches from `omega`.
+- increases zplot default posterior thinning controls to `10000` samples and accepts `Inf` where full posterior evaluation is requested.
+- adds `max_samples` controls to expensive funnel, regplot, and zplot summaries.
+- updates the package startup message to point users to `vignette("v00-introduction", package = "RoBMA")`.
+- requires BayesTools 0.3.0 for forward API and selection-backend support.
+- adds `bridgesampling`, `loo`, `MASS`, and `parallel` as imports and `posterior` as a suggested package.
+
+### Fixes
+- fixes loading and runtime checks for the RoBMA JAGS module and native R routines.
+
+### Performance and internals
+- moves fitting to JAGS product-space models with mixture-prior indicators for model averaging.
+- replaces legacy weighted-normal and multivariate-normal native code with selected-normal kernels shared by JAGS and R-native calls.
+- adds native selected-normal routines for log likelihoods, normalizers, CDFs, moments, RNG, weighted summaries, funnel contours, regplot intervals, and zplot densities/threshold summaries.
+- adds native GLMM marginal and cluster log-likelihood helpers for binomial and Poisson models.
+- caches selected-normal normalizers and uses telescoping selection probabilities with log-space fallbacks for better numerical stability.
+- relocates selected-normal C++ code to `src/selnorm/` and updates `Makevars*`, native registration, cleanup rules, and JAGS distribution registration.
+- removes unused native matrix/LAPACK helper sources and older source-level transformation helpers.
+
+### Documentation and tests
+- reorganizes vignettes into numbered workflows covering introduction, prior distributions, baseline Bayesian meta-analysis, feature coverage, metafor parity, model averaging, RoBMA, multilevel models, medicine examples, and zplot diagnostics.
+- regenerates roxygen documentation for the new constructors, priors, predictions, summaries, diagnostics, plots, model-comparison methods, and datasets.
+- refreshes the README and pkgdown site for the 4.0.0 API.
+- adds cached model fits under numbered vignette/model directories.
+- refactors tests into ordered input, fitting, prediction, plotting, diagnostics, model-comparison, selected-normal kernel, and vignette-cache coverage.
+- adds regression tests for selected-normal telescope probabilities, native/R fallback parity, posterior-row alignment, GLMM response conversion, LOO/WAIC targets, bridge sampling, and visual outputs.
+
 ## version 3.6.1
 ### Features
 - `Explanation` vignette that helps navigate users through the vignettes
 - two vignettes demonstrating robust Bayesian meta-analysis and meta-regressions
 - `summary()` function now provides publication bias model type summary (`type = "models"`) for models fitted using `algorithm = "ss"`
-- improves control over `plot.zcurve_RoBMA` (i.e., specifying col, border, etc for the individual elements)
+- improves control over zplot diagnostics (i.e., specifying col, border, etc for the individual elements)
 
 ## version 3.6
 ### Features
 - `funnel()` plot to visualize residuals vs the expected sampling distribution for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
 - `residuals()` method for `RoBMA()` and `RoBMA.reg()` models when using the `algorithm = "ss"`
-- `as_zcurve()` function to transform meta-analytic models into a z-curve style object, only available for `RoBMA()` and `RoBMA.reg()` fitted using the `algorithm = "ss"`
-- `plot()`, `summary()`, and `print()` functions for the `as_zcurve` objects
+- `as_zplot()` function to transform meta-analytic models into a zplot object, only available for `RoBMA()` and `RoBMA.reg()` fitted using the `algorithm = "ss"`
+- `plot()`, `summary()`, and `print()` functions for the `as_zplot` objects
 
 ## version 3.5.1
 ### Features
@@ -27,14 +101,14 @@
 
 ## version 3.5
 ### Features
-- approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `study_ids` argument when using `algorithm = "ss"`
-- 3lvl binomial-normal models for binary data via the `BiBMA` and `BiBMA.reg` functions with the `study_ids` argument when using `algorithm = "ss"`
+- approximate and computationally feasibly 3lvl selection models via the `RoBMA()` and `RoBMA.reg()` functions with the `cluster` argument when using `algorithm = "ss"`
+- 3lvl binomial-normal models for binary data via the `BiBMA` and `BiBMA.reg` functions with the `cluster` argument when using `algorithm = "ss"`
 - `pooled_effect()` function to compute the pooled effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 - `adjusted_effect()` function to compute the adjusted effect size from the `RoBMA.reg`, `NoBMA.reg`, and `BiBMA.reg` models
 - enables `summary_heterogeneity()` for BiBMA models
 
 ### Fixes
-- passing and checks of the `study_ids` and `study_labels` arguments
+- passing and checks of the `cluster` and `study_labels` arguments
 - PEESE prior distribution now scale as 1/scale instead of 1/scale^2 with the `rescale_priors` argument  
 - the conditional prediction interval based on `summary_heterogeneity()` is now conditional on the presence of the effect
 - additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specified etc)
@@ -113,7 +187,7 @@
 
 ## version 2.3
 ### Features
-- weighted meta-analysis by specifying `study_ids` argument in `RoBMA()` and setting `weighted = TRUE`. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.
+- weighted meta-analysis by specifying `cluster` argument in `RoBMA()` and setting `weighted = TRUE`. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.
 
 ## version 2.2.3
 ### Fixes
@@ -130,7 +204,7 @@
 
 ## version 2.2
 ### Features
-- three-level meta-analysis by specifying `study_ids` argument in `RoBMA`. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).
+- three-level meta-analysis by specifying `cluster` argument in `RoBMA`. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).
 
 ## version 2.1.2
 ### Fixes

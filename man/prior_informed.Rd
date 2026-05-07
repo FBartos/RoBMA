@@ -2,77 +2,34 @@
 % Please edit documentation in R/priors.R
 \name{prior_informed}
 \alias{prior_informed}
-\title{Creates an informed prior distribution based on research}
+\title{Informed Prior}
 \usage{
 prior_informed(name, parameter = NULL, type = "smd")
 }
 \arguments{
-\item{name}{name of the prior distribution. There are many options based on prior psychological
-or medical research.
-For psychology, the possible options are
-\describe{
-\item{\code{"van Erp"}}{for an informed prior distribution for the heterogeneity parameter tau
-of meta-analytic effect size estimates based on standardized mean differences
-(van Erp et al. 2017),}
-\item{\code{"Oosterwijk"}}{for an informed prior distribution for the effect sizes expected in
-social psychology based on prior elicitation with dr. Oosterwijk
-(Gronau et al. 2017).}
-}
-For medicine, the possible options are based on Bartoš et al. (2021)
-and  Bartoš et al. (2023)
-who developed empirical prior distributions for the effect size and heterogeneity parameters of the
-continuous outcomes (standardized mean differences), dichotomous outcomes (logOR, logRR, and risk differences),
-and time to event outcomes (logHR) based on the Cochrane database of systematic reviews.
-Use \code{"Cochrane"} for a prior distribution based on the whole database or call
-\code{print(prior_informed_medicine_names)} to inspect the names of
-all 46 subfields and set the appropriate \code{parameter} and \code{type}.}
+\item{name}{character. Informed prior name. Supported examples include
+\code{"van Erp"}, \code{"Oosterwijk"}, \code{"Cochrane"}, and medicine
+subfields from \code{BayesTools::prior_informed_medicine_names}.}
 
-\item{parameter}{parameter name describing what prior distribution is supposed to be produced in cases
-where the \code{name} corresponds to multiple prior distributions. Relevant only for the empirical medical
-prior distributions.}
+\item{parameter}{character. Parameter subset. Required for medicine priors
+and not needed for psychology priors.}
 
-\item{type}{prior type describing what prior distribution is supposed to be produced in cases
-where the \code{name} and \code{parameter} correspond to multiple prior distributions. Relevant only for
-the empirical medical prior distributions with the following options
-\describe{
-\item{\code{"smd"}}{for standardized mean differences}
-\item{\code{"logOR"}}{for log odds ratios}
-\item{\code{"logRR"}}{for log risk ratios}
-\item{\code{"RD"}}{for risk differences}
-\item{\code{"logHR"}}{for hazard ratios}
-}}
+\item{type}{character. Effect-size type. Medicine priors use values such as
+\code{"smd"}, \code{"logOR"}, \code{"logRR"}, \code{"RD"}, and
+\code{"logHR"}.}
 }
 \value{
-\code{prior_informed} returns an object of class 'prior'.
+An object of class \code{prior}.
 }
 \description{
-\code{prior_informed} creates an informed prior distribution based on past
-research. The prior can be visualized by the \code{plot} function.
+Create empirical informed prior distributions.
 }
 \details{
 Further details can be found in \insertCite{erp2017estimates;textual}{RoBMA},
-\insertCite{gronau2017bayesian;textual}{RoBMA}, and
-\insertCite{bartos2021bayesian;textual}{RoBMA}.
-}
-\examples{
-# prior distribution representing expected effect sizes in social psychology
-# based on prior elicitation with dr. Oosterwijk
-p1 <- prior_informed("Oosterwijk")
-
-# the prior distribution can be visualized using the plot function
-# (see ?plot.prior for all options)
-plot(p1)
-
-
-# empirical prior distribution for the standardized mean differences from the oral health
-# medical subfield based on meta-analytic effect size estimates from the
-# Cochrane database of systematic reviews
-p2 <- prior_informed("Oral Health", parameter ="effect", type ="smd")
-print(p2)
+\insertCite{gronau2017bayesian;textual}{RoBMA},
+\insertCite{bartos2021bayesian;textual}{RoBMA}, and
+\insertCite{bartos2023empirical;textual}{RoBMA}.
 }
 \references{
 \insertAllCited{}
-}
-\seealso{
-\code{\link[BayesTools:prior]{prior()}}, \link[BayesTools]{prior_informed_medicine_names}
 }

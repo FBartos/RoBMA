@@ -10,7 +10,6 @@ do-not-share/
 src-x64
 src-i386
 src/boost
-doc
 Meta
 RoBMA.Rcheck
 .Rhistory
@@ -24,3 +23,18 @@ models/MetaRegression/*
 .RData
 Rplots.pdf
 .RData
+/tests/testthat/test_files
+.RData
+.RData
+knowledge-base/
+/.StatsVault
+/resources
+.RData
+/docs_check
+/-
+/cran-check-decision-log.md
+/index.html
+/package-lock.json
+/AGENTS.html
+/docs/AGENTS.html
+/build/

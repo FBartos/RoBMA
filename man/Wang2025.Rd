@@ -6,13 +6,24 @@
 \title{70 effect sizes from a meta-analysis of ChatGPT's impact on student learning
 by \insertCite{wang2025effect;textual}{RoBMA}}
 \format{
-A data.frame with 12 columns and 70 observations.
+A data.frame with 12 columns and 70 observations:
+\describe{
+\item{\code{Learning_effect}}{Learning-effect outcome category.}
+\item{\code{Author_year}}{Author-year study label.}
+\item{\code{N_EG}}{Experimental-group sample size.}
+\item{\code{N_CG}}{Control-group sample size.}
+\item{\code{g}}{Hedges' g effect size.}
+\item{\code{Grade_level}}{Grade level.}
+\item{\code{Type_of_course}}{Course type.}
+\item{\code{Duration}}{Study duration.}
+\item{\code{Learning_model}}{Learning model.}
+\item{\code{Role_of_ChatGPT}}{Role of ChatGPT in the intervention.}
+\item{\code{Area_of_ChatGPT_application}}{Application area.}
+\item{\code{se}}{Standard error of g.}
+}
 }
 \usage{
 Wang2025
-}
-\value{
-a data.frame.
 }
 \description{
 The data set contains Hedges' g effect sizes, standard errors,

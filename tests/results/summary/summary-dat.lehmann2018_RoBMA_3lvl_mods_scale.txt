@@ -1,0 +1,46 @@
+
+Robust Bayesian Model-Averaged Multilevel Location-Scale Model (k = 81, clusters = 41)
+
+Component Inclusion
+                 Prior prob. Post. prob. Inclusion BF
+Effect                 0.500       0.316        0.462
+Heterogeneity          1.000       1.000          Inf
+Publication Bias       0.500       0.838        5.165
+
+Location Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Preregistered       0.500       0.533        1.140
+
+Scale Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Preregistered       0.500       0.752        3.030
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+rho 0.714 0.189 0.245 0.756 0.966     0.00674          0.036 788 1.001
+
+Location
+                                         Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept                               0.036 0.076 -0.018  0.000 0.236     0.00452          0.060 290 1.020
+Preregistered[dif: Not Pre-Registered]  0.055 0.068  0.000  0.024 0.216     0.00460          0.068 276 1.010
+Preregistered[dif: Pre-Registered]     -0.055 0.068 -0.216 -0.024 0.000     0.00460          0.068 276 1.010
+
+Scale
+                                         Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept                               0.263 0.078  0.128  0.258 0.421     0.00537          0.069 276 1.015
+Preregistered[dif: Not Pre-Registered]  0.363 0.325  0.000  0.353 1.028     0.02734          0.084 165 1.036
+Preregistered[dif: Pre-Registered]     -0.363 0.325 -1.028 -0.353 0.000     0.02734          0.084 165 1.036
+exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
+
+Publication Bias
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,0.05] 0.893 0.196 0.359 1.000 1.000     0.00466          0.024 1978 1.002
+omega[0.05,0.5]   0.775 0.294 0.209 1.000 1.000     0.00844          0.029 1386 1.003
+omega[0.5,0.95]   0.718 0.356 0.105 1.000 1.000     0.01020          0.029 1419 1.004
+omega[0.95,0.975] 0.719 0.356 0.105 1.000 1.000     0.01021          0.029 1417 1.004
+omega[0.975,1]    0.722 0.357 0.105 1.000 1.000     0.01022          0.029 1413 1.004
+PET               0.256 0.399 0.000 0.000 1.180     0.01574          0.039  652 1.000
+PEESE             0.154 0.547 0.000 0.000 2.177     0.01093          0.020 2564 1.005
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

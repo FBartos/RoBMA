@@ -7,13 +7,15 @@
 \insertCite{poulsen2006potassium;textual}{RoBMA} of the effect of potassium-containing toothpaste
 on dentine hypersensitivity}
 \format{
-A data.frame with 3 columns and 5 observations.
+A data.frame with 3 columns and 5 observations:
+\describe{
+\item{\code{d}}{Cohen's d effect size.}
+\item{\code{se}}{Standard error of d.}
+\item{\code{study}}{Study label.}
+}
 }
 \usage{
 Poulsen2006
-}
-\value{
-a data.frame.
 }
 \description{
 The data set contains Cohen's d effect sizes, standard errors,

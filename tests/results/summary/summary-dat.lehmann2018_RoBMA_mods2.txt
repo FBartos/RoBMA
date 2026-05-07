@@ -1,0 +1,43 @@
+
+Robust Bayesian Model-Averaged Mixed-Effect Model (k = 81)
+
+Component Inclusion
+                 Prior prob. Post. prob. Inclusion BF
+Effect                 0.500       0.157        0.186
+Heterogeneity          0.500       1.000          Inf
+Publication Bias       0.500       0.850        5.670
+
+Meta-Regression Inclusion
+                     Prior prob. Post. prob. Inclusion BF
+Preregistered              0.500       0.707        2.415
+Gender                     0.500       0.188        0.232
+Preregistered:Gender       0.500       0.131        0.150
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.301 0.042 0.222 0.299 0.388     0.00053          0.013 6308 1.000
+
+Meta-Regression
+                                                              Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept                                                    0.005 0.048 -0.088  0.000 0.151     0.00138          0.029 1255 1.006
+Preregistered[dif: Not Pre-Registered]                       0.100 0.084  0.000  0.107 0.261     0.00363          0.043  560 1.004
+Preregistered[dif: Pre-Registered]                          -0.100 0.084 -0.261 -0.107 0.000     0.00363          0.043  560 1.004
+Gender[dif: Females]                                        -0.011 0.033 -0.114  0.000 0.000     0.00118          0.036  882 1.006
+Gender[dif: Males]                                           0.011 0.033  0.000  0.000 0.114     0.00118          0.036  882 1.006
+Preregistered[dif: Not Pre-Registered]:Gender[dif: Females]  0.002 0.023 -0.032  0.000 0.068     0.00076          0.032 1137 1.026
+Preregistered[dif: Pre-Registered]:Gender[dif: Females]     -0.002 0.023 -0.068  0.000 0.032     0.00076          0.032 1137 1.026
+Preregistered[dif: Not Pre-Registered]:Gender[dif: Males]   -0.002 0.023 -0.068  0.000 0.032     0.00076          0.032 1137 1.026
+Preregistered[dif: Pre-Registered]:Gender[dif: Males]        0.002 0.023 -0.032  0.000 0.068     0.00076          0.032 1137 1.026
+
+Publication Bias
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,0.05] 0.985 0.073 0.731 1.000 1.000     0.00089          0.012 6904 1.006
+omega[0.05,0.5]   0.963 0.128 0.469 1.000 1.000     0.00170          0.013 5744 1.006
+omega[0.5,0.95]   0.952 0.159 0.357 1.000 1.000     0.00212          0.013 5645 1.004
+omega[0.95,0.975] 0.952 0.159 0.357 1.000 1.000     0.00212          0.013 5642 1.004
+omega[0.975,1]    0.953 0.158 0.357 1.000 1.000     0.00212          0.013 5622 1.004
+PET               0.375 0.423 0.000 0.003 1.187     0.01340          0.032 1006 1.000
+PEESE             0.487 0.902 0.000 0.000 2.843     0.01960          0.022 2174 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

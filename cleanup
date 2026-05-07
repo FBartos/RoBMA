@@ -11,16 +11,13 @@ rm -rf inst/xgrid/.svn
 rm -rf man/.svn
 rm -f src/.DS_Store
 rm -f src/distributions/.DS_Store
-rm -f src/functions/.DS_Store
-rm -f src/transformations/.DS_Store
+rm -f src/selnorm/.DS_Store
 
 rm -rf src/.deps
 rm -rf src/distributions/.deps
 rm -rf src/distributions/.libs
-rm -rf src/functions/.deps
-rm -rf src/functions/.libs
-rm -rf src/transformations/.deps
-rm -rf src/transformations/.libs
+rm -rf src/selnorm/.deps
+rm -rf src/selnorm/.libs
 
 rm -f src/Makevars
 rm -f config.*
@@ -30,16 +27,24 @@ rm -f config.status
 
 rm -f src/RoBMA.o
 rm -f src/RoBMA.so
+rm -f src/RoBMA.dll
+rm -f src/RoBMA.dylib
 rm -f src/testRoBMA.o
 rm -f src/testRoBMA.so
 rm -f src/symbols.rds
 
+rm -f src/*.o
+rm -f src/*.so
+rm -f src/*.dll
+rm -f src/*.dylib
 rm -f src/distributions/*.o
 rm -f src/distributions/*.so
-rm -f src/functions/*.o
-rm -f src/functions/*.so
-rm -f src/transformations/*.o
-rm -f src/transformations/*.so
+rm -f src/distributions/*.dll
+rm -f src/distributions/*.dylib
+rm -f src/selnorm/*.o
+rm -f src/selnorm/*.so
+rm -f src/selnorm/*.dll
+rm -f src/selnorm/*.dylib
 
 
 exit 0

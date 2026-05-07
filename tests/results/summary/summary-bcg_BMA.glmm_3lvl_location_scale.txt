@@ -1,0 +1,31 @@
+
+Bayesian Model-Averaged Multilevel Location-Scale Model (k = 13, clusters = 3)
+
+Component Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Effect              0.500       0.828        4.818
+Heterogeneity       1.000       1.000          Inf
+
+Location Inclusion
+     Prior prob. Post. prob. Inclusion BF
+year       0.500       0.646        1.824
+
+Scale Inclusion
+     Prior prob. Post. prob. Inclusion BF
+year       0.500       0.532        1.139
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+rho 0.328 0.220 0.013 0.301 0.781     0.01504          0.068 250 1.018
+
+Location
+             Mean     SD    0.025     0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept -36.265 37.615 -114.958 -30.437 2.093     3.19572          0.085 144 1.019
+year        0.018  0.019   -0.001   0.015 0.058     0.00163          0.085 143 1.019
+
+Scale
+                       Mean           SD  0.025   0.5        0.975  error(MCMC) error(MCMC)/SD   ESS R-hat
+exp(intercept) 2.889187e+48 3.523887e+50  0.000 0.423 4.674864e+14 2.877241e+48          0.008 15000 1.291
+year           2.000000e-02 3.100000e-02 -0.017 0.000 9.800000e-02 2.490000e-03          0.081   163 1.040
+exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
+

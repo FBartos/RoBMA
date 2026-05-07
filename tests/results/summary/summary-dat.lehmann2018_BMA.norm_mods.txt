@@ -1,0 +1,22 @@
+
+Bayesian Model-Averaged Mixed-Effect Model (k = 81)
+
+Component Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Effect              0.500       0.344        0.524
+Heterogeneity       0.500       1.000          Inf
+
+Meta-Regression Inclusion
+              Prior prob. Post. prob. Inclusion BF
+Preregistered       0.500       0.910       10.136
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.316 0.042 0.240 0.314 0.403     0.00047          0.011 8144 1.000
+
+Meta-Regression
+                                         Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept                               0.045 0.076  0.000  0.000 0.240     0.00250          0.033  927 1.001
+Preregistered[dif: Not Pre-Registered]  0.178 0.080  0.000  0.194 0.296     0.00250          0.031 1016 1.001
+Preregistered[dif: Pre-Registered]     -0.178 0.080 -0.296 -0.194 0.000     0.00250          0.031 1016 1.001
+

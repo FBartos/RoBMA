@@ -1,15 +1,18 @@
-#' @title 27 experimental studies from
+#' @title 23 experimental studies from
 #' \insertCite{anderson2010violent;textual}{RoBMA} that meet the best practice criteria
 #'
 #' @description The data set contains correlation coefficients, sample
-#' sizes, and labels for 27 experimental studies focusing on the effect of
-#' violent video games on aggressive behavior. The full original data can
-#' found at https://github.com/Joe-Hilgard/Anderson-meta.
+#' sizes, and labels for 23 experimental studies focusing on the effect of
+#' violent video games on aggressive behavior.
 #'
 #'
-#' @format A data.frame with 3 columns and 23 observations.
-#'
-#' @return a data.frame.
+#' @format A data.frame with 3 columns and 23 observations:
+#' \describe{
+#'   \item{\code{r}}{Correlation coefficient.}
+#'   \item{\code{n}}{Sample size.}
+#'   \item{\code{name}}{Study label.}
+#' }
+#' @source \url{https://github.com/Joe-Hilgard/Anderson-meta}
 #'
 #' @references
 #' \insertAllCited{}
@@ -25,10 +28,12 @@
 #' \insertCite{bem2011feeling;textual}{RoBMA} as analyzed in his later meta-analysis
 #' \insertCite{bem2011must}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 9 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 3 columns and 9 observations:
+#' \describe{
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{se}}{Standard error of d.}
+#'   \item{\code{study}}{Study label.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Bem2011"
@@ -44,10 +49,12 @@
 #' \insertCite{poulsen2006potassium}{RoBMA} which was used as an example in
 #' \insertCite{bartos2021bayesian;textual}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 5 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 3 columns and 5 observations:
+#' \describe{
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{se}}{Standard error of d.}
+#'   \item{\code{study}}{Study label.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Poulsen2006"
@@ -56,16 +63,28 @@
 #' educational outcomes collected by \insertCite{kroupova2021student;textual}{RoBMA}
 #'
 #' @description The data set contains partial correlation coefficients, standard errors,
-#' study labels, samples sizes, type of the educational outcome, intensity of the
+#' study labels, sample sizes, type of the educational outcome, intensity of the
 #' employment, gender of the student population, study location, study design, whether
-#' the study controlled for endogenity, and whether the study controlled for motivation.
-#' The original data set including additional variables and the publication can be found
-#' at http://meta-analysis.cz/students.
+#' the study controlled for endogeneity, and whether the study controlled for motivation.
+#' The original data set including additional variables and the publication are
+#' available from the project page.
 #' (Note that some standard errors and employment intensities are missing.)
 #'
-#' @format A data.frame with 11 columns and 881 observations.
-#'
-#' @return a data.frame.
+#' @format A data.frame with 11 columns and 881 observations:
+#' \describe{
+#'   \item{\code{r}}{Partial correlation coefficient.}
+#'   \item{\code{se}}{Standard error of r.}
+#'   \item{\code{study}}{Study label.}
+#'   \item{\code{sample_size}}{Sample size.}
+#'   \item{\code{education_outcome}}{Type of educational outcome.}
+#'   \item{\code{employment_intensity}}{Employment intensity.}
+#'   \item{\code{students_gender}}{Gender composition of the student sample.}
+#'   \item{\code{location}}{Study location.}
+#'   \item{\code{design}}{Study design.}
+#'   \item{\code{endogenity_control}}{Whether endogeneity was controlled.}
+#'   \item{\code{motivation_control}}{Whether motivation was controlled.}
+#' }
+#' @source \url{http://meta-analysis.cz/students}
 #'
 #' @references
 #' \insertAllCited{}
@@ -83,29 +102,48 @@
 #' conflict \insertCite{lui2015intergenerational}{RoBMA} which was used as an
 #' example in \insertCite{bartos2020adjusting;textual}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 18 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 3 columns and 18 observations:
+#' \describe{
+#'   \item{\code{r}}{Correlation coefficient.}
+#'   \item{\code{n}}{Sample size.}
+#'   \item{\code{study}}{Study label.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Lui2015"
 
-#' @title 36 estimates of the effect of household chaos on child executive functions
-#' with the mean age and assessment type covariates from a meta-analysis by
+#' @title 39 study rows on household chaos and child executive functions
+#' from a meta-analysis by
 #' \insertCite{andrews2021examining;textual}{RoBMA}
 #'
-#' @description The data set contains correlation coefficients \code{r},
-#' standard errors \code{se}, executive functioning assessment type \code{measure},
-#' and the mean age of the children in each study \code{age}. The original data set
-#' assessed the effect of household chaos on child executive functions
-#' \insertCite{andrews2021examining}{RoBMA} which was used as an
-#' example in \insertCite{bartos2020adjusting;textual}{RoBMA}.
+#' @description The data set contains raw correlation coefficients and
+#' sampling information using \pkg{metafor}-compatible column names
+#' (\code{ri}, \code{vi}, \code{sei}, \code{ni}, and \code{slab}), together with
+#' study-level moderators from the original data set. Three source rows have
+#' missing effect-size inputs and are omitted automatically by model-fitting
+#' functions that require complete outcomes. The original data set assessed the
+#' effect of household chaos on child executive functions
+#' \insertCite{andrews2021examining}{RoBMA} and was used as an example in
+#' \insertCite{bartos2023robust;textual}{RoBMA}.
 #'
-#' @format A data.frame with 4 columns and 36 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 15 columns and 39 observations:
+#' \describe{
+#'   \item{\code{study_id}}{Source row identifier.}
+#'   \item{\code{slab}}{Study label.}
+#'   \item{\code{ri}}{Raw correlation coefficient.}
+#'   \item{\code{vi}}{Sampling variance of the raw correlation coefficient.}
+#'   \item{\code{sei}}{Sampling standard error of the raw correlation coefficient.}
+#'   \item{\code{ni}}{Sample size.}
+#'   \item{\code{year}}{Publication year.}
+#'   \item{\code{percent_female}}{Percentage of female children in the sample.}
+#'   \item{\code{age}}{Mean age of the children in years.}
+#'   \item{\code{assessment_interval_months}}{Time between household-chaos and executive-function assessments in months.}
+#'   \item{\code{dissertation}}{Whether the study was a dissertation.}
+#'   \item{\code{percent_minority}}{Percentage of minority participants in the sample.}
+#'   \item{\code{percent_low_parental_education}}{Percentage of parents with high school, GED, or lower education.}
+#'   \item{\code{hc_dimension}}{Household-chaos dimension using the source coding.}
+#'   \item{\code{measure}}{Executive-function assessment type, direct or informant.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Andrews2021"
@@ -120,10 +158,21 @@
 #' on students' learning performance, learning perception, and higher-order thinking
 #' \insertCite{wang2025effect}{RoBMA}.
 #'
-#' @format A data.frame with 12 columns and 70 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 12 columns and 70 observations:
+#' \describe{
+#'   \item{\code{Learning_effect}}{Learning-effect outcome category.}
+#'   \item{\code{Author_year}}{Author-year study label.}
+#'   \item{\code{N_EG}}{Experimental-group sample size.}
+#'   \item{\code{N_CG}}{Control-group sample size.}
+#'   \item{\code{g}}{Hedges' g effect size.}
+#'   \item{\code{Grade_level}}{Grade level.}
+#'   \item{\code{Type_of_course}}{Course type.}
+#'   \item{\code{Duration}}{Study duration.}
+#'   \item{\code{Learning_model}}{Learning model.}
+#'   \item{\code{Role_of_ChatGPT}}{Role of ChatGPT in the intervention.}
+#'   \item{\code{Area_of_ChatGPT_application}}{Application area.}
+#'   \item{\code{se}}{Standard error of g.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Wang2025"
@@ -137,10 +186,11 @@
 #' Many Labs 2 project examining variation in replicability across samples and settings
 #' \insertCite{klein2018many;textual}{RoBMA}.
 #'
-#' @format A data.frame with 2 columns and 55 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 2 columns and 55 observations:
+#' \describe{
+#'   \item{\code{y}}{Standardized mean difference.}
+#'   \item{\code{se}}{Standard error of y.}
+#' }
 #' @references
 #' \insertAllCited{}
 "ManyLabs16"
@@ -154,10 +204,18 @@
 #' examined social comparison as a behavior change technique across the behavioral
 #' sciences \insertCite{hoppen2025meta}{RoBMA}.
 #'
-#' @format A data.frame with 9 columns and 37 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 9 columns and 37 observations:
+#' \describe{
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{v}}{Sampling variance of d.}
+#'   \item{\code{outcome}}{Outcome type.}
+#'   \item{\code{feedback_level}}{Feedback level.}
+#'   \item{\code{social_comparison_type}}{Social-comparison type.}
+#'   \item{\code{sessions}}{Number of sessions.}
+#'   \item{\code{sample_type}}{Sample type.}
+#'   \item{\code{sample_size}}{Sample size.}
+#'   \item{\code{country}}{Country.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Hoppen2025"
@@ -168,16 +226,27 @@
 #' @description The data set contains correlation coefficients between the manipulation
 #' and outcome variable (r_xy), sample sizes (N), and various study characteristics
 #' including publication status, country (USA vs. other), number of few and many
-#' examples requested, whether memory the trial targeted episodic memory, paradigm type (standard vs. other),
+#' examples requested, whether the trial targeted episodic memory, paradigm type (standard vs. other),
 #' dataset type (proximal vs. distal), and mediation variables (r_xm, r_my).
 #' The meta-analysis examined whether subjective ease mediates the ease-of-retrieval effect,
 #' where participants list either few or many examples and then make judgments
 #' \insertCite{weingarten2018does}{RoBMA}.
 #'
-#' @format A data.frame with 12 columns and 582 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 12 columns and 582 observations:
+#' \describe{
+#'   \item{\code{r_xy}}{Correlation between manipulation and outcome.}
+#'   \item{\code{N}}{Sample size.}
+#'   \item{\code{paper_id}}{Paper identifier.}
+#'   \item{\code{published}}{Publication-status indicator.}
+#'   \item{\code{USA}}{Whether the study was conducted in the USA.}
+#'   \item{\code{number_of_few}}{Number of examples in the few-examples condition.}
+#'   \item{\code{number_of_many}}{Number of examples in the many-examples condition.}
+#'   \item{\code{episodic_memory}}{Whether the trial targeted episodic memory.}
+#'   \item{\code{standard_paradigm}}{Whether the standard paradigm was used.}
+#'   \item{\code{proximal_dataset}}{Whether the data set was proximal.}
+#'   \item{\code{r_xm}}{Correlation between manipulation and mediator.}
+#'   \item{\code{r_my}}{Correlation between mediator and outcome.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Weingarten2018"
@@ -191,10 +260,12 @@
 #' with mental health, physical health, and developmental disorders provide secondary benefits
 #' to the children's siblings and caregivers \insertCite{johnides2025secondary}{RoBMA}.
 #'
-#' @format A data.frame with 3 columns and 412 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 3 columns and 412 observations:
+#' \describe{
+#'   \item{\code{study}}{Study label.}
+#'   \item{\code{d}}{Cohen's d effect size.}
+#'   \item{\code{se}}{Standard error of d.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Johnides2025"
@@ -208,10 +279,14 @@
 #' The meta-analysis examined the relationship between perceived beauty and professional success
 #' \insertCite{havrankova2025beauty}{RoBMA}.
 #'
-#' @format A data.frame with 5 columns and 1159 observations.
-#'
-#' @return a data.frame.
-#'
+#' @format A data.frame with 5 columns and 1159 observations:
+#' \describe{
+#'   \item{\code{y}}{Effect size: percent increase in earnings.}
+#'   \item{\code{se}}{Standard error of y.}
+#'   \item{\code{facing_customer}}{Type of customer contact.}
+#'   \item{\code{study_id}}{Study identifier.}
+#'   \item{\code{N}}{Sample size.}
+#' }
 #' @references
 #' \insertAllCited{}
 "Havrankova2025"

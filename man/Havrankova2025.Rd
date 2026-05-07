@@ -6,13 +6,17 @@
 \title{1159 effect sizes from a meta-analysis of beauty and professional success
 by \insertCite{havrankova2025beauty;textual}{RoBMA}}
 \format{
-A data.frame with 5 columns and 1159 observations.
+A data.frame with 5 columns and 1159 observations:
+\describe{
+\item{\code{y}}{Effect size: percent increase in earnings.}
+\item{\code{se}}{Standard error of y.}
+\item{\code{facing_customer}}{Type of customer contact.}
+\item{\code{study_id}}{Study identifier.}
+\item{\code{N}}{Sample size.}
+}
 }
 \usage{
 Havrankova2025
-}
-\value{
-a data.frame.
 }
 \description{
 The data set contains effect sizes (percent increase in earnings), standard errors,

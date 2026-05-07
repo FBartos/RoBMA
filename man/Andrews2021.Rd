@@ -3,25 +3,42 @@
 \docType{data}
 \name{Andrews2021}
 \alias{Andrews2021}
-\title{36 estimates of the effect of household chaos on child executive functions
-with the mean age and assessment type covariates from a meta-analysis by
+\title{39 study rows on household chaos and child executive functions
+from a meta-analysis by
 \insertCite{andrews2021examining;textual}{RoBMA}}
 \format{
-A data.frame with 4 columns and 36 observations.
+A data.frame with 15 columns and 39 observations:
+\describe{
+\item{\code{study_id}}{Source row identifier.}
+\item{\code{slab}}{Study label.}
+\item{\code{ri}}{Raw correlation coefficient.}
+\item{\code{vi}}{Sampling variance of the raw correlation coefficient.}
+\item{\code{sei}}{Sampling standard error of the raw correlation coefficient.}
+\item{\code{ni}}{Sample size.}
+\item{\code{year}}{Publication year.}
+\item{\code{percent_female}}{Percentage of female children in the sample.}
+\item{\code{age}}{Mean age of the children in years.}
+\item{\code{assessment_interval_months}}{Time between household-chaos and executive-function assessments in months.}
+\item{\code{dissertation}}{Whether the study was a dissertation.}
+\item{\code{percent_minority}}{Percentage of minority participants in the sample.}
+\item{\code{percent_low_parental_education}}{Percentage of parents with high school, GED, or lower education.}
+\item{\code{hc_dimension}}{Household-chaos dimension using the source coding.}
+\item{\code{measure}}{Executive-function assessment type, direct or informant.}
+}
 }
 \usage{
 Andrews2021
 }
-\value{
-a data.frame.
-}
 \description{
-The data set contains correlation coefficients \code{r},
-standard errors \code{se}, executive functioning assessment type \code{measure},
-and the mean age of the children in each study \code{age}. The original data set
-assessed the effect of household chaos on child executive functions
-\insertCite{andrews2021examining}{RoBMA} which was used as an
-example in \insertCite{bartos2020adjusting;textual}{RoBMA}.
+The data set contains raw correlation coefficients and
+sampling information using \pkg{metafor}-compatible column names
+(\code{ri}, \code{vi}, \code{sei}, \code{ni}, and \code{slab}), together with
+study-level moderators from the original data set. Three source rows have
+missing effect-size inputs and are omitted automatically by model-fitting
+functions that require complete outcomes. The original data set assessed the
+effect of household chaos on child executive functions
+\insertCite{andrews2021examining}{RoBMA} and was used as an example in
+\insertCite{bartos2023robust;textual}{RoBMA}.
 }
 \references{
 \insertAllCited{}

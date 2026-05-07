@@ -1,38 +1,173 @@
-#' @name prior
-#' @inherit BayesTools::prior
+#' @title Prior Distribution
+#'
+#' @description Create prior distribution objects used by RoBMA and brma
+#' fitting functions.
+#'
+#' @param distribution character. Prior distribution name.
+#' @param parameters list. Distribution parameters.
+#' @param truncation list with \code{lower} and \code{upper} truncation bounds.
+#' @param prior_weights numeric prior model weight.
+#'
+#' @details This is RoBMA's re-export of \code{BayesTools::prior()}; supported
+#' distribution names and parameter lists follow BayesTools.
+#'
+#' @return An object inheriting from \code{prior}.
+#'
+#' @examples
+#' prior("normal", list(mean = 0, sd = 0.5))
+#' prior(
+#'   "normal",
+#'   list(mean = 0, sd = 0.5),
+#'   truncation = list(lower = 0, upper = Inf)
+#' )
+#'
 #' @export
 prior <- BayesTools::prior
 
-#' @name prior_none
-#' @inherit BayesTools::prior_none
+#' @title Empty Prior
+#'
+#' @description Create an empty prior used to omit a model component.
+#'
+#' @inheritParams prior
+#'
+#' @return An object inheriting from \code{prior} and \code{prior.none}.
+#'
 #' @export
 prior_none <- BayesTools::prior_none
 
-#' @name prior_factor
-#' @inherit BayesTools::prior_factor
+#' @title Factor Prior
+#'
+#' @description Create priors on factor contrasts.
+#'
+#' @inheritParams prior
+#' @param contrast character. Contrast coding used for factor levels. Common
+#' RoBMA model options are \code{"treatment"}, \code{"meandif"}, and
+#' \code{"orthonormal"}; the standalone helper also accepts BayesTools contrast
+#' aliases such as \code{"independent"}.
+#'
+#' @details Mean-difference and orthonormal contrasts require vector or
+#' multivariate priors. Treatment/dummy and independent contrasts use univariate
+#' simple priors per contrast coefficient.
+#'
+#' @return An object inheriting from \code{prior}, \code{prior.factor}, and a
+#' contrast-specific marker class.
+#'
 #' @export
 prior_factor <- BayesTools::prior_factor
 
-#' @name prior_PET
-#' @inherit BayesTools::prior_PET
+#' @title PET Prior
+#'
+#' @description Create PET publication-bias regression priors.
+#'
+#' @inheritParams prior
+#'
+#' @details This forwards to \code{BayesTools::prior_PET()} and uses the same
+#' distribution and parameter conventions as \code{prior()}. By default, PET
+#' priors are truncated to the positive half-line.
+#'
+#' @return An object inheriting from \code{prior} with the \code{prior.PET}
+#' marker class.
+#'
+#' @seealso \code{\link{publication_bias_prior_specification}}
+#'
 #' @export
 prior_PET  <- BayesTools::prior_PET
 
-#' @name prior_PEESE
-#' @inherit BayesTools::prior_PEESE
+#' @title PEESE Prior
+#'
+#' @description Create PEESE publication-bias regression priors.
+#'
+#' @inheritParams prior
+#'
+#' @details This forwards to \code{BayesTools::prior_PEESE()} and uses the same
+#' distribution and parameter conventions as \code{prior()}.
+#'
+#' @return An object inheriting from \code{prior} with the \code{prior.PEESE}
+#' marker class.
+#'
+#' @seealso \code{\link{publication_bias_prior_specification}}
+#'
 #' @export
 prior_PEESE <- BayesTools::prior_PEESE
 
-#' @name prior_weightfunction
-#' @inherit BayesTools::prior_weightfunction
+#' @title Weightfunction Prior
+#'
+#' @description Create weightfunction publication-bias priors and their
+#' weight-prior helper objects.
+#'
+#' @param side character. Either \code{"one-sided"} or \code{"two-sided"}.
+#' @param steps numeric vector of p-value cut points. These define
+#' \code{length(steps) + 1} p-value bins and must be ordered values in
+#' \code{(0, 1)}.
+#' @param weights a weight-prior object created by \code{wf_cumulative()},
+#' \code{wf_fixed()}, or \code{wf_independent()}.
+#' @param reference character. Reference bin, currently
+#' \code{"most_significant"}.
+#' @inheritParams prior
+#'
+#' @details Fixed weights must have one value per p-value bin
+#' (\code{length(steps) + 1}), and the reference bin must have weight 1.
+#'
+#' @return \code{prior_weightfunction()} returns an object inheriting from
+#' \code{prior} and \code{prior.weightfunction}; the \code{wf_*()} helpers
+#' return \code{weightfunction_weights} helper objects with subclass markers.
+#'
+#' @examples
+#' prior_weightfunction("one-sided", steps = 0.025)
+#' prior_weightfunction(
+#'   side    = "one-sided",
+#'   steps   = c(0.025, 0.5),
+#'   weights = wf_fixed(c(1, 0.8, 0.6))
+#' )
+#'
+#' @seealso \code{\link{publication_bias_prior_specification}}
+#'
 #' @export
 prior_weightfunction <- BayesTools::prior_weightfunction
 
-#' @name prior_informed
-#' @inherit BayesTools::prior_informed
+#' @rdname prior_weightfunction
+#' @param alpha optional positive cumulative-Dirichlet concentration parameters,
+#' one per p-value bin. If \code{NULL}, \code{prior_weightfunction()} uses
+#' \code{rep(1, length(steps) + 1)}. Cumulative weights encode monotone
+#' decreasing publication weights relative to the most-significant bin.
+#' @export
+wf_cumulative <- BayesTools::wf_cumulative
+
+#' @rdname prior_weightfunction
+#' @param omega fixed publication weights, one per bin; values must be
+#' non-missing, nonnegative, and match \code{length(steps) + 1} when used in
+#' \code{prior_weightfunction()}.
+#' @export
+wf_fixed <- BayesTools::wf_fixed
+
+#' @rdname prior_weightfunction
+#' @param prior continuous simple prior distribution for each non-reference
+#' weight. Point, discrete, mixture, and other non-simple priors are invalid.
+#' @param scale latent scale for independent weights; either \code{"omega"},
+#' \code{"log_omega"}, or the \code{"log"} alias. Direct \code{"omega"} priors
+#' need nonnegative support; \code{"log"} is normalized to \code{"log_omega"}.
+#' @export
+wf_independent <- BayesTools::wf_independent
+
+#' @title Informed Prior
+#'
+#' @description Create empirical informed prior distributions.
+#'
+#' @param name character. Informed prior name. Supported examples include
+#' \code{"van Erp"}, \code{"Oosterwijk"}, \code{"Cochrane"}, and medicine
+#' subfields from \code{BayesTools::prior_informed_medicine_names}.
+#' @param parameter character. Parameter subset. Required for medicine priors
+#' and not needed for psychology priors.
+#' @param type character. Effect-size type. Medicine priors use values such as
+#' \code{"smd"}, \code{"logOR"}, \code{"logRR"}, \code{"RD"}, and
+#' \code{"logHR"}.
+#'
+#' @return An object of class \code{prior}.
+#'
 #' @details Further details can be found in \insertCite{erp2017estimates;textual}{RoBMA},
-#' \insertCite{gronau2017bayesian;textual}{RoBMA}, and
-#' \insertCite{bartos2021bayesian;textual}{RoBMA}.
+#' \insertCite{gronau2017bayesian;textual}{RoBMA},
+#' \insertCite{bartos2021bayesian;textual}{RoBMA}, and
+#' \insertCite{bartos2023empirical;textual}{RoBMA}.
 #' @references
 #' \insertAllCited{}
 #' @export
@@ -54,7 +189,7 @@ prior_informed <- BayesTools::prior_informed
 #'     k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n if \code{contrasts = FALSE}.}
 #'   \item{\code{contr.meandif}}{Return a matrix of mean difference contrasts.
 #'     This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
-#'     distributions on difference between the gran mean and factor level are identical independent
+#'     distributions on difference between the grand mean and factor level are identical independent
 #'     of the number of factor levels (which does not hold for the orthonormal contrast). Furthermore,
 #'     the contrast is re-scaled so the specified prior distribution exactly corresponds to the prior
 #'     distribution on difference between each factor level and the grand mean -- this is approximately
@@ -99,188 +234,3 @@ contr.meandif <- BayesTools::contr.meandif
 #' @rdname contr.BayesTools
 #' @export
 contr.independent <- BayesTools::contr.independent
-
-
-#' @title Set default prior distributions
-#'
-#' @description Set default prior distributions for RoBMA models.
-#'
-#' @param parameter a character string specifying the parameter for
-#' which the prior distribution should be set. Available options are
-#' "effect", "heterogeneity", "bias", "hierarchical", "covariates",
-#' "factors".
-#' @param null a logical indicating whether the prior distribution
-#' should be set for the null hypothesis. Defaults to \code{FALSE}.
-#' @param rescale a numeric value specifying the re-scaling factor
-#' for the default prior distributions. Defaults to 1. Allows
-#' convenient re-scaling of prior distributions simultaneously.
-#'
-#' @details The default prior distributions corresponds to the
-#' specification of RoBMA-PSMA and RoBMA-regression outlined in
-#' \insertCite{bartos2021no;textual}{RoBMA} and
-#' \insertCite{bartos2023robust;textual}{RoBMA}.
-#'
-#' Specifically, the prior distributions are:
-#'
-#' **For the alternative hypothesis:**
-#' \itemize{
-#'   \item \strong{Effect:} Normal distribution with mean 0 and standard deviation 1.
-#'   \item \strong{Heterogeneity:} Inverse gamma distribution with shape 1 and scale 0.15.
-#'   \item \strong{Bias:} A list of 8 prior distributions defining the publication bias adjustments:
-#'   \itemize{
-#'     \item Two-sided: Weight function with steps 0.05.
-#'     \item Two-sided: Weight function with steps 0.05 and 0.1.
-#'     \item One-sided: Weight function with steps 0.05.
-#'     \item One-sided: Weight function with steps 0.025 and 0.05.
-#'     \item One-sided: Weight function with steps 0.05 and 0.5.
-#'     \item One-sided: Weight function with steps 0.025, 0.05, and 0.5.
-#'     \item PET-type model with regression coefficient: Cauchy distribution with location 0 and scale 1.
-#'     \item PEESE-type model with regression coefficient: Cauchy distribution with location 0 and scale 5.
-#'   }
-#'   All weight functions use a unit cumulative Dirichlet prior distribution on relative prior probabilities.
-#'   \item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.25.
-#'   \item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.25.
-#' }
-#'
-#' **For the null hypothesis:**
-#' \itemize{
-#'   \item \strong{Effect:} Point distribution at 0.
-#'   \item \strong{Heterogeneity:} Point distribution at 0.
-#'   \item \strong{Bias:} No prior distribution.
-#'   \item \strong{Standardized continuous covariates:} Point distribution at 0.
-#'   \item \strong{Factors (via by-level differences from the grand mean):} Point distribution at 0.
-#' }
-#'
-#' The rescaling factor adjusts the width of the effect, heterogeneity, covariates, factor, and PEESE-style model prior distributions.
-#' PET-style and weight function prior distributions are scale-invariant.
-#'
-#' @examples
-#'
-#' set_default_priors("effect")
-#' set_default_priors("heterogeneity")
-#' set_default_priors("bias")
-#'
-#' @return A prior distribution object or a list of prior distribution
-#' objects.
-#'
-#' @export
-set_default_priors <- function(parameter, null = FALSE, rescale = 1){
-
-  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "bias", "hierarchical", "covariates", "factors"))
-  BayesTools::check_bool(null, "null")
-  BayesTools::check_real(rescale, "rescale", lower = 0)
-
-  if(null){
-    return(switch(
-      parameter,
-      effect        = prior(distribution = "point", parameters = list(location = 0)),
-      heterogeneity = prior(distribution = "point", parameters = list(location = 0)),
-      bias          = prior_none(),
-      hierarchical  = NULL,
-      covariates    = prior(distribution = "point", parameters = list(location = 0)),
-      factors       = prior_factor("spike", parameters = list(location = 0), contrast = "meandif")
-    ))
-  }else{
-    return(switch(
-      parameter,
-      effect        = prior(distribution = "normal",   parameters = list(mean  = 0, sd = 1 * rescale)),
-      heterogeneity = prior(distribution = "invgamma", parameters = list(shape = 1, scale = 0.15 * rescale)),
-      bias          = list(
-        prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-        prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.1)),        prior_weights = 1/12),
-        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1),       steps = c(0.05)),             prior_weights = 1/12),
-        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.025, 0.05)),      prior_weights = 1/12),
-        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1),    steps = c(0.05, 0.5)),        prior_weights = 1/12),
-        prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12),
-        prior_PET(distribution = "Cauchy",   parameters = list(0, 1),            truncation = list(0, Inf), prior_weights = 1/4),
-        prior_PEESE(distribution = "Cauchy", parameters = list(0, 5 / rescale),  truncation = list(0, Inf), prior_weights = 1/4)
-        ),
-      hierarchical  = prior("beta", parameters = list(alpha = 1, beta = 1)),
-      covariates    = prior("normal", parameters = list(mean = 0, sd = 0.25 * rescale)),
-      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.25 * rescale), contrast = "meandif")
-    ))
-  }
-}
-
-#' @title Set default prior distributions for binomial meta-analytic models
-#'
-#' @description Set default prior distributions for BiBMA models.
-#'
-#' @param parameter a character string specifying the parameter for
-#' which the prior distribution should be set. Available options are
-#' "effect", "heterogeneity", "baseline", "covariates",
-#' "factors".
-#' @param null a logical indicating whether the prior distribution
-#' should be set for the null hypothesis. Defaults to \code{FALSE}.
-#' @param rescale a numeric value specifying the re-scaling factor
-#' for the default prior distributions. Defaults to 1. Allows
-#' convenient re-scaling of prior distributions simultaneously.
-#'
-#' @details The default prior are based on the binary outcome meta-analyses
-#' in the Cochrane Database of Systematic Reviews outlined in
-#'  \insertCite{bartos2023empirical;textual}{RoBMA}.
-#'
-#' Specifically, the prior distributions are:
-#'
-#' **For the alternative hypothesis:**
-#' \itemize{
-#'   \item \strong{Effect:} T distribution with mean 0, scale 0.58, and 4 degrees of freedom.
-#'   \item \strong{Heterogeneity:} Inverse gamma distribution with shape 1.77 and scale 0.55.
-#'   \item \strong{Baseline:} No prior distribution.
-#'   \item \strong{Standardized continuous covariates:} Normal distribution with mean 0 and standard deviation 0.29.
-#'   \item \strong{Factors (via by-level differences from the grand mean):} Normal distribution with mean 0 and standard deviation 0.29.
-#' }
-#'
-#' **For the null hypothesis:**
-#' \itemize{
-#'   \item \strong{Effect:} Point distribution at 0.
-#'   \item \strong{Heterogeneity:} Point distribution at 0.
-#'   \item \strong{Baseline:} Independent uniform distributions.
-#'   \item \strong{Standardized continuous covariates:} Point distribution at 0.
-#'   \item \strong{Factors (via by-level differences from the grand mean):} Point distribution at 0.
-#' }
-#'
-#' The rescaling factor adjusts the width of the effect, heterogeneity, covariates, factor, and PEESE-style model prior distributions.
-#' PET-style and weight function prior distributions are scale-invariant.
-#'
-#' @examples
-#'
-#' set_default_binomial_priors("effect")
-#' set_default_binomial_priors("heterogeneity")
-#' set_default_binomial_priors("baseline")
-#'
-#' @return A prior distribution object or a list of prior distribution
-#' objects.
-#'
-#' @export
-set_default_binomial_priors <- function(parameter, null = FALSE, rescale = 1){
-
-  BayesTools::check_char(parameter, "parameter", allow_values = c("effect", "heterogeneity", "baseline", "covariates", "factors", "hierarchical"))
-  BayesTools::check_bool(null, "null")
-  BayesTools::check_real(rescale, "rescale", lower = 0)
-
-
-  if(null){
-    return(switch(
-      parameter,
-      effect        = prior(distribution = "point", parameters = list(location = 0)),
-      heterogeneity = prior(distribution = "point", parameters = list(location = 0)),
-      baseline      = prior_factor("beta", parameters = list(alpha = 1, beta = 1), contrast = "independent"),
-      hierarchical  = NULL,
-
-      covariates    = prior(distribution = "point", parameters = list(location = 0)),
-      factors       = prior_factor("spike", parameters = list(location = 0), contrast = "meandif")
-    ))
-  }else{
-    return(switch(
-      parameter,
-      effect        = prior(distribution = "student",   parameters = list(location = 0, scale = 0.58 * rescale, df = 4)),
-      heterogeneity = prior(distribution = "invgamma",  parameters = list(shape = 1.77, scale = 0.55 * rescale)),
-      baseline      = NULL,
-      hierarchical  = prior("beta", parameters = list(alpha = 1, beta = 1)),
-
-      covariates    = prior("normal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale)),
-      factors       = prior_factor("mnormal", parameters = list(mean = 0, sd = 0.58 * (1/2) * rescale), contrast = "meandif")
-    ))
-  }
-}

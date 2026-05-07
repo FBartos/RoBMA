@@ -1,0 +1,228 @@
+
+Individual Models
+ Effect          Location: Preregistered                    Location: Gender                           Location: Preregistered:Gender            
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)       
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Normal(0, 0.71) mean difference contrast: mSpike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Spike(0)        mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35) mean difference contrast: mNormal(0, 0.35)
+ Heterogeneity           Publication Bias                Prior prob. Post. prob. Inclusion BF
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Spike(0)                None                                  0.016       0.000        0.000
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.000        0.000
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.009        0.568
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.081        5.518
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.025        1.593
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.000        0.000
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.002        0.097
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.012        0.765
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.003        0.190
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.000        0.000
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.001        0.076
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.011        0.671
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.004        0.240
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.000        0.000
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.001        0.063
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.002        0.114
+ Normal(0, 0.35)[0, Inf] None                                  0.016       0.001        0.059
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.205
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.001        1.075
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.001        0.409
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.102
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.205
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.051
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.051
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.307
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.051
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Normal(0, 0.35)[0, Inf] omega[two-sided: .05, .1]             0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ Spike(0)                omega[one-sided: .05]                 0.001       0.000        0.000
+ [ reached 'max' / getOption("max.print") -- omitted 177 rows ]
+

@@ -1,0 +1,38 @@
+
+Effect
+                Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)        Null              0.500       0.852        5.775
+Normal(0, 0.71) Alternative       0.500       0.148        0.173
+
+Location: Preregistered
+                                           Hypothesis  Prior prob. Post. prob. Inclusion BF
+mean difference contrast: mSpike(0)        Null              0.500       0.319        0.469
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.681        2.134
+
+Location: Gender
+                                           Hypothesis  Prior prob. Post. prob. Inclusion BF
+mean difference contrast: mSpike(0)        Null              0.500       0.810        4.269
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.190        0.234
+
+Location: Preregistered:Gender
+                                           Hypothesis  Prior prob. Post. prob. Inclusion BF
+mean difference contrast: mSpike(0)        Null              0.500       0.884        7.626
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.116        0.131
+
+Heterogeneity
+                        Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)                Null              0.500       0.000        0.000
+Normal(0, 0.35)[0, Inf] Alternative       0.500       1.000          Inf
+
+Publication Bias
+                                Hypothesis  Prior prob. Post. prob. Inclusion BF
+None                            Null              0.500       0.130        0.149
+omega[two-sided: .05]           Alternative       0.042       0.003        0.080
+omega[two-sided: .1, .05]       Alternative       0.042       0.001        0.021
+omega[one-sided: .05]           Alternative       0.042       0.018        0.420
+omega[one-sided: .05, .025]     Alternative       0.042       0.023        0.549
+omega[one-sided: .5, .05]       Alternative       0.042       0.023        0.551
+omega[one-sided: .5, .05, .025] Alternative       0.042       0.038        0.902
+PET                             Alternative       0.125       0.521        7.628
+PEESE                           Alternative       0.125       0.242        2.236
+

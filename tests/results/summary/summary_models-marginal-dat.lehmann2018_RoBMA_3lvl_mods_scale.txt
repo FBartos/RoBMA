@@ -1,0 +1,32 @@
+
+Effect
+                Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)        Null              0.500       0.688        2.208
+Normal(0, 0.71) Alternative       0.500       0.312        0.453
+
+Location: Preregistered
+                                           Hypothesis  Prior prob. Post. prob. Inclusion BF
+mean difference contrast: mSpike(0)        Null              0.500       0.483        0.936
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.517        1.069
+
+Heterogeneity
+                        Hypothesis  Prior prob. Post. prob. Inclusion BF
+Normal(0, 0.35)[0, Inf] Alternative       1.000       1.000          Inf
+
+Scale: Preregistered
+                                          Hypothesis  Prior prob. Post. prob. Inclusion BF
+mean difference contrast: mSpike(0)       Null              0.500       0.231        0.300
+mean difference contrast: mNormal(0, 0.5) Alternative       0.500       0.769        3.335
+
+Publication Bias
+                                Hypothesis  Prior prob. Post. prob. Inclusion BF
+None                            Null              0.500       0.164        0.196
+omega[two-sided: .05]           Alternative       0.042       0.008        0.175
+omega[two-sided: .1, .05]       Alternative       0.042       0.003        0.068
+omega[one-sided: .05]           Alternative       0.042       0.036        0.857
+omega[one-sided: .05, .025]     Alternative       0.042       0.081        2.036
+omega[one-sided: .5, .05]       Alternative       0.042       0.086        2.162
+omega[one-sided: .5, .05, .025] Alternative       0.042       0.248        7.601
+PET                             Alternative       0.125       0.298        2.970
+PEESE                           Alternative       0.125       0.076        0.579
+

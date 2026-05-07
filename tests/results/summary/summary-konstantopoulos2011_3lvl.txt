@@ -1,0 +1,9 @@
+
+Bayesian Multilevel Random-Effects Model (k = 56, clusters = 11)
+
+Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.183 0.089 0.009 0.182 0.365     0.00299          0.034  901 1.003
+tau 0.323 0.058 0.233 0.314 0.461     0.00161          0.028 1317 1.002
+rho 0.634 0.140 0.329 0.647 0.863     0.00353          0.025 1603 1.001
+

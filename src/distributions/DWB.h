@@ -25,11 +25,13 @@ class DWB : public VectorDist
   bool checkParameterValue(std::vector<double const *> const &parameters,
                            std::vector<unsigned int> const &lengths) const;
   bool checkParameterLength(std::vector<unsigned int> const &lengths) const;
+  bool checkParameterDiscrete(std::vector<bool> const &mask) const;
   unsigned int length(std::vector<unsigned int> const &dim) const;
   void support(double *lower, double *upper, unsigned int length,
 	       std::vector<double const *> const &parameters,
 	       std::vector<unsigned int> const &lengths) const;
   bool isSupportFixed(std::vector<bool> const &fixmask) const;
+  bool isDiscreteValued(std::vector<bool> const &mask) const;
   };
 
 }

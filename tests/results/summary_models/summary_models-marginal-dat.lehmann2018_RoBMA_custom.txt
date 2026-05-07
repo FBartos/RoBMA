@@ -1,0 +1,22 @@
+
+Effect
+               Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)       Null              0.500       0.761        3.178
+Normal(0, 0.5) Alternative       0.500       0.239        0.315
+
+Heterogeneity
+                        Hypothesis  Prior prob. Post. prob. Inclusion BF
+Normal(0, 0.25)[0, Inf] Alternative       1.000       1.000          Inf
+
+Publication Bias
+                                Hypothesis  Prior prob. Post. prob. Inclusion BF
+None                            Null              0.500       0.051        0.054
+omega[two-sided: .05]           Alternative       0.042       0.001        0.017
+omega[two-sided: .05, .1]       Alternative       0.042       0.001        0.015
+omega[one-sided: .05]           Alternative       0.042       0.006        0.130
+omega[one-sided: .025, .05]     Alternative       0.042       0.008        0.179
+omega[one-sided: .05, .5]       Alternative       0.042       0.011        0.253
+omega[one-sided: .025, .05, .5] Alternative       0.042       0.025        0.598
+PET                             Alternative       0.125       0.691       15.654
+PEESE                           Alternative       0.125       0.207        1.826
+

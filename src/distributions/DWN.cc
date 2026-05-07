@@ -9,10 +9,7 @@
 // define parameters
 // mu  = par[0]
 // var = 1/par[1]
-// weights = par[2]
-// and their dimensions
-#define n_crit_x(len) (len[2])
-#define n_omega(len) (len[3])
+// weight = par[2]
 
 
 namespace jags {
@@ -23,7 +20,6 @@ DWN::DWN() : VectorDist("dwnorm", 3) {}
 
 bool DWN::checkParameterLength(std::vector<unsigned int> const &len) const
 {
-  // there is one less cut-point then weights
   return true;
 }
 

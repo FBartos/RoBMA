@@ -1,0 +1,6 @@
+
+Individual Models
+ Effect       Heterogeneity          Prior prob. Post. prob. Inclusion BF
+ Spike(0)     Normal(0, 0.5)[0, Inf]       0.500       0.009        0.009
+ Normal(0, 1) Normal(0, 0.5)[0, Inf]       0.500       0.991      106.914
+

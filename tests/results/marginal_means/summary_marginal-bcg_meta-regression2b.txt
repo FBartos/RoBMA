@@ -1,0 +1,8 @@
+
+Marginal Means:
+                    Mean    SD  0.025    0.5  0.975
+intercept         -0.633 0.231 -1.112 -0.628 -0.175
+alloc[alternate]  -0.532 0.458 -1.482 -0.539  0.387
+alloc[random]     -0.945 0.293 -1.538 -0.944 -0.391
+alloc[systematic] -0.421 0.373 -1.195 -0.424  0.305
+

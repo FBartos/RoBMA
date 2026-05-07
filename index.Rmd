@@ -1,0 +1,28 @@
+---
+title:        "RoBMA"
+bibliography: inst/REFERENCES.bib
+csl:          inst/apa.csl
+output:       github_document
+---
+
+<!-- index.md is generated from index.Rmd. Please edit that file -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+
+article_url <- function(page) {
+  paste0("articles/", page, ".html")
+}
+
+reference_url <- function(page) {
+  paste0("reference/", page, ".html")
+}
+```
+
+# Robust Bayesian Meta-Analysis (RoBMA)
+
+```{r child = "vignettes/_v00-introduction-body.md"}
+```

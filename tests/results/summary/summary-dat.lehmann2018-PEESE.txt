@@ -1,0 +1,12 @@
+
+Bayesian Random-Effects PEESE Model (k = 81)
+
+Estimates
+     Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.092 0.063 -0.031 0.092 0.216     0.00103          0.016 3783 1.002
+tau 0.304 0.041  0.230 0.302 0.389     0.00044          0.011 8526 1.000
+
+Publication Bias
+       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+PEESE 1.840 0.759 0.376 1.837 3.350     0.01319          0.017 3306 1.002
+

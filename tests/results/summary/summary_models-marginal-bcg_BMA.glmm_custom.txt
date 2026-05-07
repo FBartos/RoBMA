@@ -1,0 +1,10 @@
+
+Effect
+             Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)     Null              0.500       0.009        0.009
+Normal(0, 1) Alternative       0.500       0.991      106.914
+
+Heterogeneity
+                       Hypothesis  Prior prob. Post. prob. Inclusion BF
+Normal(0, 0.5)[0, Inf] Alternative       1.000       1.000          Inf
+

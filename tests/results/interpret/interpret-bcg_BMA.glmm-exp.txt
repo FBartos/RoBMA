@@ -1,0 +1,6 @@
+Bayesian Model-Averaged Random-Effects Model (k = 13).
+Effect inclusion: strong evidence in favor of the effect (BF10 > 1999.000).
+Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf > 1999.000).
+Pooled effect: model-averaged mode odds ratio = 0.462, 95% CrI [0.340, 0.652].
+Pooled heterogeneity: model-averaged mean tau = 0.574, 95% CrI [0.345, 0.913].
+Pooled effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.
