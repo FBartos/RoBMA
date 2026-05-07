@@ -1,9 +1,8 @@
-# 27 experimental studies from Anderson et al. (2010) that meet the best practice criteria
+# 23 experimental studies from Anderson et al. (2010) that meet the best practice criteria
 
 The data set contains correlation coefficients, sample sizes, and labels
-for 27 experimental studies focusing on the effect of violent video
-games on aggressive behavior. The full original data can found at
-https://github.com/Joe-Hilgard/Anderson-meta.
+for 23 experimental studies focusing on the effect of violent video
+games on aggressive behavior.
 
 ## Usage
 
@@ -13,11 +12,23 @@ Anderson2010
 
 ## Format
 
-A data.frame with 3 columns and 23 observations.
+A data.frame with 3 columns and 23 observations:
 
-## Value
+- `r`:
 
-a data.frame.
+  Correlation coefficient.
+
+- `n`:
+
+  Sample size.
+
+- `name`:
+
+  Study label.
+
+## Source
+
+<https://github.com/Joe-Hilgard/Anderson-meta>
 
 ## References
 

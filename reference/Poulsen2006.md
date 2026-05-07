@@ -14,11 +14,19 @@ Poulsen2006
 
 ## Format
 
-A data.frame with 3 columns and 5 observations.
+A data.frame with 3 columns and 5 observations:
 
-## Value
+- `d`:
 
-a data.frame.
+  Cohen's d effect size.
+
+- `se`:
+
+  Standard error of d.
+
+- `study`:
+
+  Study label.
 
 ## References
 

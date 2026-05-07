@@ -14,11 +14,27 @@ Havrankova2025
 
 ## Format
 
-A data.frame with 5 columns and 1159 observations.
+A data.frame with 5 columns and 1159 observations:
 
-## Value
+- `y`:
 
-a data.frame.
+  Effect size: percent increase in earnings.
+
+- `se`:
+
+  Standard error of y.
+
+- `facing_customer`:
+
+  Type of customer contact.
+
+- `study_id`:
+
+  Study identifier.
+
+- `N`:
+
+  Sample size.
 
 ## References
 

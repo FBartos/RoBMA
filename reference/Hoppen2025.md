@@ -14,11 +14,43 @@ Hoppen2025
 
 ## Format
 
-A data.frame with 9 columns and 37 observations.
+A data.frame with 9 columns and 37 observations:
 
-## Value
+- `d`:
 
-a data.frame.
+  Cohen's d effect size.
+
+- `v`:
+
+  Sampling variance of d.
+
+- `outcome`:
+
+  Outcome type.
+
+- `feedback_level`:
+
+  Feedback level.
+
+- `social_comparison_type`:
+
+  Social-comparison type.
+
+- `sessions`:
+
+  Number of sessions.
+
+- `sample_type`:
+
+  Sample type.
+
+- `sample_size`:
+
+  Sample size.
+
+- `country`:
+
+  Country.
 
 ## References
 

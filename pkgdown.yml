@@ -1,20 +1,25 @@
-pandoc: 3.1.11
+pandoc: 3.8.3
 pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
-  CustomEnsembles: CustomEnsembles.html
-  Explanation: Explanation.html
-  FastRoBMA: FastRoBMA.html
-  HierarchicalBMA: HierarchicalBMA.html
-  MedicineBiBMA: MedicineBiBMA.html
-  MedicineBMA: MedicineBMA.html
-  MetaRegression: MetaRegression.html
-  MultilevelRoBMA: MultilevelRoBMA.html
-  MultilevelRoBMARegression: MultilevelRoBMARegression.html
-  ReproducingBMA: ReproducingBMA.html
-  Tutorial: Tutorial.html
-  ZCurveDiagnostics: ZCurveDiagnostics.html
-last_built: 2025-12-18T08:06Z
+  v00-introduction: v00-introduction.html
+  v01-prior-distributions: v01-prior-distributions.html
+  v02-bayesian-meta-analysis: v02-bayesian-meta-analysis.html
+  v03-feature-coverage: v03-feature-coverage.html
+  v10-metafor-parity-multilevel: v10-metafor-parity-multilevel.html
+  v11-metafor-parity-publication-bias: v11-metafor-parity-publication-bias.html
+  v12-metafor-parity-location-scale: v12-metafor-parity-location-scale.html
+  v13-metafor-parity-glmm: v13-metafor-parity-glmm.html
+  v20-bayesian-model-averaging: v20-bayesian-model-averaging.html
+  v21-robust-bayesian-meta-analysis: v21-robust-bayesian-meta-analysis.html
+  v30-tutorial: v30-tutorial.html
+  v31-robma-metaregression: v31-robma-metaregression.html
+  v32-robma-multilevel: v32-robma-multilevel.html
+  v33-robma-multilevel-metaregression: v33-robma-multilevel-metaregression.html
+  v34-bma-norm-medicine: v34-bma-norm-medicine.html
+  v35-bma-glmm-medicine: v35-bma-glmm-medicine.html
+  v36-zplot: v36-zplot.html
+last_built: 2026-05-07T13:53Z
 urls:
-  reference: https://https://fbartos.github.io/RoBMA/reference
-  article: https://https://fbartos.github.io/RoBMA/articles
+  reference: https://fbartos.github.io/RoBMA/reference
+  article: https://fbartos.github.io/RoBMA/articles

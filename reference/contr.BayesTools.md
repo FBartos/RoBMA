@@ -39,7 +39,7 @@ The package includes the following contrast functions:
 
   Return a matrix of mean difference contrasts. This is an adjustment to
   the `contr.orthonormal` that ascertains that the prior distributions
-  on difference between the gran mean and factor level are identical
+  on difference between the grand mean and factor level are identical
   independent of the number of factor levels (which does not hold for
   the orthonormal contrast). Furthermore, the contrast is re-scaled so
   the specified prior distribution exactly corresponds to the prior

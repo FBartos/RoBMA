@@ -1,53 +1,54 @@
-# Estimate a Robust Bayesian Meta-Analysis
+# Robust Bayesian Model-Averaged Meta-Analysis
 
-`RoBMA` is used to estimate a robust Bayesian meta-analysis. The
-interface allows a complete customization of the ensemble with different
-prior (or list of prior) distributions for each component.
+Fits a robust Bayesian model-averaged meta-analysis. The default
+ensemble averages across models with and without an effect,
+heterogeneity, and publication-bias adjustment.
 
 ## Usage
 
 ``` r
 RoBMA(
-  d = NULL,
-  r = NULL,
-  logOR = NULL,
-  OR = NULL,
-  z = NULL,
-  y = NULL,
-  se = NULL,
-  v = NULL,
-  n = NULL,
-  lCI = NULL,
-  uCI = NULL,
-  t = NULL,
-  study_names = NULL,
-  study_ids = NULL,
-  data = NULL,
-  weight = NULL,
-  transformation = if (is.null(y)) "fishers_z" else "none",
-  prior_scale = if (is.null(y)) "cohens_d" else "none",
-  effect_direction = "positive",
-  model_type = NULL,
+  yi,
+  vi,
+  sei,
+  weights,
+  ni,
+  mods,
+  scale,
+  cluster,
+  data,
+  slab,
+  subset,
+  measure,
+  effect_direction = "detect",
+  prior_effect,
+  prior_heterogeneity,
+  prior_mods,
+  prior_scale,
+  prior_heterogeneity_allocation,
+  prior_bias,
+  prior_effect_null,
+  prior_heterogeneity_null,
+  prior_mods_null,
+  prior_scale_null,
+  prior_heterogeneity_allocation_null,
+  prior_bias_null,
+  standardize_continuous_predictors = TRUE,
+  set_contrast_factor_predictors = "meandif",
+  prior_unit_information_sd,
   rescale_priors = 1,
-  priors_effect = set_default_priors("effect", rescale = rescale_priors),
-  priors_heterogeneity = set_default_priors("heterogeneity", rescale = rescale_priors),
-  priors_bias = set_default_priors("bias", rescale = rescale_priors),
-  priors_effect_null = set_default_priors("effect", null = TRUE),
-  priors_heterogeneity_null = set_default_priors("heterogeneity", null = TRUE),
-  priors_bias_null = set_default_priors("bias", null = TRUE),
-  priors_hierarchical = set_default_priors("hierarchical"),
-  priors_hierarchical_null = set_default_priors("hierarchical", null = TRUE),
-  algorithm = "bridge",
-  chains = 3,
+  prior_informed_field,
+  prior_informed_subfield,
+  model_type = "PSMA",
   sample = 5000,
   burnin = 2000,
   adapt = 500,
+  chains = 3,
   thin = 1,
   parallel = FALSE,
-  autofit = TRUE,
+  autofit = FALSE,
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
-  save = "all",
   seed = NULL,
   silent = TRUE,
   ...
@@ -56,383 +57,346 @@ RoBMA(
 
 ## Arguments
 
-- d:
+- yi:
 
-  a vector of effect sizes measured as Cohen's d / Hedges' g
-  (standardized mean differences)
+  a vector of effect sizes, or a formula with the effect size on the
+  left-hand side and location moderators on the right-hand side (for
+  example `yi ~ x1 + x2`). If a formula is supplied, `mods` must not be
+  specified.
 
-- r:
+- vi:
 
-  a vector of effect sizes measured as correlations
+  a vector of sampling variances. Either `vi` or `sei` must be supplied
+  for normal models.
 
-- logOR:
+- sei:
 
-  a vector of effect sizes measured as log odds ratios
+  a vector of standard errors. Either `vi` or `sei` must be supplied for
+  normal models.
 
-- OR:
+- weights:
 
-  a vector of effect sizes measured as odds ratios
+  an optional vector of positive likelihood weights. For
+  normal/effect-size models, each weight powers the estimate likelihood.
+  For constructors with GLMM raw-count input, each weight powers the
+  paired two-arm likelihood for one study.
 
-- z:
+- ni:
 
-  a vector of effect sizes measured as Fisher's z
+  an optional vector of sample sizes. Used for `measure = "GEN"` or when
+  estimating `"UISD"`).
 
-- y:
+- mods:
 
-  a vector of unspecified effect sizes (note that effect size
-  transformations are unavailable with this type of input)
+  an optional matrix, data.frame, or formula specifying location
+  moderators (meta-regressors). Formula input is evaluated in `data`.
 
-- se:
+- scale:
 
-  a vector of standard errors of the effect sizes
+  an optional matrix, data.frame, or formula specifying scale predictors
+  for location-scale models. Formula input is evaluated in `data`.
 
-- v:
+- cluster:
 
-  a vector of variances of the effect sizes
-
-- n:
-
-  a vector of overall sample sizes
-
-- lCI:
-
-  a vector of lower bounds of confidence intervals
-
-- uCI:
-
-  a vector of upper bounds of confidence intervals
-
-- t:
-
-  a vector of t/z-statistics
-
-- study_names:
-
-  an optional argument with the names of the studies
-
-- study_ids:
-
-  an optional argument specifying dependency between the studies (for
-  using a multilevel model). Defaults to `NULL` for studies being
-  independent.
+  an optional vector of cluster identifiers for multilevel
+  meta-analysis.
 
 - data:
 
-  a data object created by the `combine_data` function. This is an
-  alternative input entry to specifying the `d`, `r`, `y`, etc...
-  directly. I.e., RoBMA function does not allow passing a data.frame and
-  referencing to the columns.
+  an optional data frame containing the variables.
 
-- weight:
+- slab:
 
-  specifies likelihood weights of the individual estimates. Notes that
-  this is an untested experimental feature.
+  an optional vector of study labels.
 
-- transformation:
+- subset:
 
-  transformation to be applied to the supplied effect sizes before
-  fitting the individual models. Defaults to `"fishers_z"`. We highly
-  recommend using `"fishers_z"` transformation since it is the only
-  variance stabilizing measure and does not bias PET and PEESE style
-  models. The other options are `"cohens_d"`, correlation coefficient
-  `"r"` and `"logOR"`. Supplying `"none"` will treat the effect sizes as
-  unstandardized and refrain from any transformations.
+  an optional logical or numeric vector specifying a subset of data to
+  be used.
 
-- prior_scale:
+- measure:
 
-  an effect size scale used to define priors. Defaults to `"cohens_d"`.
-  Other options are `"fishers_z"`, correlation coefficient `"r"`, and
-  `"logOR"`. The prior scale does not need to match the effect sizes
-  measure - the samples from prior distributions are internally
-  transformed to match the `transformation` of the data. The
-  `prior_scale` corresponds to the effect size scale of default output,
-  but can be changed within the summary function.
+  a character string specifying the effect size measure.
+  Normal/effect-size constructors require an explicit value and support
+  `"SMD"`, `"ZCOR"`, `"RR"`, `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and
+  `"GEN"`. Use `"GEN"` only for general effect sizes without a known
+  unit information standard deviation. GLMM raw-count constructors
+  support only `"OR"` and `"IRR"` and default to `"OR"`.
 
 - effect_direction:
 
-  the expected direction of the effect. Correctly specifying the
-  expected direction of the effect is crucial for one-sided selection
-  models, as they specify cut-offs using one-sided p-values. Defaults to
-  `"positive"` (another option is `"negative"`).
+  direction used by publication-bias adjustments. `"positive"` assumes
+  statistically significant positive estimates are more likely to be
+  selected; `"negative"` mirrors the selection direction; `"detect"`
+  infers the direction from the fitted data.
 
-- model_type:
+- prior_effect:
 
-  string specifying the RoBMA ensemble. Defaults to `NULL`. The other
-  options are `"PSMA"`, `"PP"`, and `"2w"` which override settings
-  passed to the `priors_effect`, `priors_heterogeneity`,
-  `priors_effect`, `priors_effect_null`, `priors_heterogeneity_null`,
-  `priors_bias_null`, and `priors_effect`. See details for more
-  information about the different model types.
+  prior distribution(s) for the alternative effect component(s).
+
+- prior_heterogeneity:
+
+  prior distribution(s) for the alternative heterogeneity component(s).
+
+- prior_mods:
+
+  prior distribution(s) for alternative moderator components. A single
+  prior applies to all terms; a named list can specify term-specific
+  components.
+
+- prior_scale:
+
+  prior distribution(s) for alternative scale-regression components. A
+  single prior applies to all terms; a named list can specify
+  term-specific components.
+
+- prior_heterogeneity_allocation:
+
+  prior distribution(s) for the alternative cluster-level heterogeneity
+  allocation component(s).
+
+- prior_bias:
+
+  prior distribution(s) for alternative publication-bias component(s),
+  such as weight functions, PET, or PEESE.
+
+  Alternative prior arguments can be:
+
+  - A single prior distribution object (creates a mixture with one
+    alternative)
+
+  - A list of prior distributions (creates a mixture with multiple
+    alternatives)
+
+  - `NULL` or `FALSE` (omits the alternative hypothesis component)
+
+  See
+  [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
+  for details on specifying publication-bias priors and
+  [`prior_specification`](https://fbartos.github.io/RoBMA/reference/prior_specification.md)
+  for details on specifying meta-analytic parameter priors.
+
+- prior_effect_null:
+
+  prior distribution(s) for the null effect component(s).
+
+- prior_heterogeneity_null:
+
+  prior distribution(s) for the null heterogeneity component(s).
+
+- prior_mods_null:
+
+  prior distribution(s) for null moderator components. A single prior
+  applies to all terms; a named list can specify term-specific
+  components.
+
+- prior_scale_null:
+
+  prior distribution(s) for null scale-regression components. A single
+  prior applies to all terms; a named list can specify term-specific
+  components.
+
+- prior_heterogeneity_allocation_null:
+
+  prior distribution(s) for the null cluster-level heterogeneity
+  allocation component(s).
+
+- prior_bias_null:
+
+  prior distribution(s) for null publication-bias component(s), usually
+  [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md).
+  See
+  [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md).
+
+  Null prior arguments can be:
+
+  - A single prior distribution object (creates a mixture with one null)
+
+  - A list of prior distributions (creates a mixture with multiple
+    nulls)
+
+  - `NULL` or `FALSE` (omits the null hypothesis component)
+
+  Defaults to a point mass (spike) at zero for effect and heterogeneity
+  parameters.
+
+- standardize_continuous_predictors:
+
+  logical. Whether to standardize continuous predictors. Defaults to
+  `TRUE`.
+
+- set_contrast_factor_predictors:
+
+  character. How to set contrast for factor predictors. Defaults are
+  constructor-specific and shown in each function usage; single-model
+  constructors use `"treatment"`, while model-averaging constructors use
+  `"meandif"`.
+
+- prior_unit_information_sd:
+
+  numeric. The unit information standard deviation (\\\sigma\_{unit}\\).
+  Cannot be used together with `prior_informed_field`.
 
 - rescale_priors:
 
-  a re-scaling factor for the prior distributions. The re-scaling factor
-  allows to adjust the width of all default priors simultaneously.
-  Defaults to `1`.
+  numeric. A scaling factor for supported prior distributions. Point and
+  none priors are unchanged. For constructors with publication-bias
+  prior distributions, `rescale_priors` does not rescale them except for
+  the default PEESE prior's UISD adjustment. Defaults to 1.
 
-- priors_effect:
+- prior_informed_field:
 
-  list of prior distributions for the effect size (`mu`) parameter that
-  will be treated as belonging to the alternative hypothesis. Defaults
-  to a standard normal distribution
-  `prior(distribution = "normal", parameters = list(mean = 0, sd = 1))`.
+  character. The field of the informed prior distributions. Omit to use
+  the standard default prior specification; explicit `NULL` is invalid.
 
-- priors_heterogeneity:
+- prior_informed_subfield:
 
-  list of prior distributions for the heterogeneity `tau` parameter that
-  will be treated as belonging to the alternative hypothesis. Defaults
-  to
-  `prior(distribution = "invgamma", parameters = list(shape = 1, scale = .15))`
-  that is based on heterogeneities estimates from psychology (van Erp et
-  al. 2017) .
+  character. The subfield of the informed prior distributions. Omit to
+  use the field-specific default, such as `"Cochrane"` for
+  `prior_informed_field = "medicine"`; explicit `NULL` is invalid.
 
-- priors_bias:
+- model_type:
 
-  list of prior distributions for the publication bias adjustment
-  component that will be treated as belonging to the alternative
-  hypothesis. Defaults to
-  `list( prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/12), prior_weightfunction(distribution = "two.sided", parameters = list(alpha = c(1, 1, 1), steps = c(0.05, 0.10)), prior_weights = 1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1), steps = c(0.05)), prior_weights = 1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1), steps = c(0.025, 0.05)), prior_weights = 1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1), steps = c(0.05, 0.5)), prior_weights = 1/12), prior_weightfunction(distribution = "one.sided", parameters = list(alpha = c(1, 1, 1, 1), steps = c(0.025, 0.05, 0.5)), prior_weights = 1/12), prior_PET(distribution = "Cauchy", parameters = list(0,1), truncation = list(0, Inf), prior_weights = 1/4), prior_PEESE(distribution = "Cauchy", parameters = list(0,5), truncation = list(0, Inf), prior_weights = 1/4) )`,
-  corresponding to the RoBMA-PSMA model introduce by Bartoš et
-  al. (2023) .
+  character string specifying predefined publication-bias model
+  ensembles. One of:
 
-- priors_effect_null:
+  - `"PSMA"` (default): Full RoBMA-PSMA ensemble with 6 weight
+    functions + PET + PEESE
 
-  list of prior distributions for the effect size (`mu`) parameter that
-  will be treated as belonging to the null hypothesis. Defaults to a
-  point null hypotheses at zero,
-  `prior(distribution = "point", parameters = list(location = 0))`.
+  - `"6w"`: Six weight function models
 
-- priors_heterogeneity_null:
+  - `"2w"`: Two weight function models
 
-  list of prior distributions for the heterogeneity `tau` parameter that
-  will be treated as belonging to the null hypothesis. Defaults to a
-  point null hypotheses at zero (a fixed effect meta-analytic models),
-  `prior(distribution = "point", parameters = list(location = 0))`.
+  - `"PP"`: PET-PEESE models only
 
-- priors_bias_null:
-
-  list of prior weight functions for the `omega` parameter that will be
-  treated as belonging to the null hypothesis. Defaults no publication
-  bias adjustment, [`prior_none()`](reference/prior_none.md).
-
-- priors_hierarchical:
-
-  list of prior distributions for the correlation of random effects
-  (`rho`) parameter that will be treated as belonging to the alternative
-  hypothesis. This setting allows users to fit a hierarchical
-  (three-level) meta-analysis when `study_ids` are supplied. Note that
-  this is an experimental feature and see News for more details.
-  Defaults to a beta distribution
-  `prior(distribution = "beta", parameters = list(alpha = 1, beta = 1))`.
-
-- priors_hierarchical_null:
-
-  list of prior distributions for the correlation of random effects
-  (`rho`) parameter that will be treated as belonging to the null
-  hypothesis. Defaults to `NULL`.
-
-- algorithm:
-
-  a string specifying the algorithm used for the model averaging.
-  Defaults to `"bridge"` which results in estimating individual models
-  using JAGS and computing the marginal likelihood using bridge
-  sampling. An alternative is `"ss"` which uses spike and slab like
-  parameterization to approximate the Bayesian model averaging with a
-  single model. Note that significantly more `sample`, `burnin`, and
-  `adapt` iterations are needed for the `"ss"` algorithm.
-
-- chains:
-
-  a number of chains of the MCMC algorithm.
+  Custom `prior_bias` replaces the preset alternative bias components.
+  If `prior_bias` is omitted, `model_type` determines the default
+  alternatives even when `prior_bias_null` is customized or omitted.
 
 - sample:
 
-  a number of sampling iterations of the MCMC algorithm. Defaults to
-  `5000`.
+  numeric. Number of MCMC samples to save. Defaults to `5000`.
 
 - burnin:
 
-  a number of burnin iterations of the MCMC algorithm. Defaults to
-  `2000`.
+  numeric. Number of burn-in iterations. Defaults to `2000`.
 
 - adapt:
 
-  a number of adaptation iterations of the MCMC algorithm. Defaults to
-  `500`.
+  numeric. Number of adaptation iterations. Defaults to `500`.
+
+- chains:
+
+  numeric. Number of MCMC chains. Defaults to `3`.
 
 - thin:
 
-  a thinning of the chains of the MCMC algorithm. Defaults to `1`.
+  numeric. Thinning interval. Defaults to `1`.
 
 - parallel:
 
-  whether the individual models should be fitted in parallel. Defaults
-  to `FALSE`. The implementation is not completely stable and might
-  cause a connection error.
+  logical. Whether to run MCMC chains in parallel. Defaults to `FALSE`.
 
 - autofit:
 
-  whether the model should be fitted until the convergence criteria
-  (specified in `autofit_control`) are satisfied. Defaults to `TRUE`.
+  logical. Whether to automatically extend the MCMC chains if
+  convergence is not met. Defaults to `FALSE`.
 
 - autofit_control:
 
-  allows to pass autofit control settings with the
-  [`set_autofit_control()`](reference/RoBMA_control.md) function. See
-  [`?set_autofit_control`](reference/RoBMA_control.md) for options and
-  default settings.
+  list of autofit control settings. See
+  [`set_autofit_control()`](https://fbartos.github.io/RoBMA/reference/RoBMA_control.md)
+  for details.
 
 - convergence_checks:
 
-  automatic convergence checks to assess the fitted models, passed with
-  [`set_convergence_checks()`](reference/RoBMA_control.md) function. See
-  [`?set_convergence_checks`](reference/RoBMA_control.md) for options
-  and default settings.
-
-- save:
-
-  whether all models posterior distributions should be kept after
-  obtaining a model-averaged result. Defaults to `"all"` which does not
-  remove anything. Set to `"min"` to significantly reduce the size of
-  final object, however, some model diagnostics and further manipulation
-  with the object will not be possible.
+  list of convergence check settings. See
+  [`set_convergence_checks()`](https://fbartos.github.io/RoBMA/reference/RoBMA_control.md)
+  for details.
 
 - seed:
 
-  a seed to be set before model fitting, marginal likelihood
-  computation, and posterior mixing for reproducibility of results.
-  Defaults to `NULL` - no seed is set.
+  numeric. Random seed for reproducibility. Defaults to `NULL`.
 
 - silent:
 
-  whether all print messages regarding the fitting process should be
-  suppressed. Defaults to `TRUE`. Note that `parallel = TRUE` also
-  suppresses all messages.
+  logical. Whether to suppress output. Constructors with no explicit
+  default use `RoBMA.get_option("silent")` when `silent` is omitted.
+  Model-averaging wrappers default to `TRUE` unless explicitly changed.
 
 - ...:
 
-  additional arguments.
+  additional advanced arguments. Fitting functions reject unused
+  arguments; currently recognized internal arguments include
+  `only_data`, `only_priors`, `is_JASP`, and `is_JASP_prefix`.
 
 ## Value
 
-`RoBMA` returns an object of class 'RoBMA'.
+A fitted object of class `c("RoBMA", "brma")`. The object contains
+checked `data`, checked `priors`, the JAGS `fit`, cached `summary`, and
+cached `coefficients`. It can be passed to
+[`summary()`](https://rdrr.io/r/base/summary.html),
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html),
+[`predict()`](https://rdrr.io/r/stats/predict.html),
+[`funnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md),
+[`add_loo()`](https://fbartos.github.io/RoBMA/reference/add_loo.brma.md),
+and related methods.
 
 ## Details
 
-The default settings of the RoBMA 2.0 package corresponds to the
-RoBMA-PSMA ensemble proposed by Bartoš et al. (2023) . The previous
-versions of the package (i.e., RoBMA \< 2.0) used specifications
-proposed by Maier et al. (2023) (this specification can be easily
-obtained by setting `model_type = "2w"`. The RoBMA-PP specification from
-Bartoš et al. (2023) can be obtained by setting `model_type = "PP"`. The
-complete list of default prior distributions is described at
-[`set_default_priors()`](reference/set_default_priors.md). Note that
-inclusion of the PET and PEESE style publication bias adjustments models
-might pick up on small-study effects. To remove true heterogeneity due
-to study design, sub-populations, treatments etc. potentially causing
-small-study effects, use meta-regression via the
-[`RoBMA.reg()`](reference/RoBMA.reg.md) function, or remove the PET and
-PEESE style models from the publication bias adjustment component of the
-ensemble.
+`RoBMA()` uses product-space Bayesian model averaging. Inclusion Bayes
+factors and model-averaged estimates are obtained from mixture priors
+for effect, heterogeneity, moderators, scale regression, and
+publication-bias components.
 
-The
-[[`vignette("CustomEnsembles", package = "RoBMA")`](articles/CustomEnsembles.md)](doc/CustomEnsembles.md)
+By default, `model_type = "PSMA"` includes selection-model weight
+functions together with PET and PEESE publication-bias adjustments. Use
+[`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md) for model
+averaging without publication-bias adjustment, or
+[`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) for
+fitting a single meta-analytic model.
+
+`RoBMA()` uses normal/effect-size input (`yi` with `vi` or `sei`).
+Raw-count GLMM model averaging is provided by
+[`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md).
+
+Product-space objects support predictive comparison with
+[`add_loo()`](https://fbartos.github.io/RoBMA/reference/add_loo.brma.md)
 and
-[[`vignette("ReproducingBMA", package = "RoBMA")`](articles/ReproducingBMA.md)](doc/ReproducingBMA.md)
-vignettes describe how to use `RoBMA()` to fit custom meta-analytic
-ensembles (see [`prior()`](reference/prior.md),
-[`prior_weightfunction()`](reference/prior_weightfunction.md),
-[`prior_PET()`](reference/prior_PET.md), and
-[`prior_PEESE()`](reference/prior_PEESE.md) for more information about
-prior distributions).
-
-The RoBMA function first generates models from a combination of the
-provided priors for each of the model parameters. Then, the individual
-models are fitted using
-[autorun.jags](https://rdrr.io/pkg/runjags/man/autorun.jags.html)
-function. A marginal likelihood is computed using
-[bridge_sampler](https://rdrr.io/pkg/bridgesampling/man/bridge_sampler.html)
-function. The individual models are then combined into an ensemble using
-the posterior model probabilities using
-[BayesTools](https://fbartos.github.io/BayesTools/reference/BayesTools.html)
-package.
-
-Generic [`summary.RoBMA()`](reference/summary.RoBMA.md),
-[`print.RoBMA()`](reference/print.RoBMA.md), and
-[`plot.RoBMA()`](reference/plot.RoBMA.md) functions are provided to
-facilitate manipulation with the ensemble. A visual check of the
-individual model diagnostics can be obtained using the
-[`diagnostics()`](reference/diagnostics.md) function. The fitted model
-can be further updated or modified by
-[`update.RoBMA()`](reference/update.RoBMA.md) function.
-
-## References
-
-Bartoš F, Maier M, Wagenmakers E, Doucouliagos H, Stanley TD (2023).
-“Robust Bayesian meta-analysis: Model-averaging across complementary
-publication bias adjustment methods.” *Research Synthesis Methods*,
-**14**(1), 99–116.
-[doi:10.1002/jrsm.1594](https://doi.org/10.1002/jrsm.1594) .  
-  
-Maier M, Bartoš F, Wagenmakers E (2023). “Robust Bayesian Meta-Analysis:
-Addressing publication bias with model-averaging.” *Psychological
-Methods*, **28**(1), 107–122.
-[doi:10.1037/met0000405](https://doi.org/10.1037/met0000405) .  
-  
-van Erp S, Verhagen J, Grasman RP, Wagenmakers E (2017). “Estimates of
-between-study heterogeneity for 705 meta-analyses reported in
-Psychological Bulletin from 1990–2013.” *Journal of Open Psychology
-Data*, **5**(1), 1–5.
-[doi:10.5334/jopd.33](https://doi.org/10.5334/jopd.33) .
+[`add_waic()`](https://fbartos.github.io/RoBMA/reference/add_waic.brma.md).
+Bridge-sampling marginal likelihood via
+[`add_marglik()`](https://fbartos.github.io/RoBMA/reference/add_marglik.brma.md)
+is not available for product-space model-averaging objects.
 
 ## See also
 
-[`summary.RoBMA()`](reference/summary.RoBMA.md),
-[`update.RoBMA()`](reference/update.RoBMA.md),
-[`check_setup()`](reference/check_setup.md)
+[publication_bias_prior_specification](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md),
+[`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md),
+[`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md),
+[`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
+[`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md),
+[`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md),
+[`summary.brma()`](https://fbartos.github.io/RoBMA/reference/summary.brma.md),
+[`plot.brma()`](https://fbartos.github.io/RoBMA/reference/plot.brma.md)
 
 ## Examples
 
 ``` r
 if (FALSE) { # \dontrun{
-# using the example data from Bem 2011 and fitting the default (RoBMA-PSMA) model
-fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
 
-# in order to speed up the process, we can turn the parallelization on
-fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, parallel = TRUE)
+  fit <- RoBMA(
+    yi      = yi,
+    vi      = vi,
+    data    = dat.lehmann2018,
+    measure = "SMD",
+    seed    = 1,
+    silent  = TRUE
+  )
 
-# we can get a quick overview of the model coefficients just by printing the model
-fit
-
-# a more detailed overview using the summary function (see '?summary.RoBMA' for all options)
-summary(fit)
-
-# the model-averaged effect size estimate can be visualized using the plot function
-# (see ?plot.RoBMA for all options)
-plot(fit, parameter = "mu")
-
-# forest plot can be obtained with the forest function (see ?forest for all options)
-forest(fit)
-
-# plot of the individual model estimates can be obtained with the plot_models function
-#  (see ?plot_models for all options)
-plot_models(fit)
-
-# diagnostics for the individual parameters in individual models can be obtained using diagnostics
-# function (see 'diagnostics' for all options)
-diagnostics(fit, parameter = "mu", type = "chains")
-
-# the RoBMA-PP can be fitted with addition of the 'model_type' argument
-fit_PP <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study, model_type = "PP")
-
-# as well as the original version of RoBMA (with two weightfunctions)
-fit_original <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
-                      model_type = "2w")
-
-# or different prior distribution for the effect size (e.g., a half-normal distribution)
-# (see 'vignette("CustomEnsembles")' for a detailed guide on specifying a custom model ensemble)
-fit <- RoBMA(d = Bem2011$d, se = Bem2011$se, study_names = Bem2011$study,
-             priors_effect = prior("normal", parameters = list(0, 1),
-                                   truncation = list(0, Inf)))
+  summary(fit)
+  plot(fit)
+}
 } # }
 ```

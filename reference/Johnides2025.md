@@ -14,11 +14,19 @@ Johnides2025
 
 ## Format
 
-A data.frame with 3 columns and 412 observations.
+A data.frame with 3 columns and 412 observations:
 
-## Value
+- `study`:
 
-a data.frame.
+  Study label.
+
+- `d`:
+
+  Cohen's d effect size.
+
+- `se`:
+
+  Standard error of d.
 
 ## References
 

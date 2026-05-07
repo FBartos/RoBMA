@@ -14,11 +14,15 @@ ManyLabs16
 
 ## Format
 
-A data.frame with 2 columns and 55 observations.
+A data.frame with 2 columns and 55 observations:
 
-## Value
+- `y`:
 
-a data.frame.
+  Standardized mean difference.
+
+- `se`:
+
+  Standard error of y.
 
 ## References
 

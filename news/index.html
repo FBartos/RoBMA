@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -15,22 +15,34 @@
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
+      <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
-    <li><a class="dropdown-item" href="../articles/Explanation.html">Guide to RoBMA Vignettes</a></li>
-    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
-    <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
-    <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
-    <li><a class="dropdown-item" href="../articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="../articles/MultilevelRoBMA.html">Multilevel Robust Bayesian Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/MultilevelRoBMARegression.html">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/ZCurveDiagnostics.html">Z-Curve Publication Bias Diagnostics</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><h6 class="dropdown-header" data-toc-skip>Foundations</h6></li>
+    <li><a class="dropdown-item" href="../articles/v00-introduction.html">Introduction</a></li>
+    <li><a class="dropdown-item" href="../articles/v01-prior-distributions.html">Prior Distributions</a></li>
+    <li><a class="dropdown-item" href="../articles/v02-bayesian-meta-analysis.html">Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v03-feature-coverage.html">Feature Coverage</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>metafor Parity</h6></li>
+    <li><a class="dropdown-item" href="../articles/v10-metafor-parity-multilevel.html">Multilevel Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
+    <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
+    <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
+    <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
+    <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
+    <li><a class="dropdown-item" href="../articles/v31-robma-metaregression.html">RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/v32-robma-multilevel.html">Multilevel RoBMA</a></li>
+    <li><a class="dropdown-item" href="../articles/v33-robma-multilevel-metaregression.html">Multilevel RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/v34-bma-norm-medicine.html">BMA in Medicine</a></li>
+    <li><a class="dropdown-item" href="../articles/v35-bma-glmm-medicine.html">BMA for Binary Outcomes</a></li>
+    <li><a class="dropdown-item" href="../articles/v36-zplot.html">Zplot Diagnostics</a></li>
   </ul></li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -44,9 +56,93 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.6.1/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/FBartos/RoBMA/blob/master/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="4.0.0" id="version-400">version 4.0.0<a class="anchor" aria-label="anchor" href="#version-400"></a></h2>
+<div class="section level3">
+<h3 id="breaking-changes-4-0-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-4-0-0"></a></h3>
+<ul><li>rewrites the package around the unified <code>brma</code> class hierarchy. Single-model fits now use <code><a href="../reference/brma.html">brma()</a></code>, <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code>, <code><a href="../reference/bselmodel.html">bselmodel()</a></code>, <code><a href="../reference/bPET.html">bPET()</a></code>, and <code><a href="../reference/bPEESE.html">bPEESE()</a></code>; model-averaged fits use <code><a href="../reference/BMA.html">BMA()</a></code>, <code><a href="../reference/BMA.glmm.html">BMA.glmm()</a></code>, and <code><a href="../reference/RoBMA.html">RoBMA()</a></code>.</li>
+<li>removes the legacy <code>RoBMA.reg()</code>, <code>NoBMA()</code>, <code>NoBMA.reg()</code>, <code>BiBMA()</code>, and <code>BiBMA.reg()</code> constructors. Use <code>mods</code>, <code>scale</code>, and <code>cluster</code> in the new constructors, <code><a href="../reference/BMA.html">BMA()</a></code> for no-bias normal-likelihood model averaging, and <code><a href="../reference/BMA.glmm.html">BMA.glmm()</a></code> for GLMM model averaging.</li>
+<li>replaces old input aliases such as <code>d</code>, <code>r</code>, <code>logOR</code>, <code>OR</code>, <code>z</code>, <code>y</code>, <code>se</code>, <code>v</code>, <code>n</code>, <code>study_names</code>, <code>study_ids</code>, <code>weight</code>, and <code>transformation</code> with <code>yi</code>, <code>vi</code>/<code>sei</code>, <code>ni</code>, <code>slab</code>, <code>cluster</code>, <code>weights</code>, <code>measure</code>, <code>output_measure</code>, and <code>transform</code>.</li>
+<li>removes legacy helper APIs including <code>combine_data()</code>, <code>check_setup()</code>, <code>extract_posterior()</code>, <code>marginal_summary()</code>, <code>marginal_plot()</code>, <code>plot_models()</code>, <code>adjusted_effect()</code>, <code>as_zcurve()</code>, and the old z-curve plotting methods.</li>
+<li>normal-likelihood fitting functions now require an explicit <code>measure</code> for fitted models. Use <code>measure = "GEN"</code> for generic effect sizes without a known unit-information scale.</li>
+<li>
+<code><a href="https://rdrr.io/r/stats/update.html" class="external-link">update()</a></code> for <code>brma</code> objects now focuses on extending MCMC samples, updating labels, and refreshing cached quantities, not changing model structure.</li>
+<li>
+<code><a href="../reference/RoBMA_control.html">set_convergence_checks()</a></code> no longer accepts the old <code>remove_failed</code> and <code>balance_probability</code> arguments.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="features-4-0-0">Features<a class="anchor" aria-label="anchor" href="#features-4-0-0"></a></h3>
+<ul><li>adds <code><a href="../reference/brma.html">brma()</a></code> / <code><a href="../reference/brma.html">brma.norm()</a></code> for single normal-likelihood Bayesian meta-analysis, including random-effects, meta-regression, multilevel, and location-scale models.</li>
+<li>adds <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code> for binomial-normal and Poisson-normal GLMM meta-analysis from raw two-arm counts (<code>measure = "OR"</code> and <code>"IRR"</code>).</li>
+<li>adds single-model publication-bias constructors <code><a href="../reference/bselmodel.html">bselmodel()</a></code>, <code><a href="../reference/bPET.html">bPET()</a></code>, and <code><a href="../reference/bPEESE.html">bPEESE()</a></code>.</li>
+<li>adds <code><a href="../reference/BMA.html">BMA()</a></code> / <code><a href="../reference/BMA.html">BMA.norm()</a></code> for Bayesian model averaging without publication-bias adjustment.</li>
+<li>adds <code><a href="../reference/BMA.glmm.html">BMA.glmm()</a></code> for Bayesian model averaging of GLMM meta-analyses without publication-bias adjustment.</li>
+<li>rewrites <code><a href="../reference/RoBMA.html">RoBMA()</a></code> as a product-space model-averaged ensemble over effect, heterogeneity, moderator, scale, and publication-bias components.</li>
+<li>adds formula/data-frame input handling for effect sizes, moderators, scale predictors, clusters, labels, subsets, likelihood weights, and raw GLMM counts.</li>
+<li>adds default prior construction from standardized effect-size measures, estimated or manually supplied unit-information standard deviations, and informed empirical priors.</li>
+<li>adds <code><a href="../reference/prior_weightfunction.html">prior_weightfunction()</a></code>, <code><a href="../reference/prior_weightfunction.html">wf_cumulative()</a></code>, <code><a href="../reference/prior_weightfunction.html">wf_fixed()</a></code>, and <code><a href="../reference/prior_weightfunction.html">wf_independent()</a></code> for BayesTools-backed selection-weightfunction priors.</li>
+<li>adds <code><a href="../reference/prior_PET.html">prior_PET()</a></code>, <code><a href="../reference/prior_PEESE.html">prior_PEESE()</a></code>, <code><a href="../reference/prior_none.html">prior_none()</a></code>, <code><a href="../reference/prior_factor.html">prior_factor()</a></code>, <code><a href="../reference/prior_informed.html">prior_informed()</a></code>, and BayesTools contrast helpers as package-level prior utilities.</li>
+<li>adds <code>posterior</code> package interfaces via <code><a href="../reference/as_draws.brma.html">as_draws()</a></code>, <code><a href="../reference/as_draws.brma.html">as_draws_array()</a></code>, <code><a href="../reference/as_draws.brma.html">as_draws_df()</a></code>, <code><a href="../reference/as_draws.brma.html">as_draws_list()</a></code>, <code><a href="../reference/as_draws.brma.html">as_draws_matrix()</a></code>, and <code><a href="../reference/as_draws.brma.html">as_draws_rvars()</a></code> for fitted models and <code>brma_samples</code>.</li>
+<li>adds the <code>brma_samples</code> posterior-sample class with print, summary, matrix, and <code>posterior</code> conversion methods.</li>
+<li>adds <code><a href="../reference/predict.brma.html">predict.brma()</a></code> for posterior predictions of fixed terms, cluster effects, latent true effects, observed responses, and scale terms, with <code>newdata</code>, <code>conditional</code>, <code>bias_adjusted</code>, <code>output_measure</code>, and <code>transform</code> support.</li>
+<li>adds convenience wrappers <code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted()</a></code>, <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code>, <code><a href="../reference/pooled_heterogeneity.html">pooled_heterogeneity()</a></code>, <code><a href="../reference/blup.html">blup()</a></code>, <code><a href="../reference/true_effects.html">true_effects()</a></code>, and <code><a href="../reference/ranef.html">ranef()</a></code> for <code>brma</code> objects.</li>
+<li>adds model-comparison helpers <code><a href="../reference/add_loo.brma.html">add_loo()</a></code>, <code><a href="../reference/loo.brma.html">loo()</a></code>, <code><a href="../reference/loo_compare.brma.html">loo_compare()</a></code>, <code><a href="../reference/loo_weights.brma.html">loo_weights()</a></code>, <code><a href="../reference/check_loo.brma.html">check_loo()</a></code>, <code><a href="../reference/add_waic.brma.html">add_waic()</a></code>, <code><a href="../reference/waic.brma.html">waic()</a></code>, and <code><a href="https://rdrr.io/r/stats/logLik.html" class="external-link">logLik()</a></code> using the <code>loo</code> package.</li>
+<li>adds bridge-sampling marginal likelihood support for single-model <code>brma</code> fits via <code><a href="../reference/add_marglik.brma.html">add_marglik()</a></code>, <code><a href="https://rdrr.io/pkg/bridgesampling/man/bridge_sampler.html" class="external-link">bridge_sampler()</a></code>, <code><a href="https://rdrr.io/pkg/bridgesampling/man/logml.html" class="external-link">logml()</a></code>, <code><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bf()</a></code>, <code><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bayes_factor()</a></code>, and <code><a href="https://rdrr.io/pkg/bridgesampling/man/post_prob.html" class="external-link">post_prob()</a></code>.</li>
+<li>adds residual and influence diagnostics: <code><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals()</a></code>, <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">rstandard()</a></code>, <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">rstudent()</a></code> / <code>LOO-PIT</code>, <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">hatvalues()</a></code>, <code><a href="https://rdrr.io/r/stats/lm.influence.html" class="external-link">influence()</a></code>, <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">dfbetas()</a></code>, <code><a href="../reference/dffits.brma.html">dffits()</a></code>, <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">cooks.distance()</a></code>, <code><a href="../reference/covratio.brma.html">covratio()</a></code>, and <code><a href="../reference/vif.html">vif()</a></code>.</li>
+<li>adds plotting methods for <code>brma</code> objects: posterior/prior plots, <code><a href="../reference/funnel.html">funnel()</a></code>, <code><a href="../reference/regplot.html">regplot()</a></code>, <code><a href="https://rdrr.io/r/stats/qqnorm.html" class="external-link">qqnorm()</a></code>, <code><a href="../reference/radial.html">radial()</a></code> / <code><a href="../reference/radial.html">galbraith()</a></code>, MCMC diagnostic plots, weightfunction plots, and PET-PEESE plots.</li>
+<li>adds <code><a href="../reference/marginal_means.html">marginal_means()</a></code> with summary and plotting methods for moderator models.</li>
+<li>adds <code><a href="../reference/summary_models.html">summary_models()</a></code> for marginal and individual model-weight summaries of product-space <code>RoBMA</code>, <code>BMA</code>, and <code>BMA.glmm</code> objects.</li>
+<li>adds <code><a href="../reference/interpret.html">interpret()</a></code> for concise textual interpretation of fitted <code>brma</code> and model-averaged objects.</li>
+<li>renames the zplot diagnostic API to <code><a href="../reference/as_zplot.brma.html">as_zplot()</a></code> and adds the direct plotting wrapper <code><a href="../reference/zplot.brma.html">zplot()</a></code>, with <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist()</a></code>, <code><a href="https://rdrr.io/r/graphics/lines.html" class="external-link">lines()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and print methods for zplot objects.</li>
+<li>adds <code><a href="../reference/RoBMA_options.html">RoBMA.options()</a></code> and <code><a href="../reference/RoBMA_options.html">RoBMA.get_option()</a></code> package options for defaults such as core count, automatic LOO/WAIC/marginal-likelihood computation, prior scaling defaults, and selection-bias defaults.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="changes-4-0-0">Changes<a class="anchor" aria-label="anchor" href="#changes-4-0-0"></a></h3>
+<ul><li>renames the multilevel clustering argument to <code>cluster</code>.</li>
+<li>renames study labels to <code>slab</code>, matching <code>metafor</code> naming.</li>
+<li>renames likelihood weights to <code>weights</code> and applies them consistently to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics.</li>
+<li>uses <code>measure</code>, <code>output_measure</code>, and <code>transform</code> for effect-size scale handling. Supported conversions include <code>SMD</code>, <code>COR</code>, <code>ZCOR</code>, and <code>OR</code>; <code>transform = "EXP"</code> exponentiates log ratio measures for display.</li>
+<li>standardizes continuous predictors by default and transforms reported coefficients back to the original scale unless standardized coefficients are requested.</li>
+<li>uses treatment contrasts by default for single-model constructors and mean-difference contrasts by default for model-averaged constructors.</li>
+<li>changes <code><a href="../reference/predict.brma.html">predict.brma()</a></code> default to <code>type = "terms"</code>. GLMM <code>type = "response"</code> predictions return continuity-corrected effect-size estimators by default via <code>as_measure = TRUE</code>.</li>
+<li>separates output <code>unit</code> from <code>conditioning_depth</code> for residuals, fitted values, LOO, WAIC, and related diagnostics.</li>
+<li>supports estimate-level and, for multilevel models, cluster-level LOO/WAIC targets with target metadata to prevent invalid comparisons.</li>
+<li>keeps bridge-sampling marginal likelihoods for single-model <code>brma</code> objects; product-space <code>RoBMA</code>, <code>BMA</code>, and <code>BMA.glmm</code> objects relly on product-space only.</li>
+<li>routes selection-weightfunction priors through the BayesTools selection backend and selected-normal kernel, removing legacy weighted-normal mapping paths.</li>
+<li>uses <code>bias_indicator</code> and branch-aware selected-normal contexts for RoBMA publication-bias mixtures instead of inferring selection branches from <code>omega</code>.</li>
+<li>increases zplot default posterior thinning controls to <code>10000</code> samples and accepts <code>Inf</code> where full posterior evaluation is requested.</li>
+<li>adds <code>max_samples</code> controls to expensive funnel, regplot, and zplot summaries.</li>
+<li>updates the package startup message to point users to <code><a href="../articles/v00-introduction.html">vignette("v00-introduction", package = "RoBMA")</a></code>.</li>
+<li>requires BayesTools 0.3.0 for forward API and selection-backend support.</li>
+<li>adds <code>bridgesampling</code>, <code>loo</code>, <code>MASS</code>, and <code>parallel</code> as imports and <code>posterior</code> as a suggested package.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="fixes-4-0-0">Fixes<a class="anchor" aria-label="anchor" href="#fixes-4-0-0"></a></h3>
+<ul><li>fixes loading and runtime checks for the RoBMA JAGS module and native R routines.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="performance-and-internals-4-0-0">Performance and internals<a class="anchor" aria-label="anchor" href="#performance-and-internals-4-0-0"></a></h3>
+<ul><li>moves fitting to JAGS product-space models with mixture-prior indicators for model averaging.</li>
+<li>replaces legacy weighted-normal and multivariate-normal native code with selected-normal kernels shared by JAGS and R-native calls.</li>
+<li>adds native selected-normal routines for log likelihoods, normalizers, CDFs, moments, RNG, weighted summaries, funnel contours, regplot intervals, and zplot densities/threshold summaries.</li>
+<li>adds native GLMM marginal and cluster log-likelihood helpers for binomial and Poisson models.</li>
+<li>caches selected-normal normalizers and uses telescoping selection probabilities with log-space fallbacks for better numerical stability.</li>
+<li>relocates selected-normal C++ code to <code>src/selnorm/</code> and updates <code>Makevars*</code>, native registration, cleanup rules, and JAGS distribution registration.</li>
+<li>removes unused native matrix/LAPACK helper sources and older source-level transformation helpers.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="documentation-and-tests-4-0-0">Documentation and tests<a class="anchor" aria-label="anchor" href="#documentation-and-tests-4-0-0"></a></h3>
+<ul><li>reorganizes vignettes into numbered workflows covering introduction, prior distributions, baseline Bayesian meta-analysis, feature coverage, metafor parity, model averaging, RoBMA, multilevel models, medicine examples, and zplot diagnostics.</li>
+<li>regenerates roxygen documentation for the new constructors, priors, predictions, summaries, diagnostics, plots, model-comparison methods, and datasets.</li>
+<li>refreshes the README and pkgdown site for the 4.0.0 API.</li>
+<li>adds cached model fits under numbered vignette/model directories.</li>
+<li>refactors tests into ordered input, fitting, prediction, plotting, diagnostics, model-comparison, selected-normal kernel, and vignette-cache coverage.</li>
+<li>adds regression tests for selected-normal telescope probabilities, native/R fallback parity, posterior-row alignment, GLMM response conversion, LOO/WAIC targets, bridge sampling, and visual outputs.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="3.6.1" id="version-361">version 3.6.1<a class="anchor" aria-label="anchor" href="#version-361"></a></h2><p class="text-muted">CRAN release: 2025-12-17</p>
 <div class="section level3">
@@ -57,7 +153,7 @@
 <li>
 <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> function now provides publication bias model type summary (<code>type = "models"</code>) for models fitted using <code>algorithm = "ss"</code>
 </li>
-<li>improves control over <code>plot.zcurve_RoBMA</code> (i.e., specifying col, border, etc for the individual elements)</li>
+<li>improves control over zplot diagnostics (i.e., specifying col, border, etc for the individual elements)</li>
 </ul></div>
 </div>
     <div class="section level2">
@@ -65,16 +161,16 @@
 <div class="section level3">
 <h3 id="features-3-6">Features<a class="anchor" aria-label="anchor" href="#features-3-6"></a></h3>
 <ul><li>
-<code><a href="../reference/funnel.html">funnel()</a></code> plot to visualize residuals vs the expected sampling distribution for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> models when using the <code>algorithm = "ss"</code>
+<code><a href="../reference/funnel.html">funnel()</a></code> plot to visualize residuals vs the expected sampling distribution for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code>RoBMA.reg()</code> models when using the <code>algorithm = "ss"</code>
 </li>
 <li>
-<code><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals()</a></code> method for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> models when using the <code>algorithm = "ss"</code>
+<code><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals()</a></code> method for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code>RoBMA.reg()</code> models when using the <code>algorithm = "ss"</code>
 </li>
 <li>
-<code><a href="../reference/as_zcurve.html">as_zcurve()</a></code> function to transform meta-analytic models into a z-curve style object, only available for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> fitted using the <code>algorithm = "ss"</code>
+<code><a href="../reference/as_zplot.brma.html">as_zplot()</a></code> function to transform meta-analytic models into a zplot object, only available for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code>RoBMA.reg()</code> fitted using the <code>algorithm = "ss"</code>
 </li>
 <li>
-<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> functions for the <code>as_zcurve</code> objects</li>
+<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, and <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> functions for the <code>as_zplot</code> objects</li>
 </ul></div>
 </div>
     <div class="section level2">
@@ -86,10 +182,10 @@
 <li>
 <code>extract()</code> function to extract the posterior samples of the model parameters</li>
 <li>
-<code><a href="../reference/true_effects.html">true_effects()</a></code> function to summarize the true effect size estimates of <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> models when using the <code>algorithm = "ss"</code>
+<code><a href="../reference/true_effects.html">true_effects()</a></code> function to summarize the true effect size estimates of <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code>RoBMA.reg()</code> models when using the <code>algorithm = "ss"</code>
 </li>
 <li>
-<code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> method for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> models when using the <code>algorithm = "ss"</code>
+<code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> method for <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code>RoBMA.reg()</code> models when using the <code>algorithm = "ss"</code>
 </li>
 </ul></div>
 <div class="section level3">
@@ -105,19 +201,19 @@
 <h2 class="pkg-version" data-toc-text="3.5" id="version-35">version 3.5<a class="anchor" aria-label="anchor" href="#version-35"></a></h2>
 <div class="section level3">
 <h3 id="features-3-5">Features<a class="anchor" aria-label="anchor" href="#features-3-5"></a></h3>
-<ul><li>approximate and computationally feasibly 3lvl selection models via the <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> functions with the <code>study_ids</code> argument when using <code>algorithm = "ss"</code>
+<ul><li>approximate and computationally feasibly 3lvl selection models via the <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and <code>RoBMA.reg()</code> functions with the <code>cluster</code> argument when using <code>algorithm = "ss"</code>
 </li>
-<li>3lvl binomial-normal models for binary data via the <code>BiBMA</code> and <code>BiBMA.reg</code> functions with the <code>study_ids</code> argument when using <code>algorithm = "ss"</code>
+<li>3lvl binomial-normal models for binary data via the <code>BiBMA</code> and <code>BiBMA.reg</code> functions with the <code>cluster</code> argument when using <code>algorithm = "ss"</code>
 </li>
 <li>
 <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> function to compute the pooled effect size from the <code>RoBMA.reg</code>, <code>NoBMA.reg</code>, and <code>BiBMA.reg</code> models</li>
 <li>
-<code><a href="../reference/adjusted_effect.html">adjusted_effect()</a></code> function to compute the adjusted effect size from the <code>RoBMA.reg</code>, <code>NoBMA.reg</code>, and <code>BiBMA.reg</code> models</li>
+<code>adjusted_effect()</code> function to compute the adjusted effect size from the <code>RoBMA.reg</code>, <code>NoBMA.reg</code>, and <code>BiBMA.reg</code> models</li>
 <li>enables <code><a href="../reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> for BiBMA models</li>
 </ul></div>
 <div class="section level3">
 <h3 id="fixes-3-5">Fixes<a class="anchor" aria-label="anchor" href="#fixes-3-5"></a></h3>
-<ul><li>passing and checks of the <code>study_ids</code> and <code>study_labels</code> arguments</li>
+<ul><li>passing and checks of the <code>cluster</code> and <code>study_labels</code> arguments</li>
 <li>PEESE prior distribution now scale as 1/scale instead of 1/scale^2 with the <code>rescale_priors</code> argument<br></li>
 <li>the conditional prediction interval based on <code><a href="../reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> is now conditional on the presence of the effect</li>
 <li>additional minor prior handling fixes (i.e., missing marginal estimates when only alternative prior distributions were specified etc)</li>
@@ -133,7 +229,7 @@
 <h3 id="features-3-4">Features<a class="anchor" aria-label="anchor" href="#features-3-4"></a></h3>
 <ul><li>adding binomial-normal meta-regression models for binary data via the <code>BiBMA.reg</code> function</li>
 <li>the spike and slab algorithm for faster model estimation via the <code>algorithm = "ss"</code> argument for BiBMA models</li>
-<li>default prior distributions for all parameters of BiBMA models are now set via the <code><a href="../reference/set_default_binomial_priors.html">set_default_binomial_priors()</a></code> function</li>
+<li>default prior distributions for all parameters of BiBMA models are now set via the <code>set_default_binomial_priors()</code> function</li>
 </ul></div>
 </div>
     <div class="section level2">
@@ -153,7 +249,7 @@
 <h2 class="pkg-version" data-toc-text="3.2.1" id="version-321">version 3.2.1<a class="anchor" aria-label="anchor" href="#version-321"></a></h2>
 <div class="section level3">
 <h3 id="features-3-2-1">Features<a class="anchor" aria-label="anchor" href="#features-3-2-1"></a></h3>
-<ul><li>default prior distributions for all parameters are now set via the <code><a href="../reference/set_default_priors.html">set_default_priors()</a></code> function</li>
+<ul><li>default prior distributions for all parameters are now set via the <code>set_default_priors()</code> function</li>
 <li>
 <code>rescale_priors</code> argument allows to conveniently re-scale the prior distributions for the effect, heterogeneity, and bias simultaneously</li>
 </ul></div>
@@ -165,7 +261,7 @@
 <ul><li>
 <code><a href="../reference/summary_heterogeneity.html">summary_heterogeneity()</a></code> function to summarize the heterogeneity of the RoBMA models (prediction interval, tau, tau^2, I^2, and H^2)</li>
 <li>
-<code><a href="../reference/check_RoBMA.html">check_RoBMA_convergence()</a></code> function to check the convergence of the RoBMA models</li>
+<code>check_RoBMA_convergence()</code> function to check the convergence of the RoBMA models</li>
 <li>adds informed prior distributions for binary and time-to-event outcomes via BayesTools 0.2.17</li>
 </ul></div>
 <div class="section level3">
@@ -182,9 +278,9 @@
 <h3 id="features-3-1">Features<a class="anchor" aria-label="anchor" href="#features-3-1"></a></h3>
 <ul><li>binomial-normal models for binary data via the <code>BiBMA</code> function</li>
 <li>
-<code>NoBMA</code> and <code><a href="../reference/NoBMA.reg.html">NoBMA.reg()</a></code> functions as wrappers around <code>RoBMA</code> <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> functions for simpler specification of publication bias unadjusted Bayesian model-averaged meta-analysis</li>
+<code>NoBMA</code> and <code>NoBMA.reg()</code> functions as wrappers around <code>RoBMA</code> <code>RoBMA.reg()</code> functions for simpler specification of publication bias unadjusted Bayesian model-averaged meta-analysis</li>
 <li>adding odds ratios output transformation`</li>
-<li>extending (instead of a complete refitting) of models via the <code><a href="../reference/update.RoBMA.html">update.RoBMA()</a></code> function (only non-converged models by default or all by setting <code>extend_all = TRUE</code>)</li>
+<li>extending (instead of a complete refitting) of models via the <code>update.RoBMA()</code> function (only non-converged models by default or all by setting <code>extend_all = TRUE</code>)</li>
 </ul></div>
 <div class="section level3">
 <h3 id="fixes-3-1">Fixes<a class="anchor" aria-label="anchor" href="#fixes-3-1"></a></h3>
@@ -203,7 +299,7 @@
 <h2 class="pkg-version" data-toc-text="3.0" id="version-30">version 3.0<a class="anchor" aria-label="anchor" href="#version-30"></a></h2>
 <div class="section level3">
 <h3 id="features-3-0">Features<a class="anchor" aria-label="anchor" href="#features-3-0"></a></h3>
-<ul><li>meta-regression with <code><a href="../reference/RoBMA.reg.html">RoBMA.reg()</a></code> function</li>
+<ul><li>meta-regression with <code>RoBMA.reg()</code> function</li>
 <li>posterior marginal summary and plots for the <code>RoBMA.reg</code> models with <code>summary_marginal()</code> and <code>plot_marginal()</code> functions</li>
 <li>new vignette on hierarchical Bayesian model-averaged meta-analysis</li>
 <li>new vignette on robust Bayesian model-averaged meta-regression</li>
@@ -236,7 +332,7 @@
 <h2 class="pkg-version" data-toc-text="2.3" id="version-23">version 2.3<a class="anchor" aria-label="anchor" href="#version-23"></a></h2>
 <div class="section level3">
 <h3 id="features-2-3">Features<a class="anchor" aria-label="anchor" href="#features-2-3"></a></h3>
-<ul><li>weighted meta-analysis by specifying <code>study_ids</code> argument in <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and setting <code>weighted = TRUE</code>. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.</li>
+<ul><li>weighted meta-analysis by specifying <code>cluster</code> argument in <code><a href="../reference/RoBMA.html">RoBMA()</a></code> and setting <code>weighted = TRUE</code>. The likelihood contribution of estimates from each study is down-weighted proportionally to the number of estimates in that study. Note that this experimental feature is supposed to provide a conservative alternative for estimating RoBMA in cases with multiple estimates from a study where the multivariate option is not computationally feasible.</li>
 </ul></div>
 </div>
     <div class="section level2">
@@ -265,7 +361,7 @@
 <h2 class="pkg-version" data-toc-text="2.2" id="version-22">version 2.2<a class="anchor" aria-label="anchor" href="#version-22"></a></h2>
 <div class="section level3">
 <h3 id="features-2-2">Features<a class="anchor" aria-label="anchor" href="#features-2-2"></a></h3>
-<ul><li>three-level meta-analysis by specifying <code>study_ids</code> argument in <code>RoBMA</code>. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).</li>
+<ul><li>three-level meta-analysis by specifying <code>cluster</code> argument in <code>RoBMA</code>. However, note that this is (1) an experimental feature and (2) the computational expense of fitting selection models with clustering is extreme. As of now, it is almost impossible to have more than 2-3 estimates clustered within a single study).</li>
 </ul></div>
 </div>
     <div class="section level2">
@@ -302,7 +398,7 @@
 <div class="section level3">
 <h3 id="features-2-1">Features<a class="anchor" aria-label="anchor" href="#features-2-1"></a></h3>
 <ul><li>adding <code><a href="../reference/interpret.html">interpret()</a></code> function (issue <a href="https://github.com/FBartos/RoBMA/issues/11" class="external-link">#11</a>)</li>
-<li>adding effect size transformation via <code>output_scale</code> argument to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> and <code><a href="../reference/plot_models.html">plot_models()</a></code> functions</li>
+<li>adding effect size transformation via <code>output_scale</code> argument to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> and <code>plot_models()</code> functions</li>
 <li>better handling of effect size transformations and scaling - BayesTools style back-end functions with Jacobian transformations</li>
 </ul></div>
 </div>
@@ -322,8 +418,8 @@
 <li>better and improved automatic fitting procedure now enabled by default (can be turned of with <code>autofit = FALSE</code>)</li>
 <li>prior distributions can be specified on the different scale than the supplied effect sizes (the package fits the model on Fisher’s z scale and back transforms the results back to the scale that was used for prior distributions specification, Cohen’s d by default, but both of them can be overwritten with the <code>prior_scale</code> and <code>transformation</code> arguments),</li>
 <li>new prior distributions, e.g., beta or fixed weight functions,</li>
-<li>estimates from individual models are now plotted with the <code><a href="../reference/plot_models.html">plot_models()</a></code> function and the forest plot can be obtained with the <code><a href="../reference/forest.html">forest()</a></code> function,</li>
-<li>the posterior distribution plots for the individual weights are no able supported, however, the weightfunction and the PET-PEESE publication bias adjustments can be visualized with the <code><a href="../reference/plot.RoBMA.html">plot.RoBMA()</a></code> function and <code>parameter = "weightfunction"</code> and <code>parameter = "PET-PEESE"</code>.</li>
+<li>estimates from individual models are now plotted with the <code>plot_models()</code> function and the forest plot can be obtained with the <code><a href="https://wviechtb.github.io/metafor/reference/forest.html" class="external-link">forest()</a></code> function,</li>
+<li>the posterior distribution plots for the individual weights are no able supported, however, the weightfunction and the PET-PEESE publication bias adjustments can be visualized with the <code>plot.RoBMA()</code> function and <code>parameter = "weightfunction"</code> and <code>parameter = "PET-PEESE"</code>.</li>
 </ul></div>
 </div>
     <div class="section level2">

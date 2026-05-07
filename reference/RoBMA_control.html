@@ -9,7 +9,7 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.6.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -17,22 +17,34 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
+      <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/CustomEnsembles.html">Fitting Custom Meta-Analytic Ensembles</a></li>
-    <li><a class="dropdown-item" href="../articles/Explanation.html">Guide to RoBMA Vignettes</a></li>
-    <li><a class="dropdown-item" href="../articles/FastRoBMA.html">Fast Robust Bayesian Meta-Analysis via Spike and Slab Algorithm</a></li>
-    <li><a class="dropdown-item" href="../articles/HierarchicalBMA.html">Hierarchical Bayesian Model-Averaged Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/MedicineBiBMA.html">Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes</a></li>
-    <li><a class="dropdown-item" href="../articles/MedicineBMA.html">Informed Bayesian Model-Averaged Meta-Analysis in Medicine</a></li>
-    <li><a class="dropdown-item" href="../articles/MetaRegression.html">Robust Bayesian Model-Averaged Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="../articles/MultilevelRoBMA.html">Multilevel Robust Bayesian Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/MultilevelRoBMARegression.html">Multilevel Robust Bayesian Model-Averaged Meta-Regression</a></li>
-    <li><a class="dropdown-item" href="../articles/ReproducingBMA.html">Reproducing Bayesian Model-Averaged Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/Tutorial.html">Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/ZCurveDiagnostics.html">Z-Curve Publication Bias Diagnostics</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><h6 class="dropdown-header" data-toc-skip>Foundations</h6></li>
+    <li><a class="dropdown-item" href="../articles/v00-introduction.html">Introduction</a></li>
+    <li><a class="dropdown-item" href="../articles/v01-prior-distributions.html">Prior Distributions</a></li>
+    <li><a class="dropdown-item" href="../articles/v02-bayesian-meta-analysis.html">Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v03-feature-coverage.html">Feature Coverage</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>metafor Parity</h6></li>
+    <li><a class="dropdown-item" href="../articles/v10-metafor-parity-multilevel.html">Multilevel Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
+    <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
+    <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
+    <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
+    <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
+    <li><a class="dropdown-item" href="../articles/v31-robma-metaregression.html">RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/v32-robma-multilevel.html">Multilevel RoBMA</a></li>
+    <li><a class="dropdown-item" href="../articles/v33-robma-multilevel-metaregression.html">Multilevel RoBMA Meta-Regression</a></li>
+    <li><a class="dropdown-item" href="../articles/v34-bma-norm-medicine.html">BMA in Medicine</a></li>
+    <li><a class="dropdown-item" href="../articles/v35-bma-glmm-medicine.html">BMA for Binary Outcomes</a></li>
+    <li><a class="dropdown-item" href="../articles/v36-zplot.html">Zplot Diagnostics</a></li>
   </ul></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -46,7 +58,7 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Control MCMC fitting process</h1>
-      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/v3.6.1/R/check-input-and-settings.R" class="external-link"><code>R/check-input-and-settings.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/R/utilities.R" class="external-link"><code>R/utilities.R</code></a></small>
       <div class="d-none name"><code>RoBMA_control.Rd</code></div>
     </div>
 
@@ -72,9 +84,7 @@ autofit process of the MCMC JAGS sampler and specify termination criteria and co
 <span>  max_Rhat <span class="op">=</span> <span class="fl">1.05</span>,</span>
 <span>  min_ESS <span class="op">=</span> <span class="fl">500</span>,</span>
 <span>  max_error <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  max_SD_error <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  remove_failed <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  balance_probability <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  max_SD_error <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -108,7 +118,8 @@ Defaults to <code>NULL</code>.</p></dd>
 <dt id="arg-max-time">max_time<a class="anchor" aria-label="anchor" href="#arg-max-time"></a></dt>
 <dd><p>list with the time and unit specifying the maximum
 autofitting process per model. Passed to <a href="https://rdrr.io/r/base/difftime.html" class="external-link">difftime</a> function
-(possible units are <code>"secs", "mins", "hours", "days", "weeks", "years"</code>).
+(possible units are <code>"secs"</code>, <code>"mins"</code>, <code>"hours"</code>,
+<code>"days"</code>, and <code>"weeks"</code>).
 Defaults to <code>list(time = 60, unit = "mins")</code>.</p></dd>
 
 
@@ -127,22 +138,17 @@ model fails to initialize. Defaults to <code>10</code>.</p></dd>
 <dd><p>number of times after which the automatic fitting function is stopped.
 Defaults to <code>10</code>.</p></dd>
 
-
-<dt id="arg-remove-failed">remove_failed<a class="anchor" aria-label="anchor" href="#arg-remove-failed"></a></dt>
-<dd><p>whether models not satisfying the convergence checks should
-be removed from the inference. Defaults to <code>FALSE</code> - only a warning is raised.</p></dd>
-
-
-<dt id="arg-balance-probability">balance_probability<a class="anchor" aria-label="anchor" href="#arg-balance-probability"></a></dt>
-<dd><p>whether prior model probability should be balanced
-across the combinations of models with the same H0/H1 for effect / heterogeneity / bias
-in the case of non-convergence. Defaults to <code>TRUE</code>.</p></dd>
-
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>set_autofit_control</code> returns a list of autofit control settings
-and <code>set_convergence_checks</code> returns a list of convergence checks settings.</p>
+including <code>max_Rhat</code>, <code>min_ESS</code>, <code>max_error</code>,
+<code>max_SD_error</code>, <code>max_time</code>, <code>sample_extend</code>,
+<code>restarts</code>, <code>max_extend</code>, and delegated
+<code>check_indicators</code>.
+<code>set_convergence_checks</code> returns a list with convergence thresholds
+<code>max_Rhat</code>, <code>min_ESS</code>, <code>max_error</code>, <code>max_SD_error</code>,
+and delegated <code>check_indicators</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -151,11 +157,18 @@ stop iterating based on convergence criteria. <code>set_convergence_checks</code
 for determining whether a model has converged adequately.</p>
 <p>The autofit control manages computational resources by setting maximum time limits and
 determining how many additional samples to draw if convergence criteria are not met.
-The convergence checks determine the quality standards that fitted models must meet.</p>
+The convergence checks determine the quality standards that fitted models must meet.
+Autofit thresholds <code>max_Rhat</code>, <code>min_ESS</code>, <code>max_error</code>,
+<code>max_SD_error</code>, <code>max_time</code>, <code>restarts</code>, and
+<code>max_extend</code> can be set to <code>NULL</code>; <code>sample_extend</code> must be a
+positive integer.
+Thresholds can be disabled with <code>NULL</code>; otherwise <code>max_Rhat</code> must be
+at least 1, <code>min_ESS</code> and <code>max_error</code> must be nonnegative, and
+<code>max_SD_error</code> must be between 0 and 1.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="RoBMA.html">RoBMA()</a></code>, <code><a href="update.RoBMA.html">update.RoBMA()</a></code></p></div>
+    <div class="dont-index"><p><code><a href="RoBMA.html">RoBMA()</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -173,11 +186,18 @@ The convergence checks determine the quality standards that fitted models must m
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># Use in RoBMA function</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span>d <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.5</span>, <span class="fl">0.3</span>, <span class="fl">0.1</span><span class="op">)</span>, </span></span>
-<span class="r-in"><span>             se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.2</span>, <span class="fl">0.15</span>, <span class="fl">0.1</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>             autofit_control <span class="op">=</span> <span class="va">autofit_ctrl</span>,</span></span>
-<span class="r-in"><span>             convergence_checks <span class="op">=</span> <span class="va">conv_checks</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"metadat"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">dat.lehmann2018</span>, package <span class="op">=</span> <span class="st">"metadat"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span>  <span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="RoBMA.html">RoBMA</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>    yi                 <span class="op">=</span> <span class="va">yi</span>,</span></span>
+<span class="r-in"><span>    vi                 <span class="op">=</span> <span class="va">vi</span>,</span></span>
+<span class="r-in"><span>    data               <span class="op">=</span> <span class="va">dat.lehmann2018</span>,</span></span>
+<span class="r-in"><span>    measure            <span class="op">=</span> <span class="st">"SMD"</span>,</span></span>
+<span class="r-in"><span>    autofit_control    <span class="op">=</span> <span class="va">autofit_ctrl</span>,</span></span>
+<span class="r-in"><span>    convergence_checks <span class="op">=</span> <span class="va">conv_checks</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

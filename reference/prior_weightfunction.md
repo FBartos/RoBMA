@@ -1,71 +1,98 @@
-# Creates a prior distribution for a weight function
+# Weightfunction Prior
 
-`prior_weightfunction` creates a prior distribution for fitting a RoBMA
-selection model. The prior can be visualized by the `plot` function.
+Create weightfunction publication-bias priors and their weight-prior
+helper objects.
 
 ## Usage
 
 ``` r
-prior_weightfunction(distribution, parameters, prior_weights = 1)
+prior_weightfunction(
+  side = "one-sided",
+  steps = c(0.025, 0.05),
+  weights = wf_cumulative(),
+  reference = "most_significant",
+  prior_weights = 1
+)
+
+wf_cumulative(alpha = NULL)
+
+wf_fixed(omega)
+
+wf_independent(prior, scale = "omega")
 ```
 
 ## Arguments
 
-- distribution:
+- side:
 
-  name of the prior distribution. The possible options are
+  character. Either `"one-sided"` or `"two-sided"`.
 
-  `"two.sided"`
+- steps:
 
-  :   for a two-sided weight function characterized by a vector `steps`
-      and vector `alpha` parameters. The `alpha` parameter determines an
-      alpha parameter of Dirichlet distribution which cumulative sum is
-      used for the weights omega.
+  numeric vector of p-value cut points. These define `length(steps) + 1`
+  p-value bins and must be ordered values in `(0, 1)`.
 
-  `"one.sided"`
+- weights:
 
-  :   for a one-sided weight function characterized by either a vector
-      `steps` and vector `alpha` parameter, leading to a monotonic
-      one-sided function, or by a vector `steps`, vector `alpha1`, and
-      vector `alpha2` parameters leading non-monotonic one-sided weight
-      function. The `alpha` / `alpha1` and `alpha2` parameters determine
-      an alpha parameter of Dirichlet distribution which cumulative sum
-      is used for the weights omega.
+  a weight-prior object created by `wf_cumulative()`, `wf_fixed()`, or
+  `wf_independent()`.
 
-- parameters:
+- reference:
 
-  list of appropriate parameters for a given `distribution`.
+  character. Reference bin, currently `"most_significant"`.
 
 - prior_weights:
 
-  prior odds associated with a given distribution. The model fitting
-  function usually creates models corresponding to all combinations of
-  prior distributions for each of the model parameters, and sets the
-  model priors odds to the product of its prior distributions.
+  numeric prior model weight.
+
+- alpha:
+
+  optional positive cumulative-Dirichlet concentration parameters, one
+  per p-value bin. If `NULL`, `prior_weightfunction()` uses
+  `rep(1, length(steps) + 1)`. Cumulative weights encode monotone
+  decreasing publication weights relative to the most-significant bin.
+
+- omega:
+
+  fixed publication weights, one per bin; values must be non-missing,
+  nonnegative, and match `length(steps) + 1` when used in
+  `prior_weightfunction()`.
+
+- prior:
+
+  continuous simple prior distribution for each non-reference weight.
+  Point, discrete, mixture, and other non-simple priors are invalid.
+
+- scale:
+
+  latent scale for independent weights; either `"omega"`, `"log_omega"`,
+  or the `"log"` alias. Direct `"omega"` priors need nonnegative
+  support; `"log"` is normalized to `"log_omega"`.
 
 ## Value
 
-`prior_weightfunction` returns an object of class 'prior'.
+`prior_weightfunction()` returns an object inheriting from `prior` and
+`prior.weightfunction`; the `wf_*()` helpers return
+`weightfunction_weights` helper objects with subclass markers.
 
 ## Details
 
-Constrained cases of weight functions can be specified by adding
-".fixed" after the distribution name, i.e., `"two.sided.fixed"` and
-`"one.sided.fixed"`. In these cases, the functions are specified using
-`steps` and `omega` parameters, where the `omega` parameter is a vector
-of weights that corresponds to the relative publication probability
-(i.e., no parameters are estimated).
+Fixed weights must have one value per p-value bin (`length(steps) + 1`),
+and the reference bin must have weight 1.
 
 ## See also
 
-[`plot.prior()`](https://fbartos.github.io/BayesTools/reference/plot.prior.html)
+[`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
 
 ## Examples
 
 ``` r
-p1 <- prior_weightfunction("one-sided", parameters = list(steps = c(.05, .10), alpha = c(1, 1, 1)))
-
-# the prior distribution can be visualized using the plot function
-# (see ?plot.prior for all options)
-plot(p1)
+prior_weightfunction("one-sided", steps = 0.025)
+#> omega[one-sided: .025] ~ CumDirichlet(1, 1)
+prior_weightfunction(
+  side    = "one-sided",
+  steps   = c(0.025, 0.5),
+  weights = wf_fixed(c(1, 0.8, 0.6))
+)
+#> omega[one-sided: .025, .5] = (1, 0.8, 0.6)
 ```

@@ -22,9 +22,7 @@ set_convergence_checks(
   max_Rhat = 1.05,
   min_ESS = 500,
   max_error = NULL,
-  max_SD_error = NULL,
-  remove_failed = FALSE,
-  balance_probability = TRUE
+  max_SD_error = NULL
 )
 ```
 
@@ -54,9 +52,8 @@ set_convergence_checks(
 
   list with the time and unit specifying the maximum autofitting process
   per model. Passed to [difftime](https://rdrr.io/r/base/difftime.html)
-  function (possible units are
-  `"secs", "mins", "hours", "days", "weeks", "years"`). Defaults to
-  `list(time = 60, unit = "mins")`.
+  function (possible units are `"secs"`, `"mins"`, `"hours"`, `"days"`,
+  and `"weeks"`). Defaults to `list(time = 60, unit = "mins")`.
 
 - sample_extend:
 
@@ -73,21 +70,14 @@ set_convergence_checks(
   number of times after which the automatic fitting function is stopped.
   Defaults to `10`.
 
-- remove_failed:
-
-  whether models not satisfying the convergence checks should be removed
-  from the inference. Defaults to `FALSE` - only a warning is raised.
-
-- balance_probability:
-
-  whether prior model probability should be balanced across the
-  combinations of models with the same H0/H1 for effect / heterogeneity
-  / bias in the case of non-convergence. Defaults to `TRUE`.
-
 ## Value
 
-`set_autofit_control` returns a list of autofit control settings and
-`set_convergence_checks` returns a list of convergence checks settings.
+`set_autofit_control` returns a list of autofit control settings
+including `max_Rhat`, `min_ESS`, `max_error`, `max_SD_error`,
+`max_time`, `sample_extend`, `restarts`, `max_extend`, and delegated
+`check_indicators`. `set_convergence_checks` returns a list with
+convergence thresholds `max_Rhat`, `min_ESS`, `max_error`,
+`max_SD_error`, and delegated `check_indicators`.
 
 ## Details
 
@@ -99,12 +89,16 @@ has converged adequately.
 The autofit control manages computational resources by setting maximum
 time limits and determining how many additional samples to draw if
 convergence criteria are not met. The convergence checks determine the
-quality standards that fitted models must meet.
+quality standards that fitted models must meet. Autofit thresholds
+`max_Rhat`, `min_ESS`, `max_error`, `max_SD_error`, `max_time`,
+`restarts`, and `max_extend` can be set to `NULL`; `sample_extend` must
+be a positive integer. Thresholds can be disabled with `NULL`; otherwise
+`max_Rhat` must be at least 1, `min_ESS` and `max_error` must be
+nonnegative, and `max_SD_error` must be between 0 and 1.
 
 ## See also
 
-[`RoBMA()`](reference/RoBMA.md),
-[`update.RoBMA()`](reference/update.RoBMA.md)
+[`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md)
 
 ## Examples
 
@@ -122,10 +116,17 @@ conv_checks <- set_convergence_checks(
 )
 
 if (FALSE) { # \dontrun{
-# Use in RoBMA function
-fit <- RoBMA(d = c(0.5, 0.3, 0.1), 
-             se = c(0.2, 0.15, 0.1),
-             autofit_control = autofit_ctrl,
-             convergence_checks = conv_checks)
+if (requireNamespace("metadat", quietly = TRUE)) {
+  data(dat.lehmann2018, package = "metadat")
+
+  fit <- RoBMA(
+    yi                 = yi,
+    vi                 = vi,
+    data               = dat.lehmann2018,
+    measure            = "SMD",
+    autofit_control    = autofit_ctrl,
+    convergence_checks = conv_checks
+  )
+}
 } # }
 ```
