@@ -1,3 +1,7 @@
+## version 4.1.0 (IN PROGRESS)
+### Features
+- adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
+
 ## version 4.0.0
 ### Breaking changes
 - rewrites the package around the unified `brma` class hierarchy. Single-model fits now use `brma()`, `brma.glmm()`, `bselmodel()`, `bPET()`, and `bPEESE()`; model-averaged fits use `BMA()`, `BMA.glmm()`, and `RoBMA()`.

@@ -177,6 +177,38 @@ metafor::funnel(fit1_metafor, main = "metafor", xlim = c(-2, 1), ylim = c(0, 0.8
 funnel(fit1_brma, main = "RoBMA", xlim = c(-2, 1), ylim = c(0, 0.8), sampling_heterogeneity = FALSE)
 ```
 
+## Forest Plot
+
+`metafor::forest()` uses the `metafor` package's forest-plot layout for `brma()` objects.
+The `ilab` arguments add study-level columns, following the same pattern used in the `metafor` package documentation.
+Here we plot the simple random-effects fit and add the study labels and tuberculosis counts.
+
+```{r forest-plot, fig.width = 7, fig.height = 5}
+study_labels  <- paste(dat[["author"]], dat[["year"]], sep = ", ")
+study_columns <- dat[, c("tpos", "tneg", "cpos", "cneg")]
+colnames(study_columns) <- c("TB+", "TB-", "TB+", "TB-")
+
+par(mar = c(4, 4, 2, 1))
+forest_info <- metafor::forest(
+  fit1_brma,
+  addpred = TRUE, predstyle = "bar",
+  mlab = "Posterior estimate", header = c("Study", "Risk Ratio [95% CI]"),
+  slab = study_labels, ilab = study_columns,
+  ilab.lab = colnames(study_columns),
+  ilab.xpos = c(-9.5, -8.0, -6.0, -4.5),
+  xlim = c(-16, 6), alim = c(-3, 2), at = log(c(0.05, 0.25, 1, 4)),
+  atransf = exp,
+  cex = 0.75, top = 4
+)
+op <- par(cex = forest_info[["cex"]], font = 2)
+text(
+  x      = c(-8.75, -5.25),
+  y      = forest_info[["ylim"]][2] - 0.2,
+  labels = c("Vaccinated", "Control")
+)
+par(op)
+```
+
 ## Meta-Regression with a Continuous Moderator
 
 A continuous moderator can be added with the standard formula syntax via the `mods` argument.

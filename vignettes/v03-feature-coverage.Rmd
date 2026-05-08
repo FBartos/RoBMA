@@ -124,7 +124,7 @@ reference_links <- c(
   "wf_cumulative()"                      = "../reference/prior_weightfunction.html",
   "wf_fixed()"                           = "../reference/prior_weightfunction.html",
   "wf_independent()"                     = "../reference/prior_weightfunction.html",
-  "forest()"                             = "https://wviechtb.github.io/metafor/reference/forest.rma.html",
+  "metafor::forest()"                    = "../reference/forest.brma.html",
   "baujat()"                             = "https://wviechtb.github.io/metafor/reference/baujat.html",
   "gosh()"                               = "https://wviechtb.github.io/metafor/reference/gosh.html",
   "labbe()"                              = "https://wviechtb.github.io/metafor/reference/labbe.html"
@@ -428,7 +428,7 @@ rows <- list(
   feature_row("Plots", "Weight-function plots (`plot_weightfunction()`)", "NNYNNNY"),
   feature_row("Plots", "PET-PEESE plots (`plot_pet_peese()`)", "NNNYNNY"),
   feature_row("Plots", "Radial / Galbraith plots (`radial()`, `galbraith()`)", "YLYYYLY"),
-  feature_row("Plots", "Forest plots (`forest()`)", "NNNNNNN"),
+  feature_row("Plots", "Forest plots (`metafor::forest()`)", "YYYYYYY"),
   feature_row("Plots", "Baujat plots (`baujat()`)", "NNNNNNN"),
   feature_row("Plots", "GOSH plots (`gosh()`)", "NNNNNNN"),
   feature_row("Plots", "L'Abbe plots (`labbe()`)", "NNNNNNN"),
