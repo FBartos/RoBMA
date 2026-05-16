@@ -82,6 +82,24 @@ OBJECTS = distributions/DWN.o \
 
 ###############
 
+all: $(SHLIB)
+
+R_SELNORM_INC = r-selnorm-common.cc.inc \
+				r-selnorm-loglik.cc.inc \
+				r-selnorm-kernel.cc.inc \
+				r-selnorm-funnel-zcurve.cc.inc
+
+SELNORM_INC = selnorm/selnorm-probability.cc.inc \
+			  selnorm/selnorm-step.cc.inc \
+			  selnorm/selnorm-phack.cc.inc \
+			  selnorm/selnorm-boundary.cc.inc \
+			  selnorm/selnorm-api.cc.inc
+
+r-selnorm.o: $(R_SELNORM_INC) selnorm/selnorm.h
+
+selnorm/selnorm.o: $(SELNORM_INC) selnorm/selnorm.h
+
+r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h
 
 
 ###############

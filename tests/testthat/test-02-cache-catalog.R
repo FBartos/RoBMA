@@ -125,13 +125,27 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/input-data.R",
     "R/input-object.R",
     "R/input-priors.R",
+    "R/input-priors-assignment.R",
+    "R/input-priors-check-list.R",
+    "R/input-priors-documentation.R",
+    "R/input-priors-formula.R",
+    "R/input-priors-heterogeneity-allocation.R",
     "R/selection-mapping.R",
     "R/marglik.R",
     "R/loo.R",
     "src/RoBMA.cc",
     "src/distributions/DWN.cc",
     "src/r-glmm.cc",
-    "src/r-selnorm.cc"
+    "src/r-selnorm.cc",
+    "src/r-selnorm-common.cc.inc",
+    "src/r-selnorm-funnel-zcurve.cc.inc",
+    "src/r-selnorm-kernel.cc.inc",
+    "src/r-selnorm-loglik.cc.inc",
+    "src/selnorm/selnorm-api.cc.inc",
+    "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-phack.cc.inc",
+    "src/selnorm/selnorm-probability.cc.inc",
+    "src/selnorm/selnorm-step.cc.inc"
   ) %in% source_files))
   expect_false(any(c(
     "DESCRIPTION",

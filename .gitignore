@@ -22,6 +22,7 @@ src/Makevars
 models/MetaRegression/*
 .RData
 Rplots.pdf
+*.new.svg
 .RData
 /tests/testthat/test_files
 .RData
@@ -38,3 +39,4 @@ knowledge-base/
 /AGENTS.html
 /docs/AGENTS.html
 /build/
+.positai

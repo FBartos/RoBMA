@@ -103,7 +103,7 @@ test_that("as_metafor_forest returns metafor-ready vector arguments", {
     .outcome_data_sei(fit),
     tolerance = 1e-12
   )
-  expect_equal(out[["forest_args"]][["x"]], out[["studies"]][["yi"]])
+  expect_equal(as.numeric(out[["forest_args"]][["x"]]), out[["studies"]][["yi"]])
   expect_equal(out[["forest_args"]][["sei"]], out[["studies"]][["sei"]])
   expect_equal(attributes(out[["forest_args"]][["x"]])[["measure"]], .measure(fit))
   expect_equal(
@@ -173,7 +173,7 @@ test_that("as_metafor_forest supports representative fitted object families", {
     fit <- fits[[name]]
     out <- as_metafor_forest(fit, addpred = TRUE)
 
-    expect_s3_class(out, "metafor_forest.brma", info = name)
+    expect_true(inherits(out, "metafor_forest.brma"), info = name)
     expect_equal(nrow(out[["studies"]]), nobs(fit), info = name)
     expect_equal(length(out[["forest_args"]][["x"]]), nobs(fit), info = name)
     expect_equal(length(out[["forest_args"]][["sei"]]), nobs(fit), info = name)
@@ -203,7 +203,10 @@ test_that("forest methods dispatch through metafor", {
   out <- as_metafor_forest(fit, addpred = TRUE)
 
   expect_false("forest" %in% getNamespaceExports("RoBMA"))
-  expect_identical(metafor::forest(fit, addpred = TRUE, as_data = TRUE), out)
+  set.seed(1)
+  out_dispatch <- metafor::forest(fit, addpred = TRUE, as_data = TRUE)
+  set.seed(1)
+  expect_identical(out_dispatch, as_metafor_forest(fit, addpred = TRUE))
   .with_temp_plot_device(expect_silent(metafor::forest(fit, addpred = TRUE)))
   .with_temp_plot_device(expect_silent(metafor::forest(out, predstyle = "bar")))
   .with_temp_plot_device(expect_silent({

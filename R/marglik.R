@@ -532,7 +532,7 @@ add_marglik.brma <- function(object, ...) {
     }
   }
 
-  return(list(
+  selection_context <- list(
     kernel_mode    = data[["sel_kernel_mode"]],
     z_lower        = data[["sel_z_lower"]],
     z_upper        = data[["sel_z_upper"]],
@@ -552,7 +552,9 @@ add_marglik.brma <- function(object, ...) {
     omega          = omega,
     alpha          = alpha,
     phack_kind     = phack_kind
-  ))
+  )
+
+  return(.selection_reset_native_cache(selection_context))
 }
 
 

@@ -1,0 +1,568 @@
+extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
+  SEXP mean, SEXP sd, SEXP basis, SEXP current_log_norm, SEXP current,
+  SEXP values, SEXP sei, SEXP weights, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(basis, "basis");
+  check_real(current_log_norm, "current_log_norm");
+  check_real(current, "current");
+  check_real(values, "values");
+  check_real(sei, "sei");
+  check_real(weights, "weights");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const int G = Rf_length(values);
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+  validate_matrix_dims_named(basis, "basis", S, K, "mean");
+  validate_matrix_dims_named(current_log_norm, "current_log_norm", S, K, "mean");
+
+  if (Rf_length(current) != S) {
+    Rf_error("'current' must have one value per posterior sample.");
+  }
+  if (Rf_length(sei) != K || Rf_length(weights) != K) {
+    Rf_error("'sei' and 'weights' must have one value per observation.");
+  }
+
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, S * G));
+
+  const double *mean_p             = REAL(mean);
+  const double *sd_p               = REAL(sd);
+  const double *basis_p            = REAL(basis);
+  const double *current_log_norm_p = REAL(current_log_norm);
+  const double *current_p          = REAL(current);
+  const double *values_p           = REAL(values);
+  const double *sei_p              = REAL(sei);
+  const double *weights_p          = REAL(weights);
+  double *out_p                    = REAL(out);
+
+  for (int s = 0; s < S; ++s) {
+    for (int g = 0; g < G; ++g) {
+      const double delta = values_p[g] - current_p[s];
+      double row_sum = 0;
+
+      if (!std::isfinite(delta)) {
+        out_p[g + G * s] = NA_REAL;
+        continue;
+      }
+
+      for (int k = 0; k < K; ++k) {
+        const int cell = s + S * k;
+        const double candidate_log_norm = cpp_selnorm_kernel_log_norm(
+          mean_p[cell] + basis_p[cell] * delta,
+          sd_p[cell],
+          sei_p[k],
+          selnorm.omega_row(s),
+          selnorm.alpha_at(s),
+          selnorm.phack_kind_at(s),
+          selnorm.kernel_mode_at(s),
+          selnorm.data,
+          S,
+          false
+        );
+
+        row_sum += weights_p[k] * (candidate_log_norm - current_log_norm_p[cell]);
+      }
+
+      out_p[g + G * s] = row_sum;
+    }
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
+  SEXP yi, SEXP mu_num, SEXP sigma_num, SEXP mu_norm, SEXP sigma_norm,
+  SEXP sei, SEXP weights, SEXP omega, SEXP alpha, SEXP phack_kind,
+  SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
+  SEXP q, SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
+  SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(yi, "yi");
+  check_real(mu_num, "mu_num");
+  check_real(sigma_num, "sigma_num");
+  check_real(mu_norm, "mu_norm");
+  check_real(sigma_norm, "sigma_norm");
+  check_real(sei, "sei");
+  check_real(weights, "weights");
+  check_integer(obs_bin, "obs_bin");
+
+  const int S = matrix_nrow(mu_num, "mu_num");
+  const int K = matrix_ncol(mu_num, "mu_num");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims(sigma_num, "sigma_num", S, K);
+  validate_matrix_dims(mu_norm, "mu_norm", S, K);
+  validate_matrix_dims(sigma_norm, "sigma_norm", S, K);
+
+  if (Rf_length(yi) != K || Rf_length(sei) != K || Rf_length(weights) != K ||
+      Rf_length(obs_bin) != K) {
+    Rf_error("'yi', 'sei', 'weights', and 'obs_bin' must have one value per observation.");
+  }
+
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+
+  const double *yi_p         = REAL(yi);
+  const double *mu_num_p     = REAL(mu_num);
+  const double *sigma_num_p  = REAL(sigma_num);
+  const double *mu_norm_p    = REAL(mu_norm);
+  const double *sigma_norm_p = REAL(sigma_norm);
+  const double *sei_p        = REAL(sei);
+  const double *weights_p    = REAL(weights);
+  const int *obs_bin_p       = INTEGER(obs_bin);
+  double *out_p              = REAL(out);
+
+  for (int k = 0; k < K; ++k) {
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      out_p[cell] = cpp_selnorm_kernel_lpdf(
+        yi_p[k],
+        mu_num_p[cell],
+        sigma_num_p[cell],
+        mu_norm_p[cell],
+        sigma_norm_p[cell],
+        sei_p[k],
+        weights_p[k],
+        selnorm.omega_row(s),
+        obs_bin_p[k],
+        selnorm.alpha_at(s),
+        selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s),
+        selnorm.data,
+        S,
+        false
+      );
+    }
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
+  SEXP yi, SEXP mu_num, SEXP sigma_num, SEXP mu_norm, SEXP sigma_norm,
+  SEXP sei, SEXP weights, SEXP omega, SEXP alpha, SEXP phack_kind,
+  SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP obs_bin, SEXP sign,
+  SEXP q, SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
+  SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(yi, "yi");
+  check_real(mu_num, "mu_num");
+  check_real(sigma_num, "sigma_num");
+  check_real(mu_norm, "mu_norm");
+  check_real(sigma_norm, "sigma_norm");
+  check_real(sei, "sei");
+  check_real(weights, "weights");
+  check_integer(obs_bin, "obs_bin");
+
+  const int S = matrix_nrow(mu_num, "mu_num");
+  const int K = matrix_ncol(mu_num, "mu_num");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims(sigma_num, "sigma_num", S, K);
+  validate_matrix_dims(mu_norm, "mu_norm", S, K);
+  validate_matrix_dims(sigma_norm, "sigma_norm", S, K);
+
+  if (Rf_length(yi) != K || Rf_length(sei) != K || Rf_length(weights) != K ||
+      Rf_length(obs_bin) != K) {
+    Rf_error("'yi', 'sei', 'weights', and 'obs_bin' must have one value per observation.");
+  }
+
+  SEXP out = PROTECT(Rf_allocVector(REALSXP, S));
+
+  const double *yi_p         = REAL(yi);
+  const double *mu_num_p     = REAL(mu_num);
+  const double *sigma_num_p  = REAL(sigma_num);
+  const double *mu_norm_p    = REAL(mu_norm);
+  const double *sigma_norm_p = REAL(sigma_norm);
+  const double *sei_p        = REAL(sei);
+  const double *weights_p    = REAL(weights);
+  const int *obs_bin_p       = INTEGER(obs_bin);
+  double *out_p              = REAL(out);
+
+  for (int s = 0; s < S; ++s) {
+    double row_sum = 0.0;
+    for (int k = 0; k < K; ++k) {
+      const int cell = s + S * k;
+      row_sum += cpp_selnorm_kernel_lpdf(
+        yi_p[k],
+        mu_num_p[cell],
+        sigma_num_p[cell],
+        mu_norm_p[cell],
+        sigma_norm_p[cell],
+        sei_p[k],
+        weights_p[k],
+        selnorm.omega_row(s),
+        obs_bin_p[k],
+        selnorm.alpha_at(s),
+        selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s),
+        selnorm.data,
+        S,
+        false
+      );
+    }
+    out_p[s] = row_sum;
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
+  SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha, SEXP phack_kind,
+  SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
+  SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
+  SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(sei, "sei");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+
+  if (Rf_length(sei) != K) {
+    Rf_error("'sei' must have one value per observation.");
+  }
+
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+
+  const double *mean_p      = REAL(mean);
+  const double *sd_p        = REAL(sd);
+  const double *sei_p       = REAL(sei);
+  double *out_p             = REAL(out);
+
+  for (int k = 0; k < K; ++k) {
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      out_p[cell] = cpp_selnorm_kernel_log_norm(
+        mean_p[cell],
+        sd_p[cell],
+        sei_p[k],
+        selnorm.omega_row(s),
+        selnorm.alpha_at(s),
+        selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s),
+        selnorm.data,
+        S,
+        false
+      );
+    }
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
+  SEXP x, SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP lower_tail, SEXP telescope_probabilities)
+{
+  check_real(x, "q");
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(sei, "sei");
+  check_logical(lower_tail, "lower.tail");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+
+  if ((Rf_length(x) != 1 && Rf_length(x) != K) || Rf_length(sei) != K) {
+    Rf_error("'q' must have length 1 or K and 'sei' must have one value per observation.");
+  }
+
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+
+  const double *x_p          = REAL(x);
+  const double *mean_p       = REAL(mean);
+  const double *sd_p         = REAL(sd);
+  const double *sei_p        = REAL(sei);
+  const bool lower_tail_bool = LOGICAL(lower_tail)[0] == TRUE;
+  double *out_p              = REAL(out);
+
+  for (int k = 0; k < K; ++k) {
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      out_p[cell] = cpp_selnorm_kernel_cdf(
+        scalar_or_col_real(x_p, Rf_length(x), k, "q"),
+        mean_p[cell],
+        sd_p[cell],
+        sei_p[k],
+        selnorm.omega_row(s),
+        selnorm.alpha_at(s),
+        selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s),
+        selnorm.data,
+        S,
+        lower_tail_bool,
+        false
+      );
+    }
+  }
+
+  UNPROTECT(1);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
+  SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha, SEXP phack_kind,
+  SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
+  SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
+  SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(sei, "sei");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+
+  if (Rf_length(sei) != K) {
+    Rf_error("'sei' must have one value per observation.");
+  }
+
+  SEXP out_mean = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out_second = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+
+  SET_STRING_ELT(names, 0, Rf_mkChar("mean"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("second"));
+  SET_VECTOR_ELT(out, 0, out_mean);
+  SET_VECTOR_ELT(out, 1, out_second);
+  Rf_setAttrib(out, R_NamesSymbol, names);
+
+  const double *mean_p     = REAL(mean);
+  const double *sd_p       = REAL(sd);
+  const double *sei_p      = REAL(sei);
+  double *mean_out_p       = REAL(out_mean);
+  double *second_out_p     = REAL(out_second);
+
+  for (int k = 0; k < K; ++k) {
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      cpp_selnorm_kernel_moments(
+        mean_p[cell],
+        sd_p[cell],
+        sei_p[k],
+        selnorm.omega_row(s),
+        selnorm.alpha_at(s),
+        selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s),
+        selnorm.data,
+        mean_out_p + cell,
+        second_out_p + cell,
+        S,
+        false
+      );
+    }
+  }
+
+  UNPROTECT(4);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
+  SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha, SEXP phack_kind,
+  SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
+  SEXP phack_z_source, SEXP phack_z_dest, SEXP segment_bounds,
+  SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(sei, "sei");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+
+  if (Rf_length(sei) != K) {
+    Rf_error("'sei' must have one value per observation.");
+  }
+
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, S, K));
+
+  const double *mean_p     = REAL(mean);
+  const double *sd_p       = REAL(sd);
+  const double *sei_p      = REAL(sei);
+  double *out_p            = REAL(out);
+
+  GetRNGstate();
+  for (int k = 0; k < K; ++k) {
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      out_p[cell] = cpp_selnorm_kernel_rng(
+        mean_p[cell],
+        sd_p[cell],
+        sei_p[k],
+        selnorm.omega_row(s),
+        unif_rand(),
+        unif_rand(),
+        selnorm.alpha_at(s),
+        selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s),
+        selnorm.data,
+        S,
+        false
+      );
+    }
+  }
+  PutRNGstate();
+
+  UNPROTECT(1);
+  return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
+  SEXP yi, SEXP mean, SEXP sd, SEXP sei, SEXP psis_weights, SEXP omega,
+  SEXP alpha, SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  check_real(yi, "yi");
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(sei, "sei");
+  check_real(psis_weights, "psis_weights");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+  validate_matrix_dims_named(psis_weights, "psis_weights", S, K, "mean");
+
+  if (Rf_length(yi) != K || Rf_length(sei) != K) {
+    Rf_error("'yi' and 'sei' must have one value per observation.");
+  }
+
+  SEXP out_cdf = PROTECT(Rf_allocVector(REALSXP, K));
+  SEXP out_mean = PROTECT(Rf_allocVector(REALSXP, K));
+  SEXP out_second = PROTECT(Rf_allocVector(REALSXP, K));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+
+  SET_STRING_ELT(names, 0, Rf_mkChar("cdf"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("mean"));
+  SET_STRING_ELT(names, 2, Rf_mkChar("second"));
+  SET_VECTOR_ELT(out, 0, out_cdf);
+  SET_VECTOR_ELT(out, 1, out_mean);
+  SET_VECTOR_ELT(out, 2, out_second);
+  Rf_setAttrib(out, R_NamesSymbol, names);
+
+  const double *yi_p        = REAL(yi);
+  const double *mean_p      = REAL(mean);
+  const double *sd_p        = REAL(sd);
+  const double *sei_p       = REAL(sei);
+  const double *weights_p   = REAL(psis_weights);
+  double *cdf_out_p         = REAL(out_cdf);
+  double *mean_out_p        = REAL(out_mean);
+  double *second_out_p      = REAL(out_second);
+
+  for (int k = 0; k < K; ++k) {
+    double cdf_sum = 0;
+    double mean_sum = 0;
+    double second_sum = 0;
+
+    for (int s = 0; s < S; ++s) {
+      const int cell = s + S * k;
+      const double w = weights_p[cell];
+      const double alpha_s = selnorm.alpha_at(s);
+      const int phack_s = selnorm.phack_kind_at(s);
+      const int mode_s = selnorm.kernel_mode_at(s);
+      double cdf = NA_REAL;
+      double moment_mean = NA_REAL;
+      double moment_second = NA_REAL;
+
+      cpp_selnorm_kernel_summary(
+        yi_p[k],
+        mean_p[cell],
+        sd_p[cell],
+        sei_p[k],
+        selnorm.omega_row(s),
+        alpha_s,
+        phack_s,
+        mode_s,
+        selnorm.data,
+        &cdf,
+        &moment_mean,
+        &moment_second,
+        S,
+        true,
+        false
+      );
+
+      cdf_sum += w * cdf;
+      mean_sum += w * moment_mean;
+      second_sum += w * moment_second;
+    }
+
+    cdf_out_p[k] = cdf_sum;
+    mean_out_p[k] = mean_sum;
+    second_out_p[k] = second_sum;
+  }
+
+  UNPROTECT(5);
+  return out;
+}

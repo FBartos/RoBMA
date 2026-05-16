@@ -157,6 +157,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     input_measure          = .measure(object),
     effect_transform       = effect_transform,
     model_averaged         = model_averaged,
+    iwmde_signature        = .iwmde_fit_signature(object),
     bf                     = bf,
     name                   = .summary.brma_model_names(object)
   )

@@ -1,3 +1,63 @@
+.test_step_spec <- function(yi, sei, effect_direction = "positive") {
+
+  prior <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = c(.025, .05, .50),
+    weights = BayesTools::wf_fixed(c(1, .7, .35, .2))
+  )
+
+  .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = yi,
+    sei              = sei,
+    effect_direction = effect_direction,
+    signed_data      = FALSE
+  )
+}
+
+.test_two_sided_step_spec <- function(yi, sei, effect_direction = "positive") {
+
+  prior <- BayesTools::prior_weightfunction(
+    side    = "two-sided",
+    steps   = c(.05, .10),
+    weights = BayesTools::wf_fixed(c(1, .7, .35))
+  )
+
+  .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = yi,
+    sei              = sei,
+    effect_direction = effect_direction,
+    signed_data      = FALSE
+  )
+}
+
+.test_step_log_norm_reference <- function(mean, sd, sei, omega, spec) {
+
+  S   <- nrow(mean)
+  K   <- ncol(mean)
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+
+  for (s in seq_len(S)) {
+    for (k in seq_len(K)) {
+      mean_z   <- spec[["sign"]] * mean[s, k] / sei[k]
+      sd_z     <- sd[s, k] / sei[k]
+      log_mass <- vapply(seq_len(spec[["n_bins"]]), function(b) {
+        log(omega[s, b]) + .test_interval_log_prob(
+          spec[["z_lower"]][b],
+          spec[["z_upper"]][b],
+          mean_z,
+          sd_z
+        )
+      }, numeric(1))
+
+      out[s, k] <- .test_logsumexp(log_mass)
+    }
+  }
+
+  return(out)
+}
+
 .test_step_reference <- function(yi, mu, sigma, sei, omega, spec,
                                  weights = rep(1, length(yi))) {
 

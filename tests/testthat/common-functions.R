@@ -419,6 +419,7 @@ source_file_md5 <- function(source_file) {
     lines <- lines[nzchar(lines)]
   } else {
     lines <- unlist(lapply(parsed, .source_hash_normalize_expr), use.names = FALSE)
+    lines <- as.character(lines)
     lines <- trimws(lines)
     lines <- lines[nzchar(lines)]
   }
@@ -449,9 +450,20 @@ source_file_md5 <- function(source_file) {
     "R/input-data.R",
     "R/input-object.R",
     "R/input-priors.R",
+    "R/input-priors-assignment.R",
+    "R/input-priors-check-list.R",
+    "R/input-priors-documentation.R",
+    "R/input-priors-formula.R",
+    "R/input-priors-heterogeneity-allocation.R",
     "R/loo.R",
     "R/marglik.R",
-    "R/pdf.R",
+    "R/log-lik-cluster.R",
+    "R/log-lik-cluster-glmm.R",
+    "R/log-lik-cluster-normal.R",
+    "R/log-lik.R",
+    "R/pdf-outcome-glmm.R",
+    "R/pdf-outcome-normal.R",
+    "R/pdf-utils.R",
     "R/priors.R",
     "R/selection-mapping.R",
     "R/utilities.R",
@@ -474,7 +486,16 @@ source_file_md5 <- function(source_file) {
     "src/distributions/DWP.h",
     "src/r-glmm.cc",
     "src/r-selnorm.cc",
+    "src/r-selnorm-common.cc.inc",
+    "src/r-selnorm-funnel-zcurve.cc.inc",
+    "src/r-selnorm-kernel.cc.inc",
+    "src/r-selnorm-loglik.cc.inc",
     "src/selnorm/selnorm.cc",
+    "src/selnorm/selnorm-api.cc.inc",
+    "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-phack.cc.inc",
+    "src/selnorm/selnorm-probability.cc.inc",
+    "src/selnorm/selnorm-step.cc.inc",
     "src/selnorm/selnorm.h"
   )
 
@@ -582,6 +603,7 @@ source_file_md5 <- function(source_file) {
       lines <- unlist(lapply(parsed, function(expr) {
         paste(deparse(expr, width.cutoff = 500L), collapse = "\n")
       }), use.names = FALSE)
+      lines <- as.character(lines)
 
       normalized <- tempfile("robma-package-source-", fileext = ".R")
       writeLines(lines, normalized, useBytes = TRUE)

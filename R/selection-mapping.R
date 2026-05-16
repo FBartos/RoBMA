@@ -584,6 +584,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
   }
 
+  alpha       <- .selection_row_arg(alpha, S, "alpha")
+  phack_kind  <- .selection_row_arg(phack_kind, S, "phack_kind")
+  kernel_mode <- .selection_row_arg(kernel_mode, S, "kernel_mode")
+
   return(list(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -596,8 +600,62 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(isTRUE(selection_spec[["telescope_probabilities"]]))
 }
 
-.has_native_selnorm_kernel <- function() {
+.selection_reset_native_cache <- function(selection_context) {
 
+  if (!is.null(selection_context)) {
+    selection_context[["native_cache"]] <- new.env(parent = emptyenv())
+  }
+
+  return(selection_context)
+}
+
+.selection_native_static_args <- function(selection_spec) {
+
+  cache <- selection_spec[["native_cache"]]
+  if (is.environment(cache) &&
+      exists("static", envir = cache, inherits = FALSE)) {
+    return(get("static", envir = cache, inherits = FALSE))
+  }
+
+  out <- list(
+    z_lower                = .native_numeric_vector(selection_spec[["z_lower"]]),
+    z_upper                = .native_numeric_vector(selection_spec[["z_upper"]]),
+    sign                   = .native_integer_vector(selection_spec[["sign"]]),
+    phack_q                = .native_integer_vector(selection_spec[["phack_q"]]),
+    phack_z_source         = .native_numeric_vector(selection_spec[["phack_z_source"]]),
+    phack_z_dest           = .native_numeric_vector(selection_spec[["phack_z_dest"]]),
+    segment_bounds         = .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
+    segment_step_bin       = .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
+    segment_phack_region  = .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    telescope_probabilities = .selection_telescope_probabilities(selection_spec)
+  )
+
+  if (is.environment(cache)) {
+    assign("static", out, envir = cache)
+  }
+
+  return(out)
+}
+
+.selection_native_kernel_args <- function(selection_spec, S, alpha = NULL,
+                                          phack_kind = NULL,
+                                          kernel_mode = NULL) {
+
+  out <- .selection_prepare_native_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
+  out[["static"]] <- .selection_native_static_args(selection_spec)
+
+  return(out)
+}
+
+.has_native_selnorm_kernel <- local({
+
+  cache   <- FALSE
   symbols <- c(
     "RoBMA_selnorm_kernel_loglik_matrix",
     "RoBMA_selnorm_kernel_log_norm_matrix",
@@ -607,7 +665,31 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     "RoBMA_selnorm_kernel_weighted_summary"
   )
 
-  return(all(vapply(symbols, is.loaded, logical(1), PACKAGE = "RoBMA")))
+  function() {
+
+    if (isTRUE(cache)) {
+      return(TRUE)
+    }
+
+    cache <<- all(vapply(symbols, is.loaded, logical(1), PACKAGE = "RoBMA"))
+    return(cache)
+  }
+})
+
+.has_native_selnorm_log_norm_delta <- function() {
+
+  return(is.loaded(
+    "RoBMA_selnorm_kernel_log_norm_delta_grid",
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.has_native_selnorm_loglik_row_sum <- function() {
+
+  return(is.loaded(
+    "RoBMA_selnorm_kernel_loglik_row_sum",
+    PACKAGE = "RoBMA"
+  ))
 }
 
 .selnorm_kernel_loglik_matrix <- function(yi, mu_num, sigma_num,
@@ -625,10 +707,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (is.null(weights)) {
     weights <- rep(1, K)
   }
-  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
-  alpha       <- native_args[["alpha"]]
-  phack_kind  <- native_args[["phack_kind"]]
-  kernel_mode <- native_args[["kernel_mode"]]
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
 
   if (!.has_native_selnorm_kernel()) {
     stop("The selected-normal native kernel is not loaded.", call. = FALSE)
@@ -647,17 +730,146 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(alpha),
     .native_integer_vector(phack_kind),
     .native_integer_vector(kernel_mode),
-    .native_numeric_vector(selection_spec[["z_lower"]]),
-    .native_numeric_vector(selection_spec[["z_upper"]]),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
     .native_integer_vector(selection_spec[["obs_bin"]]),
-    .native_integer_vector(selection_spec[["sign"]]),
-    .native_integer_vector(selection_spec[["phack_q"]]),
-    .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
-    .selection_telescope_probabilities(selection_spec),
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.selnorm_kernel_loglik_row_sum <- function(yi, mu_num, sigma_num,
+                                           mu_norm = mu_num,
+                                           sigma_norm = sigma_num,
+                                           sei, omega, selection_spec,
+                                           alpha = NULL,
+                                           phack_kind = NULL,
+                                           kernel_mode = NULL,
+                                           weights = NULL) {
+
+  S <- nrow(mu_num)
+  K <- ncol(mu_num)
+
+  if (is.null(weights)) {
+    weights <- rep(1, K)
+  }
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
+
+  if (!.has_native_selnorm_loglik_row_sum()) {
+    return(rowSums(.selnorm_kernel_loglik_matrix(
+      yi             = yi,
+      mu_num         = mu_num,
+      sigma_num      = sigma_num,
+      mu_norm        = mu_norm,
+      sigma_norm     = sigma_norm,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = selection_spec,
+      alpha          = alpha,
+      phack_kind     = phack_kind,
+      kernel_mode    = kernel_mode,
+      weights        = weights
+    )))
+  }
+
+  return(.Call(
+    "RoBMA_selnorm_kernel_loglik_row_sum",
+    .native_numeric_vector(yi),
+    .native_numeric_matrix(mu_num),
+    .native_numeric_matrix(sigma_num),
+    .native_numeric_matrix(mu_norm),
+    .native_numeric_matrix(sigma_norm),
+    .native_numeric_vector(sei),
+    .native_numeric_vector(weights),
+    .native_numeric_matrix(omega),
+    .native_numeric_vector(alpha),
+    .native_integer_vector(phack_kind),
+    .native_integer_vector(kernel_mode),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    .native_integer_vector(selection_spec[["obs_bin"]]),
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
+    PACKAGE = "RoBMA"
+  ))
+}
+
+.selnorm_kernel_log_norm_delta_grid <- function(mean, sd, basis,
+                                                current_log_norm,
+                                                current, values, sei,
+                                                weights = NULL, omega,
+                                                selection_spec,
+                                                alpha = NULL,
+                                                phack_kind = NULL,
+                                                kernel_mode = NULL) {
+
+  S <- nrow(mean)
+  K <- ncol(mean)
+
+  if (is.null(weights)) {
+    weights <- rep(1, K)
+  }
+
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
+
+  .selection_require_native_no_active_phack(
+    alpha       = alpha,
+    phack_kind  = phack_kind,
+    kernel_mode = kernel_mode,
+    S           = S,
+    caller      = ".selnorm_kernel_log_norm_delta_grid()"
+  )
+
+  if (!.has_native_selnorm_log_norm_delta()) {
+    stop("The selected-normal log-normalizer delta kernel is not loaded.",
+         call. = FALSE)
+  }
+
+  return(.Call(
+    "RoBMA_selnorm_kernel_log_norm_delta_grid",
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_matrix(basis),
+    .native_numeric_matrix(current_log_norm),
+    .native_numeric_vector(current),
+    .native_numeric_vector(values),
+    .native_numeric_vector(sei),
+    .native_numeric_vector(weights),
+    .native_numeric_matrix(omega),
+    .native_numeric_vector(alpha),
+    .native_integer_vector(phack_kind),
+    .native_integer_vector(kernel_mode),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -669,10 +881,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
-  alpha       <- native_args[["alpha"]]
-  phack_kind  <- native_args[["phack_kind"]]
-  kernel_mode <- native_args[["kernel_mode"]]
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
 
   if (!.has_native_selnorm_kernel()) {
     stop("The selected-normal native kernel is not loaded.", call. = FALSE)
@@ -687,16 +900,16 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(alpha),
     .native_integer_vector(phack_kind),
     .native_integer_vector(kernel_mode),
-    .native_numeric_vector(selection_spec[["z_lower"]]),
-    .native_numeric_vector(selection_spec[["z_upper"]]),
-    .native_integer_vector(selection_spec[["sign"]]),
-    .native_integer_vector(selection_spec[["phack_q"]]),
-    .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
-    .selection_telescope_probabilities(selection_spec),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -709,10 +922,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
-  alpha       <- native_args[["alpha"]]
-  phack_kind  <- native_args[["phack_kind"]]
-  kernel_mode <- native_args[["kernel_mode"]]
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -735,17 +949,17 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(alpha),
     .native_integer_vector(phack_kind),
     .native_integer_vector(kernel_mode),
-    .native_numeric_vector(selection_spec[["z_lower"]]),
-    .native_numeric_vector(selection_spec[["z_upper"]]),
-    .native_integer_vector(selection_spec[["sign"]]),
-    .native_integer_vector(selection_spec[["phack_q"]]),
-    .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
     as.logical(lower.tail),
-    .selection_telescope_probabilities(selection_spec),
+    native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -757,10 +971,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
-  alpha       <- native_args[["alpha"]]
-  phack_kind  <- native_args[["phack_kind"]]
-  kernel_mode <- native_args[["kernel_mode"]]
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -782,16 +997,16 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(alpha),
     .native_integer_vector(phack_kind),
     .native_integer_vector(kernel_mode),
-    .native_numeric_vector(selection_spec[["z_lower"]]),
-    .native_numeric_vector(selection_spec[["z_upper"]]),
-    .native_integer_vector(selection_spec[["sign"]]),
-    .native_integer_vector(selection_spec[["phack_q"]]),
-    .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
-    .selection_telescope_probabilities(selection_spec),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -803,10 +1018,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
-  alpha       <- native_args[["alpha"]]
-  phack_kind  <- native_args[["phack_kind"]]
-  kernel_mode <- native_args[["kernel_mode"]]
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -828,16 +1044,16 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(alpha),
     .native_integer_vector(phack_kind),
     .native_integer_vector(kernel_mode),
-    .native_numeric_vector(selection_spec[["z_lower"]]),
-    .native_numeric_vector(selection_spec[["z_upper"]]),
-    .native_integer_vector(selection_spec[["sign"]]),
-    .native_integer_vector(selection_spec[["phack_q"]]),
-    .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
-    .selection_telescope_probabilities(selection_spec),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -849,10 +1065,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args <- .selection_prepare_native_args(selection_spec, S, alpha, phack_kind, kernel_mode)
-  alpha       <- native_args[["alpha"]]
-  phack_kind  <- native_args[["phack_kind"]]
-  kernel_mode <- native_args[["kernel_mode"]]
+  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
   .selection_require_native_no_active_phack(
     alpha       = alpha,
     phack_kind  = phack_kind,
@@ -876,16 +1093,16 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     .native_numeric_vector(alpha),
     .native_integer_vector(phack_kind),
     .native_integer_vector(kernel_mode),
-    .native_numeric_vector(selection_spec[["z_lower"]]),
-    .native_numeric_vector(selection_spec[["z_upper"]]),
-    .native_integer_vector(selection_spec[["sign"]]),
-    .native_integer_vector(selection_spec[["phack_q"]]),
-    .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
-    .selection_telescope_probabilities(selection_spec),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
 }
@@ -961,15 +1178,18 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(rep(selection_spec[["phack_q"]], nrow(posterior_samples)))
 }
 
-.selection_context <- function(object, posterior_samples = NULL, newdata = NULL) {
+.selection_context_from_parts <- function(fit, data, priors, posterior_samples,
+                                          effect_direction,
+                                          honor_bias_indicator = FALSE,
+                                          newdata = NULL) {
 
-  if (!.is_weightfunction(object)) {
+  if (!.is_priors_weightfunction(priors)) {
     return(NULL)
   }
 
-  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   outcome_data      <- if (is.null(newdata)) {
-    object[["data"]][["outcome"]]
+    data[["outcome"]]
   } else if (is.list(newdata) && !is.null(newdata[["outcome"]])) {
     newdata[["outcome"]]
   } else {
@@ -979,10 +1199,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   sei               <- outcome_data[["sei"]]
 
   selection_spec <- .selection_spec(
-    priors           = object[["priors"]],
+    priors           = priors,
     yi               = yi,
     sei              = sei,
-    effect_direction = .effect_direction(object),
+    effect_direction = effect_direction,
     signed_data      = FALSE
   )
 
@@ -990,8 +1210,21 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(NULL)
   }
 
-  bias_indicator <- .extract_bias_indicator(object, posterior_samples = posterior_samples)
-  use_normal     <- .extract_use_normal(object, posterior_samples = posterior_samples)
+  active_object <- list(
+    fit    = fit,
+    data   = data,
+    priors = priors
+  )
+  bias_indicator <- if (honor_bias_indicator) {
+    .extract_bias_indicator(active_object, posterior_samples = posterior_samples)
+  } else {
+    rep(1L, nrow(posterior_samples))
+  }
+  use_normal <- if (honor_bias_indicator) {
+    .extract_use_normal(active_object, posterior_samples = posterior_samples)
+  } else {
+    rep(FALSE, nrow(posterior_samples))
+  }
   kernel_mode    <- rep(selection_spec[["kernel_mode"]], nrow(posterior_samples))
   kernel_mode[use_normal] <- SELKERNEL_NORMAL
 
@@ -1006,7 +1239,20 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   selection_context[["bias_indicator"]] <- bias_indicator
   selection_context[["use_normal"]]     <- use_normal
 
-  return(selection_context)
+  return(.selection_reset_native_cache(selection_context))
+}
+
+.selection_context <- function(object, posterior_samples = NULL, newdata = NULL) {
+
+  return(.selection_context_from_parts(
+    fit                  = object[["fit"]],
+    data                 = object[["data"]],
+    priors               = object[["priors"]],
+    posterior_samples    = posterior_samples,
+    effect_direction     = .effect_direction(object),
+    honor_bias_indicator = TRUE,
+    newdata              = newdata
+  ))
 }
 
 .selection_context_subset_rows <- function(selection_context, rows) {
@@ -1027,7 +1273,17 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     }
   }
 
-  return(out)
+  return(.selection_reset_native_cache(out))
+}
+
+.selection_context_subset_observations <- function(selection_context, idx) {
+
+  out <- selection_context
+  if (!is.null(out[["obs_bin"]]) && length(out[["obs_bin"]]) >= max(idx)) {
+    out[["obs_bin"]] <- out[["obs_bin"]][idx]
+  }
+
+  return(.selection_reset_native_cache(out))
 }
 
 .selection_active_phack <- function(selection_context) {

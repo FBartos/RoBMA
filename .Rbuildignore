@@ -45,6 +45,7 @@ _pkgdown.yml
 ^\.mcp\.json$
 ^\.StatsVault$
 ^AGENTS\.md$
+^CLAUDE\.md$
 ^AGENTS\.html$
 ^docs/AGENTS\.html$
 ^figure$
@@ -52,3 +53,5 @@ _pkgdown.yml
 ^\.positai$
 ^resources$
 ^todo$
+^tools$
+^\.claude$
