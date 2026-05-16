@@ -429,6 +429,39 @@ test_that("GLMM validates inferred cells and argument lengths", {
         only_data = TRUE
       )),
       regexp = "bi"
+    ),
+    list(
+      label  = "zero treatment arm total",
+      expr   = quote(brma.glmm(
+        ai        = c(0L, 10L),
+        ci        = c(1L, 10L),
+        n1i       = c(0L, 50L),
+        n2i       = c(50L, 50L),
+        only_data = TRUE
+      )),
+      regexp = "n1i.*positive"
+    ),
+    list(
+      label  = "zero control arm total",
+      expr   = quote(brma.glmm(
+        ai        = c(1L, 10L),
+        ci        = c(0L, 10L),
+        n1i       = c(50L, 50L),
+        n2i       = c(0L, 50L),
+        only_data = TRUE
+      )),
+      regexp = "n2i.*positive"
+    ),
+    list(
+      label  = "zero treatment arm total from cells",
+      expr   = quote(brma.glmm(
+        ai        = c(0L, 10L),
+        bi        = c(0L, 40L),
+        ci        = c(1L, 10L),
+        di        = c(49L, 40L),
+        only_data = TRUE
+      )),
+      regexp = "n1i.*positive"
     )
   ))
 })

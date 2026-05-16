@@ -77,5 +77,4 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          devtools::test(stop_on_failure = TRUE)
-        shell: Rscript {0}
+          Rscript tools/test-profile.R all

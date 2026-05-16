@@ -110,6 +110,61 @@ source(testthat::test_path("common-functions.R"))
   ))
 }
 
+.with_temp_fit_cache <- function(code) {
+
+  old_test_files_dir    <- test_files_dir
+  old_temp_fits_dir     <- temp_fits_dir
+  old_temp_info_dir     <- temp_info_dir
+  old_temp_metadata_dir <- temp_metadata_dir
+  old_temp_temp_dir     <- temp_temp_dir
+  old_env               <- Sys.getenv("ROBMA_TEST_FILES_DIR", unset = NA_character_)
+  old_fit_names         <- ls(envir = .fit_object_cache)
+  old_info_names        <- ls(envir = .info_object_cache)
+  old_fit_cache         <- mget(old_fit_names, envir = .fit_object_cache, inherits = FALSE)
+  old_info_cache        <- mget(old_info_names, envir = .info_object_cache, inherits = FALSE)
+
+  cache_root <- tempfile("robma-fit-cache-")
+  dir.create(cache_root, recursive = TRUE)
+
+  test_files_dir <<- normalizePath(cache_root, winslash = "/", mustWork = TRUE)
+  temp_fits_dir     <<- file.path(test_files_dir, "fits")
+  temp_info_dir     <<- file.path(test_files_dir, "info")
+  temp_metadata_dir <<- file.path(test_files_dir, "metadata")
+  temp_temp_dir     <<- file.path(test_files_dir, "temp")
+  dir.create(temp_fits_dir, recursive = TRUE)
+  dir.create(temp_info_dir, recursive = TRUE)
+  dir.create(temp_metadata_dir, recursive = TRUE)
+  dir.create(temp_temp_dir, recursive = TRUE)
+
+  .clear_fit_object_cache()
+  .clear_info_object_cache()
+  Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
+
+  on.exit({
+    test_files_dir <<- old_test_files_dir
+    temp_fits_dir <<- old_temp_fits_dir
+    temp_info_dir <<- old_temp_info_dir
+    temp_metadata_dir <<- old_temp_metadata_dir
+    temp_temp_dir <<- old_temp_temp_dir
+    .clear_fit_object_cache()
+    .clear_info_object_cache()
+    if (length(old_fit_cache) > 0L) {
+      list2env(old_fit_cache, envir = .fit_object_cache)
+    }
+    if (length(old_info_cache) > 0L) {
+      list2env(old_info_cache, envir = .info_object_cache)
+    }
+    if (is.na(old_env)) {
+      Sys.unsetenv("ROBMA_TEST_FILES_DIR")
+    } else {
+      Sys.setenv(ROBMA_TEST_FILES_DIR = old_env)
+    }
+    unlink(cache_root, recursive = TRUE)
+  }, add = TRUE)
+
+  force(code)
+}
+
 
 test_that("cache source hash tracks only cache-affecting fitting sources", {
 
@@ -157,6 +212,37 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/summary.R",
     "src/r-regplot.cc"
   ) %in% source_files))
+})
+
+test_that("in-memory fit caches are synchronized with save and clean", {
+
+  skip_on_cran()
+
+  .with_temp_fit_cache({
+    name <- "bcg_meta-analysis"
+
+    old_fit <- .fake_fit_for_catalog_entry(name)
+    old_fit[["cache_marker"]] <- "old"
+    old_info <- .fake_info_for_catalog_entry(name)
+    old_info[["cache_marker"]] <- "old"
+
+    new_fit <- .fake_fit_for_catalog_entry(name)
+    new_fit[["cache_marker"]] <- "new"
+    new_info <- .fake_info_for_catalog_entry(name)
+    new_info[["cache_marker"]] <- "new"
+
+    save_fit(name, old_fit, old_info)
+    expect_identical(load_fit(name)[["cache_marker"]], "old")
+    expect_identical(load_info(name)[["cache_marker"]], "old")
+
+    save_fit(name, new_fit, new_info)
+    expect_identical(load_fit(name)[["cache_marker"]], "new")
+    expect_identical(load_info(name)[["cache_marker"]], "new")
+
+    clean_cached_fits(name)
+    expect_false(exists(name, envir = .fit_object_cache, inherits = FALSE))
+    expect_false(exists(name, envir = .info_object_cache, inherits = FALSE))
+  })
 })
 
 test_that("cache source hash requires a complete source root", {

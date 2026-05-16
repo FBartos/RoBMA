@@ -173,6 +173,21 @@ test_that("summary.brma options change table schema", {
   expect_false(any(grepl("error\\(MCMC\\)|ESS|R-hat", cols)))
 })
 
+test_that("summary.brma validates standardized coefficient flag", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  expect_error(
+    summary(fits[[name]], standardized_coefficients = "no"),
+    regexp = "standardized_coefficients"
+  )
+  expect_error(
+    summary(fits[[name]], standardized_coefficients = c(TRUE, FALSE)),
+    regexp = "standardized_coefficients"
+  )
+})
+
 test_that("summary.brma controls BayesTools diagnostic columns", {
 
   name <- "dat.lehmann2018_RoBMA"

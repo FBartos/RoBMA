@@ -568,6 +568,13 @@ NULL
   bi <- n1i - ai
   di <- n2i - ci
 
+  if (!skip_validation) {
+    if (any(n1i <= 0, na.rm = TRUE))
+      stop("Invalid data: 'n1i' must contain positive arm totals.", call. = FALSE)
+    if (any(n2i <= 0, na.rm = TRUE))
+      stop("Invalid data: 'n2i' must contain positive arm totals.", call. = FALSE)
+  }
+
   # Extract and validate common optional variables (weights, cluster, slab)
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "ai")
 

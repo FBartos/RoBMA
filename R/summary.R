@@ -65,6 +65,7 @@ summary.brma       <- function(
   outcome_type  <- .outcome_type(object)
 
   BayesTools::check_bool(include_mcmc_diagnostics, "include_mcmc_diagnostics")
+  BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(logBF, "logBF")
   BayesTools::check_bool(BF01, "BF01")

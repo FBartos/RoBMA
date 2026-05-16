@@ -707,8 +707,44 @@ read_cached_fit <- function(name) {
   return(fit)
 }
 
+read_cached_info <- function(name) {
+
+  path <- fit_cache_paths(name)[["info"]]
+  info <- suppressWarnings(try(readRDS(path), silent = TRUE))
+
+  if (inherits(info, "try-error")) {
+    return(list())
+  }
+
+  return(info)
+}
+
 .fit_object_cache  <- new.env(parent = emptyenv())
 .info_object_cache <- new.env(parent = emptyenv())
+
+.clear_fit_object_cache <- function(names = NULL) {
+
+  if (is.null(names)) {
+    names <- ls(envir = .fit_object_cache)
+  }
+  if (length(names) > 0L) {
+    rm(list = names, envir = .fit_object_cache)
+  }
+
+  return(invisible(TRUE))
+}
+
+.clear_info_object_cache <- function(names = NULL) {
+
+  if (is.null(names)) {
+    names <- ls(envir = .info_object_cache)
+  }
+  if (length(names) > 0L) {
+    rm(list = names, envir = .info_object_cache)
+  }
+
+  return(invisible(TRUE))
+}
 
 is_true_env <- function(name) {
 
@@ -821,7 +857,7 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
   }
 
   if (is.null(info)) {
-    info <- load_info(name, validate = FALSE)
+    info <- read_cached_info(name)
   }
 
   if (!is.null(entry) && !inherits(fit, entry[["class"]])) {
@@ -940,19 +976,24 @@ save_fit <- function(name, fit, info = NULL) {
   # Save info if provided
   if (!is.null(info)) {
     saveRDS(info, file = paths[["info"]])
+  } else if (file.exists(paths[["info"]])) {
+    file.remove(paths[["info"]])
   }
 
   # Save cache metadata last so interrupted fits do not validate later.
   saveRDS(metadata, file = paths[["metadata"]])
 
+  assign(name, fit, envir = .fit_object_cache)
+  if (!is.null(info)) {
+    assign(name, info, envir = .info_object_cache)
+  } else {
+    .clear_info_object_cache(name)
+  }
+
   return(invisible(TRUE))
 }
 
 load_fit <- function(name, validate = TRUE) {
-
-  if (exists(name, envir = .fit_object_cache, inherits = FALSE)) {
-    return(get(name, envir = .fit_object_cache, inherits = FALSE))
-  }
 
   if (validate) {
     problems <- validate_cached_fit(name)
@@ -963,6 +1004,10 @@ load_fit <- function(name, validate = TRUE) {
         ". Run `test(filter = 'test-01')`."
       ))
     }
+  }
+
+  if (exists(name, envir = .fit_object_cache, inherits = FALSE)) {
+    return(get(name, envir = .fit_object_cache, inherits = FALSE))
   }
 
   fit <- read_cached_fit(name)
@@ -977,10 +1022,6 @@ load_fit <- function(name, validate = TRUE) {
 
 load_info <- function(name, validate = TRUE) {
 
-  if (exists(name, envir = .info_object_cache, inherits = FALSE)) {
-    return(get(name, envir = .info_object_cache, inherits = FALSE))
-  }
-
   if (validate) {
     problems <- validate_cached_fit(name)
     if (length(problems) > 0) {
@@ -992,11 +1033,11 @@ load_info <- function(name, validate = TRUE) {
     }
   }
 
-  # load model info
-  info <- suppressWarnings(try(readRDS(file = file.path(temp_info_dir, paste0(name, ".RDS"))), silent = TRUE))
-  if (inherits(info, "try-error")) {
-    info <- list()
+  if (exists(name, envir = .info_object_cache, inherits = FALSE)) {
+    return(get(name, envir = .info_object_cache, inherits = FALSE))
   }
+
+  info <- read_cached_info(name)
 
   assign(name, info, envir = .info_object_cache)
 
@@ -1147,9 +1188,14 @@ clean_cached_fits <- function(name) {
       fit_names <- name
     }
     for (fit_name in fit_names) {
-      paths <- fit_cache_paths(fit_name)
-      file.remove(unlist(paths, use.names = FALSE))
+      paths <- unlist(fit_cache_paths(fit_name), use.names = FALSE)
+      paths <- paths[file.exists(paths)]
+      if (length(paths) > 0L) {
+        file.remove(paths)
+      }
     }
+    .clear_fit_object_cache(fit_names)
+    .clear_info_object_cache(fit_names)
   } else {
     # Remove all cached files from test directories
     unlink(temp_fits_dir, recursive = TRUE)
@@ -1162,6 +1208,9 @@ clean_cached_fits <- function(name) {
     dir.create(temp_info_dir, showWarnings = FALSE, recursive = TRUE)
     dir.create(temp_metadata_dir, showWarnings = FALSE, recursive = TRUE)
     dir.create(temp_temp_dir, showWarnings = FALSE, recursive = TRUE)
+
+    .clear_fit_object_cache()
+    .clear_info_object_cache()
   }
 
   message("Cleaned cached fits in: ", test_files_dir)
