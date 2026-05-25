@@ -57,18 +57,24 @@ NULL
 
   posterior_plot_args         <- names(formals(BayesTools::plot_posterior))
   marginal_plot_args          <- names(formals(BayesTools::plot_marginal))
+  savage_dickey_args          <- names(formals(BayesTools::Savage_Dickey_BF))
   missing_posterior_plot_args <- setdiff(
-    c("data", "show_data", "dots_data"),
+    c("data", "show_data", "dots_data", "density_method"),
     posterior_plot_args
   )
   missing_marginal_plot_args  <- setdiff(
-    c("legend", "legend_title", "legend_labels", "legend_position"),
+    c("legend", "legend_title", "legend_labels", "legend_position", "density_method"),
     marginal_plot_args
+  )
+  missing_savage_dickey_args  <- setdiff(
+    "density_method",
+    savage_dickey_args
   )
 
   if (length(missing) > 0 ||
       length(missing_posterior_plot_args) > 0 ||
-      length(missing_marginal_plot_args) > 0) {
+      length(missing_marginal_plot_args) > 0 ||
+      length(missing_savage_dickey_args) > 0) {
     details <- character(0)
     if (length(missing) > 0) {
       details <- c(details, paste0("missing functions: ", paste(missing, collapse = ", ")))
@@ -88,6 +94,15 @@ NULL
         paste0(
           "BayesTools::plot_marginal() missing arguments: ",
           paste(missing_marginal_plot_args, collapse = ", ")
+        )
+      )
+    }
+    if (length(missing_savage_dickey_args) > 0) {
+      details <- c(
+        details,
+        paste0(
+          "BayesTools::Savage_Dickey_BF() missing arguments: ",
+          paste(missing_savage_dickey_args, collapse = ", ")
         )
       )
     }

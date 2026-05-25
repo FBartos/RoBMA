@@ -63,6 +63,23 @@ test_that("top-level fitting constructors reject other named dots", {
   )
 })
 
+test_that("unused-dot warning helper reports ignored arguments", {
+
+  expect_warning(
+    .warn_unused_dots(
+      dots    = list(legacy_argument = 1),
+      allowed = character(),
+      caller  = "test()"
+    ),
+    "Unused argument.*legacy_argument"
+  )
+  expect_silent(.warn_unused_dots(
+    dots    = list(lwd = 1),
+    allowed = "lwd",
+    caller  = "test()"
+  ))
+})
+
 test_that("top-level fitting constructors validate internal dot types", {
 
   expect_error(

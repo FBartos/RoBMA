@@ -180,6 +180,27 @@
   return(dots)
 }
 
+.plot_dots_allowed <- function() {
+
+  return(c(
+    "lwd", "lty", "col", "col.fill", "xlab", "ylab", "main",
+    "xlim", "ylim", "par_name", "legend", "legend_title",
+    "legend_labels", "legend_position", "cex", "cex.axis",
+    "cex.lab", "cex.main", "col.axis", "col.lab", "col.main",
+    "las", "bty", "xaxs", "yaxs", "axes", "xaxt", "yaxt",
+    "pch", "bg", "border", "width", "scale_y2", "color",
+    "colour", "fill", "alpha", "size", "linewidth", "linetype"
+  ))
+}
+
+.iwmde_diagnostics_dots_allowed <- function() {
+
+  return(c(
+    "hist_col", "hist_border", "kde_col", "kde_lwd",
+    "iwmde_col", "iwmde_lwd"
+  ))
+}
+
 .plot_level_palette   <- function(n_levels) {
 
   if (n_levels <= 0L) {

@@ -58,6 +58,25 @@
 }
 
 
+.iwmde_include_plot_values <- function(xlim, values, support) {
+
+  values <- as.numeric(values)
+  values <- values[
+    is.finite(values) &
+      values >= support[1] &
+      values <= support[2]
+  ]
+  if (length(values) == 0L) {
+    return(xlim)
+  }
+
+  xlim[1] <- min(xlim[1], values)
+  xlim[2] <- max(xlim[2], values)
+
+  return(.iwmde_open_finite_support(xlim, support))
+}
+
+
 .iwmde_parameter_transform <- function(support) {
 
   if (all(is.finite(support))) {
@@ -234,6 +253,31 @@
   }
 
   return(grid)
+}
+
+
+.iwmde_include_display_values <- function(grid, values, xlim, support) {
+
+  values <- as.numeric(values)
+  values <- values[
+    is.finite(values) &
+      values >= xlim[1] &
+      values <= xlim[2] &
+      values >= support[1] &
+      values <= support[2]
+  ]
+  if (length(values) == 0L) {
+    return(grid)
+  }
+
+  for (value in sort(unique(values))) {
+    if (any(abs(grid - value) <= sqrt(.Machine$double.eps) * max(1, abs(value)))) {
+      next
+    }
+    grid[which.min(abs(grid - value))] <- value
+  }
+
+  return(sort(unique(grid)))
 }
 
 

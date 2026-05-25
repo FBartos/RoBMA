@@ -16,9 +16,8 @@
 #' @param autofit_control list of autofit control settings. See [set_autofit_control()] for details.
 #' @param convergence_checks list of convergence check settings. See [set_convergence_checks()] for details.
 #' @param seed numeric. Random seed for reproducibility. Defaults to `NULL`.
-#' @param silent logical. Whether to suppress output. Constructors with no
-#' explicit default use `RoBMA.get_option("silent")` when `silent` is omitted.
-#' Model-averaging wrappers default to `TRUE` unless explicitly changed.
+#' @param silent logical. Whether to suppress output. When omitted,
+#' constructors use `RoBMA.get_option("silent")`.
 #' @param ... additional advanced arguments. Fitting functions reject unused
 #' arguments; currently recognized internal arguments include `only_data`,
 #' `only_priors`, `is_JASP`, and `is_JASP_prefix`.
@@ -145,6 +144,49 @@ NULL
     paste0("'", unused, "'", collapse = ", "),
     call. = FALSE
   )
+}
+
+.warn_unused_dots <- function(dots, allowed, caller) {
+
+  if (length(dots) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    dot_names <- rep("", length(dots))
+  }
+
+  unused <- dot_names[!nzchar(dot_names) | !dot_names %in% allowed]
+  if (length(unused) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  unused[!nzchar(unused)] <- "<unnamed>"
+  warning(
+    "Unused argument", if (length(unused) > 1L) "s" else "",
+    " in ", caller, ": ",
+    paste0("'", unused, "'", collapse = ", "),
+    call. = FALSE
+  )
+
+  return(invisible(TRUE))
+}
+
+.keep_allowed_dots <- function(dots, allowed) {
+
+  if (length(dots) == 0L) {
+    return(list())
+  }
+
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    return(list())
+  }
+
+  keep <- nzchar(dot_names) & dot_names %in% allowed
+
+  return(dots[keep])
 }
 
 .autocompute_brma <- function(object, marglik = !inherits(object, "RoBMA")) {

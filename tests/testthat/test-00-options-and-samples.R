@@ -24,6 +24,69 @@ test_that("RoBMA options expose only public options", {
   expect_equal(updated[["max_cores"]], 1L)
 })
 
+test_that("fitting constructors inherit silent option when omitted", {
+
+  old_options <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old_options), add = TRUE)
+
+  norm_args <- list(
+    yi        = c(0.1, 0.2, 0.3),
+    sei       = c(0.2, 0.2, 0.2),
+    measure   = "GEN",
+    only_data = TRUE
+  )
+  glmm_args <- list(
+    ai        = c(1, 2, 3),
+    bi        = c(9, 8, 7),
+    ci        = c(2, 1, 2),
+    di        = c(8, 9, 8),
+    measure   = "OR",
+    only_data = TRUE
+  )
+
+  constructors <- list(
+    brma       = list(fun = brma,       args = norm_args),
+    RoBMA      = list(fun = RoBMA,      args = norm_args),
+    BMA        = list(fun = BMA,        args = norm_args),
+    bselmodel  = list(fun = bselmodel,  args = norm_args),
+    bPET       = list(fun = bPET,       args = norm_args),
+    bPEESE     = list(fun = bPEESE,     args = norm_args),
+    brma.glmm  = list(fun = brma.glmm,  args = glmm_args),
+    BMA.glmm   = list(fun = BMA.glmm,   args = glmm_args)
+  )
+
+  constructor_silent <- function(constructor) {
+
+    object <- do.call(constructor[["fun"]], constructor[["args"]])
+
+    return(object[["fit_control"]][["silent"]])
+  }
+
+  RoBMA.options(silent = TRUE)
+  for (constructor_name in names(constructors)) {
+    expect_true(
+      constructor_silent(constructors[[constructor_name]]),
+      info = constructor_name
+    )
+  }
+
+  RoBMA.options(silent = FALSE)
+  for (constructor_name in names(constructors)) {
+    expect_false(
+      constructor_silent(constructors[[constructor_name]]),
+      info = constructor_name
+    )
+  }
+
+  explicit_args             <- norm_args
+  explicit_args[["silent"]] <- TRUE
+  expect_true(constructor_silent(list(fun = BMA, args = explicit_args)))
+
+  RoBMA.options(silent = TRUE)
+  explicit_args[["silent"]] <- FALSE
+  expect_false(constructor_silent(list(fun = RoBMA, args = explicit_args)))
+})
+
 
 test_that("convergence checks expose only active thresholds", {
 

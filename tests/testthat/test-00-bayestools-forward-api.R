@@ -34,9 +34,11 @@ test_that("BayesTools forward API guard passes for the active namespace", {
   ))
   expect_true("interpret_records" %in% getNamespaceExports("BayesTools"))
   expect_true(all(
-    c("legend", "legend_title", "legend_labels", "legend_position") %in%
+    c("legend", "legend_title", "legend_labels", "legend_position", "density_method") %in%
       names(formals(BayesTools::plot_marginal))
   ))
+  expect_true("density_method" %in% names(formals(BayesTools::plot_posterior)))
+  expect_true("density_method" %in% names(formals(BayesTools::Savage_Dickey_BF)))
 })
 
 test_that(".get_model_matrix uses fitted BayesTools design metadata", {

@@ -726,6 +726,8 @@ read_cached_info <- function(name) {
 
   if (is.null(names)) {
     names <- ls(envir = .fit_object_cache)
+  } else {
+    names <- intersect(names, ls(envir = .fit_object_cache))
   }
   if (length(names) > 0L) {
     rm(list = names, envir = .fit_object_cache)
@@ -738,6 +740,8 @@ read_cached_info <- function(name) {
 
   if (is.null(names)) {
     names <- ls(envir = .info_object_cache)
+  } else {
+    names <- intersect(names, ls(envir = .info_object_cache))
   }
   if (length(names) > 0L) {
     rm(list = names, envir = .info_object_cache)

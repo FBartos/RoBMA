@@ -76,7 +76,7 @@ RoBMA <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent = TRUE, ...) {
+  seed = NULL, silent, ...) {
 
   ### create the output object
   dots            <- list(...)

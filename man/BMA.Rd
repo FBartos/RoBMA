@@ -44,7 +44,7 @@ BMA(
   autofit_control = set_autofit_control(),
   convergence_checks = set_convergence_checks(),
   seed = NULL,
-  silent = TRUE,
+  silent,
   ...
 )
 }
@@ -168,9 +168,8 @@ Defaults to \code{FALSE}.}
 
 \item{seed}{numeric. Random seed for reproducibility. Defaults to \code{NULL}.}
 
-\item{silent}{logical. Whether to suppress output. Constructors with no
-explicit default use \code{RoBMA.get_option("silent")} when \code{silent} is omitted.
-Model-averaging wrappers default to \code{TRUE} unless explicitly changed.}
+\item{silent}{logical. Whether to suppress output. When omitted,
+constructors use \code{RoBMA.get_option("silent")}.}
 
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},

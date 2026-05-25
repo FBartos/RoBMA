@@ -57,7 +57,7 @@ test_that("IWMDE density aggregation matches row-wise reference", {
 
 test_that("IWMDE omega matrix collapse matches row-wise collapse", {
 
-  omega       <- matrix(seq_len(12), nrow = 3, byrow = TRUE)
+  omega       <- matrix(c(1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6), nrow = 3, byrow = TRUE)
   global_cuts <- c(0, .025, .05, .50, 1)
   active_cuts <- c(0, .05, 1)
 
@@ -72,6 +72,52 @@ test_that("IWMDE omega matrix collapse matches row-wise collapse", {
   ))
 
   expect_equal(fast, ref)
+  expect_equal(fast[, 1], c(1, 3, 5))
+})
+
+
+test_that("IWMDE omega collapse rejects unequal merged bins", {
+
+  global_cuts <- c(0, .025, .05, .50, 1)
+  active_cuts <- c(0, .05, .50, 1)
+  omega       <- c(1, .5, .25, .25)
+
+  collapsed <- .iwmde_collapse_omega(
+    omega       = omega,
+    global_cuts = global_cuts,
+    active_cuts = active_cuts
+  )
+
+  expect_true(is.na(collapsed[1]))
+  expect_equal(collapsed[2:3], c(.25, .25))
+})
+
+
+test_that("IWMDE active omega does not truncate unexpected omega lengths", {
+
+  context <- list(
+    selection_spec = list(
+      n_bins = 4L,
+      p_cuts = c(0, .025, .05, .50, 1)
+    )
+  )
+  active_setup <- list(
+    selection_spec = list(
+      n_bins = 2L,
+      p_cuts = c(0, .05, 1)
+    ),
+    priors = list(outcome = list(bias = NULL))
+  )
+  row <- c("omega[1]" = 1, "omega[2]" = .5, "omega[3]" = .25)
+
+  omega <- .iwmde_active_omega(
+    context      = context,
+    row          = row,
+    active_setup = active_setup
+  )
+
+  expect_true(all(is.na(omega)))
+  expect_length(omega, 2L)
 })
 
 test_that("IWMDE batched q evaluation matches scalar fallback", {

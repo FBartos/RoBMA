@@ -44,27 +44,221 @@ test_that("IWMDE diagnostics compute for representative cached fits", {
       n_points    = 20,
       max_samples = 20,
       plot        = FALSE,
-      as_data     = TRUE,
-      seed        = 1
+      as_data     = TRUE
     )
 
     .expect_iwmde_ok(out, cases[[name]])
   }
 })
 
-test_that("plain Chen IWMDE diagnostics compute without q-grid normalization", {
+test_that("IWMDE diagnostics can include requested density support values", {
+
+  .skip_if_missing_raw_fits("bcg_meta-analysis")
+
+  fit     <- load_fit("bcg_meta-analysis", validate = FALSE)
+  context <- .iwmde_context(fit)
+  base <- .iwmde_parameter_diagnostic(
+    context              = context,
+    parameter            = "mu",
+    n_points             = 20,
+    max_samples          = 20,
+    normalization_points = 20,
+    normalization_prob   = .999,
+    diagnostic_cache     = .iwmde_diagnostic_cache()
+  )
+  include_value <- base[["xlim"]][2] + .05 * diff(base[["xlim"]])
+  out <- .iwmde_parameter_diagnostic(
+    context              = context,
+    parameter            = "mu",
+    n_points             = 20,
+    max_samples          = 20,
+    normalization_points = 20,
+    normalization_prob   = .999,
+    include_values       = include_value,
+    diagnostic_cache     = .iwmde_diagnostic_cache()
+  )
+
+  expect_equal(out[["status"]], "ok")
+  expect_true(include_value >= min(out[["iwmde"]][["x"]]))
+  expect_true(include_value <= max(out[["iwmde"]][["x"]]))
+  expect_true(any(abs(out[["iwmde"]][["x"]] - include_value) <=
+                    sqrt(.Machine$double.eps) * max(1, abs(include_value))))
+  expect_true(out[["diagnostics"]][["bf_included"]])
+  expect_equal(out[["diagnostics"]][["bf_value"]], include_value)
+  expect_true(is.finite(out[["diagnostics"]][["bf_ordinate"]]))
+  expect_true(is.finite(out[["diagnostics"]][["bf_error_percent"]]))
+})
+
+test_that("IWMDE diagnostics warn on unused dots", {
+
+  .skip_if_missing_raw_fits("bcg_meta-analysis")
+
+  expect_warning(
+    plot_iwmde_diagnostics(
+      object      = load_fit("bcg_meta-analysis", validate = FALSE),
+      parameters  = "mu",
+      n_points    = 20,
+      max_samples = 20,
+      method      = "iwmde",
+      plot        = FALSE
+    ),
+    "Unused argument.*method"
+  )
+})
+
+test_that("old IWMDE variant labels are rejected", {
+
+  .skip_if_missing_raw_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
+
+  expect_error(
+    plot_iwmde_diagnostics(
+      object         = load_fit("bcg_meta-analysis", validate = FALSE),
+      parameters     = "mu",
+      n_points       = 20,
+      max_samples    = 20,
+      density_method = "IWMDE-Chen",
+      plot           = FALSE
+    ),
+    "should be one of"
+  )
+  expect_error(
+    plot(
+      load_fit("bcg_meta-analysis", validate = FALSE),
+      parameter      = "mu",
+      density_method = "IWMDE-CMDE"
+    ),
+    "should be one of"
+  )
+  expect_error(
+    marginal_means(
+      load_fit("bcg_meta-regression2", validate = FALSE),
+      n_samples      = 1000,
+      density_method = "IWMDE-Chen"
+    ),
+    "should be one of"
+  )
+})
+
+test_that("unused dots warn in cleaned density interfaces", {
+
+  .skip_if_missing_raw_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
+
+  expect_warning(
+    plot(
+      load_fit("bcg_meta-analysis", validate = FALSE),
+      parameter       = "mu",
+      density_method  = "qCMDE",
+      density_control = list(n_points = 20, max_samples = 20),
+      iwmde_n_points  = 20
+    ),
+    "Unused argument.*iwmde_n_points"
+  )
+  expect_warning(
+    marginal_means(
+      load_fit("bcg_meta-regression2", validate = FALSE),
+      n_samples          = 1000,
+      density_method     = "qCMDE",
+      density_control    = list(n_points = 20, max_samples = 20),
+      iwmde_max_samples  = 20
+    ),
+    "Unused argument.*iwmde_max_samples"
+  )
+})
+
+test_that("density_control validates public density settings", {
+
+  valid <- .density_control_normalize(
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 20,
+      max_samples          = 30,
+      normalization_points = 40,
+      normalization_prob   = .95,
+      display_grid         = "uniform"
+    )
+  )
+
+  expect_equal(valid[["n_points"]], 20)
+  expect_equal(valid[["max_samples"]], 30)
+  expect_equal(valid[["normalization_points"]], 40)
+  expect_equal(valid[["normalization_prob"]], .95)
+  expect_equal(valid[["display_grid"]], "uniform")
+  expect_error(
+    .density_control_normalize("qCMDE", list(unknown = 1)),
+    "unrecognized"
+  )
+  expect_error(
+    .density_control_normalize("qCMDE", list(20)),
+    "fully named"
+  )
+  expect_error(
+    .density_control_normalize(
+      "qCMDE",
+      structure(list(20, 30), names = c("n_points", "n_points"))
+    ),
+    "duplicate"
+  )
+  expect_error(
+    .density_control_normalize("KDE", list(n_points = 20)),
+    "only used"
+  )
+  expect_error(
+    .density_control_normalize("IWMDE", list(normalization_points = 20)),
+    "only available"
+  )
+  expect_error(
+    .density_control_normalize("qCMDE", list(normalization_prob = 0)),
+    "higher than 0"
+  )
+  expect_error(
+    .density_control_normalize("qCMDE", list(normalization_prob = NA_real_)),
+    "cannot contain"
+  )
+})
+
+test_that("IWMDE row thinning is deterministic and equally spaced", {
+
+  rows <- seq(2L, 80L, by = 2L)
+  set.seed(123)
+  old_seed <- .Random.seed
+
+  out <- .iwmde_select_active_rows(rows = rows, max_samples = 10)
+
+  expect_equal(out, rows[unique(round(seq(1, length(rows), length.out = 10)))])
+  expect_identical(.Random.seed, old_seed)
+  expect_equal(.iwmde_select_active_rows(rows = rows, max_samples = 10), out)
+})
+
+test_that("IWMDE condition rows keep one-row shape and ignore missing values", {
+
+  context <- list(
+    posterior_samples = data.frame(mu = 0),
+    flat_prior_list   = list()
+  )
+  rows <- .iwmde_parameter_condition_rows(
+    context = context,
+    parameter_spec = list(
+      conditional      = c("missing_a", NA, "missing_b"),
+      conditional_rule = "OR"
+    )
+  )
+
+  expect_length(rows, 1L)
+  expect_false(rows)
+})
+
+test_that("IWMDE diagnostics compute without q-grid normalization", {
 
   .skip_if_missing_raw_fits("bcg_meta-analysis")
 
   out <- plot_iwmde_diagnostics(
-    object      = load_fit("bcg_meta-analysis", validate = FALSE),
-    parameters  = c("mu", "tau"),
-    n_points    = 20,
-    max_samples = 50,
-    method      = "iwmde",
-    plot        = FALSE,
-    as_data     = TRUE,
-    seed        = 1
+    object         = load_fit("bcg_meta-analysis", validate = FALSE),
+    parameters     = c("mu", "tau"),
+    n_points       = 20,
+    max_samples    = 50,
+    density_method = "IWMDE",
+    plot           = FALSE,
+    as_data        = TRUE
   )
 
   expect_named(out, c("mu", "tau"))
@@ -81,29 +275,27 @@ test_that("plain Chen IWMDE diagnostics compute without q-grid normalization", {
   }
 })
 
-test_that("plain Chen IWMDE uses moment-matched recommended weights", {
+test_that("IWMDE uses moment-matched recommended weights", {
 
   .skip_if_missing_raw_fits(c("bcg_meta-analysis", "konstantopoulos2011_3lvl"))
 
   meta_out <- plot_iwmde_diagnostics(
-    object      = load_fit("bcg_meta-analysis", validate = FALSE),
-    parameters  = c("mu", "tau"),
-    n_points    = 20,
-    max_samples = 50,
-    method      = "iwmde",
-    plot        = FALSE,
-    as_data     = TRUE,
-    seed        = 1
+    object         = load_fit("bcg_meta-analysis", validate = FALSE),
+    parameters     = c("mu", "tau"),
+    n_points       = 20,
+    max_samples    = 50,
+    density_method = "IWMDE",
+    plot           = FALSE,
+    as_data        = TRUE
   )
   rho_out <- plot_iwmde_diagnostics(
-    object      = load_fit("konstantopoulos2011_3lvl", validate = FALSE),
-    parameters  = "rho",
-    n_points    = 20,
-    max_samples = 30,
-    method      = "iwmde",
-    plot        = FALSE,
-    as_data     = TRUE,
-    seed        = 1
+    object         = load_fit("konstantopoulos2011_3lvl", validate = FALSE),
+    parameters     = "rho",
+    n_points       = 20,
+    max_samples    = 30,
+    density_method = "IWMDE",
+    plot           = FALSE,
+    as_data        = TRUE
   )
 
   expect_equal(meta_out[["mu"]][["diagnostics"]][["weight_method"]],
@@ -127,13 +319,36 @@ test_that("IWMDE diagnostics compute for estimated marginal means", {
     n_points              = 20,
     max_samples           = 20,
     plot                  = FALSE,
-    as_data               = TRUE,
-    seed                  = 1
+    as_data               = TRUE
   )
 
   .expect_iwmde_ok(out, names(out))
   expect_named(out, c("alloc: alternate", "alloc: random", "alloc: systematic"))
   expect_false(is.null(mm[["iwmde_signature"]]))
+})
+
+test_that("IWMDE diagnostics compute for conditional estimated marginal means", {
+
+  .skip_if_missing_raw_fits("dat.lehmann2018_RoBMA_mods")
+
+  fit <- load_fit("dat.lehmann2018_RoBMA_mods", validate = FALSE)
+  mm  <- marginal_means(fit, n_samples = 1000)
+  out <- plot_iwmde_marginal_means_diagnostics(
+    object                = fit,
+    parameter             = "Preregistered",
+    type                  = "conditional",
+    levels                = "Not Pre-Registered",
+    marginal_means_object = mm,
+    n_points              = 20,
+    max_samples           = 20,
+    plot                  = FALSE,
+    as_data               = TRUE
+  )
+
+  .expect_iwmde_ok(out, names(out))
+  expect_named(out, "Preregistered: Not Pre-Registered")
+  expect_true(out[["Preregistered: Not Pre-Registered"]][["diagnostics"]][["n_total"]] <
+                length(mm[["inference"]][["averaged"]][["mu_Preregistered"]][["Not Pre-Registered"]]))
 })
 
 test_that("IWMDE reuses identical marginal-mean linear targets", {
@@ -150,8 +365,7 @@ test_that("IWMDE reuses identical marginal-mean linear targets", {
     n_points              = 20,
     max_samples           = 20,
     plot                  = FALSE,
-    as_data               = TRUE,
-    seed                  = 1
+    as_data               = TRUE
   )
 
   duplicate_targets <- c(
@@ -221,8 +435,7 @@ test_that("IWMDE diagnostics handle RoBMA mixture branches", {
     n_points    = 20,
     max_samples = 20,
     plot        = FALSE,
-    as_data     = TRUE,
-    seed        = 1
+    as_data     = TRUE
   )
 
   .expect_iwmde_ok(out[c("mu", "tau", "PET", "PEESE")], c("mu", "tau", "PET", "PEESE"))
@@ -249,7 +462,6 @@ test_that("IWMDE diagnostics draw base plot matrix", {
     object      = load_fit("dat.lehmann2018_RoBMA", validate = FALSE),
     parameters  = c("mu", "tau", "PET", "PEESE"),
     n_points    = 20,
-    max_samples = 20,
-    seed        = 1
+    max_samples = 20
   ))
 })

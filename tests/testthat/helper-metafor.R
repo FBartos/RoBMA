@@ -30,6 +30,16 @@
   return(.test_info()[[case_name(case)]][["metafor"]])
 }
 
+.case_metafor_vif <- function(case) {
+
+  info <- .test_info()[[case_name(case)]]
+  if (!is.null(info[["metafor_vif"]])) {
+    return(info[["metafor_vif"]])
+  }
+
+  return(info[["metafor"]])
+}
+
 .metafor_dfbetas <- function(fit_metafor) {
 
   if (inherits(fit_metafor, "rma.mv")) {
@@ -733,7 +743,7 @@ expect_vif_matches_metafor <- function(case) {
 
   name        <- case_name(case)
   fit_brma    <- .case_fit(case)
-  fit_metafor <- .case_metafor(case)
+  fit_metafor <- .case_metafor_vif(case)
   tolerance   <- case_value(case, "tolerance", 0.10)
   btt         <- case_value(case, "btt", NULL)
 

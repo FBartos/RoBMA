@@ -309,17 +309,12 @@
   }
 
   global_spec <- context[["selection_spec"]]
-  if (length(omega) == active_spec[["n_bins"]] &&
-      (is.null(global_spec) ||
-        .iwmde_same_p_cuts(global_spec[["p_cuts"]], active_spec[["p_cuts"]]))) {
+  if (length(omega) == active_spec[["n_bins"]]) {
     return(.iwmde_validate_omega(omega, active_spec[["n_bins"]]))
   }
 
   if (is.null(global_spec) || length(omega) != global_spec[["n_bins"]]) {
-    return(.iwmde_validate_omega(
-      omega[seq_len(active_spec[["n_bins"]])],
-      active_spec[["n_bins"]]
-    ))
+    return(rep(NA_real_, active_spec[["n_bins"]]))
   }
 
   omega <- .iwmde_collapse_omega(
@@ -376,10 +371,25 @@
 
 .iwmde_collapse_omega <- function(omega, global_cuts, active_cuts) {
 
-  index <- .iwmde_collapse_omega_index(global_cuts, active_cuts)
-  out   <- rep(NA_real_, length(index))
-  keep  <- !is.na(index)
-  out[keep] <- omega[index[keep]]
+  bins <- .iwmde_collapse_omega_bins(global_cuts, active_cuts)
+  out  <- rep(NA_real_, length(bins))
+  tol  <- sqrt(.Machine$double.eps)
+  for (i in seq_along(bins)) {
+    index <- bins[[i]]
+    if (length(index) == 0L || any(index > length(omega))) {
+      next
+    }
+    if (length(index) == 1L) {
+      out[i] <- omega[index]
+      next
+    }
+    values <- as.numeric(omega[index])
+    scale  <- max(1, abs(values), na.rm = TRUE)
+    if (all(is.finite(values)) &&
+        max(abs(values - values[1L])) <= tol * scale) {
+      out[i] <- mean(values)
+    }
+  }
 
   return(out)
 }
@@ -387,20 +397,42 @@
 
 .iwmde_collapse_omega_matrix <- function(omega, global_cuts, active_cuts) {
 
-  index <- .iwmde_collapse_omega_index(global_cuts, active_cuts)
-  out   <- matrix(NA_real_, nrow = nrow(omega), ncol = length(index))
-  keep  <- !is.na(index)
-  if (any(keep)) {
-    out[, keep] <- omega[, index[keep], drop = FALSE]
+  bins <- .iwmde_collapse_omega_bins(global_cuts, active_cuts)
+  out  <- matrix(NA_real_, nrow = nrow(omega), ncol = length(bins))
+  tol  <- sqrt(.Machine$double.eps)
+  for (i in seq_along(bins)) {
+    index <- bins[[i]]
+    if (length(index) == 0L || any(index > ncol(omega))) {
+      next
+    }
+    if (length(index) == 1L) {
+      out[, i] <- omega[, index]
+      next
+    }
+    values <- omega[, index, drop = FALSE]
+    finite <- rowSums(is.finite(values)) == ncol(values)
+    row_min <- values[, 1L]
+    row_max <- values[, 1L]
+    scale   <- abs(values[, 1L])
+    for (j in seq.int(2L, ncol(values))) {
+      row_min <- pmin(row_min, values[, j])
+      row_max <- pmax(row_max, values[, j])
+      scale   <- pmax(scale, abs(values[, j]))
+    }
+    spread <- row_max - row_min
+    keep   <- finite & spread <= tol * pmax(1, scale)
+    if (any(keep)) {
+      out[keep, i] <- rowMeans(values[keep, , drop = FALSE])
+    }
   }
 
   return(out)
 }
 
 
-.iwmde_collapse_omega_index <- function(global_cuts, active_cuts) {
+.iwmde_collapse_omega_bins <- function(global_cuts, active_cuts) {
 
-  out <- rep(NA_integer_, length(active_cuts) - 1L)
+  out <- vector("list", length(active_cuts) - 1L)
 
   for (i in seq_along(out)) {
     lower <- active_cuts[i]
@@ -410,9 +442,9 @@
         global_cuts[-1L] <= upper + 1e-12
     )
     if (length(bins) == 0L) {
-      out[i] <- NA_integer_
+      out[[i]] <- integer()
     } else {
-      out[i] <- bins[1L]
+      out[[i]] <- bins
     }
   }
 

@@ -23,6 +23,26 @@
     return(list(type = "primitive", parameter = parameter, status = "ok"))
   }
 
+  if (identical(parameter_spec[["type"]], "primitive")) {
+    if (!parameter %in% colnames(samples)) {
+      return(list(status = "unsupported", reason = "posterior column is missing"))
+    }
+    if (.iwmde_parameter_is_indicator(parameter)) {
+      return(list(status = "unsupported", reason = "indicator columns are discrete"))
+    }
+    if (.iwmde_parameter_is_weightfunction_coordinate(parameter)) {
+      return(list(
+        status = "unsupported",
+        reason = "weightfunction coordinates need a joint omega/eta replacement map"
+      ))
+    }
+
+    parameter_spec[["parameter"]] <- parameter
+    parameter_spec[["status"]]    <- "ok"
+
+    return(parameter_spec)
+  }
+
   if (!identical(parameter_spec[["type"]], "linear")) {
     return(list(status = "unsupported", reason = "unknown IWMDE parameter spec"))
   }
@@ -204,9 +224,9 @@
     }
   }
 
-  point_location <- point_location[is.finite(point_location)]
-  if (length(point_location) > 0L) {
-    point_table <- table(signif(point_location, 12))
+  finite_point_location <- point_location[is.finite(point_location)]
+  if (length(finite_point_location) > 0L) {
+    point_table <- table(signif(finite_point_location, 12))
     points <- data.frame(
       x    = as.numeric(names(point_table)),
       mass = as.numeric(point_table) / n,
@@ -214,7 +234,11 @@
     )
   }
 
-  return(list(active = active, point_masses = points))
+  return(list(
+    active         = active,
+    point_masses   = points,
+    point_location = point_location
+  ))
 }
 
 
@@ -250,9 +274,9 @@
   }
 
   points         <- data.frame(x = numeric(), mass = numeric())
-  point_location <- point_location[is.finite(point_location)]
-  if (length(point_location) > 0L) {
-    point_table <- table(signif(point_location, 12))
+  finite_point_location <- point_location[is.finite(point_location)]
+  if (length(finite_point_location) > 0L) {
+    point_table <- table(signif(finite_point_location, 12))
     points <- data.frame(
       x    = as.numeric(names(point_table)),
       mass = as.numeric(point_table) / n,
@@ -260,7 +284,11 @@
     )
   }
 
-  return(list(active = active, point_masses = points))
+  return(list(
+    active         = active,
+    point_masses   = points,
+    point_location = point_location
+  ))
 }
 
 
@@ -271,7 +299,11 @@
   points     <- data.frame(x = numeric(), mass = numeric())
 
   if (is.null(prior_name) || !prior_name %in% names(flat_prior)) {
-    return(list(active = rep(TRUE, n), point_masses = points))
+    return(list(
+      active         = rep(TRUE, n),
+      point_masses   = points,
+      point_location = rep(NA_real_, n)
+    ))
   }
 
   prior <- flat_prior[[prior_name]]
@@ -299,7 +331,11 @@
     return(NULL)
   }
 
-  return(list(active = rep(TRUE, n), point_masses = points))
+  return(list(
+    active         = rep(TRUE, n),
+    point_masses   = points,
+    point_location = rep(NA_real_, n)
+  ))
 }
 
 
@@ -311,8 +347,85 @@
       x         = location,
       mass      = 1,
       row.names = NULL
-    )
+    ),
+    point_location = rep(location, n)
   ))
+}
+
+
+.iwmde_parameter_condition_rows <- function(context, parameter_spec) {
+
+  n           <- nrow(context[["posterior_samples"]])
+  conditional <- parameter_spec[["conditional"]]
+  if (is.null(conditional) || length(conditional) == 0L) {
+    return(rep(TRUE, n))
+  }
+
+  conditional <- unique(as.character(conditional))
+  conditional <- conditional[!is.na(conditional) & nzchar(conditional)]
+  if (length(conditional) == 0L) {
+    return(rep(TRUE, n))
+  }
+
+  rule <- parameter_spec[["conditional_rule"]]
+  if (is.null(rule) || length(rule) == 0L) {
+    rule <- "OR"
+  }
+  rule <- match.arg(rule, c("AND", "OR"))
+
+  rows <- matrix(FALSE, nrow = n, ncol = length(conditional))
+  for (i in seq_along(conditional)) {
+    rows[, i] <- .iwmde_parameter_active_rows(context, conditional[[i]])
+  }
+
+  if (identical(rule, "AND")) {
+    return(apply(rows, 1L, all))
+  }
+
+  return(apply(rows, 1L, any))
+}
+
+
+.iwmde_parameter_active_rows <- function(context, parameter) {
+
+  samples <- context[["posterior_samples"]]
+  if (!parameter %in% colnames(samples) &&
+      is.null(.iwmde_parameter_prior_name(context, parameter))) {
+    return(rep(FALSE, nrow(samples)))
+  }
+
+  return(vapply(seq_len(nrow(samples)), function(i) {
+    state <- .iwmde_focal_prior_state(context, parameter, samples[i, ])
+    identical(state[["status"]], "continuous")
+  }, logical(1)))
+}
+
+
+.iwmde_restrict_parameter_component <- function(component, rows) {
+
+  component[["active"]] <- component[["active"]] & rows
+
+  point_location <- component[["point_location"]]
+  if (is.null(point_location)) {
+    point_location <- rep(NA_real_, length(rows))
+  }
+  point_location[!rows] <- NA_real_
+  component[["point_location"]] <- point_location
+
+  point_location <- point_location[is.finite(point_location)]
+  if (length(point_location) == 0L) {
+    component[["point_masses"]] <- data.frame(x = numeric(), mass = numeric())
+    return(component)
+  }
+
+  point_table <- table(signif(point_location, 12))
+  component[["point_masses"]] <- data.frame(
+    x         = as.numeric(names(point_table)),
+    mass      = as.numeric(point_table) / sum(rows),
+    row.names = NULL
+  )
+
+  return(component)
 }
 
 

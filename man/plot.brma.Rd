@@ -16,6 +16,8 @@
   transform = NULL,
   plot_type = "base",
   dots_prior = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
   ...
 )
 }
@@ -66,6 +68,16 @@ distribution. Supported arguments are \code{lwd},
 \code{lty}, \code{col}, and \code{col.fill}, to adjust
 the line thickness, line type, line color, and fill color
 of the prior distribution respectively.}
+
+\item{density_method}{posterior density method. \code{"KDE"} uses the
+standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
+row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
+Chen-style moment-matched IWMDE densities.}
+
+\item{density_control}{named list of density-estimation settings. Supported
+entries are \code{n_points}, \code{max_samples}, \code{display_grid},
+\code{normalization_points}, and \code{normalization_prob}. The
+normalization entries are only used with \code{density_method = "qCMDE"}.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments

@@ -12,6 +12,8 @@
   output_measure = NULL,
   transform = NULL,
   bf = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
   ...
 )
 }
@@ -42,7 +44,19 @@ and \code{"IRR"}.}
 summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects.}
 
-\item{...}{additional arguments (currently ignored).}
+\item{density_method}{posterior density method. \code{"KDE"} uses the
+standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
+row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
+Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
+separate precomputed posterior ordinates at \code{null_hypothesis}; these
+ordinates do not alter the plotting grid.}
+
+\item{density_control}{named list of density-estimation settings. Supported
+entries are \code{n_points}, \code{max_samples}, \code{display_grid},
+\code{normalization_points}, and \code{normalization_prob}. The
+normalization entries are only used with \code{density_method = "qCMDE"}.}
+
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
 \value{
 A list of class \code{marginal_means.brma} containing the

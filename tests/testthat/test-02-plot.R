@@ -35,6 +35,180 @@ test_that("plot.brma uses parameter x-axis labels by default", {
 })
 
 
+test_that("plot.brma uses KDE by default", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    fits[["bcg_meta-analysis"]],
+    parameter = "mu",
+    plot_type = "ggplot"
+  )
+
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["dots"]][["density_method"]], "KDE")
+  expect_null(attr(captured[["samples"]][["mu"]], "posterior_density"))
+})
+
+
+test_that("plot.brma forwards attached qCMDE posterior density", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    fits[["bcg_meta-analysis"]],
+    parameter          = "mu",
+    plot_type          = "ggplot",
+    density_method     = "qCMDE",
+    density_control    = list(n_points = 20, max_samples = 20)
+  )
+
+  posterior_density <- attr(captured[["samples"]][["mu"]], "posterior_density")
+
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["parameter"]], "mu")
+  expect_equal(captured[["dots"]][["density_method"]], "precomputed")
+  expect_equal(posterior_density[["status"]], "ok")
+  expect_equal(posterior_density[["density_method"]], "qCMDE")
+  expect_true(all(is.finite(posterior_density[["x"]])))
+  expect_true(all(is.finite(posterior_density[["y"]])))
+})
+
+
+test_that("plot.brma forwards attached IWMDE posterior density", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- plot(
+    fits[["bcg_meta-analysis"]],
+    parameter          = "mu",
+    plot_type          = "ggplot",
+    density_method     = "IWMDE",
+    density_control    = list(n_points = 20, max_samples = 50)
+  )
+
+  posterior_density <- attr(captured[["samples"]][["mu"]], "posterior_density")
+
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["parameter"]], "mu")
+  expect_equal(captured[["dots"]][["density_method"]], "precomputed")
+  expect_equal(posterior_density[["status"]], "ok")
+  expect_equal(posterior_density[["density_method"]], "IWMDE")
+  expect_equal(posterior_density[["diagnostics"]][["estimator"]], "iwmde")
+})
+
+
+test_that("plot.brma aligns qCMDE density to plotted coefficient scale", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  plot(
+    fits[["bcg_meta-regression"]],
+    parameter_mods    = "year",
+    plot_type         = "ggplot",
+    density_method    = "qCMDE",
+    density_control   = list(n_points = 20, max_samples = 20)
+  )
+
+  plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
+  posterior_density <- attr(plotted_samples, "posterior_density")
+
+  expect_equal(captured[["dots"]][["density_method"]], "precomputed")
+  expect_false(is.null(posterior_density[["diagnostics"]][["plot_scale_transform"]]))
+  expect_lte(
+    max(abs(posterior_density[["x"]])),
+    max(abs(as.numeric(plotted_samples))) + .05
+  )
+})
+
+
+test_that("plot.brma drops qCMDE density when scale alignment is not affine", {
+
+  posterior_density <- list(
+    x            = seq(-1, 1, length.out = 20),
+    y            = stats::dnorm(seq(-1, 1, length.out = 20)),
+    diagnostics  = list(),
+    point_masses = data.frame(x = numeric(), mass = numeric())
+  )
+
+  out <- .plot_brma_align_iwmde_density(
+    posterior_density = posterior_density,
+    raw_samples       = seq(-1, 1, length.out = 20),
+    plotted_samples   = seq(-1, 1, length.out = 20)^2
+  )
+
+  expect_null(out)
+})
+
+
+test_that("plot.brma forwards attached qCMDE density for PET and PEESE parameters", {
+
+  .skip_if_missing_raw_fits(c("dat.lehmann2018-PET", "dat.lehmann2018-PEESE"))
+
+  for (case in list(
+    list(fit = "dat.lehmann2018-PET", parameter = "PET"),
+    list(fit = "dat.lehmann2018-PEESE", parameter = "PEESE")
+  )) {
+    captured <- NULL
+    testthat::local_mocked_bindings(
+      plot_posterior = function(samples, parameter, ...) {
+        captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+        return(structure(list(), class = "mock_plot"))
+      },
+      .package = "BayesTools"
+    )
+
+    out <- plot(
+      load_fit(case[["fit"]], validate = FALSE),
+      parameter         = case[["parameter"]],
+      plot_type         = "ggplot",
+      density_method    = "qCMDE",
+      density_control   = list(n_points = 20, max_samples = 20)
+    )
+
+    density_source <- if (!is.null(captured[["samples"]][[case[["parameter"]]]])) {
+      case[["parameter"]]
+    } else {
+      "bias"
+    }
+    posterior_density <- attr(captured[["samples"]][[density_source]], "posterior_density")
+
+    expect_s3_class(out, "mock_plot")
+    expect_equal(captured[["dots"]][["density_method"]], "precomputed")
+    expect_equal(posterior_density[["status"]], "ok")
+    expect_equal(posterior_density[["density_method"]], "qCMDE")
+  }
+})
+
+
 test_that("Prior and posterior distributions for brma.norm models", {
 
   ### simple meta-analysis ----
