@@ -29,11 +29,12 @@
 #' heterogeneity allocated to the cluster-level component in multilevel models
 #' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`.
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
-#' base-rate probability in binomial GLMM models. If omitted or `NULL`, defaults
-#' to independent `Beta(1, 1)` priors.
+#' base-rate probability in binomial GLMM models (`measure = "OR"`). If omitted
+#' or `NULL`, defaults to independent `Beta(1, 1)` priors.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
-#' log-rate in Poisson GLMM models. If omitted or `NULL`, a data-based
-#' unit-information normal prior is used independently for each estimate.
+#' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
+#' data-based unit-information normal prior is used independently for each
+#' estimate.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.
@@ -43,13 +44,14 @@
 #' @param standardize_continuous_predictors logical. Whether to standardize continuous predictors.
 #' Defaults to `TRUE`.
 #' @param set_contrast_factor_predictors character. How to set contrast for factor predictors.
-#' Defaults are constructor-specific and shown in each function usage; single-model
-#' constructors use `"treatment"`, while model-averaging constructors use `"meandif"`.
+#' Defaults are constructor-specific and shown in each function usage. Single-model
+#' constructors use `"treatment"`; model-averaging constructors use `"meandif"`.
 #' @param prior_informed_field character. The field of the informed prior distributions.
 #' Omit to use the standard default prior specification; explicit `NULL` is invalid.
 #' @param prior_informed_subfield character. The subfield of the informed prior distributions.
-#' Omit to use the field-specific default, such as `"Cochrane"` for
-#' `prior_informed_field = "medicine"`; explicit `NULL` is invalid.
+#' Can only be specified together with `prior_informed_field`. Omit to use the
+#' field-specific default, such as `"Cochrane"` for `prior_informed_field =
+#' "medicine"`; explicit `NULL` is invalid.
 #'
 #' @details
 #' There are several ways to specify the prior distributions: \enumerate{

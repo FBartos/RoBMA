@@ -591,6 +591,14 @@ test_that("Invalid model_type is rejected", {
 
 test_that("Conflicting prior specifications are rejected", {
 
+  expect_error(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data, measure = "SMD",
+      prior_informed_subfield = "neonatal", only_priors = TRUE
+    ),
+    regexp = "prior_informed_subfield.*prior_informed_field"
+  )
+
   # Both UISD and informed priors
   expect_error(
     RoBMA(

@@ -154,6 +154,11 @@ predict.brma <- function(object, newdata = NULL,
                          ...){
 
   dots <- list(...)
+  .check_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = "predict.brma()"
+  )
 
   # normalize type aliases
   type <- match.arg(type, c("terms", "marginal", "cluster", "estimate", "effect", "blup",

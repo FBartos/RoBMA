@@ -13,12 +13,13 @@ plot_prior(x, ...)
 \method{plot_prior}{brma}(
   x,
   parameter = "mu",
-  parameter_mods,
-  parameter_scale,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
   standardized_coefficients = TRUE,
   output_measure = NULL,
   transform = NULL,
   plot_type = "base",
+  component = "auto",
   ...
 )
 }
@@ -41,11 +42,13 @@ mixtures use \code{"omega"}, \code{"PET"}, or \code{"PEESE"}. Moderator and
 scale terms can also be selected by name when unambiguous. A character vector
 requests multiple base parameters.}
 
-\item{parameter_mods}{character. Moderator term to plot.
-Use \code{"intercept"} for the adjusted effect in meta-regression models.}
+\item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
+with \code{component = "mods"}. Use \code{"intercept"} for the
+adjusted effect in meta-regression models.}
 
-\item{parameter_scale}{character. Scale-regression term to plot.
-Use \code{"intercept"} for the heterogeneity intercept in location-scale models.}
+\item{parameter_scale}{legacy scale-regression selector. Prefer
+\code{parameter} with \code{component = "scale"}. Use
+\code{"intercept"} for the heterogeneity intercept in location-scale models.}
 
 \item{standardized_coefficients}{whether to plot moderator and scale-regression
 priors on the standardized predictor scale. Defaults to \code{TRUE}, which
@@ -62,6 +65,11 @@ log-scale measures.}
 \item{transform}{optional display transformation. Currently \code{"EXP"}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
+
+\item{component}{parameter component. Defaults to \code{"auto"}, which
+infers the component when possible. Use \code{"mods"} (alias
+\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+terms used in multiple prior components.}
 }
 \value{
 \code{plot_prior} returns either \code{NULL} invisibly if
@@ -95,7 +103,7 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
   plot_prior(priors, parameter = "mu")
   plot_prior(priors, parameter = "tau")
-  plot_prior(priors, parameter_mods = "Preregistered")
+  plot_prior(priors, parameter = "Preregistered", component = "mods")
 }
 }
 

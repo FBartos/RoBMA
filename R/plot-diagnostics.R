@@ -11,8 +11,14 @@
 #'   \code{"mu"} or the meta-regression intercept. Valid values include
 #'   \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"}, \code{"PEESE"},
 #'   and \code{"omega"} or \code{"weightfunction"} when present.
-#' @param parameter_mods moderator term for location regression.
-#' @param parameter_scale term for scale regression.
+#' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
+#'   with \code{component = "mods"}.
+#' @param parameter_scale legacy scale-regression selector. Prefer
+#'   \code{parameter} with \code{component = "scale"}.
+#' @param component parameter component. Defaults to \code{"auto"}, which
+#'   infers the component when possible. Use \code{"mods"} (alias
+#'   \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+#'   terms used in multiple model components.
 #' @param type diagnostic plot type. Convenience wrappers set a type-specific
 #'   default but still forward this argument to \code{plot_diagnostic.brma()}.
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
@@ -33,7 +39,7 @@ plot_diagnostic <- function(x, ...) UseMethod("plot_diagnostic")
 #' @rdname plot_diagnostic
 plot_diagnostic.brma <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
-    type, plot_type = "base", lags = 30, ...) {
+    type, plot_type = "base", lags = 30, component = "auto", ...) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -41,10 +47,11 @@ plot_diagnostic.brma <- function(
 
   ### select and validate the parameter to be plotted
   parameter <- .check_and_select_plot_parameter(
-    parameter       = parameter,
-    parameter_mods  = parameter_mods,
-    parameter_scale = parameter_scale,
-    object          = x
+    parameter        = parameter,
+    parameter_mods   = parameter_mods,
+    parameter_scale  = parameter_scale,
+    component        = component,
+    object           = x
   )
 
   # a message with info about multiple plots
@@ -84,16 +91,18 @@ plot_diagnostic_autocorrelation <- function(x, ...) UseMethod("plot_diagnostic_a
 #' @rdname plot_diagnostic
 plot_diagnostic_autocorrelation.brma <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
-    type = "autocorrelation", plot_type = "base", lags = 30, ...) {
+    type = "autocorrelation", plot_type = "base", lags = 30,
+    component = "auto", ...) {
 
   plot_diagnostic(
     x               = x,
     parameter       = parameter,
-    parameter_mods  = parameter_mods,
-    parameter_scale = parameter_scale,
-    type            = type,
-    plot_type       = plot_type,
-    lags            = lags,
+    parameter_mods   = parameter_mods,
+    parameter_scale  = parameter_scale,
+    component        = component,
+    type             = type,
+    plot_type        = plot_type,
+    lags             = lags,
     ...
   )
 }
@@ -106,16 +115,18 @@ plot_diagnostic_trace <- function(x, ...) UseMethod("plot_diagnostic_trace")
 #' @rdname plot_diagnostic
 plot_diagnostic_trace.brma           <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
-    type = "trace", plot_type = "base", lags = 30, ...) {
+    type = "trace", plot_type = "base", lags = 30,
+    component = "auto", ...) {
 
   plot_diagnostic(
     x               = x,
     parameter       = parameter,
-    parameter_mods  = parameter_mods,
-    parameter_scale = parameter_scale,
-    type            = type,
-    plot_type       = plot_type,
-    lags            = lags,
+    parameter_mods   = parameter_mods,
+    parameter_scale  = parameter_scale,
+    component        = component,
+    type             = type,
+    plot_type        = plot_type,
+    lags             = lags,
     ...
   )
 }
@@ -128,16 +139,18 @@ plot_diagnostic_density <- function(x, ...) UseMethod("plot_diagnostic_density")
 #' @rdname plot_diagnostic
 plot_diagnostic_density.brma         <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
-    type = "density", plot_type = "base", lags = 30, ...) {
+    type = "density", plot_type = "base", lags = 30,
+    component = "auto", ...) {
 
   plot_diagnostic(
     x               = x,
     parameter       = parameter,
-    parameter_mods  = parameter_mods,
-    parameter_scale = parameter_scale,
-    type            = type,
-    plot_type       = plot_type,
-    lags            = lags,
+    parameter_mods   = parameter_mods,
+    parameter_scale  = parameter_scale,
+    component        = component,
+    type             = type,
+    plot_type        = plot_type,
+    lags             = lags,
     ...
   )
 }
@@ -146,8 +159,9 @@ plot_diagnostic_density.brma         <- function(
 ### Common plotting helper functions ----
 # Internal helper function for selecting and validating a plot parameter
 #
-# Processes parameter selection for plotting based on three mutually exclusive arguments:
-# parameter, parameter_mods, parameter_scale. Only one should be specified.
+# Processes parameter selection for plotting based on a parameter plus component
+# namespace. The legacy parameter_mods/parameter_scale arguments are still
+# supported.
 #
 # @param parameter Base parameter name ("mu", "tau", "rho")
 # @param parameter_mods Moderator parameter for location regression

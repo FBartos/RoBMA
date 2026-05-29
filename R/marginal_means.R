@@ -38,19 +38,20 @@ marginal_means <- function(object, ...) {
 #' @param object a fitted \code{brma} object with moderators.
 #' @param null_hypothesis point null hypothesis used for inclusion Bayes
 #' factors. Defaults to \code{0}.
-#' @param normal_approximation whether prior and posterior density at the null
-#' should be approximated with a normal distribution. Defaults to \code{FALSE}.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
 #' summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 #' for single-model \code{brma} objects.
 #' @param density_method posterior density method. \code{"KDE"} uses the
-#' standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
-#' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
-#' Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
-#' separate precomputed posterior ordinates at \code{null_hypothesis}; these
-#' ordinates do not alter the plotting grid.
+#' standard BayesTools kernel density estimate. \code{"normal"} uses the
+#' BayesTools normal approximation for point-null Bayes factors and does not
+#' attach a plotting density. \code{"qCMDE"} attaches RoBMA row-normalized
+#' q-grid conditional densities. \code{"IWMDE"}
+#' attaches Chen-style moment-matched IWMDE densities for plotting. RoBMA
+#' stores separate precomputed posterior ordinates at \code{null_hypothesis};
+#' these ordinates do not alter the plotting grid. Matching is
+#' case-insensitive.
 #' @param density_control named list of density-estimation settings. Supported
 #' entries are \code{n_points}, \code{max_samples}, \code{display_grid},
 #' \code{normalization_points}, and \code{normalization_prob}. The
@@ -84,11 +85,12 @@ marginal_means <- function(object, ...) {
 #' @seealso [summary()], [plot()], [summary.brma()], [regplot()]
 #' @export
 marginal_means.brma <- function(object, null_hypothesis = 0,
-                                normal_approximation = FALSE,
                                 n_samples = 10000,
                                 output_measure = NULL, transform = NULL,
                                 bf = NULL,
-                                density_method = c("KDE", "qCMDE", "IWMDE"),
+                                density_method = c(
+                                  "KDE", "normal", "qCMDE", "IWMDE"
+                                ),
                                 density_control = NULL, ...) {
 
   if (!.is_mods(object)) {
@@ -99,19 +101,22 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   }
 
   BayesTools::check_real(null_hypothesis, "null_hypothesis", check_length = 1)
-  BayesTools::check_bool(normal_approximation, "normal_approximation")
   BayesTools::check_int(n_samples, "n_samples", lower = 2)
   .warn_unused_dots(
     dots    = list(...),
     allowed = character(),
     caller  = "marginal_means()"
   )
-  density_method <- .density_method_normalize(density_method)
-  if (.density_method_uses_precomputed(density_method) ||
+  density_method <- .density_method_normalize(
+    density_method = density_method,
+    allow_normal   = TRUE
+  )
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE) ||
       !is.null(density_control)) {
     density_control <- .density_control_normalize(
       density_method  = density_method,
-      density_control = density_control
+      density_control = density_control,
+      allow_normal    = TRUE
     )
   }
   model_averaged <- .is_RoBMA(object)
@@ -142,7 +147,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     conditional_rule     = "OR",
     formula              = formula,
     null_hypothesis      = null_hypothesis,
-    normal_approximation = normal_approximation,
+    normal_approximation = identical(density_method, "normal"),
     n_samples            = n_samples,
     silent               = TRUE,
     force_plots          = TRUE
@@ -177,7 +182,6 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     term_map               = term_map,
     formula                = formula,
     null_hypothesis        = null_hypothesis,
-    normal_approximation   = normal_approximation,
     n_samples              = n_samples,
     conditional_rule       = "OR",
     input_measure          = .measure(object),
@@ -191,7 +195,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 
   class(output) <- c("marginal_means.brma", "marginal_means")
 
-  if (.density_method_uses_precomputed(density_method)) {
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
     output <- .marginal_means_attach_iwmde(
       object                  = object,
       marginal_means_object   = output,
@@ -225,7 +229,6 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   ordinate_diagnostics <- list()
   method               <- .density_method_iwmde_estimator(density_method)
   include_values       <- NULL
-  compute_ordinates    <- !isTRUE(marginal_means_object[["normal_approximation"]])
 
   for (type in c("averaged", "conditional")) {
     specs <- .iwmde_marginal_means_specs(
@@ -261,35 +264,33 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     )
   }
 
-  if (compute_ordinates) {
-    specs <- .iwmde_marginal_means_specs(
-      marginal_means_object = marginal_means_object,
-      parameter             = NULL,
-      type                  = "conditional",
-      levels                = NULL
+  specs <- .iwmde_marginal_means_specs(
+    marginal_means_object = marginal_means_object,
+    parameter             = NULL,
+    type                  = "conditional",
+    levels                = NULL
+  )
+  ordinate_diagnostics[["conditional"]] <- lapply(specs, function(spec) {
+    .iwmde_parameter_ordinate_diagnostic(
+      context              = context,
+      parameter            = spec[["label"]],
+      values               = null_hypothesis,
+      max_samples          = max_samples,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      method               = method,
+      parameter_spec       = spec,
+      diagnostic_cache     = diagnostic_cache
     )
-    ordinate_diagnostics[["conditional"]] <- lapply(specs, function(spec) {
-      .iwmde_parameter_ordinate_diagnostic(
-        context              = context,
-        parameter            = spec[["label"]],
-        values               = null_hypothesis,
-        max_samples          = max_samples,
-        normalization_points = normalization_points,
-        normalization_prob   = normalization_prob,
-        method               = method,
-        parameter_spec       = spec,
-        diagnostic_cache     = diagnostic_cache
-      )
-    })
-    names(ordinate_diagnostics[["conditional"]]) <- names(specs)
-    marginal_means_object <- .marginal_means_attach_iwmde_ordinate_type(
-      marginal_means_object = marginal_means_object,
-      type                  = "conditional",
-      specs                 = specs,
-      diagnostics           = ordinate_diagnostics[["conditional"]],
-      density_method        = density_method
-    )
-  }
+  })
+  names(ordinate_diagnostics[["conditional"]]) <- names(specs)
+  marginal_means_object <- .marginal_means_attach_iwmde_ordinate_type(
+    marginal_means_object = marginal_means_object,
+    type                  = "conditional",
+    specs                 = specs,
+    diagnostics           = ordinate_diagnostics[["conditional"]],
+    density_method        = density_method
+  )
 
   marginal_means_object[["iwmde_diagnostics"]] <- diagnostics
   marginal_means_object[["iwmde_ordinate_diagnostics"]] <- ordinate_diagnostics
@@ -302,13 +303,13 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     method               = method,
     display_grid         = display_grid,
     include_values       = include_values,
-    ordinate_values      = if (compute_ordinates) null_hypothesis else NULL
+    ordinate_values      = null_hypothesis
   )
   marginal_means_object[["inference"]] <- .marginal_means_refresh_iwmde_bf(
     inference            = marginal_means_object[["inference"]],
     parameters           = marginal_means_object[["parameters"]],
     null_hypothesis      = marginal_means_object[["null_hypothesis"]],
-    normal_approximation = marginal_means_object[["normal_approximation"]],
+    density_method       = marginal_means_object[["density_method"]],
     require_precomputed  = TRUE
   )
 
@@ -388,10 +389,14 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 
 .marginal_means_refresh_iwmde_bf <- function(inference, parameters,
                                              null_hypothesis,
-                                             normal_approximation,
+                                             density_method = "KDE",
                                              require_precomputed = FALSE) {
 
-  if (isTRUE(normal_approximation) ||
+  density_method <- .density_method_normalize(
+    density_method = density_method,
+    allow_normal   = TRUE
+  )
+  if (identical(density_method, "normal") ||
       is.null(inference[["conditional"]]) ||
       is.null(inference[["inference"]])) {
     return(inference)
@@ -549,9 +554,16 @@ summary.marginal_means.brma <- function(object, type = NULL,
     inference            = object[["inference"]],
     parameters           = object[["parameters"]],
     null_hypothesis      = object[["null_hypothesis"]],
-    normal_approximation = object[["normal_approximation"]],
+    density_method       = if (is.null(object[["density_method"]])) {
+      "KDE"
+    } else {
+      object[["density_method"]]
+    },
     require_precomputed  = !is.null(object[["density_method"]]) &&
-      .density_method_uses_precomputed(object[["density_method"]])
+      .density_method_uses_precomputed(
+        density_method = object[["density_method"]],
+        allow_normal   = TRUE
+      )
   )
   samples    <- .transform_marginal_samples_effect(
     samples          = inference_object[[type]],

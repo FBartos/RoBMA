@@ -123,13 +123,10 @@ NULL
     return(as.vector(data[[mf_x]]))
   }
 
-  # If still not found, report error
-  if (!allow_NULL) {
-    stop(paste0("Cannot find the object/variable ('", deparse(mf_x),
-                "') specified for the '", name, "' argument."), call. = FALSE)
-  }
-
-  return(NULL)
+  # If still not found, report error. Missing arguments and explicit NULL
+  # values were handled above.
+  stop(paste0("Cannot find the object/variable ('", deparse(mf_x),
+              "') specified for the '", name, "' argument."), call. = FALSE)
 }
 
 

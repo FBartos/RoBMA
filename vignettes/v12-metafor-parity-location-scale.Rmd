@@ -208,11 +208,11 @@ The default prior distribution is `Normal(0, 0.5)`, which corresponds to a weakl
 A coefficient of $\pm 0.5$ corresponds to roughly $\exp(\pm 0.5) \approx 0.6$ or $1.65$, i.e., a $40\%$ decrease or $65\%$ increase in $\tau$ per unit change in the predictor; values past $\pm 1$ correspond to a halving or doubling, which the prior distribution treats as extreme.
 
 `plot()` with `prior = TRUE` overlays the prior distribution on the posterior so the shift is visible.
-`parameter_scale = "ni100"` selects the scale-side coefficient (the analogous selector on the location side is `parameter_mods = "ni100"`).
+`parameter = "ni100", component = "scale"` selects the scale-side coefficient (use `component = "mods"` for the location side).
 
 ```{r scale-posterior, fig.width = 5, fig.height = 3.5}
 par(mar = c(4, 4, 1, 1))
-plot(fit2_brma, parameter_scale = "ni100", prior = TRUE, xlim = c(-2, 2))
+plot(fit2_brma, parameter = "ni100", component = "scale", prior = TRUE, xlim = c(-2, 2))
 ```
 
 ## Other Inference Helpers

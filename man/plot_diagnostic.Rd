@@ -21,6 +21,7 @@ plot_diagnostic(x, ...)
   type,
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 
@@ -34,6 +35,7 @@ plot_diagnostic_autocorrelation(x, ...)
   type = "autocorrelation",
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 
@@ -47,6 +49,7 @@ plot_diagnostic_trace(x, ...)
   type = "trace",
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 
@@ -60,6 +63,7 @@ plot_diagnostic_density(x, ...)
   type = "density",
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 }
@@ -74,9 +78,11 @@ setup to \code{BayesTools::JAGS_diagnostics()}.}
 \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"}, \code{"PEESE"},
 and \code{"omega"} or \code{"weightfunction"} when present.}
 
-\item{parameter_mods}{moderator term for location regression.}
+\item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
+with \code{component = "mods"}.}
 
-\item{parameter_scale}{term for scale regression.}
+\item{parameter_scale}{legacy scale-regression selector. Prefer
+\code{parameter} with \code{component = "scale"}.}
 
 \item{type}{diagnostic plot type. Convenience wrappers set a type-specific
 default but still forward this argument to \code{plot_diagnostic.brma()}.}
@@ -85,6 +91,11 @@ default but still forward this argument to \code{plot_diagnostic.brma()}.}
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
 
 \item{lags}{number of lags for autocorrelation plots. Defaults to 30.}
+
+\item{component}{parameter component. Defaults to \code{"auto"}, which
+infers the component when possible. Use \code{"mods"} (alias
+\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+terms used in multiple model components.}
 }
 \value{
 \code{plot_diagnostic} returns the object returned by

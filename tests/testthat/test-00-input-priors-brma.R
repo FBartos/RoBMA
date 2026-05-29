@@ -561,6 +561,15 @@ test_that("Conflicting prior specifications are rejected", {
       regexp = "prior_informed_field"
     ),
     list(
+      label  = "informed-prior subfield without field",
+      expr   = quote(brma.norm(
+        yi = effect, sei = std_err, data = test_data,
+        measure = "SMD",
+        prior_informed_subfield = "neonatal", only_priors = TRUE
+      )),
+      regexp = "prior_informed_subfield.*prior_informed_field"
+    ),
+    list(
       label  = "UISD conflicts with informed priors",
       expr   = quote(brma.norm(
         yi = effect, sei = std_err, data = test_data,

@@ -76,6 +76,36 @@
 
   return()
 }
+.check_prior_informed_subfield        <- function(prior_informed_field, prior_informed_subfield) {
+
+  if (missing(prior_informed_field) && !missing(prior_informed_subfield)) {
+    stop(
+      "'prior_informed_subfield' can only be specified together with 'prior_informed_field'.",
+      call. = FALSE
+    )
+  }
+
+  return()
+}
+.check_glmm_nuisance_prior_match      <- function(data, prior_baserate, prior_lograte) {
+
+  if (.data_outcome_type(data) == "bin" && !missing(prior_lograte)) {
+    stop(
+      "'prior_lograte' is only used for Poisson GLMM models with measure = 'IRR'. ",
+      "Use 'prior_baserate' for binomial GLMM models with measure = 'OR'.",
+      call. = FALSE
+    )
+  }
+  if (.data_outcome_type(data) == "pois" && !missing(prior_baserate)) {
+    stop(
+      "'prior_baserate' is only used for binomial GLMM models with measure = 'OR'. ",
+      "Use 'prior_lograte' for Poisson GLMM models with measure = 'IRR'.",
+      call. = FALSE
+    )
+  }
+
+  return()
+}
 .get_prior_bias_type                  <- function(prior) {
   if (BayesTools::is.prior.none(prior)) {
     bias_type <- "none"
@@ -175,7 +205,9 @@
     BayesTools::check_char(prior_informed_field, "prior_informed_field", allow_values = c("medicine"), allow_NA = FALSE)
   if (!missing(prior_informed_subfield))
     BayesTools::check_char(prior_informed_subfield, "prior_informed_subfield", allow_NA = FALSE)
+  .check_prior_informed_subfield(prior_informed_field, prior_informed_subfield)
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
+  .check_glmm_nuisance_prior_match(data, prior_baserate, prior_lograte)
   if (!missing(steps))
     BayesTools::check_real(steps, "steps", lower = 0, upper = 1, allow_bound = FALSE, check_length = FALSE, allow_NA = FALSE)
 
@@ -276,7 +308,9 @@
     BayesTools::check_char(prior_informed_field, "prior_informed_field", allow_values = c("medicine"), allow_NA = FALSE)
   if (!missing(prior_informed_subfield))
     BayesTools::check_char(prior_informed_subfield, "prior_informed_subfield", allow_NA = FALSE)
+  .check_prior_informed_subfield(prior_informed_field, prior_informed_subfield)
   .check_prior_specification_conflict(prior_unit_information_sd, prior_informed_field)
+  .check_glmm_nuisance_prior_match(data, prior_baserate, prior_lograte)
   if (!missing(model_type))
     BayesTools::check_char(model_type, "model_type", allow_values = c("2w", "6w", "PP", "PSMA"))
 

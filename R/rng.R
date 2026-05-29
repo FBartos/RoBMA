@@ -63,11 +63,13 @@
   K          <- ncol(mu_samples)
   sei_mat    <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd   <- sqrt(tau_within^2 + sei_mat^2)
+  selection_context <- .selection_validate_context_rows(
+    selection_context = selection_context,
+    n_samples         = S,
+    required          = "use_normal",
+    caller            = ".outcome_rng.selnorm()"
+  )
   use_normal <- selection_context[["use_normal"]]
-
-  if (length(use_normal) == 1L) {
-    use_normal <- rep(use_normal, S)
-  }
 
   if (all(use_normal)) {
     return(.outcome_rng.norm(

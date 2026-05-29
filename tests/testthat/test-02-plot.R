@@ -35,6 +35,55 @@ test_that("plot.brma uses parameter x-axis labels by default", {
 })
 
 
+test_that("plot.brma component disambiguates shared location-scale terms", {
+
+  skip_if_missing_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  fit <- fits[["dat.lehmann2018_RoBMA_3lvl_mods_scale"]]
+
+  expect_error(
+    plot(fit, parameter = "Preregistered", plot_type = "ggplot"),
+    "ambiguous"
+  )
+
+  out <- plot(
+    fit,
+    parameter = "Preregistered",
+    component = "scale",
+    plot_type = "ggplot"
+  )
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["parameter"]], "log_tau_Preregistered")
+
+  out <- plot(
+    fit,
+    parameter = "Preregistered",
+    component = "mods",
+    plot_type = "ggplot"
+  )
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["parameter"]], "mu_Preregistered")
+
+  out <- plot(
+    fit,
+    parameter = "Preregistered",
+    component = "location",
+    plot_type = "ggplot"
+  )
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["parameter"]], "mu_Preregistered")
+})
+
+
 test_that("plot.brma uses KDE by default", {
 
   captured <- NULL

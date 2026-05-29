@@ -10,7 +10,14 @@ print_prior(x, ...)
 
 \method{print_prior}{prior}(x, ...)
 
-\method{print_prior}{brma}(x, parameter, parameter_mods, parameter_scale, ...)
+\method{print_prior}{brma}(
+  x,
+  parameter = NULL,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
+  component = "auto",
+  ...
+)
 }
 \arguments{
 \item{x}{a \code{brma}, \code{BMA}, or \code{RoBMA} object, or a prior
@@ -29,11 +36,18 @@ and \code{"weightfunction"} = \code{"omega"}. GLMM outcome priors
 scale terms can also be selected by name when unambiguous. A character vector
 requests multiple base parameters.}
 
-\item{parameter_mods}{character. Moderator term to print.
-Use \code{"intercept"} for the adjusted effect in meta-regression models.}
+\item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
+with \code{component = "mods"}. Use \code{"intercept"} for the
+adjusted effect in meta-regression models.}
 
-\item{parameter_scale}{character. Scale-regression term to print.
-Use \code{"intercept"} for the heterogeneity intercept in location-scale models.}
+\item{parameter_scale}{legacy scale-regression selector. Prefer
+\code{parameter} with \code{component = "scale"}. Use
+\code{"intercept"} for the heterogeneity intercept in location-scale models.}
+
+\item{component}{parameter component. Defaults to \code{"auto"}, which
+infers the component when possible. Use \code{"mods"} (alias
+\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+terms used in multiple prior components.}
 }
 \value{
 \code{print_prior} invisibly returns the selected prior distribution.
@@ -62,7 +76,7 @@ if (requireNamespace("metadat", quietly = TRUE)) {
   print_prior(priors)
   print_prior(priors, parameter = "mu")
   print_prior(priors, parameter = "tau")
-  print_prior(priors, parameter_mods = "Preregistered")
+  print_prior(priors, parameter = "Preregistered", component = "mods")
 }
 }
 

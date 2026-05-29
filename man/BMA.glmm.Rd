@@ -36,7 +36,7 @@ BMA.glmm(
   prior_scale_null,
   prior_heterogeneity_allocation_null,
   standardize_continuous_predictors = TRUE,
-  set_contrast_factor_predictors = "treatment",
+  set_contrast_factor_predictors = "meandif",
   prior_unit_information_sd,
   rescale_priors = 1,
   prior_informed_field,
@@ -130,12 +130,13 @@ term-specific components.}
 alternative cluster-level heterogeneity allocation component(s).}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
-base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
-to independent \code{Beta(1, 1)} priors.}
+base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
-log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
-unit-information normal prior is used independently for each estimate.}
+log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
+data-based unit-information normal prior is used independently for each
+estimate.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}
@@ -158,8 +159,8 @@ null cluster-level heterogeneity allocation component(s).}
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -173,8 +174,8 @@ default PEESE prior's UISD adjustment. Defaults to 1.}
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -229,6 +230,11 @@ model as described in \insertCite{bagos2009mixed;textual}{RoBMA}.
 
 When \code{weights} are supplied, they are treated as likelihood weights on
 the paired two-arm study contribution.
+
+For factor moderators, \code{BMA.glmm()} defaults to
+\code{set_contrast_factor_predictors = "meandif"}, matching the other
+model-averaging constructors. This differs from \code{\link{brma.glmm}()},
+which defaults to \code{"treatment"} as a single-model constructor.
 }
 \examples{
 \dontrun{

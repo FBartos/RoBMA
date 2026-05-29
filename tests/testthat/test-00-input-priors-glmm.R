@@ -1,6 +1,7 @@
 context("Prior input handling for brma.glmm")
 
 skip_on_cran()
+source(testthat::test_path("helper-contracts.R"))
 
 test_data_bin <- data.frame(
   ai = c(4L, 6L, 8L),
@@ -94,4 +95,70 @@ test_that("Poisson GLMM validates custom lograte prior before transformation", {
     ),
     regexp = "prior_lograte.*prior distribution"
   )
+})
+
+
+test_that("GLMM nuisance priors must match the outcome measure", {
+
+  baserate_prior <- BayesTools::prior("beta", parameters = list(alpha = 2, beta = 3))
+  lograte_prior  <- BayesTools::prior("normal", parameters = list(mean = 0, sd = 2))
+
+  expect_error_cases(list(
+    list(
+      label  = "single-model OR rejects lograte prior",
+      expr   = quote(brma.glmm(
+        ai            = ai,
+        bi            = bi,
+        ci            = ci,
+        di            = di,
+        data          = test_data_bin,
+        measure       = "OR",
+        prior_lograte = lograte_prior,
+        only_priors   = TRUE
+      )),
+      regexp = "prior_lograte.*measure = 'IRR'|prior_lograte.*prior_baserate"
+    ),
+    list(
+      label  = "single-model IRR rejects baserate prior",
+      expr   = quote(brma.glmm(
+        x1i            = x1i,
+        x2i            = x2i,
+        t1i            = t1i,
+        t2i            = t2i,
+        data           = test_data_pois,
+        measure        = "IRR",
+        prior_baserate = baserate_prior,
+        only_priors    = TRUE
+      )),
+      regexp = "prior_baserate.*measure = 'OR'|prior_baserate.*prior_lograte"
+    ),
+    list(
+      label  = "BMA.glmm OR rejects lograte prior",
+      expr   = quote(BMA.glmm(
+        ai            = ai,
+        bi            = bi,
+        ci            = ci,
+        di            = di,
+        data          = test_data_bin,
+        measure       = "OR",
+        prior_lograte = lograte_prior,
+        only_priors   = TRUE
+      )),
+      regexp = "prior_lograte.*measure = 'IRR'|prior_lograte.*prior_baserate"
+    ),
+    list(
+      label  = "BMA.glmm IRR rejects baserate prior",
+      expr   = quote(BMA.glmm(
+        x1i            = x1i,
+        x2i            = x2i,
+        t1i            = t1i,
+        t2i            = t2i,
+        data           = test_data_pois,
+        measure        = "IRR",
+        prior_baserate = baserate_prior,
+        only_priors    = TRUE
+      )),
+      regexp = "prior_baserate.*measure = 'OR'|prior_baserate.*prior_lograte"
+    )
+  ))
 })

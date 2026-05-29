@@ -8,6 +8,17 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-iwmde.R"))
 
 
+test_that("density methods are case-insensitive", {
+
+  expect_equal(.density_method_normalize("kde"), "KDE")
+  expect_equal(.density_method_normalize("QcMdE"), "qCMDE")
+  expect_equal(.density_method_normalize("iwmde"), "IWMDE")
+  expect_equal(.density_method_normalize("NORMAL", allow_normal = TRUE), "normal")
+  expect_equal(.density_method_normalize_precomputed("qcmde"), "qCMDE")
+  expect_equal(.density_method_normalize_precomputed("Iwmde"), "IWMDE")
+})
+
+
 test_that("IWMDE diagnostics compute for representative cached fits", {
 
   fit_names <- c(

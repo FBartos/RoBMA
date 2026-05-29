@@ -200,6 +200,96 @@ test_that("GLMM handles slab and cluster metadata", {
 })
 
 
+test_that("GLMM rejects unresolved supplied optional variables", {
+
+  skip_on_cran()
+
+  expect_error_cases(list(
+    list(
+      label  = "unresolved weights",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        bi        = bi,
+        ci        = ci,
+        di        = di,
+        weights   = wights,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*weights"
+    ),
+    list(
+      label  = "unresolved cluster",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        bi        = bi,
+        ci        = ci,
+        di        = di,
+        cluster   = cluser,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*cluster"
+    ),
+    list(
+      label  = "unresolved subset",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        bi        = bi,
+        ci        = ci,
+        di        = di,
+        subset    = subest,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*subset"
+    ),
+    list(
+      label  = "unresolved binomial total",
+      expr   = quote(brma.glmm(
+        ai        = ai,
+        ci        = ci,
+        n1i       = sample_size_1,
+        n2i       = n2i,
+        data      = test_data_glmm,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*n1i"
+    ),
+    list(
+      label  = "unresolved poisson count",
+      expr   = quote(brma.glmm(
+        x1i       = x1_typo,
+        x2i       = c(2L, 4L),
+        t1i       = c(10, 12),
+        t2i       = c(11, 13),
+        measure   = "IRR",
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*x1i"
+    )
+  ))
+
+  result <- brma.glmm(
+    ai        = ai,
+    bi        = bi,
+    ci        = ci,
+    di        = di,
+    weights   = NULL,
+    cluster   = NULL,
+    slab      = NULL,
+    subset    = NULL,
+    data      = test_data_glmm,
+    only_data = TRUE
+  )[["data"]]
+
+  expect_equal(nrow(result$outcome), nrow(test_data_glmm))
+  expect_false(attr(result, "weights"))
+  expect_false(attr(result, "cluster"))
+  expect_false(attr(result, "slab"))
+})
+
+
 # ============================================================================
 # Input validation tests
 # ============================================================================

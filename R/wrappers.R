@@ -68,9 +68,10 @@ coef.brma <- function(object, ...) {
 #' \code{"marginal"} uses fixed effects only, \code{"cluster"} conditions on
 #' cluster-level random effects, and \code{"estimate"} conditions on the full
 #' estimate-level fitted value.
-#' @param component fitted component to return. \code{"location"} returns
-#' location fitted values, \code{"scale"} returns fitted heterogeneity
-#' \eqn{\tau_i}, and \code{"all"} returns both as a named list.
+#' @param component fitted component to return. \code{"location"} (alias
+#' \code{"mods"}) returns location fitted values, \code{"scale"} returns
+#' fitted heterogeneity \eqn{\tau_i}, and \code{"all"} returns both as a
+#' named list.
 #' @param bias_adjusted whether location fitted values should adjust for
 #' publication bias. Defaults to \code{FALSE}.
 #' @param conditional whether to return fitted values from conditional posterior
@@ -114,7 +115,7 @@ fitted.brma <- function(object, unit = "estimate",
 
   unit                         <- .normalize_unit(unit)
   conditioning_depth           <- .normalize_conditioning_depth(conditioning_depth)
-  component                    <- match.arg(component, c("location", "scale", "all"))
+  component                    <- .fitted_component_normalize(component)
 
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(conditional, "conditional")

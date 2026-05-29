@@ -269,6 +269,87 @@ test_that("Input rejects invalid outcome specifications", {
 })
 
 
+test_that("Input rejects unresolved supplied optional variables", {
+
+  skip_on_cran()
+
+  expect_error_cases(list(
+    list(
+      label  = "unresolved weights",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        weights   = wights,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*weights"
+    ),
+    list(
+      label  = "unresolved cluster",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        cluster   = cluser,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*cluster"
+    ),
+    list(
+      label  = "unresolved slab",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        slab      = lables,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*slab"
+    ),
+    list(
+      label  = "unresolved subset",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        subset    = subest,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*subset"
+    ),
+    list(
+      label  = "unresolved sample size",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        ni        = sample_size,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*ni"
+    )
+  ))
+
+  result <- brma.norm(
+    yi        = effect,
+    sei       = std_err,
+    ni        = NULL,
+    weights   = NULL,
+    cluster   = NULL,
+    slab      = NULL,
+    subset    = NULL,
+    data      = test_data,
+    only_data = TRUE
+  )[["data"]]
+
+  expect_equal(nrow(result$outcome), nrow(test_data))
+  expect_false(attr(result, "weights"))
+  expect_false(attr(result, "cluster"))
+  expect_false(attr(result, "slab"))
+})
+
+
 test_that("Input handles variables from calling environment", {
 
   skip_on_cran()

@@ -113,6 +113,12 @@ Weightfunction publication bias priors are **not supported** for GLMM outcomes:
 - **RoBMA**: Meta-analysis-specific logic (ensemble construction, model averaging, publication bias)
 - If a feature is generic (not meta-analysis specific), it belongs in BayesTools
 
+### Public API Naming
+- Use `component` for user-facing disambiguation between model parts in post-fit APIs (`plot()`, diagnostics, priors, `hypothesis()`, `fitted()`), not `parameter_target` or `target`.
+- For parameter-selection APIs, accept `component = "mods"` and `component = "location"` interchangeably for the location/moderator parameter namespace; use `component = "bias"` for publication-bias parameters; normalize through shared component helpers.
+- Keep released `parameter_mods` and `parameter_scale` plotting arguments working through the 4.x cycle; prefer `parameter` + `component` in new docs/examples.
+- Reserve `type` for output/prediction kind. Do not change current `predict()` component behavior only for naming consistency.
+
 ### Main User Interfaces
 - `brma()`, `brma.norm()`, `brma.glmm()`, `bselmodel()`, `bPET()`, `bPEESE()` - Primary single-model fitting functions for simple models (mostly complete by now, closely matching metafor specification, use `brma` class)
 - `RoBMA()` - Primary ensemble fitting function with publication bias adjustment

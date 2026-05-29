@@ -34,6 +34,8 @@ navbar:
         href: articles/v20-bayesian-model-averaging.html
       - text: Robust Bayesian Meta-Analysis
         href: articles/v21-robust-bayesian-meta-analysis.html
+      - text: Posterior Densities and Parameter Tests
+        href: articles/v22-posterior-densities-parameter-tests.html
       - text: -------
       - text: Manuscript Companions
       - text: Adjusting for Publication Bias Tutorial
@@ -68,6 +70,7 @@ articles:
   contents:
   - "v20-bayesian-model-averaging"
   - "v21-robust-bayesian-meta-analysis"
+  - "v22-posterior-densities-parameter-tests"
 - title: Manuscript Companions
   contents:
   - "v30-tutorial"

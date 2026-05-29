@@ -6,9 +6,9 @@
 \usage{
 \method{plot}{brma}(
   x,
-  parameter,
-  parameter_mods,
-  parameter_scale,
+  parameter = NULL,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
   prior = FALSE,
   standardized_coefficients = FALSE,
   conditional = FALSE,
@@ -18,6 +18,7 @@
   dots_prior = NULL,
   density_method = c("KDE", "qCMDE", "IWMDE"),
   density_control = NULL,
+  component = "auto",
   ...
 )
 }
@@ -31,10 +32,12 @@ models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
 \code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
 for PET/PEESE regression plots.}
 
-\item{parameter_mods}{character. Moderator term to plot. Use
-\code{"intercept"} for the adjusted effect in meta-regression models.}
+\item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
+with \code{component = "mods"}. Use \code{"intercept"} for the
+adjusted effect in meta-regression models.}
 
-\item{parameter_scale}{character. Scale-regression term to plot. Use
+\item{parameter_scale}{legacy scale-regression selector. Prefer
+\code{parameter} with \code{component = "scale"}. Use
 \code{"intercept"} for the heterogeneity intercept in location-scale models.}
 
 \item{prior}{whether prior distribution should be added to
@@ -72,12 +75,17 @@ of the prior distribution respectively.}
 \item{density_method}{posterior density method. \code{"KDE"} uses the
 standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
-Chen-style moment-matched IWMDE densities.}
+Chen-style moment-matched IWMDE densities. Matching is case-insensitive.}
 
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points}, \code{max_samples}, \code{display_grid},
 \code{normalization_points}, and \code{normalization_prob}. The
 normalization entries are only used with \code{density_method = "qCMDE"}.}
+
+\item{component}{parameter component. Defaults to \code{"auto"}, which
+infers the component when possible. Use \code{"mods"} (alias
+\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+terms used in multiple model components.}
 
 \item{...}{list of additional graphical arguments
 to be passed to the plotting function. Supported arguments

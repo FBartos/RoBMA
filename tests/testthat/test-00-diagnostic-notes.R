@@ -68,6 +68,8 @@ test_that("diagnostic plot wrappers expose the full selector API", {
   )
 
   for (formals_i in wrapper_formals) {
-    expect_true(all(c("parameter_mods", "parameter_scale", "type", "lags") %in% formals_i))
+    expect_true(all(c(
+      "parameter_mods", "parameter_scale", "component", "type", "lags"
+    ) %in% formals_i))
   }
 })

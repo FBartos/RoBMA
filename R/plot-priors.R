@@ -15,10 +15,16 @@
 #' mixtures use \code{"omega"}, \code{"PET"}, or \code{"PEESE"}. Moderator and
 #' scale terms can also be selected by name when unambiguous. A character vector
 #' requests multiple base parameters.
-#' @param parameter_mods character. Moderator term to plot.
-#' Use \code{"intercept"} for the adjusted effect in meta-regression models.
-#' @param parameter_scale character. Scale-regression term to plot.
-#' Use \code{"intercept"} for the heterogeneity intercept in location-scale models.
+#' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
+#' with \code{component = "mods"}. Use \code{"intercept"} for the
+#' adjusted effect in meta-regression models.
+#' @param parameter_scale legacy scale-regression selector. Prefer
+#' \code{parameter} with \code{component = "scale"}. Use
+#' \code{"intercept"} for the heterogeneity intercept in location-scale models.
+#' @param component parameter component. Defaults to \code{"auto"}, which
+#' infers the component when possible. Use \code{"mods"} (alias
+#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+#' terms used in multiple prior components.
 #' @param standardized_coefficients whether to plot moderator and scale-regression
 #' priors on the standardized predictor scale. Defaults to \code{TRUE}, which
 #' shows the priors as specified. Set to \code{FALSE} to transform them to the
@@ -52,7 +58,7 @@
 #'
 #'   plot_prior(priors, parameter = "mu")
 #'   plot_prior(priors, parameter = "tau")
-#'   plot_prior(priors, parameter_mods = "Preregistered")
+#'   plot_prior(priors, parameter = "Preregistered", component = "mods")
 #' }
 #' }
 #'
@@ -78,10 +84,10 @@ plot_prior.prior <- function(x, plot_type = "base", ...) {
 #' @export
 #' @rdname plot_prior
 plot_prior.brma <- function(
-    x, parameter = "mu", parameter_mods, parameter_scale,
+    x, parameter = "mu", parameter_mods = NULL, parameter_scale = NULL,
     standardized_coefficients = TRUE,
     output_measure = NULL, transform = NULL,
-    plot_type = "base", ...) {
+    plot_type = "base", component = "auto", ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
@@ -108,6 +114,7 @@ plot_prior.brma <- function(
       plot_prior(
         x                         = x,
         parameter                 = parameter_i,
+        component                 = component,
         standardized_coefficients = standardized_coefficients,
         output_measure            = output_measure,
         transform                 = transform,
@@ -125,10 +132,11 @@ plot_prior.brma <- function(
   }
 
   selected <- .select_plot_prior_parameter(
-    object          = x,
-    parameter       = if (has_parameter) parameter else NULL,
-    parameter_mods  = if (has_parameter_mods) parameter_mods else NULL,
-    parameter_scale = if (has_parameter_scale) parameter_scale else NULL
+    object           = x,
+    parameter        = if (has_parameter) parameter else NULL,
+    parameter_mods   = if (has_parameter_mods) parameter_mods else NULL,
+    parameter_scale  = if (has_parameter_scale) parameter_scale else NULL,
+    component        = component
   )
   effect_transform <- .effect_output_setup(
     object         = x,
@@ -234,10 +242,16 @@ plot.only_priors.brma <- function(x, ...) {
 #' \code{"pi"} and \code{"phi"} are available when present. Moderator and
 #' scale terms can also be selected by name when unambiguous. A character vector
 #' requests multiple base parameters.
-#' @param parameter_mods character. Moderator term to print.
-#' Use \code{"intercept"} for the adjusted effect in meta-regression models.
-#' @param parameter_scale character. Scale-regression term to print.
-#' Use \code{"intercept"} for the heterogeneity intercept in location-scale models.
+#' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
+#' with \code{component = "mods"}. Use \code{"intercept"} for the
+#' adjusted effect in meta-regression models.
+#' @param parameter_scale legacy scale-regression selector. Prefer
+#' \code{parameter} with \code{component = "scale"}. Use
+#' \code{"intercept"} for the heterogeneity intercept in location-scale models.
+#' @param component parameter component. Defaults to \code{"auto"}, which
+#' infers the component when possible. Use \code{"mods"} (alias
+#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+#' terms used in multiple prior components.
 #' @param ... additional arguments passed to the prior printing method. Use
 #' \code{silent = TRUE} for programmatic inspection without console output.
 #'
@@ -260,7 +274,7 @@ plot.only_priors.brma <- function(x, ...) {
 #'   print_prior(priors)
 #'   print_prior(priors, parameter = "mu")
 #'   print_prior(priors, parameter = "tau")
-#'   print_prior(priors, parameter_mods = "Preregistered")
+#'   print_prior(priors, parameter = "Preregistered", component = "mods")
 #' }
 #' }
 #'
@@ -280,7 +294,8 @@ print_prior.prior <- function(x, ...) {
 #' @export
 #' @rdname print_prior
 print_prior.brma <- function(
-    x, parameter, parameter_mods, parameter_scale, ...) {
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    component = "auto", ...) {
 
   if (is.null(x[["priors"]])) {
     stop("The object does not contain prior distributions.", call. = FALSE)
@@ -296,7 +311,8 @@ print_prior.brma <- function(
     stop("Only one of 'parameter', 'parameter_mods', or 'parameter_scale' can be specified.", call. = FALSE)
   }
 
-  if (parameter_missing && !has_parameter_mods && !has_parameter_scale) {
+  if (parameter_missing && !has_parameter_mods && !has_parameter_scale &&
+      identical(.parameter_component_normalize(component), "auto")) {
     selected <- .select_print_prior_all(x)
     priors   <- lapply(selected, `[[`, "prior")
     names(priors) <- vapply(selected, `[[`, character(1), "label")
@@ -319,6 +335,7 @@ print_prior.brma <- function(
         parameter        = parameter_i,
         parameter_mods   = NULL,
         parameter_scale  = NULL,
+        component        = component,
         allow_mixed_bias = TRUE
       )
     })
@@ -337,6 +354,7 @@ print_prior.brma <- function(
     parameter        = if (has_parameter) parameter else NULL,
     parameter_mods   = if (has_parameter_mods) parameter_mods else NULL,
     parameter_scale  = if (has_parameter_scale) parameter_scale else NULL,
+    component        = component,
     allow_mixed_bias = TRUE
   )
 

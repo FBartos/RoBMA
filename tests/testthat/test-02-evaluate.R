@@ -394,6 +394,70 @@ test_that("variance ordering: mu < theta < response", {
               info = "theta has more variance than terms")
 })
 
+test_that("selection row routing validates posterior bias indicators", {
+
+  bias <- BayesTools::prior_mixture(list(
+    BayesTools::prior_none(),
+    BayesTools::prior_weightfunction(
+      side    = "one-sided",
+      steps   = c(.025),
+      weights = BayesTools::wf_fixed(c(1, .5))
+    )
+  ))
+  object <- list(
+    fit    = NULL,
+    priors = list(outcome = list(bias = bias))
+  )
+
+  posterior_samples <- matrix(c(1, 2, 1, 2), ncol = 1)
+  colnames(posterior_samples) <- "bias_indicator"
+
+  expect_equal(
+    .extract_bias_indicator(object, posterior_samples = posterior_samples),
+    c(1L, 2L, 1L, 2L)
+  )
+  expect_equal(
+    .extract_use_normal(object, posterior_samples = posterior_samples),
+    c(TRUE, FALSE, TRUE, FALSE)
+  )
+
+  invalid <- posterior_samples
+  invalid[, "bias_indicator"] <- c(1, 0, 1, 2)
+  expect_error(
+    .extract_bias_indicator(object, posterior_samples = invalid),
+    "Invalid posterior model indicator range"
+  )
+
+  invalid[, "bias_indicator"] <- c(1, NA, 1, 2)
+  expect_error(
+    .extract_use_normal(object, posterior_samples = invalid),
+    "Invalid posterior model indicator"
+  )
+
+  invalid[, "bias_indicator"] <- c(1, 3, 1, 2)
+  expect_error(
+    .selection_row_routing(
+      priors               = object[["priors"]],
+      posterior_samples    = invalid,
+      honor_bias_indicator = TRUE
+    ),
+    "Invalid posterior model indicator range"
+  )
+})
+
+test_that("selected-normal RNG requires explicit row routing", {
+
+  expect_error(
+    .outcome_rng.selnorm(
+      mu_samples        = matrix(0, nrow = 2, ncol = 1),
+      tau_within        = matrix(0, nrow = 2, ncol = 1),
+      sei               = 1,
+      selection_context = list()
+    ),
+    "use_normal"
+  )
+})
+
 
 # ============================================================================ #
 # SECTION 2: Integration Tests with Pre-fitted Models

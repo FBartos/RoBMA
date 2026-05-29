@@ -24,6 +24,11 @@
 #' When \code{weights} are supplied, they are treated as likelihood weights on
 #' the paired two-arm study contribution.
 #'
+#' For factor moderators, \code{BMA.glmm()} defaults to
+#' \code{set_contrast_factor_predictors = "meandif"}, matching the other
+#' model-averaging constructors. This differs from \code{\link{brma.glmm}()},
+#' which defaults to \code{"treatment"} as a single-model constructor.
+#'
 #' @return A fitted object of class
 #' `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`. The object contains checked
 #' `data`, checked mixture `priors`, the JAGS `fit`, cached `summary`, and
@@ -63,7 +68,7 @@ BMA.glmm <- function(
   prior_effect_null, prior_heterogeneity_null, prior_mods_null,
   prior_scale_null, prior_heterogeneity_allocation_null,
   standardize_continuous_predictors = TRUE,
-  set_contrast_factor_predictors = "treatment",
+  set_contrast_factor_predictors = "meandif",
   prior_unit_information_sd, rescale_priors = 1,
   prior_informed_field, prior_informed_subfield,
 

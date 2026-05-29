@@ -25,12 +25,13 @@ heterogeneity allocated to the cluster-level component in multilevel models
 (\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
-base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
-to independent \code{Beta(1, 1)} priors.}
+base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
-log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
-unit-information normal prior is used independently for each estimate.}
+log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
+data-based unit-information normal prior is used independently for each
+estimate.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -44,15 +45,15 @@ default PEESE prior's UISD adjustment. Defaults to 1.}
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 }
 \description{
 Prior distributions can be supplied for all model parameters. When omitted,

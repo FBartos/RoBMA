@@ -116,8 +116,8 @@ centered at 0, truncated to positive values, with scale from
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
@@ -131,8 +131,8 @@ default PEESE prior's UISD adjustment. Defaults to 1.}
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{effect_direction}{direction used by publication-bias adjustments.
 \code{"positive"} assumes statistically significant positive estimates are more

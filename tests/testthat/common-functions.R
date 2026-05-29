@@ -466,6 +466,7 @@ source_file_md5 <- function(source_file) {
     "R/pdf-utils.R",
     "R/priors.R",
     "R/selection-mapping.R",
+    "R/unit_level.R",
     "R/utilities.R",
     "R/zzz.R"
   )

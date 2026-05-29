@@ -970,44 +970,14 @@
 # ---------------------------------------------------------------------------- #
 .extract_use_normal <- function(object, posterior_samples = NULL) {
 
-  priors <- object[["priors"]]
-  fit    <- object[["fit"]]
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  routing           <- .selection_row_routing(
+    priors               = object[["priors"]],
+    posterior_samples    = posterior_samples,
+    honor_bias_indicator = TRUE
+  )
 
-  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
-  S <- nrow(posterior_samples)
-
-  # check if bias_indicator column exists (RoBMA with mixture priors)
-  has_bias_indicator <- "bias_indicator" %in% colnames(posterior_samples)
-
-  if (has_bias_indicator) {
-
-    # RoBMA case: multiple bias priors in mixture
-    bias_indicator <- as.integer(posterior_samples[, "bias_indicator"])
-
-    # extract bias priors and ensure list format
-    priors_bias <- priors[["outcome"]][["bias"]]
-    if (!BayesTools::is.prior.mixture(priors_bias)) {
-      priors_bias <- list(priors_bias)
-    }
-
-    # identify which bias priors use selection kernels
-    weightfunction_indices <- which(sapply(priors_bias, .prior_is_selection_kernel))
-
-    # use_normal = TRUE for samples NOT from weightfunction priors
-    use_normal <- !(bias_indicator %in% weightfunction_indices)
-
-  } else {
-
-    # brma case: single bias prior (or no bias)
-    # check if the single prior is a weightfunction
-    is_weightfunction <- .is_priors_weightfunction(priors)
-
-    # if weightfunction, all samples use weighted path; otherwise all use normal
-    use_normal <- rep(!is_weightfunction, S)
-
-  }
-
-  return(use_normal)
+  return(routing[["use_normal"]])
 }
 
 
@@ -1028,11 +998,11 @@
 .extract_bias_indicator <- function(object, posterior_samples = NULL) {
 
   posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
-  S <- nrow(posterior_samples)
+  routing           <- .selection_row_routing(
+    priors               = object[["priors"]],
+    posterior_samples    = posterior_samples,
+    honor_bias_indicator = TRUE
+  )
 
-  if ("bias_indicator" %in% colnames(posterior_samples)) {
-    return(as.integer(posterior_samples[, "bias_indicator"]))
-  }
-
-  return(rep(1L, S))
+  return(routing[["bias_indicator"]])
 }

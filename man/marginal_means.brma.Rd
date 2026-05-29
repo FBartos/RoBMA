@@ -7,12 +7,11 @@
 \method{marginal_means}{brma}(
   object,
   null_hypothesis = 0,
-  normal_approximation = FALSE,
   n_samples = 10000,
   output_measure = NULL,
   transform = NULL,
   bf = NULL,
-  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
   density_control = NULL,
   ...
 )
@@ -22,9 +21,6 @@
 
 \item{null_hypothesis}{point null hypothesis used for inclusion Bayes
 factors. Defaults to \code{0}.}
-
-\item{normal_approximation}{whether prior and posterior density at the null
-should be approximated with a normal distribution. Defaults to \code{FALSE}.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}
@@ -45,11 +41,14 @@ summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects.}
 
 \item{density_method}{posterior density method. \code{"KDE"} uses the
-standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
-row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
-Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
-separate precomputed posterior ordinates at \code{null_hypothesis}; these
-ordinates do not alter the plotting grid.}
+standard BayesTools kernel density estimate. \code{"normal"} uses the
+BayesTools normal approximation for point-null Bayes factors and does not
+attach a plotting density. \code{"qCMDE"} attaches RoBMA row-normalized
+q-grid conditional densities. \code{"IWMDE"}
+attaches Chen-style moment-matched IWMDE densities for plotting. RoBMA
+stores separate precomputed posterior ordinates at \code{null_hypothesis};
+these ordinates do not alter the plotting grid. Matching is
+case-insensitive.}
 
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points}, \code{max_samples}, \code{display_grid},

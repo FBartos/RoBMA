@@ -1178,6 +1178,134 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(rep(selection_spec[["phack_q"]], nrow(posterior_samples)))
 }
 
+.selection_row_routing <- function(priors, posterior_samples,
+                                   honor_bias_indicator = TRUE,
+                                   selection_spec = NULL) {
+
+  S           <- nrow(posterior_samples)
+  priors_bias <- priors[["outcome"]][["bias"]]
+  prior_list  <- .selection_bias_priors(priors)
+
+  if (!honor_bias_indicator) {
+    bias_indicator <- rep(1L, S)
+  } else if ("bias_indicator" %in% colnames(posterior_samples)) {
+    bias_indicator <- .extract_posterior_indicator(
+      posterior_samples = posterior_samples,
+      parameter         = "bias",
+      prior             = prior_list,
+      column            = "bias_indicator"
+    )
+  } else if (BayesTools::is.prior.mixture(priors_bias)) {
+    stop("Missing posterior model indicator: 'bias_indicator'.",
+         call. = FALSE)
+  } else {
+    bias_indicator <- rep(1L, S)
+  }
+
+  if (!.is_priors_weightfunction(priors)) {
+    use_normal <- rep(TRUE, S)
+  } else if (!honor_bias_indicator) {
+    use_normal <- rep(FALSE, S)
+  } else {
+    selection_indices <- which(vapply(prior_list, .prior_is_selection_kernel, logical(1)))
+    use_normal        <- !(bias_indicator %in% selection_indices)
+  }
+
+  kernel_mode <- rep(
+    if (is.null(selection_spec)) SELKERNEL_NORMAL else selection_spec[["kernel_mode"]],
+    S
+  )
+  kernel_mode[use_normal] <- SELKERNEL_NORMAL
+
+  return(list(
+    bias_indicator = bias_indicator,
+    use_normal     = use_normal,
+    kernel_mode    = kernel_mode
+  ))
+}
+
+.selection_validate_context_rows <- function(selection_context, n_samples = NULL,
+                                             required = character(),
+                                             caller = "selection context") {
+
+  if (is.null(n_samples)) {
+    if (is.null(selection_context[["omega"]])) {
+      stop("Cannot validate selection context rows without 'omega' or sample count.",
+           call. = FALSE)
+    }
+    n_samples <- nrow(selection_context[["omega"]])
+  }
+
+  out <- selection_context
+
+  if ("omega" %in% names(out) || "omega" %in% required) {
+    if (is.null(out[["omega"]]) || !is.matrix(out[["omega"]]) ||
+        nrow(out[["omega"]]) != n_samples ||
+        any(!is.finite(out[["omega"]]))) {
+      stop("Invalid selection context 'omega' in ", caller, ".", call. = FALSE)
+    }
+  }
+
+  if ("alpha" %in% names(out) || "alpha" %in% required) {
+    if (is.null(out[["alpha"]])) {
+      stop("Missing selection context 'alpha' in ", caller, ".", call. = FALSE)
+    }
+    out[["alpha"]] <- .selection_row_arg(out[["alpha"]], n_samples, "alpha")
+    if (!is.numeric(out[["alpha"]]) && !is.integer(out[["alpha"]])) {
+      stop("Invalid selection context 'alpha' in ", caller, ".", call. = FALSE)
+    }
+    if (any(!is.finite(out[["alpha"]]))) {
+      stop("Invalid selection context 'alpha' in ", caller, ".", call. = FALSE)
+    }
+    out[["alpha"]] <- as.numeric(out[["alpha"]])
+  }
+
+  for (name in c("phack_kind", "kernel_mode", "bias_indicator")) {
+    if (!name %in% names(out) && !name %in% required) {
+      next
+    }
+    if (is.null(out[[name]])) {
+      stop("Missing selection context '", name, "' in ", caller, ".", call. = FALSE)
+    }
+    out[[name]] <- .selection_row_arg(out[[name]], n_samples, name)
+    if (!is.numeric(out[[name]]) && !is.integer(out[[name]])) {
+      stop("Invalid selection context '", name, "' in ", caller, ".", call. = FALSE)
+    }
+    if (any(!is.finite(out[[name]])) ||
+        any(abs(out[[name]] - round(out[[name]])) > sqrt(.Machine$double.eps))) {
+      stop("Invalid selection context '", name, "' in ", caller, ".", call. = FALSE)
+    }
+    out[[name]] <- as.integer(round(out[[name]]))
+  }
+
+  if ("use_normal" %in% names(out) || "use_normal" %in% required) {
+    if (is.null(out[["use_normal"]]) || !is.logical(out[["use_normal"]])) {
+      stop("Invalid selection context 'use_normal' in ", caller, ".", call. = FALSE)
+    }
+    out[["use_normal"]] <- .selection_row_arg(out[["use_normal"]], n_samples, "use_normal")
+    if (any(is.na(out[["use_normal"]]))) {
+      stop("Invalid selection context 'use_normal' in ", caller, ".", call. = FALSE)
+    }
+  }
+
+  if ("kernel_mode" %in% names(out) &&
+      any(!out[["kernel_mode"]] %in% c(
+        SELKERNEL_NORMAL,
+        SELKERNEL_STEP,
+        SELKERNEL_PHACK_POWER,
+        SELKERNEL_STEP_PHACK_POWER
+      ))) {
+    stop("Invalid selection context 'kernel_mode' in ", caller, ".", call. = FALSE)
+  }
+
+  if ("bias_indicator" %in% names(out) &&
+      any(out[["bias_indicator"]] < 1L)) {
+    stop("Invalid selection context 'bias_indicator' in ", caller, ".", call. = FALSE)
+  }
+
+  return(out)
+}
+
 .selection_context_from_parts <- function(fit, data, priors, posterior_samples,
                                           effect_direction,
                                           honor_bias_indicator = FALSE,
@@ -1210,23 +1338,12 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     return(NULL)
   }
 
-  active_object <- list(
-    fit    = fit,
-    data   = data,
-    priors = priors
+  routing <- .selection_row_routing(
+    priors               = priors,
+    posterior_samples    = posterior_samples,
+    honor_bias_indicator = honor_bias_indicator,
+    selection_spec       = selection_spec
   )
-  bias_indicator <- if (honor_bias_indicator) {
-    .extract_bias_indicator(active_object, posterior_samples = posterior_samples)
-  } else {
-    rep(1L, nrow(posterior_samples))
-  }
-  use_normal <- if (honor_bias_indicator) {
-    .extract_use_normal(active_object, posterior_samples = posterior_samples)
-  } else {
-    rep(FALSE, nrow(posterior_samples))
-  }
-  kernel_mode    <- rep(selection_spec[["kernel_mode"]], nrow(posterior_samples))
-  kernel_mode[use_normal] <- SELKERNEL_NORMAL
 
   selection_context <- selection_spec
   selection_context[["family"]]         <- selection_spec[["mode"]]
@@ -1235,9 +1352,17 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   selection_context[["omega"]]          <- .extract_selection_omega_samples(posterior_samples, selection_spec)
   selection_context[["alpha"]]          <- .extract_selection_alpha_samples(posterior_samples, selection_spec)
   selection_context[["phack_kind"]]     <- .extract_selection_phack_kind(posterior_samples, selection_spec)
-  selection_context[["kernel_mode"]]    <- kernel_mode
-  selection_context[["bias_indicator"]] <- bias_indicator
-  selection_context[["use_normal"]]     <- use_normal
+  selection_context[["kernel_mode"]]    <- routing[["kernel_mode"]]
+  selection_context[["bias_indicator"]] <- routing[["bias_indicator"]]
+  selection_context[["use_normal"]]     <- routing[["use_normal"]]
+
+  selection_context <- .selection_validate_context_rows(
+    selection_context = selection_context,
+    n_samples         = nrow(posterior_samples),
+    required          = c("omega", "alpha", "phack_kind", "kernel_mode",
+                          "bias_indicator", "use_normal"),
+    caller            = ".selection_context_from_parts()"
+  )
 
   return(.selection_reset_native_cache(selection_context))
 }
@@ -1272,6 +1397,12 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
       out[[name]] <- value[rows]
     }
   }
+
+  out <- .selection_validate_context_rows(
+    selection_context = out,
+    n_samples         = length(rows),
+    caller            = ".selection_context_subset_rows()"
+  )
 
   return(.selection_reset_native_cache(out))
 }

@@ -12,10 +12,16 @@
 #' models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
 #' \code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
 #' for PET/PEESE regression plots.
-#' @param parameter_mods character. Moderator term to plot. Use
-#' \code{"intercept"} for the adjusted effect in meta-regression models.
-#' @param parameter_scale character. Scale-regression term to plot. Use
+#' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
+#' with \code{component = "mods"}. Use \code{"intercept"} for the
+#' adjusted effect in meta-regression models.
+#' @param parameter_scale legacy scale-regression selector. Prefer
+#' \code{parameter} with \code{component = "scale"}. Use
 #' \code{"intercept"} for the heterogeneity intercept in location-scale models.
+#' @param component parameter component. Defaults to \code{"auto"}, which
+#' infers the component when possible. Use \code{"mods"} (alias
+#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+#' terms used in multiple model components.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.
@@ -29,7 +35,7 @@
 #' @param density_method posterior density method. \code{"KDE"} uses the
 #' standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
-#' Chen-style moment-matched IWMDE densities.
+#' Chen-style moment-matched IWMDE densities. Matching is case-insensitive.
 #' @param density_control named list of density-estimation settings. Supported
 #' entries are \code{n_points}, \code{max_samples}, \code{display_grid},
 #' \code{normalization_points}, and \code{normalization_prob}. The
@@ -67,13 +73,13 @@
 #' @seealso [RoBMA()]
 #' @export
 plot.brma  <- function(
-    x, parameter, parameter_mods, parameter_scale,
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
     prior = FALSE, standardized_coefficients = FALSE,
     conditional = FALSE,
     output_measure = NULL, transform = NULL,
     plot_type = "base", dots_prior = NULL,
     density_method = c("KDE", "qCMDE", "IWMDE"),
-    density_control = NULL, ...) {
+    density_control = NULL, component = "auto", ...) {
 
 
   ### check user input
@@ -102,10 +108,11 @@ plot.brma  <- function(
 
   ### select and validate the parameter to be plotted
   parameter <- .check_and_select_plot_parameter(
-    parameter       = parameter,
-    parameter_mods  = parameter_mods,
-    parameter_scale = parameter_scale,
-    object          = x
+    parameter        = parameter,
+    parameter_mods   = parameter_mods,
+    parameter_scale  = parameter_scale,
+    component        = component,
+    object           = x
   )
   effect_transform <- .effect_output_setup(
     object         = x,

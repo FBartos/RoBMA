@@ -105,8 +105,32 @@ test_that("plot_prior selects moderator and scale priors", {
   ))
 
   expect_true(.is_ggplot(plot_prior(scale_priors, parameter = "tau", plot_type = "ggplot")))
+  expect_true(.is_ggplot(plot_prior(scale_priors, component = "scale", plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(scale_priors, parameter_scale = "scale_var", plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(scale_priors, parameter_scale = "scale_var", standardized_coefficients = FALSE, plot_type = "ggplot")))
+
+  both_priors <- suppressWarnings(BMA(
+    yi = effect, sei = std_err,
+    mods = ~ scale_var, scale = ~ scale_var,
+    data = test_data, measure = "SMD", only_priors = TRUE
+  ))
+
+  expect_error(
+    plot_prior(both_priors, parameter = "scale_var", plot_type = "ggplot"),
+    regexp = "component"
+  )
+  expect_true(.is_ggplot(plot_prior(
+    both_priors, parameter = "scale_var", component = "mods",
+    plot_type = "ggplot"
+  )))
+  expect_true(.is_ggplot(plot_prior(
+    both_priors, parameter = "scale_var", component = "location",
+    plot_type = "ggplot"
+  )))
+  expect_true(.is_ggplot(plot_prior(
+    both_priors, parameter = "scale_var", component = "scale",
+    plot_type = "ggplot"
+  )))
 })
 
 test_that("plot_prior supports direct prior objects", {
@@ -131,6 +155,19 @@ test_that("print_prior prints selected priors", {
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "mu", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter_mods = "mod_cont", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "mod_factor", silent = TRUE)))
+
+  both_priors <- suppressWarnings(BMA(
+    yi = effect, sei = std_err,
+    mods = ~ scale_var, scale = ~ scale_var,
+    data = test_data, measure = "SMD", only_priors = TRUE
+  ))
+  expect_true(BayesTools::is.prior(print_prior(
+    both_priors, parameter = "scale_var", component = "scale",
+    silent = TRUE
+  )))
+  expect_true(BayesTools::is.prior(print_prior(
+    both_priors, component = "scale", silent = TRUE
+  )))
 
   full_output <- capture.output(full_selected <- print_prior(priors, silent = TRUE))
   expect_identical(full_output, character(0))

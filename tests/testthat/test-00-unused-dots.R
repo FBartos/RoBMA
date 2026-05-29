@@ -80,6 +80,16 @@ test_that("unused-dot warning helper reports ignored arguments", {
   ))
 })
 
+test_that("predict.brma rejects unused dots before prediction setup", {
+
+  object <- structure(list(), class = "brma")
+
+  expect_error(
+    predict.brma(object, legacy_argument = TRUE),
+    "Unused argument.*legacy_argument"
+  )
+})
+
 test_that("top-level fitting constructors validate internal dot types", {
 
   expect_error(

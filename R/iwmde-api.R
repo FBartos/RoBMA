@@ -36,7 +36,7 @@
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} uses
 #' Chen-style moment-matched weights: conditional normal weights for
 #' unconstrained targets and power/exponential weights for bounded or
-#' one-sided targets.
+#' one-sided targets. Matching is case-insensitive.
 #' @param display_grid support-point placement for the plotted IWMDE curve.
 #' \code{"adaptive"} combines a uniform backbone, posterior quantiles, and
 #' pilot-density height/curvature points. \code{"uniform"} uses equally spaced
@@ -392,25 +392,68 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
-.density_method_normalize <- function(density_method) {
+.density_method_normalize <- function(density_method, allow_normal = FALSE) {
 
-  return(match.arg(density_method, c("KDE", "qCMDE", "IWMDE")))
+  allowed <- c("KDE", "qCMDE", "IWMDE")
+  if (isTRUE(allow_normal)) {
+    allowed <- c("KDE", "normal", "qCMDE", "IWMDE")
+  }
+
+  return(.density_method_match(density_method, allowed))
 }
 
 
 .density_method_normalize_precomputed <- function(density_method) {
 
-  density_method <- match.arg(density_method, c("qCMDE", "IWMDE"))
+  density_method <- .density_method_match(density_method, c("qCMDE", "IWMDE"))
 
   return(density_method)
 }
 
 
-.density_method_uses_precomputed <- function(density_method) {
+.density_method_match <- function(density_method, allowed) {
 
-  density_method <- .density_method_normalize(density_method)
+  if (is.null(density_method)) {
+    return(allowed[[1L]])
+  }
+  if (!is.character(density_method) || length(density_method) == 0L ||
+      anyNA(density_method)) {
+    stop("'density_method' must be one of ",
+         paste0("'", allowed, "'", collapse = ", "), ".",
+         call. = FALSE)
+  }
 
-  return(!identical(density_method, "KDE"))
+  density_method_lower <- tolower(density_method)
+  allowed_lower        <- tolower(allowed)
+
+  if (length(density_method) > 1L) {
+    if (identical(density_method_lower, allowed_lower)) {
+      return(allowed[[1L]])
+    }
+    stop("'density_method' must be one of ",
+         paste0("'", allowed, "'", collapse = ", "), ".",
+         call. = FALSE)
+  }
+
+  index <- pmatch(density_method_lower, allowed_lower, duplicates.ok = TRUE)
+  if (is.na(index)) {
+    stop("'density_method' must be one of ",
+         paste0("'", allowed, "'", collapse = ", "), ".",
+         call. = FALSE)
+  }
+
+  return(allowed[[index]])
+}
+
+
+.density_method_uses_precomputed <- function(density_method, allow_normal = FALSE) {
+
+  density_method <- .density_method_normalize(
+    density_method = density_method,
+    allow_normal   = allow_normal
+  )
+
+  return(density_method %in% c("qCMDE", "IWMDE"))
 }
 
 
@@ -428,9 +471,13 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
-.density_control_normalize <- function(density_method, density_control = NULL) {
+.density_control_normalize <- function(density_method, density_control = NULL,
+                                       allow_normal = FALSE) {
 
-  density_method <- .density_method_normalize(density_method)
+  density_method <- .density_method_normalize(
+    density_method = density_method,
+    allow_normal   = allow_normal
+  )
   allowed_names  <- c(
     "n_points",
     "max_samples",
@@ -473,7 +520,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
          paste0("'", unknown_names, "'", collapse = ", "), ".",
          call. = FALSE)
   }
-  if (identical(density_method, "KDE")) {
+  if (density_method %in% c("KDE", "normal")) {
     stop("'density_control' is only used when 'density_method' is ",
          "'qCMDE' or 'IWMDE'.", call. = FALSE)
   }

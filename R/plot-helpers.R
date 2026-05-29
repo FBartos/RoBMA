@@ -1,168 +1,302 @@
-.check_and_select_plot_parameter <- function(parameter, parameter_mods, parameter_scale, object) {
+.check_and_select_plot_parameter <- function(parameter, parameter_mods,
+                                             parameter_scale, object,
+                                             component = "auto") {
 
-  # Check for model characteristics
-  is_mods           <- .is_mods(object)
-  is_scale          <- .is_scale(object)
-  is_multilevel     <- .is_multilevel(object)
-  is_PET            <- .is_PET(object)
-  is_PEESE          <- .is_PEESE(object)
-  is_weightfunction <- .is_weightfunction(object)
-
-  # Determine which arguments were provided
+  component           <- .parameter_component_normalize(component)
   has_parameter       <- !missing(parameter)       && !is.null(parameter)
   has_parameter_mods  <- !missing(parameter_mods)  && !is.null(parameter_mods)
   has_parameter_scale <- !missing(parameter_scale) && !is.null(parameter_scale)
 
-  # Count how many were specified
-
   n_specified <- sum(c(has_parameter, has_parameter_mods, has_parameter_scale))
-
-  # Error if more than one specified
   if (n_specified > 1) {
     stop("Only one of 'parameter', 'parameter_mods', or 'parameter_scale' can be specified.", call. = FALSE)
   }
 
-  # Default behavior if none specified
-  if (n_specified == 0) {
-    if (is_mods) {
-      # Default to intercept for meta-regression models
-      return("mu_intercept")
-    } else {
-      # Default to mu for simple models
-      return("mu")
-    }
-  }
-
-  # Process based on which argument was specified
-  if (has_parameter) {
-
-    # Validate base parameters
-    BayesTools::check_char(parameter, "parameter")
-
-    # Handle mu parameter
-    if (parameter == "mu") {
-      if (is_mods) {
-        # mu becomes mu_intercept when mods are present
-        return("mu_intercept")
-      } else {
-        return("mu")
-      }
-    }
-
-    # Handle tau parameter
-    if (parameter == "tau") {
-      if (is_scale) {
-        # tau becomes log_tau_intercept when scale is present
-        return("log_tau_intercept")
-      } else {
-        return("tau")
-      }
-    }
-
-    # Handle rho parameter (only for multilevel models)
-    if (parameter == "rho") {
-      if (!is_multilevel) {
-        stop("The 'rho' parameter is only available for multilevel models.", call. = FALSE)
-      }
-      return("rho")
-    }
-
-    ### Handle publication bias parameters
-    if (parameter == "PET") {
-      if (!is_PET) {
-        stop("The 'PET' parameter is only available for PET models.", call. = FALSE)
-      }
-      return("PET")
-    }
-
-    if (parameter == "PEESE") {
-      if (!is_PEESE) {
-        stop("The 'PEESE' parameter is only available for PEESE models.", call. = FALSE)
-      }
-      return("PEESE")
-    }
-
-    if (parameter == "omega" || parameter == "weightfunction") {
-      if (!is_weightfunction) {
-        stop("The 'omega'/'weightfunction' parameter is only available for selection models.", call. = FALSE)
-      }
-      return("omega")
-    }
-
-    # Unknown base parameter
-    # Build list of valid parameters dynamically
-    valid_params <- c("'mu'", "'tau'")
-    if (is_multilevel)     valid_params <- c(valid_params, "'rho'")
-    if (is_PET)            valid_params <- c(valid_params, "'PET'")
-    if (is_PEESE)          valid_params <- c(valid_params, "'PEESE'")
-    if (is_weightfunction) valid_params <- c(valid_params, "'omega'/'weightfunction'")
-
-    stop(sprintf(
-      "Unknown parameter '%s'. Valid base parameters are: %s.",
-      parameter,
-      paste(valid_params, collapse = ", ")
-    ), call. = FALSE)
-
-  } else if (has_parameter_mods) {
-
-    # Validate that mods are present
-    if (!is_mods) {
-      stop("The 'parameter_mods' argument can only be used for models with moderators.", call. = FALSE)
-    }
-
-    BayesTools::check_char(parameter_mods, "parameter_mods")
-
-    available_terms <- .fitted_formula_terms(
-      object            = object,
-      parameter         = "mu",
-      include_intercept = TRUE,
-      display           = TRUE
-    )
-
-    # Validate the specified term exists
-    if (!parameter_mods %in% available_terms) {
-      stop(sprintf(
-        "The specified 'parameter_mods' term '%s' is not available. Available terms are: %s.",
-        parameter_mods,
-        paste0("'", available_terms, "'", collapse = ", ")
-      ), call. = FALSE)
-    }
-
-    return(BayesTools::JAGS_parameter_names(
-      parameters        = parameter_mods,
-      formula_parameter = "mu"
-    ))
-
-  } else if (has_parameter_scale) {
-
-    # Validate that scale is present
-    if (!is_scale) {
-      stop("The 'parameter_scale' argument can only be used for location-scale models.", call. = FALSE)
-    }
-
-    BayesTools::check_char(parameter_scale, "parameter_scale")
-
-    available_terms <- .fitted_formula_terms(
-      object            = object,
-      parameter         = "log_tau",
-      include_intercept = TRUE,
-      display           = TRUE
-    )
-
-    # Validate the specified term exists
-    if (!parameter_scale %in% available_terms) {
-      stop(sprintf(
-        "The specified 'parameter_scale' term '%s' is not available. Available terms are: %s.",
-        parameter_scale,
-        paste0("'", available_terms, "'", collapse = ", ")
-      ), call. = FALSE)
-    }
-
-    return(BayesTools::JAGS_parameter_names(
-      parameters        = parameter_scale,
-      formula_parameter = "log_tau"
+  if (has_parameter_mods) {
+    .parameter_component_check_compatible(component, "mods", "parameter_mods")
+    return(.brma_parameter_select(
+      object    = object,
+      parameter = parameter_mods,
+      component = "mods",
+      argument  = "parameter_mods"
     ))
   }
+
+  if (has_parameter_scale) {
+    .parameter_component_check_compatible(component, "scale", "parameter_scale")
+    return(.brma_parameter_select(
+      object    = object,
+      parameter = parameter_scale,
+      component = "scale",
+      argument  = "parameter_scale"
+    ))
+  }
+
+  if (!has_parameter) {
+    parameter <- .brma_parameter_default(component, object)
+  }
+
+  return(.brma_parameter_select(
+    object    = object,
+    parameter = parameter,
+    component = component,
+    argument  = "parameter"
+  ))
+}
+
+.component_values <- function(allow_auto = FALSE, allow_all = FALSE,
+                              allow_outcome = FALSE, allow_bias = FALSE) {
+
+  values <- c("mods", "location", "scale")
+  if (allow_outcome) {
+    values <- c("outcome", values)
+  }
+  if (allow_bias) {
+    values <- c(values, "bias")
+  }
+  if (allow_all) {
+    values <- c(values, "all")
+  }
+  if (allow_auto) {
+    values <- c("auto", values)
+  }
+
+  return(values)
+}
+
+.component_normalize <- function(component, argument = "component",
+                                 allow_auto = FALSE, allow_all = FALSE,
+                                 allow_outcome = FALSE, allow_bias = FALSE,
+                                 null = "auto",
+                                 location_value = c("mods", "location")) {
+
+  location_value <- match.arg(location_value)
+  if (is.null(component)) {
+    component <- null
+  }
+
+  BayesTools::check_char(component, argument, check_length = 1, allow_NA = FALSE)
+  component <- match.arg(
+    component,
+    .component_values(
+      allow_auto    = allow_auto,
+      allow_all     = allow_all,
+      allow_outcome = allow_outcome,
+      allow_bias    = allow_bias
+    )
+  )
+
+  if (component %in% c("mods", "location")) {
+    return(location_value)
+  }
+
+  return(component)
+}
+
+.parameter_component_normalize <- function(component) {
+
+  .component_normalize(
+    component      = component,
+    allow_auto     = TRUE,
+    allow_bias     = TRUE,
+    location_value = "mods"
+  )
+}
+
+.fitted_component_normalize <- function(component) {
+
+  .component_normalize(
+    component      = component,
+    allow_all      = TRUE,
+    null           = "location",
+    location_value = "location"
+  )
+}
+
+.parameter_component_check_compatible <- function(component, selected_component,
+                                                  argument) {
+
+  if (!identical(component, "auto") &&
+      !identical(component, selected_component)) {
+    stop(
+      "The '", argument, "' argument selects component = '", selected_component,
+      "' but 'component' was set to '", component, "'.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
+}
+
+.brma_parameter_default <- function(component, object) {
+
+  if (identical(component, "mods")) {
+    if (.is_mods(object)) {
+      return("intercept")
+    }
+    return("mu")
+  }
+  if (identical(component, "scale")) {
+    if (.is_scale(object)) {
+      return("intercept")
+    }
+    return("tau")
+  }
+  if (identical(component, "bias")) {
+    stop("Specify 'parameter' when component = 'bias'.", call. = FALSE)
+  }
+
+  if (.is_mods(object)) {
+    return("mu")
+  }
+
+  return("mu")
+}
+
+.brma_parameter_select <- function(object, parameter,
+                                   component = "auto",
+                                   argument = "parameter") {
+
+  component <- .parameter_component_normalize(component)
+  BayesTools::check_char(parameter, argument, check_length = 1, allow_NA = FALSE)
+
+  catalog <- .brma_parameter_catalog(object)
+  matches <- catalog[catalog[["alias"]] == parameter, , drop = FALSE]
+  if (!identical(component, "auto")) {
+    matches <- matches[matches[["component"]] == component, , drop = FALSE]
+  }
+
+  if (nrow(matches) == 0L) {
+    stop(
+      "Unknown ", argument, " '", parameter, "'. Available quantities are: ",
+      .brma_parameter_available(catalog, component), ".",
+      call. = FALSE
+    )
+  }
+
+  selected <- unique(matches[["parameter"]])
+  if (length(selected) == 1L) {
+    return(selected)
+  }
+
+  components <- unique(matches[["component"]])
+  stop(
+    "Parameter '", parameter, "' is ambiguous across components: ",
+    paste0("'", components, "'", collapse = ", "),
+    ". Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
+    call. = FALSE
+  )
+}
+
+.brma_parameter_catalog <- function(object) {
+
+  rows <- list()
+  add <- function(parameter, component, term, aliases) {
+    aliases <- unique(aliases[!is.na(aliases) & nzchar(aliases)])
+    if (length(aliases) == 0L) {
+      return(invisible(NULL))
+    }
+    for (alias in aliases) {
+      rows[[length(rows) + 1L]] <<- data.frame(
+        alias     = alias,
+        parameter = parameter,
+        component = component,
+        term      = term,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+    }
+    return(invisible(NULL))
+  }
+
+  if (.is_mods(object)) {
+    add("mu_intercept", "mods", "intercept",
+        c("mu_intercept", "mu", "intercept"))
+    .brma_parameter_catalog_terms(
+      object            = object,
+      model_parameter   = "mu",
+      component         = "mods",
+      formula_parameter = "mu",
+      add               = add
+    )
+  } else {
+    add("mu", "mods", "mu", c("mu", "effect"))
+  }
+
+  if (.is_scale(object)) {
+    add("log_tau_intercept", "scale", "intercept",
+        c("log_tau_intercept", "tau", "intercept"))
+    .brma_parameter_catalog_terms(
+      object            = object,
+      model_parameter   = "log_tau",
+      component         = "scale",
+      formula_parameter = "log_tau",
+      add               = add
+    )
+  } else {
+    add("tau", "scale", "tau", c("tau", "heterogeneity"))
+  }
+
+  if (.is_multilevel(object)) {
+    add("rho", "scale", "rho", "rho")
+  }
+  if (.is_PET(object)) {
+    add("PET", "bias", "PET", "PET")
+  }
+  if (.is_PEESE(object)) {
+    add("PEESE", "bias", "PEESE", "PEESE")
+  }
+  if (.is_weightfunction(object)) {
+    add("omega", "bias", "omega", c("omega", "weightfunction"))
+  }
+
+  fit_priors <- attr(object[["fit"]], "prior_list")
+  if (!is.null(fit_priors[["bias"]])) {
+    add("bias", "bias", "bias", "bias")
+  }
+
+  out <- do.call(rbind, rows)
+  out <- unique(out)
+  rownames(out) <- NULL
+  return(out)
+}
+
+.brma_parameter_catalog_terms <- function(object, model_parameter, component,
+                                          formula_parameter, add) {
+
+  terms <- .fitted_formula_terms(
+    object            = object,
+    parameter         = model_parameter,
+    include_intercept = FALSE,
+    display           = TRUE,
+    required          = FALSE
+  )
+  if (is.null(terms) || length(terms) == 0L) {
+    return(invisible(NULL))
+  }
+
+  for (term in terms) {
+    parameter <- BayesTools::JAGS_parameter_names(
+      parameters        = term,
+      formula_parameter = formula_parameter
+    )
+    add(parameter, component, term, c(parameter, term))
+  }
+
+  return(invisible(NULL))
+}
+
+.brma_parameter_available <- function(catalog, component = "auto") {
+
+  component <- .parameter_component_normalize(component)
+  if (!identical(component, "auto")) {
+    catalog <- catalog[catalog[["component"]] == component, , drop = FALSE]
+  }
+
+  available <- unique(catalog[["alias"]])
+  available <- sort(available[nzchar(available)])
+
+  paste0("'", available, "'", collapse = ", ")
 }
 
 .set_dots_plot        <- function(..., n_levels = 1) {
@@ -320,21 +454,24 @@
 }
 
 .select_plot_prior_parameter <- function(
-    object, parameter, parameter_mods, parameter_scale, allow_mixed_bias = FALSE) {
+    object, parameter, parameter_mods, parameter_scale,
+    component = "auto", allow_mixed_bias = FALSE) {
 
+  component <- .parameter_component_normalize(component)
   n_specified <- sum(!vapply(
     list(parameter, parameter_mods, parameter_scale),
     is.null,
     logical(1)
   ))
 
-  if (n_specified == 0) {
+  if (n_specified == 0 && identical(component, "auto")) {
     parameter <- "mu"
   }
 
   priors <- object[["priors"]]
 
   if (!is.null(parameter_mods)) {
+    .parameter_component_check_compatible(component, "mods", "parameter_mods")
     .check_plot_prior_name(parameter_mods, "parameter_mods")
     return(.select_plot_prior_term(
       prior_list = priors[["mods"]],
@@ -346,6 +483,7 @@
   }
 
   if (!is.null(parameter_scale)) {
+    .parameter_component_check_compatible(component, "scale", "parameter_scale")
     .check_plot_prior_name(parameter_scale, "parameter_scale")
     return(.select_plot_prior_term(
       prior_list = priors[["scale"]],
@@ -353,6 +491,15 @@
       argument   = "parameter_scale",
       prefix     = "log_tau",
       source     = "scale"
+    ))
+  }
+
+  if (!identical(component, "auto")) {
+    return(.select_plot_prior_component(
+      priors           = priors,
+      parameter        = parameter,
+      component        = component,
+      allow_mixed_bias = allow_mixed_bias
     ))
   }
 
@@ -402,7 +549,7 @@
 
   if (in_mods && in_scale) {
     stop(sprintf(
-      "The term '%s' is available in both moderator and scale priors. Use 'parameter_mods' or 'parameter_scale'.",
+      "The term '%s' is available in both moderator and scale priors. Set 'component' to 'mods'/'location' or 'scale'.",
       parameter
     ), call. = FALSE)
   }
@@ -426,10 +573,122 @@
   }
 
   stop(sprintf(
-    "Unknown prior parameter '%s'. Available parameters are: %s.",
+    "Unknown prior parameter '%s'. Available selections are: %s.",
     parameter,
     .collapse_plot_prior_names(priors)
   ), call. = FALSE)
+}
+
+.select_plot_prior_component <- function(priors, parameter, component,
+                                         allow_mixed_bias) {
+
+  if (is.null(parameter)) {
+    parameter <- switch(
+      component,
+      "mods"    = "intercept",
+      "scale"   = "intercept",
+      "bias"    = "bias"
+    )
+  }
+
+  .check_plot_prior_name(parameter, "parameter")
+
+  if (identical(component, "mods")) {
+    parameter <- .select_plot_prior_component_term(parameter, "mods")
+    if (!is.null(priors[["mods"]]) && parameter %in% names(priors[["mods"]])) {
+      return(.select_plot_prior_term(
+        prior_list = priors[["mods"]],
+        term       = parameter,
+        argument   = "parameter",
+        prefix     = "mu",
+        source     = "mods"
+      ))
+    }
+    if (identical(parameter, "intercept") &&
+        !is.null(priors[["outcome"]][["mu"]])) {
+      return(list(
+        prior  = priors[["outcome"]][["mu"]],
+        label  = "mu",
+        source = "outcome",
+        term   = "mu"
+      ))
+    }
+    stop(sprintf("Unknown location prior parameter '%s'.", parameter), call. = FALSE)
+  }
+
+  if (identical(component, "scale")) {
+    parameter <- .select_plot_prior_component_term(parameter, "scale")
+    if (!is.null(priors[["scale"]]) && parameter %in% names(priors[["scale"]])) {
+      return(.select_plot_prior_term(
+        prior_list = priors[["scale"]],
+        term       = parameter,
+        argument   = "parameter",
+        prefix     = "log_tau",
+        source     = "scale"
+      ))
+    }
+    if (identical(parameter, "intercept") &&
+        !is.null(priors[["outcome"]][["tau"]])) {
+      return(list(
+        prior  = priors[["outcome"]][["tau"]],
+        label  = "tau",
+        source = "outcome",
+        term   = "tau"
+      ))
+    }
+    if (!is.null(priors[["outcome"]][[parameter]]) &&
+        parameter %in% c("tau", "rho")) {
+      return(list(
+        prior  = priors[["outcome"]][[parameter]],
+        label  = parameter,
+        source = "outcome",
+        term   = parameter
+      ))
+    }
+    stop(sprintf("Unknown scale prior parameter '%s'.", parameter), call. = FALSE)
+  }
+
+  parameter <- switch(
+    parameter,
+    "effect"         = "mu",
+    "heterogeneity"  = "tau",
+    "weightfunction" = "omega",
+    parameter
+  )
+
+  if (identical(component, "bias")) {
+    if (parameter %in% c("omega", "PET", "PEESE", "bias") &&
+        !is.null(priors[["outcome"]][["bias"]])) {
+      prior <- .select_plot_prior_bias(
+        prior            = priors[["outcome"]][["bias"]],
+        parameter        = parameter,
+        allow_mixed_bias = allow_mixed_bias
+      )
+      return(list(prior = prior, label = parameter, source = "bias", term = parameter))
+    }
+    stop(sprintf("Unknown bias prior parameter '%s'.", parameter), call. = FALSE)
+  }
+
+  stop(sprintf("Unknown prior component '%s'.", component), call. = FALSE)
+}
+
+.select_plot_prior_component_term <- function(parameter, component) {
+
+  if (identical(component, "mods")) {
+    if (parameter %in% c("mu", "mu_intercept")) {
+      return("intercept")
+    }
+    return(.formula_design_display_names(sub("^mu_", "", parameter)))
+  }
+
+  if (identical(component, "scale")) {
+    if (parameter %in% c("tau", "log_tau_intercept")) {
+      return("intercept")
+    }
+    return(.formula_design_display_names(sub("^log_tau_", "", parameter)))
+  }
+
+  return(parameter)
 }
 
 .select_plot_prior_term <- function(prior_list, term, argument, prefix, source) {
@@ -750,19 +1009,28 @@
 
 .collapse_plot_prior_names <- function(priors) {
 
-  names_available <- names(priors[["outcome"]])
+  selections <- paste0("parameter = '", names(priors[["outcome"]]), "'")
 
   if (!is.null(priors[["outcome"]][["bias"]])) {
-    names_available <- unique(c(names_available, "omega", "PET", "PEESE"))
+    selections <- unique(c(
+      selections,
+      paste0("parameter = '", c("omega", "PET", "PEESE"), "', component = 'bias'")
+    ))
   }
 
   if (!is.null(priors[["mods"]])) {
-    names_available <- c(names_available, paste0("parameter_mods = '", names(priors[["mods"]]), "'"))
+    selections <- c(
+      selections,
+      paste0("parameter = '", names(priors[["mods"]]), "', component = 'mods'")
+    )
   }
 
   if (!is.null(priors[["scale"]])) {
-    names_available <- c(names_available, paste0("parameter_scale = '", names(priors[["scale"]]), "'"))
+    selections <- c(
+      selections,
+      paste0("parameter = '", names(priors[["scale"]]), "', component = 'scale'")
+    )
   }
 
-  return(paste0("'", names_available, "'", collapse = ", "))
+  return(paste(unique(selections), collapse = ", "))
 }

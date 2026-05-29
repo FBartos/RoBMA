@@ -215,6 +215,10 @@ test_that("fitted returns in-sample posterior means", {
                info = "component all returns location and scale")
   expect_equal(unname(fitted_all[["location"]]), unname(fitted(fit_scale)),
                tolerance = 1e-12)
+  expect_equal(unname(fitted(fit_scale, component = "mods")),
+               unname(fitted(fit_scale)),
+               tolerance = 1e-12,
+               info = "component mods aliases location fitted values")
   expect_equal(unname(fitted_all[["scale"]]), unname(fitted_scale),
                tolerance = 1e-12)
 

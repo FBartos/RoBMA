@@ -109,6 +109,54 @@ test_that("marginal_means stores BayesTools marginal inference", {
   expect_s3_class(mm[["inference"]], "marginal_inference")
   expect_equal(mm[["parameters"]], c("mu_intercept", "mu_alloc"))
   expect_equal(mm[["term_map"]][["term"]], c("intercept", "alloc"))
+  expect_false("normal_approximation" %in% names(formals(marginal_means.brma)))
+  expect_equal(mm[["density_method"]], "KDE")
+})
+
+
+test_that("marginal_means exposes normal approximation as density method", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    as_marginal_inference = function(model, marginal_parameters, parameters,
+                                     conditional_list, conditional_rule,
+                                     formula, null_hypothesis,
+                                     normal_approximation, n_samples, silent,
+                                     force_plots) {
+
+      captured <<- list(
+        normal_approximation = normal_approximation,
+        parameters           = parameters
+      )
+      samples <- stats::setNames(
+        lapply(parameters, function(parameter) {
+          structure(
+            list(level = stats::rnorm(20)),
+            class = c("marginal_posterior.factor", "marginal_posterior")
+          )
+        }),
+        parameters
+      )
+      inference <- list(
+        averaged    = samples,
+        conditional = samples,
+        inference   = stats::setNames(vector("list", length(parameters)), parameters)
+      )
+      class(inference) <- c("marginal_inference", "list")
+
+      return(inference)
+    },
+    .package = "BayesTools"
+  )
+
+  mm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    density_method = "normal"
+  )
+
+  expect_true(captured[["normal_approximation"]])
+  expect_equal(mm[["density_method"]], "normal")
+  expect_false("normal_approximation" %in% names(mm))
 })
 
 
@@ -153,7 +201,7 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     inference            = mm[["inference"]],
     parameters           = mm[["parameters"]],
     null_hypothesis      = mm[["null_hypothesis"]],
-    normal_approximation = mm[["normal_approximation"]]
+    density_method       = mm[["density_method"]]
   )
   expected <- BayesTools::Savage_Dickey_BF(
     posterior            = mm[["inference"]][["conditional"]][["mu_alloc"]],
@@ -162,9 +210,31 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     silent               = TRUE,
     density_method       = "precomputed"
   )
+  hypothesis_bf <- BayesTools::hypothesis_BF(
+    posterior      = mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    hypothesis     = paste0("mu_alloc = ", mm[["null_hypothesis"]]),
+    parameter      = "mu_alloc",
+    columns        = "all",
+    density_method = "precomputed"
+  )
+  level_bf <- BayesTools::hypothesis_BF(
+    posterior  = mm[["inference"]][["averaged"]][["mu_alloc"]],
+    hypothesis = "mu_alloc[alternate] > mu_alloc[random]",
+    parameter  = "mu_alloc",
+    columns    = "all",
+    seed       = 11
+  )
 
   expect_equal(refreshed[["inference"]][["mu_alloc"]], expected)
   expect_true(is.finite(attr(expected[["alternate"]], "BF_error_percent")))
+  expect_equal(attr(hypothesis_bf, "raw_BF"), as.numeric(expected[["alternate"]]),
+               tolerance = 1e-12)
+  expect_equal(as.numeric(hypothesis_bf[["BF_error"]]),
+               attr(expected[["alternate"]], "BF_error_percent"),
+               tolerance = 1e-12)
+  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
+  expect_equal(level_bf[["method"]], "prior-posterior odds")
+  expect_true(is.finite(attr(level_bf, "raw_BF")))
 })
 
 
@@ -256,7 +326,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     inference            = mm[["inference"]],
     parameters           = mm[["parameters"]],
     null_hypothesis      = mm[["null_hypothesis"]],
-    normal_approximation = mm[["normal_approximation"]]
+    density_method       = mm[["density_method"]]
   )
 
   expect_equal(conditional_density[["density_method"]], "IWMDE")
@@ -279,9 +349,22 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     silent               = TRUE,
     density_method       = "precomputed"
   )
+  hypothesis_bf <- BayesTools::hypothesis_BF(
+    posterior      = mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    hypothesis     = paste0("mu_alloc = ", mm[["null_hypothesis"]]),
+    parameter      = "mu_alloc",
+    columns        = "all",
+    density_method = "precomputed"
+  )
 
   expect_equal(refreshed[["inference"]][["mu_alloc"]], expected)
   expect_true(is.finite(attr(expected[["alternate"]], "BF_error_percent")))
+  expect_equal(attr(hypothesis_bf, "raw_BF"), as.numeric(expected[["alternate"]]),
+               tolerance = 1e-12)
+  expect_equal(as.numeric(hypothesis_bf[["BF_error"]]),
+               attr(expected[["alternate"]], "BF_error_percent"),
+               tolerance = 1e-12)
+  expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
 })
 
 
