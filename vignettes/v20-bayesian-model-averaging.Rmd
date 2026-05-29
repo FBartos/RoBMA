@@ -309,7 +309,7 @@ fit_priors <- BMA(
   prior_mods_null = list(tailor = NULL),
   data = dat, only_priors = TRUE
 )
-print_prior(fit_priors, parameter = "tailor", component = "mods")
+print_prior(fit_priors, parameter = "tailor")
 ```
 
 A tighter half-normal slab on $\tau$:

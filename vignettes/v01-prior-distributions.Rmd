@@ -267,7 +267,7 @@ Havrankova_treatment <- brma(
   data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(Havrankova_treatment, parameter = "facing_customer", component = "mods")
+print_prior(Havrankova_treatment, parameter = "facing_customer")
 ```
 
 ```{r Havrankova-meandif}
@@ -278,7 +278,7 @@ Havrankova_meandif <- brma(
   data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(Havrankova_meandif, parameter = "facing_customer", component = "mods")
+print_prior(Havrankova_meandif, parameter = "facing_customer")
 ```
 
 The treatment-contrast version places a `Normal(0, 12.9)` prior distribution on each non-reference level's deviation from the reference level.
@@ -293,9 +293,8 @@ By default, `plot_prior()` displays the prior distribution on this standardized 
 We inspect the prior distribution on the continuous moderator `N` from the same `Havrankova_meandif` fit:
 
 ```{r Havrankova-continuous}
-plot_prior(Havrankova_meandif, parameter = "N", component = "mods")
-plot_prior(Havrankova_meandif, parameter = "N", component = "mods",
-  standardized_coefficients = FALSE)
+plot_prior(Havrankova_meandif, parameter = "N")
+plot_prior(Havrankova_meandif, parameter = "N", standardized_coefficients = FALSE)
 ```
 
 The first plot shows the prior distribution on the standardized scale used internally (a plausible change per one standard deviation of `N`).
