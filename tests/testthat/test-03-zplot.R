@@ -83,6 +83,8 @@ test_that("zplot creates reusable objects and plots directly", {
 test_that("zplot for simple meta-analysis renders base and ggplot output", {
 
   name     <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
   zc       <- .test_as_zplot(fit_brma)
 
@@ -110,6 +112,8 @@ test_that("zplot customization snapshots are stable", {
   skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name     <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
   zc       <- .test_as_zplot(fits[[name]])
 
   # --------------------------------------------------
@@ -164,6 +168,8 @@ test_that("zplot customization snapshots are stable", {
 test_that("zplot for meta-regression renders base output", {
 
   name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_regression_base", function() {
@@ -179,6 +185,8 @@ test_that("zplot for meta-regression renders base output", {
 test_that("zplot for positive-direction selection model renders base output", {
 
   name <- "dat.lehmann2018-3PSM"
+  skip_if_missing_fits(name)
+
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_selection_pos_base", function() {
@@ -192,6 +200,8 @@ test_that("zplot for negative-direction selection model renders base output", {
   skip_if_not_full_visuals("Negative-direction selection zplot is gallery coverage.")
 
   name <- "dat.lehmann2018-3PSM_neg"
+  skip_if_missing_fits(name)
+
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_selection_neg_base", function() {
@@ -213,8 +223,6 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   }
   selection         <- .zplot_selection_context(
     object            = fit,
-    data              = fit[["data"]],
-    priors            = fit[["priors"]],
     posterior_samples = posterior_samples,
     is_weightfunction = .is_weightfunction(fit)
   )
@@ -285,6 +293,8 @@ test_that("zplot handles RoBMA bias-mixture branches", {
 test_that("zplot for positive-direction PET model renders base output", {
 
   name <- "dat.lehmann2018-PET"
+  skip_if_missing_fits(name)
+
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_PET_pos_base", function() {
@@ -298,6 +308,8 @@ test_that("zplot for negative-direction PET model renders base output", {
   skip_if_not_full_visuals("Negative-direction PET zplot is gallery coverage.")
 
   name <- "dat.lehmann2018-PET_neg"
+  skip_if_missing_fits(name)
+
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_PET_neg_base", function() {
@@ -315,6 +327,8 @@ test_that("zplot for multilevel model renders base output", {
   skip_if_not_full_visuals("Multilevel zplot is gallery coverage.")
 
   name <- "konstantopoulos2011_3lvl"
+  skip_if_missing_fits(name)
+
   zc   <- .test_as_zplot(fits[[name]])
 
   expect_vdiffr_snapshot("zplot_multilevel_base", function() {

@@ -11,7 +11,10 @@
   output_measure = NULL,
   transform = NULL,
   bf = NULL,
-  density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
+  parameter = NULL,
+  type = NULL,
+  levels = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
   density_control = NULL,
   ...
 )
@@ -40,15 +43,16 @@ and \code{"IRR"}.}
 summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects.}
 
+\item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
+precomputation to a marginal-means parameter, output type, or factor levels.
+Leaving them \code{NULL} preserves full precomputation.}
+
 \item{density_method}{posterior density method. \code{"KDE"} uses the
-standard BayesTools kernel density estimate. \code{"normal"} uses the
-BayesTools normal approximation for point-null Bayes factors and does not
-attach a plotting density. \code{"qCMDE"} attaches RoBMA row-normalized
-q-grid conditional densities. \code{"IWMDE"}
-attaches Chen-style moment-matched IWMDE densities for plotting. RoBMA
-stores separate precomputed posterior ordinates at \code{null_hypothesis};
-these ordinates do not alter the plotting grid. Matching is
-case-insensitive.}
+standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
+row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
+Chen-style moment-matched IWMDE densities for plotting. RoBMA stores
+separate precomputed posterior ordinates at \code{null_hypothesis}; these
+ordinates do not alter the plotting grid. Matching is case-insensitive.}
 
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points}, \code{max_samples}, \code{display_grid},

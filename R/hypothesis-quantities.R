@@ -6,7 +6,8 @@
 #' @param object a fitted \code{brma} or \code{marginal_means.brma} object.
 #' @param ... unused.
 #'
-#' @return A data frame of available quantities, components, and aliases.
+#' @return A data frame of available quantities, components, aliases, and
+#' method-level test eligibility notes.
 #'
 #' @export
 hypothesis_quantities <- function(object, ...) {
@@ -25,8 +26,13 @@ hypothesis_quantities.brma <- function(object, ...) {
     caller  = "hypothesis_quantities()"
   )
   catalog <- .brma_parameter_catalog(object)
+  catalog <- catalog[catalog[["component"]] != "bias", , drop = FALSE]
   out <- catalog[, c("alias", "parameter", "component", "term"), drop = FALSE]
   out[["bracket"]] <- paste0(out[["parameter"]], "[level]")
+  out <- .hypothesis_quantities_add_eligibility(
+    out,
+    point_test_methods = "KDE, normal, qCMDE, IWMDE"
+  )
   rownames(out) <- NULL
   return(out)
 }
@@ -51,6 +57,22 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
+  out <- .hypothesis_quantities_add_eligibility(
+    out,
+    point_test_methods = "KDE, qCMDE, IWMDE"
+  )
   rownames(out) <- NULL
+  return(out)
+}
+
+
+.hypothesis_quantities_add_eligibility <- function(out, point_test_methods) {
+
+  out[["point_test"]]             <- TRUE
+  out[["direction_test"]]         <- TRUE
+  out[["point_test_methods"]]     <- point_test_methods
+  out[["direction_test_methods"]] <- "KDE, qCMDE, IWMDE"
+  out[["reason"]]                 <- ""
+
   return(out)
 }

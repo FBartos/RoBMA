@@ -9,8 +9,6 @@ NULL
   requireNamespace("runjags")
   requireNamespace("mvtnorm")
 
-  .check_bayestools_forward_api()
-
   RoBMA.private$RoBMA_version   <- utils::packageDescription(pkgname, fields = "Version")
   RoBMA.private$module_location <- .RoBMA_module_location(libname, pkgname)
   RoBMA.private$lib_name        <- libname
@@ -40,82 +38,6 @@ NULL
     "Welcome to RoBMA ", utils::packageVersion(pkgname), ".\n",
     "See `vignette('v00-introduction', package = 'RoBMA')` for introduction to the package."
   ))
-}
-
-.check_bayestools_forward_api <- function() {
-
-  required <- c(
-    "formula_add_intercept",
-    "plot_transformed_prior",
-    "JAGS_formula_design"
-  )
-  missing <- required[!vapply(
-    required,
-    function(x) exists(x, envir = asNamespace("BayesTools"), inherits = FALSE),
-    logical(1)
-  )]
-
-  posterior_plot_args         <- names(formals(BayesTools::plot_posterior))
-  marginal_plot_args          <- names(formals(BayesTools::plot_marginal))
-  savage_dickey_args          <- names(formals(BayesTools::Savage_Dickey_BF))
-  missing_posterior_plot_args <- setdiff(
-    c("data", "show_data", "dots_data", "density_method"),
-    posterior_plot_args
-  )
-  missing_marginal_plot_args  <- setdiff(
-    c("legend", "legend_title", "legend_labels", "legend_position", "density_method"),
-    marginal_plot_args
-  )
-  missing_savage_dickey_args  <- setdiff(
-    "density_method",
-    savage_dickey_args
-  )
-
-  if (length(missing) > 0 ||
-      length(missing_posterior_plot_args) > 0 ||
-      length(missing_marginal_plot_args) > 0 ||
-      length(missing_savage_dickey_args) > 0) {
-    details <- character(0)
-    if (length(missing) > 0) {
-      details <- c(details, paste0("missing functions: ", paste(missing, collapse = ", ")))
-    }
-    if (length(missing_posterior_plot_args) > 0) {
-      details <- c(
-        details,
-        paste0(
-          "BayesTools::plot_posterior() missing arguments: ",
-          paste(missing_posterior_plot_args, collapse = ", ")
-        )
-      )
-    }
-    if (length(missing_marginal_plot_args) > 0) {
-      details <- c(
-        details,
-        paste0(
-          "BayesTools::plot_marginal() missing arguments: ",
-          paste(missing_marginal_plot_args, collapse = ", ")
-        )
-      )
-    }
-    if (length(missing_savage_dickey_args) > 0) {
-      details <- c(
-        details,
-        paste0(
-          "BayesTools::Savage_Dickey_BF() missing arguments: ",
-          paste(missing_savage_dickey_args, collapse = ", ")
-        )
-      )
-    }
-
-    stop(
-      "RoBMA requires a BayesTools build with the forward APIs (",
-      paste(details, collapse = "; "),
-      ").",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
 }
 
 .onUnload <- function(libpath) {

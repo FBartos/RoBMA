@@ -60,10 +60,9 @@
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_from_posterior_samples <- function(fit, posterior_samples, data, priors,
-                                            unit = "estimate",
-                                            add_metadata = FALSE,
-                                            data_hash = NULL,
-                                            honor_bias_indicator = FALSE) {
+                                             unit = "estimate",
+                                             add_metadata = FALSE,
+                                             data_hash = NULL) {
 
   unit              <- .normalize_unit(unit)
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
@@ -73,8 +72,7 @@
     data                 = data,
     priors               = priors,
     unit                 = unit,
-    data_hash            = data_hash,
-    honor_bias_indicator = honor_bias_indicator
+    data_hash            = data_hash
   )
 
   log_lik <- if (unit == "estimate") {
@@ -113,11 +111,10 @@
                                                mu_samples,
                                                tau_within_samples,
                                                tau_between_samples = NULL,
-                                               posterior_samples = NULL,
-                                               unit = "estimate",
-                                               add_metadata = FALSE,
-                                               data_hash = NULL,
-                                               honor_bias_indicator = FALSE) {
+                                                posterior_samples = NULL,
+                                                unit = "estimate",
+                                                add_metadata = FALSE,
+                                                data_hash = NULL) {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
@@ -129,8 +126,7 @@
     mu_samples           = mu_samples,
     tau_within_samples   = tau_within_samples,
     tau_between_samples  = tau_between_samples,
-    posterior_samples    = posterior_samples,
-    honor_bias_indicator = honor_bias_indicator
+    posterior_samples    = posterior_samples
   )
 
   log_lik <- if (unit == "estimate") {
@@ -167,11 +163,10 @@
 .log_lik_from_evaluated_predictors_sum <- function(fit, data, priors,
                                                    mu_samples,
                                                    tau_within_samples,
-                                                   tau_between_samples = NULL,
-                                                   posterior_samples = NULL,
-                                                   unit = "estimate",
-                                                   data_hash = NULL,
-                                                   honor_bias_indicator = FALSE) {
+                                                    tau_between_samples = NULL,
+                                                    posterior_samples = NULL,
+                                                    unit = "estimate",
+                                                    data_hash = NULL) {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
@@ -183,8 +178,7 @@
     mu_samples           = mu_samples,
     tau_within_samples   = tau_within_samples,
     tau_between_samples  = tau_between_samples,
-    posterior_samples    = posterior_samples,
-    honor_bias_indicator = honor_bias_indicator
+    posterior_samples    = posterior_samples
   )
 
   if (unit == "estimate") {
@@ -286,10 +280,9 @@
 
 
 .log_lik_from_posterior_samples_sum <- function(fit, posterior_samples,
-                                                data, priors,
-                                                unit = "estimate",
-                                                data_hash = NULL,
-                                                honor_bias_indicator = TRUE) {
+                                                 data, priors,
+                                                 unit = "estimate",
+                                                 data_hash = NULL) {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_posterior_setup(
@@ -298,8 +291,7 @@
     data                 = data,
     priors               = priors,
     unit                 = unit,
-    data_hash            = data_hash,
-    honor_bias_indicator = honor_bias_indicator
+    data_hash            = data_hash
   )
 
   if (unit == "estimate") {
@@ -312,9 +304,8 @@
 
 
 .log_lik_evaluated_setup <- function(fit, data, priors, unit, data_hash,
-                                     mu_samples, tau_within_samples,
-                                     tau_between_samples, posterior_samples,
-                                     honor_bias_indicator) {
+                                      mu_samples, tau_within_samples,
+                                      tau_between_samples, posterior_samples) {
 
   is_multilevel <- .is_data_multilevel(data)
   K             <- nrow(data[["outcome"]])
@@ -377,16 +368,14 @@
     is_weightfunction    = .is_priors_weightfunction(priors),
     outcome_type         = .data_outcome_type(data),
     effect_direction     = .data_effect_direction(data),
-    posterior_samples    = posterior_samples,
-    honor_bias_indicator = honor_bias_indicator
+    posterior_samples    = posterior_samples
   ))
 }
 
 
 
 .log_lik_posterior_setup <- function(fit, posterior_samples, data, priors,
-                                     unit, data_hash,
-                                     honor_bias_indicator) {
+                                     unit, data_hash) {
 
   is_mods           <- .is_data_mods(data)
   is_scale          <- .is_data_scale(data)
@@ -397,6 +386,8 @@
   outcome_type      <- .data_outcome_type(data)
   effect_direction  <- .data_effect_direction(data)
   K                 <- nrow(data[["outcome"]])
+
+  .check_glmm_no_bias_priors(data, priors)
 
   if (unit == "cluster" && !is_multilevel) {
     stop("Cluster-unit log-likelihood is only available for multilevel models.",
@@ -469,8 +460,7 @@
     is_weightfunction    = is_weightfunction,
     outcome_type         = outcome_type,
     effect_direction     = effect_direction,
-    posterior_samples    = posterior_samples,
-    honor_bias_indicator = honor_bias_indicator
+    posterior_samples    = posterior_samples
   ))
 }
 
@@ -506,8 +496,7 @@
         data                 = data,
         priors               = priors,
         posterior_samples    = setup[["posterior_samples"]],
-        effect_direction     = effect_direction,
-        honor_bias_indicator = setup[["honor_bias_indicator"]]
+        effect_direction     = effect_direction
       )
 
       log_lik <- .outcome_pdf.selnorm(
@@ -588,8 +577,7 @@
         data                 = data,
         priors               = priors,
         posterior_samples    = setup[["posterior_samples"]],
-        effect_direction     = effect_direction,
-        honor_bias_indicator = setup[["honor_bias_indicator"]]
+        effect_direction     = effect_direction
       )
 
       return(.outcome_pdf_sum.selnorm(
@@ -760,7 +748,6 @@
     priors               = object[["priors"]],
     unit                 = "estimate",
     add_metadata         = TRUE,
-    data_hash            = .get_outcome_hash(object),
-    honor_bias_indicator = TRUE
+    data_hash            = .get_outcome_hash(object)
   ))
 }

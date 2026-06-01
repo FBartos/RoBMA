@@ -42,8 +42,8 @@ hypothesis.default <- function(object, ...) {
 #' @param hypothesis character vector with scalar hypothesis statements.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
-#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-#' terms used in multiple model components.
+#' \code{"location"}) or \code{"scale"} to disambiguate terms used in
+#' multiple model components. Publication-bias parameters are not supported.
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -58,14 +58,14 @@ hypothesis.default <- function(object, ...) {
 #' \code{method} columns. The \code{prior} and \code{posterior} columns are
 #' diagnostics rather than probabilities for all hypothesis types.
 #' @param density_method posterior density method. \code{"KDE"} uses the
-#' standard BayesTools kernel density estimate. \code{"qCMDE"} and
-#' \code{"IWMDE"} attach RoBMA likelihood-aware posterior ordinates for direct
-#' point-null hypotheses and propagate their \code{BF_error} estimates
-#' printed as \code{error\%(BF)}. For
-#' \code{marginal_means.brma} objects, \code{"normal"} uses the BayesTools
-#' normal approximation, and \code{"qCMDE"} and \code{"IWMDE"} require matching
-#' precomputed ordinates already stored by \code{marginal_means()}. Matching is
-#' case-insensitive.
+#' standard BayesTools kernel density estimate. \code{"normal"} uses the
+#' BayesTools normal approximation for point-null hypotheses on fitted
+#' \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
+#' likelihood-aware posterior ordinates for direct point-null hypotheses and
+#' propagate their \code{BF_error} estimates printed as \code{error\%(BF)}. For
+#' \code{marginal_means.brma} objects, \code{"normal"} is not supported, and
+#' \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
+#' the stored source model. Matching is case-insensitive.
 #' @param density_control named list of qCMDE/IWMDE tuning settings.
 #' @param n_samples number of prior samples/grid points used by BayesTools for
 #' deterministic marginal prior densities.
@@ -76,7 +76,7 @@ hypothesis.brma <- function(object, hypothesis,
                             standardized_coefficients = FALSE,
                             conditional = FALSE,
                             logBF = FALSE, BF01 = FALSE, seed = NULL,
-                            density_method = c("KDE", "qCMDE", "IWMDE"),
+                            density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
                             density_control = NULL,
                             n_samples = 10000,
                             columns = "default", ...) {
@@ -98,12 +98,16 @@ hypothesis.brma <- function(object, hypothesis,
     allowed = character(),
     caller  = "hypothesis()"
   )
-  density_method <- .density_method_normalize(density_method)
-  if (.density_method_uses_precomputed(density_method) ||
+  density_method <- .density_method_normalize(
+    density_method = density_method,
+    allow_normal   = TRUE
+  )
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE) ||
       !is.null(density_control)) {
     density_control <- .density_control_normalize(
       density_method  = density_method,
-      density_control = density_control
+      density_control = density_control,
+      allow_normal    = TRUE
     )
   }
   if (conditional && !.is_RoBMA(object)) {
@@ -117,6 +121,11 @@ hypothesis.brma <- function(object, hypothesis,
     component  = component
   )
   parameter <- selected[["parameter"]]
+  parameter_label <- .hypothesis_brma_alias_label(
+    aliases   = selected[["aliases"]],
+    parameter = parameter
+  )
+  .hypothesis_brma_check_supported_component(selected[["component"]])
   hypothesis <- .hypothesis_brma_rewrite(
     hypothesis = hypothesis,
     aliases    = selected[["aliases"]],
@@ -145,11 +154,12 @@ hypothesis.brma <- function(object, hypothesis,
     n_samples     = n_samples
   )
 
-  if (.density_method_uses_precomputed(density_method)) {
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
     posterior <- .hypothesis_brma_attach_iwmde(
       object                   = object,
       posterior                = posterior,
       parameter                = parameter,
+      parameter_label          = parameter_label,
       hypothesis               = hypothesis,
       conditional              = if (conditional) parameter else NULL,
       n_points                 = density_control[["n_points"]],
@@ -170,10 +180,10 @@ hypothesis.brma <- function(object, hypothesis,
     BF01           = BF01,
     seed           = seed,
     columns        = columns,
-    density_method = if (.density_method_uses_precomputed(density_method)) {
+    density_method = if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
       "precomputed"
     } else {
-      "KDE"
+      density_method
     }
   )
 }

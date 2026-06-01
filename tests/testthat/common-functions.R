@@ -1154,8 +1154,14 @@ length.lazy_cached_objects <- function(x) {
   if (is.numeric(i)) {
     i <- object_names[[i]]
   }
-  if (!is.character(i) || length(i) != 1L || !i %in% object_names) {
+  if (!is.character(i) || length(i) != 1L) {
     return(NULL)
+  }
+  if (!i %in% object_names) {
+    skip(paste0(
+      "Required pre-fitted model missing or stale: ", i,
+      ". Run `devtools::test(filter = '01-', reporter = 'llm')` first."
+    ))
   }
 
   cache <- unclass(x)[[".cache"]]

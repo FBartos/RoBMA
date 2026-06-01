@@ -112,7 +112,7 @@
     selection_context,
     ".regplot_selection_mixture_interval_quantiles()"
   )
-  native_static <- .selection_native_static_args(selection_context)
+  native_static <- BayesTools::selection_native_static_args(selection_context)
 
   return(.Call(
     "RoBMA_regplot_selnorm_mixture_interval",
@@ -345,4 +345,3 @@
 
   return(grid[index])
 }
-

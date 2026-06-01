@@ -726,6 +726,7 @@
 
   for (column in columns) {
     transformed <- .iwmde_chen_transform_conditioning_column(
+      context     = context,
       fit_values  = samples[weight_rows, column],
       eval_values = samples[active_rows, column],
       column      = column
@@ -779,14 +780,19 @@
       !columns %in% context[["indicator_names"]] &
       !vapply(columns, .iwmde_parameter_is_indicator, logical(1)) &
       !vapply(columns, .iwmde_parameter_is_local_latent, logical(1)) &
-      vapply(columns, .iwmde_chen_is_global_conditioning_column, logical(1))
+      vapply(columns, function(column) {
+        .iwmde_chen_is_global_conditioning_column(
+          context = context,
+          column  = column
+        )
+      }, logical(1))
   ]
 
   return(candidates)
 }
 
 
-.iwmde_chen_is_global_conditioning_column <- function(column) {
+.iwmde_chen_is_global_conditioning_column <- function(context, column) {
 
   return(
     column == "mu" ||
@@ -795,12 +801,17 @@
       column %in% c("tau", "log_tau", "rho", "PET", "PEESE") ||
       startsWith(column, "tau_") ||
       startsWith(column, "log_tau_") ||
-      grepl("^(omega|log_omega)(\\[[0-9]+\\])?$", column)
+      .iwmde_parameter_is_weightfunction_coordinate(
+        parameter       = column,
+        context         = context,
+        include_private = FALSE
+      )
   )
 }
 
 
-.iwmde_chen_transform_conditioning_column <- function(fit_values,
+.iwmde_chen_transform_conditioning_column <- function(context,
+                                                      fit_values,
                                                       eval_values,
                                                       column) {
 
@@ -810,11 +821,15 @@
   if (column == "rho") {
     return(.iwmde_chen_transform_unit_interval(fit_values, eval_values))
   }
-  if (grepl("^omega(\\[[0-9]+\\])?$", column)) {
+  omega_coordinates <- if (!is.null(context[["selection_spec"]])) {
+    context[["selection_spec"]][["jags_omega"]]
+  } else {
+    character()
+  }
+  if (.iwmde_parameter_matches_coordinate(column, omega_coordinates)) {
     return(.iwmde_chen_transform_omega(fit_values, eval_values))
   }
-  if (grepl("^log_omega(\\[[0-9]+\\])?$", column) ||
-      column == "log_tau" ||
+  if (column == "log_tau" ||
       startsWith(column, "log_tau_")) {
     return(list(
       fit  = as.numeric(fit_values),
@@ -1008,5 +1023,3 @@
 
   return(out)
 }
-
-

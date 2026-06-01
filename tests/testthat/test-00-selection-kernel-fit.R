@@ -249,11 +249,23 @@ test_that("selection omega extraction orders indexed posterior columns numerical
   expect_equal(omega[, 1], posterior_samples[, "omega[1]"])
   expect_equal(omega[, 10], posterior_samples[, "omega[10]"])
 
-  custom_samples            <- posterior_samples
-  colnames(custom_samples) <- sub("^omega", "custom_omega", colnames(custom_samples))
-  selection_spec            <- list(jags_omega = "custom_omega", n_bins = 10L)
-  custom_omega              <- .extract_selection_omega_samples(custom_samples, selection_spec)
+  custom_samples <- posterior_samples
+  colnames(custom_samples) <- sub("^omega", "custom.omega+beta", colnames(custom_samples))
+  custom_samples <- cbind(
+    custom_samples,
+    "omega[1]" = 101:103,
+    "omega[2]" = 201:203
+  )
+  selection_spec <- list(jags_omega = "custom.omega+beta", n_bins = 10L)
+  custom_omega   <- .extract_selection_omega_samples(custom_samples, selection_spec)
 
-  expect_equal(colnames(custom_omega), paste0("custom_omega[", 1:10, "]"))
-  expect_equal(custom_omega[, 2], custom_samples[, "custom_omega[2]"])
+  expect_equal(colnames(custom_omega), paste0("custom.omega+beta[", 1:10, "]"))
+  expect_equal(custom_omega[, 2], custom_samples[, "custom.omega+beta[2]"])
+  expect_false(any(custom_omega[, 1] == custom_samples[, "omega[1]"]))
+
+  missing_custom <- custom_samples[, grepl("^omega\\[", colnames(custom_samples)), drop = FALSE]
+  expect_error(
+    .extract_selection_omega_samples(missing_custom, selection_spec),
+    "custom.omega\\+beta"
+  )
 })

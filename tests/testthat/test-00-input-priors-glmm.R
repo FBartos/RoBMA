@@ -162,3 +162,42 @@ test_that("GLMM nuisance priors must match the outcome measure", {
     )
   ))
 })
+
+
+test_that("GLMM rejects malformed publication-bias priors centrally", {
+
+  object <- brma.glmm(
+    ai = ai, bi = bi, ci = ci, di = di,
+    data = test_data_bin, measure = "OR",
+    only_priors = TRUE
+  )
+  bad_priors <- object[["priors"]]
+  bad_priors[["outcome"]][["bias"]] <- BayesTools::prior_PET(
+    "normal",
+    parameters = list(mean = 0, sd = 1)
+  )
+
+  expect_error(
+    .check_glmm_no_bias_priors(object[["data"]], bad_priors),
+    "Publication-bias priors are not supported for GLMM outcomes"
+  )
+  expect_error(
+    .create_fit_priors(object[["data"]], bad_priors),
+    "Publication-bias priors are not supported for GLMM outcomes"
+  )
+  expect_error(
+    .create_model_syntax(object[["data"]], bad_priors),
+    "Publication-bias priors are not supported for GLMM outcomes"
+  )
+  expect_error(
+    .log_lik_posterior_setup(
+      fit                  = NULL,
+      posterior_samples    = matrix(numeric(), nrow = 2L, ncol = 0L),
+      data                 = object[["data"]],
+      priors               = bad_priors,
+      unit                 = "estimate",
+      data_hash            = NULL
+    ),
+    "Publication-bias priors are not supported for GLMM outcomes"
+  )
+})

@@ -125,15 +125,15 @@ vignette_cache_save(cached_fits)
 
 Bayesian meta-analysis produces posterior distributions for the average effect, the between-study heterogeneity, and any meta-regression coefficients, and Bayes factors quantify evidence for or against specific values of these parameters.
 
-The posterior distributions are usually summarized via posterior means and credible intervals, and visualized via (prior and) posterior density plots, usually obtained via kernel density estimation (KDE). 
-The KDE visualization can be, however, quite  "bumpy" even with a sizable number of posterior samples. 
+The posterior distributions are usually summarized via posterior means and credible intervals, and visualized via (prior and) posterior density plots, usually obtained via kernel density estimation (KDE).
+The KDE visualization can be, however, quite  "bumpy" even with a sizable number of posterior samples.
 In the first part of this vignette we illustrate how the posterior density visualization can be improved via q-grid conditional marginal density estimator (qCMDE) implemented in the `RoBMA` R package [@RoBMA].
 
 In the second part of the vignette, we illustrate how to compute Bayes factors based on posterior distribution in the `RoBMA` R package (which takes advantage of the qCMDE estimator when testing a point null hypothesis).
-This posterior samples route allows us to re-use a single model fit with a Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian] to compute Bayes factor for point-null hypotheses and encompassing-prior odds [@klugkist2005bayesian] for inequality and region hypotheses. 
-It adds to the existing bridge sampling route [@gronau2017tutorial] which compares marginal likelihoods of separately fitted constrained and unconstrained models (see "Comparing Models with Bayes Factors" in [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html)), 
+This posterior samples route allows us to re-use a single model fit with a Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian] to compute Bayes factor for point-null hypotheses and encompassing-prior odds [@klugkist2005bayesian] for inequality and region hypotheses.
+It adds to the existing bridge sampling route [@gronau2017tutorial] which compares marginal likelihoods of separately fitted constrained and unconstrained models (see "Comparing Models with Bayes Factors" in [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html)),
 and the the product-space route [@lodewyckx2011tutorial] which fits multiple models simultaneously in a single MCMC run and estimates the Bayes factor from the posterior inclusion probabilities (see [*Bayesian Model Averaging*](v20-bayesian-model-averaging.html)).
- 
+
 We use the BCG vaccine dataset from the `metafor` package [@metafor] to walk through the density estimation and Bayes factor computation.
 We start with a simple random-effects meta-analysis, compare KDE and qCMDE on the average effect and heterogeneity, and use `hypothesis()` to test three hypotheses on the average effect with results matched against bridge sampling.
 We then add a continuous and a categorical moderator and combine `marginal_means()` with `hypothesis()` for tests on estimated marginal means.
@@ -338,7 +338,7 @@ knitr::kable(
 
 The point-null Bayes factors agree closely across the two routes.
 The posterior-based value for $\text{BF}_{-+}$ is limited by the number of posterior draws as only a very small proportion of samples is at the positive side.
-Consequently, the encompassing prior estimate is much more variable than the corresponding bridge sampling approach (see the `%error(BF)` column).  
+Consequently, the encompassing prior estimate is much more variable than the corresponding bridge sampling approach (see the `%error(BF)` column).
 In general, Bayes factors larger than 100 (lower than 1/100) are likely to have limited precision when using the posterior based or product-space approaches.
 (This usually does not matter for the interpretation, i.e., the data provide overwhelming evidence for one of the hypotheses.)
 

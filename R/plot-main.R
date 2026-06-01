@@ -213,6 +213,32 @@ plot.brma  <- function(
                                     normalization_prob, density_method,
                                     display_grid) {
 
+  if (is.null(normalization_points)) {
+    normalization_points <- max(50L, n_points)
+  }
+  context          <- .iwmde_context(object)
+  method           <- .density_method_iwmde_estimator(density_method)
+  diagnostic_cache <- .iwmde_diagnostic_cache()
+
+  if (inherits(samples[[sample_parameter]], "mixed_posteriors.factor")) {
+    return(.plot_brma_attach_iwmde_factor(
+      object               = object,
+      samples              = samples,
+      parameter            = parameter,
+      sample_parameter     = sample_parameter,
+      conditional          = conditional,
+      n_points             = n_points,
+      max_samples          = max_samples,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      method               = method,
+      density_method       = density_method,
+      display_grid         = display_grid,
+      context              = context,
+      diagnostic_cache     = diagnostic_cache
+    ))
+  }
+
   plotted_samples <- .plot_brma_plotted_samples(
     samples          = samples,
     sample_parameter = sample_parameter,
@@ -221,12 +247,7 @@ plot.brma  <- function(
   if (is.null(plotted_samples)) {
     return(samples)
   }
-  if (is.null(normalization_points)) {
-    normalization_points <- max(50L, n_points)
-  }
 
-  context <- .iwmde_context(object)
-  method  <- .density_method_iwmde_estimator(density_method)
   diagnostic <- .iwmde_parameter_diagnostic(
     context              = context,
     parameter            = parameter,
@@ -241,7 +262,7 @@ plot.brma  <- function(
       conditional      = conditional,
       conditional_rule = "AND"
     ),
-    diagnostic_cache     = .iwmde_diagnostic_cache()
+    diagnostic_cache     = diagnostic_cache
   )
   attr(samples, "iwmde_diagnostics") <- list(parameter = diagnostic)
 
@@ -261,6 +282,357 @@ plot.brma  <- function(
   }
 
   return(samples)
+}
+
+
+.plot_brma_attach_iwmde_factor <- function(object, samples, parameter,
+                                           sample_parameter, conditional,
+                                           n_points, max_samples,
+                                           normalization_points,
+                                           normalization_prob, method,
+                                           density_method, display_grid,
+                                           context, diagnostic_cache) {
+
+  sample <- samples[[sample_parameter]]
+  if (is.null(colnames(sample))) {
+    return(samples)
+  }
+  plot_samples <- BayesTools::transform_factor_samples(samples)
+  plot_sample  <- plot_samples[[sample_parameter]]
+  if (is.null(plot_sample) || is.null(colnames(plot_sample))) {
+    return(samples)
+  }
+
+  raw_samples <- BayesTools::as_mixed_posteriors(
+    model            = object[["fit"]],
+    parameters       = sample_parameter,
+    conditional      = conditional,
+    transform_scaled = FALSE
+  )
+  display_posterior <- BayesTools::marginal_posterior(
+    samples       = samples,
+    parameter     = sample_parameter,
+    prior_samples = TRUE,
+    use_formula   = FALSE
+  )
+  raw_posterior <- BayesTools::marginal_posterior(
+    samples       = raw_samples,
+    parameter     = sample_parameter,
+    prior_samples = TRUE,
+    use_formula   = FALSE
+  )
+  if (!is.list(display_posterior) || !is.list(raw_posterior)) {
+    return(samples)
+  }
+
+  posterior_densities <- attr(
+    samples[[sample_parameter]],
+    "posterior_densities",
+    exact = TRUE
+  )
+  if (is.null(posterior_densities)) {
+    posterior_densities <- list()
+  }
+  diagnostics <- list()
+
+  for (column_i in seq_len(ncol(plot_sample))) {
+    column  <- colnames(plot_sample)[[column_i]]
+    aliases <- .plot_brma_factor_density_aliases(
+      parameter   = sample_parameter,
+      sample      = plot_sample,
+      sample_name = column,
+      level_i     = column_i
+    )
+    level  <- .plot_brma_factor_column_level(
+      parameter   = sample_parameter,
+      sample      = plot_sample,
+      column      = column,
+      column_i    = column_i,
+      level_names = names(display_posterior)
+    )
+    if (is.null(level) ||
+        !level %in% names(raw_posterior) ||
+        !level %in% names(display_posterior)) {
+      next
+    }
+
+    weights        <- attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
+    linear_weights <- .iwmde_linear_weights(weights)
+    if (is.null(linear_weights) || length(linear_weights) == 0L) {
+      next
+    }
+
+    diagnostic <- .iwmde_parameter_diagnostic(
+      context              = context,
+      parameter            = column,
+      n_points             = n_points,
+      max_samples          = max_samples,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      method               = method,
+      display_grid_method  = display_grid,
+      parameter_spec       = .plot_brma_iwmde_parameter_spec(
+        samples     = raw_posterior[[level]],
+        conditional = conditional,
+        type        = "linear",
+        weights     = weights
+      ),
+      diagnostic_cache     = diagnostic_cache
+    )
+    diagnostics[[column]] <- diagnostic
+
+    if (!identical(diagnostic[["status"]], "ok")) {
+      next
+    }
+
+    posterior_density <- .iwmde_posterior_density_attribute(
+      diagnostic     = diagnostic,
+      density_method = density_method,
+      metadata       = .iwmde_posterior_metadata(
+        samples   = raw_posterior[[level]],
+        parameter = aliases,
+        level     = level
+      )
+    )
+    posterior_density <- .plot_brma_align_iwmde_density(
+      posterior_density = posterior_density,
+      raw_samples       = diagnostic[["samples"]],
+      plotted_samples   = as.numeric(plot_sample[, column_i])
+    )
+    if (!is.null(posterior_density)) {
+      posterior_densities <- .plot_brma_add_posterior_density(
+        posterior_densities = posterior_densities,
+        aliases             = aliases,
+        posterior_density   = posterior_density
+      )
+    }
+  }
+
+  if (length(diagnostics) == 0L && ncol(sample) == 1L) {
+    column  <- colnames(sample)[[1L]]
+    aliases <- .plot_brma_factor_density_aliases(
+      parameter   = sample_parameter,
+      sample      = sample,
+      sample_name = column,
+      level_i     = 1L
+    )
+    diagnostic <- .iwmde_parameter_diagnostic(
+      context              = context,
+      parameter            = parameter,
+      n_points             = n_points,
+      max_samples          = max_samples,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      method               = method,
+      display_grid_method  = display_grid,
+      parameter_spec       = .plot_brma_iwmde_parameter_spec(
+        samples     = sample,
+        conditional = conditional,
+        type        = "primitive"
+      ),
+      diagnostic_cache     = diagnostic_cache
+    )
+    diagnostics[[column]] <- diagnostic
+
+    if (identical(diagnostic[["status"]], "ok")) {
+      posterior_density <- .iwmde_posterior_density_attribute(
+        diagnostic     = diagnostic,
+        density_method = density_method,
+        metadata       = .iwmde_posterior_metadata(
+          samples   = sample,
+          parameter = aliases
+        )
+      )
+      posterior_density <- .plot_brma_align_iwmde_density(
+        posterior_density = posterior_density,
+        raw_samples       = diagnostic[["samples"]],
+        plotted_samples   = as.numeric(sample[, 1L])
+      )
+      if (!is.null(posterior_density)) {
+        posterior_densities <- .plot_brma_add_posterior_density(
+          posterior_densities = posterior_densities,
+          aliases             = aliases,
+          posterior_density   = posterior_density
+        )
+      }
+    }
+  }
+
+  if (length(diagnostics) > 0L) {
+    attr(samples, "iwmde_diagnostics") <- diagnostics
+  }
+  if (length(posterior_densities) > 0L) {
+    attr(samples[[sample_parameter]], "posterior_densities") <- posterior_densities
+  }
+
+  return(samples)
+}
+
+
+.plot_brma_iwmde_parameter_spec <- function(samples, conditional, type,
+                                           weights = NULL) {
+
+  condition_metadata <- .iwmde_sample_condition_metadata(samples)
+  if (!is.null(conditional)) {
+    condition_metadata[["conditional"]]      <- conditional
+    condition_metadata[["conditional_rule"]] <- "AND"
+  }
+  if (is.null(condition_metadata[["conditional_rule"]])) {
+    condition_metadata[["conditional_rule"]] <- "AND"
+  }
+
+  spec <- c(
+    list(
+      type    = type,
+      weights = weights
+    ),
+    condition_metadata
+  )
+  spec <- spec[!vapply(spec, is.null, logical(1))]
+
+  return(spec)
+}
+
+
+.plot_brma_add_posterior_density <- function(posterior_densities, aliases,
+                                             posterior_density) {
+
+  aliases <- unique(aliases[!is.na(aliases) & nzchar(aliases)])
+  for (alias in aliases) {
+    posterior_densities[[alias]] <- posterior_density
+  }
+
+  return(posterior_densities)
+}
+
+
+.plot_brma_factor_column_level <- function(parameter, sample, column, column_i,
+                                           level_names) {
+
+  aliases <- .plot_brma_factor_density_aliases(
+    parameter   = parameter,
+    sample      = sample,
+    sample_name = column,
+    level_i     = column_i
+  )
+  bracket_matches <- regmatches(
+    column,
+    gregexpr("\\[[^]]+\\]", column)
+  )[[1]]
+  bracket_aliases <- gsub("^\\[|\\]$", "", bracket_matches)
+  sample_level_names <- attr(sample, "level_names", exact = TRUE)
+  if (is.list(sample_level_names) &&
+      length(bracket_aliases) == length(sample_level_names)) {
+    aliases <- c(
+      aliases,
+      .plot_brma_factor_named_cell_alias(
+        level_names = sample_level_names,
+        values      = bracket_aliases
+      )
+    )
+    aliases <- c(
+      aliases,
+      .plot_brma_factor_named_cell_alias(
+        level_names = sample_level_names,
+        values      = .plot_brma_factor_display_aliases(bracket_aliases)
+      )
+    )
+  }
+
+  level <- intersect(level_names, aliases)
+  if (length(level) != 1L) {
+    return(NULL)
+  }
+
+  return(level)
+}
+
+
+.plot_brma_factor_density_aliases <- function(parameter, sample, sample_name,
+                                             level_i) {
+
+  aliases <- sample_name
+  bracket_matches <- regmatches(
+    sample_name,
+    gregexpr("\\[[^]]+\\]", sample_name)
+  )[[1]]
+  bracket_aliases <- gsub("^\\[|\\]$", "", bracket_matches)
+  if (length(bracket_aliases) > 0L) {
+    aliases <- c(
+      aliases,
+      bracket_aliases,
+      paste0(parameter, "[", bracket_aliases, "]")
+    )
+  }
+  if (length(bracket_aliases) > 1L) {
+    cell_alias <- paste0(bracket_aliases, collapse = ", ")
+    aliases <- c(aliases, cell_alias, paste0(parameter, "[", cell_alias, "]"))
+  }
+
+  level_names <- attr(sample, "level_names", exact = TRUE)
+  if (is.list(level_names)) {
+    level_names <- .plot_brma_factor_cell_labels(level_names)
+  }
+  if (length(level_names) == ncol(sample)) {
+    aliases <- c(
+      aliases,
+      level_names[[level_i]],
+      paste0(parameter, "[", level_names[[level_i]], "]")
+    )
+  }
+
+  factor_cell_names <- attr(sample, "factor_cell_names", exact = TRUE)
+  if (length(factor_cell_names) == ncol(sample)) {
+    aliases <- c(
+      aliases,
+      factor_cell_names[[level_i]],
+      paste0(parameter, "[", factor_cell_names[[level_i]], "]")
+    )
+  }
+
+  aliases <- unique(as.character(aliases))
+  aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
+
+  return(aliases)
+}
+
+
+.plot_brma_factor_cell_labels <- function(level_names) {
+
+  if (!is.list(level_names)) {
+    return(level_names)
+  }
+
+  cells <- expand.grid(
+    level_names,
+    KEEP.OUT.ATTRS   = FALSE,
+    stringsAsFactors = FALSE
+  )
+  labels <- apply(cells, 1L, function(x) {
+    paste0(names(level_names), "=", as.character(x), collapse = ", ")
+  })
+
+  return(labels)
+}
+
+
+.plot_brma_factor_named_cell_alias <- function(level_names, values) {
+
+  values <- as.character(values)
+  if (length(values) != length(level_names)) {
+    return(character())
+  }
+
+  return(paste0(names(level_names), "=", values, collapse = ", "))
+}
+
+
+.plot_brma_factor_display_aliases <- function(values) {
+
+  values <- as.character(values)
+  values <- sub("^dif: ", "", values)
+
+  return(values)
 }
 
 
@@ -307,7 +679,10 @@ plot.brma  <- function(
     return(FALSE)
   }
 
-  return(!is.null(attr(samples[[sample_parameter]], "posterior_density")))
+  return(
+    !is.null(attr(samples[[sample_parameter]], "posterior_density")) ||
+      length(attr(samples[[sample_parameter]], "posterior_densities")) > 0L
+  )
 }
 
 
@@ -380,4 +755,3 @@ plot.brma  <- function(
 
   return(list(intercept = intercept, slope = slope))
 }
-

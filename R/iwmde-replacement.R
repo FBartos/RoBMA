@@ -74,6 +74,14 @@
     }
 
     valid_positions <- which(valid)
+    if (!is.numeric(log_lik) || length(log_lik) != length(valid_positions)) {
+      warning(
+        "Batched IWMDE likelihood returned an invalid length; falling back to scalar evaluation.",
+        call. = FALSE
+      )
+      return(NULL)
+    }
+
     log_prior <- vapply(seq_along(valid_positions), function(i) {
       position <- valid_positions[i]
       state    <- group_states[[candidates[["state_index"]][position]]]
@@ -112,15 +120,9 @@
     replacement     = replacement,
     likelihood_mode = "marginal",
     log_lik_fun     = function(samples, active_setup) {
-      likelihood_samples <- .iwmde_likelihood_posterior_samples(
-        context      = context,
-        samples      = samples,
-        active_setup = active_setup
-      )
-
       .iwmde_log_lik_from_posterior_samples_sum_active_branch(
         context           = context,
-        posterior_samples = likelihood_samples,
+        posterior_samples = samples,
         active_setup      = active_setup,
         unit              = unit
       )
@@ -132,57 +134,300 @@
 .iwmde_likelihood_posterior_samples <- function(context, samples,
                                                 active_setup) {
 
+  samples <- .iwmde_localize_active_branch_samples(
+    context      = context,
+    samples      = samples,
+    active_setup = active_setup
+  )
+
   if (!isTRUE(active_setup[["is_weightfunction"]])) {
     return(samples)
   }
 
   global_spec <- context[["selection_spec"]]
   active_spec <- active_setup[["selection_spec"]]
-  if (is.null(global_spec) || is.null(active_spec) ||
-      .iwmde_same_p_cuts(global_spec[["p_cuts"]], active_spec[["p_cuts"]])) {
+  if (is.null(global_spec) || is.null(active_spec)) {
     return(samples)
   }
 
-  omega <- .iwmde_indexed_parameter_matrix(samples, "omega")
-  if (is.null(omega)) {
-    log_omega <- .iwmde_indexed_parameter_matrix(samples, "log_omega")
-    if (!is.null(log_omega)) {
-      omega <- exp(log_omega)
-    }
-  }
-  if (is.null(omega) || ncol(omega) != global_spec[["n_bins"]]) {
-    return(samples)
-  }
-
-  active_omega <- .iwmde_collapse_omega_matrix(
-    omega       = omega,
-    global_cuts = global_spec[["p_cuts"]],
-    active_cuts = active_spec[["p_cuts"]]
+  active_omega <- .iwmde_active_branch_omega_matrix(
+    samples     = samples,
+    global_spec = global_spec,
+    active_spec = active_spec
   )
-  colnames(active_omega) <- paste0("omega[", seq_len(ncol(active_omega)), "]")
+  if (is.null(active_omega)) {
+    return(samples)
+  }
 
-  keep <- !grepl("^(omega|log_omega)\\[[0-9]+\\]$", colnames(samples))
+  keep <- !.iwmde_indexed_any_parameter_columns(
+    columns    = colnames(samples),
+    parameters = unique(c(
+      global_spec[["jags_omega"]],
+      active_spec[["jags_omega"]]
+    ))
+  )
   out  <- cbind(samples[, keep, drop = FALSE], active_omega)
 
   return(out)
 }
 
 
-.iwmde_indexed_parameter_matrix <- function(samples, parameter) {
+.iwmde_active_branch_omega_matrix <- function(samples, global_spec,
+                                              active_spec) {
 
-  cols <- grep(paste0("^", parameter, "\\[[0-9]+\\]$"), colnames(samples), value = TRUE)
-  if (length(cols) == 0L) {
+  if (is.null(global_spec[["jags_omega"]]) ||
+      is.null(active_spec[["jags_omega"]])) {
     return(NULL)
   }
 
-  index <- as.integer(sub(
-    paste0("^", parameter, "\\[([0-9]+)\\]$"),
-    "\\1",
-    cols
-  ))
-  cols <- cols[order(index)]
+  active_omega <- BayesTools::JAGS_indexed_parameter_matrix(
+    samples   = samples,
+    parameter = active_spec[["jags_omega"]]
+  )
+  if (!is.null(active_omega) &&
+      ncol(active_omega) == active_spec[["n_bins"]]) {
+    colnames(active_omega) <- .iwmde_indexed_parameter_names(
+      parameter = active_spec[["jags_omega"]],
+      n         = active_spec[["n_bins"]]
+    )
+    return(active_omega)
+  }
 
-  return(samples[, cols, drop = FALSE])
+  omega <- BayesTools::JAGS_indexed_parameter_matrix(
+    samples   = samples,
+    parameter = global_spec[["jags_omega"]]
+  )
+  if (is.null(omega) || ncol(omega) != global_spec[["n_bins"]]) {
+    return(NULL)
+  }
+
+  if (.iwmde_same_p_cuts(global_spec[["p_cuts"]], active_spec[["p_cuts"]])) {
+    active_omega <- omega
+  } else {
+    active_omega <- .iwmde_collapse_omega_matrix(
+      omega       = omega,
+      global_cuts = global_spec[["p_cuts"]],
+      active_cuts = active_spec[["p_cuts"]]
+    )
+  }
+  colnames(active_omega) <- .iwmde_indexed_parameter_names(
+    parameter = active_spec[["jags_omega"]],
+    n         = ncol(active_omega)
+  )
+
+  return(active_omega)
+}
+
+
+.iwmde_localize_active_branch_samples <- function(context, samples,
+                                                  active_setup) {
+
+  # Active priors have already been selected from the product-space mixture.
+  # Likelihood dispatch should therefore see local branch indicators.
+  .iwmde_check_active_branch_priors(active_setup)
+
+  columns <- colnames(samples)
+  if (is.null(columns)) {
+    return(samples)
+  }
+
+  indicator_names <- context[["indicator_names"]]
+  if (is.null(indicator_names)) {
+    indicator_names <- grep("(^|_)indicator$", columns, value = TRUE)
+    indicator_names <- c(
+      indicator_names,
+      intersect("bias_indicator", columns)
+    )
+  }
+  indicator_names <- unique(indicator_names)
+  indicator_names <- intersect(indicator_names, columns)
+  if (length(indicator_names) == 0L) {
+    return(samples)
+  }
+
+  samples[, indicator_names] <- 1
+  return(samples)
+}
+
+
+.iwmde_check_active_branch_priors <- function(active_setup) {
+
+  if (.iwmde_prior_tree_has_mixture(active_setup[["priors"]])) {
+    stop(
+      "IWMDE active-branch likelihood requires priors localized to a single mixture component.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
+}
+
+
+.iwmde_prior_tree_has_mixture <- function(x) {
+
+  if (is.null(x)) {
+    return(FALSE)
+  }
+  if (BayesTools::is.prior.mixture(x)) {
+    return(TRUE)
+  }
+  if (BayesTools::is.prior(x)) {
+    return(FALSE)
+  }
+  if (!is.list(x)) {
+    return(FALSE)
+  }
+
+  return(any(vapply(x, .iwmde_prior_tree_has_mixture, logical(1))))
+}
+
+
+.iwmde_indexed_any_parameter_columns <- function(columns, parameters) {
+
+  parameters <- parameters[!is.na(parameters) & nzchar(parameters)]
+  if (length(parameters) == 0L) {
+    return(rep(FALSE, length(columns)))
+  }
+
+  out <- rep(FALSE, length(columns))
+  for (parameter in parameters) {
+    out <- out | BayesTools::JAGS_indexed_parameter_columns(
+      columns   = columns,
+      parameter = parameter
+    )
+  }
+
+  return(out)
+}
+
+
+.iwmde_indexed_parameter_names <- function(parameter, n) {
+
+  return(paste0(parameter, "[", seq_len(n), "]"))
+}
+
+
+.iwmde_sync_invgamma_auxiliary_matrix <- function(context, samples,
+                                                  parameters) {
+
+  if (length(parameters) == 0L || is.null(colnames(samples))) {
+    return(list(samples = samples, valid = rep(TRUE, nrow(samples))))
+  }
+
+  valid <- rep(TRUE, nrow(samples))
+  for (parameter in unique(parameters)) {
+    auxiliary <- .iwmde_invgamma_auxiliary_name(context, parameter)
+    if (is.null(auxiliary) ||
+        !parameter %in% colnames(samples) ||
+        !auxiliary %in% colnames(samples)) {
+      next
+    }
+
+    sync_rows <- .iwmde_invgamma_auxiliary_rows(
+      context   = context,
+      samples   = samples,
+      parameter = parameter
+    )
+    if (length(sync_rows) == 0L) {
+      next
+    }
+
+    values          <- samples[sync_rows, parameter]
+    finite_positive <- is.finite(values) & values > 0
+    samples[sync_rows[finite_positive], auxiliary] <-
+      1 / values[finite_positive]
+    samples[sync_rows[!finite_positive], auxiliary] <- NA_real_
+    valid[sync_rows] <- valid[sync_rows] & finite_positive
+  }
+
+  return(list(samples = samples, valid = valid))
+}
+
+
+.iwmde_sync_invgamma_auxiliary_row <- function(context, row, parameters) {
+
+  if (length(parameters) == 0L) {
+    return(list(row = row, valid = TRUE))
+  }
+
+  valid <- TRUE
+  for (parameter in unique(parameters)) {
+    auxiliary <- .iwmde_invgamma_auxiliary_name(context, parameter)
+    if (is.null(auxiliary) ||
+        !parameter %in% names(row) ||
+        !auxiliary %in% names(row) ||
+        !.iwmde_row_uses_invgamma_prior(context, parameter, row)) {
+      next
+    }
+
+    value <- as.numeric(row[[parameter]])
+    if (length(value) == 1L && is.finite(value) && value > 0) {
+      row[[auxiliary]] <- 1 / value
+    } else {
+      row[[auxiliary]] <- NA_real_
+      valid <- FALSE
+    }
+  }
+
+  return(list(row = row, valid = valid))
+}
+
+
+.iwmde_invgamma_auxiliary_name <- function(context, parameter) {
+
+  if (grepl("\\[[0-9]+\\]$", parameter)) {
+    return(NULL)
+  }
+  prior_name <- .iwmde_parameter_prior_name(context, parameter)
+  if (is.null(prior_name) ||
+      !.iwmde_prior_contains_invgamma(
+        context[["flat_prior_list"]][[prior_name]]
+      )) {
+    return(NULL)
+  }
+
+  return(paste0("inv_", parameter))
+}
+
+
+.iwmde_invgamma_auxiliary_rows <- function(context, samples, parameter) {
+
+  rows <- seq_len(nrow(samples))
+  uses <- vapply(rows, function(i) {
+    .iwmde_row_uses_invgamma_prior(context, parameter, samples[i, ])
+  }, logical(1))
+
+  return(rows[uses])
+}
+
+
+.iwmde_row_uses_invgamma_prior <- function(context, parameter, row) {
+
+  prior <- .iwmde_focal_prior(context, parameter, row)
+
+  return(.iwmde_prior_is_invgamma(prior))
+}
+
+
+.iwmde_prior_contains_invgamma <- function(prior) {
+
+  if (is.null(prior) || BayesTools::is.prior.none(prior)) {
+    return(FALSE)
+  }
+  if (BayesTools::is.prior.mixture(prior)) {
+    return(any(vapply(seq_along(prior), function(i) {
+      .iwmde_prior_contains_invgamma(prior[[i]])
+    }, logical(1))))
+  }
+
+  return(.iwmde_prior_is_invgamma(prior))
+}
+
+
+.iwmde_prior_is_invgamma <- function(prior) {
+
+  inherits(prior, "prior.simple") &&
+    identical(prior[["distribution"]], "invgamma")
 }
 
 
@@ -214,6 +459,7 @@
     drop = FALSE
   ]
   valid <- rep(TRUE, n_candidates)
+  changed_parameters <- character()
 
   if (identical(replacement[["type"]], "linear")) {
     valid <- rep(FALSE, n_candidates)
@@ -240,6 +486,10 @@
       finite      <- is.finite(value_delta)
       valid[positions] <- finite
       if (any(finite)) {
+        changed_parameters <- unique(c(
+          changed_parameters,
+          linear[["active_columns"]]
+        ))
         samples[positions[finite], linear[["active_columns"]]] <-
           samples[positions[finite], linear[["active_columns"]], drop = FALSE] +
           outer(
@@ -250,7 +500,15 @@
     }
   } else if (parameter %in% sample_names) {
     samples[, parameter] <- values[grid_index]
+    changed_parameters <- parameter
   }
+  synced <- .iwmde_sync_invgamma_auxiliary_matrix(
+    context    = context,
+    samples    = samples,
+    parameters = changed_parameters
+  )
+  samples <- synced[["samples"]]
+  valid   <- valid & synced[["valid"]]
 
   return(list(
     samples     = samples,
@@ -279,8 +537,13 @@
 
   row <- state[["row"]]
   row[[parameter]] <- value
+  synced <- .iwmde_sync_invgamma_auxiliary_row(
+    context    = context,
+    row        = row,
+    parameters = parameter
+  )
 
-  return(out(row))
+  return(out(synced[["row"]], valid = synced[["valid"]]))
 }
 
 
@@ -307,8 +570,13 @@
 
   row[linear[["active_columns"]]] <- row[linear[["active_columns"]]] +
     (value - linear[["current"]]) * linear[["coefficients"]]
+  synced <- .iwmde_sync_invgamma_auxiliary_row(
+    context    = context,
+    row        = row,
+    parameters = linear[["active_columns"]]
+  )
 
-  return(out(row))
+  return(out(synced[["row"]], valid = synced[["valid"]]))
 }
 
 
@@ -461,7 +729,12 @@
     name       <- replacement[["name"]]
     if (!is.null(parameters[[name]])) {
       parameters[[name]] <- value
-      return(out(row, parameters))
+      synced <- .iwmde_sync_invgamma_auxiliary_row(
+        context    = context,
+        row        = row,
+        parameters = name
+      )
+      return(out(synced[["row"]], parameters, valid = synced[["valid"]]))
     }
   }
 
@@ -471,13 +744,31 @@
     index      <- replacement[["index"]]
     if (!is.null(parameters[[name]]) && length(parameters[[name]]) >= index) {
       parameters[[name]][index] <- value
-      return(out(row, parameters))
+      synced <- .iwmde_sync_invgamma_auxiliary_row(
+        context    = context,
+        row        = row,
+        parameters = parameter
+      )
+      return(out(synced[["row"]], parameters, valid = synced[["valid"]]))
     }
   }
 
-  return(out(
+  synced <- .iwmde_sync_invgamma_auxiliary_row(
+    context    = context,
     row        = row,
-    parameters = .iwmde_row_parameters(context, row, state[["active_setup"]])
+    parameters = parameter
+  )
+  if (!isTRUE(synced[["valid"]])) {
+    return(out(synced[["row"]], state[["parameters"]], valid = FALSE))
+  }
+
+  return(out(
+    row        = synced[["row"]],
+    parameters = .iwmde_row_parameters(
+      context      = context,
+      row          = synced[["row"]],
+      active_setup = state[["active_setup"]]
+    )
   ))
 }
 
@@ -514,9 +805,21 @@
   # value while keeping the orthogonal complement fixed.
   row[linear[["active_columns"]]] <- row[linear[["active_columns"]]] +
     (value - linear[["current"]]) * linear[["coefficients"]]
-  parameters <- .iwmde_row_parameters(context, row, state[["active_setup"]])
+  synced <- .iwmde_sync_invgamma_auxiliary_row(
+    context    = context,
+    row        = row,
+    parameters = linear[["active_columns"]]
+  )
+  if (!isTRUE(synced[["valid"]])) {
+    return(out(synced[["row"]], state[["parameters"]], valid = FALSE))
+  }
+  parameters <- .iwmde_row_parameters(
+    context      = context,
+    row          = synced[["row"]],
+    active_setup = state[["active_setup"]]
+  )
 
-  return(out(row, parameters))
+  return(out(synced[["row"]], parameters))
 }
 
 
@@ -573,5 +876,3 @@
 
   return(list(type = "fallback"))
 }
-
-

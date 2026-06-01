@@ -1,6 +1,8 @@
 # Fitting functions -----
 .create_fit_priors <- function(data, priors) {
 
+  .check_glmm_no_bias_priors(data, priors)
+
   # extract the common prior list
   prior_list <- priors[["outcome"]]
 
@@ -41,6 +43,8 @@
   return(prior_list)
 }
 .create_fit_data   <- function(data, priors) {
+
+  .check_glmm_no_bias_priors(data, priors)
 
   ### add outcome specific data
   if (.data_outcome_type(data) == "norm") {
@@ -135,6 +139,8 @@
   return(priors[[parameter]])
 }
 .create_model_syntax           <- function(data, priors) {
+
+  .check_glmm_no_bias_priors(data, priors)
 
   ### extract structural information about the model
   is_mods           <- .is_data_mods(data)
@@ -507,6 +513,15 @@
 }
 .is_priors_bias           <- function(priors) {
   return(.is_priors_PET(priors) || .is_priors_PEESE(priors) || .is_priors_weightfunction(priors))
+}
+.check_glmm_no_bias_priors <- function(data, priors) {
+
+  if (.data_outcome_type(data) %in% c("bin", "pois") && .is_priors_bias(priors)) {
+    stop("Publication-bias priors are not supported for GLMM outcomes.",
+         call. = FALSE)
+  }
+
+  invisible(TRUE)
 }
 .is_data_multilevel       <- function(data) {
   return(isTRUE(attr(data, "cluster")))

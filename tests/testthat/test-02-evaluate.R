@@ -438,8 +438,7 @@ test_that("selection row routing validates posterior bias indicators", {
   expect_error(
     .selection_row_routing(
       priors               = object[["priors"]],
-      posterior_samples    = invalid,
-      honor_bias_indicator = TRUE
+      posterior_samples    = invalid
     ),
     "Invalid posterior model indicator range"
   )
@@ -452,7 +451,7 @@ test_that("selected-normal RNG requires explicit row routing", {
       mu_samples        = matrix(0, nrow = 2, ncol = 1),
       tau_within        = matrix(0, nrow = 2, ncol = 1),
       sei               = 1,
-      selection_context = list()
+      selection_context = list(kernel_mode = c(0L, 0L))
     ),
     "use_normal"
   )

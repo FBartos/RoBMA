@@ -75,38 +75,30 @@
                                                n_expected = NULL,
                                                required = TRUE) {
 
-  parameter_pattern <- gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", parameter)
-  parameter_cols    <- grep(
-    paste0("^", parameter_pattern, "(\\[|$)"),
-    colnames(posterior_samples),
-    value = TRUE
+  parameter_matrix <- BayesTools::JAGS_indexed_parameter_matrix(
+    samples   = posterior_samples,
+    parameter = parameter
   )
+  if (is.null(parameter_matrix) && parameter %in% colnames(posterior_samples)) {
+    parameter_matrix <- as.matrix(posterior_samples[, parameter, drop = FALSE])
+  }
 
-  if (length(parameter_cols) == 0L) {
+  if (is.null(parameter_matrix)) {
     if (required) {
       stop("Missing posterior ", parameter, " columns.", call. = FALSE)
     }
     return(NULL)
   }
 
-  parameter_index <- suppressWarnings(as.integer(sub(
-    paste0("^", parameter_pattern, "\\[([0-9]+)\\]$"),
-    "\\1",
-    parameter_cols
-  )))
-  if (all(!is.na(parameter_index))) {
-    parameter_cols <- parameter_cols[order(parameter_index)]
-  }
-
-  if (!is.null(n_expected) && length(parameter_cols) != n_expected) {
+  if (!is.null(n_expected) && ncol(parameter_matrix) != n_expected) {
     stop(
       "Expected ", n_expected, " posterior ", parameter, " column(s), found ",
-      length(parameter_cols), ".",
+      ncol(parameter_matrix), ".",
       call. = FALSE
     )
   }
 
-  return(as.matrix(posterior_samples[, parameter_cols, drop = FALSE]))
+  return(parameter_matrix)
 }
 
 
@@ -973,8 +965,7 @@
   posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
   routing           <- .selection_row_routing(
     priors               = object[["priors"]],
-    posterior_samples    = posterior_samples,
-    honor_bias_indicator = TRUE
+    posterior_samples    = posterior_samples
   )
 
   return(routing[["use_normal"]])
@@ -1000,8 +991,7 @@
   posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
   routing           <- .selection_row_routing(
     priors               = object[["priors"]],
-    posterior_samples    = posterior_samples,
-    honor_bias_indicator = TRUE
+    posterior_samples    = posterior_samples
   )
 
   return(routing[["bias_indicator"]])

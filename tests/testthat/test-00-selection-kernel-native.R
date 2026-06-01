@@ -56,7 +56,7 @@ test_that("selected-normal native row arguments reject incompatible lengths", {
       selection_spec = spec,
       alpha          = c(0, 0, 0)
     ),
-    "length 1 or one value per posterior sample"
+    "length 1 or"
   )
   expect_error(
     .selnorm_kernel_loglik_matrix(
@@ -68,7 +68,7 @@ test_that("selected-normal native row arguments reject incompatible lengths", {
       selection_spec = spec,
       phack_kind     = c(0L, 0L, 0L)
     ),
-    "length 1 or one value per posterior sample"
+    "length 1 or"
   )
   expect_error(
     .selnorm_kernel_loglik_matrix(
@@ -80,7 +80,7 @@ test_that("selected-normal native row arguments reject incompatible lengths", {
       selection_spec = spec,
       kernel_mode    = rep(SELKERNEL_STEP, 3L)
     ),
-    "length 1 or one value per posterior sample"
+    "length 1 or"
   )
 })
 

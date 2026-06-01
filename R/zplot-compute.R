@@ -34,10 +34,7 @@
   ### extract model info
   is_multilevel     <- .is_multilevel(object)
   is_weightfunction <- .is_weightfunction(object)
-  outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
-  priors            <- object[["priors"]]
-  data              <- object[["data"]]
 
   ### get outcome data
   outcome_data <- object[["data"]][["outcome"]]
@@ -49,47 +46,42 @@
   # "cluster" for multilevel (mu + gamma), "terms" for marginal/single-level
   mu_type <- if (is_multilevel) "cluster" else "terms"
 
-  ### 1. Predict mu (location) samples
+  ### 1. Thin posterior samples before derived quantities
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  selected_ind      <- .thin_sample_rows(nrow(posterior_samples), max_samples)
+  if (!is.null(selected_ind)) {
+    posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
+  }
+
+  ### 2. Predict mu (location) samples
   # predict.brma handles PET/PEESE via bias_adjusted argument
   # extrapolate=TRUE -> bias_adjusted=TRUE (unbiased predictions)
   mu_samples <- predict.brma(
-    object        = object,
-    type          = mu_type,
-    bias_adjusted = extrapolate,
-    quiet         = TRUE
+    object             = object,
+    type               = mu_type,
+    bias_adjusted      = extrapolate,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
   )
 
-  ### 2. Get tau (heterogeneity) samples
+  ### 3. Get tau (heterogeneity) samples
   # specific handling to get tau_within
   # .evaluate.brma.tau handles ML splitting logic
   tau_result <- .evaluate.brma.tau(
-    fit           = object[["fit"]],
-    scale_data    = object[["data"]][["scale"]],
-    scale_formula = if (.is_scale(object)) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
-    scale_priors  = object[["priors"]][["scale"]],
-    is_scale      = .is_scale(object),
-    is_multilevel = is_multilevel,
-    K             = K
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = is_multilevel,
+    K                 = K,
+    posterior_samples = posterior_samples
   )
   tau_within <- tau_result[["tau_within"]]
-
-  ### 3. Subsample for efficiency
-  S            <- nrow(mu_samples)
-  selected_ind <- .thin_sample_rows(S, max_samples)
-  if (!is.null(selected_ind)) {
-    mu_samples        <- mu_samples[selected_ind, , drop = FALSE]
-    tau_within        <- tau_within[selected_ind, , drop = FALSE]
-    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))[selected_ind, ]
-    S                 <- length(selected_ind)
-  } else {
-    posterior_samples <- suppressWarnings(coda::as.mcmc(object[["fit"]]))
-  }
 
   ### 4. Prepare for Computation
   selection <- .zplot_selection_context(
     object            = object,
-    data              = data,
-    priors            = priors,
     posterior_samples = posterior_samples,
     is_weightfunction = is_weightfunction
   )
@@ -174,7 +166,10 @@
   )
   weighted_rows <- if (is.null(selection)) integer(0) else which(!selection[["use_normal"]])
   if (length(weighted_rows) > 0) {
-    selection_weight <- .selection_context_subset_rows(selection, weighted_rows)
+    selection_weight <- BayesTools::selection_context_subset_rows(
+      context = selection,
+      rows    = weighted_rows
+    )
     mean_weight      <- mu_samples[weighted_rows, , drop = FALSE]
     sd_weight        <- total_sd[weighted_rows, , drop = FALSE]
 
@@ -232,7 +227,7 @@
                                              selection_context, extrapolate) {
 
   .selection_require_step_evaluable(selection_context, ".zplot_threshold_vectorized()")
-  native_static <- .selection_native_static_args(selection_context)
+  native_static <- BayesTools::selection_native_static_args(selection_context)
 
   return(.Call(
     "RoBMA_selnorm_zcurve_threshold_summary",
@@ -301,7 +296,7 @@
   if (!.has_native_zplot_density(selection = TRUE)) {
     stop("The native selected-normal zplot density kernel is not loaded.", call. = FALSE)
   }
-  native_static <- .selection_native_static_args(selection_context)
+  native_static <- BayesTools::selection_native_static_args(selection_context)
 
   return(.Call(
     "RoBMA_selnorm_zcurve_density_matrix",
@@ -380,7 +375,10 @@
     return(weights)
   }
 
-  selection_weight <- .selection_context_subset_rows(selection, weighted_rows)
+  selection_weight <- BayesTools::selection_context_subset_rows(
+    context = selection,
+    rows    = weighted_rows
+  )
   log_norm <- .selection_step_log_norm_matrix(
     mean              = mean[weighted_rows, , drop = FALSE],
     sd                = sd[weighted_rows, , drop = FALSE],
@@ -422,8 +420,8 @@
 # Prepare posterior-row selection metadata for branch-aware zplot evaluation.
 #
 # ---------------------------------------------------------------------------- #
-.zplot_selection_context <- function(object, data, priors, posterior_samples,
-                                      is_weightfunction) {
+.zplot_selection_context <- function(object, posterior_samples,
+                                     is_weightfunction) {
 
   if (!is_weightfunction) {
     return(NULL)

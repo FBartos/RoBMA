@@ -2,6 +2,10 @@
 # helper-iwmde.R
 # ============================================================================ #
 
+if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
+  source(testthat::test_path("common-functions.R"), local = TRUE)
+}
+
 .expect_iwmde_ok <- function(out, parameters) {
 
   expect_named(out, parameters)

@@ -1,6 +1,6 @@
 .hypothesis_brma_attach_iwmde <- function(object, posterior, parameter,
-                                          hypothesis, conditional,
-                                          n_points, max_samples,
+                                          parameter_label, hypothesis,
+                                          conditional, n_points, max_samples,
                                           normalization_points,
                                           normalization_prob, density_method,
                                           standardized_coefficients,
@@ -50,6 +50,7 @@
         context                  = context,
         diagnostic_cache         = diagnostic_cache,
         parameter                = parameter,
+        parameter_label          = parameter_label,
         value                    = ref[["value"]],
         conditional              = conditional,
         max_samples              = max_samples,
@@ -83,9 +84,17 @@
 
 
 .hypothesis_brma_attach_iwmde_scalar <- function(
-    posterior, raw_posterior, context, diagnostic_cache, parameter, value,
-    conditional, max_samples, normalization_points, normalization_prob, method,
-    density_method, standardized_coefficients) {
+    posterior, raw_posterior, context, diagnostic_cache, parameter,
+    parameter_label, value, conditional, max_samples, normalization_points,
+    normalization_prob, method, density_method, standardized_coefficients) {
+
+  if (is.list(raw_posterior) || is.list(posterior)) {
+    stop(
+      "qCMDE/IWMDE point hypotheses for factor parameters must specify ",
+      "a level, e.g. '", parameter_label, "[level] = ", value, "'.",
+      call. = FALSE
+    )
+  }
 
   raw_values <- as.numeric(raw_posterior)
   display_values <- as.numeric(posterior)
@@ -118,7 +127,11 @@
 
   ordinate <- .iwmde_posterior_ordinate_attribute(
     diagnostic     = diagnostic,
-    density_method = density_method
+    density_method = density_method,
+    metadata       = .iwmde_posterior_metadata(
+      samples   = posterior,
+      parameter = parameter
+    )
   )
   if (is.null(ordinate)) {
     stop(
@@ -134,7 +147,7 @@
     transform = transform,
     value     = value
   )
-  attr(posterior, "posterior_ordinate") <- .hypothesis_brma_append_ordinate(
+  attr(posterior, "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
     existing = attr(posterior, "posterior_ordinate", exact = TRUE),
     ordinate = ordinate
   )
@@ -157,15 +170,32 @@
          call. = FALSE)
   }
 
+  weights <- attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
+  linear_weights <- .iwmde_linear_weights(weights)
+  if (is.null(linear_weights) || length(linear_weights) == 0L) {
+    reason <- if (is.null(linear_weights)) {
+      "linear weights are unavailable"
+    } else {
+      "linear weights are all zero"
+    }
+    stop(
+      "Precomputed ", density_method, " posterior ordinate is unavailable for '",
+      parameter, "[", level, "] = ", value, "': ", reason,
+      call. = FALSE
+    )
+  }
+
   raw_values     <- as.numeric(raw_posterior[[level]])
   display_values <- as.numeric(posterior[[level]])
   transform <- .plot_brma_affine_sample_transform(raw_values, display_values)
   if (is.null(transform)) {
-    transform <- list(intercept = 0, slope = 1)
+    stop(
+      "Could not align qCMDE/IWMDE ordinate for '", parameter, "[", level,
+      "]' to the displayed scale.",
+      call. = FALSE
+    )
   }
   raw_value <- (value - transform[["intercept"]]) / transform[["slope"]]
-
-  weights <- attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
   diagnostic <- .iwmde_parameter_ordinate_diagnostic(
     context              = context,
     parameter            = paste0(parameter, "[", level, "]"),
@@ -189,7 +219,12 @@
 
   ordinate <- .iwmde_posterior_ordinate_attribute(
     diagnostic     = diagnostic,
-    density_method = density_method
+    density_method = density_method,
+    metadata       = .iwmde_posterior_metadata(
+      samples   = posterior[[level]],
+      parameter = parameter,
+      level     = level
+    )
   )
   if (is.null(ordinate)) {
     stop(
@@ -205,7 +240,7 @@
     transform = transform,
     value     = value
   )
-  attr(posterior[[level]], "posterior_ordinate") <- .hypothesis_brma_append_ordinate(
+  attr(posterior[[level]], "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
     existing = attr(posterior[[level]], "posterior_ordinate", exact = TRUE),
     ordinate = ordinate
   )
@@ -214,47 +249,21 @@
 }
 
 
-.hypothesis_brma_append_ordinate <- function(existing, ordinate) {
-
-  if (is.null(existing)) {
-    return(ordinate)
-  }
-
-  children <- c(
-    .hypothesis_brma_ordinate_children(existing),
-    list(ordinate)
-  )
-  out <- list(
-    ordinates = children
-  )
-  class(out) <- c("RoBMA_posterior_ordinates", "list")
-
-  return(out)
-}
-
-
-.hypothesis_brma_ordinate_children <- function(ordinate) {
-
-  children <- ordinate[["ordinates"]]
-  if (is.list(children) &&
-      !is.data.frame(children) &&
-      is.null(children[["x"]]) &&
-      is.null(children[["value"]]) &&
-      is.null(children[["null_hypothesis"]])) {
-    return(children)
-  }
-
-  return(list(ordinate))
-}
-
-
 .hypothesis_brma_transform_ordinate <- function(ordinate, transform, value) {
 
   slope <- abs(transform[["slope"]])
   ordinate[["value"]]    <- value
   ordinate[["ordinate"]] <- ordinate[["ordinate"]] / slope
+  if (!is.null(ordinate[["evaluation_value"]])) {
+    ordinate[["evaluation_value"]] <- transform[["intercept"]] +
+      transform[["slope"]] * ordinate[["evaluation_value"]]
+  }
 
   diagnostics <- ordinate[["diagnostics"]]
+  if (!is.null(diagnostics[["evaluation_value"]])) {
+    diagnostics[["evaluation_value"]] <- transform[["intercept"]] +
+      transform[["slope"]] * diagnostics[["evaluation_value"]]
+  }
   if (!is.null(diagnostics[["mcse"]])) {
     diagnostics[["mcse"]] <- diagnostics[["mcse"]] / slope
   }
@@ -279,4 +288,3 @@
 
   return(reason)
 }
-

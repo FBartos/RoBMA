@@ -111,10 +111,11 @@ test_that("marginal_means stores BayesTools marginal inference", {
   expect_equal(mm[["term_map"]][["term"]], c("intercept", "alloc"))
   expect_false("normal_approximation" %in% names(formals(marginal_means.brma)))
   expect_equal(mm[["density_method"]], "KDE")
+  expect_identical(mm[["source_object"]], fits[["bcg_meta-regression2"]])
 })
 
 
-test_that("marginal_means exposes normal approximation as density method", {
+test_that("marginal_means hides normal approximation density method", {
 
   captured <- NULL
   testthat::local_mocked_bindings(
@@ -149,14 +150,15 @@ test_that("marginal_means exposes normal approximation as density method", {
     .package = "BayesTools"
   )
 
-  mm <- marginal_means(
-    fits[["bcg_meta-regression2"]],
-    density_method = "normal"
+  expect_error(
+    marginal_means(
+      fits[["bcg_meta-regression2"]],
+      density_method = "normal"
+    ),
+    "must be one of"
   )
 
-  expect_true(captured[["normal_approximation"]])
-  expect_equal(mm[["density_method"]], "normal")
-  expect_false("normal_approximation" %in% names(mm))
+  expect_null(captured)
 })
 
 
@@ -235,6 +237,55 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
   expect_equal(hypothesis_bf[["method"]], "Savage-Dickey (precomputed)")
   expect_equal(level_bf[["method"]], "prior-posterior odds")
   expect_true(is.finite(attr(level_bf, "raw_BF")))
+})
+
+
+test_that("marginal_means restricts qCMDE precomputation targets", {
+
+  mm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    n_samples       = 1000,
+    bf              = TRUE,
+    density_method  = "qCMDE",
+    parameter       = "alloc",
+    type            = "conditional",
+    levels          = "alternate",
+    density_control = list(n_points = 20, max_samples = 20)
+  )
+
+  averaged_density <- attr(
+    mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
+    "posterior_density"
+  )
+  conditional_density <- attr(
+    mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    "posterior_density"
+  )
+  skipped_density <- attr(
+    mm[["inference"]][["conditional"]][["mu_alloc"]][["random"]],
+    "posterior_density"
+  )
+  skipped_ordinate <- attr(
+    mm[["inference"]][["conditional"]][["mu_alloc"]][["random"]],
+    "posterior_ordinate"
+  )
+
+  expect_null(averaged_density)
+  expect_equal(conditional_density[["density_method"]], "qCMDE")
+  expect_null(skipped_density)
+  expect_null(skipped_ordinate)
+  expect_equal(mm[["iwmde_settings"]][["parameter"]], "alloc")
+  expect_equal(mm[["iwmde_settings"]][["type"]], "conditional")
+  expect_equal(mm[["iwmde_settings"]][["levels"]], "alternate")
+  expect_true(is.finite(as.numeric(
+    mm[["inference"]][["inference"]][["mu_alloc"]][["alternate"]]
+  )))
+  expect_true(is.na(mm[["inference"]][["inference"]][["mu_alloc"]][["random"]]))
+  expect_true(is.na(mm[["inference"]][["inference"]][["mu_alloc"]][["systematic"]]))
+  expect_false(is.null(attr(
+    mm[["inference"]][["inference"]][["mu_alloc"]][["random"]],
+    "warnings"
+  )))
 })
 
 

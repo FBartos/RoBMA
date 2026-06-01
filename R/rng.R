@@ -63,11 +63,10 @@
   K          <- ncol(mu_samples)
   sei_mat    <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd   <- sqrt(tau_within^2 + sei_mat^2)
-  selection_context <- .selection_validate_context_rows(
-    selection_context = selection_context,
-    n_samples         = S,
-    required          = "use_normal",
-    caller            = ".outcome_rng.selnorm()"
+  selection_context <- BayesTools::selection_context_validate(
+    context   = selection_context,
+    n_samples = S,
+    required  = "use_normal"
   )
   use_normal <- selection_context[["use_normal"]]
 
@@ -95,7 +94,10 @@
       mean              = mu_samples[step_rows, , drop = FALSE],
       sd                = total_sd[step_rows, , drop = FALSE],
       sei               = sei,
-      selection_context = .selection_context_subset_rows(selection_context, step_rows)
+      selection_context = BayesTools::selection_context_subset_rows(
+        context = selection_context,
+        rows    = step_rows
+      )
     )
 
     return(out)

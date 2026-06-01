@@ -388,7 +388,10 @@
     ))
   }
 
-  local_context <- .selection_context_subset_rows(selection, rows)
+  local_context <- BayesTools::selection_context_subset_rows(
+    context = selection,
+    rows    = rows
+  )
   cdf           <- .selection_step_cdf_matrix(
     q                 = q,
     mean              = matrix(setup[["mu"]][rows], ncol = 1),
@@ -506,4 +509,3 @@
 
   return(grid[index])
 }
-

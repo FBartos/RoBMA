@@ -1,4 +1,4 @@
-context("BayesTools forward API integration")
+context("BayesTools integration")
 
 if (!exists("fit_cache_paths", mode = "function")) {
   source(testthat::test_path("common-functions.R"))
@@ -25,21 +25,6 @@ if (!exists("fit_cache_paths", mode = "function")) {
 
   skip(paste0("Cached fit '", name, "' with formula design metadata is unavailable."))
 }
-
-test_that("BayesTools forward API guard passes for the active namespace", {
-
-  expect_true(isTRUE(.check_bayestools_forward_api()))
-  expect_true(all(
-    c("fit", "parameter") %in% names(formals(BayesTools::JAGS_formula_design))
-  ))
-  expect_true("interpret_records" %in% getNamespaceExports("BayesTools"))
-  expect_true(all(
-    c("legend", "legend_title", "legend_labels", "legend_position", "density_method") %in%
-      names(formals(BayesTools::plot_marginal))
-  ))
-  expect_true("density_method" %in% names(formals(BayesTools::plot_posterior)))
-  expect_true("density_method" %in% names(formals(BayesTools::Savage_Dickey_BF)))
-})
 
 test_that(".get_model_matrix uses fitted BayesTools design metadata", {
 

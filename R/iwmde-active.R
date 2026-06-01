@@ -150,7 +150,7 @@
     if (!BayesTools::is.prior.none(prior)) {
       if (BayesTools::is.prior.weightfunction(prior)) {
         if (.iwmde_parameter_is_eta(parameter) &&
-            length(.iwmde_row_indexed_parameter(row, "eta")) > 0L) {
+            length(BayesTools::JAGS_indexed_parameter_vector(row, "eta")) > 0L) {
           out[[name]] <- prior
         }
       } else {
@@ -289,13 +289,10 @@
     return(NULL)
   }
 
-  omega <- .iwmde_row_indexed_parameter(row, "omega")
-  if (length(omega) == 0L) {
-    log_omega <- .iwmde_row_indexed_parameter(row, "log_omega")
-    if (length(log_omega) > 0L) {
-      omega <- exp(log_omega)
-    }
-  }
+  omega <- as.numeric(BayesTools::JAGS_indexed_parameter_vector(
+    row       = row,
+    parameter = active_spec[["jags_omega"]]
+  ))
   if (length(omega) == 0L) {
     fixed_omega <- .iwmde_fixed_weightfunction_omega(
       active_setup[["priors"]][["outcome"]][["bias"]]
@@ -305,7 +302,15 @@
     }
   }
   if (length(omega) == 0L) {
-    return(.iwmde_validate_omega(rep(1, active_spec[["n_bins"]]), active_spec[["n_bins"]]))
+    jags_data <- active_spec[["jags_data"]]
+    if (is.list(jags_data)) {
+      fixed_omega <- jags_data[[active_spec[["jags_omega"]]]]
+      if (!is.null(fixed_omega)) {
+        return(.iwmde_validate_omega(fixed_omega, active_spec[["n_bins"]]))
+      }
+    }
+
+    return(rep(NA_real_, active_spec[["n_bins"]]))
   }
 
   global_spec <- context[["selection_spec"]]
@@ -348,24 +353,6 @@
   }
 
   return(as.numeric(weights[["omega"]]))
-}
-
-
-.iwmde_row_indexed_parameter <- function(row, parameter) {
-
-  cols <- grep(paste0("^", parameter, "\\["), names(row), value = TRUE)
-  if (length(cols) == 0L) {
-    return(numeric())
-  }
-
-  index <- as.integer(sub(
-    paste0("^", parameter, "\\[([0-9]+)\\]$"),
-    "\\1",
-    cols
-  ))
-  cols <- cols[order(index)]
-
-  return(as.numeric(row[cols]))
 }
 
 

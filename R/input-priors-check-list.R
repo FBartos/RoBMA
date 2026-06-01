@@ -278,11 +278,14 @@
     prior_scale <- NULL
   }
 
-  return(list(
+  priors <- list(
     outcome  = prior_outcome,
     mods     = prior_mods,
     scale    = prior_scale
-  ))
+  )
+  .check_glmm_no_bias_priors(data, priors)
+
+  return(priors)
 }
 
 
@@ -382,9 +385,12 @@
     prior_scale <- NULL
   }
 
-  return(list(
+  priors <- list(
     outcome  = prior_outcome,
     mods     = prior_mods,
     scale    = prior_scale
-  ))
+  )
+  .check_glmm_no_bias_priors(data, priors)
+
+  return(priors)
 }

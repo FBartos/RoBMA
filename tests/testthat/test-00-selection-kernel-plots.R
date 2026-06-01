@@ -101,7 +101,7 @@ test_that("native zplot density matches selected-normal R reference", {
         mean              = mu[const_rows, , drop = FALSE],
         sd                = total_sd[const_rows, , drop = FALSE],
         sei               = sei,
-        selection_context = .selection_context_subset_rows(selection, const_rows)
+        selection_context = BayesTools::selection_context_subset_rows(selection, const_rows)
       )
     }
 
@@ -117,7 +117,7 @@ test_that("native zplot density matches selected-normal R reference", {
         dens[const_rows, ] <- dens[const_rows, , drop = FALSE] / exp(log_norm)
       }
       if (length(weight_rows) > 0L) {
-        selection_weight <- .selection_context_subset_rows(selection, weight_rows)
+        selection_weight <- BayesTools::selection_context_subset_rows(selection, weight_rows)
         log_pdf <- .selection_step_logpdf_matrix(
           y                 = y_seq,
           mean              = mu[weight_rows, , drop = FALSE],
@@ -209,7 +209,7 @@ test_that("zplot threshold separates fitted, extrapolated, and missing-study tar
   )
 
   step_rows      <- which(!selection[["use_normal"]])
-  selection_step <- .selection_context_subset_rows(selection, step_rows)
+  selection_step <- BayesTools::selection_context_subset_rows(selection, step_rows)
   log_norm       <- .selection_step_log_norm_matrix(
     mean              = mu[step_rows, , drop = FALSE],
     sd                = total_sd[step_rows, , drop = FALSE],

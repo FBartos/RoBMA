@@ -36,8 +36,7 @@
         data                 = setup[["data"]],
         priors               = setup[["priors"]],
         posterior_samples    = setup[["posterior_samples"]],
-        effect_direction     = setup[["effect_direction"]],
-        honor_bias_indicator = setup[["honor_bias_indicator"]]
+        effect_direction     = setup[["effect_direction"]]
       )
     } else {
       NULL
@@ -100,8 +99,7 @@
         data                 = setup[["data"]],
         priors               = setup[["priors"]],
         posterior_samples    = setup[["posterior_samples"]],
-        effect_direction     = setup[["effect_direction"]],
-        honor_bias_indicator = setup[["honor_bias_indicator"]]
+        effect_direction     = setup[["effect_direction"]]
       )
     } else {
       NULL
@@ -153,8 +151,7 @@
     priors               = object[["priors"]],
     unit                 = "cluster",
     add_metadata         = TRUE,
-    data_hash            = .get_outcome_hash(object),
-    honor_bias_indicator = TRUE
+    data_hash            = .get_outcome_hash(object)
   ))
 }
 
@@ -252,5 +249,3 @@
 
   return(log_lik)
 }
-
-

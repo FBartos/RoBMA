@@ -13,7 +13,10 @@
     if (.iwmde_parameter_is_indicator(parameter)) {
       return(list(status = "unsupported", reason = "indicator columns are discrete"))
     }
-    if (.iwmde_parameter_is_weightfunction_coordinate(parameter)) {
+    if (.iwmde_parameter_is_weightfunction_coordinate(
+      parameter = parameter,
+      context   = context
+    )) {
       return(list(
         status = "unsupported",
         reason = "weightfunction coordinates need a joint omega/eta replacement map"
@@ -30,7 +33,10 @@
     if (.iwmde_parameter_is_indicator(parameter)) {
       return(list(status = "unsupported", reason = "indicator columns are discrete"))
     }
-    if (.iwmde_parameter_is_weightfunction_coordinate(parameter)) {
+    if (.iwmde_parameter_is_weightfunction_coordinate(
+      parameter = parameter,
+      context   = context
+    )) {
       return(list(
         status = "unsupported",
         reason = "weightfunction coordinates need a joint omega/eta replacement map"
@@ -69,7 +75,10 @@
   bad <- names(weights)[
     vapply(names(weights), function(name) {
       .iwmde_parameter_is_indicator(name) ||
-        .iwmde_parameter_is_weightfunction_coordinate(name)
+        .iwmde_parameter_is_weightfunction_coordinate(
+          parameter = name,
+          context   = context
+        )
     }, logical(1))
   ]
   if (length(bad) > 0L) {
@@ -142,9 +151,59 @@
 }
 
 
-.iwmde_parameter_is_weightfunction_coordinate <- function(parameter) {
+.iwmde_selection_coordinate_names <- function(context = NULL,
+                                              include_private = TRUE) {
 
-  return(grepl("^(omega|log_omega|eta)(\\[|$)", parameter))
+  selection_spec <- NULL
+  if (is.list(context) && !is.null(context[["selection_spec"]])) {
+    selection_spec <- context[["selection_spec"]]
+  } else if (is.list(context) && !is.null(context[["jags_omega"]])) {
+    selection_spec <- context
+  }
+
+  if (!is.null(selection_spec)) {
+    coordinates <- selection_spec[["jags_omega"]]
+  } else {
+    coordinates <- character()
+  }
+  if (isTRUE(include_private)) {
+    coordinates <- c(coordinates, "eta")
+  }
+
+  coordinates <- unique(coordinates[!is.na(coordinates) & nzchar(coordinates)])
+  return(coordinates)
+}
+
+
+.iwmde_parameter_matches_coordinate <- function(parameter, coordinates) {
+
+  coordinates <- unique(coordinates[!is.na(coordinates) & nzchar(coordinates)])
+  if (length(coordinates) == 0L) {
+    return(FALSE)
+  }
+
+  matches <- parameter %in% coordinates
+  for (coordinate in coordinates) {
+    matches <- matches | BayesTools::JAGS_indexed_parameter_columns(
+      columns   = parameter,
+      parameter = coordinate
+    )
+  }
+
+  return(any(matches))
+}
+
+
+.iwmde_parameter_is_weightfunction_coordinate <- function(parameter, context = NULL,
+                                                         include_private = TRUE) {
+
+  return(.iwmde_parameter_matches_coordinate(
+    parameter   = parameter,
+    coordinates = .iwmde_selection_coordinate_names(
+      context         = context,
+      include_private = include_private
+    )
+  ))
 }
 
 
@@ -454,7 +513,10 @@
     return(out)
   }
   if (BayesTools::is.prior.weightfunction(prior) ||
-      grepl("^(omega|log_omega)(\\[|$)", parameter)) {
+      .iwmde_parameter_is_weightfunction_coordinate(
+        parameter = parameter,
+        context   = context
+      )) {
     out <- list(status = "unsupported")
     assign(key, out, envir = context[["focal_prior_cache"]])
     return(out)
@@ -643,5 +705,3 @@
 
   return(c(-Inf, Inf))
 }
-
-

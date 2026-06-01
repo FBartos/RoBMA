@@ -2,22 +2,17 @@
 # IWMDE Likelihood and Prior Ordinates
 # ============================================================================ #
 
-.iwmde_active_branch_honor_bias_indicator <- function() {
-
-  # IWMDE evaluates one collapsed product-space branch at a time. The active
-  # setup already contains that branch's priors, and selection weights may have
-  # been remapped to the branch-specific p-cut grid. Re-reading the original
-  # product-space bias_indicator here would dispatch rows back to the global
-  # mixture and double-apply branch selection.
-  return(FALSE)
-}
-
-
 .iwmde_log_lik_posterior_setup_active_branch <- function(context,
                                                          posterior_samples,
                                                          active_setup,
                                                          unit,
                                                          data_hash = NULL) {
+
+  posterior_samples <- .iwmde_likelihood_posterior_samples(
+    context      = context,
+    samples      = posterior_samples,
+    active_setup = active_setup
+  )
 
   return(.log_lik_posterior_setup(
     fit                  = context[["object"]][["fit"]],
@@ -25,8 +20,7 @@
     data                 = context[["data"]],
     priors               = active_setup[["priors"]],
     unit                 = unit,
-    data_hash            = data_hash,
-    honor_bias_indicator = .iwmde_active_branch_honor_bias_indicator()
+    data_hash            = data_hash
   ))
 }
 
@@ -38,6 +32,12 @@
                                                                 add_metadata = FALSE,
                                                                 data_hash = NULL) {
 
+  posterior_samples <- .iwmde_likelihood_posterior_samples(
+    context      = context,
+    samples      = posterior_samples,
+    active_setup = active_setup
+  )
+
   return(.log_lik_from_posterior_samples(
     fit                  = context[["object"]][["fit"]],
     posterior_samples    = posterior_samples,
@@ -45,8 +45,7 @@
     priors               = active_setup[["priors"]],
     unit                 = unit,
     add_metadata         = add_metadata,
-    data_hash            = data_hash,
-    honor_bias_indicator = .iwmde_active_branch_honor_bias_indicator()
+    data_hash            = data_hash
   ))
 }
 
@@ -57,14 +56,19 @@
                                                                     unit,
                                                                     data_hash = NULL) {
 
+  posterior_samples <- .iwmde_likelihood_posterior_samples(
+    context      = context,
+    samples      = posterior_samples,
+    active_setup = active_setup
+  )
+
   return(.log_lik_from_posterior_samples_sum(
     fit                  = context[["object"]][["fit"]],
     posterior_samples    = posterior_samples,
     data                 = context[["data"]],
     priors               = active_setup[["priors"]],
     unit                 = unit,
-    data_hash            = data_hash,
-    honor_bias_indicator = .iwmde_active_branch_honor_bias_indicator()
+    data_hash            = data_hash
   ))
 }
 
@@ -78,6 +82,14 @@
                                                                        unit = "estimate",
                                                                        data_hash = NULL) {
 
+  if (!is.null(posterior_samples)) {
+    posterior_samples <- .iwmde_likelihood_posterior_samples(
+      context      = context,
+      samples      = posterior_samples,
+      active_setup = active_setup
+    )
+  }
+
   return(.log_lik_from_evaluated_predictors_sum(
     fit                  = context[["object"]][["fit"]],
     data                 = context[["data"]],
@@ -87,8 +99,7 @@
     tau_between_samples  = tau_between_samples,
     posterior_samples    = posterior_samples,
     unit                 = unit,
-    data_hash            = data_hash,
-    honor_bias_indicator = .iwmde_active_branch_honor_bias_indicator()
+    data_hash            = data_hash
   ))
 }
 
@@ -97,13 +108,18 @@
                                                    posterior_samples,
                                                    newdata = NULL) {
 
+  posterior_samples <- .iwmde_likelihood_posterior_samples(
+    context      = context,
+    samples      = posterior_samples,
+    active_setup = active_setup
+  )
+
   return(.selection_context_from_parts(
     fit                  = context[["object"]][["fit"]],
     data                 = context[["data"]],
     priors               = active_setup[["priors"]],
     posterior_samples    = posterior_samples,
     effect_direction     = .data_effect_direction(context[["data"]]),
-    honor_bias_indicator = .iwmde_active_branch_honor_bias_indicator(),
     newdata              = newdata
   ))
 }
@@ -200,11 +216,6 @@
     nrow = 1L
   )
   colnames(samples) <- colnames(context[["posterior_samples"]])
-  samples <- .iwmde_likelihood_posterior_samples(
-    context      = context,
-    samples      = samples,
-    active_setup = active_setup
-  )
   unit <- if (.is_data_multilevel(context[["data"]])) {
     "cluster"
   } else {
@@ -252,11 +263,6 @@
   }
 
   posterior_samples <- .iwmde_parameters_posterior_samples(parameters)
-  posterior_samples <- .iwmde_likelihood_posterior_samples(
-    context      = context,
-    samples      = posterior_samples,
-    active_setup = active_setup
-  )
   unit <- if (.is_data_multilevel(data)) {
     "cluster"
   } else {
@@ -425,6 +431,9 @@
   if (is.null(prior) || BayesTools::is.prior.none(prior)) {
     return(TRUE)
   }
+  if (.iwmde_prior_is_invgamma(prior)) {
+    return(FALSE)
+  }
 
   return(inherits(prior, "prior.simple"))
 }
@@ -516,5 +525,3 @@
 
   return(as.integer(match[[2L]]))
 }
-
-

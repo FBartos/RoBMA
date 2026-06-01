@@ -100,6 +100,45 @@ test_that("IWMDE diagnostics can include requested density support values", {
   expect_true(is.finite(out[["diagnostics"]][["bf_error_percent"]]))
 })
 
+test_that("IWMDE BF diagnostics retain boundary evaluation point", {
+
+  evaluation_value <- 1e-6
+  density <- list(
+    x                = 0,
+    evaluation_x     = evaluation_value,
+    y                = 2,
+    mcse             = .1,
+    relative_mcse    = .05,
+    finite_terms     = 40L,
+    ess              = 25,
+    max_weight_share = .2,
+    max_log_ratio    = 1
+  )
+
+  bf_diagnostics <- .iwmde_density_bf_diagnostics(density, 0)
+  diagnostic <- list(
+    status      = "ok",
+    diagnostics = c(
+      bf_diagnostics,
+      list(
+        estimator              = "q_grid_cmde",
+        weight_method          = "conditional_grid",
+        active_mass            = 1,
+        normalization_integral = 1,
+        normalization_range    = c(evaluation_value / 2, evaluation_value * 2)
+      )
+    )
+  )
+  ordinate <- .iwmde_posterior_ordinate_attribute(diagnostic, "qCMDE")
+
+  expect_true(bf_diagnostics[["bf_included"]])
+  expect_equal(bf_diagnostics[["bf_value"]], 0)
+  expect_equal(bf_diagnostics[["bf_evaluation_value"]], evaluation_value)
+  expect_equal(ordinate[["value"]], 0)
+  expect_equal(ordinate[["evaluation_value"]], evaluation_value)
+  expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
+})
+
 test_that("IWMDE diagnostics warn on unused dots", {
 
   .skip_if_missing_raw_fits("bcg_meta-analysis")
@@ -130,7 +169,7 @@ test_that("old IWMDE variant labels are rejected", {
       density_method = "IWMDE-Chen",
       plot           = FALSE
     ),
-    "should be one of"
+    "must be one of"
   )
   expect_error(
     plot(
@@ -138,7 +177,7 @@ test_that("old IWMDE variant labels are rejected", {
       parameter      = "mu",
       density_method = "IWMDE-CMDE"
     ),
-    "should be one of"
+    "must be one of"
   )
   expect_error(
     marginal_means(
@@ -146,7 +185,7 @@ test_that("old IWMDE variant labels are rejected", {
       n_samples      = 1000,
       density_method = "IWMDE-Chen"
     ),
-    "should be one of"
+    "must be one of"
   )
 })
 
@@ -258,6 +297,84 @@ test_that("IWMDE condition rows keep one-row shape and ignore missing values", {
   expect_false(rows)
 })
 
+test_that("IWMDE marginal-mean specs preserve child condition metadata", {
+
+  condition_key <- paste(c("OR", 2L, "mu_alloc", "mu_intercept"), collapse = "\r")
+  condition_event <- structure(
+    list(
+      conditional      = c("mu_intercept", "mu_alloc"),
+      conditional_rule = "OR",
+      condition_key    = condition_key
+    ),
+    class = "BayesTools_condition_event"
+  )
+  prior_density_context <- structure(
+    list(condition_key = condition_key),
+    class = "prior_density_context"
+  )
+  samples <- structure(
+    stats::rnorm(20),
+    linear_weights              = c(mu_intercept = 1, mu_alloc = 1),
+    conditional                 = "stale_parent_condition",
+    conditional_rule            = "AND",
+    effective_conditional       = c("mu_intercept", "mu_alloc"),
+    effective_conditional_rule  = "OR",
+    condition_key               = condition_key,
+    condition_event             = condition_event,
+    resolved_condition_event    = condition_event,
+    prior_density_context       = prior_density_context
+  )
+  marginal_means_object <- list(
+    inference        = list(
+      conditional = list(mu_alloc = list(alternate = samples))
+    ),
+    parameters       = "mu_alloc",
+    term_map         = data.frame(
+      term             = "alloc",
+      parameter        = "mu_alloc",
+      label            = "alloc",
+      stringsAsFactors = FALSE
+    ),
+    conditional_rule = "AND"
+  )
+
+  specs <- .iwmde_marginal_means_specs(
+    marginal_means_object = marginal_means_object,
+    parameter             = "alloc",
+    type                  = "conditional",
+    levels                = "alternate"
+  )
+  spec <- specs[["alloc: alternate"]]
+
+  expect_equal(spec[["conditional"]], c("mu_intercept", "mu_alloc"))
+  expect_equal(spec[["conditional_rule"]], "OR")
+  expect_equal(spec[["condition_key"]], condition_key)
+  expect_identical(spec[["condition_event"]], condition_event)
+  expect_identical(spec[["resolved_condition_event"]], condition_event)
+  expect_identical(spec[["prior_density_context"]], prior_density_context)
+  expect_equal(.iwmde_parameter_condition_key(spec), condition_key)
+  expect_equal(
+    .iwmde_posterior_metadata(samples, "mu_alloc", "alternate")[["condition_key"]],
+    condition_key
+  )
+
+  stale_samples <- samples
+  attr(stale_samples, "effective_conditional") <- NULL
+  attr(stale_samples, "effective_conditional_rule") <- NULL
+  attr(stale_samples, "condition_key") <- NULL
+  marginal_means_object[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]] <- stale_samples
+
+  expect_error(
+    .iwmde_marginal_means_specs(
+      marginal_means_object = marginal_means_object,
+      parameter             = "alloc",
+      type                  = "conditional",
+      levels                = "alternate"
+    ),
+    "metadata is incomplete"
+  )
+})
+
 test_that("IWMDE diagnostics compute without q-grid normalization", {
 
   .skip_if_missing_raw_fits("bcg_meta-analysis")
@@ -335,7 +452,7 @@ test_that("IWMDE diagnostics compute for estimated marginal means", {
 
   .expect_iwmde_ok(out, names(out))
   expect_named(out, c("alloc: alternate", "alloc: random", "alloc: systematic"))
-  expect_false(is.null(mm[["iwmde_signature"]]))
+  expect_s3_class(mm[["source_object"]], "brma")
 })
 
 test_that("IWMDE diagnostics compute for conditional estimated marginal means", {
@@ -397,7 +514,7 @@ test_that("IWMDE reuses identical marginal-mean linear targets", {
   }
 })
 
-test_that("IWMDE marginal means reject incompatible precomputed objects", {
+test_that("IWMDE marginal means use attached source objects", {
 
   .skip_if_missing_raw_fits(c("bcg_meta-regression2", "bcg_meta-regression2b"))
 
@@ -405,17 +522,19 @@ test_that("IWMDE marginal means reject incompatible precomputed objects", {
   fit_b  <- load_fit("bcg_meta-regression2b", validate = FALSE)
   mm     <- marginal_means(fit, n_samples = 1000)
   mm_old <- mm
-  mm_old[["iwmde_signature"]] <- NULL
+  mm_old[["source_object"]] <- NULL
 
-  expect_error(
-    plot_iwmde_marginal_means_diagnostics(
-      object                = fit_b,
-      marginal_means_object = mm,
-      plot                  = FALSE,
-      as_data               = TRUE
-    ),
-    "was not computed from"
+  out <- plot_iwmde_marginal_means_diagnostics(
+    object                = fit_b,
+    parameter             = "alloc",
+    marginal_means_object = mm,
+    n_points              = 20,
+    max_samples           = 20,
+    plot                  = FALSE,
+    as_data               = TRUE
   )
+  .expect_iwmde_ok(out, names(out))
+
   expect_error(
     plot_iwmde_marginal_means_diagnostics(
       object                = fit,
@@ -423,7 +542,7 @@ test_that("IWMDE marginal means reject incompatible precomputed objects", {
       plot                  = FALSE,
       as_data               = TRUE
     ),
-    "does not contain an IWMDE fit signature"
+    "source fitted brma object"
   )
   expect_error(
     plot_iwmde_marginal_means_diagnostics(

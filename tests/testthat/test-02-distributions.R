@@ -417,12 +417,12 @@ test_that("selection native static cache is reused and reset for subsets", {
   selection_context[["kernel_mode"]] <- rep(SELKERNEL_STEP, 3)
   selection_context <- .selection_reset_native_cache(selection_context)
 
-  first  <- .selection_native_static_args(selection_context)
-  second <- .selection_native_static_args(selection_context)
+  first  <- BayesTools::selection_native_static_args(selection_context)
+  second <- BayesTools::selection_native_static_args(selection_context)
   expect_identical(first, second)
 
-  row_subset <- .selection_context_subset_rows(selection_context, 1:2)
-  obs_subset <- .selection_context_subset_observations(selection_context, 1:2)
+  row_subset <- BayesTools::selection_context_subset_rows(selection_context, 1:2)
+  obs_subset <- BayesTools::selection_context_subset_observations(selection_context, 1:2)
 
   expect_true(is.environment(row_subset[["native_cache"]]))
   expect_true(is.environment(obs_subset[["native_cache"]]))
@@ -435,7 +435,7 @@ test_that("selection native static cache is reused and reset for subsets", {
     obs_subset[["native_cache"]]
   ))
   expect_equal(
-    .selection_native_static_args(obs_subset)[["z_lower"]],
+    BayesTools::selection_native_static_args(obs_subset)[["z_lower"]],
     .native_numeric_vector(obs_subset[["z_lower"]])
   )
 })

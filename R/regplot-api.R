@@ -260,4 +260,3 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
     return(invisible(NULL))
   }
 }
-

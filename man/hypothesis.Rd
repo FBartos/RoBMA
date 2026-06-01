@@ -17,7 +17,8 @@
   logBF = FALSE,
   BF01 = FALSE,
   seed = NULL,
-  density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
   columns = "default",
   ...
 )
@@ -35,7 +36,7 @@ hypothesis(object, ...)
   logBF = FALSE,
   BF01 = FALSE,
   seed = NULL,
-  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_method = c("KDE", "normal", "qCMDE", "IWMDE"),
   density_control = NULL,
   n_samples = 10000,
   columns = "default",
@@ -55,9 +56,9 @@ object accepted by \code{BayesTools::hypothesis_BF()}.}
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
 the hypothesis expression.}
 
-\item{type}{for \code{marginal_means.brma} objects, whether to use
-model-averaged (\code{"averaged"}) or conditional (\code{"conditional"})
-marginal means.}
+\item{type}{retained for compatibility with \code{marginal_means.brma}
+objects. Marginal-means Bayes factors are always computed from the
+alternative-conditioned marginal means.}
 
 \item{logBF}{whether to display the Bayes factor on the log scale.}
 
@@ -66,14 +67,14 @@ marginal means.}
 \item{seed}{optional seed used by BayesTools for sampled prior quantities.}
 
 \item{density_method}{posterior density method. \code{"KDE"} uses the
-standard BayesTools kernel density estimate. \code{"qCMDE"} and
-\code{"IWMDE"} attach RoBMA likelihood-aware posterior ordinates for direct
-point-null hypotheses and propagate their \code{BF_error} estimates
-printed as \code{error\%(BF)}. For
-\code{marginal_means.brma} objects, \code{"normal"} uses the BayesTools
-normal approximation, and \code{"qCMDE"} and \code{"IWMDE"} require matching
-precomputed ordinates already stored by \code{marginal_means()}. Matching is
-case-insensitive.}
+standard BayesTools kernel density estimate. \code{"normal"} uses the
+BayesTools normal approximation for point-null hypotheses on fitted
+\code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
+likelihood-aware posterior ordinates for direct point-null hypotheses and
+propagate their \code{BF_error} estimates printed as \code{error\%(BF)}. For
+\code{marginal_means.brma} objects, \code{"normal"} is not supported, and
+\code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
+the stored source model. Matching is case-insensitive.}
 
 \item{columns}{output columns passed to \code{BayesTools::hypothesis_BF()}.
 \code{"default"} returns the compact BayesTools table with
@@ -86,8 +87,8 @@ diagnostics rather than probabilities for all hypothesis types.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
-\code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-terms used in multiple model components.}
+\code{"location"}) or \code{"scale"} to disambiguate terms used in
+multiple model components. Publication-bias parameters are not supported.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}

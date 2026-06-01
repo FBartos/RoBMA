@@ -110,7 +110,7 @@ test_that("IWMDE marginal likelihood does not mask internal errors", {
   )
 })
 
-test_that("IWMDE active-branch wrappers document bias-indicator handling", {
+test_that("IWMDE active-branch wrappers call localized likelihood helpers", {
 
   data <- list(outcome = data.frame(yi = 0, sei = 1))
   attr(data, "effect_direction") <- "positive"
@@ -122,27 +122,65 @@ test_that("IWMDE active-branch wrappers document bias-indicator handling", {
   active_setup <- list(priors = list())
   samples      <- matrix(0, nrow = 1, ncol = 0)
 
-  selection_honor <- NULL
-  log_lik_honor   <- NULL
+  calls <- list()
 
   testthat::local_mocked_bindings(
+    .log_lik_posterior_setup = function(fit, posterior_samples,
+                                         data, priors, unit,
+                                          data_hash = NULL) {
+      calls[["setup"]] <<- TRUE
+      return(list(posterior_samples = posterior_samples))
+    },
+    .log_lik_from_posterior_samples = function(fit, posterior_samples,
+                                                data, priors, unit,
+                                                add_metadata = FALSE,
+                                                data_hash = NULL) {
+      calls[["matrix"]] <<- TRUE
+      return(matrix(0, nrow = nrow(posterior_samples), ncol = 1L))
+    },
+    .log_lik_from_posterior_samples_sum = function(fit, posterior_samples,
+                                                    data, priors, unit,
+                                                    data_hash = NULL) {
+      calls[["sum"]] <<- TRUE
+      return(rep(0, nrow(posterior_samples)))
+    },
+    .log_lik_from_evaluated_predictors_sum = function(fit, data, priors,
+                                                      mu_samples,
+                                                      tau_within_samples,
+                                                      tau_between_samples = NULL,
+                                                      posterior_samples = NULL,
+                                                      unit = "estimate",
+                                                      data_hash = NULL) {
+      calls[["evaluated_sum"]] <<- TRUE
+      return(rep(0, nrow(mu_samples)))
+    },
     .selection_context_from_parts = function(fit, data, priors,
                                              posterior_samples,
                                              effect_direction,
-                                             honor_bias_indicator,
                                              newdata = NULL) {
-      selection_honor <<- honor_bias_indicator
+      calls[["selection"]] <<- TRUE
       return(list())
-    },
-    .log_lik_from_posterior_samples_sum = function(fit, posterior_samples,
-                                                   data, priors, unit,
-                                                   data_hash = NULL,
-                                                   honor_bias_indicator) {
-      log_lik_honor <<- honor_bias_indicator
-      return(0)
     }
   )
 
+  expect_equal(
+    .iwmde_log_lik_posterior_setup_active_branch(
+      context           = context,
+      posterior_samples = samples,
+      active_setup      = active_setup,
+      unit              = "estimate"
+    ),
+    list(posterior_samples = samples)
+  )
+  expect_equal(
+    .iwmde_log_lik_from_posterior_samples_active_branch(
+      context           = context,
+      posterior_samples = samples,
+      active_setup      = active_setup,
+      unit              = "estimate"
+    ),
+    matrix(0, nrow = 1L, ncol = 1L)
+  )
   expect_equal(
     .iwmde_selection_context_active_branch(
       context           = context,
@@ -160,8 +198,21 @@ test_that("IWMDE active-branch wrappers document bias-indicator handling", {
     ),
     0
   )
-  expect_false(selection_honor)
-  expect_false(log_lik_honor)
+  expect_equal(
+    .iwmde_log_lik_from_evaluated_predictors_sum_active_branch(
+      context            = context,
+      active_setup       = active_setup,
+      mu_samples         = matrix(0, nrow = 1L, ncol = 1L),
+      tau_within_samples = matrix(1, nrow = 1L, ncol = 1L),
+      posterior_samples  = samples,
+      unit               = "estimate"
+    ),
+    0
+  )
+  expect_equal(
+    names(calls),
+    c("setup", "matrix", "selection", "sum", "evaluated_sum")
+  )
 })
 
 test_that("IWMDE support transforms preserve density mass", {

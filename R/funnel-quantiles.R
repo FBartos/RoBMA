@@ -204,7 +204,7 @@
   }
 
   direction <- ifelse(effect_direction == "negative", -1L, 1L)
-  native_static <- .selection_native_static_args(selection)
+  native_static <- BayesTools::selection_native_static_args(selection)
 
   return(.Call(
     "RoBMA_funnel_model_averaged_quantiles",
@@ -338,11 +338,12 @@
   }
 
   mu_samples <- predict.brma(
-    object        = x,
-    newdata       = TRUE,
-    type          = "terms",
-    bias_adjusted = TRUE,
-    quiet         = TRUE
+    object             = x,
+    newdata            = TRUE,
+    type               = "terms",
+    bias_adjusted      = TRUE,
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
   )
 
   return(as.numeric(as.matrix(mu_samples)[, 1]))

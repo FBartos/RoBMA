@@ -28,7 +28,7 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use selected-normal branche
     object            = object,
     posterior_samples = posterior_samples
   )
-  selected_context <- .selection_context_subset_rows(selection_context, selected_rows)
+  selected_context <- BayesTools::selection_context_subset_rows(selection_context, selected_rows)
 
   log_lik <- .outcome_pdf.selnorm(
     yi                = setup[["yi"]],
@@ -110,7 +110,7 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use selected-normal branche
     mu_samples        = setup[["mu"]][normal_branch_rows, , drop = FALSE],
     tau_within        = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
     sei               = setup[["sei"]],
-    selection_context = .selection_context_subset_rows(selection_context, normal_branch_rows)
+    selection_context = BayesTools::selection_context_subset_rows(selection_context, normal_branch_rows)
   )
   set.seed(11)
   rng_normal_expected <- .outcome_rng.norm(

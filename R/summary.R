@@ -280,17 +280,12 @@ print.brma <- function(x, ...) {
     conditional        = conditional,
     remove_diagnostics = !include_mcmc_diagnostics,
     remove_inclusion   = if (conditional) TRUE else is_robma,
-    probs              = probs
-  )
-  args <- c(args, list(...))
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_estimates_table,
-    "diagnostic_columns"
-  )) {
-    args[["diagnostic_columns"]] <- .summary_estimates_diagnostic_columns(
+    probs              = probs,
+    diagnostic_columns = .summary_estimates_diagnostic_columns(
       include_mcmc_diagnostics
     )
-  }
+  )
+  args <- c(args, list(...))
 
   return(do.call(BayesTools::JAGS_estimates_table, args))
 }
@@ -383,48 +378,16 @@ print.brma <- function(x, ...) {
                                             logBF, BF01) {
 
   args <- list(
-    fit            = object[["fit"]],
-    formula_prefix = TRUE
-  )
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "logBF"
-  )) {
-    args[["logBF"]] <- logBF
-  } else if (isTRUE(logBF)) {
-    stop("Installed BayesTools does not support 'logBF' in inclusion summaries.",
-         call. = FALSE)
-  }
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "BF01"
-  )) {
-    args[["BF01"]] <- BF01
-  } else if (isTRUE(BF01)) {
-    stop("Installed BayesTools does not support 'BF01' in inclusion summaries.",
-         call. = FALSE)
-  }
-  if (.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "BF_diagnostic_columns"
-  )) {
-    args[["BF_diagnostic_columns"]] <- .summary_BF_diagnostic_columns(
+    fit                   = object[["fit"]],
+    formula_prefix        = TRUE,
+    logBF                 = logBF,
+    BF01                  = BF01,
+    BF_diagnostic_columns = .summary_BF_diagnostic_columns(
       include_mcmc_diagnostics
     )
-  } else {
-    args[["BF_diagnostics"]] <- include_mcmc_diagnostics
-  }
+  )
 
   inclusion <- do.call(BayesTools::JAGS_inference_table, args)
-  if (!.summary_function_has_argument(
-    BayesTools::JAGS_inference_table,
-    "BF_diagnostic_columns"
-  )) {
-    inclusion <- .summary_filter_legacy_BF_diagnostics(
-      inclusion                 = inclusion,
-      include_mcmc_diagnostics = include_mcmc_diagnostics
-    )
-  }
 
   parameters <- attr(inclusion, "parameters")
   row_labels <- rownames(inclusion)
@@ -493,38 +456,6 @@ print.brma <- function(x, ...) {
   }
 
   return("none")
-}
-
-.summary_function_has_argument <- function(fun, argument) {
-
-  return(argument %in% names(formals(fun)))
-}
-
-.summary_filter_legacy_BF_diagnostics <- function(inclusion,
-                                                  include_mcmc_diagnostics) {
-
-  keep_columns <- c("prior_prob", "post_prob", "inclusion_BF")
-  if (isTRUE(include_mcmc_diagnostics)) {
-    keep_columns <- c(keep_columns, "BF_error_percent")
-  }
-  keep_columns <- intersect(keep_columns, colnames(inclusion))
-
-  custom_attributes <- attributes(inclusion)
-  custom_attributes <- custom_attributes[!names(custom_attributes) %in%
-    c("names", "row.names", "class")]
-
-  inclusion <- inclusion[, keep_columns, drop = FALSE]
-  for (attribute in names(custom_attributes)) {
-    attr(inclusion, attribute) <- custom_attributes[[attribute]]
-  }
-  attr(inclusion, "type") <- unname(c(
-    prior_prob       = "prior_prob",
-    post_prob        = "post_prob",
-    inclusion_BF     = "inclusion_BF",
-    BF_error_percent = "BF_error"
-  )[colnames(inclusion)])
-
-  return(inclusion)
 }
 
 # Convert internal interaction separators back to formula syntax.

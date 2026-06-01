@@ -286,6 +286,51 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(as.numeric(p_cuts))
 }
 
+.selection_fixed_omega_by_branch <- function(priors_bias, p_cuts) {
+
+  n_bins <- length(p_cuts) - 1L
+  if (n_bins <= 0L) {
+    return(matrix(numeric(), nrow = length(priors_bias), ncol = 0L))
+  }
+
+  rows <- lapply(priors_bias, function(prior) {
+    .selection_fixed_omega_branch(prior, p_cuts)
+  })
+  out <- do.call(rbind, rows)
+  colnames(out) <- paste0("omega[", seq_len(n_bins), "]")
+
+  return(out)
+}
+
+.selection_fixed_omega_branch <- function(prior, p_cuts) {
+
+  n_bins <- length(p_cuts) - 1L
+  selection <- NULL
+
+  if (BayesTools::is.prior.weightfunction(prior)) {
+    selection <- prior
+  } else if (BayesTools::is_prior_bias(prior) &&
+             !is.null(prior[["selection"]])) {
+    selection <- prior[["selection"]]
+  }
+
+  if (is.null(selection)) {
+    return(rep(1, n_bins))
+  }
+
+  weights <- selection[["weights"]]
+  if (is.null(weights) || !identical(weights[["type"]], "fixed")) {
+    return(rep(NA_real_, n_bins))
+  }
+
+  mapping <- BayesTools::weightfunctions_mapping(
+    prior_list = list(selection),
+    one_sided  = TRUE
+  )[[1L]]
+
+  return(as.numeric(weights[["omega"]][mapping]))
+}
+
 .selection_prior_quantile <- function(prior, probability) {
 
   distribution <- prior[["distribution"]]
@@ -415,6 +460,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     p_cuts <- c(0, 1)
   }
   p_cuts      <- .selection_assert_p_cuts(p_cuts)
+  fixed_omega <- .selection_fixed_omega_by_branch(priors_bias, p_cuts)
   n_bins      <- length(p_cuts) - 1L
   has_step    <- backend[["mode"]] %in% c("step", "step_phack_power")
   has_phack   <- backend[["mode"]] %in% c("phack_power", "step_phack_power")
@@ -435,14 +481,9 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     has_phacking    = has_phack
   )
 
-  jags_omega      <- if (has_step || has_phack) backend[["step"]][["coefficient"]] else "sel_omega"
-  jags_alpha      <- if (has_phack) phack[["coefficient"]] else "sel_phack_alpha"
-  jags_phack_kind <- if (has_phack) {
-    kind_coefficient <- phack[["kind_coefficient"]]
-    if (is.null(kind_coefficient)) "phack_kind" else kind_coefficient
-  } else {
-    "sel_phack_kind"
-  }
+  jags_omega      <- if (has_step || has_phack) backend[["jags_omega"]] else "sel_omega"
+  jags_alpha      <- if (has_phack) backend[["jags_alpha"]] else "sel_phack_alpha"
+  jags_phack_kind <- if (has_phack) backend[["jags_phack_kind"]] else "sel_phack_kind"
 
   jags_data <- list(
     sel_z_lower             = .selection_jags_bounds(z_lower),
@@ -495,12 +536,17 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     phack_z_dest    = phack_dest,
     segments        = segments,
     branch_kernel_mode    = branch_kernel_mode,
+    fixed_omega           = fixed_omega,
     jags_use_step_switch  = jags_use_step_switch,
     jags_kernel_mode      = if (jags_use_step_switch) "sel_kernel_mode_active" else "sel_kernel_mode",
     jags_kernel_mode_expr = .selection_jags_kernel_mode_expression(branch_kernel_mode),
     jags_omega      = jags_omega,
     jags_alpha      = jags_alpha,
+    jags_pi_null    = backend[["jags_pi_null"]],
+    jags_beta_null  = backend[["jags_beta_null"]],
     jags_phack_kind = jags_phack_kind,
+    jags_phack_z_source = backend[["jags_phack_z_source"]],
+    jags_phack_z_dest   = backend[["jags_phack_z_dest"]],
     jags_code       = paste(
       c(backend[["prior_code"]], backend[["transform_code"]]),
       collapse = "\n"
@@ -564,42 +610,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   return(z)
 }
 
-.selection_prepare_native_args <- function(selection_spec, S, alpha = NULL,
-                                           phack_kind = NULL,
-                                           kernel_mode = NULL) {
-
-  if (is.null(alpha)) {
-    alpha <- rep(0, S)
-  }
-  if (is.null(phack_kind)) {
-    if (isTRUE(selection_spec[["mixed_phack_q"]])) {
-      stop(
-        "'phack_kind' is required for mixed linear/quadratic p-hacking forms.",
-        call. = FALSE
-      )
-    }
-    phack_kind <- rep(if (selection_spec[["has_phack"]]) selection_spec[["phack_q"]] else 0L, S)
-  }
-  if (is.null(kernel_mode)) {
-    kernel_mode <- rep(selection_spec[["kernel_mode"]], S)
-  }
-
-  alpha       <- .selection_row_arg(alpha, S, "alpha")
-  phack_kind  <- .selection_row_arg(phack_kind, S, "phack_kind")
-  kernel_mode <- .selection_row_arg(kernel_mode, S, "kernel_mode")
-
-  return(list(
-    alpha       = alpha,
-    phack_kind  = phack_kind,
-    kernel_mode = kernel_mode
-  ))
-}
-
-.selection_telescope_probabilities <- function(selection_spec) {
-
-  return(isTRUE(selection_spec[["telescope_probabilities"]]))
-}
-
 .selection_reset_native_cache <- function(selection_context) {
 
   if (!is.null(selection_context)) {
@@ -607,50 +617,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   }
 
   return(selection_context)
-}
-
-.selection_native_static_args <- function(selection_spec) {
-
-  cache <- selection_spec[["native_cache"]]
-  if (is.environment(cache) &&
-      exists("static", envir = cache, inherits = FALSE)) {
-    return(get("static", envir = cache, inherits = FALSE))
-  }
-
-  out <- list(
-    z_lower                = .native_numeric_vector(selection_spec[["z_lower"]]),
-    z_upper                = .native_numeric_vector(selection_spec[["z_upper"]]),
-    sign                   = .native_integer_vector(selection_spec[["sign"]]),
-    phack_q                = .native_integer_vector(selection_spec[["phack_q"]]),
-    phack_z_source         = .native_numeric_vector(selection_spec[["phack_z_source"]]),
-    phack_z_dest           = .native_numeric_vector(selection_spec[["phack_z_dest"]]),
-    segment_bounds         = .native_numeric_vector(selection_spec[["segments"]][["bounds"]]),
-    segment_step_bin       = .native_integer_vector(selection_spec[["segments"]][["step_bin"]]),
-    segment_phack_region  = .native_integer_vector(selection_spec[["segments"]][["phack_region"]]),
-    telescope_probabilities = .selection_telescope_probabilities(selection_spec)
-  )
-
-  if (is.environment(cache)) {
-    assign("static", out, envir = cache)
-  }
-
-  return(out)
-}
-
-.selection_native_kernel_args <- function(selection_spec, S, alpha = NULL,
-                                          phack_kind = NULL,
-                                          kernel_mode = NULL) {
-
-  out <- .selection_prepare_native_args(
-    selection_spec = selection_spec,
-    S              = S,
-    alpha          = alpha,
-    phack_kind     = phack_kind,
-    kernel_mode    = kernel_mode
-  )
-  out[["static"]] <- .selection_native_static_args(selection_spec)
-
-  return(out)
 }
 
 .has_native_selnorm_kernel <- local({
@@ -707,7 +673,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (is.null(weights)) {
     weights <- rep(1, K)
   }
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -760,7 +732,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (is.null(weights)) {
     weights <- rep(1, K)
   }
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -827,7 +805,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     weights <- rep(1, K)
   }
 
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -881,7 +865,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -922,7 +912,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -971,7 +967,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -1018,7 +1020,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -1065,7 +1073,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   S <- nrow(mean)
 
-  native_args   <- .selection_native_kernel_args(selection_spec, S, alpha, phack_kind, kernel_mode)
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
   native_static <- native_args[["static"]]
   alpha         <- native_args[["alpha"]]
   phack_kind    <- native_args[["phack_kind"]]
@@ -1110,31 +1124,105 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 .extract_selection_omega_samples <- function(posterior_samples, selection_spec) {
 
   omega_name <- selection_spec[["jags_omega"]]
-  omega <- NULL
-  if (!is.null(omega_name) && !identical(omega_name, "sel_omega")) {
-    omega <- .extract_indexed_parameter_samples(
-      posterior_samples,
-      parameter  = omega_name,
-      n_expected = selection_spec[["n_bins"]],
-      required   = FALSE
+  if (is.null(omega_name) || !nzchar(omega_name)) {
+    stop("Selection specification is missing 'jags_omega'.", call. = FALSE)
+  }
+
+  omega <- BayesTools::JAGS_indexed_parameter_matrix(
+    samples   = posterior_samples,
+    parameter = omega_name
+  )
+  if (!is.null(omega)) {
+    if (ncol(omega) != selection_spec[["n_bins"]]) {
+      stop(
+        "Expected ", selection_spec[["n_bins"]], " posterior ",
+        omega_name, " column(s), found ", ncol(omega), ".",
+        call. = FALSE
+      )
+    }
+    storage.mode(omega) <- "double"
+    return(omega)
+  }
+
+  omega <- .extract_selection_fixed_omega_samples(
+    posterior_samples = posterior_samples,
+    selection_spec    = selection_spec
+  )
+  if (!is.null(omega)) {
+    return(omega)
+  }
+
+  fixed_omega <- selection_spec[["jags_data"]][[omega_name]]
+  if (is.null(fixed_omega) && identical(omega_name, "sel_omega")) {
+    fixed_omega <- rep(1, selection_spec[["n_bins"]])
+  }
+  if (!is.null(fixed_omega)) {
+    fixed_omega <- as.numeric(fixed_omega)
+    if (length(fixed_omega) != selection_spec[["n_bins"]] ||
+        any(!is.finite(fixed_omega))) {
+      stop("Invalid fixed selection weights in 'jags_data'.", call. = FALSE)
+    }
+    omega <- matrix(
+      fixed_omega,
+      nrow  = nrow(posterior_samples),
+      ncol  = selection_spec[["n_bins"]],
+      byrow = TRUE
     )
+    colnames(omega) <- paste0(omega_name, "[", seq_len(selection_spec[["n_bins"]]), "]")
+    storage.mode(omega) <- "double"
+    return(omega)
   }
 
-  if (is.null(omega)) {
-    omega <- .extract_indexed_parameter_samples(
-      posterior_samples,
-      parameter  = "omega",
-      n_expected = selection_spec[["n_bins"]],
-      required   = FALSE
+  stop(
+    "Missing posterior selection-weight columns for '", omega_name, "'.",
+    call. = FALSE
+  )
+}
+
+.extract_selection_fixed_omega_samples <- function(posterior_samples,
+                                                   selection_spec) {
+
+  fixed_omega <- selection_spec[["fixed_omega"]]
+  if (is.null(fixed_omega)) {
+    return(NULL)
+  }
+
+  fixed_omega <- as.matrix(fixed_omega)
+  if (ncol(fixed_omega) != selection_spec[["n_bins"]]) {
+    return(NULL)
+  }
+
+  if (nrow(fixed_omega) == 1L) {
+    omega <- matrix(
+      fixed_omega[1L, ],
+      nrow  = nrow(posterior_samples),
+      ncol  = selection_spec[["n_bins"]],
+      byrow = TRUE
     )
+  } else {
+    if (!"bias_indicator" %in% colnames(posterior_samples)) {
+      return(NULL)
+    }
+    indicator <- suppressWarnings(as.integer(round(posterior_samples[, "bias_indicator"])))
+    if (any(!is.finite(indicator)) ||
+        any(indicator < 1L | indicator > nrow(fixed_omega))) {
+      return(NULL)
+    }
+    omega <- fixed_omega[indicator, , drop = FALSE]
   }
 
-  if (is.null(omega)) {
-    omega <- matrix(1, nrow = nrow(posterior_samples), ncol = selection_spec[["n_bins"]])
-    colnames(omega) <- paste0("sel_omega[", seq_len(selection_spec[["n_bins"]]), "]")
+  if (any(!is.finite(omega))) {
+    return(NULL)
   }
 
+  colnames(omega) <- paste0(
+    selection_spec[["jags_omega"]],
+    "[",
+    seq_len(selection_spec[["n_bins"]]),
+    "]"
+  )
   storage.mode(omega) <- "double"
+
   return(omega)
 }
 
@@ -1145,16 +1233,17 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   }
 
   alpha_name <- selection_spec[["jags_alpha"]]
-  if (alpha_name %in% colnames(posterior_samples)) {
+  if (!is.null(alpha_name) && alpha_name %in% colnames(posterior_samples)) {
     return(as.numeric(posterior_samples[, alpha_name]))
   }
 
-  alpha_cols <- grep("^alpha(\\[|$)", colnames(posterior_samples), value = TRUE)
-  if (length(alpha_cols) > 0L) {
-    return(as.numeric(posterior_samples[, alpha_cols[1L]]))
+  fixed_alpha <- selection_spec[["jags_data"]][[alpha_name]]
+  if (!is.null(fixed_alpha)) {
+    return(rep(as.numeric(fixed_alpha)[1L], nrow(posterior_samples)))
   }
 
-  return(rep(0, nrow(posterior_samples)))
+  stop("Missing posterior p-hacking alpha column for '", alpha_name, "'.",
+       call. = FALSE)
 }
 
 .extract_selection_phack_kind <- function(posterior_samples, selection_spec) {
@@ -1166,12 +1255,14 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   if (!is.null(kind_name) && kind_name %in% colnames(posterior_samples)) {
     return(as.integer(posterior_samples[, kind_name]))
   }
-  if ("phack_kind" %in% colnames(posterior_samples)) {
-    return(as.integer(posterior_samples[, "phack_kind"]))
+  fixed_kind <- selection_spec[["jags_data"]][[kind_name]]
+  if (!is.null(fixed_kind)) {
+    return(rep(as.integer(fixed_kind)[1L], nrow(posterior_samples)))
   }
   if (isTRUE(selection_spec[["mixed_phack_q"]])) {
     stop(
-      "Missing posterior 'phack_kind' column for mixed linear/quadratic p-hacking forms.",
+      "Missing posterior '", kind_name,
+      "' column for mixed linear/quadratic p-hacking forms.",
       call. = FALSE
     )
   }
@@ -1179,16 +1270,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 }
 
 .selection_row_routing <- function(priors, posterior_samples,
-                                   honor_bias_indicator = TRUE,
                                    selection_spec = NULL) {
 
   S           <- nrow(posterior_samples)
   priors_bias <- priors[["outcome"]][["bias"]]
   prior_list  <- .selection_bias_priors(priors)
 
-  if (!honor_bias_indicator) {
-    bias_indicator <- rep(1L, S)
-  } else if ("bias_indicator" %in% colnames(posterior_samples)) {
+  if ("bias_indicator" %in% colnames(posterior_samples)) {
     bias_indicator <- .extract_posterior_indicator(
       posterior_samples = posterior_samples,
       parameter         = "bias",
@@ -1204,8 +1292,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
   if (!.is_priors_weightfunction(priors)) {
     use_normal <- rep(TRUE, S)
-  } else if (!honor_bias_indicator) {
-    use_normal <- rep(FALSE, S)
   } else {
     selection_indices <- which(vapply(prior_list, .prior_is_selection_kernel, logical(1)))
     use_normal        <- !(bias_indicator %in% selection_indices)
@@ -1224,92 +1310,9 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   ))
 }
 
-.selection_validate_context_rows <- function(selection_context, n_samples = NULL,
-                                             required = character(),
-                                             caller = "selection context") {
-
-  if (is.null(n_samples)) {
-    if (is.null(selection_context[["omega"]])) {
-      stop("Cannot validate selection context rows without 'omega' or sample count.",
-           call. = FALSE)
-    }
-    n_samples <- nrow(selection_context[["omega"]])
-  }
-
-  out <- selection_context
-
-  if ("omega" %in% names(out) || "omega" %in% required) {
-    if (is.null(out[["omega"]]) || !is.matrix(out[["omega"]]) ||
-        nrow(out[["omega"]]) != n_samples ||
-        any(!is.finite(out[["omega"]]))) {
-      stop("Invalid selection context 'omega' in ", caller, ".", call. = FALSE)
-    }
-  }
-
-  if ("alpha" %in% names(out) || "alpha" %in% required) {
-    if (is.null(out[["alpha"]])) {
-      stop("Missing selection context 'alpha' in ", caller, ".", call. = FALSE)
-    }
-    out[["alpha"]] <- .selection_row_arg(out[["alpha"]], n_samples, "alpha")
-    if (!is.numeric(out[["alpha"]]) && !is.integer(out[["alpha"]])) {
-      stop("Invalid selection context 'alpha' in ", caller, ".", call. = FALSE)
-    }
-    if (any(!is.finite(out[["alpha"]]))) {
-      stop("Invalid selection context 'alpha' in ", caller, ".", call. = FALSE)
-    }
-    out[["alpha"]] <- as.numeric(out[["alpha"]])
-  }
-
-  for (name in c("phack_kind", "kernel_mode", "bias_indicator")) {
-    if (!name %in% names(out) && !name %in% required) {
-      next
-    }
-    if (is.null(out[[name]])) {
-      stop("Missing selection context '", name, "' in ", caller, ".", call. = FALSE)
-    }
-    out[[name]] <- .selection_row_arg(out[[name]], n_samples, name)
-    if (!is.numeric(out[[name]]) && !is.integer(out[[name]])) {
-      stop("Invalid selection context '", name, "' in ", caller, ".", call. = FALSE)
-    }
-    if (any(!is.finite(out[[name]])) ||
-        any(abs(out[[name]] - round(out[[name]])) > sqrt(.Machine$double.eps))) {
-      stop("Invalid selection context '", name, "' in ", caller, ".", call. = FALSE)
-    }
-    out[[name]] <- as.integer(round(out[[name]]))
-  }
-
-  if ("use_normal" %in% names(out) || "use_normal" %in% required) {
-    if (is.null(out[["use_normal"]]) || !is.logical(out[["use_normal"]])) {
-      stop("Invalid selection context 'use_normal' in ", caller, ".", call. = FALSE)
-    }
-    out[["use_normal"]] <- .selection_row_arg(out[["use_normal"]], n_samples, "use_normal")
-    if (any(is.na(out[["use_normal"]]))) {
-      stop("Invalid selection context 'use_normal' in ", caller, ".", call. = FALSE)
-    }
-  }
-
-  if ("kernel_mode" %in% names(out) &&
-      any(!out[["kernel_mode"]] %in% c(
-        SELKERNEL_NORMAL,
-        SELKERNEL_STEP,
-        SELKERNEL_PHACK_POWER,
-        SELKERNEL_STEP_PHACK_POWER
-      ))) {
-    stop("Invalid selection context 'kernel_mode' in ", caller, ".", call. = FALSE)
-  }
-
-  if ("bias_indicator" %in% names(out) &&
-      any(out[["bias_indicator"]] < 1L)) {
-    stop("Invalid selection context 'bias_indicator' in ", caller, ".", call. = FALSE)
-  }
-
-  return(out)
-}
-
 .selection_context_from_parts <- function(fit, data, priors, posterior_samples,
-                                          effect_direction,
-                                          honor_bias_indicator = FALSE,
-                                          newdata = NULL) {
+                                           effect_direction,
+                                           newdata = NULL) {
 
   if (!.is_priors_weightfunction(priors)) {
     return(NULL)
@@ -1341,7 +1344,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   routing <- .selection_row_routing(
     priors               = priors,
     posterior_samples    = posterior_samples,
-    honor_bias_indicator = honor_bias_indicator,
     selection_spec       = selection_spec
   )
 
@@ -1356,12 +1358,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   selection_context[["bias_indicator"]] <- routing[["bias_indicator"]]
   selection_context[["use_normal"]]     <- routing[["use_normal"]]
 
-  selection_context <- .selection_validate_context_rows(
-    selection_context = selection_context,
+  selection_context <- BayesTools::selection_context_validate(
+    context           = selection_context,
     n_samples         = nrow(posterior_samples),
     required          = c("omega", "alpha", "phack_kind", "kernel_mode",
-                          "bias_indicator", "use_normal"),
-    caller            = ".selection_context_from_parts()"
+                          "bias_indicator", "use_normal")
   )
 
   return(.selection_reset_native_cache(selection_context))
@@ -1375,46 +1376,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     priors               = object[["priors"]],
     posterior_samples    = posterior_samples,
     effect_direction     = .effect_direction(object),
-    honor_bias_indicator = TRUE,
     newdata              = newdata
   ))
-}
-
-.selection_context_subset_rows <- function(selection_context, rows) {
-
-  out <- selection_context
-  S   <- nrow(selection_context[["omega"]])
-
-  for (name in c("omega", "alpha", "phack_kind", "kernel_mode",
-                 "bias_indicator", "use_normal")) {
-    value <- out[[name]]
-    if (is.null(value)) {
-      next
-    }
-    if (is.matrix(value) && nrow(value) == S) {
-      out[[name]] <- value[rows, , drop = FALSE]
-    } else if (!is.matrix(value) && length(value) == S) {
-      out[[name]] <- value[rows]
-    }
-  }
-
-  out <- .selection_validate_context_rows(
-    selection_context = out,
-    n_samples         = length(rows),
-    caller            = ".selection_context_subset_rows()"
-  )
-
-  return(.selection_reset_native_cache(out))
-}
-
-.selection_context_subset_observations <- function(selection_context, idx) {
-
-  out <- selection_context
-  if (!is.null(out[["obs_bin"]]) && length(out[["obs_bin"]]) >= max(idx)) {
-    out[["obs_bin"]] <- out[["obs_bin"]][idx]
-  }
-
-  return(.selection_reset_native_cache(out))
 }
 
 .selection_active_phack <- function(selection_context) {
@@ -1441,24 +1404,23 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   )
 }
 
-.selection_row_arg <- function(x, S, name) {
-
-  if (length(x) == 1L) {
-    return(rep(x, S))
-  }
-  if (length(x) == S) {
-    return(x)
-  }
-
-  stop("'", name, "' must have length 1 or one value per posterior sample.",
-       call. = FALSE)
-}
-
 .selection_active_phack_inputs <- function(alpha, phack_kind, kernel_mode, S) {
 
-  alpha       <- .selection_row_arg(alpha, S, "alpha")
-  phack_kind  <- .selection_row_arg(phack_kind, S, "phack_kind")
-  kernel_mode <- .selection_row_arg(kernel_mode, S, "kernel_mode")
+  alpha <- BayesTools::selection_row_arg(
+    x    = alpha,
+    n    = S,
+    name = "alpha"
+  )
+  phack_kind <- BayesTools::selection_row_arg(
+    x    = phack_kind,
+    n    = S,
+    name = "phack_kind"
+  )
+  kernel_mode <- BayesTools::selection_row_arg(
+    x    = kernel_mode,
+    n    = S,
+    name = "kernel_mode"
+  )
 
   return(
     kernel_mode %in% c(SELKERNEL_PHACK_POWER, SELKERNEL_STEP_PHACK_POWER) &

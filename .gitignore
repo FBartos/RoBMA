@@ -23,14 +23,10 @@ models/MetaRegression/*
 .RData
 Rplots.pdf
 *.new.svg
-.RData
 /tests/testthat/test_files
-.RData
-.RData
 knowledge-base/
 /.StatsVault
 /resources
-.RData
 /docs_check
 /-
 /cran-check-decision-log.md
@@ -40,3 +36,4 @@ knowledge-base/
 /docs/AGENTS.html
 /build/
 .positai
+CLAUDE.md

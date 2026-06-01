@@ -25,6 +25,8 @@ info      <- lazy_infos(fit_names, validate = FALSE)
 test_that("Funnel plot for simple meta-analysis matches metafor structure", {
 
   name        <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -61,6 +63,8 @@ test_that("Funnel plot for simple meta-analysis matches metafor structure", {
 test_that("Funnel plot for meta-regression matches metafor residual views", {
 
   name        <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -95,6 +99,8 @@ test_that("Funnel plot for interaction meta-regression renders residual views", 
   skip_if_not_full_visuals("Interaction funnel variants duplicate the core meta-regression visual.")
 
   name        <- "bcg_meta-regression4"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -128,6 +134,8 @@ test_that("Funnel plot for location-scale model matches metafor residual view", 
   skip_if_not_full_visuals("Location-scale funnel variants are gallery coverage.")
 
   name <- "bangertdrowns2004_location-scale"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -156,6 +164,8 @@ test_that("Funnel plot for location-scale model matches metafor residual view", 
 test_that("Funnel plot for 3-level model matches metafor structure", {
 
   name <- "konstantopoulos2011_3lvl"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -182,6 +192,8 @@ test_that("Funnel plot for 3-level meta-regression renders residual views", {
   skip_if_not_full_visuals("3-level meta-regression duplicates the default multilevel funnel visual.")
 
   name <- "konstantopoulos2011_3lvl2"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -210,6 +222,8 @@ test_that("Funnel plot for 3-level meta-regression renders residual views", {
 test_that("Funnel plot for GLMM model renders ggplot output", {
 
   name <- "nielweise2008_glmm"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   # there is no funnel plot for metafor
@@ -224,6 +238,8 @@ test_that("Funnel plot for GLMM meta-regression renders ggplot output", {
   skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM funnel visual.")
 
   name <- "bcg_glmm_reg"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   # there is no funnel plot for metafor
@@ -240,6 +256,8 @@ test_that("Funnel plot for GLMM meta-regression renders ggplot output", {
 test_that("Funnel plot for selection model matches metafor structure", {
 
   name <- "dat.lehmann2018-3PSM"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -266,6 +284,8 @@ test_that("Funnel plot for selection meta-regression renders residual view", {
   skip_if_not_full_visuals("Selection meta-regression duplicates the default selection funnel visual.")
 
   name <- "dat.lehmann2018-3PSMreg"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -283,11 +303,31 @@ test_that("Funnel plot for selection meta-regression renders residual view", {
   })
 })
 
+test_that("Outcome funnel for selection meta-regression thins all samples equally", {
+
+  skip_if_missing_fits("dat.lehmann2018-3PSMreg")
+
+  fit_brma <- fits[["dat.lehmann2018-3PSMreg"]]
+  funnel_data <- suppressWarnings(.test_funnel(
+    fit_brma,
+    residual               = FALSE,
+    sampling_bias          = TRUE,
+    sampling_heterogeneity = TRUE,
+    max_samples            = 20,
+    as_data                = TRUE
+  ))
+
+  expect_true(is.list(funnel_data))
+  expect_true(all(c("points", "funnel") %in% names(funnel_data)))
+})
+
 test_that("Funnel plot for negative-direction selection model matches metafor structure", {
 
   skip_if_not_full_visuals("Negative-direction selection is gallery coverage.")
 
   name <- "dat.lehmann2018-3PSM_neg"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -311,6 +351,8 @@ test_that("Funnel plot for negative-direction selection model matches metafor st
 test_that("Funnel plot for PET model matches metafor residual view", {
 
   name <- "dat.lehmann2018-PET"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -338,6 +380,8 @@ test_that("Funnel plot for PET meta-regression matches metafor residual view", {
   skip_if_not_full_visuals("PET meta-regression duplicates the default PET funnel visual.")
 
   name <- "dat.lehmann2018-PETreg"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -360,6 +404,8 @@ test_that("Funnel plot for negative-direction PET model matches metafor residual
   skip_if_not_full_visuals("Negative-direction PET is gallery coverage.")
 
   name <- "dat.lehmann2018-PET_neg"
+  skip_if_missing_fits(name)
+
   fit_metafor <- info[[name]][["metafor"]]
   fit_brma    <- fits[[name]]
 
@@ -389,6 +435,8 @@ test_that("Funnel plot for negative-direction PET model matches metafor residual
 test_that("Funnel plot for BMA.norm model renders base output", {
 
   name     <- "dat.lehmann2018_BMA.norm"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("funnel_BMA", function() {
@@ -401,6 +449,8 @@ test_that("Funnel plot for BMA.norm meta-regression renders base output", {
   skip_if_not_full_visuals("BMA meta-regression duplicates the default BMA funnel smoke test.")
 
   name     <- "dat.lehmann2018_BMA.norm_mods"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("funnel_BMAreg", function() {
@@ -415,6 +465,8 @@ test_that("Funnel plot for BMA.norm meta-regression renders base output", {
 test_that("Funnel plot for BMA.glmm model renders base output", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("funnel_BMA.glmm", function() {
@@ -429,6 +481,8 @@ test_that("Funnel plot for BMA.glmm model renders base output", {
 test_that("Funnel plot for RoBMA model renders base output", {
 
   name     <- "dat.lehmann2018_RoBMA"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("funnel_RoBMA", function() {
@@ -441,6 +495,8 @@ test_that("Funnel plot for RoBMA meta-regression renders LOO-PIT output", {
   skip_if_not_full_visuals("RoBMA meta-regression duplicates the default RoBMA funnel smoke test.")
 
   name     <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   expect_vdiffr_snapshot("funnel_RoBMA_complex", function() {
@@ -455,6 +511,8 @@ test_that("Funnel plot for RoBMA meta-regression renders LOO-PIT output", {
 test_that("Funnel plot data and argument validation are stable", {
 
   name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   # --------------------------------------------------
@@ -531,6 +589,8 @@ test_that("Funnel plot customization snapshots are stable", {
   skip_if_not_full_visuals("Customization snapshots are visual-gallery coverage.")
 
   name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
   fit_brma <- fits[[name]]
 
   # --------------------------------------------------

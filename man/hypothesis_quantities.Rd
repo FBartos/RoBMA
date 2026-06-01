@@ -18,7 +18,8 @@ hypothesis_quantities(object, ...)
 \item{...}{unused.}
 }
 \value{
-A data frame of available quantities, components, and aliases.
+A data frame of available quantities, components, aliases, and
+method-level test eligibility notes.
 }
 \description{
 Lists parameter names and aliases accepted by

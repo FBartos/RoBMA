@@ -19,11 +19,6 @@
   }
 
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
-  samples <- .iwmde_likelihood_posterior_samples(
-    context      = context,
-    samples      = samples,
-    active_setup = active_setup
-  )
   setup <- .iwmde_log_lik_posterior_setup_active_branch(
     context           = context,
     posterior_samples = samples,
@@ -666,7 +661,10 @@
     return(out)
   }
 
-  candidate_context <- .selection_context_subset_rows(selection_context, row_index)
+  candidate_context <- BayesTools::selection_context_subset_rows(
+    context = selection_context,
+    rows    = row_index
+  )
   candidate_log_norm <- .selection_step_log_norm_matrix(
     mean              = mean,
     sd                = sd[row_index, , drop = FALSE],
@@ -942,11 +940,7 @@
 
   if (!is.null(replacement_samples)) {
     valid <- valid & replacement_samples[["valid"]]
-    posterior_samples <- .iwmde_likelihood_posterior_samples(
-      context      = context,
-      samples      = replacement_samples[["samples"]],
-      active_setup = active_setup
-    )
+    posterior_samples <- replacement_samples[["samples"]]
   } else {
     posterior_samples <- setup[["posterior_samples"]][row_index, , drop = FALSE]
   }
@@ -1152,5 +1146,3 @@
 
   return(out)
 }
-
-

@@ -324,7 +324,7 @@ NULL
 #' \itemize{
 #'   \item `"PSMA"` (default): Full RoBMA-PSMA ensemble with 6 weight functions + PET + PEESE
 #'   \item `"6w"`: Six weight function models
-#'   \item `"2w"`: Two weight function models 
+#'   \item `"2w"`: Two weight function models
 #'   \item `"PP"`: PET-PEESE models only
 #' }
 #' Custom `prior_bias` replaces the preset alternative bias components. If
@@ -336,10 +336,10 @@ NULL
 #'
 #' RoBMA implements Bayesian model-averaging using the product space method
 #' \insertCite{carlin1995bayesian,lodewyckx2011tutorial}{RoBMA}. Rather than fitting
-#' each model separately and combining results after the fitting is complete, 
-#' this approach embeds all competing models within a single joint model space. 
-#' A discrete model indicator variable selects which model component is "active" 
-#' at each MCMC iteration, and the posterior probability of each model is estimated 
+#' each model separately and combining results after the fitting is complete,
+#' this approach embeds all competing models within a single joint model space.
+#' A discrete model indicator variable selects which model component is "active"
+#' at each MCMC iteration, and the posterior probability of each model is estimated
 #' from the proportion of iterations spent in that model's subspace.
 #'
 #' This is achieved by specifying **mixture priors** that combine:
@@ -388,7 +388,7 @@ NULL
 #' When multiple priors are specified in a list, they are all treated as alternative
 #' (or null) hypothesis components for the main inclusion Bayes factor. The inclusion
 #' Bayes factor tests the combined evidence for all alternative components against all
-#' null components. The detailed summary output shows posterior probabilities and 
+#' null components. The detailed summary output shows posterior probabilities and
 #' inclusion Bayes factors for each individual component separately, allowing finer-grained
 #' inference about which specific prior specification is most supported by the data.
 #'
@@ -476,10 +476,10 @@ NULL
 #' Similarly, when `scale = ~ ...` is specified for location-scale models, the
 #' heterogeneity prior becomes the scale intercept prior, and each scale predictor
 #' receives a mixture prior following the same pattern as moderator terms.
-#' Note that the scale intercept (i.e., baseline heterogeneity) is always positive and 
-#' the multiplicative scale coefficients require non-zero prior distribution on the 
+#' Note that the scale intercept (i.e., baseline heterogeneity) is always positive and
+#' the multiplicative scale coefficients require non-zero prior distribution on the
 #' intercept.
-#' 
+#'
 #' ## Model weights and prior odds
 #'
 #' Each component in a mixture prior has an associated prior weight (prior model
@@ -724,4 +724,3 @@ estimate_unit_information_sd <- function(sei, ni) {
 
   return(.get_unit_information_sd.norm(sei = sei, ni = ni))
 }
-

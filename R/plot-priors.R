@@ -368,4 +368,3 @@ print.only_priors.brma <- function(x, ...) {
 
   print_prior.brma(x = x, ...)
 }
-

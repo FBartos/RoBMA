@@ -17,6 +17,57 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
+test_that("qCMDE factor point guards use display aliases", {
+
+  expect_equal(
+    .hypothesis_brma_alias_label(
+      aliases   = list(mu_alloc = "mu_alloc", alloc = "mu_alloc"),
+      parameter = "mu_alloc"
+    ),
+    "alloc"
+  )
+  expect_error(
+    .hypothesis_brma_attach_iwmde_scalar(
+      posterior                = list(random = 0),
+      raw_posterior            = list(random = 0),
+      context                  = NULL,
+      diagnostic_cache         = NULL,
+      parameter                = "mu_alloc",
+      parameter_label          = "alloc",
+      value                    = 0,
+      conditional              = NULL,
+      max_samples              = 10,
+      normalization_points     = 10,
+      normalization_prob       = .99,
+      method                   = "q_grid_cmde",
+      density_method           = "qCMDE",
+      standardized_coefficients = FALSE
+    ),
+    "alloc\\[level\\] = 0"
+  )
+  expect_error(
+    .hypothesis_marginal_means_attach_iwmde(
+      object = list(
+        density_method = "qCMDE",
+        source_object  = structure(
+          list(fit = list()),
+          class = c("RoBMA", "brma")
+        ),
+        inference      = list(
+          conditional = list(mu_alloc = list(random = 0))
+        )
+      ),
+      parameter       = "mu_alloc",
+      parameter_label = "alloc",
+      hypothesis      = "mu_alloc = 0",
+      density_method  = "qCMDE",
+      density_control = NULL
+    ),
+    "alloc\\[level\\] = 0"
+  )
+})
+
+
 test_that("hypothesis resolves coefficient aliases on both coefficient scales", {
 
   skip_on_cran()
@@ -72,6 +123,7 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
   fit <- load_fit("dat.lehmann2018_RoBMA_3lvl_mods_scale")
   quantities <- hypothesis_quantities(fit)
 
+  expect_true(all(c("point_test", "direction_test", "reason") %in% names(quantities)))
   expect_true(any(
     quantities[["alias"]] == "Preregistered" &
       quantities[["parameter"]] == "mu_Preregistered" &
@@ -82,6 +134,8 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       quantities[["parameter"]] == "log_tau_Preregistered" &
       quantities[["component"]] == "scale"
   ))
+  expect_true(all(quantities[["point_test"]][quantities[["component"]] == "scale"]))
+  expect_false(any(nzchar(quantities[["reason"]][quantities[["component"]] == "scale"])))
 
   expect_error(
     hypothesis(
@@ -95,21 +149,21 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
 
   bf_mods <- hypothesis(
     fit,
-    "Preregistered = 0",
+    "Preregistered > 0",
     component      = "mods",
     density_method = "KDE",
     n_samples      = 1000
   )
   bf_location <- hypothesis(
     fit,
-    "Preregistered = 0",
+    "Preregistered > 0",
     component      = "location",
     density_method = "KDE",
     n_samples      = 1000
   )
   bf_scale <- hypothesis(
     fit,
-    "Preregistered = 0",
+    "Preregistered > 0",
     component      = "scale",
     density_method = "KDE",
     n_samples      = 1000
@@ -118,6 +172,28 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
   expect_s3_class(bf_mods, "BayesTools_hypothesis_BF")
   expect_s3_class(bf_location, "BayesTools_hypothesis_BF")
   expect_s3_class(bf_scale, "BayesTools_hypothesis_BF")
+})
+
+
+test_that("hypothesis does not advertise or test publication-bias parameters", {
+
+  skip_on_cran()
+  skip_if_missing_fits("dat.lehmann2018-3PSM")
+
+  fit <- load_fit("dat.lehmann2018-3PSM")
+  quantities <- hypothesis_quantities(fit)
+
+  expect_false(any(quantities[["component"]] == "bias"))
+  expect_error(
+    hypothesis(
+      fit,
+      "omega = 1",
+      component      = "bias",
+      density_method = "KDE",
+      n_samples      = 1000
+    ),
+    "publication-bias parameters are not supported"
+  )
 })
 
 
@@ -242,6 +318,20 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
   expect_error(
     hypothesis(
       fit,
+      "alloc = 0",
+      density_method  = "qCMDE",
+      density_control = list(
+        n_points             = 40,
+        max_samples          = 120,
+        normalization_points = 50
+      ),
+      n_samples       = 1000
+    ),
+    "alloc\\[level\\] = 0"
+  )
+  expect_error(
+    hypothesis(
+      fit,
       "alloc[alternate] = 0",
       density_method  = "qCMDE",
       density_control = list(
@@ -253,6 +343,30 @@ test_that("factor level hypotheses use joint priors and child ordinates", {
     ),
     "linear weights are all zero"
   )
+})
+
+
+test_that("qCMDE point-null ordinates support boundary nulls", {
+
+  skip_on_cran()
+  skip_if_missing_fits("bcg_meta-analysis")
+
+  fit <- load_fit("bcg_meta-analysis")
+  bf_tau_zero <- hypothesis(
+    fit,
+    "tau = 0",
+    columns         = "all",
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 30,
+      max_samples          = 80,
+      normalization_points = 40
+    ),
+    n_samples       = 1000
+  )
+
+  expect_equal(bf_tau_zero[["method"]], "Savage-Dickey (precomputed)")
+  expect_true(is.finite(attr(bf_tau_zero, "raw_BF")))
 })
 
 
@@ -273,11 +387,14 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     n_samples       = 1000
   )
 
-  level_bf <- hypothesis(
-    mm_qcmde,
-    "alloc[alternate] > alloc[random]",
-    columns = "all",
-    seed    = 11
+  expect_error(
+    hypothesis(
+      mm_qcmde,
+      "alloc[alternate] > alloc[random]",
+      columns = "all",
+      seed    = 11
+    ),
+    "different conditional posterior subsets"
   )
   point_bf <- hypothesis(
     mm_qcmde,
@@ -287,27 +404,219 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
     density_method = "qCMDE"
   )
 
-  expect_equal(level_bf[["method"]], "prior-posterior odds")
-  expect_true(is.finite(level_bf[["BF_error"]]))
   expect_equal(point_bf[["method"]], "Savage-Dickey (precomputed)")
   expect_true(is.finite(point_bf[["BF_error"]]))
   expect_error(
     hypothesis(
       mm_qcmde,
-      "alloc[random] = 0",
+      "alloc = 0",
       density_method = "qCMDE"
     ),
-    "posterior ordinate is unavailable"
+    "alloc\\[level\\] = 0"
   )
+  point_bf_default <- hypothesis(
+    mm_qcmde,
+    "alloc[random] = 0",
+    density_method = "qCMDE",
+    columns        = "all"
+  )
+  expect_equal(point_bf_default[["method"]], "Savage-Dickey (precomputed)")
 
   mm_kde <- marginal_means(fit, n_samples = 1000)
-  expect_error(
-    hypothesis(
-      mm_kde,
-      "alloc[random] = 0",
-      density_method = "qCMDE"
+  point_bf_kde <- hypothesis(
+    mm_kde,
+    "alloc[alternate] = 0",
+    type           = "conditional",
+    columns        = "all",
+    density_method = "qCMDE",
+    density_control = list(
+      n_points             = 40,
+      max_samples          = 120,
+      normalization_points = 50
+    )
+  )
+  expect_equal(point_bf_kde[["method"]], "Savage-Dickey (precomputed)")
+})
+
+
+test_that("marginal means qCMDE hypotheses compute missing ordinates on demand", {
+
+  condition_key <- "OR\r2\rmu_alloc\rmu_intercept"
+  sample <- structure(
+    stats::rnorm(40),
+    linear_weights             = c(mu_intercept = 1, mu_alloc = 1),
+    effective_conditional      = c("mu_intercept", "mu_alloc"),
+    effective_conditional_rule = "OR",
+    condition_key              = condition_key
+  )
+  inference <- structure(
+    list(
+      averaged    = list(mu_alloc = list(alternate = sample)),
+      conditional = list(mu_alloc = list(alternate = sample)),
+      inference   = list()
     ),
-    "does not contain qCMDE precomputed ordinates"
+    class = c("marginal_inference", "list")
+  )
+  object <- list(
+    inference        = inference,
+    parameters       = "mu_alloc",
+    term_map         = data.frame(
+      term             = "alloc",
+      parameter        = "mu_alloc",
+      label            = "alloc",
+      stringsAsFactors = FALSE
+    ),
+    conditional_rule = "OR",
+    density_method   = "KDE",
+    source_object    = structure(list(fit = list()), class = c("RoBMA", "brma"))
+  )
+  class(object) <- c("marginal_means.brma", "marginal_means")
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    .iwmde_context = function(object) list(source = object),
+    .iwmde_parameter_ordinate_diagnostic = function(
+        context, parameter, values, max_samples, normalization_points,
+        normalization_prob, method, parameter_spec, diagnostic_cache) {
+
+      list(
+        status      = "ok",
+        diagnostics = list(
+          bf_included         = TRUE,
+          bf_value            = values[[1L]],
+          bf_evaluation_value = values[[1L]],
+          bf_ordinate         = 2,
+          bf_mcse             = .01,
+          bf_relative_mcse    = .01,
+          bf_error_percent    = 1,
+          bf_finite_terms     = 20,
+          bf_ess              = 20,
+          bf_max_weight_share = .2,
+          bf_max_log_ratio    = 0,
+          active_mass         = 1,
+          normalization_integral = 1,
+          normalization_range    = c(-1, 1),
+          estimator              = method,
+          weight_method          = "mock"
+        )
+      )
+    },
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    hypothesis_BF = function(posterior, hypothesis, parameter,
+                             density_method, ...) {
+
+      captured <<- list(
+        posterior      = posterior,
+        hypothesis     = hypothesis,
+        parameter      = parameter,
+        density_method = density_method
+      )
+      return("ok")
+    },
+    .package = "BayesTools"
+  )
+
+  out <- hypothesis(
+    object,
+    "alloc[alternate] = 0",
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 20,
+      max_samples          = 20,
+      normalization_points = 20
+    )
+  )
+
+  ordinate <- attr(
+    captured[["posterior"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    "posterior_ordinate",
+    exact = TRUE
+  )
+
+  expect_equal(out, "ok")
+  expect_equal(captured[["density_method"]], "precomputed")
+  expect_true(BayesTools::posterior_ordinate_has_value(ordinate, 0))
+  expect_equal(ordinate[["condition_key"]], condition_key)
+})
+
+
+test_that("marginal means hypothesis BFs use alternative-conditioned marginals", {
+
+  make_parameter <- function(label) {
+
+    level <- structure(
+      stats::rnorm(20),
+      class = c("marginal_posterior.simple", "numeric"),
+      marker = label
+    )
+    out <- structure(
+      list(alternate = level),
+      class     = c("marginal_posterior.factor", "list"),
+      parameter = "mu_alloc"
+    )
+
+    return(out)
+  }
+
+  object <- list(
+    inference = structure(
+      list(
+        averaged    = list(mu_alloc = make_parameter("averaged")),
+        conditional = list(mu_alloc = make_parameter("conditional")),
+        inference   = list()
+      ),
+      class = c("marginal_inference", "list")
+    ),
+    term_map = data.frame(
+      term             = "alloc",
+      parameter        = "mu_alloc",
+      label            = "alloc",
+      check.names      = FALSE,
+      stringsAsFactors = FALSE
+    ),
+    density_method = "KDE"
+  )
+  class(object) <- c("marginal_means.brma", "marginal_means")
+
+  captured <- list()
+  testthat::local_mocked_bindings(
+    hypothesis_BF = function(posterior, hypothesis, parameter, density_method,
+                             ...) {
+
+      captured[[length(captured) + 1L]] <<- list(
+        posterior      = posterior,
+        hypothesis     = hypothesis,
+        parameter      = parameter,
+        density_method = density_method
+      )
+
+      return("ok")
+    },
+    .package = "BayesTools"
+  )
+
+  expect_equal(
+    hypothesis(object, "alloc[alternate] > 0", type = "averaged"),
+    "ok"
+  )
+  expect_equal(
+    hypothesis(object, "alloc[alternate] = 0", type = "averaged"),
+    "ok"
+  )
+
+  for (call in captured) {
+    expect_identical(
+      call[["posterior"]][["conditional"]],
+      object[["inference"]][["conditional"]]
+    )
+    expect_equal(call[["parameter"]], "mu_alloc")
+    expect_equal(call[["density_method"]], "KDE")
+  }
+  expect_equal(
+    vapply(captured, `[[`, character(1), "hypothesis"),
+    c("mu_alloc[alternate] > 0", "mu_alloc[alternate] = 0")
   )
 })
 
@@ -316,7 +625,28 @@ test_that("marginal means hypothesis density methods use public names", {
 
   expect_equal(
     eval(formals(hypothesis.marginal_means.brma)[["density_method"]]),
-    c("KDE", "normal", "qCMDE", "IWMDE")
+    c("KDE", "qCMDE", "IWMDE")
+  )
+})
+
+
+test_that("marginal means hypothesis rejects normal density method", {
+
+  skip_on_cran()
+  skip_if_missing_fits("bcg_meta-regression2")
+
+  fit <- load_fit("bcg_meta-regression2")
+  mm  <- marginal_means(fit, n_samples = 1000)
+
+  expect_error(
+    hypothesis(
+      mm,
+      "alloc[random] = 0",
+      type           = "conditional",
+      columns        = "all",
+      density_method = "normal"
+    ),
+    "density_method.*must be one of"
   )
 })
 

@@ -32,7 +32,12 @@
 
   if (length(known) == 1L) {
     aliases <- .hypothesis_brma_aliases_for_catalog_parameter(catalog, known)
-    return(list(parameter = known, aliases = aliases))
+    component <- unique(matches[["component"]][matches[["parameter"]] == known])
+    return(list(
+      parameter = known,
+      aliases   = aliases,
+      component = component[1L]
+    ))
   }
 
   if (length(known) > 1L) {
@@ -43,6 +48,17 @@
       call. = FALSE
     )
   }
+}
+
+
+.hypothesis_brma_check_supported_component <- function(component) {
+
+  if (identical(component, "bias")) {
+    stop("Hypothesis tests for publication-bias parameters are not supported.",
+         call. = FALSE)
+  }
+
+  invisible(TRUE)
 }
 
 
@@ -80,6 +96,20 @@
   aliases[[parameter]] <- parameter
 
   return(aliases)
+}
+
+
+.hypothesis_brma_alias_label <- function(aliases, parameter) {
+
+  keep <- vapply(aliases, identical, logical(1), y = parameter)
+  candidates <- names(aliases)[keep]
+  candidates <- candidates[nzchar(candidates)]
+  candidates <- setdiff(candidates, parameter)
+  if (length(candidates) > 0L) {
+    return(candidates[1L])
+  }
+
+  return(parameter)
 }
 
 
@@ -152,7 +182,7 @@
     }
 
     pieces[[i]] <- gsub(
-      paste0("(?<![A-Za-z0-9._])", .hypothesis_brma_regex_escape(symbol),
+      paste0("(?<![A-Za-z0-9._])", BayesTools::JAGS_regex_escape(symbol),
              "(?![A-Za-z0-9._])"),
       replacement,
       pieces[[i]],
@@ -164,31 +194,9 @@
 }
 
 
-.hypothesis_brma_regex_escape <- function(x) {
-
-  gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", x, perl = TRUE)
-}
-
-
 .hypothesis_brma_normalize_level_references <- function(text) {
 
-  pieces <- strsplit(text, "`", fixed = TRUE)[[1L]]
-  if (length(pieces) == 0L) {
-    return(text)
-  }
-
-  for (i in seq_along(pieces)) {
-    if (i %% 2L == 1L) {
-      pieces[[i]] <- gsub(
-        "\\b([A-Za-z.][A-Za-z0-9._]*)\\s*\\[\\s*([^\\]\\[]+)\\s*\\]",
-        "`\\1[\\2]`",
-        pieces[[i]],
-        perl = TRUE
-      )
-    }
-  }
-
-  paste(pieces, collapse = "`")
+  return(BayesTools::hypothesis_normalize_level_references(text))
 }
 
 
@@ -242,16 +250,13 @@
 
 .hypothesis_brma_level_ref <- function(symbol) {
 
-  match <- regexec("^([^\\[]+)\\[([^\\]]+)\\]$", symbol, perl = TRUE)
-  parts <- regmatches(symbol, match)[[1L]]
-  if (length(parts) != 3L) {
+  ref <- BayesTools::hypothesis_parse_level_reference(symbol)
+  if (nrow(ref) != 1L || !isTRUE(ref[["direct"]][[1L]])) {
     return(NULL)
   }
 
   list(
-    parameter = parts[[2L]],
-    level     = trimws(parts[[3L]])
+    parameter = ref[["parameter"]][[1L]],
+    level     = ref[["level"]][[1L]]
   )
 }
-
-

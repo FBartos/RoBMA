@@ -251,7 +251,7 @@
       stop("Selection context is required for selected-normal cluster likelihood.",
            call. = FALSE)
     }
-    native_static <- .selection_native_static_args(selection_context)
+    native_static <- BayesTools::selection_native_static_args(selection_context)
 
     return(.Call(
       "RoBMA_selnorm_cluster_loglik",
@@ -333,7 +333,7 @@
       stop("Selection context is required for selected-normal cluster likelihood.",
            call. = FALSE)
     }
-    native_static <- .selection_native_static_args(selection_context)
+    native_static <- BayesTools::selection_native_static_args(selection_context)
 
     return(.Call(
       "RoBMA_selnorm_cluster_loglik_row_sum",
@@ -397,7 +397,7 @@
 
   gh      <- .gauss_hermite_nodes(n_gamma)
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
-  native_static <- .selection_native_static_args(selection_context)
+  native_static <- BayesTools::selection_native_static_args(selection_context)
   weights <- if (is.null(setup[["weights"]])) {
     NULL
   } else {
@@ -467,7 +467,10 @@
     node_step           <- max(1L, floor(max_cells / max(S * m, 1L)))
     node_step           <- min(node_step, length(gh[["nodes"]]))
     selection_context_g <- if (is_weightfunction) {
-      .selection_context_subset_observations(selection_context, idx)
+      BayesTools::selection_context_subset_observations(
+        context = selection_context,
+        idx     = idx
+      )
     } else {
       NULL
     }
@@ -483,7 +486,10 @@
         setup[["tau_between"]][row_index, idx, drop = FALSE]
 
       point_log_lik <- if (is_weightfunction) {
-        context_idx <- .selection_context_subset_rows(selection_context_g, row_index)
+        context_idx <- BayesTools::selection_context_subset_rows(
+          context = selection_context_g,
+          rows    = row_index
+        )
 
         .outcome_pdf.selnorm(
           yi                = yi[idx],
@@ -518,5 +524,3 @@
 
   return(log_lik)
 }
-
-

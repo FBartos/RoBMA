@@ -12,11 +12,11 @@
 #' through the regular plotting interface. The \code{"qCMDE"} curve uses a
 #' grid-normalized conditional weight on an internal identity/log/logit scale.
 #'
-#' @details Weightfunction \code{omega}, \code{log_omega}, and cumulative
-#' \code{eta} coordinates are reported as unsupported until a joint replacement
-#' map is implemented. For spike-mixture parameters, KDE and histogram layers
-#' use the continuous active samples scaled by their posterior mass; point
-#' masses are drawn separately.
+#' @details Weightfunction coordinates named by the active selection backend
+#' and cumulative \code{eta} coordinates are reported as unsupported until a
+#' joint replacement map is implemented. For spike-mixture parameters, KDE and
+#' histogram layers use the continuous active samples scaled by their posterior
+#' mass; point masses are drawn separately.
 #'
 #' @section Stability:
 #' This is a developer-facing diagnostic API for validating the IWMDE feature.
@@ -210,7 +210,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
       n_samples = n_marginal_samples
     )
   } else {
-    .iwmde_validate_marginal_means_object(object, marginal_means_object)
+    object <- .iwmde_marginal_means_source_object(marginal_means_object)
   }
   if (!inherits(marginal_means_object, "marginal_means.brma")) {
     stop("'marginal_means_object' must inherit from 'marginal_means.brma'.",
@@ -264,61 +264,22 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
-.iwmde_validate_marginal_means_object <- function(object,
-                                                  marginal_means_object) {
+.iwmde_marginal_means_source_object <- function(marginal_means_object) {
 
   if (!inherits(marginal_means_object, "marginal_means.brma")) {
-    return(invisible(FALSE))
-  }
-
-  signature <- marginal_means_object[["iwmde_signature"]]
-  if (is.null(signature)) {
-    stop("'marginal_means_object' does not contain an IWMDE fit signature. ",
-         "Omit it or recompute it with the current RoBMA version.",
-         call. = FALSE)
-  }
-  if (!identical(signature, .iwmde_fit_signature(object))) {
-    stop("'marginal_means_object' was not computed from 'object'.",
+    stop("'marginal_means_object' must inherit from 'marginal_means.brma'.",
          call. = FALSE)
   }
 
-  return(invisible(TRUE))
-}
-
-
-.iwmde_fit_signature <- function(object) {
-
-  samples <- as.matrix(.get_posterior_samples(object[["fit"]]))
-  means   <- vapply(seq_len(ncol(samples)), function(i) {
-    .iwmde_signature_stat(samples[, i], mean)
-  }, numeric(1))
-  sds <- vapply(seq_len(ncol(samples)), function(i) {
-    .iwmde_signature_stat(samples[, i], stats::sd)
-  }, numeric(1))
-
-  return(list(
-    class             = class(object),
-    posterior_dim     = dim(samples),
-    posterior_columns = colnames(samples),
-    posterior_means   = means,
-    posterior_sds     = sds,
-    outcome_type      = .data_outcome_type(object[["data"]]),
-    is_mods           = .is_data_mods(object[["data"]]),
-    is_scale          = .is_data_scale(object[["data"]]),
-    is_multilevel     = .is_data_multilevel(object[["data"]]),
-    is_weights        = .is_data_weights(object[["data"]])
-  ))
-}
-
-
-.iwmde_signature_stat <- function(x, fun) {
-
-  x <- x[is.finite(x)]
-  if (length(x) == 0L) {
-    return(NA_real_)
+  source_object <- marginal_means_object[["source_object"]]
+  if (is.null(source_object) ||
+      !inherits(source_object, "brma") ||
+      is.null(source_object[["fit"]])) {
+    stop("'marginal_means_object' does not contain the source fitted brma object.",
+         call. = FALSE)
   }
 
-  return(round(fun(x), 12))
+  return(source_object)
 }
 
 
@@ -374,12 +335,11 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   parameters <- parameters[!grepl("(^|_)indicator$", parameters)]
   parameters <- parameters[parameters != "bias_indicator"]
 
-  # These are constrained/derived publication-weight coordinates. IWMDE needs a
-  # coherent replacement map that recomputes their companion coordinates.
-  unsupported_prefix <- c("omega", "log_omega", "eta")
   keep <- !vapply(parameters, function(parameter) {
-    any(parameter == unsupported_prefix) ||
-      any(startsWith(parameter, paste0(unsupported_prefix, "[")))
+    .iwmde_parameter_is_weightfunction_coordinate(
+      parameter = parameter,
+      context   = context
+    )
   }, logical(1))
 
   return(parameters[keep])
@@ -414,35 +374,102 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 .density_method_match <- function(density_method, allowed) {
 
   if (is.null(density_method)) {
-    return(allowed[[1L]])
-  }
-  if (!is.character(density_method) || length(density_method) == 0L ||
-      anyNA(density_method)) {
-    stop("'density_method' must be one of ",
-         paste0("'", allowed, "'", collapse = ", "), ".",
-         call. = FALSE)
+    density_method <- allowed[[1L]]
   }
 
-  density_method_lower <- tolower(density_method)
-  allowed_lower        <- tolower(allowed)
+  if (is.character(density_method) &&
+      length(density_method) > 0L &&
+      !anyNA(density_method)) {
+    density_method_lower <- tolower(density_method)
+    allowed_lower        <- tolower(allowed)
 
-  if (length(density_method) > 1L) {
-    if (identical(density_method_lower, allowed_lower)) {
-      return(allowed[[1L]])
+    if (length(density_method) > 1L) {
+      if (identical(density_method_lower, allowed_lower)) {
+        density_method <- allowed
+      }
+    } else {
+      index <- pmatch(density_method_lower, allowed_lower, duplicates.ok = TRUE)
+      if (!is.na(index)) {
+        density_method <- allowed[[index]]
+      }
     }
-    stop("'density_method' must be one of ",
-         paste0("'", allowed, "'", collapse = ", "), ".",
-         call. = FALSE)
   }
 
-  index <- pmatch(density_method_lower, allowed_lower, duplicates.ok = TRUE)
-  if (is.na(index)) {
-    stop("'density_method' must be one of ",
-         paste0("'", allowed, "'", collapse = ", "), ".",
-         call. = FALSE)
+  return(BayesTools::posterior_density_method_match(
+    method  = density_method,
+    allowed = allowed,
+    name    = "density_method"
+  ))
+}
+
+
+.iwmde_posterior_metadata <- function(samples, parameter, level = NULL) {
+
+  metadata <- c(
+    list(
+      parameter = parameter,
+      level     = level
+    ),
+    .iwmde_sample_condition_metadata(samples)
+  )
+  metadata <- metadata[!vapply(metadata, is.null, logical(1))]
+
+  return(metadata)
+}
+
+
+.iwmde_sample_condition_metadata <- function(samples,
+                                            include_prior_density_context = FALSE,
+                                            require_child_condition = FALSE) {
+
+  conditional <- .iwmde_first_nonempty_attr(
+    samples,
+    c("effective_conditional", "conditional")
+  )
+  conditional_rule <- .iwmde_first_nonempty_attr(
+    samples,
+    c("effective_conditional_rule", "conditional_rule")
+  )
+  condition_key <- attr(samples, "condition_key", exact = TRUE)
+
+  if (isTRUE(require_child_condition) &&
+      (is.null(conditional) || is.null(conditional_rule) || is.null(condition_key))) {
+    stop(
+      "Conditional marginal-means qCMDE/IWMDE metadata is incomplete; recompute the marginal_means object with current BayesTools.",
+      call. = FALSE
+    )
   }
 
-  return(allowed[[index]])
+  metadata <- list(
+    conditional              = conditional,
+    conditional_rule         = conditional_rule,
+    condition_key            = condition_key,
+    condition_event          = attr(samples, "condition_event", exact = TRUE),
+    resolved_condition_event = attr(samples, "resolved_condition_event", exact = TRUE)
+  )
+  if (isTRUE(include_prior_density_context)) {
+    metadata[["prior_density_context"]] <- attr(
+      samples,
+      "prior_density_context",
+      exact = TRUE
+    )
+  }
+  metadata <- metadata[!vapply(metadata, is.null, logical(1))]
+
+  return(metadata)
+}
+
+
+.iwmde_first_nonempty_attr <- function(x, names) {
+
+  for (name in names) {
+    value <- attr(x, name, exact = TRUE)
+    if (!is.null(value) && length(value) > 0L) {
+      return(value)
+    }
+  }
+
+  return(NULL)
 }
 
 
@@ -453,7 +480,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     allow_normal   = allow_normal
   )
 
-  return(density_method %in% c("qCMDE", "IWMDE"))
+  return(BayesTools::posterior_density_method_uses_precomputed(density_method))
 }
 
 
@@ -562,7 +589,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
-.iwmde_posterior_density_attribute <- function(diagnostic, density_method) {
+.iwmde_posterior_density_attribute <- function(diagnostic, density_method,
+                                               metadata = NULL) {
 
   if (!identical(diagnostic[["status"]], "ok") ||
       is.null(diagnostic[["iwmde"]])) {
@@ -570,22 +598,28 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   density <- diagnostic[["iwmde"]]
-  out <- list(
-    status         = "ok",
-    x              = density[["x"]],
-    y              = density[["y"]],
-    method         = density[["estimator"]],
-    density_method = .density_method_normalize(density_method),
-    diagnostics    = diagnostic[["diagnostics"]],
-    point_masses   = diagnostic[["point_masses"]]
+  args <- c(
+    list(
+      x              = density[["x"]],
+      y              = density[["y"]],
+      method         = density[["estimator"]],
+      density_method = .density_method_normalize(density_method),
+      diagnostics    = diagnostic[["diagnostics"]],
+      point_masses   = diagnostic[["point_masses"]]
+    ),
+    metadata
   )
-  class(out) <- c("RoBMA_posterior_density", "list")
+  out <- do.call(
+    BayesTools::posterior_density_attribute,
+    args
+  )
 
   return(out)
 }
 
 
-.iwmde_posterior_ordinate_attribute <- function(diagnostic, density_method) {
+.iwmde_posterior_ordinate_attribute <- function(diagnostic, density_method,
+                                                metadata = NULL) {
 
   if (!identical(diagnostic[["status"]], "ok") ||
       is.null(diagnostic[["diagnostics"]])) {
@@ -599,28 +633,35 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     return(NULL)
   }
 
-  out <- list(
-    status         = "ok",
-    value          = diagnostics[["bf_value"]],
-    ordinate       = diagnostics[["bf_ordinate"]],
-    method         = diagnostics[["estimator"]],
-    density_method = .density_method_normalize(density_method),
-    diagnostics    = list(
-      mcse                   = diagnostics[["bf_mcse"]],
-      relative_mcse          = diagnostics[["bf_relative_mcse"]],
-      BF_error_percent       = diagnostics[["bf_error_percent"]],
-      finite_terms           = diagnostics[["bf_finite_terms"]],
-      ess                    = diagnostics[["bf_ess"]],
-      max_weight_share       = diagnostics[["bf_max_weight_share"]],
-      max_log_ratio          = diagnostics[["bf_max_log_ratio"]],
-      active_mass            = diagnostics[["active_mass"]],
-      normalization_integral = diagnostics[["normalization_integral"]],
-      normalization_range    = diagnostics[["normalization_range"]],
-      estimator              = diagnostics[["estimator"]],
-      weight_method          = diagnostics[["weight_method"]]
-    )
+  args <- c(
+    list(
+      value          = diagnostics[["bf_value"]],
+      ordinate       = diagnostics[["bf_ordinate"]],
+      method         = diagnostics[["estimator"]],
+      density_method = .density_method_normalize(density_method),
+      diagnostics    = list(
+        evaluation_value       = diagnostics[["bf_evaluation_value"]],
+        mcse                   = diagnostics[["bf_mcse"]],
+        relative_mcse          = diagnostics[["bf_relative_mcse"]],
+        BF_error_percent       = diagnostics[["bf_error_percent"]],
+        finite_terms           = diagnostics[["bf_finite_terms"]],
+        ess                    = diagnostics[["bf_ess"]],
+        max_weight_share       = diagnostics[["bf_max_weight_share"]],
+        max_log_ratio          = diagnostics[["bf_max_log_ratio"]],
+        active_mass            = diagnostics[["active_mass"]],
+        normalization_integral = diagnostics[["normalization_integral"]],
+        normalization_range    = diagnostics[["normalization_range"]],
+        estimator              = diagnostics[["estimator"]],
+        weight_method          = diagnostics[["weight_method"]]
+      ),
+      evaluation_value = diagnostics[["bf_evaluation_value"]]
+    ),
+    metadata
   )
-  class(out) <- c("RoBMA_posterior_ordinate", "list")
+  out <- do.call(
+    BayesTools::posterior_ordinate_attribute,
+    args
+  )
 
   if (!.iwmde_posterior_ordinate_supports_bf(out)) {
     return(NULL)
@@ -632,9 +673,14 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
 .iwmde_posterior_ordinate_supports_bf <- function(posterior_ordinate) {
 
-  if (is.null(posterior_ordinate) || !is.list(posterior_ordinate)) {
-    return(FALSE)
-  }
+  BayesTools::posterior_ordinate_supports_bf(
+    ordinate  = posterior_ordinate,
+    validator = .iwmde_posterior_ordinate_bf_validator
+  )
+}
+
+
+.iwmde_posterior_ordinate_bf_validator <- function(posterior_ordinate) {
 
   diagnostics <- posterior_ordinate[["diagnostics"]]
   if (is.null(diagnostics) || !is.list(diagnostics)) {
@@ -679,7 +725,10 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
         !all(is.finite(normalization_range))) {
       return(FALSE)
     }
-    value <- .iwmde_ordinate_scalar(posterior_ordinate, "value")
+    value <- .iwmde_ordinate_scalar(posterior_ordinate, "evaluation_value")
+    if (!is.finite(value)) {
+      value <- .iwmde_ordinate_scalar(posterior_ordinate, "value")
+    }
     tolerance <- sqrt(.Machine$double.eps) * max(1, abs(value))
     if (!is.finite(value) ||
         value < min(normalization_range) - tolerance ||
@@ -755,6 +804,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
   out <- list(
     bf_value            = NA_real_,
+    bf_evaluation_value = NA_real_,
     bf_included         = FALSE,
     bf_grid_index       = NA_integer_,
     bf_ordinate         = NA_real_,
@@ -787,6 +837,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
   out[["bf_included"]]         <- TRUE
   out[["bf_grid_index"]]       <- index
+  out[["bf_evaluation_value"]] <- .iwmde_density_evaluation_value(density, index)
   out[["bf_ordinate"]]         <- .iwmde_density_index_value(density, "y", index)
   out[["bf_mcse"]]             <- .iwmde_density_index_value(density, "mcse", index)
   out[["bf_relative_mcse"]]    <- .iwmde_density_index_value(density, "relative_mcse", index)
@@ -800,6 +851,17 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   return(out)
+}
+
+
+.iwmde_density_evaluation_value <- function(density, index) {
+
+  value <- .iwmde_density_index_value(density, "evaluation_x", index)
+  if (is.finite(value)) {
+    return(value)
+  }
+
+  return(.iwmde_density_index_value(density, "x", index))
 }
 
 
@@ -894,7 +956,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   support <- .iwmde_parameter_support(context, parameter, active_rows, parameter_spec)
-  values  <- values[values > support[1] & values < support[2]]
+  values  <- values[values >= support[1] & values <= support[2]]
   if (length(values) == 0L) {
     return(.iwmde_unsupported(parameter, "ordinate values are outside support"))
   }
@@ -904,6 +966,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   if (!all(is.finite(xlim)) || xlim[1] >= xlim[2]) {
     return(.iwmde_unsupported(parameter, "could not construct a finite plotting range"))
   }
+  requested_values <- values
+  values           <- .iwmde_ordinate_interior_values(values, support, xlim)
 
   active_mass       <- mean(component[["active"]][finite_rows])
   continuous_values <- posterior_values[continuous_rows]
@@ -972,7 +1036,9 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     ))
   }
 
-  bf_diagnostics <- .iwmde_density_bf_diagnostics(density, values)
+  density[["evaluation_x"]] <- values
+  density[["x"]]            <- requested_values
+  bf_diagnostics <- .iwmde_density_bf_diagnostics(density, requested_values)
   out <- list(
     parameter    = parameter,
     status       = "ok",
@@ -1009,6 +1075,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
       weight_method          = density[["weight_method"]],
       display_grid           = "ordinate",
       bf_value               = bf_diagnostics[["bf_value"]],
+      bf_evaluation_value    = bf_diagnostics[["bf_evaluation_value"]],
       bf_included            = bf_diagnostics[["bf_included"]],
       bf_grid_index          = bf_diagnostics[["bf_grid_index"]],
       bf_ordinate            = bf_diagnostics[["bf_ordinate"]],
@@ -1024,6 +1091,26 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   class(out) <- c("iwmde_parameter_diagnostic", "list")
 
   .iwmde_cache_set(diagnostic_cache, cache_key, out)
+  return(out)
+}
+
+
+.iwmde_ordinate_interior_values <- function(values, support, xlim) {
+
+  out   <- values
+  width <- diff(xlim)
+  if (!is.finite(width) || width <= 0) {
+    width <- 1
+  }
+  eps <- sqrt(.Machine$double.eps) * max(1, width)
+
+  if (is.finite(support[1])) {
+    out[out <= support[1]] <- support[1] + eps
+  }
+  if (is.finite(support[2])) {
+    out[out >= support[2]] <- support[2] - eps
+  }
+
   return(out)
 }
 
@@ -1246,6 +1333,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
       weight_method               = density[["weight_method"]],
       display_grid                = display_grid_method,
       bf_value                    = bf_diagnostics[["bf_value"]],
+      bf_evaluation_value         = bf_diagnostics[["bf_evaluation_value"]],
       bf_included                 = bf_diagnostics[["bf_included"]],
       bf_grid_index               = bf_diagnostics[["bf_grid_index"]],
       bf_ordinate                 = bf_diagnostics[["bf_ordinate"]],
@@ -1302,6 +1390,14 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
 
 .iwmde_parameter_condition_key <- function(parameter_spec) {
+
+  condition_key <- parameter_spec[["condition_key"]]
+  if (!is.null(condition_key) && length(condition_key) > 0L) {
+    condition_key <- as.character(condition_key[[1L]])
+    if (!is.na(condition_key) && nzchar(condition_key)) {
+      return(condition_key)
+    }
+  }
 
   conditional <- parameter_spec[["conditional"]]
   if (is.null(conditional) || length(conditional) == 0L) {
@@ -1430,25 +1526,32 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     }
 
     for (level in keep_levels) {
+      level_sample       <- level_samples[[level]]
+      condition_metadata <- .iwmde_sample_condition_metadata(
+        samples                       = level_sample,
+        include_prior_density_context = TRUE,
+        require_child_condition       = identical(type, "conditional")
+      )
       label <- paste0(selected_parameter[["label"]], ": ", level)
       key   <- label
-      specs[[key]] <- list(
-        type            = "linear",
-        label           = label,
-        parameter       = parameter_name,
-        level           = level,
-        weights         = attr(level_samples[[level]], "linear_weights"),
-        conditional     = attr(level_samples[[level]], "effective_conditional"),
-        conditional_rule = marginal_means_object[["conditional_rule"]],
-        source          = "marginal_means",
-        selected        = selected_parameter,
-        marginal_type   = type,
-        marginal_samples = level_samples[[level]]
+      specs[[key]] <- c(
+        list(
+          type      = "linear",
+          label     = label,
+          parameter = parameter_name,
+          level     = level,
+          weights   = attr(level_sample, "linear_weights")
+        ),
+        condition_metadata,
+        list(
+          source           = "marginal_means",
+          selected         = selected_parameter,
+          marginal_type    = type,
+          marginal_samples = level_sample
+        )
       )
     }
   }
 
   return(specs)
 }
-
-

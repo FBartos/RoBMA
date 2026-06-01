@@ -431,5 +431,3 @@
 
   return(grid)
 }
-
-

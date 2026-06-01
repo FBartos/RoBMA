@@ -256,5 +256,3 @@
 
   return(matrix(log_q, nrow = length(values), ncol = length(row_states)))
 }
-
-
