@@ -5,6 +5,27 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 
+
+test_that("funnel line clipping preserves segment order", {
+
+  forward <- .clip_line_x(
+    x    = c(-2, 2),
+    y    = c(0, 1),
+    xlim = c(-1, 1)
+  )
+  reverse <- .clip_line_x(
+    x    = c(2, -2),
+    y    = c(0, 1),
+    xlim = c(-1, 1)
+  )
+
+  expect_equal(forward[["x"]], c(-1, 1))
+  expect_equal(forward[["y"]], c(.25, .75))
+  expect_equal(reverse[["x"]], c(1, -1))
+  expect_equal(reverse[["y"]], c(.25, .75))
+})
+
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")
@@ -319,6 +340,32 @@ test_that("Outcome funnel for selection meta-regression thins all samples equall
 
   expect_true(is.list(funnel_data))
   expect_true(all(c("points", "funnel") %in% names(funnel_data)))
+})
+
+test_that("Funnel plot allows descriptive known-V brma.mv outcome and residual modes", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  outcome_data <- .test_funnel(
+    fit_brma,
+    residual    = FALSE,
+    as_data     = TRUE,
+    max_samples = 1000
+  )
+  residual_data <- suppressWarnings(.test_funnel(
+    fit_brma,
+    residual    = TRUE,
+    as_data     = TRUE,
+    max_samples = 1000
+  ))
+
+  expect_true(is.list(outcome_data))
+  expect_true(is.list(residual_data))
+  expect_equal(nrow(outcome_data[["points"]]), nobs(fit_brma))
+  expect_equal(nrow(residual_data[["points"]]), nobs(fit_brma))
 })
 
 test_that("Funnel plot for negative-direction selection model matches metafor structure", {

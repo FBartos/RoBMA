@@ -10,6 +10,7 @@
   unit = "estimate",
   conditioning_depth = "marginal",
   bias_adjusted = FALSE,
+  max_samples = Inf,
   ...
 )
 }
@@ -52,6 +53,11 @@ as the difference between observed values and raw (biased) predictions
 including PET/PEESE terms. Set to \code{TRUE} to compute residuals from
 bias-corrected fitted values. Applies to outcome and Pearson residuals. Note
 that bias-adjusted residuals are not residuals in the traditional sense.}
+
+\item{max_samples}{maximum posterior draws used for known-\code{V}
+\code{brma.mv()} marginal covariance computations in Pearson and internally
+standardized residuals. Defaults to \code{Inf}. Finite values
+deterministically thin draws across posterior row order.}
 
 \item{...}{additional arguments.}
 }
@@ -106,6 +112,13 @@ same formulas as \code{metafor::escalc} with the default zero-cell
 adjustment (adding 0.5 to all cells when any cell is zero). GLMM residuals
 and LOO-PIT values are therefore approximate effect-size-scale diagnostics,
 not exact PIT diagnostics for the raw count likelihood.
+
+For correlated known-\code{V} \code{brma.mv()} models, LOO-PIT residuals use
+the same conditional estimate-unit target as LOO,
+\eqn{p(y_i \mid y_{-i}, \theta)}. Random-formula \code{brma.mv()} models
+support marginal Pearson and internally standardized residuals through the
+marginal covariance \eqn{V + ZGZ'} and estimate-depth residuals through the
+fitted existing-level random-effect target.
 
 The residuals are computed separately for each posterior sample,
 naturally propagating uncertainty in model parameters to the residuals.

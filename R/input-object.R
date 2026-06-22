@@ -189,12 +189,13 @@ NULL
   return(dots[keep])
 }
 
-.autocompute_brma <- function(object, marglik = !inherits(object, "RoBMA")) {
+.autocompute_brma <- function(object, loo = TRUE, waic = TRUE,
+                              marglik = !inherits(object, "RoBMA")) {
 
-  if (RoBMA.get_option("autocompute.loo")) {
+  if (loo && RoBMA.get_option("autocompute.loo")) {
     object <- add_loo(object)
   }
-  if (RoBMA.get_option("autocompute.waic")) {
+  if (waic && RoBMA.get_option("autocompute.waic")) {
     object <- add_waic(object)
   }
   if (marglik && RoBMA.get_option("autocompute.marglik")) {
@@ -252,9 +253,11 @@ NULL
     remove_parameters = c(
       "theta", # remove random-effects (estimate-level)
       "gamma", # remove random-effects (cluster-level)
+      "sampling_z", # remove known-V sampling dependency factors
       "pi",    # remove baserate for OR models
       "phi"    # remove lograte for IRR models
-    )
+    ),
+    random_effects_summary = "standard"
   )
 
   return(estimates)

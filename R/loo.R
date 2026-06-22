@@ -56,6 +56,11 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' For selection models, the LOO evaluates the weighted likelihood, conditioning
 #' on the posterior omega samples.
 #'
+#' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit LOO uses
+#' conditional predictive contributions \eqn{p(y_i \mid y_{-i}, \theta)} within
+#' known-\code{V} dependency blocks. This is an existing-estimate diagnostic, not
+#' an independent new-estimate prediction target.
+#'
 #' The PSIS object is essential for model comparison via
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 #' RoBMA stores target metadata so comparisons can reject mismatched data,
@@ -103,8 +108,9 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   )
 
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .log_lik.brma(object, unit = unit)
+  log_lik <- .log_lik.brma(object, unit = unit, caller = "add_loo()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
+  .warn_known_v_schur_log_score(target, "LOO")
 
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
@@ -124,7 +130,8 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
     unit               = target[["unit"]],
     conditioning_depth = .get_target_conditioning_depth(target),
     targets            = target[["targets"]],
-    data_hash          = target[["data_hash"]]
+    data_hash          = target[["data_hash"]],
+    metadata           = target
   )
 
   # store in object and return
@@ -150,14 +157,16 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
 # ---------------------------------------------------------------------------- #
 .loo_chain_id <- function(fit, n_samples) {
 
-  if (!is.null(fit[["mcmc"]])) {
-    chain_lengths <- vapply(fit[["mcmc"]], NROW, integer(1))
-    chain_id      <- rep(seq_along(chain_lengths), times = chain_lengths)
-  } else {
-    n_chains <- length(fit[["mcmc"]])
-    n_iter   <- fit[["sample"]]
-    chain_id <- rep(seq_len(n_chains), each = n_iter)
+  if (is.null(fit[["mcmc"]])) {
+    stop(
+      "Cannot infer LOO chain IDs because fitted MCMC draws are missing. ",
+      "Supply 'r_eff' explicitly.",
+      call. = FALSE
+    )
   }
+
+  chain_lengths <- vapply(fit[["mcmc"]], NROW, integer(1))
+  chain_id      <- rep(seq_along(chain_lengths), times = chain_lengths)
 
   if (length(chain_id) != n_samples) {
     stop(
@@ -199,6 +208,12 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' because it provides better estimates and includes diagnostics (Pareto k
 #' values) that indicate when the approximation may be unreliable.
 #'
+#' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit WAIC uses
+#' the same conditional log-likelihood matrix as estimate-unit LOO,
+#' \eqn{p(y_i \mid y_{-i}, \theta)}. It therefore has the same interpretation as
+#' an existing-estimate diagnostic rather than an independent new-estimate
+#' prediction target.
+#'
 #' @return The brma object with the WAIC result stored in
 #' \code{object[["waic"]][[unit]]}.
 #'
@@ -217,8 +232,9 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
   )
 
   # compute the log-likelihood matrix (S x K)
-  log_lik <- .log_lik.brma(object, unit = unit)
+  log_lik <- .log_lik.brma(object, unit = unit, caller = "add_waic()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
+  .warn_known_v_schur_log_score(target, "WAIC")
 
   # call waic on the log-likelihood matrix
   waic_result <- loo::waic(log_lik, ...)
@@ -227,7 +243,8 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
     unit               = target[["unit"]],
     conditioning_depth = .get_target_conditioning_depth(target),
     targets            = target[["targets"]],
-    data_hash          = target[["data_hash"]]
+    data_hash          = target[["data_hash"]],
+    metadata           = target
   )
 
   # store in object and return
@@ -236,6 +253,30 @@ add_waic.brma <- function(object, unit = "estimate", ...) {
   }
   object[["waic"]][[unit]] <- waic_result
   return(object)
+}
+
+
+.warn_known_v_schur_log_score <- function(target, method) {
+
+  if (!isTRUE(target[["known_v_schur"]])) {
+    return(invisible(FALSE))
+  }
+
+  target_row <- .brma_mv_target_row(if (identical(method, "WAIC")) {
+    "add_waic()/waic()"
+  } else {
+    "add_loo()/loo()"
+  })
+
+  warning(
+    "Estimate-unit ", method, " for brma.mv() known-V models uses conditional ",
+    "predictive contributions p(y_i | y_-i, theta). Interpret it as an ",
+    "existing-estimate diagnostic, not independent new-estimate prediction. ",
+    "Target: ", target_row[["target"]], ".",
+    call. = FALSE
+  )
+
+  return(invisible(TRUE))
 }
 
 
@@ -312,7 +353,7 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #'
 #' @export
 logLik.brma <- function(object, unit = "estimate", ...) {
-  out <- .log_lik.brma(object, unit = unit)
+  out <- .log_lik.brma(object, unit = unit, caller = "logLik()")
   class(out) <- c("logLik.brma", class(out))
   return(out)
 }

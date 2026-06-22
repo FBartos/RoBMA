@@ -34,6 +34,7 @@ PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS)
 OBJECTS = distributions/DWN.o \
 		  distributions/DWB.o \
 		  distributions/DWP.o \
+		  distributions/DKNOWNVMNORM.o \
 		  distributions/DSELNORMSTEP.o \
 		  distributions/DSELNORMSTEPSWITCH.o \
 		  distributions/DSELNORMKERNEL.o \

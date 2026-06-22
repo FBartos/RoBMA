@@ -34,6 +34,11 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' This targets deletion influence on fitted values directly. It does not use
 #' LOO-PIT residuals, which are predictive outlier diagnostics rather than
 #' fitted-value deletion diagnostics.
+#' For \code{brma.mv()} known-\code{V} models, DFFITS uses estimate-unit PSIS
+#' weights. With correlated known-\code{V}, deletion is conditional estimate
+#' deletion and the reported fitted-value target is the fixed-location mean
+#' \eqn{\mu = X\beta}; sampled or marginalized random effects are not included
+#' in the reported fitted value.
 #'
 #' Estimate-unit LOO must first be computed with
 #' \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
@@ -72,6 +77,9 @@ dffits.brma <- function(model, ...) {
     weights     <- .diagnostic_psis_weights(model)
     dffits_vec  <- .dffits_internal(fit_samples, weights)
     dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
+    if (inherits(model, "brma.mv")) {
+      dffits_vec <- .brma_mv_attach_target_metadata(dffits_vec, "dffits()")
+    }
 
     return(dffits_vec)
 }
@@ -111,7 +119,7 @@ dffits.brma <- function(model, ...) {
     outcome_data      = data[["outcome"]],
     mods_data         = data[["mods"]],
     mods_formula      = if (.is_mods(model)) .create_fit_formula_list(data = data, "mods") else NULL,
-    mods_priors       = priors[["mods"]],
+    mods_priors       = if (.is_random(model)) priors[["location"]] else priors[["mods"]],
     is_mods           = .is_mods(model),
     is_PET            = .is_PET(model),
     is_PEESE          = .is_PEESE(model),

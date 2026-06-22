@@ -50,6 +50,22 @@ test_that("Q-Q plot for simple meta-analysis matches metafor structure", {
   )
 })
 
+test_that("Q-Q plot supports known-V brma.mv residual targets", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  qq_student <- suppressWarnings(qqnorm(fit_brma, as_data = TRUE))
+  qq_standard <- qqnorm(fit_brma, as_data = TRUE, type = "rstandard")
+
+  expect_true(is.list(qq_student))
+  expect_true(is.list(qq_standard))
+  expect_equal(nrow(qq_student[["points"]]), nobs(fit_brma))
+  expect_equal(nrow(qq_standard[["points"]]), nobs(fit_brma))
+})
+
 # ============================================================================ #
 # Test: Meta-Regression Q-Q Plot
 # ============================================================================ #

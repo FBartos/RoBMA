@@ -86,6 +86,19 @@ test_that("selection spec sets probability telescoping flag once", {
   expect_true(safe_spec[["telescope_probabilities"]])
   expect_identical(safe_spec[["jags_data"]][["sel_telescope_probabilities"]], 1L)
 
+  wrapped_safe_prior <- BayesTools::prior_bias(selection = safe_prior)
+  expect_silent(
+    wrapped_safe_spec <- .selection_spec(
+      priors           = list(outcome = list(bias = wrapped_safe_prior)),
+      yi               = yi,
+      sei              = sei,
+      effect_direction = "positive",
+      signed_data      = TRUE
+    )
+  )
+  expect_true(wrapped_safe_spec[["telescope_probabilities"]])
+  expect_identical(wrapped_safe_spec[["jags_data"]][["sel_telescope_probabilities"]], 1L)
+
   wide_prior <- BayesTools::prior_weightfunction(
     side    = "one-sided",
     steps   = .05,

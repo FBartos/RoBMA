@@ -198,3 +198,83 @@ test_that("Influence stats for model-averaging fits are internally consistent", 
     }
   }
 })
+
+test_that("Influence for brma.mv returns implemented estimate-unit components", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  inf_brma <- suppressWarnings(influence(fit_brma))
+  dffits_mv <- dffits(fit_brma)
+  cooks_mv  <- cooks.distance(fit_brma)
+
+  expect_s3_class(inf_brma, "infl.brma")
+  expect_named(inf_brma[["inf"]], c("rstudent", "dffits", "cook.d", "cov.r", "hat"))
+  expect_equal(nrow(inf_brma[["inf"]]), nobs(fit_brma))
+  expect_true(is.data.frame(inf_brma[["dfbs"]]))
+  expect_equal(nrow(inf_brma[["dfbs"]]), nobs(fit_brma))
+  expect_equal(ncol(inf_brma[["dfbs"]]), 1)
+  expect_equal(
+    unname(inf_brma[["inf"]][["dffits"]]),
+    unname(as.numeric(dffits_mv)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(inf_brma[["inf"]][["cook.d"]]),
+    unname(as.numeric(cooks_mv)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(inf_brma[["inf"]][["cov.r"]]),
+    unname(as.numeric(covratio(fit_brma))),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(inf_brma[["inf"]][["hat"]]),
+    unname(hatvalues(fit_brma)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(as.matrix(inf_brma[["dfbs"]])),
+    unname(as.matrix(dfbetas(fit_brma))),
+    tolerance = 1e-12
+  )
+  expect_null(attr(inf_brma, "note"))
+  expect_equal(
+    attr(dffits_mv, "brma_mv_target")[["reported_target"]],
+    "fixed_location_fitted_value"
+  )
+  expect_equal(
+    attr(cooks_mv, "brma_mv_target")[["reported_target"]],
+    "fixed_location_fitted_value"
+  )
+})
+
+test_that("Influence diagnostics support random-formula brma.mv fixed coefficients", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  dfbs     <- dfbetas(fit_brma)
+  covr     <- covratio(fit_brma)
+  dff      <- dffits(fit_brma)
+  cook     <- cooks.distance(fit_brma)
+
+  expect_s3_class(dfbs, "dfbetas.brma")
+  expect_equal(nrow(dfbs), nobs(fit_brma))
+  expect_equal(colnames(dfbs), "(mu) intercept")
+  expect_named(covr, .diagnostic_study_labels(fit_brma))
+  expect_named(dff, .diagnostic_study_labels(fit_brma))
+  expect_named(cook, .diagnostic_study_labels(fit_brma))
+  expect_true(all(is.finite(covr)))
+  expect_true(all(is.finite(dff)))
+  expect_true(all(is.finite(cook)))
+  expect_null(attr(dfbs, "note"))
+  expect_null(attr(covr, "note"))
+  expect_equal(attr(dff, "brma_mv_target")[["reported_target"]],
+               "fixed_location_fitted_value")
+  expect_equal(attr(cook, "brma_mv_target")[["reported_target"]],
+               "fixed_location_fitted_value")
+})

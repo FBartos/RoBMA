@@ -47,6 +47,11 @@ quadrature.
 For selection models, the LOO evaluates the weighted likelihood, conditioning
 on the posterior omega samples.
 
+For correlated known-\code{V} \code{brma.mv()} models, estimate-unit LOO uses
+conditional predictive contributions \eqn{p(y_i \mid y_{-i}, \theta)} within
+known-\code{V} dependency blocks. This is an existing-estimate diagnostic, not
+an independent new-estimate prediction target.
+
 The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 RoBMA stores target metadata so comparisons can reject mismatched data,

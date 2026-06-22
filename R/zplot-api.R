@@ -34,7 +34,10 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' Zplot diagnostics are available only for normal outcome models. GLMM
 #' objects are rejected because their raw likelihood is on a count scale while
 #' zplot diagnostics require observed effect-size z-statistics with standard
-#' errors.
+#' errors. For correlated known-\code{V} \code{brma.mv()} models, zplot is a
+#' descriptive scalar display using diagonal standard errors; off-diagonal
+#' sampling dependence is not represented by the observed
+#' \eqn{z_i = y_i / se_i} histogram.
 #'
 #' The resulting object retains all original brma properties while adding
 #' zplot results, enabling both standard meta-analytic summaries and
@@ -354,12 +357,12 @@ plot.zplot_brma <- function(x, plot_type = "base",
   # 1. Fit lines (Fitted model - with bias)
   if (plot_fit) {
     dots_fit <- if(!is.null(dots_fit)) dots_fit else list()
-    lines_fit <- do.call(lines.zplot_brma, c(
+    lines_fit <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE),
       dots_fit, dots
-    ))
+    )))
     ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
   }
 
@@ -367,13 +370,13 @@ plot.zplot_brma <- function(x, plot_type = "base",
   if (plot_extrapolation) {
     # prepare extrapolation dots with default blue color
     dots_extrapolation <- if(!is.null(dots_extrapolation)) dots_extrapolation else list()
-    lines_extrapolation <- do.call(lines.zplot_brma, c(
+    lines_extrapolation <- do.call(lines.zplot_brma, .zplot_deduplicate_call_args(c(
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            col = "blue"), # default color if not in dots
       dots_extrapolation, dots
-    ))
+    )))
     ymax <- max(c(ymax, lines_extrapolation$y, if (plot_ci) lines_extrapolation$y_uCI))
   }
 
@@ -484,6 +487,18 @@ plot.zplot_brma <- function(x, plot_type = "base",
   } else if (plot_type == "ggplot") {
     return(plot)
   }
+}
+
+
+.zplot_deduplicate_call_args <- function(args) {
+
+  arg_names <- names(args)
+  if (is.null(arg_names)) {
+    return(args)
+  }
+
+  keep <- !nzchar(arg_names) | !duplicated(arg_names, fromLast = TRUE)
+  return(args[keep])
 }
 
 

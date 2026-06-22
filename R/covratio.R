@@ -36,6 +36,9 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' Values > 1 indicate that the observation improves precision (decreases
 #' variance), while values < 1 indicate that the observation decreases precision
 #' (increases variance).
+#' For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
+#' correlated known-\code{V} data, this is influence under conditional estimate
+#' deletion, not independent-study deletion.
 #' If any included parameter has zero posterior variance, or if a full or LOO
 #' covariance determinant is zero or non-finite, COVRATIO is undefined. In that
 #' case, values are reported as \code{NaN} with a printed note when available.
@@ -65,28 +68,11 @@ covratio.brma <- function(model, type = "mods", ...) {
   weights <- .diagnostic_psis_weights(model, .weights)
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
-  is_mods  <- .is_mods(model)
   is_scale <- .is_scale(model)
 
   # We follow dfbetas logic here:
   if (type == "mods") {
-    if (is_mods) {
-      # meta-regression: means mu is a formula
-      samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_formulas      = "mu",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
-      )
-    } else {
-      # random/fixed effects: mu is a parameter (intercept)
-      samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_parameters    = "mu",
-        remove_diagnostics = TRUE,
-        return_samples     = TRUE
-      )
-    }
+    samples_table <- .diagnostic_location_parameter_samples(model)
   } else if (type == "scale") {
     if (is_scale) {
       # scale-regression: tau is modeled via log_tau formula
@@ -119,14 +105,15 @@ covratio.brma <- function(model, type = "mods", ...) {
     function(x) diff(range(x, na.rm = TRUE)) <= sqrt(.Machine$double.eps)
   )
   if (any(undefined)) {
+    note <- .diagnostic_zero_variance_note(
+      diagnostic = "COVRATIO",
+      parameters = colnames(beta_samples)[undefined],
+      variance   = "posterior"
+    )
     return(.diagnostic_with_note(
       .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
-      note  = .diagnostic_zero_variance_note(
-        diagnostic = "COVRATIO",
-        parameters = colnames(beta_samples)[undefined],
-        variance   = "posterior"
-      )
+      note  = note
     ))
   }
 
@@ -140,10 +127,11 @@ covratio.brma <- function(model, type = "mods", ...) {
   # determinant() returns $modulus which is the log-abs-determinant
   val_full <- as.numeric(determinant(cov_full_res$cov, logarithm = TRUE)$modulus)
   if (!is.finite(val_full)) {
+    note <- "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
     return(.diagnostic_with_note(
       .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
-      note  = "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
+      note  = note
     ))
   }
 
@@ -167,11 +155,18 @@ covratio.brma <- function(model, type = "mods", ...) {
   }
 
   out <- .diagnostic_set_names(out, model)
+  note <- NULL
   if (any(is.nan(out))) {
+    note <- .diagnostic_collect_notes(
+      note,
+      "COVRATIO could not be computed for one or more observations because the LOO covariance determinant is zero or non-finite; affected values are reported as NaN."
+    )
+  }
+  if (!is.null(note)) {
     out <- .diagnostic_with_note(
       out,
       class = "covratio.brma",
-      note  = "COVRATIO could not be computed for one or more observations because the LOO covariance determinant is zero or non-finite; affected values are reported as NaN."
+      note  = note
     )
   }
 

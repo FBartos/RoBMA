@@ -48,15 +48,20 @@ double cpp_selnorm_kernel_lpdf(
   const double mean_z         = signed_mu_norm / sei;
   const double sd_z           = sigma_norm / sei;
 
-  double beta = 0;
+  double log_beta = -INFINITY;
   if (use_phack) {
-    beta = phack_beta(alpha, q, data, mean_z, sd_z);
+    log_beta = phack_log_beta(alpha, q, data, mean_z, sd_z);
     const double z = signed_y / sei;
-    const double r = phack_kernel_weight(z, alpha, beta, q, data);
-    if (!(r > 0)) {
+    const double log_r = phack_log_kernel_weight(
+      z, alpha, log_beta, q, data
+    );
+    if (log_r == -INFINITY) {
       return -INFINITY;
     }
-    log_lik += std::log(r);
+    if (!std::isfinite(log_r)) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    log_lik += log_r;
   }
 
   if (use_step) {
@@ -80,19 +85,16 @@ double cpp_selnorm_kernel_lpdf(
   }
 
   double log_normalizer = 0;
-  if (mode == SELKERNEL_STEP) {
+  if (mode == SELKERNEL_STEP ||
+      (mode == SELKERNEL_STEP_PHACK_POWER && !use_phack)) {
     log_normalizer = step_log_normalizer(
       omega, data, mean_z, sd_z, omega_stride
     );
   } else if (mode == SELKERNEL_STEP_PHACK_POWER) {
-    const double normalizer = combined_normalizer(
-      omega, use_phack ? alpha : 0, beta, use_phack ? q : 0,
+    log_normalizer = combined_log_normalizer(
+      omega, use_phack ? alpha : 0, log_beta, use_phack ? q : 0,
       data, mean_z, sd_z, omega_stride
     );
-    if (!(normalizer > 0)) {
-      return std::numeric_limits<double>::quiet_NaN();
-    }
-    log_normalizer = std::log(normalizer);
   }
 
   if (!std::isfinite(log_normalizer)) {
@@ -144,20 +146,18 @@ double cpp_selnorm_kernel_log_norm(
   const double sd_z   = sd / sei;
   double log_normalizer = 0;
 
-  if (kernel_mode == SELKERNEL_STEP) {
+  if (kernel_mode == SELKERNEL_STEP ||
+      (kernel_mode == SELKERNEL_STEP_PHACK_POWER && !use_phack)) {
     log_normalizer = step_log_normalizer(
       omega, data, mean_z, sd_z, omega_stride
     );
   } else if (kernel_mode == SELKERNEL_STEP_PHACK_POWER) {
-    const double beta = use_phack ? phack_beta(alpha, q, data, mean_z, sd_z) : 0;
-    const double normalizer = combined_normalizer(
-      omega, use_phack ? alpha : 0, beta, use_phack ? q : 0,
+    const double log_beta = use_phack ?
+      phack_log_beta(alpha, q, data, mean_z, sd_z) : -INFINITY;
+    log_normalizer = combined_log_normalizer(
+      omega, use_phack ? alpha : 0, log_beta, use_phack ? q : 0,
       data, mean_z, sd_z, omega_stride
     );
-    if (!(normalizer > 0)) {
-      return std::numeric_limits<double>::quiet_NaN();
-    }
-    log_normalizer = std::log(normalizer);
   }
 
   if (!std::isfinite(log_normalizer)) {

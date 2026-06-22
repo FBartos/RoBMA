@@ -525,6 +525,21 @@ test_that("Custom prior_mods_null replaces null for terms", {
   expect_equal(mean(result$mods$mod_cont[[null_idx]]), 0.1)
 })
 
+test_that("User intercept entries in moderator prior lists are honored", {
+
+  custom_intercept <- BayesTools::prior("normal", parameters = list(mean = 0.4, sd = 0.2))
+
+  result <- RoBMA(
+    yi = effect, sei = std_err, mods = ~ mod_cont,
+    prior_mods = list(intercept = custom_intercept),
+    data = test_data, measure = "SMD", only_priors = TRUE,
+    silent = TRUE
+  )[["priors"]]
+
+  expect_equal(result$mods$intercept$parameters$mean, 0.4)
+  expect_equal(result$mods$intercept$parameters$sd, 0.2)
+})
+
 
 # ============================================================================
 # Tests for informed priors with mixtures
@@ -715,6 +730,21 @@ test_that("Custom prior_scale replaces alternative for scale terms", {
   expect_equal(result$scale$scale_var[[alt_indices[1]]]$parameters$sd, 0.4)
 })
 
+test_that("User intercept entries in scale prior lists are honored", {
+
+  custom_intercept <- BayesTools::prior("normal", parameters = list(mean = 0.4, sd = 0.2))
+
+  result <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err, scale = ~ scale_var,
+    prior_scale = list(intercept = custom_intercept),
+    data = test_data, measure = "SMD", only_priors = TRUE,
+    silent = TRUE
+  )[["priors"]])
+
+  expect_equal(result$scale$intercept$parameters$mean, 0.4)
+  expect_equal(result$scale$intercept$parameters$sd, 0.2)
+})
+
 
 # ============================================================================
 # Tests for custom heterogeneity prior lists
@@ -840,6 +870,42 @@ test_that("Different moderators can have different null specifications", {
   # mod_factor should still have null component
   is_null_factor <- .get_is_null(result$mods$mod_factor)
   expect_equal(sum(is_null_factor), 1)
+})
+
+test_that("Unknown NULL/FALSE moderator omission names warn", {
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont + mod_factor,
+      prior_mods_null = list(mod_typo = NULL),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods_null'.*'mod_typo'"
+  )
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont * scale_var,
+      prior_mods_null = list("scale_var:mod_cont" = NULL),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods_null'.*'scale_var:mod_cont'"
+  )
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont + mod_factor,
+      prior_mods = list(mod_typo = FALSE),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods'.*'mod_typo'"
+  )
 })
 
 

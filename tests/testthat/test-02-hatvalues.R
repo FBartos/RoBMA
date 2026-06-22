@@ -39,6 +39,68 @@ test_that("Hatvalues for BMA.norm fits are internally consistent", {
   }
 })
 
+test_that("Hatvalues support brma.mv known-V marginal GLS targets", {
+
+  model_names <- c("brma.mv_block_mvn", "brma.mv_block_mvn_random_scale")
+  skip_if_missing_fits(model_names)
+
+  for (name in model_names) {
+    fit <- fits[[name]]
+    expected <- colMeans(.compute_hat_matrix_samples(
+      object             = fit,
+      conditioning_depth = "marginal",
+      return_full_H      = FALSE,
+      return_se          = FALSE
+    )[["H_diag"]])
+
+    actual <- hatvalues(fit)
+    expect_hatvalues_vector(actual, nobs(fit), info = name)
+    expect_equal(unname(actual), unname(expected), tolerance = 1e-12,
+                 info = name)
+  }
+})
+
+test_that("Hatvalues chunk known-V covariance without changing results", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit          <- fits[[name]]
+  expected     <- hatvalues(fit)
+  K            <- nobs(fit)
+  one_draw_mem <- .known_v_covariance_bytes(1L, K)
+  old_options  <- options(
+    RoBMA.known_v_covariance_max_bytes = 2 * one_draw_mem
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  actual   <- hatvalues(fit)
+  metadata <- attr(actual, "known_v_diagnostic")
+  attr(actual, "known_v_diagnostic") <- NULL
+
+  expect_equal(unname(actual), unname(expected), tolerance = 1e-12)
+  expect_true(metadata[["n_chunks"]] > 1L)
+  expect_equal(metadata[["n_used_samples"]], metadata[["n_posterior_samples"]])
+})
+
+test_that("Hatvalues expose deterministic known-V draw thinning", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit <- fits[[name]]
+
+  actual <- expect_warning(
+    hatvalues(fit, max_samples = 10),
+    "deterministically thinned"
+  )
+  metadata <- attr(actual, "known_v_diagnostic")
+
+  expect_hatvalues_vector(actual, nobs(fit), info = name)
+  expect_equal(metadata[["n_used_samples"]], 10L)
+  expect_true(metadata[["thinned"]])
+})
+
 test_that("Hatvalues use study labels as names", {
 
   name <- "bcg_meta-analysis"

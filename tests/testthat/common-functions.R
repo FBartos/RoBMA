@@ -5,7 +5,7 @@ if (!exists("GENERATE_REFERENCE_FILES")) {
   GENERATE_REFERENCE_FILES <- FALSE
 }
 if (!exists("FIT_CACHE_VERSION")) {
-  FIT_CACHE_VERSION <- 3L
+  FIT_CACHE_VERSION <- 4L
 }
 
 .common_functions_dir <- function() {
@@ -177,7 +177,16 @@ fit_catalog <- function() {
       "dat.lehmann2018_RoBMA_custom",
       "dat.lehmann2018_RoBMA_mods",
       "dat.lehmann2018_RoBMA_mods2",
-      "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+      "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+      "brma.mv_latent",
+      "brma.mv_whitened",
+      "brma.mv_block_mvn",
+      "brma.mv_block_mvn_random",
+      "brma.mv_latent_estimate_scale",
+      "brma.mv_block_mvn_estimate_scale",
+      "brma.mv_block_mvn_random_scale",
+      "brma.mv_block_mvn_mods",
+      "brma.mv_block_mvn_random_mods_scale"
     ),
     class = c(
       rep("brma.norm", 11),
@@ -187,7 +196,8 @@ fit_catalog <- function() {
       rep("bselmodel", 4),
       rep("BMA.norm", 4),
       rep("BMA.glmm", 4),
-      rep("RoBMA", 5)
+      rep("RoBMA", 5),
+      rep("brma.mv", 9)
     ),
     family = c(
       rep("norm", 11),
@@ -197,7 +207,8 @@ fit_catalog <- function() {
       rep("norm", 4),
       rep("norm", 4),
       rep("glmm", 4),
-      rep("norm", 5)
+      rep("norm", 5),
+      rep("norm", 9)
     ),
     source_file = c(
       rep("test-01-brma.norm.R", 11),
@@ -207,7 +218,8 @@ fit_catalog <- function() {
       rep("test-01-bselmodel.R", 4),
       rep("test-01-BMA.norm.R", 4),
       rep("test-01-BMA.glmm.R", 4),
-      rep("test-01-RoBMA.R", 5)
+      rep("test-01-RoBMA.R", 5),
+      rep("test-01-brma.mv.R", 9)
     ),
     has_metafor = c(
       TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, TRUE, TRUE,
@@ -215,14 +227,9 @@ fit_catalog <- function() {
       TRUE, TRUE, TRUE,
       TRUE, TRUE, TRUE,
       TRUE, TRUE, TRUE, TRUE,
-      rep(FALSE, 13)
+      rep(FALSE, 22)
     ),
-    has_loo = TRUE,
     has_waic = FALSE,
-    has_marglik = c(
-      rep(TRUE, 25),
-      rep(FALSE, 13)
-    ),
     tier = c(
       "core", "core", "extended", "extended", "core", "extended", "extended", "extended",
       "core", "core", "extended",
@@ -232,10 +239,14 @@ fit_catalog <- function() {
       "core", "extended", "extended", "extended",
       "core", "extended", "core", "extended",
       "core", "core", "extended", "extended",
-      "core", "extended", "core", "extended", "extended"
+      "core", "extended", "core", "extended", "extended",
+      "core", "core", "core", "core", "core", "core", "core", "core", "core"
     ),
     stringsAsFactors = FALSE
   )
+  catalog[["has_loo"]] <- !catalog[["name"]] %in% "brma.mv_block_mvn_random_mods_scale"
+  catalog[["has_marglik"]] <- !catalog[["class"]] %in%
+    c("BMA.norm", "BMA.glmm", "RoBMA", "brma.mv")
 
   catalog[["features"]] <- I(list(
     c("metafor", "normal", "simple"),
@@ -275,7 +286,16 @@ fit_catalog <- function() {
     c("RoBMA", "normal", "custom_priors"),
     c("RoBMA", "normal", "mods"),
     c("RoBMA", "normal", "interaction"),
-    c("RoBMA", "normal", "multilevel", "mods", "scale")
+    c("RoBMA", "normal", "multilevel", "mods", "scale"),
+    c("brma.mv", "normal", "known_v", "latent"),
+    c("brma.mv", "normal", "known_v", "whitened"),
+    c("brma.mv", "normal", "known_v", "block_mvn"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random"),
+    c("brma.mv", "normal", "known_v", "latent", "random", "scale"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale", "allocation"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "mods"),
+    c("brma.mv", "normal", "known_v", "block_mvn", "random", "mods", "scale")
   ))
 
   return(catalog)
@@ -444,10 +464,12 @@ source_file_md5 <- function(source_file) {
     "R/bPEESE.R",
     "R/bPET.R",
     "R/brma.glmm.R",
+    "R/brma.mv.R",
     "R/brma.norm.R",
     "R/bselmodel.R",
     "R/fit.R",
     "R/input-data.R",
+    "R/input-data-mv.R",
     "R/input-object.R",
     "R/input-priors.R",
     "R/input-priors-assignment.R",
@@ -461,6 +483,7 @@ source_file_md5 <- function(source_file) {
     "R/log-lik-cluster-glmm.R",
     "R/log-lik-cluster-normal.R",
     "R/log-lik.R",
+    "R/log-lik-known-v.R",
     "R/pdf-outcome-glmm.R",
     "R/pdf-outcome-normal.R",
     "R/pdf-utils.R",
@@ -479,6 +502,8 @@ source_file_md5 <- function(source_file) {
     "src/distributions/DSELNORMSTEP.h",
     "src/distributions/DSELNORMSTEPSWITCH.cc",
     "src/distributions/DSELNORMSTEPSWITCH.h",
+    "src/distributions/DKNOWNVMNORM.cc",
+    "src/distributions/DKNOWNVMNORM.h",
     "src/distributions/DWB.cc",
     "src/distributions/DWB.h",
     "src/distributions/DWN.cc",

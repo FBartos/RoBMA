@@ -52,11 +52,12 @@
 #
 # ---------------------------------------------------------------------------- #
 .outcome_pdf.selnorm <- function(yi, mu_samples, tau_within, sei,
-                                 selection_context, weights = NULL) {
+                                 selection_context, weights = NULL,
+                                 selection_sei = sei) {
 
-  S       <- nrow(mu_samples)
-  K       <- ncol(mu_samples)
-  sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+  S        <- nrow(mu_samples)
+  K        <- ncol(mu_samples)
+  sei_mat  <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
   total_sd <- sqrt(tau_within^2 + sei_mat^2)
 
   return(.selnorm_kernel_loglik_matrix(
@@ -65,7 +66,7 @@
     sigma_num      = total_sd,
     mu_norm        = mu_samples,
     sigma_norm     = total_sd,
-    sei            = sei,
+    sei            = selection_sei,
     omega          = selection_context[["omega"]],
     selection_spec = selection_context,
     alpha          = selection_context[["alpha"]],
@@ -104,7 +105,8 @@
 
 
 .outcome_pdf_sum.selnorm <- function(yi, mu_samples, tau_within, sei,
-                                     selection_context, weights = NULL) {
+                                     selection_context, weights = NULL,
+                                     selection_sei = sei) {
 
   S        <- nrow(mu_samples)
   K        <- ncol(mu_samples)
@@ -117,7 +119,7 @@
     sigma_num      = total_sd,
     mu_norm        = mu_samples,
     sigma_norm     = total_sd,
-    sei            = sei,
+    sei            = selection_sei,
     omega          = selection_context[["omega"]],
     selection_spec = selection_context,
     alpha          = selection_context[["alpha"]],

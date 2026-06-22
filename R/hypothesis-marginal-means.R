@@ -1,15 +1,11 @@
 #' @rdname hypothesis
 #'
-#' @param type retained for compatibility with \code{marginal_means.brma}
-#' objects. Marginal-means Bayes factors are always computed from the
-#' alternative-conditioned marginal means.
 #' @param parameter optional marginal-means parameter/term used to disambiguate
 #' the hypothesis expression.
 #'
 #' @export
 hypothesis.marginal_means.brma <- function(object, hypothesis,
                                            parameter = NULL,
-                                           type = NULL,
                                            logBF = FALSE, BF01 = FALSE,
                                            seed = NULL,
                                            density_method = c(
@@ -24,13 +20,16 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   BayesTools::check_bool(BF01, "BF01")
   BayesTools::check_real(seed, "seed", check_length = 1, allow_NULL = TRUE, allow_NA = FALSE)
   BayesTools::check_char(columns, "columns", check_length = 0, allow_NA = FALSE)
+  dots <- list(...)
+  if (identical(dots[["type"]], "conditional")) {
+    dots[["type"]] <- NULL
+  }
   .warn_unused_dots(
-    dots    = list(...),
+    dots    = dots,
     allowed = character(),
     caller  = "hypothesis.marginal_means()"
   )
 
-  .hypothesis_marginal_means_type(type = type)
   selected <- .hypothesis_marginal_means_select_parameter(
     object     = object,
     hypothesis = hypothesis,
@@ -47,8 +46,9 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     parameter  = parameter
   )
 
-  density_method <- .density_method_normalize(density_method)
-  if (density_method %in% c("qCMDE", "IWMDE")) {
+  density_method       <- .density_method_normalize(density_method)
+  precomputed_density <- density_method %in% c("qCMDE", "IWMDE")
+  if (precomputed_density) {
     object <- .hypothesis_marginal_means_attach_iwmde(
       object          = object,
       parameter       = parameter,
@@ -73,7 +73,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
   class(inference) <- unique(c(class(inference), "marginal_inference"))
 
-  BayesTools::hypothesis_BF(
+  out <- BayesTools::hypothesis_BF(
     posterior      = inference,
     hypothesis     = hypothesis,
     parameter      = parameter,
@@ -83,17 +83,15 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     columns        = columns,
     density_method = density_method
   )
-}
 
-
-.hypothesis_marginal_means_type <- function(type) {
-
-  if (is.null(type)) {
-    return("averaged")
+  if (precomputed_density) {
+    out <- .hypothesis_brma_append_iwmde_warnings(
+      table     = out,
+      posterior = inference[["conditional"]][[parameter]]
+    )
   }
 
-  BayesTools::check_char(type, "type", check_length = 1)
-  return(match.arg(type, c("averaged", "conditional")))
+  return(out)
 }
 
 
@@ -177,11 +175,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     parameter_label = parameter_label,
     point_refs      = point_refs
   )
-  object <- .hypothesis_marginal_means_clear_iwmde_ordinates(
-    object     = object,
-    parameter  = parameter,
-    point_refs = point_refs
-  )
 
   source_object <- object[["source_object"]]
   if (is.null(source_object) ||
@@ -206,20 +199,18 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     )
   }
 
-  context          <- .iwmde_context(source_object)
-  diagnostic_cache <- .iwmde_diagnostic_cache()
-  method           <- .density_method_iwmde_estimator(density_method)
+  context        <- .iwmde_context(source_object)
+  estimate_cache <- .iwmde_estimate_cache()
 
   for (i in seq_len(nrow(point_refs))) {
     object <- .hypothesis_marginal_means_attach_iwmde_ref(
       object              = object,
       context             = context,
-      diagnostic_cache    = diagnostic_cache,
+      estimate_cache      = estimate_cache,
       parameter           = parameter,
       ref                 = point_refs[i, , drop = FALSE],
       density_method      = density_method,
-      density_control     = density_control,
-      method              = method
+      density_control     = density_control
     )
   }
 
@@ -252,31 +243,13 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 }
 
 
-.hypothesis_marginal_means_clear_iwmde_ordinates <- function(object, parameter,
-                                                             point_refs) {
-
-  samples <- object[["inference"]][["conditional"]][[parameter]]
-  for (i in seq_len(nrow(point_refs))) {
-    level <- point_refs[["level"]][[i]]
-    if (is.na(level)) {
-      attr(samples, "posterior_ordinate") <- NULL
-    } else {
-      attr(samples[[level]], "posterior_ordinate") <- NULL
-    }
-  }
-  object[["inference"]][["conditional"]][[parameter]] <- samples
-
-  return(object)
-}
-
-
 .hypothesis_marginal_means_density_control <- function(object, density_method,
                                                        density_control) {
 
   if (is.null(density_control) && is.list(object[["iwmde_settings"]])) {
     settings <- object[["iwmde_settings"]]
     keep <- c("n_points", "max_samples", "display_grid")
-    if (identical(density_method, "qCMDE")) {
+    if (density_method %in% c("qCMDE", "IWMDE")) {
       keep <- c(keep, "normalization_points", "normalization_prob")
     }
     density_control <- settings[intersect(keep, names(settings))]
@@ -290,8 +263,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 
 .hypothesis_marginal_means_attach_iwmde_ref <- function(
-    object, context, diagnostic_cache, parameter, ref, density_method,
-    density_control, method) {
+    object, context, estimate_cache, parameter, ref, density_method,
+    density_control) {
 
   samples <- object[["inference"]][["conditional"]][[parameter]]
   if (is.null(samples)) {
@@ -313,12 +286,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   } else {
     paste0(parameter, "[", level, "]")
   }
-  if (BayesTools::posterior_ordinate_has_value(
-    attr(sample, "posterior_ordinate", exact = TRUE),
-    value
-  )) {
-    return(object)
-  }
+  existing <- attr(sample, "posterior_ordinate", exact = TRUE)
 
   specs <- .iwmde_marginal_means_specs(
     marginal_means_object = object,
@@ -333,27 +301,41 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     )
   }
   spec <- specs[[1L]]
+  metadata <- .iwmde_posterior_metadata(
+    samples   = sample,
+    parameter = parameter,
+    level     = spec[["level"]]
+  )
+  plan <- .iwmde_plan(
+    context         = context,
+    parameter       = spec[["label"]],
+    density_method  = density_method,
+    density_control = density_control,
+    outputs         = "ordinate",
+    values          = value,
+    parameter_spec  = spec,
+    metadata        = metadata
+  )
+  expected_provenance <- .iwmde_estimate_request_provenance(
+    plan      = plan,
+    attribute = "ordinate",
+    value     = value
+  )
+  if (.iwmde_posterior_ordinate_matches_request(
+        posterior_ordinate = existing,
+        value              = value,
+        provenance         = expected_provenance)) {
+    return(object)
+  }
+  existing <- .iwmde_posterior_ordinate_drop_value(existing, value)
 
-  diagnostic <- .iwmde_parameter_ordinate_diagnostic(
-    context              = context,
-    parameter            = spec[["label"]],
-    values               = value,
-    max_samples          = density_control[["max_samples"]],
-    normalization_points = density_control[["normalization_points"]],
-    normalization_prob   = density_control[["normalization_prob"]],
-    method               = method,
-    parameter_spec       = spec,
-    diagnostic_cache     = diagnostic_cache
+  estimate <- .iwmde_estimate_from_plan(
+    context = context,
+    plan    = plan,
+    cache   = estimate_cache
   )
-  ordinate <- .iwmde_posterior_ordinate_attribute(
-    diagnostic     = diagnostic,
-    density_method = density_method,
-    metadata       = .iwmde_posterior_metadata(
-      samples   = sample,
-      parameter = parameter,
-      level     = spec[["level"]]
-    )
-  )
+  diagnostic <- estimate[["diagnostics"]][["ordinate"]]
+  ordinate   <- estimate[["posterior_ordinate"]]
   if (is.null(ordinate)) {
     stop(
       density_method, " posterior ordinate is unavailable for '", label, " = ",
@@ -363,7 +345,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   attr(sample, "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
-    existing = attr(sample, "posterior_ordinate", exact = TRUE),
+    existing = existing,
     ordinate = ordinate
   )
   samples <- .hypothesis_marginal_means_set_ref_sample(

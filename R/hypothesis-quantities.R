@@ -31,7 +31,7 @@ hypothesis_quantities.brma <- function(object, ...) {
   out[["bracket"]] <- paste0(out[["parameter"]], "[level]")
   out <- .hypothesis_quantities_add_eligibility(
     out,
-    point_test_methods = "KDE, normal, qCMDE, IWMDE"
+    point_test_methods = "KDE, qCMDE, IWMDE"
   )
   rownames(out) <- NULL
   return(out)

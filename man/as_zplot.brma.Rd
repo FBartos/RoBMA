@@ -49,7 +49,10 @@ PET/PEESE regression terms remain part of the fitted location model.
 Zplot diagnostics are available only for normal outcome models. GLMM
 objects are rejected because their raw likelihood is on a count scale while
 zplot diagnostics require observed effect-size z-statistics with standard
-errors.
+errors. For correlated known-\code{V} \code{brma.mv()} models, zplot is a
+descriptive scalar display using diagonal standard errors; off-diagonal
+sampling dependence is not represented by the observed
+\eqn{z_i = y_i / se_i} histogram.
 
 The resulting object retains all original brma properties while adding
 zplot results, enabling both standard meta-analytic summaries and

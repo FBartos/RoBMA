@@ -366,6 +366,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 
 .selection_weightfunction_omega_bound <- function(prior, probability = .999) {
 
+  if (BayesTools::is_prior_bias(prior) &&
+      !is.null(prior[["selection"]])) {
+    prior <- prior[["selection"]]
+  }
+
   weights <- prior[["weights"]]
   if (is.null(weights[["type"]])) {
     return(Inf)
@@ -830,7 +835,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
          call. = FALSE)
   }
 
-  return(.Call(
+  out <- .Call(
     "RoBMA_selnorm_kernel_log_norm_delta_grid",
     .native_numeric_matrix(mean),
     .native_numeric_matrix(sd),
@@ -855,7 +860,15 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
-  ))
+  )
+
+  if (!is.matrix(out) ||
+      !identical(dim(out), c(length(values), S))) {
+    stop("Native selected-normal log-normalizer delta returned an invalid grid shape.",
+         call. = FALSE)
+  }
+
+  return(out)
 }
 
 .selnorm_kernel_log_norm_matrix <- function(mean, sd, sei, omega,

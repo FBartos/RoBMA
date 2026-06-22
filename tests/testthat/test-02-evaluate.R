@@ -103,6 +103,188 @@ test_that(".evaluate.brma.true_effects.norm returns BLUP means for same data", {
   expect_equal(apply(theta, 2, stats::var), c(0, 0), tolerance = 1e-14)
 })
 
+test_that("known-V BLUP block solver fails on invalid covariance blocks", {
+
+  expect_error(
+    .solve_diagonal_rank_one_block(
+      diagonal = c(1, -2),
+      rank_one = c(0, 0),
+      residual = c(1, 1)
+    ),
+    "not positive definite"
+  )
+  expect_error(
+    .solve_diagonal_rank_one_block(
+      diagonal = c(1, NA_real_),
+      rank_one = c(0, 0),
+      residual = c(1, 1)
+    ),
+    "non-finite"
+  )
+})
+
+test_that("known-V BLUP uses full covariance blocks", {
+
+  mu_samples <- matrix(c(0.2, -0.1), nrow = 1)
+  tau_within <- matrix(c(0.5, 0.25), nrow = 1)
+  yi         <- c(1.0, -0.7)
+  V          <- matrix(c(0.04, 0.02, 0.02, 0.09), nrow = 2)
+  known_V    <- list(
+    V             = V,
+    block_indices = list(1:2)
+  )
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    known_V    = known_V
+  )
+
+  T_block  <- diag(tau_within[1, ]^2)
+  expected <- mu_samples[1, ] +
+    as.vector(T_block %*% solve(T_block + V) %*% (yi - mu_samples[1, ]))
+  diagonal <- mu_samples[1, ] +
+    tau_within[1, ]^2 / (tau_within[1, ]^2 + diag(V)) * (yi - mu_samples[1, ])
+
+  expect_equal(theta[1, ], expected, tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(expected, diagonal, tolerance = 1e-8)))
+})
+
+test_that("known-V BLUP scalar-tau blocks match inverse oracle", {
+
+  mu_samples <- matrix(
+    c(.10, .20, .30,
+      .25, .35, .45,
+      .40, .50, .60),
+    nrow = 3,
+    byrow = TRUE
+  )
+  tau_within <- matrix(
+    c(.20, .20, .20,
+      .35, .35, .35,
+      .50, .50, .50),
+    nrow = 3,
+    byrow = TRUE
+  )
+  yi <- c(.50, -.10, .80)
+  V <- matrix(
+    c(.09, .03, .01,
+      .03, .16, .02,
+      .01, .02, .25),
+    nrow = 3
+  )
+  bias_offset <- matrix(
+    c(.02, .01, -.03,
+      .00, .04,  .01,
+      .03, .02,  .00),
+    nrow = 3,
+    byrow = TRUE
+  )
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    known_V     = list(V = V, block_indices = list(1:3)),
+    bias_offset = bias_offset
+  )
+  expected <- mu_samples
+  for (s in seq_len(nrow(mu_samples))) {
+    T_block <- diag(tau_within[s, ]^2)
+    expected[s, ] <- mu_samples[s, ] +
+      as.vector(T_block %*% solve(T_block + V) %*%
+                  (yi - bias_offset[s, ] - mu_samples[s, ]))
+  }
+
+  expect_equal(theta, expected, tolerance = 1e-12)
+})
+
+
+test_that("known-V BLUP row-varying tau blocks match inverse oracle", {
+
+  mu_samples <- matrix(
+    c(.10, .20, .30,
+      .25, .35, .45),
+    nrow = 2,
+    byrow = TRUE
+  )
+  tau_within <- matrix(
+    c(.20, .35, .50,
+      .45, .25, .30),
+    nrow = 2,
+    byrow = TRUE
+  )
+  yi <- c(.50, -.10, .80)
+  V <- matrix(
+    c(.09, .03, .01,
+      .03, .16, .02,
+      .01, .02, .25),
+    nrow = 3
+  )
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples = mu_samples,
+    tau_within = tau_within,
+    yi         = yi,
+    known_V    = list(V = V, block_indices = list(1:3))
+  )
+  expected <- mu_samples
+  for (s in seq_len(nrow(mu_samples))) {
+    T_block <- diag(tau_within[s, ]^2)
+    expected[s, ] <- mu_samples[s, ] +
+      as.vector(T_block %*% solve(T_block + V) %*%
+                  (yi - mu_samples[s, ]))
+  }
+
+  expect_equal(theta, expected, tolerance = 1e-12)
+})
+
+
+test_that("known-V BLUP singleton blocks use scalar shrinkage", {
+
+  mu_samples <- matrix(c(.10, .30), ncol = 1)
+  tau_within <- matrix(c(.20, .50), ncol = 1)
+  yi         <- .70
+  V          <- matrix(.09, nrow = 1)
+  bias_offset <- matrix(c(.05, -.10), ncol = 1)
+
+  theta <- .evaluate.brma.known_v_blup.norm(
+    mu_samples  = mu_samples,
+    tau_within  = tau_within,
+    yi          = yi,
+    known_V     = list(V = V, block_indices = list(1L)),
+    bias_offset = bias_offset
+  )
+  expected <- mu_samples[, 1L] +
+    tau_within[, 1L]^2 / (tau_within[, 1L]^2 + V[1L, 1L]) *
+      (yi - bias_offset[, 1L] - mu_samples[, 1L])
+
+  expect_equal(theta[, 1L], expected, tolerance = 1e-12)
+})
+
+
+test_that("known-V BLUP helper rejects unsolvable covariance blocks", {
+
+  expect_error(
+    .evaluate.brma.known_v_blup.norm(
+      mu_samples = matrix(0, nrow = 1, ncol = 1),
+      tau_within = matrix(.1, nrow = 1, ncol = 1),
+      yi         = 0,
+      known_V    = list(V = matrix(-.5, nrow = 1), block_indices = list(1L))
+    ),
+    "positive definite"
+  )
+})
+
+test_that("LOO chain IDs require retained MCMC draws", {
+
+  expect_error(
+    .loo_chain_id(list(sample = 10), n_samples = 10),
+    "fitted MCMC draws are missing"
+  )
+})
+
 test_that(".evaluate.brma.true_effects.norm subtracts posterior-row bias offsets", {
 
   mu_samples <- matrix(
@@ -208,6 +390,44 @@ test_that(".outcome_rng.norm has correct sampling variance", {
     expect_equal(mean(response[, k]), 0.5, tolerance = 0.05,
                  info = paste("Mean for observation", k))
   }
+})
+
+test_that(".outcome_rng.norm_known_v uses Cholesky orientation for full covariance", {
+
+  S <- 60000L
+  K <- 3L
+  V <- matrix(
+    c(
+      .040, .018, .012,
+      .018, .090, .026,
+      .012, .026, .160
+    ),
+    nrow  = K,
+    byrow = TRUE
+  )
+  tau <- .15
+  known_V <- list(
+    parameterization = "block_mvn",
+    sampling_factor  = chol(V)
+  )
+
+  expect_equal(
+    t(known_V[["sampling_factor"]]) %*% known_V[["sampling_factor"]],
+    V,
+    tolerance = 1e-14
+  )
+
+  set.seed(20260615)
+  response <- .outcome_rng.norm_known_v(
+    mu_samples = matrix(0, nrow = S, ncol = K),
+    tau_within = matrix(tau, nrow = S, ncol = K),
+    known_V    = known_V
+  )
+  expected_cov <- V + diag(tau^2, nrow = K)
+
+  expect_equal(dim(response), c(S, K))
+  expect_equal(colMeans(response), rep(0, K), tolerance = .01)
+  expect_equal(stats::cov(response), expected_cov, tolerance = .01)
 })
 
 test_that(".evaluate.brma.cluster_effects returns contribution matrix for new data", {
@@ -538,8 +758,8 @@ test_that(".evaluate.brma.mu returns correct dimensions", {
     outcome_data     <- object[["data"]][["outcome"]]
     K                <- nrow(outcome_data)
 
-    # Direct moderator design handling is exercised through predict().
-    if (is_mods) next
+    # Direct moderator/random-design handling is exercised through predict().
+    if (is_mods || .is_random(object)) next
 
     mu_samples <- .evaluate.brma.mu(
       fit               = object[["fit"]],
@@ -830,12 +1050,22 @@ test_that("predict.brma with newdata = TRUE returns single aggregated prediction
     # test type = "terms.scale"
     result_scale <- predict(object, newdata = TRUE, type = "terms.scale")
 
-    expect_s3_class(result_scale, "brma_samples")
-    expect_null(attr(result_scale, "data"), info = paste(name, ": data is NULL for aggregate scale"))
-    expect_equal(nrow(summary(result_scale)), 1,
-                 info = paste(name, ": has single row for aggregate scale"))
+    if (inherits(object, "brma.mv") && .is_random(object)) {
+      expect_type(result_scale, "list")
+      for (component in names(result_scale)) {
+        expect_s3_class(result_scale[[component]], "brma_samples")
+        expect_null(attr(result_scale[[component]], "data"),
+                    info = paste(name, component, ": data is NULL for aggregate scale"))
+        expect_equal(nrow(summary(result_scale[[component]])), 1,
+                     info = paste(name, component, ": has single row for aggregate scale"))
+      }
+    } else {
+      expect_s3_class(result_scale, "brma_samples")
+      expect_null(attr(result_scale, "data"), info = paste(name, ": data is NULL for aggregate scale"))
+      expect_equal(nrow(summary(result_scale)), 1,
+                   info = paste(name, ": has single row for aggregate scale"))
+    }
 
-    # test type = "effect"
     result_effect <- predict(object, newdata = TRUE, type = "effect")
 
     expect_s3_class(result_effect, "brma_samples")
@@ -867,12 +1097,21 @@ test_that("predict.brma with newdata = TRUE returns S x 1 matrix", {
 
     # test type = "terms.scale"
     samples_scale <- predict(object, newdata = TRUE, type = "terms.scale")
-    expect_equal(dim(samples_scale), c(S, 1),
-                 info = paste(name, ": scale samples are S x 1"))
-    expect_equal(colnames(samples_scale), "tau",
-                 info = paste(name, ": scale samples have 'tau' column name"))
+    if (inherits(object, "brma.mv") && .is_random(object)) {
+      expect_type(samples_scale, "list")
+      for (component in names(samples_scale)) {
+        expect_equal(dim(samples_scale[[component]]), c(S, 1),
+                     info = paste(name, component, ": scale samples are S x 1"))
+        expect_equal(colnames(samples_scale[[component]]), "tau",
+                     info = paste(name, component, ": scale samples have 'tau' column name"))
+      }
+    } else {
+      expect_equal(dim(samples_scale), c(S, 1),
+                   info = paste(name, ": scale samples are S x 1"))
+      expect_equal(colnames(samples_scale), "tau",
+                   info = paste(name, ": scale samples have 'tau' column name"))
+    }
 
-    # test type = "effect"
     samples_effect <- predict(object, newdata = TRUE, type = "effect")
     expect_equal(dim(samples_effect), c(S, 1),
                  info = paste(name, ": effect samples are S x 1"))
@@ -932,18 +1171,29 @@ test_that("aggregated tau equals rowMeans of non-aggregated tau", {
     # skip non-brma objects
     if (!inherits(object, "brma")) next
 
-    # get non-aggregated samples (as plain matrix)
-    samples_full <- as.matrix(predict(object, newdata = NULL, type = "terms.scale"))
+    samples_full <- predict(object, newdata = NULL, type = "terms.scale")
+    samples_agg  <- predict(object, newdata = TRUE, type = "terms.scale")
 
-    # get aggregated samples (as plain matrix)
-    samples_agg <- as.matrix(predict(object, newdata = TRUE, type = "terms.scale"))
+    if (inherits(object, "brma.mv") && .is_random(object)) {
+      expect_equal(names(samples_agg), names(samples_full))
+      for (component in names(samples_full)) {
+        expected_agg <- matrix(rowMeans(as.matrix(samples_full[[component]])), ncol = 1)
+        colnames(expected_agg) <- "tau"
 
-    # aggregated should equal rowMeans of full
-    expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
-    colnames(expected_agg) <- "tau"
+        expect_equal(as.matrix(samples_agg[[component]]), expected_agg, tolerance = 1e-10,
+                     info = paste(name, component, ": aggregated tau equals rowMeans of full tau"))
+      }
+    } else {
+      samples_full <- as.matrix(samples_full)
+      samples_agg  <- as.matrix(samples_agg)
 
-    expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
-                 info = paste(name, ": aggregated tau equals rowMeans of full tau"))
+      # aggregated should equal rowMeans of full
+      expected_agg <- matrix(rowMeans(samples_full), ncol = 1)
+      colnames(expected_agg) <- "tau"
+
+      expect_equal(samples_agg, expected_agg, tolerance = 1e-10,
+                   info = paste(name, ": aggregated tau equals rowMeans of full tau"))
+    }
   }
 })
 

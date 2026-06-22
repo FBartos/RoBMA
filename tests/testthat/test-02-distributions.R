@@ -9,6 +9,152 @@ test_that(".rowLogSumExps handles all -Inf rows", {
   expect_equal(.rowLogSumExps(x)[2], -1000 + log1p(exp(-1)))
 })
 
+test_that(".rowLogSumExps propagates missing quadrature failures", {
+
+  x <- matrix(
+    c(0, NaN,
+      NA_real_, -1,
+      NaN, NaN,
+      -Inf, -Inf,
+      -1000, -1001),
+    nrow  = 5,
+    byrow = TRUE
+  )
+  out <- .rowLogSumExps(x)
+
+  expect_true(is.na(out[1]))
+  expect_true(is.na(out[2]))
+  expect_true(is.na(out[3]))
+  expect_equal(out[4], -Inf)
+  expect_equal(out[5], -1000 + log1p(exp(-1)))
+})
+
+
+test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
+
+  S <- 3L
+  K <- 6L
+  setup <- list(
+    S           = S,
+    mu          = matrix(c(
+      -.10, .00, .05, .20, .30, .35,
+       .02, .08, .12, .18, .22, .28,
+      -.15, .04, .09, .13, .19, .25
+    ), nrow = S, byrow = TRUE),
+    tau_within  = matrix(c(
+      .08, .10, .12, .14, .16, .18,
+      .09, .11, .13, .15, .17, .19,
+      .07, .12, .10, .18, .14, .20
+    ), nrow = S, byrow = TRUE),
+    tau_between = matrix(c(
+      .05, .07, .09, .11, .13, .15,
+      .06, .08, .10, .12, .14, .16,
+      .04, .09, .06, .13, .08, .17
+    ), nrow = S, byrow = TRUE),
+    cluster     = list(single = 1L, pair = c(2L, 4L), triple = c(3L, 5L, 6L))
+  )
+  yi <- c(.04, .15, -.05, .30, .08, .18)
+  vi <- c(.10, .12, .08, .20, .15, .11)^2
+
+  analytic <- .log_lik_cluster_norm_analytic(
+    setup = setup,
+    yi    = yi,
+    vi    = vi
+  )
+  oracle <- matrix(NA_real_, nrow = S, ncol = length(setup[["cluster"]]))
+  for (s in seq_len(S)) {
+    for (g in seq_along(setup[["cluster"]])) {
+      idx        <- setup[["cluster"]][[g]]
+      diagonal   <- vi[idx] + setup[["tau_within"]][s, idx]^2
+      covariance <- diag(diagonal, nrow = length(idx), ncol = length(idx)) +
+        tcrossprod(setup[["tau_between"]][s, idx])
+      oracle[s, g] <- mvtnorm::dmvnorm(
+        x     = yi[idx],
+        mean  = setup[["mu"]][s, idx],
+        sigma = covariance,
+        log   = TRUE
+      )
+    }
+  }
+
+  expect_equal(analytic, oracle, tolerance = 1e-12)
+})
+
+
+test_that("analytic normal cluster likelihood agrees with unweighted quadrature", {
+
+  S <- 2L
+  setup <- list(
+    S           = S,
+    mu          = matrix(c(
+      -.04, .05, .12, .18,
+       .02, .08, .15, .22
+    ), nrow = S, byrow = TRUE),
+    tau_within  = matrix(c(
+      .06, .09, .12, .15,
+      .08, .10, .14, .16
+    ), nrow = S, byrow = TRUE),
+    tau_between = matrix(c(
+      .04, .07, .10, .12,
+      .05, .08, .09, .13
+    ), nrow = S, byrow = TRUE),
+    cluster     = list(a = c(1L, 3L), b = c(2L, 4L)),
+    weights     = NULL
+  )
+  yi  <- c(.02, .15, -.05, .30)
+  sei <- c(.10, .12, .08, .20)
+
+  analytic <- .log_lik_cluster_norm_analytic(
+    setup = setup,
+    yi    = yi,
+    vi    = sei^2
+  )
+  quadrature <- .log_lik_cluster_norm_quadrature_r(
+    setup             = setup,
+    yi                = yi,
+    sei               = sei,
+    is_weightfunction = FALSE,
+    n_gamma           = 61L
+  )
+
+  expect_equal(quadrature, analytic, tolerance = 1e-8)
+})
+
+
+test_that("GLMM prior grid keys reuse cached prior hashes", {
+
+  clear_cache <- function() {
+    rm(
+      list  = ls(envir = .glmm_prior_grid_hash_cache),
+      envir = .glmm_prior_grid_hash_cache
+    )
+  }
+  clear_cache()
+  on.exit(clear_cache(), add = TRUE)
+
+  prior <- BayesTools::prior("normal", list(0, 1))
+  other <- BayesTools::prior("normal", list(0, 2))
+  calls <- 0L
+
+  testthat::local_mocked_bindings(
+    .glmm_prior_grid_hash_compute = function(prior) {
+
+      calls <<- calls + 1L
+      c("11111111", "22222222")
+    },
+    .package = "RoBMA"
+  )
+
+  expect_equal(.glmm_prior_grid_key(prior, 9), "9|11111111|22222222|")
+  expect_equal(.glmm_prior_grid_key(prior, 11, "bin|4"),
+               "11|11111111|22222222|bin|4")
+  expect_equal(calls, 1L)
+
+  .glmm_prior_grid_key(other, 9)
+  expect_equal(calls, 2L)
+})
+
+
 test_that("native coercion helpers preserve matrix and vector shapes", {
 
   x <- matrix(1:4, nrow = 2)
@@ -242,6 +388,180 @@ test_that("native estimate row-sum kernels match matrix likelihoods", {
   )
 })
 
+test_that("selected-normal helpers separate likelihood and selection SEs", {
+
+  yi             <- c(2.0, 1.7)
+  likelihood_sei <- c(.20, .25)
+  selection_sei  <- c(1.00, .80)
+  S              <- 2
+  K              <- length(yi)
+  mu             <- matrix(c(0, .1, .2, .3), nrow = S, byrow = TRUE)
+  tau            <- matrix(c(.05, .06, .07, .08), nrow = S, byrow = TRUE)
+  prior          <- BayesTools::prior_weightfunction(
+    side    = "one-sided",
+    steps   = c(.025, .05),
+    weights = BayesTools::wf_fixed(c(1, .2, .05))
+  )
+  selection_context <- .selection_spec(
+    priors           = list(outcome = list(bias = prior)),
+    yi               = yi,
+    sei              = selection_sei,
+    effect_direction = "positive"
+  )
+  selection_context[["omega"]] <- matrix(c(
+    1, .2, .05,
+    1, .4, .10
+  ), nrow = S, byrow = TRUE)
+  selection_context[["alpha"]]       <- rep(0, S)
+  selection_context[["phack_kind"]]  <- rep(0L, S)
+  selection_context[["kernel_mode"]] <- rep(SELKERNEL_STEP, S)
+  selection_context <- .selection_reset_native_cache(selection_context)
+
+  total_sd <- sqrt(
+    tau^2 + matrix(likelihood_sei, nrow = S, ncol = K, byrow = TRUE)^2
+  )
+  separated <- .outcome_pdf.selnorm(
+    yi                = yi,
+    mu_samples        = mu,
+    tau_within        = tau,
+    sei               = likelihood_sei,
+    selection_sei     = selection_sei,
+    selection_context = selection_context
+  )
+  direct <- .selnorm_kernel_loglik_matrix(
+    yi             = yi,
+    mu_num         = mu,
+    sigma_num      = total_sd,
+    mu_norm        = mu,
+    sigma_norm     = total_sd,
+    sei            = selection_sei,
+    omega          = selection_context[["omega"]],
+    selection_spec = selection_context,
+    alpha          = selection_context[["alpha"]],
+    phack_kind     = selection_context[["phack_kind"]],
+    kernel_mode    = selection_context[["kernel_mode"]],
+    weights        = NULL
+  )
+  old_scale <- .outcome_pdf.selnorm(
+    yi                = yi,
+    mu_samples        = mu,
+    tau_within        = tau,
+    sei               = likelihood_sei,
+    selection_context = selection_context
+  )
+
+  expect_equal(separated, direct, tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(separated, old_scale)))
+  expect_equal(
+    .outcome_pdf_sum.selnorm(
+      yi                = yi,
+      mu_samples        = mu,
+      tau_within        = tau,
+      sei               = likelihood_sei,
+      selection_sei     = selection_sei,
+      selection_context = selection_context
+    ),
+    rowSums(separated),
+    tolerance = 1e-12
+  )
+})
+
+test_that("estimate selected-normal likelihood forwards selection SEs", {
+
+  captured <- list()
+  setup <- list(
+    fit                = list(),
+    data               = list(outcome = data.frame(yi = c(.1, .2), sei = c(1, 1.5))),
+    priors             = list(),
+    yi                 = c(.1, .2),
+    sei                = c(.2, .3),
+    selection_sei      = c(1, 1.5),
+    K                  = 2L,
+    S                  = 1L,
+    mu                 = matrix(0, nrow = 1, ncol = 2),
+    tau_within         = matrix(0, nrow = 1, ncol = 2),
+    weights            = NULL,
+    is_weightfunction  = TRUE,
+    outcome_type       = "norm",
+    effect_direction   = "positive",
+    posterior_samples  = matrix(numeric(0), nrow = 1, ncol = 0)
+  )
+
+  testthat::local_mocked_bindings(
+    .selection_context_from_parts = function(...) {
+
+      list(marker = TRUE)
+    },
+    .outcome_pdf.selnorm = function(yi, mu_samples, tau_within, sei,
+                                    selection_context, weights = NULL,
+                                    selection_sei = sei) {
+
+      captured[["matrix"]] <<- list(sei = sei, selection_sei = selection_sei)
+      matrix(0, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
+    },
+    .outcome_pdf_sum.selnorm = function(yi, mu_samples, tau_within, sei,
+                                        selection_context, weights = NULL,
+                                        selection_sei = sei) {
+
+      captured[["sum"]] <<- list(sei = sei, selection_sei = selection_sei)
+      rep(0, nrow(mu_samples))
+    },
+    .package = "RoBMA"
+  )
+
+  expect_equal(.log_lik_estimate_from_setup(setup), matrix(0, nrow = 1, ncol = 2))
+  expect_equal(.log_lik_estimate_sum_from_setup(setup), 0)
+  expect_equal(captured[["matrix"]][["sei"]], setup[["sei"]])
+  expect_equal(captured[["matrix"]][["selection_sei"]], setup[["selection_sei"]])
+  expect_equal(captured[["sum"]][["sei"]], setup[["sei"]])
+  expect_equal(captured[["sum"]][["selection_sei"]], setup[["selection_sei"]])
+})
+
+test_that("marglik selected-normal known-V path separates SE roles", {
+
+  captured <- NULL
+  data <- list(
+    K             = 2L,
+    yi            = c(.1, .2),
+    sei           = c(1, 1.5),
+    sampling_var  = c(.04, .09),
+    sampling_rank = 0L
+  )
+  parameters <- list(mu = 0, tau = 0)
+
+  testthat::local_mocked_bindings(
+    .marglik_selection_context = function(parameters, data) {
+
+      list(marker = TRUE)
+    },
+    .outcome_pdf.selnorm = function(yi, mu_samples, tau_within, sei,
+                                    selection_context, weights = NULL,
+                                    selection_sei = sei) {
+
+      captured <<- list(sei = sei, selection_sei = selection_sei)
+      matrix(0, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
+    },
+    .package = "RoBMA"
+  )
+
+  expect_equal(.log_posterior(
+    parameters        = parameters,
+    data              = data,
+    is_mods           = FALSE,
+    is_scale          = FALSE,
+    is_multilevel     = FALSE,
+    is_weights        = FALSE,
+    is_known_v        = TRUE,
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    is_weightfunction = TRUE,
+    effect_direction  = "positive",
+    outcome_type      = "norm"
+  ), 0)
+  expect_equal(captured[["sei"]], sqrt(data[["sampling_var"]]))
+  expect_equal(captured[["selection_sei"]], data[["sei"]])
+})
+
 test_that("native GLMM row-sum kernels match matrix likelihoods", {
 
   skip_if_not(.has_native_glmm_row_sum("bin"))
@@ -398,6 +718,45 @@ test_that("native GLMM cluster row-sum kernels match matrix kernels", {
   )
 })
 
+test_that("native log-sum-exp kernels propagate bad quadrature nodes", {
+
+  skip_if_not(.has_native_glmm("bin"))
+  skip_if_not(.has_native_norm_cluster_quadrature(selection = FALSE))
+
+  binom_out <- .Call(
+    "RoBMA_glmm_binom_marginal_loglik",
+    .native_integer_vector(3L),
+    .native_integer_vector(2L),
+    .native_integer_vector(20L),
+    .native_integer_vector(22L),
+    matrix(0, nrow = 1, ncol = 1),
+    matrix(.1, nrow = 1, ncol = 1),
+    NULL,
+    c(-1, 0, 1),
+    c(log(.3), NaN, log(.7)),
+    matrix(0, nrow = 1, ncol = 1),
+    matrix(0, nrow = 1, ncol = 1),
+    PACKAGE = "RoBMA"
+  )
+  expect_true(is.na(binom_out[1, 1]))
+
+  norm_out <- .Call(
+    "RoBMA_norm_cluster_loglik",
+    .native_numeric_vector(.1),
+    .native_numeric_vector(.2),
+    matrix(0, nrow = 1, ncol = 1),
+    matrix(.1, nrow = 1, ncol = 1),
+    matrix(.1, nrow = 1, ncol = 1),
+    .native_integer_vector(1L),
+    .native_integer_vector(1L),
+    NULL,
+    c(-1, 0, 1),
+    c(log(.3), NaN, log(.7)),
+    PACKAGE = "RoBMA"
+  )
+  expect_true(is.na(norm_out[1, 1]))
+})
+
 test_that("selection native static cache is reused and reset for subsets", {
 
   prior <- BayesTools::prior_weightfunction(
@@ -503,6 +862,9 @@ test_that("native selected-normal log-normalizer delta matches matrix reference"
 
   G          <- length(values)
   S          <- nrow(mean)
+  expect_true(is.matrix(native))
+  expect_equal(dim(native), c(G, S))
+
   row_index  <- rep(seq_len(S), each = G)
   grid_index <- rep(seq_len(G), times = S)
   delta      <- values[grid_index] - current[row_index]
@@ -527,7 +889,7 @@ test_that("native selected-normal log-normalizer delta matches matrix reference"
     "*"
   ))
 
-  expect_equal(native, ref, tolerance = 1e-12)
+  expect_equal(as.numeric(native), ref, tolerance = 1e-12)
 })
 
 test_that("selected-normal step kernel handles boundary and extreme p-bins", {

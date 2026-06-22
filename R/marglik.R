@@ -40,6 +40,9 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 #' and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
 #' use predictive comparison methods such as \code{\link{loo.brma}} instead.
+#' For \code{brma.mv()} known-\code{V} objects, bridge sampling evaluates the
+#' joint likelihood corresponding to the fitted known-\code{V} backend, not the
+#' conditional estimate-wise target used by LOO/WAIC diagnostics.
 #'
 #' @return The brma object with the marginal likelihood result stored in
 #' \code{object[["marglik"]]}.
@@ -65,15 +68,13 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' @aliases add_marglik
 #' @export
 add_marglik.brma <- function(object, ...) {
-  if (inherits(object, "RoBMA")) {
-    stop(
-      "Marginal likelihood is not available for product-space ",
-      "model-averaging objects (BMA.norm, BMA.glmm, RoBMA).",
-      call. = FALSE
-    )
-  }
 
+  .check_marglik_available(object, "add_marglik()")
   marglik <- .marglik(object)
+  if (inherits(marglik, "error")) {
+    stop(conditionMessage(marglik), call. = FALSE)
+  }
+  marglik <- .brma_mv_attach_marglik_target_metadata(marglik, object)
   object[["marglik"]] <- marglik
   return(object)
 }
@@ -97,45 +98,22 @@ add_marglik.brma <- function(object, ...) {
   priors <- object[["priors"]]
   fit    <- object[["fit"]]
 
-  # Public constructors reject p-hacking/composed selection kernels earlier.
-  if (.marglik_has_composed_bias(priors[["outcome"]][["bias"]])) {
-    stop(
-      "Marginal likelihood is not available for combined ",
-      "prior_bias(selection, phacking) models yet.",
-      call. = FALSE
-    )
-  }
-
-  ### create arguments to be passed to BayesTools::JAGS_bridgesampling
-  fit_formula_list        <- list()
-  fit_formula_data_list   <- list()
-  fit_formula_prior_list  <- list()
-  fit_formula_scale_list  <- list()
+  .check_marglik_available(object, ".marglik()")
 
   ### create model base
-  fit_priors <- .create_fit_priors(data = data, priors = priors)
-  fit_data   <- .create_fit_data(data = data, priors = priors)
-  fit_data   <- .marglik_add_selection_bridge_data(
+  fit_priors       <- .create_fit_priors(data = data, priors = priors)
+  fit_data         <- .create_fit_data(data = data, priors = priors)
+  fit_data         <- .marglik_add_selection_bridge_data(
     fit_data         = fit_data,
     priors           = priors,
     effect_direction = .data_effect_direction(data)
   )
-
-  ### add effect regressions
-  if (.is_data_mods(data)) {
-    fit_formula_list[["mu"]]       <- .create_fit_formula_list(data = data, parameter = "mods")
-    fit_formula_data_list[["mu"]]  <- .create_fit_formula_data_list(data = data, parameter = "mods")
-    fit_formula_prior_list[["mu"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "mods")
-    fit_formula_scale_list[["mu"]] <- .data_standardize_continuous_predictors(data)
-  }
-
-  ### add heterogeneity regressions
-  if (.is_data_scale(data)) {
-    fit_formula_list[["log_tau"]]       <- .create_fit_formula_list(data = data, parameter = "scale")
-    fit_formula_data_list[["log_tau"]]  <- .create_fit_formula_data_list(data = data, parameter = "scale")
-    fit_formula_prior_list[["log_tau"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "scale")
-    fit_formula_scale_list[["log_tau"]] <- .data_standardize_continuous_predictors(data)
-  }
+  fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
+  bridge_sd_source_spec <- .marglik_bridge_sd_source_spec(
+    add_parameters = fit_formula_args[["add_parameters"]],
+    fit            = fit,
+    K              = nrow(data[["outcome"]])
+  )
 
   ### compute marginal likelihood
   marglik <- BayesTools::JAGS_bridgesampling(
@@ -143,23 +121,67 @@ add_marglik.brma <- function(object, ...) {
     log_posterior      = .log_posterior,
     data               = fit_data,
     prior_list         = fit_priors,
-    formula_list       = if (length(fit_formula_list)       > 0) fit_formula_list       else NULL,
-    formula_data_list  = if (length(fit_formula_data_list)  > 0) fit_formula_data_list  else NULL,
-    formula_prior_list = if (length(fit_formula_prior_list) > 0) fit_formula_prior_list else NULL,
-    formula_scale      = if (length(fit_formula_scale_list) > 0) fit_formula_scale_list else NULL,
+    formula_list       = .optional_jags_list(fit_formula_args[["formula_list"]]),
+    formula_data_list  = .optional_jags_list(fit_formula_args[["formula_data_list"]]),
+    formula_prior_list = .optional_jags_list(fit_formula_args[["formula_prior_list"]]),
+    formula_scale_list = .optional_jags_list(fit_formula_args[["formula_scale_list"]]),
+    formula_random_prior_list           = .optional_jags_list(fit_formula_args[["formula_random_prior_list"]]),
+    formula_random_effects_compile_list = .optional_jags_list(fit_formula_args[["formula_random_effects_compile_list"]]),
+    add_parameters                      = .optional_jags_character(bridge_sd_source_spec[["parameters"]]),
+    add_bounds                          = bridge_sd_source_spec[["bounds"]],
+    bridge_context                      = .marglik_needs_bridge_context(data),
     # additional arguments passed to .log_posterior via ...
-    is_mods            = .is_data_mods(data),
-    is_scale           = .is_data_scale(data),
-    is_multilevel      = .is_data_multilevel(data),
-    is_weights         = .is_data_weights(data),
-    is_PET             = .is_priors_PET(priors),
-    is_PEESE           = .is_priors_PEESE(priors),
-    is_weightfunction  = .is_priors_weightfunction(priors),
-    effect_direction   = .data_effect_direction(data),
-    outcome_type       = .data_outcome_type(data)
+    is_mods                  = .is_data_mods(data),
+    is_scale                 = .is_data_scale(data),
+    is_random                = .is_data_random(data),
+    is_multilevel            = .is_data_multilevel(data),
+    is_weights               = .is_data_weights(data),
+    is_known_v               = .is_data_known_v(data),
+    known_v_parameterization = .data_known_v_parameterization(data),
+    model_data               = data,
+    is_PET                   = .is_priors_PET(priors),
+    is_PEESE                 = .is_priors_PEESE(priors),
+    is_weightfunction        = .is_priors_weightfunction(priors),
+    effect_direction         = .data_effect_direction(data),
+    outcome_type             = .data_outcome_type(data)
   )
 
   return(marglik)
+}
+
+
+.marglik_needs_bridge_context <- function(data) {
+
+  .is_data_known_v(data) &&
+    .is_data_random(data) &&
+    .data_has_marginalized_random_effects(data)
+}
+
+
+.check_marglik_available <- function(object, caller) {
+
+  if (inherits(object, "RoBMA")) {
+    stop(
+      "Marginal likelihood is not available for product-space ",
+      "model-averaging objects (BMA.norm, BMA.glmm, RoBMA).",
+      call. = FALSE
+    )
+  }
+  if (.is_random(object) &&
+      !(inherits(object, "brma.mv") && .is_data_known_v(object[["data"]]))) {
+    .check_random_formula_postfit_deferred(object, caller)
+  }
+
+  # Public constructors reject p-hacking/composed selection kernels earlier.
+  if (.marglik_has_composed_bias(object[["priors"]][["outcome"]][["bias"]])) {
+    stop(
+      "Marginal likelihood is not available for combined ",
+      "prior_bias(selection, phacking) models yet.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
 }
 
 
@@ -209,6 +231,60 @@ add_marglik.brma <- function(object, ...) {
 }
 
 
+.marglik_bridge_sd_source_spec <- function(add_parameters, fit, K) {
+
+  posterior_names <- colnames(suppressWarnings(as.matrix(coda::as.mcmc(fit))))
+  parameters      <- character()
+  lb              <- numeric()
+  ub              <- numeric()
+
+  add_parameter <- function(parameter, lower, upper) {
+
+    if (parameter %in% parameters) {
+      return(invisible(NULL))
+    }
+
+    parameters <<- c(parameters, parameter)
+    lb <<- c(lb, stats::setNames(lower, parameter))
+    ub <<- c(ub, stats::setNames(upper, parameter))
+
+    invisible(NULL)
+  }
+
+  for (parameter in add_parameters) {
+    if (parameter %in% posterior_names) {
+      add_parameter(parameter, 0, Inf)
+      next
+    }
+
+    indexed_parameter <- paste0(parameter, "[", seq_len(K), "]")
+    if (all(indexed_parameter %in% posterior_names)) {
+      for (indexed in indexed_parameter) {
+        add_parameter(indexed, 0, Inf)
+      }
+      next
+    }
+
+    add_parameter(parameter, 0, Inf)
+  }
+
+  if (length(parameters) == 0L) {
+    return(list(
+      parameters = character(),
+      bounds     = NULL
+    ))
+  }
+
+  return(list(
+    parameters = parameters,
+    bounds     = list(
+      lb = lb[parameters],
+      ub = ub[parameters]
+    )
+  ))
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .log_posterior
 # ---------------------------------------------------------------------------- #
@@ -254,8 +330,9 @@ add_marglik.brma <- function(object, ...) {
 .log_posterior <- function(
     parameters, data,
     is_mods, is_scale, is_multilevel, is_weights,
-    is_PET, is_PEESE, is_weightfunction, effect_direction,
-    outcome_type) {
+    is_known_v, is_PET, is_PEESE, is_weightfunction, effect_direction,
+    outcome_type, is_random = FALSE, known_v_parameterization = "latent",
+    model_data = NULL, bridge_context = NULL) {
 
   ### extract number of observations
   K <- data[["K"]]
@@ -279,24 +356,37 @@ add_marglik.brma <- function(object, ...) {
   # BayesTools returns:
   # - scalar tau (no scale regression) -> replicate to K columns
   # - vector log_tau of length K (scale regression) -> exponentiate, use directly
-  tau_result <- .marglik_get_tau_samples(
-    parameters    = parameters,
-    is_scale      = is_scale,
-    is_multilevel = is_multilevel,
-    K             = K
-  )
+  tau_result <- if (is_random) {
+    .marglik_get_zero_tau_samples(K)
+  } else {
+    .marglik_get_tau_samples(
+      parameters    = parameters,
+      is_scale      = is_scale,
+      is_multilevel = is_multilevel,
+      K             = K
+    )
+  }
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
 
   ### add cluster-level (gamma) contribution for multilevel models
   if (is_multilevel) {
     cluster_contribution <- .marglik_get_cluster_effects(
-      parameters       = parameters,
-      tau_between      = tau_between_samples,
-      cluster          = data[["cluster"]],
-      effect_direction = effect_direction
+      parameters  = parameters,
+      tau_between = tau_between_samples,
+      cluster     = data[["cluster"]]
     )
     mu_samples <- mu_samples + cluster_contribution
+  }
+
+  if (is_known_v) {
+    sampling_dependency <- .marglik_get_sampling_dependency(
+      parameters       = parameters,
+      data             = data,
+      effect_direction = effect_direction,
+      K                = K
+    )
+    mu_samples <- mu_samples + sampling_dependency
   }
 
   ### dispatch to appropriate log-likelihood computation based on outcome type
@@ -309,7 +399,23 @@ add_marglik.brma <- function(object, ...) {
       mu_samples <- -mu_samples
     }
 
-    if (is_weightfunction) {
+    if (is_known_v) {
+
+      log_lik <- .marglik_known_v_norm_log_lik(
+        parameters               = parameters,
+        data                     = data,
+        model_data               = model_data,
+        bridge_context           = bridge_context,
+        mu_samples               = mu_samples,
+        tau_within_samples       = tau_within_samples,
+        is_random                = is_random,
+        is_weightfunction        = is_weightfunction,
+        known_v_parameterization = known_v_parameterization,
+        effect_direction         = effect_direction,
+        K                        = K
+      )
+
+    } else if (is_weightfunction) {
 
       selection_context <- .marglik_selection_context(parameters, data)
       log_lik <- .outcome_pdf.selnorm(
@@ -317,6 +423,7 @@ add_marglik.brma <- function(object, ...) {
         mu_samples        = mu_samples,
         tau_within        = tau_within_samples,
         sei               = data[["sei"]],
+        selection_sei     = data[["sei"]],
         selection_context = selection_context
       )
 
@@ -473,9 +580,20 @@ add_marglik.brma <- function(object, ...) {
 }
 
 
+.marglik_get_zero_tau_samples <- function(K) {
+
+  tau_samples <- matrix(0, nrow = 1L, ncol = K)
+
+  return(list(
+    tau_total   = tau_samples,
+    tau_within  = tau_samples,
+    tau_between = tau_samples
+  ))
+}
+
+
 #' @keywords internal
-.marglik_get_cluster_effects <- function(parameters, tau_between, cluster,
-                                         effect_direction) {
+.marglik_get_cluster_effects <- function(parameters, tau_between, cluster) {
 
   K <- ncol(tau_between)
 
@@ -555,6 +673,298 @@ add_marglik.brma <- function(object, ...) {
   )
 
   return(.selection_reset_native_cache(selection_context))
+}
+
+
+.marglik_get_sampling_dependency <- function(parameters, data,
+                                             effect_direction, K) {
+
+  if (is.null(data[["sampling_rank"]]) || data[["sampling_rank"]] == 0L) {
+    return(matrix(0, nrow = 1, ncol = K))
+  }
+
+  sampling_z <- parameters[["sampling_z"]]
+  if (is.null(sampling_z)) {
+    sampling_z_names <- paste0("sampling_z[", seq_len(data[["sampling_rank"]]), "]")
+    if (!all(sampling_z_names %in% names(parameters))) {
+      stop("Missing known-V latent sampling factors.", call. = FALSE)
+    }
+    sampling_z <- unlist(parameters[sampling_z_names], use.names = FALSE)
+  }
+
+  sampling_dependency <- matrix(
+    as.vector(data[["sampling_B"]] %*% sampling_z),
+    nrow = 1,
+    ncol = K
+  )
+
+  if (effect_direction == "negative") {
+    sampling_dependency <- -sampling_dependency
+  }
+
+  return(sampling_dependency)
+}
+
+
+.marglik_known_v_norm_log_lik <- function(parameters, data, model_data,
+                                          bridge_context,
+                                          mu_samples, tau_within_samples,
+                                          is_random, is_weightfunction,
+                                          known_v_parameterization,
+                                          effect_direction, K) {
+
+  extra_variance <- .marglik_known_v_extra_variance(
+    parameters         = parameters,
+    model_data         = model_data,
+    bridge_context     = bridge_context,
+    tau_within_samples = tau_within_samples,
+    is_random          = is_random,
+    K                  = K
+  )
+  tau_within <- sqrt(pmax(extra_variance, 0))
+
+  if (known_v_parameterization == "latent") {
+    if (is_weightfunction) {
+      selection_context <- .marglik_selection_context(parameters, data)
+      return(.outcome_pdf.selnorm(
+        yi                = data[["yi"]],
+        mu_samples        = mu_samples,
+        tau_within        = tau_within,
+        sei               = sqrt(data[["sampling_var"]]),
+        selection_sei     = data[["sei"]],
+        selection_context = selection_context
+      ))
+    }
+
+    return(.outcome_pdf.norm(
+      yi         = data[["yi"]],
+      mu_samples = mu_samples,
+      tau_within = tau_within,
+      sei        = sqrt(data[["sampling_var"]])
+    ))
+  }
+
+  if (is_weightfunction) {
+    stop(
+      "Selection-model bridge likelihoods for known-V data require ",
+      "known_v_parameterization = 'latent'.",
+      call. = FALSE
+    )
+  }
+  if (is.null(model_data) || !.is_data_known_v(model_data)) {
+    stop("Known-V bridge likelihood requires known-V model metadata.",
+         call. = FALSE)
+  }
+
+  if (known_v_parameterization == "whitened") {
+    return(.marglik_known_v_whitened_log_lik(
+      data           = data,
+      mu_samples     = mu_samples,
+      extra_variance = extra_variance,
+      K              = K
+    ))
+  }
+  if (known_v_parameterization == "block_mvn") {
+    return(.marglik_known_v_block_mvn_log_lik_sum(
+      model_data       = model_data,
+      mu_samples       = mu_samples,
+      extra_variance   = extra_variance,
+      effect_direction = effect_direction,
+      K                = K
+    ))
+  }
+
+  stop("Unknown known-V parameterization: ", known_v_parameterization,
+       call. = FALSE)
+}
+
+
+.marglik_known_v_extra_variance <- function(parameters, model_data,
+                                            bridge_context,
+                                            tau_within_samples, is_random, K) {
+
+  extra_variance <- if (is_random) {
+    if (is.null(model_data)) {
+      stop(
+        "Random-formula known-V bridge likelihood requires model metadata.",
+        call. = FALSE
+      )
+    }
+    .evaluate_marginalized_random_variance(
+      data              = model_data,
+      posterior_samples = .marglik_bridge_posterior_samples(
+        parameters     = parameters,
+        bridge_context = bridge_context
+      ),
+      K                 = K
+    )
+  } else {
+    tau_within_samples^2
+  }
+  extra_variance <- as.matrix(extra_variance)
+
+  if (nrow(extra_variance) != 1L || ncol(extra_variance) != K) {
+    stop(
+      "Known-V bridge diagonal variance contributions have inconsistent dimensions.",
+      call. = FALSE
+    )
+  }
+  if (any(!is.finite(extra_variance)) || any(extra_variance < 0)) {
+    stop(
+      "Known-V bridge diagonal variance contributions must be non-negative.",
+      call. = FALSE
+    )
+  }
+
+  return(extra_variance)
+}
+
+
+.marglik_known_v_whitened_log_lik <- function(data, mu_samples,
+                                              extra_variance, K) {
+
+  whitening_mu <- as.vector(data[["whitening_matrix"]] %*%
+    as.numeric(mu_samples[1L, ]))
+  variance     <- data[["whitening_var"]] + as.numeric(extra_variance[1L, ])
+
+  if (any(!is.finite(variance)) || any(variance <= 0)) {
+    stop("Known-V whitened bridge variances must be positive.", call. = FALSE)
+  }
+
+  matrix(
+    stats::dnorm(
+      x    = data[["whitening_y"]],
+      mean = whitening_mu,
+      sd   = sqrt(variance),
+      log  = TRUE
+    ),
+    nrow = 1L,
+    ncol = K
+  )
+}
+
+
+.marglik_known_v_block_mvn_log_lik_sum <- function(model_data, mu_samples,
+                                                   extra_variance,
+                                                   effect_direction, K) {
+
+  known_V       <- .data_known_v_data(model_data)
+  yi            <- model_data[["outcome"]][["yi"]]
+  block_indices <- known_V[["block_indices"]]
+  log_lik       <- 0
+
+  if (effect_direction == "negative") {
+    yi <- -yi
+  }
+  if (is.null(block_indices) || length(block_indices) == 0L) {
+    block_indices <- as.list(seq_len(K))
+  }
+
+  for (idx in block_indices) {
+    covariance <- known_V[["V"]][idx, idx, drop = FALSE] +
+      diag(as.numeric(extra_variance[1L, idx]), nrow = length(idx))
+    log_lik <- log_lik + .marglik_mvn_log_density(
+      y          = yi[idx],
+      mean       = as.numeric(mu_samples[1L, idx]),
+      covariance = covariance
+    )
+  }
+
+  return(log_lik)
+}
+
+
+.marglik_mvn_log_density <- function(y, mean, covariance) {
+
+  chol_covariance <- tryCatch(
+    chol(covariance),
+    error = function(e) NULL
+  )
+  if (is.null(chol_covariance)) {
+    stop("Known-V bridge covariance is not positive definite.", call. = FALSE)
+  }
+
+  residual <- y - mean
+  z        <- backsolve(chol_covariance, residual, transpose = TRUE)
+  size     <- length(y)
+
+  -0.5 * (
+    size * log(2 * pi) +
+      2 * sum(log(diag(chol_covariance))) +
+      sum(z^2)
+  )
+}
+
+
+.parameters_as_sample_matrix <- function(parameters) {
+
+  values <- numeric()
+  for (name in names(parameters)) {
+    value <- parameters[[name]]
+    if (length(value) == 0L) {
+      next
+    }
+    value <- as.numeric(value)
+    names(value) <- if (length(value) == 1L) {
+      name
+    } else {
+      paste0(name, "[", seq_along(value), "]")
+    }
+    values <- c(values, value)
+  }
+
+  posterior_row <- attr(parameters, "posterior_samples", exact = TRUE)
+  if (!is.null(posterior_row)) {
+    posterior_row <- as.matrix(posterior_row)
+    if (nrow(posterior_row) != 1L || is.null(colnames(posterior_row))) {
+      stop("Bridge posterior row metadata have invalid dimensions.",
+           call. = FALSE)
+    }
+    extra <- setdiff(colnames(posterior_row), names(values))
+    if (length(extra) > 0L) {
+      extra_values <- as.numeric(posterior_row[1L, extra, drop = TRUE])
+      names(extra_values) <- extra
+      values <- c(values, extra_values)
+    }
+  }
+
+  out <- matrix(values, nrow = 1L)
+  colnames(out) <- names(values)
+  return(out)
+}
+
+
+.marglik_bridge_posterior_samples <- function(parameters, bridge_context = NULL) {
+
+  posterior_samples <- .parameters_as_sample_matrix(parameters)
+
+  if (!inherits(bridge_context, "BayesTools_bridge_context")) {
+    return(posterior_samples)
+  }
+
+  nodes <- bridge_context[["nodes"]]
+  if (length(nodes) == 0L) {
+    return(posterior_samples)
+  }
+  if (!is.numeric(nodes) || is.null(names(nodes))) {
+    stop("Bridge context nodes must be a named numeric vector.",
+         call. = FALSE)
+  }
+
+  nodes <- nodes[!is.na(names(nodes)) & nzchar(names(nodes))]
+  extra <- setdiff(names(nodes), colnames(posterior_samples))
+  if (length(extra) == 0L) {
+    return(posterior_samples)
+  }
+
+  extra_samples <- matrix(
+    as.numeric(nodes[extra]),
+    nrow     = 1L,
+    dimnames = list(NULL, extra)
+  )
+  posterior_samples <- cbind(posterior_samples, extra_samples)
+
+  return(posterior_samples)
 }
 
 

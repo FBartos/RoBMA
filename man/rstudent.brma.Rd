@@ -63,6 +63,9 @@ Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 residuals properly account for estimation uncertainty and leverage without
 requiring explicit hat matrix computation. This makes \code{rstudent.brma}
 suitable for all model types including selection models and GLMMs.
+For correlated known-\code{V} \code{brma.mv()} models, the PIT and companion
+residual moments are computed from the Schur-complement conditional
+predictive distribution used by estimate-unit LOO.
 }
 \examples{
 \dontrun{

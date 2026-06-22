@@ -39,7 +39,10 @@
     return(object[["formula_design"]][[parameter]])
   }
 
-  source <- .fitted_formula_source(parameter)
+  source <- .fitted_formula_source(
+    parameter = parameter,
+    data      = object[["data"]]
+  )
   if (is.null(source) ||
       is.null(object[["data"]]) ||
       is.null(object[["data"]][[source]])) {
@@ -55,6 +58,10 @@
     ))
   }
 
+  if (source == "location" && .is_data_random(object[["data"]])) {
+    return(NULL)
+  }
+
   return(.object_data_formula_design(
     object    = object,
     parameter = parameter,
@@ -65,17 +72,61 @@
 
 # Reconstruct BayesTools formula design for objects that store data and priors
 # but do not have a fitted JAGS object, e.g. only_priors objects.
-.object_bayestools_formula_design <- function(object, parameter, source) {
+.object_bayestools_formula_design <- function(
+    object, parameter, source,
+    random_effects_compile = .object_formula_random_effects_compile(object, source)) {
+
+  if (identical(source, "scale")) {
+    scale_spec <- .fitted_scale_spec(
+      data      = object[["data"]],
+      parameter = parameter
+    )
+    formula_design <- BayesTools::JAGS_formula(
+      formula       = .create_fit_scale_formula(scale_spec[["formula"]]),
+      parameter     = parameter,
+      data          = scale_spec[["data"]],
+      prior_list    = .create_fit_scale_formula_prior_list(
+        priors    = object[["priors"]],
+        parameter = parameter
+      ),
+      formula_scale = .data_standardize_continuous_predictors(object[["data"]])
+    )[["formula_design"]]
+
+    return(formula_design)
+  }
 
   formula_design <- BayesTools::JAGS_formula(
-    formula       = .create_fit_formula_list(data = object[["data"]], parameter = source),
+    formula       = .create_fit_formula_list(
+      data      = object[["data"]],
+      parameter = source
+    ),
     parameter     = parameter,
-    data          = .create_fit_formula_data_list(data = object[["data"]], parameter = source),
-    prior_list    = .create_fit_formula_prior_list(priors = object[["priors"]], parameter = source),
-    formula_scale = .data_standardize_continuous_predictors(object[["data"]])
+    data          = .create_fit_formula_data_list(
+      data      = object[["data"]],
+      parameter = source
+    ),
+    prior_list    = .create_fit_formula_prior_list(
+      priors    = object[["priors"]],
+      parameter = source
+    ),
+    formula_scale = .data_standardize_continuous_predictors(object[["data"]]),
+    prior_random  = .object_formula_prior_random(
+      object = object,
+      source = source
+    ),
+    random_effects_compile = random_effects_compile
   )[["formula_design"]]
 
   return(formula_design)
+}
+
+.object_formula_prior_random <- function(object, source) {
+
+  if (source != "location" || !.is_data_random(object[["data"]])) {
+    return(NULL)
+  }
+
+  return(object[["priors"]][["random"]])
 }
 
 
@@ -83,9 +134,19 @@
 # not have priors, so BayesTools::JAGS_formula() cannot be used.
 .object_data_formula_design <- function(object, parameter, source) {
 
-  formula <- .create_fit_formula_list(data = object[["data"]], parameter = source)
-  data    <- object[["data"]][[source]]
-  terms   <- attr(data, "terms")
+  if (identical(source, "scale")) {
+    scale_spec <- .fitted_scale_spec(
+      data      = object[["data"]],
+      parameter = parameter
+    )
+    formula <- .create_fit_scale_formula(scale_spec[["formula"]])
+    data    <- scale_spec[["data"]]
+  } else {
+    formula <- .create_fit_formula_list(data = object[["data"]], parameter = source)
+    data    <- object[["data"]][[source]]
+  }
+
+  terms <- attr(data, "terms")
 
   if (is.null(terms)) {
     terms <- stats::terms(formula, data = data)
@@ -127,25 +188,25 @@
   xlevels <- lapply(data[vapply(data, is.factor, logical(1))], levels)
 
   design <- list(
-    parameter        = parameter,
-    formula          = formula,
-    model_frame      = data,
-    model_matrix     = model_matrix,
-    column_names     = column_names,
-    raw_column_names = column_names,
-    assign           = assign,
-    terms            = terms,
-    contrasts        = attr(model_matrix, "contrasts"),
-    xlevels          = xlevels,
-    predictors       = predictors,
-    predictor_types  = predictor_types,
-    model_terms      = model_terms,
-    model_terms_type = model_terms_type,
-    prior_list       = NULL,
-    formula_scale    = NULL,
-    rank             = qr_x[["rank"]],
-    qr_pivot         = qr_x[["pivot"]],
-    aliased          = aliased,
+    parameter         = parameter,
+    formula           = formula,
+    model_frame       = data,
+    model_matrix      = model_matrix,
+    column_names      = column_names,
+    raw_column_names  = column_names,
+    assign            = assign,
+    terms             = terms,
+    contrasts         = attr(model_matrix, "contrasts"),
+    xlevels           = xlevels,
+    predictors        = predictors,
+    predictor_types   = predictor_types,
+    model_terms       = model_terms,
+    model_terms_type  = model_terms_type,
+    prior_list        = NULL,
+    formula_scale     = NULL,
+    rank              = qr_x[["rank"]],
+    qr_pivot          = qr_x[["pivot"]],
+    aliased           = aliased,
     transformed_terms = list(),
     random_effects    = list(),
     jags_data_names   = list()
@@ -184,14 +245,24 @@
 
 
 # Map a BayesTools formula parameter to the RoBMA data/prior source.
-.fitted_formula_source <- function(parameter) {
+.fitted_formula_source <- function(parameter, data = NULL) {
 
-  switch(
-    parameter,
-    "mu"      = "mods",
-    "log_tau" = "scale",
-    NULL
-  )
+  if (identical(parameter, "mu")) {
+    return(if (!is.null(data) && .is_data_random(data)) {
+      "location"
+    } else {
+      "mods"
+    })
+  }
+  if (identical(parameter, "log_tau")) {
+    return("scale")
+  }
+  if (!is.null(data) && .is_data_scale(data) &&
+      parameter %in% .data_scale_formula_parameters(data)) {
+    return("scale")
+  }
+
+  NULL
 }
 
 
@@ -200,9 +271,26 @@
 
   switch(
     source,
-    "mods"  = "mu",
-    "scale" = "log_tau",
+    "mods"     = "mu",
+    "location" = "mu",
+    "scale"    = "log_tau",
     source
+  )
+}
+
+.fitted_scale_spec <- function(data, parameter) {
+
+  specs <- .data_scale_component_specs(data)
+  for (scale_spec in specs) {
+    if (identical(scale_spec[["parameter"]], parameter)) {
+      return(scale_spec)
+    }
+  }
+
+  stop(
+    "Scale formula design metadata for parameter '", parameter,
+    "' is missing.",
+    call. = FALSE
   )
 }
 

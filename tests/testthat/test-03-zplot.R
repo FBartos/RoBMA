@@ -75,6 +75,63 @@ test_that("zplot creates reusable objects and plots directly", {
   )))
 })
 
+test_that("zplot allows descriptive known-V brma.mv displays", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+
+  zc <- .test_as_zplot(fits[[name]], max_samples = 1000)
+
+  expect_s3_class(zc, "zplot_brma")
+  expect_true(all(is.finite(zc[["zplot"]][["estimates"]][["EDR"]])))
+  expect_true(all(is.finite(zc[["zplot"]][["estimates"]][["weights"]])))
+  expect_equal(
+    length(zc[["zplot"]][["data"]][["z"]]),
+    nobs(fits[[name]])
+  )
+
+  density <- .test_lines_zplot(
+    zc,
+    as_data     = TRUE,
+    max_samples = 1000,
+    plot_ci     = FALSE,
+    length.out  = 25
+  )
+  expect_true(all(is.finite(density[["y"]])))
+})
+
+
+test_that("zplot known-V brma.mv uses estimate-target predictive components", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma          <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+  selected_rows     <- seq_len(min(25L, nrow(posterior_samples)))
+  posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
+
+  setup <- .estimate_likelihood_setup_from_parts(
+    fit               = fit_brma[["fit"]],
+    data              = fit_brma[["data"]],
+    priors            = fit_brma[["priors"]],
+    posterior_samples = posterior_samples,
+    unit              = "estimate",
+    data_hash         = .get_outcome_hash(fit_brma),
+    bias_adjusted     = TRUE,
+    caller            = "test"
+  )
+  components <- .zplot_predictive_components(
+    object            = fit_brma,
+    posterior_samples = posterior_samples,
+    extrapolate       = TRUE
+  )
+
+  expect_equal(components[["mu"]], setup[["mu"]])
+  expect_equal(components[["tau_within"]], .known_v_extra_sd_from_setup(setup))
+  expect_equal(components[["sei"]], setup[["selection_sei"]])
+})
+
 
 # ============================================================================ #
 # Test: Simple Meta-Analysis Zplot

@@ -13,6 +13,8 @@
   dots_prior = NULL,
   output_measure = NULL,
   transform = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
   ...
 )
 }
@@ -48,6 +50,23 @@ log-scale measures.}
 \item{transform}{optional display transformation. Currently \code{"EXP"}
 exponentiates log-scale measures \code{"OR"}, \code{"RR"}, \code{"HR"},
 and \code{"IRR"}.}
+
+\item{density_method}{posterior density method. \code{"KDE"} uses the
+standard BayesTools kernel density estimate and is the default, even when
+qCMDE/IWMDE densities are stored on \code{x}. \code{"qCMDE"} and
+\code{"IWMDE"} compute any missing densities for the plotted marginal means
+before plotting and never silently mix with KDE. Plot-time qCMDE/IWMDE
+computation can be slow and is used only for the current plot call; precompute
+with \code{marginal_means(..., density_method = "qCMDE")} or
+\code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
+plots.}
+
+\item{density_control}{named list of qCMDE/IWMDE density-estimation settings.
+Supported entries are \code{n_points}, \code{max_samples},
+\code{display_grid}, \code{normalization_points}, and
+\code{normalization_prob}. Supplying \code{density_control} forces
+recomputation for the plotted marginal means instead of reusing stored
+densities.}
 
 \item{...}{additional graphical arguments passed to
 \code{BayesTools::plot_marginal()}.}

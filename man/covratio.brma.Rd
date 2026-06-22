@@ -37,6 +37,9 @@ are supplied.
 Values > 1 indicate that the observation improves precision (decreases
 variance), while values < 1 indicate that the observation decreases precision
 (increases variance).
+For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
+correlated known-\code{V} data, this is influence under conditional estimate
+deletion, not independent-study deletion.
 If any included parameter has zero posterior variance, or if a full or LOO
 covariance determinant is zero or non-finite, COVRATIO is undefined. In that
 case, values are reported as \code{NaN} with a printed note when available.

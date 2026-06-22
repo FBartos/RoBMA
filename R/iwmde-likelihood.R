@@ -168,8 +168,12 @@
     data              = active_setup[["fit_data"]],
     is_mods           = .is_data_mods(context[["data"]]),
     is_scale          = .is_data_scale(context[["data"]]),
+    is_random         = .is_data_random(context[["data"]]),
     is_multilevel     = .is_data_multilevel(context[["data"]]),
     is_weights        = .is_data_weights(context[["data"]]),
+    is_known_v        = .is_data_known_v(context[["data"]]),
+    known_v_parameterization = .data_known_v_parameterization(context[["data"]]),
+    model_data        = context[["data"]],
     is_PET            = active_setup[["is_PET"]],
     is_PEESE          = active_setup[["is_PEESE"]],
     is_weightfunction = active_setup[["is_weightfunction"]],
@@ -283,24 +287,7 @@
 
 .iwmde_parameters_posterior_samples <- function(parameters) {
 
-  values <- numeric()
-  for (name in names(parameters)) {
-    value <- parameters[[name]]
-    if (length(value) == 0L) {
-      next
-    }
-    value <- as.numeric(value)
-    names(value) <- if (length(value) == 1L) {
-      name
-    } else {
-      paste0(name, "[", seq_along(value), "]")
-    }
-    values <- c(values, value)
-  }
-
-  out <- matrix(values, nrow = 1L)
-  colnames(out) <- names(values)
-  return(out)
+  .parameters_as_sample_matrix(parameters)
 }
 
 

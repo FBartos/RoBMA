@@ -125,6 +125,9 @@ effect; when PET/PEESE bias adjustment is incorporated, the center line can
 vary with the standard error. The funnel region represents the central 95\\%
 region of the sampling distribution, optionally incorporating heterogeneity
 and publication bias.
+For correlated known-\code{V} \code{brma.mv()} models, outcome-mode funnels
+are descriptive scalar-SE displays based on the diagonal of \code{V}; residual
+mode follows the fitted estimate-unit residual target.
 
 \strong{Residual mode} (models with moderators or scale regression):
 Displays residuals on the x-axis and standard errors on the

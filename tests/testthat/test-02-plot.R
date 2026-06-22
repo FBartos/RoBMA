@@ -5,6 +5,30 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
 
+test_that("plot.brma clears stale posterior density before qCMDE attach", {
+
+  samples <- list(mu = stats::rnorm(20))
+  attr(samples[["mu"]], "posterior_density") <- list(
+    x      = seq(-1, 1, length.out = 5),
+    y      = rep(.5, 5),
+    method = "q_grid_cmde"
+  )
+  attr(samples[["mu"]], "posterior_densities") <- list(mu = list(
+    x      = seq(-1, 1, length.out = 5),
+    y      = rep(.5, 5),
+    method = "q_grid_cmde"
+  ))
+
+  samples <- .plot_brma_clear_posterior_density(
+    samples          = samples,
+    sample_parameter = "mu"
+  )
+
+  expect_null(attr(samples[["mu"]], "posterior_density", exact = TRUE))
+  expect_null(attr(samples[["mu"]], "posterior_densities", exact = TRUE))
+})
+
+
 # list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()

@@ -263,6 +263,71 @@ test_that("plot transformations use BayesTools forward Jacobian convention", {
   )
 })
 
+test_that("precomputed posterior densities use EXP plot Jacobian", {
+
+  raw_x          <- log(c(.5, 1, 2, 4))
+  raw_y          <- c(.1, .4, .3, .05)
+  transformed_x  <- exp(raw_x)
+  sample         <- c(log(.6), log(1.2), log(2.5), log(3))
+  point_mass_x   <- log(2.25)
+  transformation <- .effect_plot_transformation(.effect_output_setup_measure(
+    input_measure = "OR",
+    transform     = "EXP"
+  ))
+  plot_data_samples_simple <- get(
+    ".plot_data_samples.simple",
+    envir    = asNamespace("BayesTools"),
+    inherits = FALSE
+  )
+
+  density_methods <- list(
+    qCMDE = list(method = "q_grid_cmde"),
+    IWMDE = list(method = "iwmde")
+  )
+
+  for (density_method in names(density_methods)) {
+    sample_with_density <- sample
+    attr(sample_with_density, "prior_list") <- list(BayesTools::prior(
+      "normal",
+      parameters = list(mean = 0, sd = 1)
+    ))
+    attr(sample_with_density, "models_ind") <- rep(1L, length(sample_with_density))
+    attr(sample_with_density, "posterior_density") <-
+      BayesTools::posterior_density_attribute(
+        x              = raw_x,
+        y              = raw_y,
+        method         = density_methods[[density_method]][["method"]],
+        density_method = density_method,
+        diagnostics    = list(estimator = density_methods[[density_method]][["method"]]),
+        point_masses   = data.frame(x = point_mass_x, mass = .2)
+      )
+
+    plot_data <- plot_data_samples_simple(
+      samples                  = list(mu = sample_with_density),
+      parameter                = "mu",
+      n_points                 = 20,
+      transformation           = transformation,
+      transformation_arguments = NULL,
+      transformation_settings  = FALSE,
+      density_method           = "precomputed"
+    )
+
+    expect_equal(plot_data[["density"]][["x"]], transformed_x)
+    expect_equal(plot_data[["density"]][["y"]], raw_y / transformed_x)
+    expect_equal(plot_data[["density"]][["samples"]], exp(sample))
+    expect_equal(
+      attr(plot_data[["density"]], "posterior_density_method"),
+      density_methods[[density_method]][["method"]]
+    )
+    expect_equal(
+      attr(plot_data[["density"]], "posterior_density_diagnostics")[["estimator"]],
+      density_methods[[density_method]][["method"]]
+    )
+    expect_equal(plot_data[["points1"]][["x"]], exp(point_mass_x))
+    expect_equal(plot_data[["points1"]][["y"]], .2)
+  }
+})
+
 test_that("transformed brma_samples preserve posterior draw integration", {
 
   samples <- matrix(c(0, log(2), log(3)), ncol = 1)

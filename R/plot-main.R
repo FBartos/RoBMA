@@ -39,7 +39,8 @@
 #' @param density_control named list of density-estimation settings. Supported
 #' entries are \code{n_points}, \code{max_samples}, \code{display_grid},
 #' \code{normalization_points}, and \code{normalization_prob}. The
-#' normalization entries are only used with \code{density_method = "qCMDE"}.
+#' normalization entries are used with \code{density_method = "qCMDE"} and
+#' \code{density_method = "IWMDE"}.
 #' @param dots_prior list of additional graphical arguments
 #' to be passed to the plotting function of the prior
 #' distribution. Supported arguments are \code{lwd},
@@ -216,9 +217,12 @@ plot.brma  <- function(
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
   }
-  context          <- .iwmde_context(object)
-  method           <- .density_method_iwmde_estimator(density_method)
-  diagnostic_cache <- .iwmde_diagnostic_cache()
+  samples <- .plot_brma_clear_posterior_density(
+    samples          = samples,
+    sample_parameter = sample_parameter
+  )
+  context        <- .iwmde_context(object)
+  estimate_cache <- .iwmde_estimate_cache()
 
   if (inherits(samples[[sample_parameter]], "mixed_posteriors.factor")) {
     return(.plot_brma_attach_iwmde_factor(
@@ -231,11 +235,10 @@ plot.brma  <- function(
       max_samples          = max_samples,
       normalization_points = normalization_points,
       normalization_prob   = normalization_prob,
-      method               = method,
       density_method       = density_method,
       display_grid         = display_grid,
       context              = context,
-      diagnostic_cache     = diagnostic_cache
+      estimate_cache       = estimate_cache
     ))
   }
 
@@ -248,29 +251,34 @@ plot.brma  <- function(
     return(samples)
   }
 
-  diagnostic <- .iwmde_parameter_diagnostic(
-    context              = context,
-    parameter            = parameter,
-    n_points             = n_points,
-    max_samples          = max_samples,
-    normalization_points = normalization_points,
-    normalization_prob   = normalization_prob,
-    method               = method,
-    display_grid_method  = display_grid,
-    parameter_spec       = list(
+  estimate <- .iwmde_estimate(
+    context         = context,
+    parameter       = parameter,
+    density_method  = density_method,
+    density_control = list(
+      n_points             = n_points,
+      max_samples          = max_samples,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      display_grid         = display_grid
+    ),
+    outputs        = "density",
+    parameter_spec = list(
       type             = "primitive",
       conditional      = conditional,
       conditional_rule = "AND"
     ),
-    diagnostic_cache     = diagnostic_cache
+    metadata       = .iwmde_posterior_metadata(
+      samples   = samples[[sample_parameter]],
+      parameter = parameter
+    ),
+    cache          = estimate_cache
   )
+  diagnostic <- estimate[["diagnostics"]][["density"]]
   attr(samples, "iwmde_diagnostics") <- list(parameter = diagnostic)
 
   if (identical(diagnostic[["status"]], "ok")) {
-    posterior_density <- .iwmde_posterior_density_attribute(
-      diagnostic     = diagnostic,
-      density_method = density_method
-    )
+    posterior_density <- estimate[["posterior_density"]]
     posterior_density <- .plot_brma_align_iwmde_density(
       posterior_density = posterior_density,
       raw_samples       = diagnostic[["samples"]],
@@ -285,13 +293,24 @@ plot.brma  <- function(
 }
 
 
+.plot_brma_clear_posterior_density <- function(samples, sample_parameter) {
+
+  if (!is.null(samples[[sample_parameter]])) {
+    attr(samples[[sample_parameter]], "posterior_density")   <- NULL
+    attr(samples[[sample_parameter]], "posterior_densities") <- NULL
+  }
+
+  return(samples)
+}
+
+
 .plot_brma_attach_iwmde_factor <- function(object, samples, parameter,
                                            sample_parameter, conditional,
                                            n_points, max_samples,
                                            normalization_points,
-                                           normalization_prob, method,
+                                           normalization_prob,
                                            density_method, display_grid,
-                                           context, diagnostic_cache) {
+                                           context, estimate_cache) {
 
   sample <- samples[[sample_parameter]]
   if (is.null(colnames(sample))) {
@@ -325,15 +344,10 @@ plot.brma  <- function(
     return(samples)
   }
 
-  posterior_densities <- attr(
-    samples[[sample_parameter]],
-    "posterior_densities",
-    exact = TRUE
-  )
-  if (is.null(posterior_densities)) {
-    posterior_densities <- list()
-  }
-  diagnostics <- list()
+  posterior_densities <- list()
+  diagnostics         <- list()
+  expected_columns    <- colnames(plot_sample)
+  density_columns     <- character()
 
   for (column_i in seq_len(ncol(plot_sample))) {
     column  <- colnames(plot_sample)[[column_i]]
@@ -362,38 +376,39 @@ plot.brma  <- function(
       next
     }
 
-    diagnostic <- .iwmde_parameter_diagnostic(
-      context              = context,
-      parameter            = column,
-      n_points             = n_points,
-      max_samples          = max_samples,
-      normalization_points = normalization_points,
-      normalization_prob   = normalization_prob,
-      method               = method,
-      display_grid_method  = display_grid,
-      parameter_spec       = .plot_brma_iwmde_parameter_spec(
+    estimate <- .iwmde_estimate(
+      context         = context,
+      parameter       = column,
+      density_method  = density_method,
+      density_control = list(
+        n_points             = n_points,
+        max_samples          = max_samples,
+        normalization_points = normalization_points,
+        normalization_prob   = normalization_prob,
+        display_grid         = display_grid
+      ),
+      outputs        = "density",
+      parameter_spec = .plot_brma_iwmde_parameter_spec(
         samples     = raw_posterior[[level]],
         conditional = conditional,
         type        = "linear",
         weights     = weights
       ),
-      diagnostic_cache     = diagnostic_cache
+      metadata       = .iwmde_posterior_metadata(
+        samples   = raw_posterior[[level]],
+        parameter = aliases,
+        level     = level
+      ),
+      cache          = estimate_cache
     )
+    diagnostic <- estimate[["diagnostics"]][["density"]]
     diagnostics[[column]] <- diagnostic
 
     if (!identical(diagnostic[["status"]], "ok")) {
       next
     }
 
-    posterior_density <- .iwmde_posterior_density_attribute(
-      diagnostic     = diagnostic,
-      density_method = density_method,
-      metadata       = .iwmde_posterior_metadata(
-        samples   = raw_posterior[[level]],
-        parameter = aliases,
-        level     = level
-      )
-    )
+    posterior_density <- estimate[["posterior_density"]]
     posterior_density <- .plot_brma_align_iwmde_density(
       posterior_density = posterior_density,
       raw_samples       = diagnostic[["samples"]],
@@ -405,44 +420,47 @@ plot.brma  <- function(
         aliases             = aliases,
         posterior_density   = posterior_density
       )
+      density_columns <- c(density_columns, column)
     }
   }
 
   if (length(diagnostics) == 0L && ncol(sample) == 1L) {
     column  <- colnames(sample)[[1L]]
+    expected_columns <- column
     aliases <- .plot_brma_factor_density_aliases(
       parameter   = sample_parameter,
       sample      = sample,
       sample_name = column,
       level_i     = 1L
     )
-    diagnostic <- .iwmde_parameter_diagnostic(
-      context              = context,
-      parameter            = parameter,
-      n_points             = n_points,
-      max_samples          = max_samples,
-      normalization_points = normalization_points,
-      normalization_prob   = normalization_prob,
-      method               = method,
-      display_grid_method  = display_grid,
-      parameter_spec       = .plot_brma_iwmde_parameter_spec(
+    estimate <- .iwmde_estimate(
+      context         = context,
+      parameter       = parameter,
+      density_method  = density_method,
+      density_control = list(
+        n_points             = n_points,
+        max_samples          = max_samples,
+        normalization_points = normalization_points,
+        normalization_prob   = normalization_prob,
+        display_grid         = display_grid
+      ),
+      outputs        = "density",
+      parameter_spec = .plot_brma_iwmde_parameter_spec(
         samples     = sample,
         conditional = conditional,
         type        = "primitive"
       ),
-      diagnostic_cache     = diagnostic_cache
+      metadata       = .iwmde_posterior_metadata(
+        samples   = sample,
+        parameter = aliases
+      ),
+      cache          = estimate_cache
     )
+    diagnostic <- estimate[["diagnostics"]][["density"]]
     diagnostics[[column]] <- diagnostic
 
     if (identical(diagnostic[["status"]], "ok")) {
-      posterior_density <- .iwmde_posterior_density_attribute(
-        diagnostic     = diagnostic,
-        density_method = density_method,
-        metadata       = .iwmde_posterior_metadata(
-          samples   = sample,
-          parameter = aliases
-        )
-      )
+      posterior_density <- estimate[["posterior_density"]]
       posterior_density <- .plot_brma_align_iwmde_density(
         posterior_density = posterior_density,
         raw_samples       = diagnostic[["samples"]],
@@ -454,6 +472,7 @@ plot.brma  <- function(
           aliases             = aliases,
           posterior_density   = posterior_density
         )
+        density_columns <- c(density_columns, column)
       }
     }
   }
@@ -461,8 +480,12 @@ plot.brma  <- function(
   if (length(diagnostics) > 0L) {
     attr(samples, "iwmde_diagnostics") <- diagnostics
   }
-  if (length(posterior_densities) > 0L) {
+  if (.plot_brma_factor_density_complete(density_columns, expected_columns)) {
+    attr(samples[[sample_parameter]], "posterior_density")   <- NULL
     attr(samples[[sample_parameter]], "posterior_densities") <- posterior_densities
+  } else {
+    attr(samples[[sample_parameter]], "posterior_density")   <- NULL
+    attr(samples[[sample_parameter]], "posterior_densities") <- NULL
   }
 
   return(samples)
@@ -503,6 +526,22 @@ plot.brma  <- function(
   }
 
   return(posterior_densities)
+}
+
+
+.plot_brma_factor_density_complete <- function(density_columns, expected_columns) {
+
+  density_columns <- unique(as.character(density_columns))
+  density_columns <- density_columns[!is.na(density_columns) & nzchar(density_columns)]
+
+  expected_columns <- unique(as.character(expected_columns))
+  expected_columns <- expected_columns[!is.na(expected_columns) & nzchar(expected_columns)]
+
+  if (length(expected_columns) == 0L) {
+    return(FALSE)
+  }
+
+  return(setequal(density_columns, expected_columns))
 }
 
 
@@ -659,8 +698,12 @@ plot.brma  <- function(
     return(NULL)
   }
   if (is.matrix(sample)) {
-    column <- grep(parameter, colnames(sample), fixed = TRUE)
-    if (length(column) != 1L) {
+    columns <- colnames(sample)
+    if (is.null(columns)) {
+      return(NULL)
+    }
+    column <- match(parameter, columns)
+    if (is.na(column)) {
       return(NULL)
     }
     return(as.numeric(sample[, column]))
@@ -710,6 +753,14 @@ plot.brma  <- function(
       transform[["slope"]] * posterior_density[["point_masses"]][["x"]]
   }
   posterior_density[["diagnostics"]][["plot_scale_transform"]] <- transform
+  provenance <- posterior_density[["iwmde_provenance"]]
+  if (is.list(provenance)) {
+    provenance[["result"]] <- c(
+      provenance[["result"]],
+      list(plot_scale_transform = transform)
+    )
+    posterior_density[["iwmde_provenance"]] <- provenance
+  }
 
   return(posterior_density)
 }

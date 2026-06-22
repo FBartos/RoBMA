@@ -74,6 +74,7 @@ The [*Bayesian Meta-Analysis*](`r article_url("v02-bayesian-meta-analysis")`) vi
 | [*Publication-Bias Adjustment*](`r article_url("v11-metafor-parity-publication-bias")`) | `bselmodel()` / `bPET()` / `bPEESE()` and `metafor::selmodel()` |
 | [*Location-Scale Models*](`r article_url("v12-metafor-parity-location-scale")`) | `brma()` with `scale` and `metafor::rma.ls()`          |
 | [*Generalized Linear Mixed-Effects Meta-Analysis*](`r article_url("v13-metafor-parity-glmm")`) | `brma.glmm()` and `metafor::rma.glmm()` for binomial and Poisson outcomes |
+| [*Multivariate and Multilevel Meta-Analysis*](`r article_url("v14-metafor-parity-multivariate")`) | `brma.mv()` with known sampling covariance matrices and structured random effects |
 
 Each vignette starts from a `metafor` package analysis and shows the matching `RoBMA` R package syntax, output, and diagnostics.
 

@@ -28,6 +28,11 @@
 #' where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
 #' generalized inverse of the full-posterior fitted-value covariance, and
 #' \eqn{P} is the rank of the fixed-effect model matrix.
+#' For \code{brma.mv()} known-\code{V} models, Cook's distance uses
+#' estimate-unit PSIS weights. With correlated known-\code{V}, deletion is
+#' conditional estimate deletion and the reported fitted-value target is the
+#' fixed-location mean \eqn{\mu = X\beta}; sampled or marginalized random
+#' effects are not included in the reported fitted value.
 #'
 #' @return A numeric vector of Cook's distance values, one for each observation.
 #'
@@ -63,6 +68,9 @@ cooks.distance.brma <- function(model, ...) {
   P           <- qr(.get_model_matrix(model))[["rank"]]
   d_vec       <- .cooks.distance_internal(fit_samples, weights, P)
   d_vec       <- .diagnostic_set_names(d_vec, model)
+  if (inherits(model, "brma.mv")) {
+    d_vec <- .brma_mv_attach_target_metadata(d_vec, "cooks.distance()")
+  }
 
   return(d_vec)
 }

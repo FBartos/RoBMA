@@ -21,6 +21,39 @@
 #'
 #' @return A \code{BayesTools_hypothesis_BF} BayesTools table.
 #'
+#' @examples \dontrun{
+#' fit <- brma(
+#'   yi      = c(0.12, 0.20, 0.05, 0.33, 0.18),
+#'   sei     = c(0.10, 0.12, 0.09, 0.15, 0.11),
+#'   measure = "GEN"
+#' )
+#'
+#' # Average-effect hypotheses
+#' hypothesis(fit, "mu != 0 vs mu = 0")
+#' hypothesis(fit, "mu > 0 vs mu = 0")
+#' hypothesis(fit, "mu > 0 vs mu < 0")
+#'
+#' # Heterogeneity hypothesis
+#' hypothesis(fit, "tau = 0 vs tau > 0", component = "scale")
+#'
+#' dat <- data.frame(
+#'   yi    = c(0.12, 0.20, 0.05, 0.33, 0.18, 0.41),
+#'   sei   = c(0.10, 0.12, 0.09, 0.15, 0.11, 0.14),
+#'   group = factor(c("A", "A", "A", "B", "B", "B"))
+#' )
+#' fit_mod <- brma(
+#'   yi      = yi,
+#'   sei     = sei,
+#'   mods    = ~ group,
+#'   data    = dat,
+#'   measure = "GEN"
+#' )
+#'
+#' # Marginal-mean hypothesis for a factor level
+#' emm <- marginal_means(fit_mod, density_method = "qCMDE")
+#' hypothesis(emm, "group[B] > 0 vs group[B] = 0", density_method = "qCMDE")
+#' }
+#'
 #' @seealso [marginal_means()], [plot.brma()], [bridge_sampler.brma()]
 #' @export
 hypothesis <- function(object, ...) {
@@ -167,12 +200,11 @@ hypothesis.brma <- function(object, hypothesis,
       normalization_points     = density_control[["normalization_points"]],
       normalization_prob       = density_control[["normalization_prob"]],
       density_method           = density_method,
-      standardized_coefficients = standardized_coefficients,
       n_samples                = n_samples
     )
   }
 
-  BayesTools::hypothesis_BF(
+  out <- BayesTools::hypothesis_BF(
     posterior      = posterior,
     hypothesis     = hypothesis,
     parameter      = parameter,
@@ -186,6 +218,15 @@ hypothesis.brma <- function(object, hypothesis,
       density_method
     }
   )
+
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+    out <- .hypothesis_brma_append_iwmde_warnings(
+      table     = out,
+      posterior = posterior
+    )
+  }
+
+  return(out)
 }
 
 #' @rdname hypothesis

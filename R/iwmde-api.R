@@ -28,15 +28,20 @@
 #' @param n_points number of grid points per density curve.
 #' @param max_samples maximum posterior rows used by the density estimator per
 #' parameter.
-#' @param normalization_points number of internal-scale grid points used for
-#' row-wise conditional normalization. Defaults to \code{max(50, n_points)}.
-#' @param normalization_prob posterior central probability used to construct
-#' the normalization grid before forcing it to include the displayed range.
+#' @param normalization_points number of initial internal-scale grid points used
+#' for qCMDE row-wise conditional normalization and IWMDE support-grid
+#' diagnostics. qCMDE internally refines and extends this grid for the final
+#' row normalizers. Defaults to \code{max(50, n_points)}.
+#' @param normalization_prob posterior central probability used to construct the
+#' estimator-owned hidden normalization grid. Display ranges and requested point
+#' ordinates do not force this grid; qCMDE refines and extends it internally for
+#' validation.
 #' @param density_method density estimator. \code{"qCMDE"} uses
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} uses
 #' Chen-style moment-matched weights: conditional normal weights for
-#' unconstrained targets and power/exponential weights for bounded or
-#' one-sided targets. Matching is case-insensitive.
+#' unconstrained targets, Gamma weights for one-sided targets, and
+#' logit-conditional-normal weights for bounded targets. Matching is
+#' case-insensitive.
 #' @param display_grid support-point placement for the plotted IWMDE curve.
 #' \code{"adaptive"} combines a uniform backbone, posterior quantiles, and
 #' pilot-density height/curvature points. \code{"uniform"} uses equally spaced
@@ -87,7 +92,6 @@ plot_iwmde_diagnostics <- function(object, parameters = NULL, n_points = 150,
     BayesTools::check_char(parameters, "parameters", check_length = 0, allow_NA = FALSE)
   }
   density_method <- .density_method_normalize_precomputed(density_method)
-  method <- .density_method_iwmde_estimator(density_method)
   display_grid <- .iwmde_normalize_display_grid(display_grid)
 
   context <- .iwmde_context(object)
@@ -100,20 +104,26 @@ plot_iwmde_diagnostics <- function(object, parameters = NULL, n_points = 150,
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
   }
-  diagnostic_cache <- .iwmde_diagnostic_cache()
+  estimate_cache <- .iwmde_estimate_cache()
+  density_control <- list(
+    n_points             = n_points,
+    max_samples          = max_samples,
+    normalization_points = normalization_points,
+    normalization_prob   = normalization_prob,
+    display_grid         = display_grid
+  )
 
   out <- lapply(parameters, function(parameter) {
-    .iwmde_parameter_diagnostic(
-      context     = context,
-      parameter   = parameter,
-      n_points    = n_points,
-      max_samples = max_samples,
-      normalization_points = normalization_points,
-      normalization_prob   = normalization_prob,
-      method               = method,
-      display_grid_method  = display_grid,
-      diagnostic_cache     = diagnostic_cache
+    estimate <- .iwmde_estimate(
+      context         = context,
+      parameter       = parameter,
+      density_method  = density_method,
+      density_control = density_control,
+      outputs         = "density",
+      cache           = estimate_cache
     )
+
+    estimate[["diagnostics"]][["density"]]
   })
   names(out) <- parameters
   class(out) <- c("iwmde_diagnostics", "list")
@@ -201,7 +211,6 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     BayesTools::check_char(levels, "levels", check_length = 0, allow_NA = FALSE)
   }
   density_method <- .density_method_normalize_precomputed(density_method)
-  method <- .density_method_iwmde_estimator(density_method)
   display_grid <- .iwmde_normalize_display_grid(display_grid)
 
   if (is.null(marginal_means_object)) {
@@ -225,7 +234,14 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)
   }
-  diagnostic_cache <- .iwmde_diagnostic_cache()
+  estimate_cache <- .iwmde_estimate_cache()
+  density_control <- list(
+    n_points             = n_points,
+    max_samples          = max_samples,
+    normalization_points = normalization_points,
+    normalization_prob   = normalization_prob,
+    display_grid         = display_grid
+  )
 
   context <- .iwmde_context(object)
   specs   <- .iwmde_marginal_means_specs(
@@ -239,18 +255,17 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   out <- lapply(specs, function(spec) {
-    .iwmde_parameter_diagnostic(
-      context              = context,
-      parameter            = spec[["label"]],
-      n_points             = n_points,
-      max_samples          = max_samples,
-      normalization_points = normalization_points,
-      normalization_prob   = normalization_prob,
-      method               = method,
-      parameter_spec       = spec,
-      display_grid_method  = display_grid,
-      diagnostic_cache     = diagnostic_cache
+    estimate <- .iwmde_estimate(
+      context         = context,
+      parameter       = spec[["label"]],
+      density_method  = density_method,
+      density_control = density_control,
+      outputs         = "density",
+      parameter_spec  = spec,
+      cache           = estimate_cache
     )
+
+    estimate[["diagnostics"]][["density"]]
   })
   names(out) <- names(specs)
   class(out) <- c("iwmde_diagnostics", "list")
@@ -312,6 +327,38 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   )
 
   class(context) <- "iwmde_context"
+  return(context)
+}
+
+
+.iwmde_context_ensure_caches <- function(context) {
+
+  cache_names <- c(
+    "active_cache",
+    "focal_prior_cache",
+    "support_cache",
+    "likelihood_cache",
+    "row_cache",
+    "predictor_cache"
+  )
+  for (cache_name in cache_names) {
+    if (!is.environment(context[[cache_name]])) {
+      context[[cache_name]] <- new.env(parent = emptyenv())
+    }
+  }
+  if (is.null(context[["indicator_names"]])) {
+    context[["indicator_names"]] <- character()
+  }
+  if (is.null(context[["priors"]])) {
+    context[["priors"]] <- list()
+  }
+  if (is.null(context[["flat_prior_list"]])) {
+    context[["flat_prior_list"]] <- list()
+  }
+  if (is.null(context[["formula_inputs"]])) {
+    context[["formula_inputs"]] <- list()
+  }
+
   return(context)
 }
 
@@ -512,7 +559,6 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     "normalization_prob",
     "display_grid"
   )
-  qcmde_only <- c("normalization_points", "normalization_prob")
   defaults <- list(
     n_points             = 150L,
     max_samples          = 400L,
@@ -552,14 +598,6 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
          "'qCMDE' or 'IWMDE'.", call. = FALSE)
   }
 
-  unavailable_names <- intersect(control_names, qcmde_only)
-  if (identical(density_method, "IWMDE") && length(unavailable_names) > 0L) {
-    stop("'density_control' setting(s) ",
-         paste0("'", unavailable_names, "'", collapse = ", "),
-         " are only available when 'density_method = \"qCMDE\"'.",
-         call. = FALSE)
-  }
-
   for (name in control_names) {
     defaults[[name]] <- density_control[[name]]
   }
@@ -590,7 +628,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
 
 .iwmde_posterior_density_attribute <- function(diagnostic, density_method,
-                                               metadata = NULL) {
+                                               metadata = NULL,
+                                               density_control = NULL) {
 
   if (!identical(diagnostic[["status"]], "ok") ||
       is.null(diagnostic[["iwmde"]])) {
@@ -598,6 +637,13 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   density <- diagnostic[["iwmde"]]
+  provenance <- .iwmde_result_provenance(
+    diagnostic      = diagnostic,
+    density_method  = density_method,
+    metadata        = metadata,
+    density_control = density_control,
+    attribute       = "density"
+  )
   args <- c(
     list(
       x              = density[["x"]],
@@ -605,7 +651,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
       method         = density[["estimator"]],
       density_method = .density_method_normalize(density_method),
       diagnostics    = diagnostic[["diagnostics"]],
-      point_masses   = diagnostic[["point_masses"]]
+      point_masses   = diagnostic[["point_masses"]],
+      iwmde_provenance = provenance
     ),
     metadata
   )
@@ -619,7 +666,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
 
 .iwmde_posterior_ordinate_attribute <- function(diagnostic, density_method,
-                                                metadata = NULL) {
+                                                metadata = NULL,
+                                                density_control = NULL) {
 
   if (!identical(diagnostic[["status"]], "ok") ||
       is.null(diagnostic[["diagnostics"]])) {
@@ -633,28 +681,74 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     return(NULL)
   }
 
+  ordinate_diagnostics <- list(
+    evaluation_value                  = diagnostics[["bf_evaluation_value"]],
+    mcse                              = diagnostics[["bf_mcse"]],
+    relative_mcse                     = diagnostics[["bf_relative_mcse"]],
+    BF_error_percent                  = diagnostics[["bf_error_percent"]],
+    finite_terms                      = diagnostics[["bf_finite_terms"]],
+    ess                               = diagnostics[["bf_ess"]],
+    max_weight_share                  = diagnostics[["bf_max_weight_share"]],
+    max_log_ratio                     = diagnostics[["bf_max_log_ratio"]],
+    active_mass                       = diagnostics[["active_mass"]],
+    n_candidate_rows                  = diagnostics[["n_candidate_rows"]],
+    n_denominator_rows                = diagnostics[["n_denominator_rows"]],
+    n_estimator_rows                  = diagnostics[["n_estimator_rows"]],
+    n_evaluated_rows                  = diagnostics[["n_evaluated_rows"]],
+    n_normalized_rows                 = diagnostics[["n_normalized_rows"]],
+    n_dropped_rows                    = diagnostics[["n_dropped_rows"]],
+    row_drop_fraction                 = diagnostics[["row_drop_fraction"]],
+    n_dropped_log_q                   = diagnostics[["n_dropped_log_q"]],
+    n_dropped_weight                  = diagnostics[["n_dropped_weight"]],
+    weight_partitions                 = diagnostics[["weight_partitions"]],
+    n_dropped_normalizer              = diagnostics[["n_dropped_normalizer"]],
+    n_validation_dropped_normalizer   = diagnostics[["n_validation_dropped_normalizer"]],
+    pilot_ordinate                    = diagnostics[["bf_pilot_ordinate"]],
+    validation_ordinate               = diagnostics[["bf_validation_ordinate"]],
+    ordinate_relative_change          = diagnostics[["bf_ordinate_relative_change"]],
+    ordinate_log_change               = diagnostics[["bf_ordinate_log_change"]],
+    pilot_ordinate_relative_change    =
+      diagnostics[["bf_pilot_ordinate_relative_change"]],
+    pilot_ordinate_log_change         =
+      diagnostics[["bf_pilot_ordinate_log_change"]],
+    normalization_integral            = diagnostics[["normalization_integral"]],
+    normalization_final_integral      = diagnostics[["normalization_final_integral"]],
+    normalization_mass_ratio          = diagnostics[["normalization_mass_ratio"]],
+    normalization_range               = diagnostics[["normalization_range"]],
+    normalization_initial_points      = diagnostics[["normalization_initial_points"]],
+    normalization_initial_range       = diagnostics[["normalization_initial_range"]],
+    max_normalizer_relative_change    = diagnostics[["max_normalizer_relative_change"]],
+    p95_normalizer_relative_change    = diagnostics[["p95_normalizer_relative_change"]],
+    median_normalizer_relative_change = diagnostics[["median_normalizer_relative_change"]],
+    normalization_refined_points      = diagnostics[["normalization_refined_points"]],
+    normalization_refined_range       = diagnostics[["normalization_refined_range"]],
+    n_refinement_steps                = diagnostics[["n_refinement_steps"]],
+    estimator                         = diagnostics[["estimator"]],
+    weight_method                     = diagnostics[["weight_method"]]
+  )
+  ordinate_warning <- .iwmde_diagnostics_bf_warning(ordinate_diagnostics)
+  if (length(ordinate_warning) > 0L) {
+    ordinate_diagnostics[["warning"]] <- ordinate_warning
+  }
+  provenance <- .iwmde_result_provenance(
+    diagnostic       = diagnostic,
+    density_method   = density_method,
+    metadata         = metadata,
+    density_control  = density_control,
+    value            = diagnostics[["bf_value"]],
+    evaluation_value = diagnostics[["bf_evaluation_value"]],
+    attribute        = "ordinate"
+  )
+
   args <- c(
     list(
-      value          = diagnostics[["bf_value"]],
-      ordinate       = diagnostics[["bf_ordinate"]],
-      method         = diagnostics[["estimator"]],
-      density_method = .density_method_normalize(density_method),
-      diagnostics    = list(
-        evaluation_value       = diagnostics[["bf_evaluation_value"]],
-        mcse                   = diagnostics[["bf_mcse"]],
-        relative_mcse          = diagnostics[["bf_relative_mcse"]],
-        BF_error_percent       = diagnostics[["bf_error_percent"]],
-        finite_terms           = diagnostics[["bf_finite_terms"]],
-        ess                    = diagnostics[["bf_ess"]],
-        max_weight_share       = diagnostics[["bf_max_weight_share"]],
-        max_log_ratio          = diagnostics[["bf_max_log_ratio"]],
-        active_mass            = diagnostics[["active_mass"]],
-        normalization_integral = diagnostics[["normalization_integral"]],
-        normalization_range    = diagnostics[["normalization_range"]],
-        estimator              = diagnostics[["estimator"]],
-        weight_method          = diagnostics[["weight_method"]]
-      ),
-      evaluation_value = diagnostics[["bf_evaluation_value"]]
+      value            = diagnostics[["bf_value"]],
+      ordinate         = diagnostics[["bf_ordinate"]],
+      method           = diagnostics[["estimator"]],
+      density_method   = .density_method_normalize(density_method),
+      diagnostics      = ordinate_diagnostics,
+      evaluation_value = diagnostics[["bf_evaluation_value"]],
+      iwmde_provenance = provenance
     ),
     metadata
   )
@@ -682,62 +776,401 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
 .iwmde_posterior_ordinate_bf_validator <- function(posterior_ordinate) {
 
+  return(is.null(
+    .iwmde_posterior_ordinate_bf_failure_reason(posterior_ordinate)
+  ))
+}
+
+
+.iwmde_posterior_ordinate_bf_failure_reason <- function(posterior_ordinate) {
+
   diagnostics <- posterior_ordinate[["diagnostics"]]
   if (is.null(diagnostics) || !is.list(diagnostics)) {
-    return(FALSE)
+    return("missing qCMDE/IWMDE BF diagnostics")
   }
+
+  ordinate <- .iwmde_ordinate_scalar(posterior_ordinate, "ordinate")
+  if (!is.finite(ordinate)) {
+    ordinate <- .iwmde_ordinate_scalar(posterior_ordinate, "y")
+  }
+  if (!is.finite(ordinate) || ordinate <= 0) {
+    return("posterior ordinate is zero or non-finite")
+  }
+
+  value <- .iwmde_ordinate_scalar(posterior_ordinate, "evaluation_value")
+  if (!is.finite(value)) {
+    value <- .iwmde_ordinate_scalar(posterior_ordinate, "value")
+  }
+  if (is.finite(value)) {
+    diagnostics[["evaluation_value"]] <- value
+  }
+
+  return(.iwmde_diagnostics_bf_failure_reason(diagnostics))
+}
+
+
+.iwmde_diagnostics_bf_failure_reason <- function(diagnostics) {
 
   estimator <- diagnostics[["estimator"]]
   if (length(estimator) != 1L) {
-    return(FALSE)
+    return("missing qCMDE/IWMDE estimator diagnostics")
   }
   estimator <- as.character(estimator)
   if (!estimator %in% c("q_grid_cmde", "iwmde")) {
-    return(FALSE)
+    return("unknown qCMDE/IWMDE estimator")
   }
 
-  ordinate         <- .iwmde_ordinate_scalar(posterior_ordinate, "ordinate")
-  relative_mcse    <- .iwmde_diagnostic_scalar(diagnostics, "relative_mcse")
-  finite_terms     <- .iwmde_diagnostic_scalar(diagnostics, "finite_terms")
-  ess              <- .iwmde_diagnostic_scalar(diagnostics, "ess")
-  max_weight_share <- .iwmde_diagnostic_scalar(diagnostics, "max_weight_share")
-  if (!is.finite(ordinate) || ordinate <= 0 ||
-      !is.finite(relative_mcse) || relative_mcse < 0 ||
-      relative_mcse >= .iwmde_bf_max_relative_mcse() ||
-      !is.finite(finite_terms) || finite_terms < 20 ||
-      !is.finite(ess) || ess < .iwmde_bf_min_ess() ||
-      !is.finite(max_weight_share) ||
+  ordinate <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("ordinate", "bf_ordinate")
+  )
+  if (!is.na(ordinate) && (!is.finite(ordinate) || ordinate <= 0)) {
+    return("posterior ordinate is zero or non-finite")
+  }
+
+  relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("relative_mcse", "bf_relative_mcse")
+  )
+  if (!is.finite(relative_mcse) || relative_mcse < 0 ||
+      relative_mcse >= .iwmde_bf_max_relative_mcse()) {
+    return(paste0(
+      "relative MCSE is ",
+      .iwmde_percent(relative_mcse),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_bf_max_relative_mcse()),
+      ")"
+    ))
+  }
+
+  finite_terms <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("finite_terms", "bf_finite_terms")
+  )
+  if (!is.finite(finite_terms) || finite_terms < 20) {
+    return(paste0(
+      "only ", .iwmde_count(finite_terms),
+      " finite importance terms are available (minimum 20)"
+    ))
+  }
+
+  ess <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("ess", "bf_ess")
+  )
+  if (!is.finite(ess) || ess < .iwmde_bf_min_ess()) {
+    return(paste0(
+      "effective sample size is ", .iwmde_count(ess),
+      " (minimum ", .iwmde_count(.iwmde_bf_min_ess()), ")"
+    ))
+  }
+
+  max_weight_share <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_weight_share", "bf_max_weight_share")
+  )
+  if (!is.finite(max_weight_share) ||
       max_weight_share >= .iwmde_bf_max_weight_share()) {
-    return(FALSE)
+    return(paste0(
+      "largest importance weight contributes ",
+      .iwmde_percent(max_weight_share),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_bf_max_weight_share()),
+      ")"
+    ))
+  }
+
+  row_loss_reason <- .iwmde_diagnostics_row_loss_failure_reason(
+    diagnostics = diagnostics,
+    estimator   = estimator
+  )
+  if (!is.null(row_loss_reason)) {
+    return(row_loss_reason)
   }
 
   if (identical(estimator, "q_grid_cmde")) {
-    normalization_integral <- .iwmde_diagnostic_scalar(diagnostics, "normalization_integral")
-    active_mass            <- .iwmde_diagnostic_scalar(diagnostics, "active_mass")
-    if (!is.finite(normalization_integral) || !is.finite(active_mass) ||
-        active_mass <= 0 ||
-        abs(normalization_integral / active_mass - 1) >
-          .iwmde_bf_mass_tolerance()) {
-      return(FALSE)
+    mass_reason <- .iwmde_diagnostics_mass_failure_reason(
+      diagnostics = diagnostics,
+      estimator   = estimator
+    )
+    if (!is.null(mass_reason)) {
+      return(mass_reason)
     }
-    normalization_range <- suppressWarnings(as.numeric(diagnostics[["normalization_range"]]))
-    if (length(normalization_range) != 2L ||
-        !all(is.finite(normalization_range))) {
-      return(FALSE)
-    }
-    value <- .iwmde_ordinate_scalar(posterior_ordinate, "evaluation_value")
-    if (!is.finite(value)) {
-      value <- .iwmde_ordinate_scalar(posterior_ordinate, "value")
-    }
-    tolerance <- sqrt(.Machine$double.eps) * max(1, abs(value))
-    if (!is.finite(value) ||
-        value < min(normalization_range) - tolerance ||
-        value > max(normalization_range) + tolerance) {
-      return(FALSE)
+  } else if (identical(estimator, "iwmde")) {
+    mass_reason <- .iwmde_diagnostics_mass_failure_reason(
+      diagnostics = diagnostics,
+      estimator   = estimator
+    )
+    if (!is.null(mass_reason)) {
+      return(mass_reason)
     }
   }
 
-  return(TRUE)
+  return(NULL)
+}
+
+
+.iwmde_diagnostics_mass_failure_reason <- function(diagnostics, estimator) {
+
+  normalization_error <- .iwmde_diagnostics_normalization_relative_error(
+    diagnostics = diagnostics,
+    estimator   = estimator
+  )
+  if (!is.finite(normalization_error)) {
+    return("normalization diagnostics are unavailable")
+  }
+
+  fail_tolerance <- .iwmde_bf_mass_fail_tolerance(estimator)
+  if (normalization_error > fail_tolerance) {
+    return(paste0(
+      .iwmde_estimator_label(estimator),
+      .iwmde_diagnostics_normalization_error_phrase(estimator),
+      .iwmde_percent(normalization_error),
+      " (maximum allowed ",
+      .iwmde_percent(fail_tolerance),
+      ")"
+    ))
+  }
+
+  return(NULL)
+}
+
+
+.iwmde_diagnostics_bf_warning <- function(diagnostics) {
+
+  estimator <- diagnostics[["estimator"]]
+  if (length(estimator) != 1L) {
+    return(character())
+  }
+  estimator <- as.character(estimator)
+  if (!estimator %in% c("q_grid_cmde", "iwmde")) {
+    return(character())
+  }
+
+  warnings <- character()
+
+  relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("relative_mcse", "bf_relative_mcse")
+  )
+  if (is.finite(relative_mcse) &&
+      relative_mcse >= .iwmde_bf_warning_relative_mcse() &&
+      relative_mcse < .iwmde_bf_max_relative_mcse()) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " relative MCSE is ",
+      .iwmde_percent(relative_mcse),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_bf_warning_relative_mcse()),
+      "; BF rejection threshold ",
+      .iwmde_percent(.iwmde_bf_max_relative_mcse()),
+      ")."
+    ))
+  }
+
+  finite_terms <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("finite_terms", "bf_finite_terms")
+  )
+  if (is.finite(finite_terms) &&
+      finite_terms >= 20 &&
+      finite_terms < .iwmde_bf_warning_min_finite_terms()) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " uses only ",
+      .iwmde_count(finite_terms),
+      " finite importance terms",
+      " (warning threshold ",
+      .iwmde_count(.iwmde_bf_warning_min_finite_terms()),
+      "; BF rejection threshold 20)."
+    ))
+  }
+
+  ess <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("ess", "bf_ess")
+  )
+  if (is.finite(ess) &&
+      ess >= .iwmde_bf_min_ess() &&
+      ess < .iwmde_bf_warning_min_ess()) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " effective sample size is ",
+      .iwmde_count(ess),
+      " (warning threshold ",
+      .iwmde_count(.iwmde_bf_warning_min_ess()),
+      "; BF rejection threshold ",
+      .iwmde_count(.iwmde_bf_min_ess()),
+      ")."
+    ))
+  }
+
+  max_weight_share <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_weight_share", "bf_max_weight_share")
+  )
+  if (is.finite(max_weight_share) &&
+      max_weight_share >= .iwmde_bf_warning_weight_share() &&
+      max_weight_share < .iwmde_bf_max_weight_share()) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      " largest importance weight contributes ",
+      .iwmde_percent(max_weight_share),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_bf_warning_weight_share()),
+      "; BF rejection threshold ",
+      .iwmde_percent(.iwmde_bf_max_weight_share()),
+      ")."
+    ))
+  }
+
+  row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
+  if (is.finite(row_loss)) {
+    warning_tolerance <- .iwmde_bf_mass_warning_tolerance(estimator)
+    fail_tolerance    <- .iwmde_bf_mass_fail_tolerance(estimator)
+    if (row_loss > warning_tolerance &&
+        row_loss <= fail_tolerance) {
+      warnings <- c(warnings, paste0(
+        .iwmde_estimator_label(estimator),
+        " dropped ",
+        .iwmde_percent(row_loss),
+        " of target rows during density estimation",
+        " (warning threshold ",
+        .iwmde_percent(warning_tolerance),
+        "; BF rejection threshold ",
+        .iwmde_percent(fail_tolerance),
+        ")."
+      ))
+    }
+  }
+
+  normalization_error <- .iwmde_diagnostics_normalization_relative_error(
+    diagnostics = diagnostics,
+    estimator   = estimator
+  )
+  warning_tolerance <- .iwmde_bf_mass_warning_tolerance(estimator)
+  fail_tolerance    <- .iwmde_bf_mass_fail_tolerance(estimator)
+  if (is.finite(normalization_error) &&
+      normalization_error > warning_tolerance &&
+      normalization_error <= fail_tolerance) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      .iwmde_diagnostics_normalization_error_phrase(estimator),
+      .iwmde_percent(normalization_error),
+      " (warning threshold ",
+      .iwmde_percent(warning_tolerance),
+      "; BF rejection threshold ",
+      .iwmde_percent(fail_tolerance),
+      ")."
+    ))
+  }
+
+  return(warnings)
+}
+
+
+.iwmde_diagnostics_row_loss_failure_reason <- function(diagnostics, estimator) {
+
+  row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
+  if (!is.finite(row_loss)) {
+    return(NULL)
+  }
+
+  fail_tolerance <- .iwmde_bf_mass_fail_tolerance(estimator)
+  if (row_loss > fail_tolerance) {
+    return(paste0(
+      .iwmde_estimator_label(estimator),
+      " dropped ",
+      .iwmde_percent(row_loss),
+      " of target rows during density estimation",
+      " (maximum allowed ",
+      .iwmde_percent(fail_tolerance),
+      ")"
+    ))
+  }
+
+  return(NULL)
+}
+
+
+.iwmde_diagnostics_row_loss_fraction <- function(diagnostics) {
+
+  row_loss <- .iwmde_diagnostic_scalar(diagnostics, "row_drop_fraction")
+  if (is.finite(row_loss) && row_loss >= 0) {
+    return(min(1, row_loss))
+  }
+
+  n_candidate_rows <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("n_candidate_rows", "n_active")
+  )
+  n_normalized_rows <- .iwmde_diagnostic_scalar(
+    diagnostics,
+    "n_normalized_rows"
+  )
+  if (!is.finite(n_candidate_rows) || n_candidate_rows <= 0 ||
+      !is.finite(n_normalized_rows) || n_normalized_rows < 0) {
+    return(NA_real_)
+  }
+
+  return(.iwmde_row_drop_fraction(
+    n_candidate_rows  = n_candidate_rows,
+    n_normalized_rows = n_normalized_rows
+  ))
+}
+
+
+.iwmde_diagnostics_normalization_relative_error <- function(diagnostics,
+                                                            estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return(.iwmde_diagnostics_qcmde_ordinate_relative_change(diagnostics))
+  }
+
+  return(.iwmde_diagnostics_mass_relative_error(diagnostics))
+}
+
+
+.iwmde_diagnostics_qcmde_ordinate_relative_change <- function(diagnostics) {
+
+  ordinate_change <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("ordinate_relative_change", "bf_ordinate_relative_change")
+  )
+  if (!is.finite(ordinate_change) || ordinate_change < 0) {
+    return(NA_real_)
+  }
+
+  return(ordinate_change)
+}
+
+
+.iwmde_diagnostics_normalization_error_phrase <- function(estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return(" posterior ordinate changes by ")
+  }
+
+  return(" normalization mass differs from active posterior mass by ")
+}
+
+
+.iwmde_diagnostics_mass_relative_error <- function(diagnostics) {
+
+  normalization_integral <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    "normalization_integral"
+  )
+  active_mass <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    "active_mass"
+  )
+  if (!is.finite(normalization_integral) || !is.finite(active_mass) ||
+      active_mass <= 0) {
+    return(NA_real_)
+  }
+
+  return(abs(normalization_integral / active_mass - 1))
 }
 
 
@@ -763,9 +1196,21 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
+.iwmde_bf_warning_relative_mcse <- function() {
+
+  return(.25)
+}
+
+
 .iwmde_bf_min_ess <- function() {
 
   return(4)
+}
+
+
+.iwmde_bf_warning_min_ess <- function() {
+
+  return(20)
 }
 
 
@@ -775,9 +1220,41 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
-.iwmde_bf_mass_tolerance <- function() {
+.iwmde_bf_warning_weight_share <- function() {
 
-  return(.25)
+  return(.50)
+}
+
+
+.iwmde_bf_warning_min_finite_terms <- function() {
+
+  return(50)
+}
+
+
+.iwmde_bf_mass_warning_tolerance <- function(estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return(.025)
+  }
+  if (identical(estimator, "iwmde")) {
+    return(.05)
+  }
+
+  return(Inf)
+}
+
+
+.iwmde_bf_mass_fail_tolerance <- function(estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return(.05)
+  }
+  if (identical(estimator, "iwmde")) {
+    return(.10)
+  }
+
+  return(0)
 }
 
 
@@ -800,6 +1277,124 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
+.iwmde_diagnostic_scalar_any <- function(diagnostics, names) {
+
+  for (name in names) {
+    value <- .iwmde_diagnostic_scalar(diagnostics, name)
+    if (!is.na(value)) {
+      return(value)
+    }
+  }
+
+  return(NA_real_)
+}
+
+
+.iwmde_estimator_label <- function(estimator) {
+
+  if (identical(estimator, "q_grid_cmde")) {
+    return("qCMDE")
+  }
+  if (identical(estimator, "iwmde")) {
+    return("IWMDE")
+  }
+
+  return(as.character(estimator)[1])
+}
+
+
+.iwmde_percent <- function(value) {
+
+  if (!is.finite(value)) {
+    return("NA")
+  }
+
+  paste0(formatC(100 * value, digits = 3, format = "fg"), "%")
+}
+
+
+.iwmde_count <- function(value) {
+
+  if (!is.finite(value)) {
+    return("NA")
+  }
+
+  formatC(value, digits = 3, format = "fg")
+}
+
+
+.iwmde_posterior_ordinate_warnings <- function(posterior_ordinate) {
+
+  entries <- .iwmde_posterior_ordinate_entries(posterior_ordinate)
+  warnings <- unlist(lapply(entries, function(entry) {
+    diagnostics <- entry[["diagnostics"]]
+    if (is.null(diagnostics) || !is.list(diagnostics)) {
+      return(character())
+    }
+    explicit <- diagnostics[["warning"]]
+    if (!is.null(explicit)) {
+      explicit <- as.character(explicit)
+      explicit <- explicit[nzchar(explicit)]
+      if (length(explicit) > 0L) {
+        return(explicit)
+      }
+    }
+    .iwmde_diagnostics_bf_warning(diagnostics)
+  }), use.names = FALSE)
+
+  unique(warnings[nzchar(warnings)])
+}
+
+
+.iwmde_posterior_ordinate_failure_reasons <- function(posterior_ordinate) {
+
+  entries <- .iwmde_posterior_ordinate_entries(posterior_ordinate)
+  reasons <- unlist(lapply(entries, function(entry) {
+    reason <- .iwmde_posterior_ordinate_bf_failure_reason(entry)
+    if (is.null(reason)) {
+      return(character())
+    }
+    reason
+  }), use.names = FALSE)
+
+  unique(reasons[nzchar(reasons)])
+}
+
+
+.iwmde_posterior_ordinate_entries <- function(posterior_ordinate) {
+
+  if (is.null(posterior_ordinate)) {
+    return(list())
+  }
+  if (is.list(posterior_ordinate) &&
+      !is.data.frame(posterior_ordinate[["ordinates"]]) &&
+      is.list(posterior_ordinate[["ordinates"]]) &&
+      is.null(posterior_ordinate[["ordinates"]][["x"]]) &&
+      is.null(posterior_ordinate[["ordinates"]][["value"]]) &&
+      is.null(posterior_ordinate[["ordinates"]][["null_hypothesis"]])) {
+    return(posterior_ordinate[["ordinates"]])
+  }
+
+  return(list(posterior_ordinate))
+}
+
+
+.iwmde_bf_append_warning <- function(bf, posterior_ordinate) {
+
+  warnings <- .iwmde_posterior_ordinate_warnings(posterior_ordinate)
+  if (length(warnings) == 0L) {
+    return(bf)
+  }
+
+  attr(bf, "warnings") <- unique(c(
+    attr(bf, "warnings", exact = TRUE),
+    warnings
+  ))
+
+  return(bf)
+}
+
+
 .iwmde_density_bf_diagnostics <- function(density, values) {
 
   out <- list(
@@ -808,6 +1403,12 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     bf_included         = FALSE,
     bf_grid_index       = NA_integer_,
     bf_ordinate         = NA_real_,
+    bf_pilot_ordinate   = NA_real_,
+    bf_validation_ordinate = NA_real_,
+    bf_ordinate_relative_change = NA_real_,
+    bf_ordinate_log_change      = NA_real_,
+    bf_pilot_ordinate_relative_change = NA_real_,
+    bf_pilot_ordinate_log_change      = NA_real_,
     bf_mcse             = NA_real_,
     bf_relative_mcse    = NA_real_,
     bf_error_percent    = NA_real_,
@@ -839,6 +1440,17 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   out[["bf_grid_index"]]       <- index
   out[["bf_evaluation_value"]] <- .iwmde_density_evaluation_value(density, index)
   out[["bf_ordinate"]]         <- .iwmde_density_index_value(density, "y", index)
+  out[["bf_pilot_ordinate"]]   <- .iwmde_density_index_value(density, "pilot_y", index)
+  out[["bf_validation_ordinate"]] <-
+    .iwmde_density_index_value(density, "validation_y", index)
+  out[["bf_ordinate_relative_change"]] <-
+    .iwmde_density_index_value(density, "ordinate_relative_change", index)
+  out[["bf_ordinate_log_change"]] <-
+    .iwmde_density_index_value(density, "ordinate_log_change", index)
+  out[["bf_pilot_ordinate_relative_change"]] <-
+    .iwmde_density_index_value(density, "pilot_ordinate_relative_change", index)
+  out[["bf_pilot_ordinate_log_change"]] <-
+    .iwmde_density_index_value(density, "pilot_ordinate_log_change", index)
   out[["bf_mcse"]]             <- .iwmde_density_index_value(density, "mcse", index)
   out[["bf_relative_mcse"]]    <- .iwmde_density_index_value(density, "relative_mcse", index)
   out[["bf_finite_terms"]]     <- as.integer(.iwmde_density_index_value(density, "finite_terms", index))
@@ -889,209 +1501,31 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
                                                  parameter_spec = NULL,
                                                  diagnostic_cache = NULL) {
 
-  method         <- .iwmde_normalize_method(method)
-  values         <- as.numeric(values)
-  values         <- values[is.finite(values)]
-  parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
-  target_key     <- .iwmde_target_key(parameter, parameter_spec)
-  cache_key      <- .iwmde_diagnostic_cache_key(
-    target_key            = paste0("ordinate|", target_key),
-    n_points              = length(values),
-    max_samples           = max_samples,
-    normalization_points  = normalization_points,
-    normalization_prob    = normalization_prob,
-    method                = method,
-    display_grid_method   = "ordinate",
-    include_values        = values
-  )
-  if (.iwmde_cache_has(diagnostic_cache, cache_key)) {
-    return(.iwmde_relabel_diagnostic(
-      diagnostic = .iwmde_cache_get(diagnostic_cache, cache_key),
-      parameter  = parameter
-    ))
-  }
-
-  if (length(values) == 0L) {
-    return(.iwmde_unsupported(parameter, "no finite ordinate values"))
-  }
-  if (identical(parameter_spec[["status"]], "unsupported")) {
-    out <- .iwmde_unsupported(parameter, parameter_spec[["reason"]])
-    .iwmde_cache_set(diagnostic_cache, cache_key, out)
-    return(out)
-  }
-
-  posterior_values <- .iwmde_parameter_values(context, parameter, parameter_spec)
-  finite           <- is.finite(posterior_values)
-  rows             <- .iwmde_parameter_condition_rows(context, parameter_spec)
-  finite_rows      <- finite & rows
-  if (!any(finite_rows)) {
-    return(.iwmde_unsupported(parameter, "posterior samples are not finite"))
-  }
-
-  component <- .iwmde_parameter_components(context, parameter, parameter_spec)
-  component <- .iwmde_restrict_parameter_component(component, finite_rows)
-  if (!any(component[["active"]])) {
-    return(.iwmde_unsupported(
-      parameter,
-      "parameter has no continuous active posterior component"
-    ))
-  }
-
-  continuous_rows <- which(component[["active"]] & finite_rows)
-  if (length(continuous_rows) < 20L) {
-    return(.iwmde_unsupported(parameter, "fewer than 20 continuous active samples"))
-  }
-
-  active_rows <- continuous_rows
-  if (length(active_rows) > max_samples) {
-    active_rows <- .iwmde_select_active_rows(
-      rows        = active_rows,
-      max_samples = max_samples
-    )
-  }
-
-  active_values <- posterior_values[active_rows]
-  if (stats::sd(active_values) <= sqrt(.Machine$double.eps)) {
-    return(.iwmde_unsupported(parameter, "active samples have zero variance"))
-  }
-
-  support <- .iwmde_parameter_support(context, parameter, active_rows, parameter_spec)
-  values  <- values[values >= support[1] & values <= support[2]]
-  if (length(values) == 0L) {
-    return(.iwmde_unsupported(parameter, "ordinate values are outside support"))
-  }
-
-  transform <- .iwmde_parameter_transform(support)
-  xlim      <- .iwmde_plot_range(posterior_values[finite_rows], support)
-  if (!all(is.finite(xlim)) || xlim[1] >= xlim[2]) {
-    return(.iwmde_unsupported(parameter, "could not construct a finite plotting range"))
-  }
-  requested_values <- values
-  values           <- .iwmde_ordinate_interior_values(values, support, xlim)
-
-  active_mass       <- mean(component[["active"]][finite_rows])
-  continuous_values <- posterior_values[continuous_rows]
-  row_states        <- .iwmde_row_states(context, active_rows, parameter, parameter_spec)
-  baseline_log_q    <- vapply(row_states, function(state) {
-    state[["baseline_log_q"]]
-  }, numeric(1))
-  keep_rows         <- is.finite(baseline_log_q)
-  n_dropped_log_q   <- sum(!keep_rows)
-  active_rows       <- active_rows[keep_rows]
-  active_values     <- active_values[keep_rows]
-  row_states        <- row_states[keep_rows]
-  if (length(active_rows) < 20L) {
-    return(.iwmde_unsupported(parameter, "fewer than 20 finite baseline log-q values"))
-  }
-
-  replacement <- .iwmde_replacement_spec(context, parameter, parameter_spec)
-  if (identical(method, "q_grid_cmde")) {
-    normalization_grid <- .iwmde_normalization_grid(
-      values               = continuous_values,
-      display_grid         = c(xlim, values),
-      support              = support,
-      transform            = transform,
+  method <- .iwmde_normalize_method(method)
+  plan <- .iwmde_plan(
+    context         = context,
+    parameter       = parameter,
+    density_method  = if (identical(method, "q_grid_cmde")) "qCMDE" else "IWMDE",
+    density_control = list(
+      n_points             = max(20L, length(values)),
+      max_samples          = max_samples,
       normalization_points = normalization_points,
-      normalization_prob   = normalization_prob
-    )
-    if (is.null(normalization_grid)) {
-      return(.iwmde_unsupported(parameter, "could not construct a normalization grid"))
-    }
-    density <- .iwmde_density_grid(
-      context            = context,
-      parameter          = parameter,
-      display_grid       = values,
-      normalization_grid = normalization_grid,
-      transform          = transform,
-      row_states         = row_states,
-      active_mass        = active_mass,
-      replacement        = replacement
-    )
-  } else {
-    density <- .iwmde_density_iwmde(
-      context        = context,
-      parameter      = parameter,
-      parameter_spec = parameter_spec,
-      display_grid   = values,
-      row_states     = row_states,
-      active_rows    = active_rows,
-      active_values  = active_values,
-      weight_rows    = active_rows,
-      weight_values  = active_values,
-      support        = support,
-      active_mass    = active_mass,
-      replacement    = replacement
-    )
-  }
-  if (density[["n_normalized_rows"]] < 20L) {
-    return(.iwmde_unsupported(
-      parameter,
-      "fewer than 20 rows had finite conditional normalizers"
-    ))
-  }
-  if (min(density[["finite_terms"]]) == 0L) {
-    return(.iwmde_unsupported(
-      parameter,
-      "at least one IWMDE ordinate had no finite importance terms"
-    ))
-  }
-
-  density[["evaluation_x"]] <- values
-  density[["x"]]            <- requested_values
-  bf_diagnostics <- .iwmde_density_bf_diagnostics(density, requested_values)
-  out <- list(
-    parameter    = parameter,
-    status       = "ok",
-    samples      = posterior_values[finite_rows],
-    target_key   = target_key,
-    active_rows  = active_rows,
-    active_mass  = active_mass,
-    point_masses = component[["point_masses"]],
-    support      = support,
-    xlim         = xlim,
-    iwmde        = density,
-    diagnostics  = list(
-      integral               = NA_real_,
-      plot_integral          = NA_real_,
-      point_mass_total       = sum(component[["point_masses"]][["mass"]]),
-      plot_total_mass        = NA_real_,
-      display_mass_fraction  = NA_real_,
-      normalization_integral = density[["normalization_integral"]],
-      normalization_points   = density[["normalization_points"]],
-      normalization_range    = density[["normalization_range"]],
-      normalization_scale    = density[["normalization_scale"]],
-      active_mass            = active_mass,
-      n_active               = length(active_rows),
-      n_total                = sum(finite_rows),
-      n_dropped_log_q        = n_dropped_log_q,
-      max_log_ratio          = density[["max_log_ratio"]],
-      min_finite_terms       = min(density[["finite_terms"]]),
-      n_normalized_rows      = density[["n_normalized_rows"]],
-      min_ess                = min(density[["ess"]]),
-      max_weight_share       = max(density[["max_weight_share"]]),
-      max_mcse               = .iwmde_max_or_na(density[["mcse"]]),
-      max_relative_mcse      = .iwmde_max_or_na(density[["relative_mcse"]]),
-      estimator              = density[["estimator"]],
-      weight_method          = density[["weight_method"]],
-      display_grid           = "ordinate",
-      bf_value               = bf_diagnostics[["bf_value"]],
-      bf_evaluation_value    = bf_diagnostics[["bf_evaluation_value"]],
-      bf_included            = bf_diagnostics[["bf_included"]],
-      bf_grid_index          = bf_diagnostics[["bf_grid_index"]],
-      bf_ordinate            = bf_diagnostics[["bf_ordinate"]],
-      bf_mcse                = bf_diagnostics[["bf_mcse"]],
-      bf_relative_mcse       = bf_diagnostics[["bf_relative_mcse"]],
-      bf_error_percent       = bf_diagnostics[["bf_error_percent"]],
-      bf_finite_terms        = bf_diagnostics[["bf_finite_terms"]],
-      bf_ess                 = bf_diagnostics[["bf_ess"]],
-      bf_max_weight_share    = bf_diagnostics[["bf_max_weight_share"]],
-      bf_max_log_ratio       = bf_diagnostics[["bf_max_log_ratio"]]
-    )
+      normalization_prob   = normalization_prob,
+      display_grid         = "ordinate"
+    ),
+    outputs         = "ordinate",
+    values          = values,
+    parameter_spec  = parameter_spec,
+    metadata        = NULL
   )
-  class(out) <- c("iwmde_parameter_diagnostic", "list")
 
-  .iwmde_cache_set(diagnostic_cache, cache_key, out)
-  return(out)
+  return(.iwmde_execute_plan_diagnostic(
+    context          = context,
+    plan             = plan,
+    output           = "ordinate",
+    execution_cache  = new.env(parent = emptyenv()),
+    diagnostic_cache = diagnostic_cache
+  ))
 }
 
 
@@ -1130,226 +1564,31 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
                                         parameter_spec = NULL,
                                         diagnostic_cache = NULL) {
 
-  samples <- context[["posterior_samples"]]
   method <- .iwmde_normalize_method(method)
-  display_grid_method <- .iwmde_normalize_display_grid(display_grid_method)
-  include_values <- as.numeric(include_values)
-  include_values <- include_values[is.finite(include_values)]
-  parameter_spec <- .iwmde_parameter_spec(context, parameter, parameter_spec)
-  target_key     <- .iwmde_target_key(parameter, parameter_spec)
-  cache_key      <- .iwmde_diagnostic_cache_key(
-    target_key            = target_key,
-    n_points              = n_points,
-    max_samples           = max_samples,
-    normalization_points  = normalization_points,
-    normalization_prob    = normalization_prob,
-    method                = method,
-    display_grid_method   = display_grid_method,
-    include_values        = include_values
-  )
-  if (.iwmde_cache_has(diagnostic_cache, cache_key)) {
-    return(.iwmde_relabel_diagnostic(
-      diagnostic = .iwmde_cache_get(diagnostic_cache, cache_key),
-      parameter  = parameter
-    ))
-  }
-
-  if (identical(parameter_spec[["status"]], "unsupported")) {
-    out <- .iwmde_unsupported(parameter, parameter_spec[["reason"]])
-    .iwmde_cache_set(diagnostic_cache, cache_key, out)
-    return(out)
-  }
-
-  values <- .iwmde_parameter_values(context, parameter, parameter_spec)
-  finite <- is.finite(values)
-  rows   <- .iwmde_parameter_condition_rows(context, parameter_spec)
-  finite_rows <- finite & rows
-  if (!any(finite_rows)) {
-    return(.iwmde_unsupported(parameter, "posterior samples are not finite"))
-  }
-
-  component <- .iwmde_parameter_components(context, parameter, parameter_spec)
-  component <- .iwmde_restrict_parameter_component(component, finite_rows)
-  if (!any(component[["active"]])) {
-    return(.iwmde_point_only_diagnostic(
-      parameter = parameter,
-      samples   = values[finite_rows],
-      component = component
-    ))
-  }
-
-  continuous_rows <- which(component[["active"]] & finite_rows)
-  if (length(continuous_rows) < 20L) {
-    return(.iwmde_unsupported(parameter, "fewer than 20 continuous active samples"))
-  }
-
-  active_rows <- continuous_rows
-  if (length(active_rows) > max_samples) {
-    active_rows <- .iwmde_select_active_rows(
-      rows        = active_rows,
-      max_samples = max_samples
-    )
-  }
-
-  active_values <- values[active_rows]
-  if (stats::sd(active_values) <= sqrt(.Machine$double.eps)) {
-    return(.iwmde_unsupported(parameter, "active samples have zero variance"))
-  }
-
-  support   <- .iwmde_parameter_support(context, parameter, active_rows, parameter_spec)
-  transform <- .iwmde_parameter_transform(support)
-  xlim      <- .iwmde_plot_range(values[finite_rows], support)
-  xlim      <- .iwmde_include_plot_values(xlim, include_values, support)
-  if (!all(is.finite(xlim)) || xlim[1] >= xlim[2]) {
-    return(.iwmde_unsupported(parameter, "could not construct a finite plotting range"))
-  }
-
-  active_mass       <- mean(component[["active"]][finite_rows])
-  continuous_values <- values[continuous_rows]
-  display_grid      <- .iwmde_display_grid(
-    xlim        = xlim,
-    n_points    = n_points,
-    transform   = transform,
-    values      = c(continuous_values, include_values),
-    grid_method = display_grid_method
-  )
-  display_grid <- .iwmde_include_display_values(
-    grid    = display_grid,
-    values  = include_values,
-    xlim    = xlim,
-    support = support
-  )
-
-  row_states        <- .iwmde_row_states(context, active_rows, parameter, parameter_spec)
-  baseline_log_q    <- vapply(row_states, function(state) {
-    state[["baseline_log_q"]]
-  }, numeric(1))
-  keep_rows         <- is.finite(baseline_log_q)
-  n_dropped_log_q   <- sum(!keep_rows)
-  active_rows      <- active_rows[keep_rows]
-  active_values    <- active_values[keep_rows]
-  row_states       <- row_states[keep_rows]
-  if (length(active_rows) < 20L) {
-    return(.iwmde_unsupported(parameter, "fewer than 20 finite baseline log-q values"))
-  }
-  replacement      <- .iwmde_replacement_spec(context, parameter, parameter_spec)
-  if (identical(method, "q_grid_cmde")) {
-    normalization_grid <- .iwmde_normalization_grid(
-      values               = continuous_values,
-      display_grid         = display_grid,
-      support              = support,
-      transform            = transform,
+  plan <- .iwmde_plan(
+    context         = context,
+    parameter       = parameter,
+    density_method  = if (identical(method, "q_grid_cmde")) "qCMDE" else "IWMDE",
+    density_control = list(
+      n_points             = n_points,
+      max_samples          = max_samples,
       normalization_points = normalization_points,
-      normalization_prob   = normalization_prob
-    )
-    if (is.null(normalization_grid)) {
-      return(.iwmde_unsupported(parameter, "could not construct a normalization grid"))
-    }
-    density <- .iwmde_density_grid(
-      context            = context,
-      parameter          = parameter,
-      display_grid       = display_grid,
-      normalization_grid = normalization_grid,
-      transform          = transform,
-      row_states         = row_states,
-      active_mass        = active_mass,
-      replacement        = replacement
-    )
-  } else {
-    density <- .iwmde_density_iwmde(
-      context        = context,
-      parameter      = parameter,
-      parameter_spec = parameter_spec,
-      display_grid   = display_grid,
-      row_states     = row_states,
-      active_rows    = active_rows,
-      active_values  = active_values,
-      weight_rows    = active_rows,
-      weight_values  = active_values,
-      support        = support,
-      active_mass    = active_mass,
-      replacement    = replacement
-    )
-  }
-  if (density[["n_normalized_rows"]] < 20L) {
-    return(.iwmde_unsupported(
-      parameter,
-      "fewer than 20 rows had finite conditional normalizers"
-    ))
-  }
-  if (min(density[["finite_terms"]]) == 0L) {
-    return(.iwmde_unsupported(
-      parameter,
-      "at least one IWMDE grid point had no finite importance terms"
-    ))
-  }
-
-  kde              <- .iwmde_kde(continuous_values, xlim, n_points, mass = active_mass)
-  hist_data        <- .iwmde_histogram(continuous_values, xlim, mass = active_mass)
-  plot_integral    <- .iwmde_trapz(density[["x"]], density[["y"]])
-  point_mass_total <- sum(component[["point_masses"]][["mass"]])
-  max_mcse          <- .iwmde_max_or_na(density[["mcse"]])
-  max_relative_mcse <- .iwmde_max_or_na(density[["relative_mcse"]])
-  bf_diagnostics    <- .iwmde_density_bf_diagnostics(density, include_values)
-
-  out <- list(
-    parameter    = parameter,
-    status       = "ok",
-    samples      = values[finite_rows],
-    target_key   = target_key,
-    active_rows  = active_rows,
-    active_mass  = active_mass,
-    point_masses = component[["point_masses"]],
-    support      = support,
-    xlim         = xlim,
-    histogram    = hist_data,
-    kde          = kde,
-    iwmde        = density,
-    diagnostics  = list(
-      integral                    = plot_integral,
-      plot_integral               = plot_integral,
-      point_mass_total            = point_mass_total,
-      plot_total_mass             = plot_integral + point_mass_total,
-      display_mass_fraction       = plot_integral / active_mass,
-      normalization_integral      = density[["normalization_integral"]],
-      normalization_points        = density[["normalization_points"]],
-      normalization_range         = density[["normalization_range"]],
-      normalization_scale         = transform[["type"]],
-      n_active                    = length(active_rows),
-      n_total                     = sum(finite_rows),
-      n_dropped_log_q             = n_dropped_log_q,
-      max_log_ratio               = density[["max_log_ratio"]],
-      min_finite_terms            = min(density[["finite_terms"]]),
-      n_normalized_rows           = density[["n_normalized_rows"]],
-      min_ess                     = min(density[["ess"]]),
-      max_weight_share            = max(density[["max_weight_share"]]),
-      max_mcse                    = max_mcse,
-      max_relative_mcse           = max_relative_mcse,
-      plot_integral_mcse          = density[["integral_mcse"]],
-      plot_integral_relative_mcse = density[["integral_relative_mcse"]],
-      batch_size                  = density[["batch_size"]],
-      n_batches                   = density[["n_batches"]],
-      estimator                   = density[["estimator"]],
-      weight_method               = density[["weight_method"]],
-      display_grid                = display_grid_method,
-      bf_value                    = bf_diagnostics[["bf_value"]],
-      bf_evaluation_value         = bf_diagnostics[["bf_evaluation_value"]],
-      bf_included                 = bf_diagnostics[["bf_included"]],
-      bf_grid_index               = bf_diagnostics[["bf_grid_index"]],
-      bf_ordinate                 = bf_diagnostics[["bf_ordinate"]],
-      bf_mcse                     = bf_diagnostics[["bf_mcse"]],
-      bf_relative_mcse            = bf_diagnostics[["bf_relative_mcse"]],
-      bf_error_percent            = bf_diagnostics[["bf_error_percent"]],
-      bf_finite_terms             = bf_diagnostics[["bf_finite_terms"]],
-      bf_ess                      = bf_diagnostics[["bf_ess"]],
-      bf_max_weight_share         = bf_diagnostics[["bf_max_weight_share"]],
-      bf_max_log_ratio            = bf_diagnostics[["bf_max_log_ratio"]]
-    )
+      normalization_prob   = normalization_prob,
+      display_grid         = display_grid_method
+    ),
+    outputs         = "density",
+    values          = include_values,
+    parameter_spec  = parameter_spec,
+    metadata        = NULL
   )
-  class(out) <- c("iwmde_parameter_diagnostic", "list")
 
-  .iwmde_cache_set(diagnostic_cache, cache_key, out)
-  return(out)
+  return(.iwmde_execute_plan_diagnostic(
+    context          = context,
+    plan             = plan,
+    output           = "density",
+    execution_cache  = new.env(parent = emptyenv()),
+    diagnostic_cache = diagnostic_cache
+  ))
 }
 
 
@@ -1411,34 +1650,6 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   return(paste0("conditional=", rule, ":", paste(conditional, collapse = ",")))
-}
-
-
-.iwmde_diagnostic_cache_key <- function(target_key, n_points, max_samples,
-                                        normalization_points,
-                                        normalization_prob, method,
-                                        display_grid_method,
-                                        include_values = NULL) {
-
-  include_values <- sort(unique(as.numeric(include_values)))
-  include_values <- include_values[is.finite(include_values)]
-  include_key    <- if (length(include_values) > 0L) {
-    paste(.iwmde_key_number(include_values), collapse = ",")
-  } else {
-    ""
-  }
-
-  return(paste(
-    target_key,
-    paste0("n_points=", n_points),
-    paste0("max_samples=", max_samples),
-    paste0("normalization_points=", normalization_points),
-    paste0("normalization_prob=", .iwmde_key_number(normalization_prob)),
-    paste0("method=", method),
-    paste0("display_grid=", display_grid_method),
-    paste0("include_values=", include_key),
-    sep = "\r"
-  ))
 }
 
 

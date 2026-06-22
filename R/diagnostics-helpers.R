@@ -73,6 +73,66 @@
 }
 
 
+.diagnostic_location_parameter_samples <- function(model,
+                                                   standardized_coefficients = FALSE,
+                                                   transform_factors = TRUE) {
+
+  if (.is_mods(model) || .is_random(model)) {
+    samples <- BayesTools::JAGS_estimates_table(
+      fit                = model[["fit"]],
+      keep_formulas      = "mu",
+      remove_diagnostics = TRUE,
+      transform_factors  = transform_factors,
+      transform_scaled   = !standardized_coefficients,
+      return_samples     = TRUE
+    )
+
+    return(.diagnostic_fixed_location_coefficient_samples(
+      as.matrix(samples),
+      require_mu_columns = TRUE
+    ))
+  }
+
+  samples <- BayesTools::JAGS_estimates_table(
+    fit                = model[["fit"]],
+    keep_parameters    = "mu",
+    remove_diagnostics = TRUE,
+    transform_factors  = transform_factors,
+    transform_scaled   = !standardized_coefficients,
+    return_samples     = TRUE
+  )
+
+  return(as.matrix(samples))
+}
+
+
+.diagnostic_fixed_location_coefficient_samples <- function(samples_mat,
+                                                           require_mu_columns = FALSE) {
+
+  column_names <- colnames(samples_mat)
+  if (is.null(column_names)) {
+    if (require_mu_columns) {
+      stop("Fixed location coefficient columns could not be identified.",
+           call. = FALSE)
+    }
+    return(samples_mat)
+  }
+
+  keep <- startsWith(column_names, "(mu) ") &
+    !grepl("var_frac(", column_names, fixed = TRUE)
+
+  if (!any(keep)) {
+    if (require_mu_columns) {
+      stop("Fixed location coefficient columns could not be identified.",
+           call. = FALSE)
+    }
+    return(samples_mat)
+  }
+
+  return(samples_mat[, keep, drop = FALSE])
+}
+
+
 .diagnostic_check_loo <- function(model, context = NULL, unit = "estimate") {
 
   if (is.null(context)) {
@@ -145,4 +205,20 @@
   }
 
   return(paste(notes, collapse = " "))
+}
+
+
+.check_brma_mv_classical_influence_deferred <- function(model, caller) {
+
+  if (inherits(model, "brma.mv")) {
+    stop(
+      caller,
+      " is not implemented for brma.mv() yet; use rstudent(), qqnorm(), ",
+      "dfbetas(), covratio(), or hatvalues() for implemented estimate-unit ",
+      "diagnostics.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
 }

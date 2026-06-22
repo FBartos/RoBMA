@@ -430,6 +430,250 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .regplot_add_random_prediction_columns
+# ---------------------------------------------------------------------------- #
+#
+# Add missing random-formula variables to the plotting grid. Missing grouping
+# variables get synthetic row-unique levels so pointwise bands do not imply a
+# joint curve covariance. Missing random-slope variables fall back to the same
+# representative-value convention used for fixed moderators.
+#
+# ---------------------------------------------------------------------------- #
+.regplot_add_random_prediction_columns <- function(x, newdata) {
+
+  if (!inherits(x, "brma.mv") || !.is_random(x)) {
+    return(newdata)
+  }
+
+  design <- .fitted_formula_design(x, "mu", required = TRUE)
+  terms  <- design[["random_effects"]]
+  if (length(terms) == 0L) {
+    return(newdata)
+  }
+
+  original_location <- x[["data"]][["location"]]
+  n_pred            <- nrow(newdata)
+
+  for (term in terms) {
+    group_vars <- all.vars(term[["group_expr"]])
+    slope_vars <- all.vars(term[["term_formula"]])
+    term_vars  <- unique(c(group_vars, slope_vars))
+
+    for (var in term_vars) {
+      if (var %in% names(newdata)) {
+        next
+      }
+      if (var %in% group_vars) {
+        newdata[[var]] <- paste0(".RoBMA_regplot_", var, "_", seq_len(n_pred))
+      } else {
+        newdata[[var]] <- .regplot_representative_variable(
+          original_location[[var]],
+          n_pred = n_pred,
+          name   = var
+        )
+      }
+    }
+  }
+
+  return(newdata)
+}
+
+
+.regplot_representative_variable <- function(x, n_pred, name) {
+
+  if (is.null(x)) {
+    stop(
+      "regplot() cannot construct random-effect prediction data because ",
+      "variable '", name, "' is missing from the fitted data.",
+      call. = FALSE
+    )
+  }
+
+  if (is.factor(x)) {
+    return(factor(rep(levels(x)[1L], n_pred), levels = levels(x)))
+  }
+  if (is.character(x)) {
+    values <- unique(x)
+    return(rep(values[1L], n_pred))
+  }
+  if (is.logical(x)) {
+    return(rep(x[which(!is.na(x))[1L]], n_pred))
+  }
+  if (is.numeric(x) || is.integer(x)) {
+    return(rep(mean(x, na.rm = TRUE), n_pred))
+  }
+
+  stop(
+    "regplot() cannot construct a representative value for random-effect ",
+    "variable '", name, "'.",
+    call. = FALSE
+  )
+}
+
+
+.regplot_mv_random_sd_samples <- function(x, newdata, posterior_samples) {
+
+  if (!inherits(x, "brma.mv") || !.is_random(x)) {
+    return(NULL)
+  }
+
+  location_data   <- .regplot_add_random_prediction_columns(x, newdata)
+  location_priors <- attr(x[["fit"]], "prior_list")
+  if (is.null(location_priors)) {
+    location_priors <- x[["priors"]][["location"]]
+  }
+
+  design         <- .fitted_formula_design(x, "mu", required = TRUE)
+  sampled_blocks <- .formula_design_sampled_random_effect_blocks(design)
+  variance       <- matrix(0, nrow = nrow(posterior_samples), ncol = nrow(newdata))
+
+  if (length(sampled_blocks) > 0L) {
+    prediction <- tryCatch(
+      BayesTools::JAGS_predict_formula(
+        fit             = .posterior_formula_fit(
+          fit               = x[["fit"]],
+          posterior_samples = posterior_samples,
+          formula_design    = TRUE
+        ),
+        formula         = .create_fit_formula_list(data = x[["data"]], parameter = "location"),
+        parameter       = "mu",
+        data            = location_data,
+        prior_list      = location_priors,
+        formula_target  = "marginal",
+        blocks          = sampled_blocks,
+        marginal_method = "covariance",
+        new_levels      = "sample"
+      ),
+      error = function(e) {
+        if (grepl("row-indexed external SD source", conditionMessage(e), fixed = TRUE) &&
+            .regplot_mv_random_intercept_only(x)) {
+          return(NULL)
+        }
+        stop(e)
+      }
+    )
+
+    if (is.null(prediction)) {
+      return(.regplot_mv_random_pointwise_total_sd_samples(
+        x                 = x,
+        newdata           = newdata,
+        posterior_samples = posterior_samples
+      ))
+    } else {
+      vcov_samples <- prediction[["vcov"]][["samples"]]
+      if (length(dim(vcov_samples)) != 3L ||
+          dim(vcov_samples)[1L] != nrow(posterior_samples) ||
+          dim(vcov_samples)[2L] != nrow(newdata) ||
+          dim(vcov_samples)[3L] != nrow(newdata)) {
+        stop("Random-effect covariance samples have inconsistent dimensions.",
+             call. = FALSE)
+      }
+
+      for (s in seq_len(dim(vcov_samples)[1L])) {
+        variance[s, ] <- variance[s, ] + pmax(diag(vcov_samples[s, , ]), 0)
+      }
+    }
+  }
+
+  variance <- variance + .regplot_mv_marginalized_variance_samples(
+    x                 = x,
+    newdata           = newdata,
+    posterior_samples = posterior_samples
+  )
+
+  return(sqrt(pmax(variance, 0)))
+}
+
+
+.regplot_mv_random_intercept_only <- function(x) {
+
+  design <- .fitted_formula_design(x, "mu", required = TRUE)
+  terms  <- design[["random_effects"]]
+  if (length(terms) == 0L) {
+    return(FALSE)
+  }
+
+  all(vapply(terms, function(term) {
+    model_matrix <- term[["model_matrix"]]
+    identical(as.integer(term[["n_columns"]]), 1L) &&
+      is.matrix(model_matrix) &&
+      ncol(model_matrix) == 1L &&
+      all(abs(model_matrix[, 1L] - 1) < 1e-12)
+  }, logical(1)))
+}
+
+
+.regplot_mv_random_pointwise_total_sd_samples <- function(x, newdata,
+                                                         posterior_samples) {
+
+  if (!.is_scale(x)) {
+    stop(
+      "regplot() cannot compute newdata random-effect bands for this ",
+      "row-indexed random-formula model because it has no scale formula to ",
+      "replay on the prediction grid.",
+      call. = FALSE
+    )
+  }
+
+  new_data_prepared <- .prepare_newdata(
+    object  = x,
+    newdata = newdata,
+    type    = "estimate"
+  )
+  tau_result <- .evaluate.brma.tau(
+    fit               = x[["fit"]],
+    scale_data        = new_data_prepared[["scale"]],
+    scale_formula     = .create_fit_formula_list(data = new_data_prepared, "scale"),
+    scale_priors      = x[["priors"]][["scale"]],
+    is_scale          = TRUE,
+    is_multilevel     = FALSE,
+    K                 = nrow(newdata),
+    posterior_samples = posterior_samples
+  )
+
+  return(tau_result[["tau_total"]])
+}
+
+
+.regplot_mv_marginalized_variance_samples <- function(x, newdata,
+                                                      posterior_samples) {
+
+  S        <- nrow(posterior_samples)
+  K        <- nrow(newdata)
+  variance <- matrix(0, nrow = S, ncol = K)
+
+  if (!.data_has_marginalized_random_effects(x[["data"]])) {
+    return(variance)
+  }
+
+  if (.is_scale(x)) {
+    new_data_prepared <- .prepare_newdata(
+      object  = x,
+      newdata = newdata,
+      type    = "estimate"
+    )
+    tau_result <- .evaluate.brma.tau(
+      fit               = x[["fit"]],
+      scale_data        = new_data_prepared[["scale"]],
+      scale_formula     = .create_fit_formula_list(data = new_data_prepared, "scale"),
+      scale_priors      = x[["priors"]][["scale"]],
+      is_scale          = TRUE,
+      is_multilevel     = FALSE,
+      K                 = K,
+      posterior_samples = posterior_samples
+    )
+    return(tau_result[["tau_total"]]^2)
+  }
+
+  return(.evaluate_marginalized_random_variance(
+    data              = x[["data"]],
+    posterior_samples = posterior_samples,
+    K                 = K
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .regplot_band_data_categorical
 # ---------------------------------------------------------------------------- #
 #
@@ -560,28 +804,36 @@
   pred_upper <- apply(pred_samples, 2, stats::quantile, probs = probs[2], names = FALSE)
 
   if (pi || si) {
-    is_scale      <- .is_scale(x)
-    is_multilevel <- .is_multilevel(x)
+    if (inherits(x, "brma.mv") && .is_random(x)) {
+      tau_total <- .regplot_mv_random_sd_samples(
+        x                 = x,
+        newdata           = newdata,
+        posterior_samples = posterior_samples
+      )
+    } else {
+      is_scale      <- .is_scale(x)
+      is_multilevel <- .is_multilevel(x)
 
-    scale_data    <- NULL
-    scale_formula <- NULL
-    if (is_scale) {
-      new_data_prepared <- .prepare_newdata(object = x, newdata = newdata, type = "estimate")
-      scale_data        <- new_data_prepared[["scale"]]
-      scale_formula     <- .create_fit_formula_list(data = new_data_prepared, "scale")
+      scale_data    <- NULL
+      scale_formula <- NULL
+      if (is_scale) {
+        new_data_prepared <- .prepare_newdata(object = x, newdata = newdata, type = "estimate")
+        scale_data        <- new_data_prepared[["scale"]]
+        scale_formula     <- .create_fit_formula_list(data = new_data_prepared, "scale")
+      }
+
+      tau_result <- .evaluate.brma.tau(
+        fit               = x[["fit"]],
+        scale_data        = scale_data,
+        scale_formula     = scale_formula,
+        scale_priors      = x[["priors"]][["scale"]],
+        is_scale          = is_scale,
+        is_multilevel     = is_multilevel,
+        K                 = n_pred,
+        posterior_samples = posterior_samples
+      )
+      tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
     }
-
-    tau_result <- .evaluate.brma.tau(
-      fit               = x[["fit"]],
-      scale_data        = scale_data,
-      scale_formula     = scale_formula,
-      scale_priors      = x[["priors"]][["scale"]],
-      is_scale          = is_scale,
-      is_multilevel     = is_multilevel,
-      K                 = n_pred,
-      posterior_samples = posterior_samples
-    )
-    tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
   }
 
   if (pi) {

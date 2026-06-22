@@ -70,6 +70,37 @@ test_that("GEN measure without ni is rejected", {
   )
 })
 
+test_that("GEN measure accepts explicit default moderator prior without UISD", {
+
+  skip_on_cran()
+
+  explicit_effect <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 10)
+  )
+  explicit_heterogeneity <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 1),
+    truncation   = list(0, Inf)
+  )
+  explicit_mods <- BayesTools::prior_factor(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 2),
+    contrast     = "independent"
+  )
+
+  result <- brma.norm(
+    yi = effect, sei = std_err, mods = ~ 0 + mod_factor,
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    data = test_data, measure = "GEN", only_priors = TRUE
+  )[["priors"]]
+
+  expect_equal(result[["mods"]][["mod_factor"]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["outcome"]][["tau"]][["parameters"]][["sd"]], 1)
+})
+
 test_that("GEN measure rejects incomplete ni for UISD defaults", {
 
   skip_on_cran()
@@ -444,6 +475,30 @@ test_that("rescale_priors scales prior distributions", {
   ))
 })
 
+test_that("rescale_priors reports unsupported prior distributions once", {
+
+  skip_on_cran()
+
+  unsupported <- BayesTools::prior("gamma", parameters = list(shape = 1, rate = 1))
+
+  message <- tryCatch(
+    brma.norm(
+      yi             = effect,
+      sei            = std_err,
+      data           = test_data,
+      measure        = "SMD",
+      prior_effect   = unsupported,
+      rescale_priors = 2,
+      only_priors    = TRUE
+    ),
+    error = conditionMessage
+  )
+
+  expect_match(message, "The 'gamma' prior distribution cannot be rescaled", fixed = TRUE)
+  expect_match(message, "'normal', 'mnormal', 'cauchy', 'mcauchy', 't', 'mt', 'invgamma'", fixed = TRUE)
+  expect_equal(length(gregexpr("prior distribution cannot be rescaled", message, fixed = TRUE)[[1]]), 1L)
+})
+
 
 # ============================================================================
 # Tests for custom priors
@@ -813,10 +868,11 @@ test_that("Both mods and scale priors are assigned together", {
 
   skip_on_cran()
 
-  result <- brma.norm(
+  object <- brma.norm(
     yi = effect, sei = std_err, mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
     data = test_data, measure = "SMD", only_priors = TRUE
-  )[["priors"]]
+  )
+  result <- object[["priors"]]
 
   expect_true(!is.null(result$mods))
   expect_true(!is.null(result$scale))
@@ -824,6 +880,20 @@ test_that("Both mods and scale priors are assigned together", {
   expect_true("intercept" %in% names(result$scale))
   expect_false("mu" %in% names(result$outcome))
   expect_false("tau" %in% names(result$outcome))
+
+  formula_args <- .create_jags_formula_args(
+    data   = object[["data"]],
+    priors = object[["priors"]]
+  )
+
+  expect_named(formula_args[["formula_list"]],       c("mu", "log_tau"))
+  expect_named(formula_args[["formula_data_list"]],  c("mu", "log_tau"))
+  expect_named(formula_args[["formula_prior_list"]], c("mu", "log_tau"))
+  expect_named(formula_args[["formula_scale_list"]], c("mu", "log_tau"))
+  expect_length(formula_args[["formula_random_prior_list"]], 0L)
+  expect_length(formula_args[["formula_random_effects_compile_list"]], 0L)
+  expect_length(formula_args[["add_parameters"]], 0L)
+  expect_true(isTRUE(attr(formula_args[["formula_list"]][["log_tau"]], "log(intercept)")))
 })
 
 

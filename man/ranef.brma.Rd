@@ -4,7 +4,14 @@
 \alias{ranef.brma}
 \title{Random Effects for brma Objects}
 \usage{
-\method{ranef}{brma}(object, bias_adjusted = FALSE, probs = c(0.025, 0.975), ...)
+\method{ranef}{brma}(
+  object,
+  bias_adjusted = FALSE,
+  probs = c(0.025, 0.975),
+  component = "all",
+  simplify = TRUE,
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -15,15 +22,24 @@
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
+\item{component}{random-effect component to return. Defaults to
+\code{"all"}. For decomposed models, use a component name such as
+\code{"cluster"}, \code{"estimate"}, or a \code{brma.mv()} random-effect
+block name. Use \code{"total"} for the summed random-effect deviation.}
+
+\item{simplify}{whether \code{component = "all"} should return a single
+\code{brma_samples} object instead of a one-element list. Defaults to
+\code{TRUE}, matching standard 2-level \code{brma()} behavior.}
+
 \item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
 supported options such as \code{conditional}. \code{newdata}, \code{type},
 \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
 this method.}
 }
 \value{
-For 2-level models, a \code{brma_samples} object. For 3-level
-models, a named list of \code{brma_samples} objects (one per variance
-component).
+A \code{brma_samples} object for a single selected/simplified
+component, or a named list of \code{brma_samples} objects for decomposed
+\code{component = "all"} output.
 }
 \description{
 Extracts random effect deviations from a fitted brma object.
@@ -48,6 +64,11 @@ deviations from the fixed effects.}
 (\eqn{\theta_i - \mu_i - \gamma_j \cdot \tau_{between}}),
 representing within-cluster deviations from the cluster means.}
 }
+
+For \code{brma.mv()} random-formula models, decomposes by random-effect
+block. Sampled blocks use fitted latent random effects; blocks compiled as
+marginalized use Gaussian BLUP means. If there is only one block and
+\code{simplify = TRUE}, returns a single \code{brma_samples} object.
 }
 \examples{
 \dontrun{

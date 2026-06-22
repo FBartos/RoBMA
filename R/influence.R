@@ -27,6 +27,12 @@
 #' \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
 #' Undefined determinant- or variance-standardized diagnostics are reported as
 #' \code{NaN} and printed with an explanatory note.
+#' For \code{brma.mv()} objects, influence returns only components with
+#' implemented estimate-unit targets. DFFITS and Cook's distance report
+#' influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}
+#' is currently deferred.
+#' With correlated known-\code{V} data, the returned PSIS influence components
+#' use conditional estimate deletion rather than independent-study deletion.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -63,6 +69,39 @@ influence.brma <- function(model, ...) {
   # rstudent (LOO-PIT residuals)
   rstud_df     <- rstudent.brma(model, .psis_context = psis_context)
   rstudent_val <- rstud_df[["z"]]
+
+  if (inherits(model, "brma.mv")) {
+    fit_samples <- .influence_fit_samples(model)
+    dffits_val  <- .dffits_internal(fit_samples, loo_wts)
+    X           <- .get_model_matrix(model)
+    P           <- qr(X)[["rank"]]
+    cook_val    <- .cooks.distance_internal(fit_samples, loo_wts, P)
+    cov_val  <- covratio.brma(model, .weights = loo_wts)
+    cov_note <- attr(cov_val, "note")
+    cov_val  <- as.numeric(cov_val)
+    dfb_val  <- dfbetas.brma(model, .weights = loo_wts)
+    dfb_note <- attr(dfb_val, "note")
+
+    inf_df <- data.frame(
+      rstudent = rstudent_val,
+      dffits   = dffits_val,
+      cook.d   = cook_val,
+      cov.r    = cov_val,
+      hat      = hatvalues.brma(model)
+    )
+    inf_df <- .diagnostic_set_rownames(inf_df, model)
+
+    res <- list(
+      inf  = inf_df,
+      dfbs = dfb_val
+    )
+    note <- .diagnostic_collect_notes(cov_note, dfb_note)
+    if (!is.null(note)) {
+      attr(res, "note") <- note
+    }
+    class(res) <- "infl.brma"
+    return(res)
+  }
 
   # Hat Matrix Samples (S x K)
   if (outcome_type == "norm" && !is_weightfunction) {

@@ -31,17 +31,16 @@ test_that("qCMDE factor point guards use display aliases", {
       posterior                = list(random = 0),
       raw_posterior            = list(random = 0),
       context                  = NULL,
-      diagnostic_cache         = NULL,
+      estimate_cache           = .iwmde_estimate_cache(),
       parameter                = "mu_alloc",
       parameter_label          = "alloc",
       value                    = 0,
       conditional              = NULL,
+      n_points                 = 20,
       max_samples              = 10,
       normalization_points     = 10,
       normalization_prob       = .99,
-      method                   = "q_grid_cmde",
-      density_method           = "qCMDE",
-      standardized_coefficients = FALSE
+      density_method           = "qCMDE"
     ),
     "alloc\\[level\\] = 0"
   )
@@ -65,6 +64,103 @@ test_that("qCMDE factor point guards use display aliases", {
     ),
     "alloc\\[level\\] = 0"
   )
+})
+
+
+test_that("qCMDE point attachment drops stale same-value ordinates", {
+
+  diagnostics <- list(
+    estimator                 = "q_grid_cmde",
+    relative_mcse             = .01,
+    finite_terms              = 100,
+    ess                       = 100,
+    max_weight_share          = .10,
+    row_drop_fraction         = 0,
+    active_mass               = 1,
+    normalization_integral    = 1,
+    ordinate_relative_change  = 0
+  )
+  stale <- list(
+    value            = 0,
+    ordinate         = 1,
+    method           = "q_grid_cmde",
+    density_method   = "qCMDE",
+    diagnostics      = diagnostics,
+    iwmde_provenance = list(request_key = "stale")
+  )
+  fresh <- stale
+  fresh[["iwmde_provenance"]] <- list(request_key = "fresh")
+  posterior <- stats::rnorm(50)
+  attr(posterior, "posterior_ordinate") <- stale
+
+  testthat::local_mocked_bindings(
+    .iwmde_estimate = function(...) {
+      list(
+        diagnostics        = list(ordinate = list(status = "ok")),
+        posterior_ordinate = fresh
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .hypothesis_brma_attach_iwmde_scalar(
+    posterior            = posterior,
+    raw_posterior        = as.numeric(posterior),
+    context              = list(),
+    estimate_cache       = .iwmde_estimate_cache(),
+    parameter            = "mu",
+    parameter_label      = "mu",
+    value                = 0,
+    conditional          = NULL,
+    n_points             = 20,
+    max_samples          = 20,
+    normalization_points = 20,
+    normalization_prob   = .99,
+    density_method       = "qCMDE"
+  )
+
+  entries <- .iwmde_posterior_ordinate_entries(
+    attr(out, "posterior_ordinate", exact = TRUE)
+  )
+  expect_length(entries, 1L)
+  expect_equal(entries[[1L]][["iwmde_provenance"]][["request_key"]], "fresh")
+})
+
+
+test_that("hypothesis alias rewriting preserves trailing level-reference backticks", {
+
+  rewritten <- .hypothesis_brma_rewrite(
+    hypothesis = "alloc > alloc[random]",
+    aliases    = list(alloc = "mu_alloc", mu_alloc = "mu_alloc"),
+    parameter  = "mu_alloc"
+  )
+
+  expect_equal(rewritten, "mu_alloc > mu_alloc[random]")
+})
+
+
+test_that("hypothesis quantities do not advertise normal point tests", {
+
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog = function(object) {
+
+      data.frame(
+        alias      = c("mu", "tau", "omega"),
+        parameter  = c("mu", "tau", "omega"),
+        component  = c("mods", "scale", "bias"),
+        term       = c("mu", "tau", "omega"),
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+    },
+    .package = "RoBMA"
+  )
+
+  quantities <- hypothesis_quantities(structure(list(), class = "brma"))
+
+  expect_false(any(quantities[["component"]] == "bias"))
+  expect_equal(unique(quantities[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
+  expect_false(any(grepl("\\bnormal\\b", quantities[["point_test_methods"]])))
 })
 
 
@@ -124,6 +220,8 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
   quantities <- hypothesis_quantities(fit)
 
   expect_true(all(c("point_test", "direction_test", "reason") %in% names(quantities)))
+  expect_equal(unique(quantities[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
+  expect_false(any(grepl("\\bnormal\\b", quantities[["point_test_methods"]])))
   expect_true(any(
     quantities[["alias"]] == "Preregistered" &
       quantities[["parameter"]] == "mu_Preregistered" &
@@ -360,13 +458,87 @@ test_that("qCMDE point-null ordinates support boundary nulls", {
     density_control = list(
       n_points             = 30,
       max_samples          = 80,
-      normalization_points = 40
+      normalization_points = 60
     ),
-    n_samples       = 1000
+    n_samples       = 10000
+  )
+  bf_tau_zero_iwmde <- hypothesis(
+    fit,
+    "tau = 0",
+    columns         = "all",
+    density_method  = "IWMDE",
+    density_control = list(
+      n_points             = 30,
+      max_samples          = 120,
+      normalization_points = 80
+    ),
+    n_samples       = 10000
   )
 
   expect_equal(bf_tau_zero[["method"]], "Savage-Dickey (precomputed)")
   expect_true(is.finite(attr(bf_tau_zero, "raw_BF")))
+  expect_equal(bf_tau_zero_iwmde[["method"]], "Savage-Dickey (precomputed)")
+  expect_true(is.finite(attr(bf_tau_zero_iwmde, "raw_BF")))
+
+  context <- .iwmde_context(fit)
+  tau_prior_sd <- fit[["priors"]][["outcome"]][["tau"]][["parameters"]][["sd"]]
+  oracle_cases <- list(
+    qCMDE = list(
+      bf      = bf_tau_zero,
+      control = list(
+        n_points             = 30,
+        max_samples          = 80,
+        normalization_points = 60
+      )
+    ),
+    IWMDE = list(
+      bf      = bf_tau_zero_iwmde,
+      control = list(
+        n_points             = 30,
+        max_samples          = 120,
+        normalization_points = 80
+      )
+    )
+  )
+
+  for (method in names(oracle_cases)) {
+    case <- oracle_cases[[method]]
+    estimate <- .iwmde_estimate(
+      context         = context,
+      parameter       = "tau",
+      density_method  = method,
+      density_control = c(
+        case[["control"]],
+        list(display_grid = "ordinate")
+      ),
+      outputs         = "ordinate",
+      values          = 0,
+      parameter_spec  = list(
+        type             = "primitive",
+        conditional      = NULL,
+        conditional_rule = "AND"
+      ),
+      metadata        = list(parameter = "tau"),
+      cache           = .iwmde_estimate_cache()
+    )
+    ordinate <- estimate[["posterior_ordinate"]]
+
+    expect_equal(ordinate[["value"]], 0)
+    expect_gt(ordinate[["evaluation_value"]], 0)
+    expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
+
+    prior_ordinate <- 2 * stats::dnorm(
+      ordinate[["evaluation_value"]],
+      mean = 0,
+      sd   = tau_prior_sd
+    )
+    expected_bf <- prior_ordinate / ordinate[["ordinate"]]
+    expect_equal(
+      log(as.numeric(attr(case[["bf"]], "raw_BF"))),
+      log(expected_bf),
+      tolerance = 1e-4
+    )
+  }
 })
 
 
@@ -473,14 +645,36 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
   class(object) <- c("marginal_means.brma", "marginal_means")
 
   captured <- NULL
-  testthat::local_mocked_bindings(
-    .iwmde_context = function(object) list(source = object),
-    .iwmde_parameter_ordinate_diagnostic = function(
-        context, parameter, values, max_samples, normalization_points,
-        normalization_prob, method, parameter_spec, diagnostic_cache) {
+  minimal_context <- function(object) {
 
+    list(
+      source            = object,
+      posterior_samples = cbind(
+        mu_intercept = seq(-1, 1, length.out = 40),
+        mu_alloc     = seq(.5, -.5, length.out = 40)
+      ),
+      object = list(
+        fit        = list(),
+        likelihood = list(family = "normal"),
+        data       = list(measure = "yi")
+      )
+    )
+  }
+  testthat::local_mocked_bindings(
+    .iwmde_context = minimal_context,
+    .iwmde_row_states = function(context, rows, parameter = NULL,
+                                 parameter_spec = NULL) {
+
+      lapply(rows, function(row) list(baseline_log_q = 0))
+    },
+    .iwmde_execute_plan_diagnostic = function(
+        context, plan, output, execution_cache = NULL,
+        diagnostic_cache = NULL) {
+
+      values <- plan[["grids"]][["requested_values"]]
       list(
         status      = "ok",
+        target_key  = plan[["target"]][["target_key"]],
         diagnostics = list(
           bf_included         = TRUE,
           bf_value            = values[[1L]],
@@ -489,14 +683,17 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
           bf_mcse             = .01,
           bf_relative_mcse    = .01,
           bf_error_percent    = 1,
-          bf_finite_terms     = 20,
-          bf_ess              = 20,
+          bf_finite_terms     = 60,
+          bf_ess              = 30,
           bf_max_weight_share = .2,
           bf_max_log_ratio    = 0,
           active_mass         = 1,
           normalization_integral = 1,
+          bf_ordinate_relative_change = 0,
+          max_ordinate_relative_change = 0,
+          max_normalizer_relative_change = 0,
           normalization_range    = c(-1, 1),
-          estimator              = method,
+          estimator              = plan[["method"]],
           weight_method          = "mock"
         )
       )
@@ -539,6 +736,196 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
   expect_equal(captured[["density_method"]], "precomputed")
   expect_true(BayesTools::posterior_ordinate_has_value(ordinate, 0))
   expect_equal(ordinate[["condition_key"]], condition_key)
+})
+
+
+test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
+
+  condition_key <- "OR\r2\rmu_alloc\rmu_intercept"
+  density_control <- .density_control_normalize(
+    density_method  = "qCMDE",
+    density_control = list(
+      n_points             = 20,
+      max_samples          = 20,
+      normalization_points = 20
+    )
+  )
+  sample <- structure(
+    stats::rnorm(40),
+    linear_weights             = c(mu_intercept = 1, mu_alloc = 1),
+    effective_conditional      = c("mu_intercept", "mu_alloc"),
+    effective_conditional_rule = "OR",
+    condition_key              = condition_key
+  )
+  make_object <- function(sample) {
+
+    inference <- structure(
+      list(
+        averaged    = list(mu_alloc = list(alternate = sample)),
+        conditional = list(mu_alloc = list(alternate = sample)),
+        inference   = list()
+      ),
+      class = c("marginal_inference", "list")
+    )
+    object <- list(
+      inference        = inference,
+      parameters       = "mu_alloc",
+      term_map         = data.frame(
+        term             = "alloc",
+        parameter        = "mu_alloc",
+        label            = "alloc",
+        stringsAsFactors = FALSE
+      ),
+      conditional_rule = "OR",
+      density_method   = "KDE",
+      source_object    = structure(list(fit = list()), class = c("RoBMA", "brma"))
+    )
+    class(object) <- c("marginal_means.brma", "marginal_means")
+
+    return(object)
+  }
+  make_diagnostic <- function(method, ordinate) {
+
+    list(
+      status      = "ok",
+      diagnostics = list(
+        bf_included         = TRUE,
+        bf_value            = 0,
+        bf_evaluation_value = 0,
+        bf_ordinate         = ordinate,
+        bf_mcse             = .01,
+        bf_relative_mcse    = .01,
+        bf_error_percent    = 1,
+        bf_finite_terms     = 60,
+        bf_ess              = 30,
+        bf_max_weight_share = .2,
+        bf_max_log_ratio    = 0,
+        active_mass         = 1,
+        normalization_integral = 1,
+        bf_ordinate_relative_change = 0,
+        max_ordinate_relative_change = 0,
+        max_normalizer_relative_change = 0,
+        normalization_range = c(-1, 1),
+        estimator           = method,
+        weight_method       = "mock"
+      )
+    )
+  }
+  metadata <- .iwmde_posterior_metadata(
+    samples   = sample,
+    parameter = "mu_alloc",
+    level     = "alternate"
+  )
+  compatible_object <- make_object(sample)
+  minimal_context <- function(object) {
+
+    list(
+      source            = object,
+      posterior_samples = cbind(
+        mu_intercept = seq(-1, 1, length.out = 40),
+        mu_alloc     = seq(.5, -.5, length.out = 40)
+      ),
+      object = list(
+        fit        = list(),
+        likelihood = list(family = "normal"),
+        data       = list(measure = "yi")
+      )
+    )
+  }
+  row_states_mock <- function(context, rows, parameter = NULL,
+                              parameter_spec = NULL) {
+
+    lapply(rows, function(row) list(baseline_log_q = 0))
+  }
+  testthat::local_mocked_bindings(
+    .iwmde_row_states = row_states_mock,
+    .package = "RoBMA"
+  )
+  compatible_spec <- .iwmde_marginal_means_specs(
+    marginal_means_object = compatible_object,
+    parameter             = "mu_alloc",
+    type                  = "conditional",
+    levels                = "alternate"
+  )[[1L]]
+  compatible_plan <- .iwmde_plan(
+    context         = minimal_context(compatible_object),
+    parameter       = compatible_spec[["label"]],
+    density_method  = "qCMDE",
+    density_control = density_control,
+    outputs         = "ordinate",
+    values          = 0,
+    parameter_spec  = compatible_spec,
+    metadata        = metadata
+  )
+  compatible_diagnostic <- make_diagnostic("q_grid_cmde", 2)
+  compatible_diagnostic[["target_key"]] <- compatible_plan[["target"]][["target_key"]]
+  compatible_diagnostic[["plan"]]       <- compatible_plan
+  compatible <- .iwmde_posterior_ordinate_attribute(
+    diagnostic      = compatible_diagnostic,
+    density_method  = "qCMDE",
+    metadata        = metadata,
+    density_control = density_control
+  )
+  incompatible <- .iwmde_posterior_ordinate_attribute(
+    diagnostic      = make_diagnostic("iwmde", 3),
+    density_method  = "IWMDE",
+    metadata        = metadata,
+    density_control = density_control
+  )
+
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    .iwmde_context = minimal_context,
+    .iwmde_execute_plan_diagnostic = function(
+        context, plan, output, execution_cache = NULL,
+        diagnostic_cache = NULL) {
+
+      calls <<- calls + 1L
+      diagnostic <- make_diagnostic(plan[["method"]], 4)
+      diagnostic[["target_key"]] <- plan[["target"]][["target_key"]]
+      diagnostic
+    },
+    .package = "RoBMA"
+  )
+
+  compatible_sample <- sample
+  attr(compatible_sample, "posterior_ordinate") <- compatible
+  reused <- .hypothesis_marginal_means_attach_iwmde(
+    object          = make_object(compatible_sample),
+    parameter       = "mu_alloc",
+    parameter_label = "alloc",
+    hypothesis      = "mu_alloc[alternate] = 0",
+    density_method  = "qCMDE",
+    density_control = density_control
+  )
+  reused_ordinate <- attr(
+    reused[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    "posterior_ordinate",
+    exact = TRUE
+  )
+
+  expect_equal(calls, 0L)
+  expect_equal(reused_ordinate[["ordinate"]], 2)
+
+  incompatible_sample <- sample
+  attr(incompatible_sample, "posterior_ordinate") <- incompatible
+  recomputed <- .hypothesis_marginal_means_attach_iwmde(
+    object          = make_object(incompatible_sample),
+    parameter       = "mu_alloc",
+    parameter_label = "alloc",
+    hypothesis      = "mu_alloc[alternate] = 0",
+    density_method  = "qCMDE",
+    density_control = density_control
+  )
+  recomputed_ordinate <- attr(
+    recomputed[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    "posterior_ordinate",
+    exact = TRUE
+  )
+
+  expect_equal(calls, 1L)
+  expect_equal(recomputed_ordinate[["ordinate"]], 4)
+  expect_equal(recomputed_ordinate[["density_method"]], "qCMDE")
 })
 
 
@@ -598,12 +985,19 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
   )
 
   expect_equal(
-    hypothesis(object, "alloc[alternate] > 0", type = "averaged"),
+    hypothesis(object, "alloc[alternate] > 0"),
     "ok"
   )
   expect_equal(
-    hypothesis(object, "alloc[alternate] = 0", type = "averaged"),
+    hypothesis(object, "alloc[alternate] = 0"),
     "ok"
+  )
+  expect_warning(
+    expect_equal(
+      hypothesis(object, "alloc[alternate] > 0", type = "averaged"),
+      "ok"
+    ),
+    "Unused argument.*'type'"
   )
 
   for (call in captured) {
@@ -616,13 +1010,18 @@ test_that("marginal means hypothesis BFs use alternative-conditioned marginals",
   }
   expect_equal(
     vapply(captured, `[[`, character(1), "hypothesis"),
-    c("mu_alloc[alternate] > 0", "mu_alloc[alternate] = 0")
+    c(
+      "mu_alloc[alternate] > 0",
+      "mu_alloc[alternate] = 0",
+      "mu_alloc[alternate] > 0"
+    )
   )
 })
 
 
 test_that("marginal means hypothesis density methods use public names", {
 
+  expect_false("type" %in% names(formals(hypothesis.marginal_means.brma)))
   expect_equal(
     eval(formals(hypothesis.marginal_means.brma)[["density_method"]]),
     c("KDE", "qCMDE", "IWMDE")

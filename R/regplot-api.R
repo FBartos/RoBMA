@@ -106,6 +106,11 @@ regplot <- function(x, ...) UseMethod("regplot")
 #'
 #' The \code{by} argument allows displaying separate regression lines for
 #' different levels of a second moderator, useful for visualizing interactions.
+#' For \code{brma.mv()} known-\code{V} models, prediction and sampling bands are
+#' pointwise descriptive bands. They summarize row-wise marginal random-effect
+#' variation and, for sampling intervals, a representative sampling standard
+#' error. They are not full joint predictive regions for correlated
+#' known-\code{V} outcomes.
 #'
 #' @return \code{regplot.brma} returns \code{NULL} invisibly if
 #' \code{plot_type = "base"} or a ggplot object if \code{plot_type = "ggplot"}.

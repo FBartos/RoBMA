@@ -4,6 +4,9 @@
 #' Returns posterior mean leverages, one for each observation.
 #'
 #' @param model a fitted brma object
+#' @param max_samples maximum posterior draws used for known-\code{V}
+#' \code{brma.mv()} marginal covariance computations. Defaults to \code{Inf}.
+#' Finite values deterministically thin draws across posterior row order.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -17,6 +20,8 @@
 #'
 #' The hat matrix is computed for each posterior draw and then averaged over
 #' draws, matching the vector output shape used by `metafor`.
+#' For known-\code{V} \code{brma.mv()} random-formula models, leverages use the
+#' marginal GLS covariance \eqn{V + ZGZ'}.
 #'
 #' This method is available only for normal outcome models without
 #' weightfunction selection.
@@ -43,7 +48,14 @@
 #' }
 #'
 #' @exportS3Method
-hatvalues.brma <- function(model, ...) {
+hatvalues.brma <- function(model, max_samples = Inf, ...) {
+
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
+
+  if (inherits(model, "only_priors.brma") || is.null(model[["fit"]])) {
+    stop("hatvalues require a fitted brma object with posterior samples.",
+         call. = FALSE)
+  }
 
   # the function relies on normal-normal approximations
   # as such it is sensible only sensible for normal models
@@ -56,6 +68,13 @@ hatvalues.brma <- function(model, ...) {
   if (is_weightfunction) {
     stop("hatvalues is not available for selection models (weightfunction).", call. = FALSE)
   }
+  if (inherits(model, "brma.mv") && !.is_data_known_v(model[["data"]])) {
+    stop("hatvalues for brma.mv() require known-V covariance metadata.",
+         call. = FALSE)
+  }
+  if (!inherits(model, "brma.mv")) {
+    .check_random_formula_postfit_deferred(model, "hatvalues()")
+  }
 
   # compute hat matrix samples
   # returns list(H_diag, M_diag, ...)
@@ -64,15 +83,20 @@ hatvalues.brma <- function(model, ...) {
     object             = model,
     conditioning_depth = "marginal",
     return_full_H      = FALSE,
-    return_se          = FALSE
+    return_se          = FALSE,
+    max_samples        = max_samples
   )
 
   # extract the diagonal
-  res <- res[["H_diag"]]
+  known_v_metadata <- res[["known_v_diagnostic"]]
+  res              <- res[["H_diag"]]
 
   # return only the posterior mean for consistency with metafor
   res <- colMeans(res)
   res <- .diagnostic_set_names(res, model)
+  if (!is.null(known_v_metadata)) {
+    res <- .known_v_attach_diagnostic_metadata(res, known_v_metadata)
+  }
 
   return(res)
 }

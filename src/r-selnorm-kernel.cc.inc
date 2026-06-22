@@ -35,7 +35,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
     Rf_error("'sei' and 'weights' must have one value per observation.");
   }
 
-  SEXP out = PROTECT(Rf_allocVector(REALSXP, S * G));
+  SEXP out = PROTECT(Rf_allocMatrix(REALSXP, G, S));
 
   const double *mean_p             = REAL(mean);
   const double *sd_p               = REAL(sd);

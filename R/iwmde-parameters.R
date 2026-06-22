@@ -596,35 +596,18 @@
 .iwmde_parameter_support <- function(context, parameter, rows,
                                      parameter_spec = NULL) {
 
-  if (!is.null(parameter_spec) &&
-      identical(parameter_spec[["type"]], "linear")) {
-    return(.iwmde_linear_support(context, rows, parameter_spec[["weights"]]))
+  supports <- .iwmde_parameter_row_supports(
+    context        = context,
+    parameter      = parameter,
+    rows           = rows,
+    parameter_spec = parameter_spec
+  )
+  if (nrow(supports) == 0L) {
+    return(c(-Inf, Inf))
   }
 
-  if (.iwmde_parameter_is_eta(parameter)) {
-    return(c(0, Inf))
-  }
-
-  samples <- context[["posterior_samples"]]
-  lower   <- Inf
-  upper   <- -Inf
-  keys    <- vapply(rows, function(row) {
-    .iwmde_active_key(context, samples[row, ])
-  }, character(1))
-  rows    <- rows[!duplicated(keys)]
-
-  for (row in rows) {
-    prior <- .iwmde_focal_prior_cached(
-      context    = context,
-      parameter  = parameter,
-      row        = samples[row, ],
-      active_key = .iwmde_active_key(context, samples[row, ])
-    )
-    prior_support <- .iwmde_prior_support(prior)
-    lower <- min(lower, prior_support[1])
-    upper <- max(upper, prior_support[2])
-  }
-
+  lower <- min(supports[, 1L], na.rm = TRUE)
+  upper <- max(supports[, 2L], na.rm = TRUE)
   if (!is.finite(lower)) lower <- -Inf
   if (!is.finite(upper)) upper <- Inf
 
@@ -632,47 +615,105 @@
 }
 
 
-.iwmde_linear_support <- function(context, rows, weights) {
+.iwmde_parameter_row_supports <- function(context, parameter, rows,
+                                          parameter_spec = NULL) {
 
-  samples <- context[["posterior_samples"]]
-  lower   <- Inf
-  upper   <- -Inf
-  keys    <- vapply(rows, function(row_index) {
-    .iwmde_active_key(context, samples[row_index, ])
-  }, character(1))
-  rows    <- rows[!duplicated(keys)]
-
-  for (row_index in rows) {
-    row       <- samples[row_index, ]
-    row_lower <- 0
-    row_upper <- 0
-
-    for (parameter in names(weights)) {
-      weight <- weights[[parameter]]
-      state  <- .iwmde_focal_prior_state(context, parameter, row)
-      if (identical(state[["status"]], "point")) {
-        support <- rep(state[["location"]], 2L)
-      } else {
-        support <- .iwmde_prior_support(state[["prior"]])
-      }
-
-      if (weight >= 0) {
-        row_lower <- row_lower + weight * support[1]
-        row_upper <- row_upper + weight * support[2]
-      } else {
-        row_lower <- row_lower + weight * support[2]
-        row_upper <- row_upper + weight * support[1]
-      }
-    }
-
-    lower <- min(lower, row_lower)
-    upper <- max(upper, row_upper)
+  if (length(rows) == 0L) {
+    return(matrix(numeric(), nrow = 0L, ncol = 2L))
   }
 
-  if (!is.finite(lower)) lower <- -Inf
-  if (!is.finite(upper)) upper <- Inf
+  if (!is.null(parameter_spec) &&
+      identical(parameter_spec[["type"]], "linear")) {
+    return(.iwmde_linear_row_supports(
+      context = context,
+      rows    = rows,
+      weights = parameter_spec[["weights"]]
+    ))
+  }
 
-  return(c(lower, upper))
+  if (.iwmde_parameter_is_eta(parameter)) {
+    return(matrix(
+      c(0, Inf),
+      nrow = length(rows),
+      ncol = 2L,
+      byrow = TRUE
+    ))
+  }
+
+  samples <- context[["posterior_samples"]]
+  out     <- matrix(NA_real_, nrow = length(rows), ncol = 2L)
+
+  for (i in seq_along(rows)) {
+    row <- rows[[i]]
+    prior <- .iwmde_focal_prior_cached(
+      context    = context,
+      parameter  = parameter,
+      row        = samples[row, ],
+      active_key = .iwmde_active_key(context, samples[row, ])
+    )
+    out[i, ] <- .iwmde_prior_support(prior)
+  }
+
+  return(out)
+}
+
+
+.iwmde_linear_row_supports <- function(context, rows, weights) {
+
+  samples <- context[["posterior_samples"]]
+  out     <- matrix(NA_real_, nrow = length(rows), ncol = 2L)
+
+  for (i in seq_along(rows)) {
+    row          <- samples[rows[[i]], ]
+    current      <- .iwmde_linear_value_row(row, weights)
+    active_names <- .iwmde_linear_active_columns(context, row, weights)
+
+    if (!is.finite(current)) {
+      out[i, ] <- c(NA_real_, NA_real_)
+      next
+    }
+    if (length(active_names) == 0L) {
+      out[i, ] <- rep(current, 2L)
+      next
+    }
+
+    active_weights <- weights[active_names]
+    denominator    <- sum(active_weights^2)
+    if (!is.finite(denominator) || denominator <= 0) {
+      out[i, ] <- c(NA_real_, NA_real_)
+      next
+    }
+
+    coefficients <- active_weights / denominator
+    row_lower    <- -Inf
+    row_upper    <- Inf
+
+    for (parameter in active_names) {
+      coefficient <- coefficients[[parameter]]
+      state  <- .iwmde_focal_prior_state(context, parameter, row)
+      support <- .iwmde_prior_support(state[["prior"]])
+      value   <- as.numeric(row[[parameter]])
+
+      if (!is.finite(coefficient) || coefficient == 0) {
+        next
+      }
+
+      if (coefficient > 0) {
+        lower <- current + (support[1] - value) / coefficient
+        upper <- current + (support[2] - value) / coefficient
+      } else {
+        lower <- current + (support[2] - value) / coefficient
+        upper <- current + (support[1] - value) / coefficient
+      }
+
+      row_lower <- max(row_lower, lower)
+      row_upper <- min(row_upper, upper)
+    }
+
+    out[i, ] <- c(row_lower, row_upper)
+  }
+
+  return(out)
 }
 
 

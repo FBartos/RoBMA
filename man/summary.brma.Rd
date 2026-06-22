@@ -30,10 +30,10 @@ Defaults to \code{c(.025, .50, .975)}}
 \item{include_mcmc_diagnostics}{whether to include MCMC diagnostics in the output.
 Defaults to \code{TRUE}.}
 
-\item{standardized_coefficients}{whether to show standardized meta-regression coefficients.
-Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
-coefficients are returned for the intercept and continuous predictors. These coefficients
-correspond to the standardized scale on which prior distributions are specified by default
+\item{standardized_coefficients}{whether to show standardized formula
+coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
+meta-regression coefficients and random-component summaries are returned on
+the standardized scale on which prior distributions are specified by default
 (i.e., \code{standardize_continuous_predictors = TRUE}).}
 
 \item{conditional}{whether to include conditional estimates for RoBMA

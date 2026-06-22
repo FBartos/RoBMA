@@ -42,7 +42,10 @@ static double buffered_logsumexp_glmm(const std::vector<double> &terms)
 {
   double term_max = -INFINITY;
   for (std::vector<double>::const_iterator it = terms.begin(); it != terms.end(); ++it) {
-    if (!std::isnan(*it) && *it > term_max) {
+    if (std::isnan(*it)) {
+      return NA_REAL;
+    }
+    if (*it > term_max) {
       term_max = *it;
     }
   }
@@ -53,9 +56,7 @@ static double buffered_logsumexp_glmm(const std::vector<double> &terms)
 
   double term_sum = 0;
   for (std::vector<double>::const_iterator it = terms.begin(); it != terms.end(); ++it) {
-    if (!std::isnan(*it)) {
-      term_sum += std::exp(*it - term_max);
-    }
+    term_sum += std::exp(*it - term_max);
   }
 
   return term_max + std::log(term_sum);

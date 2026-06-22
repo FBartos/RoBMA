@@ -11,6 +11,19 @@ test_that("RoBMA does not export a competing forest generic", {
   expect_false("metafor" %in% names(getNamespaceImports("RoBMA")))
 })
 
+
+test_that("forest level normalization accepts documented percent values", {
+
+  expect_equal(.forest_normalize_level(95), .95)
+  expect_equal(.forest_normalize_level(.95), .95)
+  expect_equal(.forest_normalize_level(1), .01)
+  expect_error(
+    .forest_normalize_level(100),
+    "greater than 0 and less than 100",
+    fixed = TRUE
+  )
+})
+
 # list cached fits lazily
 skip_if_no_fits()
 fit_names <- list_fits()

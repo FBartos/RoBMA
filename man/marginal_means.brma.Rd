@@ -44,8 +44,11 @@ summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects.}
 
 \item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
-precomputation to a marginal-means parameter, output type, or factor levels.
-Leaving them \code{NULL} preserves full precomputation.}
+density precomputation to a marginal-means parameter, output type, or factor
+levels. \code{parameter} and \code{levels} also restrict the conditional
+ordinates used for inclusion Bayes factors. These ordinates are always
+computed from conditional marginal means, even when \code{type} excludes
+\code{"conditional"}.}
 
 \item{density_method}{posterior density method. \code{"KDE"} uses the
 standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
@@ -57,7 +60,8 @@ ordinates do not alter the plotting grid. Matching is case-insensitive.}
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points}, \code{max_samples}, \code{display_grid},
 \code{normalization_points}, and \code{normalization_prob}. The
-normalization entries are only used with \code{density_method = "qCMDE"}.}
+normalization entries are used with \code{density_method = "qCMDE"} and
+\code{density_method = "IWMDE"}.}
 
 \item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }

@@ -28,6 +28,8 @@ navbar:
         href: articles/v12-metafor-parity-location-scale.html
       - text: Generalized Linear Mixed-Effects Meta-Analysis
         href: articles/v13-metafor-parity-glmm.html
+      - text: Multivariate and Multilevel Meta-Analysis
+        href: articles/v14-metafor-parity-multivariate.html
       - text: -------
       - text: Bayesian Model Averaging
       - text: Bayesian Model Averaging
@@ -66,6 +68,7 @@ articles:
   - "v11-metafor-parity-publication-bias"
   - "v12-metafor-parity-location-scale"
   - "v13-metafor-parity-glmm"
+  - "v14-metafor-parity-multivariate"
 - title: Bayesian Model Averaging
   contents:
   - "v20-bayesian-model-averaging"

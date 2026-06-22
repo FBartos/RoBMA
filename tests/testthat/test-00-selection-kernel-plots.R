@@ -42,6 +42,63 @@ test_that("selection-only prior_bias wrapper is visible to zplot thresholds", {
   expect_equal(.zplot_threshold(object[["priors"]]), stats::qnorm(1 - .025))
 })
 
+test_that("zplot extrapolation colors deduplicate user line arguments", {
+
+  zplot_object <- structure(list(), class = "zplot_brma")
+  density_data <- data.frame(
+    x     = c(0, 1),
+    y     = c(1, 1),
+    y_lCI = c(.9, .9),
+    y_uCI = c(1.1, 1.1)
+  )
+  observed_col <- character()
+
+  testthat::local_mocked_bindings(
+    lines.zplot_brma = function(x, plot_type = "base",
+                                probs = c(.025, .975), max_samples = 10000,
+                                plot_ci = TRUE, extrapolate = FALSE,
+                                from = -6, to = 6, by = 0.05,
+                                length.out = NULL, col = "black",
+                                as_data = FALSE, ...) {
+
+      if (isTRUE(extrapolate)) {
+        observed_col <<- c(observed_col, col)
+      }
+      return(density_data)
+    },
+    hist.zplot_brma = function(...) {
+
+      graphics::plot(c(0, 1), c(0, 1), type = "n")
+      invisible(NULL)
+    },
+    .package = "RoBMA"
+  )
+
+  file <- tempfile(fileext = ".png")
+  grDevices::png(file)
+  on.exit({
+    grDevices::dev.off()
+    unlink(file)
+  }, add = TRUE)
+
+  expect_silent(plot.zplot_brma(
+    zplot_object,
+    plot_fit = FALSE,
+    plot_ci  = FALSE,
+    col      = "red"
+  ))
+  expect_equal(observed_col, "red")
+
+  observed_col <- character()
+  expect_silent(plot.zplot_brma(
+    zplot_object,
+    plot_fit           = FALSE,
+    plot_ci            = FALSE,
+    dots_extrapolation = list(col = "green")
+  ))
+  expect_equal(observed_col, "green")
+})
+
 test_that("native zplot density matches selected-normal R reference", {
 
   skip_if_not(.has_native_zplot_density(selection = TRUE))

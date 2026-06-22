@@ -1,0 +1,414 @@
+---
+title: "Multivariate and Multilevel Meta-Analysis"
+author: "František Bartoš"
+date: "21st of June 2026"
+output:
+  rmarkdown::html_vignette:
+    self_contained: yes
+bibliography: ../inst/REFERENCES.bib
+csl: ../inst/apa.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Multivariate and Multilevel Meta-Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
+---
+
+```{r child = "_vignette-nowrap.md", echo = FALSE, eval = TRUE}
+```
+
+```{r setup, include = FALSE}
+source("vignette-cache.R", local = knitr::knit_global())
+
+cached_fits <- vignette_cache(
+  name     = "v14-metafor-parity-multivariate",
+  objects  = c("fit1_brma", "fit2_brma", "fit3_brma", "fit4_brma"),
+  packages = c("metafor", "metadat", "BayesTools")
+)
+
+knitr::opts_chunk$set(
+  collapse    = TRUE,
+  comment     = "#>",
+  eval        = vignette_cache_eval(cached_fits),
+  message     = FALSE,
+  warning     = FALSE,
+  fig.width   = 7,
+  fig.height  = 3.5,
+  dev         = "png",
+  fig.retina  = 3
+)
+if (.Platform$OS.type == "windows") {
+  knitr::opts_chunk$set(dev.args = list(type = "cairo"))
+}
+```
+
+```{r load-models, include = FALSE}
+library("metafor")
+library("RoBMA")
+
+vignette_cache_load(cached_fits)
+```
+
+```{r precompute-models, include = FALSE, eval = FALSE}
+library("metafor")
+library("RoBMA")
+
+data("dat.konstantopoulos2011", package = "metadat")
+dat_konstantopoulos <- dat.konstantopoulos2011
+
+fit1_brma <- brma.mv(
+  yi = yi, V = vi, measure = "SMD",
+  random = ~ cs(school | district),
+  data = dat_konstantopoulos, seed = 1
+)
+
+data("dat.assink2016", package = "metadat")
+dat_assink <- dat.assink2016
+V_assink   <- metafor::vcalc(
+  vi, cluster = study, type = deltype, obs = esid,
+  rho = c(0.7, 0.5), data = dat_assink
+)
+
+fit2_brma <- brma.mv(
+  yi = yi, V = V_assink, measure = "SMD",
+  random = ~ 1 | study / esid,
+  data = dat_assink, seed = 2,
+  adapt = 5000, burnin = 10000, sample = 20000
+)
+
+data("dat.ishak2007", package = "metadat")
+dat_ishak <- dat.ishak2007
+dat_ishak <- reshape(
+  dat_ishak,
+  direction = "long",
+  idvar     = "study",
+  v.names   = c("yi", "vi"),
+  varying   = list(c(2, 4, 6, 8), c(3, 5, 7, 9))
+)
+dat_ishak <- dat_ishak[order(dat_ishak$study, dat_ishak$time), ]
+dat_ishak <- dat_ishak[!is.na(dat_ishak$yi), ]
+rownames(dat_ishak) <- NULL
+dat_ishak$time_factor <- factor(dat_ishak$time)
+V_ishak <- metafor::vcalc(
+  vi, cluster = study, time1 = time,
+  phi = 0.97, data = dat_ishak
+)
+ishak_unit_information_sd <- estimate_unit_information_sd(sei = sqrt(14.3), ni = 15)
+ishak_time_prior <- BayesTools::prior_factor(
+  distribution = "normal",
+  parameters   = list(mean = 0, sd = ishak_unit_information_sd),
+  contrast     = "independent"
+)
+
+fit3_brma <- brma.mv(
+  yi = yi, V = V_ishak, measure = "GEN",
+  mods = ~ 0 + time_factor,
+  random = ~ har(time | study),
+  prior_effect              = NULL,
+  prior_mods                = ishak_time_prior,
+  prior_unit_information_sd = ishak_unit_information_sd,
+  data = dat_ishak, seed = 3
+)
+
+data("dat.begg1989", package = "metadat")
+dat_begg <- dat.begg1989
+dat_begg$trt <- relevel(factor(dat_begg$trt), ref = "CMO")
+dat_begg$ni  <- as.numeric(round(with(dat_begg, yi * (1 - yi) / sei^2)))
+begg_unit_information_sd <- estimate_unit_information_sd(sei = dat_begg$sei, ni = dat_begg$ni)
+sd_prior <- BayesTools::prior(
+  distribution = "normal",
+  parameters = list(mean = 0, sd = begg_unit_information_sd),
+  truncation = list(lower = 0, upper = Inf)
+)
+rho_zero <- BayesTools::prior(
+  distribution = "spike",
+  parameters = list(location = 0)
+)
+cs_zero <- BayesTools::random_covariance(
+  rho       = rho_zero,
+  rho_scale = "rho"
+)
+
+fit4_brma <- brma.mv(
+  yi = yi, V = vi, ni = ni, measure = "GEN",
+  mods = ~ trt,
+  random = list(
+    study     = ~ 1 | study,
+    treatment = ~ cs(trt | study)
+  ),
+  prior_heterogeneity = BayesTools::prior_random(
+    study     = BayesTools::random_block(sd = sd_prior),
+    treatment = BayesTools::random_block(
+      sd         = sd_prior,
+      covariance = cs_zero
+    )
+  ),
+  prior_unit_information_sd = begg_unit_information_sd,
+  data = dat_begg, seed = 4
+)
+
+vignette_cache_save(cached_fits)
+```
+
+This vignette is a starting point for fitting multivariate and multilevel meta-analytic models with the `RoBMA` R package [@RoBMA].
+We walk through four datasets from the `metadat` package [@metadat], showing the `brma.mv()` call alongside its `metafor::rma.mv()` counterpart [@metafor].
+The examples move from a simple three-level model to known sampling covariance matrices, temporal correlation structures, and two simultaneous random structures.
+
+The first two examples rely on default prior distributions and the last two examples rely on unit-information-scaled prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for more details.
+For generic summaries, plots, and diagnostics that also apply to `brma.mv()` objects, see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
+
+## Three-Level Model
+
+The `dat.konstantopoulos2011` dataset from the `metadat` package contains 56 standardized mean differences from studies of modified school calendars and student achievement.
+Positive values indicate higher achievement for students on modified calendars, and schools are clustered within districts.
+Effect sizes `yi` and sampling variances `vi` are already provided.
+
+```{r data-konstantopoulos}
+data("dat.konstantopoulos2011", package = "metadat")
+dat_konstantopoulos <- dat.konstantopoulos2011
+head(dat_konstantopoulos)
+```
+
+The `metafor` package fit uses a compound-symmetric random effect for schools within districts.
+We set `struct = "CS"` explicitly so that the fitted random structure is visible in the call.
+The shorter `brma(..., cluster = district)` syntax for this special case is shown in the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette.
+
+```{r fit1-metafor}
+fit1_metafor <- metafor::rma.mv(
+  yi, vi,
+  random = ~ school | district,
+  struct = "CS",
+  data = dat_konstantopoulos
+)
+fit1_metafor
+```
+
+The matching `brma.mv()` call passes the sampling variances through `V` and uses the `cs()` random-effect formula tag.
+The `cs(school | district)` term estimates one shared heterogeneity standard deviation and one within-district correlation for the school effects.
+
+```{r fit1-brma, eval = FALSE}
+fit1_brma <- brma.mv(
+  yi = yi, V = vi, measure = "SMD",
+  random = ~ cs(school | district),
+  data = dat_konstantopoulos, seed = 1
+)
+```
+
+`summary()` reports the pooled effect and the random-effect parameters monitored by the fitted Bayesian model.
+Here `sd(shared | district)` corresponds to the `metafor` package estimate of total heterogeneity and `rho(district)` corresponds to the compound-symmetric correlation.
+
+```{r fit1-brma-summary}
+summary(fit1_brma, include_mcmc_diagnostics = FALSE)
+```
+
+## Known Sampling Covariance
+
+The `dat.assink2016` dataset from the `metadat` package contains standardized mean differences from 17 studies on recidivism and mental health among delinquent juveniles.
+Most studies contributed multiple estimates for different delinquent behaviors, so the example needs both a working sampling covariance matrix and random effect specification.
+The `metafor::vcalc()` call constructs a working sampling covariance matrix from the effect-size variances, study labels, delinquency type, and effect-size identifiers.
+
+```{r data-assink}
+data("dat.assink2016", package = "metadat")
+dat_assink <- dat.assink2016
+V_assink   <- metafor::vcalc(
+  vi, cluster = study, type = deltype, obs = esid,
+  rho = c(0.7, 0.5), data = dat_assink
+)
+head(dat_assink)
+```
+
+The `metafor` package model uses the full `V` matrix and a nested random intercept for studies and effect sizes within studies.
+
+```{r fit2-metafor}
+fit2_metafor <- metafor::rma.mv(
+  yi, V_assink,
+  random = ~ 1 | study / esid,
+  data = dat_assink
+)
+fit2_metafor
+```
+
+The `brma.mv()` call mirrors the same inputs: `V` is the known sampling covariance matrix and `random` describes the additional heterogeneity.
+The nested variance allocation can mix slowly, so this example uses a longer MCMC run.
+
+```{r fit2-brma, eval = FALSE}
+fit2_brma <- brma.mv(
+  yi = yi, V = V_assink, measure = "SMD",
+  random = ~ 1 | study / esid,
+  data = dat_assink, seed = 2,
+  adapt = 5000, burnin = 10000, sample = 20000
+)
+```
+
+```{r fit2-brma-summary}
+summary(fit2_brma, include_mcmc_diagnostics = FALSE)
+```
+
+The known `V` matrix and the random-effects formula address different sources of dependence.
+The `V` matrix encodes sampling-error dependence that is treated as known, while the random-effects formula estimates residual heterogeneity across the levels named in `random`.
+
+```{r fit2-brma-heterogeneity}
+summary_heterogeneity(fit2_brma)
+```
+
+The first heterogeneity table summarizes the shared `study/esid` heterogeneity allocation, including the total heterogeneity and variance fractions; the following tables summarize the block-specific standard deviations.
+
+## Heterogeneous AR(1) Structure
+
+The `dat.ishak2007` dataset from the `metadat` package contains results from 46 studies of deep-brain stimulation for Parkinson's disease.
+Negative mean differences indicate improvements in UPDRS motor-function scores, and repeated follow-up measurements within studies motivate a temporal correlation model.
+The data are first reshaped to long format, and `metafor::vcalc()` uses a working autocorrelation of `0.97` for the sampling errors.
+
+```{r data-ishak}
+data("dat.ishak2007", package = "metadat")
+dat_ishak <- dat.ishak2007
+dat_ishak <- reshape(
+  dat_ishak,
+  direction = "long",
+  idvar     = "study",
+  v.names   = c("yi", "vi"),
+  varying   = list(c(2, 4, 6, 8), c(3, 5, 7, 9))
+)
+dat_ishak <- dat_ishak[order(dat_ishak$study, dat_ishak$time), ]
+dat_ishak <- dat_ishak[!is.na(dat_ishak$yi), ]
+rownames(dat_ishak) <- NULL
+dat_ishak$time_factor <- factor(dat_ishak$time)
+V_ishak <- metafor::vcalc(
+  vi, cluster = study, time1 = time,
+  phi = 0.97, data = dat_ishak
+)
+head(dat_ishak)
+```
+
+The `metafor` package uses `struct = "HAR"` for a heterogeneous AR(1) true-effect structure over time within studies.
+The fixed effects estimate one mean difference at each time point, with the intercept suppressed.
+
+```{r fit3-metafor}
+fit3_metafor <- metafor::rma.mv(
+  yi, V_ishak,
+  mods = ~ 0 + time_factor,
+  random = ~ time | study,
+  struct = "HAR",
+  data = dat_ishak
+)
+fit3_metafor
+```
+
+The `brma.mv()` call uses the BayesTools `har()` wrapper in the random-effects formula.
+Because this outcome is a generic continuous outcome and sample sizes are not reported in the source table, we use one of the primary-study sample sizes to estimate the unit-information scale.
+The Alegret (2001) row reports a 3-month sampling variance of `14.3`, and the primary study reports `15` patients.
+We compute the corresponding unit-information standard deviation with `estimate_unit_information_sd()` and use it directly in the prior distribution specification.
+The independent factor prior distribution gives each time point its own location coefficient on this UPDRS scale.
+
+```{r fit3-brma, eval = FALSE}
+ishak_unit_information_sd <- estimate_unit_information_sd(sei = sqrt(14.3), ni = 15)
+
+fit3_brma <- brma.mv(
+  yi = yi, V = V_ishak, measure = "GEN",
+  mods = ~ 0 + time_factor,
+  random = ~ har(time | study),
+  prior_effect              = NULL,
+  prior_mods                = BayesTools::prior_factor(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = ishak_unit_information_sd),
+    contrast     = "independent"
+  ),
+  prior_unit_information_sd = ishak_unit_information_sd,
+  data = dat_ishak, seed = 3
+)
+```
+
+```{r fit3-brma-summary}
+summary(fit3_brma, include_mcmc_diagnostics = FALSE)
+```
+
+The `HAR` structure lets the heterogeneity differ by time point while estimating one autocorrelation across neighboring time points.
+This separates the temporal structure of the true effects from the working temporal dependence already encoded in `V_ishak`.
+
+## Study and Treatment Random Effects
+
+The `dat.begg1989` dataset from the `metadat` package contains 20 estimates of two-year disease-free survival rates for acute nonlymphocytic leukemia.
+The studies compare allogeneic bone-marrow transplantation (BMT) and conventional chemotherapy (CMO), with both controlled two-arm studies and uncontrolled one-arm studies.
+The example uses the reported survival rates and their sampling variances directly on the raw rate scale.
+
+```{r data-begg}
+data("dat.begg1989", package = "metadat")
+dat_begg <- dat.begg1989
+dat_begg$trt <- relevel(factor(dat_begg$trt), ref = "CMO")
+dat_begg$ni  <- as.numeric(round(with(dat_begg, yi * (1 - yi) / sei^2)))
+head(dat_begg)
+```
+
+The `metafor` package model combines a study intercept with a treatment-specific random effect.
+The study intercept captures heterogeneity in baseline survival.
+The treatment-specific component allows the BMT and CMO estimates to vary within studies, with the treatment-level correlation fixed at zero by `rho = 0`.
+
+```{r fit4-metafor}
+fit4_metafor <- metafor::rma.mv(
+  yi, vi,
+  mods = ~ trt,
+  random = list(
+    ~ 1 | study,
+    ~ trt | study
+  ),
+  struct = "CS",
+  rho    = 0,
+  data   = dat_begg,
+  method = "ML"
+)
+fit4_metafor
+```
+
+The `brma.mv()` sets names for the two random structures explicitly.
+Because the source table reports survival rates and standard errors but not sample sizes, we recover effective sample sizes and use them to scale the prior distributions.
+The `prior_random()` call specifies the study and treatment blocks directly because it fixes the treatment-level correlation at zero.
+
+```{r fit4-brma, eval = FALSE}
+begg_unit_information_sd <- estimate_unit_information_sd(sei = dat_begg$sei, ni = dat_begg$ni)
+
+sd_prior <- BayesTools::prior(
+  distribution = "normal",
+  parameters = list(mean = 0, sd = begg_unit_information_sd),
+  truncation = list(lower = 0, upper = Inf)
+)
+rho_zero <- BayesTools::prior(
+  distribution = "spike",
+  parameters = list(location = 0)
+)
+cs_zero <- BayesTools::random_covariance(
+  rho       = rho_zero,
+  rho_scale = "rho"
+)
+
+fit4_brma <- brma.mv(
+  yi = yi, V = vi, ni = ni, measure = "GEN",
+  mods = ~ trt,
+  random = list(
+    study     = ~ 1 | study,
+    treatment = ~ cs(trt | study)
+  ),
+  prior_heterogeneity = BayesTools::prior_random(
+    study     = BayesTools::random_block(sd = sd_prior),
+    treatment = BayesTools::random_block(
+      sd         = sd_prior,
+      covariance = cs_zero
+    )
+  ),
+  prior_unit_information_sd = begg_unit_information_sd,
+  data = dat_begg, seed = 4
+)
+```
+
+```{r fit4-brma-summary}
+summary(fit4_brma, include_mcmc_diagnostics = FALSE)
+```
+
+The study component captures baseline heterogeneity across studies, while the treatment component captures additional treatment-specific variation within studies.
+
+```{r fit4-brma-heterogeneity}
+summary_heterogeneity(fit4_brma)
+```
+
+
+## References

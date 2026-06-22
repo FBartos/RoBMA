@@ -22,6 +22,12 @@ scale-model rows after each deletion.}
 \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
 Undefined determinant- or variance-standardized diagnostics are reported as
 \code{NaN} and printed with an explanatory note.
+For \code{brma.mv()} objects, influence returns only components with
+implemented estimate-unit targets. DFFITS and Cook's distance report
+influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}
+is currently deferred.
+With correlated known-\code{V} data, the returned PSIS influence components
+use conditional estimate deletion rather than independent-study deletion.
 }
 \description{
 Computes DFFITS, Cook's distance, COVRATIO, and other

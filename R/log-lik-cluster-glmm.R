@@ -2,38 +2,6 @@
 # GLMM Cluster-Unit Log-Likelihoods
 # ============================================================================ #
 
-# ---------------------------------------------------------------------------- #
-# .log_lik_cluster_glmm.brma
-# ---------------------------------------------------------------------------- #
-#
-# Gamma-quadrature cluster-unit likelihood for binomial and Poisson multilevel
-# models. Conditional on gamma, existing estimate-level GLMM quadrature helpers
-# are reused.
-#
-# @param object brma object.
-#
-# @return S x G cluster-unit log-likelihood matrix.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_glmm.brma <- function(object) {
-
-  setup       <- .log_lik_cluster_setup.brma(object)
-  data        <- setup[["data"]]
-  priors      <- setup[["priors"]]
-  outcome_type <- .outcome_type(object)
-
-  log_lik <- .log_lik_cluster_glmm(
-    setup        = setup,
-    data         = data,
-    priors       = priors,
-    outcome_type = outcome_type
-  )
-
-  return(.add_cluster_log_lik_metadata(log_lik, setup[["cluster"]], setup[["data_hash"]]))
-}
-
-
-
 .log_lik_cluster_glmm <- function(setup, data, priors, outcome_type) {
 
   if (.has_native_glmm_cluster()) {

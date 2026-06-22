@@ -168,6 +168,11 @@ test_that("trusted step normalizer handles nonmonotone weights and tail underflo
   tail_spec[["z_upper"]] <- c(Inf, 40, 39)
   tail_spec[["obs_bin"]] <- 1L
   tail_spec[["telescope_probabilities"]] <- FALSE
+  tail_spec[["segments"]] <- list(
+    bounds       = c(-Inf, 39, 40, Inf),
+    step_bin     = c(3L, 2L, 1L),
+    phack_region = c(0L, 0L, 0L)
+  )
   tail_omega             <- matrix(c(1e300, 0, 1e-300), nrow = 1)
   tail_mean              <- matrix(0, nrow = 1, ncol = 1)
   tail_sd                <- matrix(1, nrow = 1, ncol = 1)
@@ -189,6 +194,11 @@ test_that("trusted step normalizer handles nonmonotone weights and tail underflo
   cancellation_spec[["z_lower"]] <- c(1e-8, 0, -Inf)
   cancellation_spec[["z_upper"]] <- c(Inf, 1e-8, 0)
   cancellation_spec[["obs_bin"]] <- 2L
+  cancellation_spec[["segments"]] <- list(
+    bounds       = c(-Inf, 0, 1e-8, Inf),
+    step_bin     = c(3L, 2L, 1L),
+    phack_region = c(0L, 0L, 0L)
+  )
   cancellation_omega             <- matrix(c(1, 1e16, 1), nrow = 1)
 
   expect_equal(
@@ -249,6 +259,209 @@ test_that("step normalizer handles normal mode and full-support unit weights", {
   )) < 1e-12))
 })
 
+test_that("inactive combined p-hacking rows use stable step normalizer", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  spec                                <- .test_step_spec(40.5, 1)
+  spec[["n_bins"]]                    <- 3L
+  spec[["z_lower"]]                   <- c(40, 39, -Inf)
+  spec[["z_upper"]]                   <- c(Inf, 40, 39)
+  spec[["obs_bin"]]                   <- 1L
+  spec[["telescope_probabilities"]]   <- FALSE
+  spec[["segments"]]                  <- list(
+    bounds       = c(-Inf, 39, 40, Inf),
+    step_bin     = c(3L, 2L, 1L),
+    phack_region = c(0L, 0L, 0L)
+  )
+  spec <- .selection_reset_native_cache(spec)
+
+  yi    <- 40.5
+  mean  <- matrix(0, nrow = 1, ncol = 1)
+  sd    <- matrix(1, nrow = 1, ncol = 1)
+  omega <- matrix(c(1, 0, 0), nrow = 1)
+
+  step_norm <- .selnorm_kernel_log_norm_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec,
+    kernel_mode    = SELKERNEL_STEP
+  )
+  combined_norm <- .selnorm_kernel_log_norm_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec,
+    alpha          = .5,
+    phack_kind     = 0L,
+    kernel_mode    = SELKERNEL_STEP_PHACK_POWER
+  )
+
+  expect_true(all(is.finite(combined_norm)))
+  expect_equal(combined_norm, step_norm, tolerance = 1e-12)
+
+  step_log_lik <- .selnorm_kernel_loglik_matrix(
+    yi             = yi,
+    mu_num         = mean,
+    sigma_num      = sd,
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec,
+    kernel_mode    = SELKERNEL_STEP
+  )
+  combined_log_lik <- .selnorm_kernel_loglik_matrix(
+    yi             = yi,
+    mu_num         = mean,
+    sigma_num      = sd,
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec,
+    alpha          = .5,
+    phack_kind     = 0L,
+    kernel_mode    = SELKERNEL_STEP_PHACK_POWER
+  )
+
+  expect_true(all(is.finite(combined_log_lik)))
+  expect_equal(combined_log_lik, step_log_lik, tolerance = 1e-12)
+})
+
+test_that("active combined p-hacking normalizer is stable and matches reference", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  power_integral <- function(lower, upper, mean, sd, region, q, source) {
+
+    lower <- max(lower, region[1])
+    upper <- min(upper, region[2])
+    if (lower >= upper) {
+      return(0)
+    }
+
+    width <- region[2] - region[1]
+    stats::integrate(
+      function(z) {
+
+        x <- if (source) {
+          (z - region[1]) / width
+        } else {
+          (region[2] - z) / width
+        }
+        x <- pmax(0, pmin(1, x))
+        (if (q == 1L) x else x^2) * stats::dnorm(z, mean = mean, sd = sd)
+      },
+      lower = lower,
+      upper = upper,
+      rel.tol = 1e-12
+    )[["value"]]
+  }
+  combined_reference <- function(mean, sd, omega, spec, alpha, q) {
+
+    source_region <- spec[["phack_z_source"]]
+    dest_region   <- spec[["phack_z_dest"]]
+    source_mass   <- power_integral(
+      source_region[1], source_region[2], mean, sd, source_region, q, TRUE
+    )
+    dest_mass <- power_integral(
+      dest_region[1], dest_region[2], mean, sd, dest_region, q, FALSE
+    )
+    beta <- alpha * source_mass / dest_mass
+    out  <- 0
+
+    for (s in seq_len(length(spec[["segments"]][["step_bin"]]))) {
+      lower <- spec[["segments"]][["bounds"]][s]
+      upper <- spec[["segments"]][["bounds"]][s + 1L]
+      contribution <- stats::pnorm(upper, mean = mean, sd = sd) -
+        stats::pnorm(lower, mean = mean, sd = sd)
+
+      if (spec[["segments"]][["phack_region"]][s] == 1L) {
+        contribution <- contribution - alpha * power_integral(
+          lower, upper, mean, sd, source_region, q, TRUE
+        )
+      } else if (spec[["segments"]][["phack_region"]][s] == 2L) {
+        contribution <- contribution + beta * power_integral(
+          lower, upper, mean, sd, dest_region, q, FALSE
+        )
+      }
+
+      out <- out + omega[spec[["segments"]][["step_bin"]][s]] * contribution
+    }
+
+    log(out)
+  }
+
+  spec <- .test_step_spec(1.80, 1)
+  spec[["phack_z_source"]] <- c(spec[["z_lower"]][2], spec[["z_upper"]][2])
+  spec[["phack_z_dest"]]   <- c(spec[["z_lower"]][3], spec[["z_upper"]][3])
+  spec[["segments"]][["phack_region"]] <- c(0L, 2L, 1L, 0L)
+  spec <- .selection_reset_native_cache(spec)
+
+  mean  <- matrix(.20, nrow = 1, ncol = 1)
+  sd    <- matrix(1.10, nrow = 1, ncol = 1)
+  omega <- matrix(c(1, .70, .35, .20), nrow = 1)
+  alpha <- .45
+  q     <- 1L
+
+  log_norm <- .selnorm_kernel_log_norm_matrix(
+    mean           = mean,
+    sd             = sd,
+    sei            = 1,
+    omega          = omega,
+    selection_spec = spec,
+    alpha          = alpha,
+    phack_kind     = q,
+    kernel_mode    = SELKERNEL_STEP_PHACK_POWER
+  )
+
+  expect_equal(
+    log_norm[1, 1],
+    combined_reference(mean[1, 1], sd[1, 1], omega[1, ], spec, alpha, q),
+    tolerance = 1e-8
+  )
+
+  tail_spec                         <- spec
+  tail_spec[["n_bins"]]             <- 3L
+  tail_spec[["z_lower"]]            <- c(40, 39, -Inf)
+  tail_spec[["z_upper"]]            <- c(Inf, 40, 39)
+  tail_spec[["obs_bin"]]            <- 1L
+  tail_spec[["phack_z_source"]]     <- c(40, 41)
+  tail_spec[["phack_z_dest"]]       <- c(39, 40)
+  tail_spec[["telescope_probabilities"]] <- FALSE
+  tail_spec[["segments"]]           <- list(
+    bounds       = c(-Inf, 39, 40, 41, Inf),
+    step_bin     = c(3L, 2L, 1L, 1L),
+    phack_region = c(0L, 2L, 1L, 0L)
+  )
+  tail_spec <- .selection_reset_native_cache(tail_spec)
+
+  tail_norm <- .selnorm_kernel_log_norm_matrix(
+    mean           = matrix(0, nrow = 1, ncol = 1),
+    sd             = matrix(1, nrow = 1, ncol = 1),
+    sei            = 1,
+    omega          = matrix(c(1, .5, 0), nrow = 1),
+    selection_spec = tail_spec,
+    alpha          = .5,
+    phack_kind     = 1L,
+    kernel_mode    = SELKERNEL_STEP_PHACK_POWER
+  )
+  tail_lik <- .selnorm_kernel_loglik_matrix(
+    yi             = 40.5,
+    mu_num         = matrix(0, nrow = 1, ncol = 1),
+    sigma_num      = matrix(1, nrow = 1, ncol = 1),
+    sei            = 1,
+    omega          = matrix(c(1, .5, 0), nrow = 1),
+    selection_spec = tail_spec,
+    alpha          = .5,
+    phack_kind     = 1L,
+    kernel_mode    = SELKERNEL_STEP_PHACK_POWER
+  )
+
+  expect_true(all(is.finite(tail_norm)))
+  expect_true(all(is.finite(tail_lik)))
+})
+
 test_that("step normalizer is unchanged by sentinels and adjacent repeated bins", {
 
   skip_if_not(.has_native_selnorm_kernel())
@@ -286,6 +499,11 @@ test_that("step normalizer is unchanged by sentinels and adjacent repeated bins"
   collapsed_spec[["n_bins"]]  <- 3L
   collapsed_spec[["z_lower"]] <- c(spec[["z_lower"]][1L], spec[["z_lower"]][3L], spec[["z_lower"]][4L])
   collapsed_spec[["z_upper"]] <- c(spec[["z_upper"]][1L], spec[["z_upper"]][2L], spec[["z_upper"]][4L])
+  collapsed_spec[["segments"]] <- list(
+    bounds       = c(-Inf, spec[["z_upper"]][4L], spec[["z_upper"]][2L], Inf),
+    step_bin     = c(3L, 2L, 1L),
+    phack_region = c(0L, 0L, 0L)
+  )
   collapsed_omega             <- omega[, c(1L, 2L, 4L), drop = FALSE]
 
   expect_equal(
@@ -442,6 +660,11 @@ test_that("step normalizer and CDF use stable tail interval probabilities", {
   spec[["z_upper"]] <- c(10, Inf, 9)
   spec[["obs_bin"]] <- 1L
   spec[["n_bins"]]  <- 3L
+  spec[["segments"]] <- list(
+    bounds       = c(-Inf, 9, 10, Inf),
+    step_bin     = c(3L, 1L, 2L),
+    phack_region = c(0L, 0L, 0L)
+  )
 
   omega <- matrix(c(1, 1e-300, 1e-300), nrow = 1)
   mean  <- matrix(0, nrow = 1, ncol = 1)

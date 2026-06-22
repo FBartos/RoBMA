@@ -2,15 +2,23 @@
 % Please edit documentation in R/summary_heterogeneity.R
 \name{summary_heterogeneity.brma}
 \alias{summary_heterogeneity.brma}
+\alias{print.summary_heterogeneity.brma_list}
 \title{Summary of Heterogeneity for brma Objects}
 \usage{
-\method{summary_heterogeneity}{brma}(object, probs = c(0.025, 0.975), ...)
+\method{summary_heterogeneity}{brma}(object, probs = c(0.025, 0.975), component = "all", ...)
+
+\method{print}{summary_heterogeneity.brma_list}(x, ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
 
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
+
+\item{component}{heterogeneity component to return for \code{brma.mv()}
+models. Defaults to \code{"all"}. Use \code{"total"} for the
+variance-additive total heterogeneity. Random-formula allocation nodes can
+be selected by their displayed name, such as \code{"study/esid"}.}
 
 \item{...}{additional arguments (currently ignored)}
 }
@@ -19,6 +27,8 @@ A list of class \code{summary_heterogeneity.brma} containing:
 \itemize{
 \item \code{estimates}: A \code{BayesTools_table} with heterogeneity statistics
 }
+For decomposed \code{brma.mv()} models with multiple selected components,
+a named list of such summary objects is returned.
 }
 \description{
 Computes the absolute heterogeneity (tau, tau^2) and
@@ -54,6 +64,23 @@ The I^2 and H^2 statistics are computed following the metafor package
 implementation, using the "typical" sampling variance formula from
 \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 the partitioned I^2 follows the approach described in the metafor documentation.
+
+For \code{brma.mv()} models, the method reports absolute heterogeneity
+summaries (\code{tau}, \code{tau2}) for selected random-effect components.
+Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
+known-V covariance structures. For \code{component = "total"}, independent
+component variances are summed before summarizing \code{tau2}; \code{tau}
+is the square root of this variance draw.
+When a random-formula model uses a shared total-SD plus variance-allocation
+node, \code{component = "all"} also includes an allocation-node table with
+\code{tau}, \code{tau2}, and \code{var_frac(...)} rows. For nested formulas
+such as \code{random = ~ 1 | study / esid}, this table is displayed under
+the user-facing path \code{"study/esid"}.
+For heterogeneous structured random effects, such as
+\code{random = ~ har(time | study)}, the allocation table reports
+\code{sd_total(...)}, level-specific \code{sd(...)} rows, and
+\code{var_ratio(...)} rows for the heterogeneous standard-deviation
+components.
 }
 \examples{
 \dontrun{

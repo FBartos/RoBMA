@@ -13,7 +13,6 @@
   object,
   hypothesis,
   parameter = NULL,
-  type = NULL,
   logBF = FALSE,
   BF01 = FALSE,
   seed = NULL,
@@ -56,10 +55,6 @@ object accepted by \code{BayesTools::hypothesis_BF()}.}
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
 the hypothesis expression.}
 
-\item{type}{retained for compatibility with \code{marginal_means.brma}
-objects. Marginal-means Bayes factors are always computed from the
-alternative-conditioned marginal means.}
-
 \item{logBF}{whether to display the Bayes factor on the log scale.}
 
 \item{BF01}{whether to display the inverse Bayes factor.}
@@ -75,6 +70,8 @@ propagate their \code{BF_error} estimates printed as \code{error\%(BF)}. For
 \code{marginal_means.brma} objects, \code{"normal"} is not supported, and
 \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 the stored source model. Matching is case-insensitive.}
+
+\item{density_control}{named list of qCMDE/IWMDE tuning settings.}
 
 \item{columns}{output columns passed to \code{BayesTools::hypothesis_BF()}.
 \code{"default"} returns the compact BayesTools table with
@@ -96,8 +93,6 @@ are tested on the standardized predictor scale. Defaults to \code{FALSE}.}
 \item{conditional}{whether to use the conditional posterior for product-space
 model-averaging objects. Defaults to \code{FALSE}.}
 
-\item{density_control}{named list of qCMDE/IWMDE tuning settings.}
-
 \item{n_samples}{number of prior samples/grid points used by BayesTools for
 deterministic marginal prior densities.}
 }
@@ -108,6 +103,41 @@ A \code{BayesTools_hypothesis_BF} BayesTools table.
 Computes Bayes factors for scalar hypotheses written as
 expressions, for example \code{"mu = 0"}, \code{"year > 0"}, or
 \code{"mu_alloc[alternate] > mu_alloc[random]"}.
+}
+\examples{
+\dontrun{
+fit <- brma(
+  yi      = c(0.12, 0.20, 0.05, 0.33, 0.18),
+  sei     = c(0.10, 0.12, 0.09, 0.15, 0.11),
+  measure = "GEN"
+)
+
+# Average-effect hypotheses
+hypothesis(fit, "mu != 0 vs mu = 0")
+hypothesis(fit, "mu > 0 vs mu = 0")
+hypothesis(fit, "mu > 0 vs mu < 0")
+
+# Heterogeneity hypothesis
+hypothesis(fit, "tau = 0 vs tau > 0", component = "scale")
+
+dat <- data.frame(
+  yi    = c(0.12, 0.20, 0.05, 0.33, 0.18, 0.41),
+  sei   = c(0.10, 0.12, 0.09, 0.15, 0.11, 0.14),
+  group = factor(c("A", "A", "A", "B", "B", "B"))
+)
+fit_mod <- brma(
+  yi      = yi,
+  sei     = sei,
+  mods    = ~ group,
+  data    = dat,
+  measure = "GEN"
+)
+
+# Marginal-mean hypothesis for a factor level
+emm <- marginal_means(fit_mod, density_method = "qCMDE")
+hypothesis(emm, "group[B] > 0 vs group[B] = 0", density_method = "qCMDE")
+}
+
 }
 \seealso{
 \code{\link[=marginal_means]{marginal_means()}}, \code{\link[=plot.brma]{plot.brma()}}, \code{\link[=bridge_sampler.brma]{bridge_sampler.brma()}}

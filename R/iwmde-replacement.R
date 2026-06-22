@@ -393,11 +393,50 @@
 .iwmde_invgamma_auxiliary_rows <- function(context, samples, parameter) {
 
   rows <- seq_len(nrow(samples))
-  uses <- vapply(rows, function(i) {
+  if (length(rows) == 0L) {
+    return(rows)
+  }
+
+  active_keys <- .iwmde_active_keys_matrix(context, samples)
+  unique_keys <- unique(active_keys)
+  first_rows  <- match(unique_keys, active_keys)
+  uses_by_key <- vapply(first_rows, function(i) {
     .iwmde_row_uses_invgamma_prior(context, parameter, samples[i, ])
   }, logical(1))
 
-  return(rows[uses])
+  return(rows[uses_by_key[match(active_keys, unique_keys)]])
+}
+
+
+.iwmde_active_keys_matrix <- function(context, samples) {
+
+  indicator_names <- context[["indicator_names"]]
+  if (is.null(indicator_names)) {
+    indicator_names <- grep("(^|_)indicator$", colnames(samples), value = TRUE)
+    indicator_names <- c(
+      indicator_names,
+      intersect("bias_indicator", colnames(samples))
+    )
+    indicator_names <- unique(indicator_names)
+  }
+
+  if (length(indicator_names) == 0L) {
+    return(rep("all", nrow(samples)))
+  }
+
+  parts <- lapply(indicator_names, function(name) {
+    if (!name %in% colnames(samples)) {
+      return(rep(paste(name, "NA", sep = "="), nrow(samples)))
+    }
+
+    values <- vapply(samples[, name], function(value) {
+      as.character(.iwmde_indicator_index(value, name))
+    }, character(1))
+
+    paste(name, values, sep = "=")
+  })
+
+  return(do.call(paste, c(parts, sep = "|")))
 }
 
 

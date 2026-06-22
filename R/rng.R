@@ -49,6 +49,78 @@
 }
 
 
+.outcome_rng.norm_known_v <- function(mu_samples, tau_within, known_V) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  if (known_V[["parameterization"]] %in% c("whitened", "block_mvn")) {
+    sampling_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K) %*%
+      known_V[["sampling_factor"]]
+    heterogeneity_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K) *
+      tau_within
+
+    return(mu_samples + sampling_noise + heterogeneity_noise)
+  }
+
+  sampling_dependency <- matrix(0, nrow = S, ncol = K)
+  if (known_V[["rank"]] > 0L) {
+    z_new <- matrix(
+      stats::rnorm(S * known_V[["rank"]]),
+      nrow = S,
+      ncol = known_V[["rank"]]
+    )
+    sampling_dependency <- z_new %*% t(known_V[["B"]])
+  }
+
+  residual_sei <- matrix(
+    known_V[["residual_sei"]],
+    nrow  = S,
+    ncol  = K,
+    byrow = TRUE
+  )
+  total_sd <- sqrt(tau_within^2 + residual_sei^2)
+
+  response_samples <- mu_samples + sampling_dependency +
+    matrix(stats::rnorm(S * K), nrow = S, ncol = K) * total_sd
+
+  return(response_samples)
+}
+
+
+.outcome_rng.norm_known_v_covariance <- function(mu_samples,
+                                                 covariance_samples) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  if (length(dim(covariance_samples)) != 3L ||
+      dim(covariance_samples)[1L] != S ||
+      dim(covariance_samples)[2L] != K ||
+      dim(covariance_samples)[3L] != K) {
+    stop("Known-V response covariance samples have inconsistent dimensions.",
+         call. = FALSE)
+  }
+
+  response_samples <- mu_samples
+  for (s in seq_len(S)) {
+    covariance <- (covariance_samples[s, , ] + t(covariance_samples[s, , ])) / 2
+    eig        <- eigen(covariance, symmetric = TRUE)
+    values     <- eig[["values"]]
+    tolerance  <- sqrt(.Machine$double.eps) * max(1, max(abs(values)))
+    if (min(values) < -tolerance) {
+      stop("Known-V response covariance is not positive semidefinite.",
+           call. = FALSE)
+    }
+
+    response_samples[s, ] <- mu_samples[s, ] +
+      as.vector(eig[["vectors"]] %*% (sqrt(pmax(values, 0)) * stats::rnorm(K)))
+  }
+
+  return(response_samples)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .outcome_rng.selnorm
 # ---------------------------------------------------------------------------- #

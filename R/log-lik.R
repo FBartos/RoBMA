@@ -16,9 +16,11 @@
 # @return S x K or S x G matrix of log-likelihood values.
 #
 # ---------------------------------------------------------------------------- #
-.log_lik.brma <- function(object, unit = "estimate") {
+.log_lik.brma <- function(object, unit = "estimate",
+                          caller = ".log_lik.brma()") {
 
   unit <- .normalize_unit(unit)
+  .check_log_lik_target_available(object, unit, caller)
 
   if (unit == "estimate") {
     return(.log_lik_estimate.brma(object))
@@ -87,12 +89,9 @@
 
   if (unit == "estimate") {
     colnames(log_lik) <- paste0("log_lik[", seq_len(setup[["K"]]), "]")
-    attr(log_lik, "RoBMA_target") <- list(
-      unit               = "estimate",
-      conditioning_depth = "estimate",
-      n                  = setup[["K"]],
-      targets            = seq_len(setup[["K"]]),
-      data_hash          = data_hash
+    attr(log_lik, "RoBMA_target") <- .estimate_log_lik_target_metadata(
+      setup     = setup,
+      data_hash = data_hash
     )
   } else {
     log_lik <- .add_cluster_log_lik_metadata(
@@ -111,10 +110,10 @@
                                                mu_samples,
                                                tau_within_samples,
                                                tau_between_samples = NULL,
-                                                posterior_samples = NULL,
-                                                unit = "estimate",
-                                                add_metadata = FALSE,
-                                                data_hash = NULL) {
+                                               posterior_samples = NULL,
+                                               unit = "estimate",
+                                               add_metadata = FALSE,
+                                               data_hash = NULL) {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
@@ -141,12 +140,9 @@
 
   if (unit == "estimate") {
     colnames(log_lik) <- paste0("log_lik[", seq_len(setup[["K"]]), "]")
-    attr(log_lik, "RoBMA_target") <- list(
-      unit               = "estimate",
-      conditioning_depth = "estimate",
-      n                  = setup[["K"]],
-      targets            = seq_len(setup[["K"]]),
-      data_hash          = data_hash
+    attr(log_lik, "RoBMA_target") <- .estimate_log_lik_target_metadata(
+      setup     = setup,
+      data_hash = data_hash
     )
   } else {
     log_lik <- .add_cluster_log_lik_metadata(
@@ -163,10 +159,10 @@
 .log_lik_from_evaluated_predictors_sum <- function(fit, data, priors,
                                                    mu_samples,
                                                    tau_within_samples,
-                                                    tau_between_samples = NULL,
-                                                    posterior_samples = NULL,
-                                                    unit = "estimate",
-                                                    data_hash = NULL) {
+                                                   tau_between_samples = NULL,
+                                                   posterior_samples = NULL,
+                                                   unit = "estimate",
+                                                   data_hash = NULL) {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
@@ -308,7 +304,16 @@
                                       tau_between_samples, posterior_samples) {
 
   is_multilevel <- .is_data_multilevel(data)
+  is_random     <- .is_data_random(data)
   K             <- nrow(data[["outcome"]])
+
+  if (is_random && !.is_data_known_v(data)) {
+    stop(
+      "Log-likelihood evaluation is not implemented for brma.mv() ",
+      "random-formula models yet.",
+      call. = FALSE
+    )
+  }
 
   if (unit == "cluster" && !is_multilevel) {
     stop("Cluster-unit log-likelihood is only available for multilevel models.",
@@ -350,16 +355,27 @@
     data   = data,
     priors = priors
   )
+  if (.is_data_known_v(data) && !.known_v_estimate_target_uses_backend(data)) {
+    mu_samples <- mu_samples + .evaluate.brma.sampling_dependency(
+      fit               = fit,
+      data              = data,
+      posterior_samples = posterior_samples
+    )
+  }
+  zero_mu <- matrix(0, nrow = nrow(mu_samples), ncol = K)
+  setup_sei <- .log_lik_setup_sei(active_object, data)
 
   return(list(
     fit                  = fit,
     priors               = priors,
     data                 = data,
     yi                   = .outcome_data_yi(active_object),
-    sei                  = .outcome_data_sei(active_object),
+    sei                  = setup_sei[["likelihood_sei"]],
+    selection_sei        = setup_sei[["selection_sei"]],
     K                    = K,
     S                    = nrow(mu_samples),
     mu                   = mu_samples,
+    mu_random            = zero_mu,
     tau_within           = tau_within_samples,
     tau_between          = tau_between_samples,
     cluster              = if (is_multilevel) split(seq_len(K), data[["outcome"]][["cluster"]]) else NULL,
@@ -377,91 +393,16 @@
 .log_lik_posterior_setup <- function(fit, posterior_samples, data, priors,
                                      unit, data_hash) {
 
-  is_mods           <- .is_data_mods(data)
-  is_scale          <- .is_data_scale(data)
-  is_multilevel     <- .is_data_multilevel(data)
-  is_PET            <- .is_priors_PET(priors)
-  is_PEESE          <- .is_priors_PEESE(priors)
-  is_weightfunction <- .is_priors_weightfunction(priors)
-  outcome_type      <- .data_outcome_type(data)
-  effect_direction  <- .data_effect_direction(data)
-  K                 <- nrow(data[["outcome"]])
-
-  .check_glmm_no_bias_priors(data, priors)
-
-  if (unit == "cluster" && !is_multilevel) {
-    stop("Cluster-unit log-likelihood is only available for multilevel models.",
-         call. = FALSE)
-  }
-
-  mu_samples <- .evaluate.brma.mu(
+  .estimate_likelihood_setup_from_parts(
     fit               = fit,
-    outcome_data      = data[["outcome"]],
-    mods_data         = data[["mods"]],
-    mods_formula      = if (is_mods) .create_fit_formula_list(data = data, "mods") else NULL,
-    mods_priors       = priors[["mods"]],
-    is_mods           = is_mods,
-    is_PET            = is_PET,
-    is_PEESE          = is_PEESE,
-    effect_direction  = effect_direction,
+    data              = data,
+    priors            = priors,
+    posterior_samples = posterior_samples,
+    unit              = unit,
+    data_hash         = data_hash,
     bias_adjusted     = FALSE,
-    K                 = K,
-    posterior_samples = posterior_samples
+    caller            = ".log_lik_posterior_setup()"
   )
-
-  tau_result <- .evaluate.brma.tau(
-    fit               = fit,
-    scale_data        = data[["scale"]],
-    scale_formula     = if (is_scale) .create_fit_formula_list(data = data, "scale") else NULL,
-    scale_priors      = priors[["scale"]],
-    is_scale          = is_scale,
-    is_multilevel     = is_multilevel,
-    K                 = K,
-    posterior_samples = posterior_samples
-  )
-
-  cluster <- if (is_multilevel) {
-    split(seq_len(K), data[["outcome"]][["cluster"]])
-  } else {
-    NULL
-  }
-
-  if (unit == "estimate" && is_multilevel) {
-    mu_samples <- mu_samples + .evaluate.brma.cluster_effects(
-      fit               = fit,
-      tau_between       = tau_result[["tau_between"]],
-      cluster           = data[["outcome"]][["cluster"]],
-      same_data         = TRUE,
-      effect_direction  = effect_direction,
-      posterior_samples = posterior_samples
-    )
-  }
-
-  active_object <- list(
-    fit    = fit,
-    data   = data,
-    priors = priors
-  )
-
-  return(list(
-    fit                  = fit,
-    priors               = priors,
-    data                 = data,
-    yi                   = .outcome_data_yi(active_object),
-    sei                  = .outcome_data_sei(active_object),
-    K                    = K,
-    S                    = nrow(mu_samples),
-    mu                   = mu_samples,
-    tau_within           = tau_result[["tau_within"]],
-    tau_between          = tau_result[["tau_between"]],
-    cluster              = cluster,
-    weights              = if (.is_data_weights(data)) data[["outcome"]][["weights"]] else NULL,
-    data_hash            = data_hash,
-    is_weightfunction    = is_weightfunction,
-    outcome_type         = outcome_type,
-    effect_direction     = effect_direction,
-    posterior_samples    = posterior_samples
-  ))
 }
 
 
@@ -472,6 +413,7 @@
   priors              <- setup[["priors"]]
   yi                  <- setup[["yi"]]
   sei                 <- setup[["sei"]]
+  selection_sei       <- setup[["selection_sei"]]
   K                   <- setup[["K"]]
   mu_samples          <- setup[["mu"]]
   tau_within_samples  <- setup[["tau_within"]]
@@ -479,6 +421,14 @@
   outcome_type        <- setup[["outcome_type"]]
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
+
+  if (.known_v_estimate_target_uses_backend(data)) {
+    return(.log_lik_known_v_estimate_target_from_setup(setup))
+  }
+
+  if (is.null(selection_sei)) {
+    selection_sei <- sei
+  }
 
   if (outcome_type == "norm") {
 
@@ -504,6 +454,7 @@
         mu_samples        = mu_samples,
         tau_within        = tau_within_samples,
         sei               = sei,
+        selection_sei     = selection_sei,
         selection_context = selection_context
       )
     } else {
@@ -555,12 +506,21 @@
   priors              <- setup[["priors"]]
   yi                  <- setup[["yi"]]
   sei                 <- setup[["sei"]]
+  selection_sei       <- setup[["selection_sei"]]
   mu_samples          <- setup[["mu"]]
   tau_within_samples  <- setup[["tau_within"]]
   is_weightfunction   <- setup[["is_weightfunction"]]
   outcome_type        <- setup[["outcome_type"]]
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
+
+  if (.known_v_estimate_target_uses_backend(data)) {
+    return(rowSums(.log_lik_known_v_estimate_target_from_setup(setup)))
+  }
+
+  if (is.null(selection_sei)) {
+    selection_sei <- sei
+  }
 
   if (outcome_type == "norm") {
     if (effect_direction == "negative") {
@@ -585,6 +545,7 @@
         mu_samples        = mu_samples,
         tau_within        = tau_within_samples,
         sei               = sei,
+        selection_sei     = selection_sei,
         selection_context = selection_context,
         weights           = data_weights
       ))
@@ -645,82 +606,165 @@
 # @return list with model metadata and posterior matrices.
 #
 # ---------------------------------------------------------------------------- #
-.estimate_likelihood_setup.brma <- function(object) {
+.estimate_likelihood_setup_from_parts <- function(fit, data, priors,
+                                                  posterior_samples,
+                                                  unit = "estimate",
+                                                  data_hash = NULL,
+                                                  bias_adjusted = FALSE,
+                                                  caller = ".estimate_likelihood_setup_from_parts()") {
 
-  priors            <- object[["priors"]]
-  data              <- object[["data"]]
-  is_multilevel     <- .is_multilevel(object)
-  is_mods           <- .is_mods(object)
-  is_scale          <- .is_scale(object)
-  is_PET            <- .is_PET(object)
-  is_PEESE          <- .is_PEESE(object)
-  is_weightfunction <- .is_weightfunction(object)
-  outcome_type      <- .outcome_type(object)
-  effect_direction  <- .effect_direction(object)
-  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  unit              <- .normalize_unit(unit)
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  is_mods           <- .is_data_mods(data)
+  is_scale          <- .is_data_scale(data)
+  is_random         <- .is_data_random(data)
+  is_multilevel     <- .is_data_multilevel(data)
+  is_PET            <- .is_priors_PET(priors)
+  is_PEESE          <- .is_priors_PEESE(priors)
+  is_weightfunction <- .is_priors_weightfunction(priors)
+  outcome_type      <- .data_outcome_type(data)
+  effect_direction  <- .data_effect_direction(data)
+  K                 <- nrow(data[["outcome"]])
 
-  yi  <- .outcome_data_yi(object)
-  sei <- .outcome_data_sei(object)
-  K   <- length(yi)
+  .check_glmm_no_bias_priors(data, priors)
 
-  tau_result <- .evaluate.brma.tau(
-    fit               = object[["fit"]],
-    scale_data        = data[["scale"]],
-    scale_formula     = if (is_scale) .create_fit_formula_list(data = data, "scale") else NULL,
-    scale_priors      = priors[["scale"]],
-    is_scale          = is_scale,
-    is_multilevel     = is_multilevel,
-    K                 = K,
-    posterior_samples = posterior_samples
-  )
+  if (is_random && !.is_data_known_v(data)) {
+    stop(
+      caller,
+      " is not implemented for brma.mv() random-formula models yet.",
+      call. = FALSE
+    )
+  }
+
+  if (unit == "cluster" && !is_multilevel) {
+    stop("Cluster-unit log-likelihood is only available for multilevel models.",
+         call. = FALSE)
+  }
+
+  tau_result <- if (is_random) {
+    zero_tau <- matrix(0, nrow = nrow(posterior_samples), ncol = K)
+    list(
+      tau_total   = zero_tau,
+      tau_within  = zero_tau,
+      tau_between = zero_tau
+    )
+  } else {
+    .evaluate.brma.tau(
+      fit               = fit,
+      scale_data        = data[["scale"]],
+      scale_formula     = if (is_scale) .create_fit_formula_list(data = data, "scale") else NULL,
+      scale_priors      = priors[["scale"]],
+      is_scale          = is_scale,
+      is_multilevel     = is_multilevel,
+      K                 = K,
+      posterior_samples = posterior_samples
+    )
+  }
 
   mu_samples <- .evaluate.brma.mu(
-    fit               = object[["fit"]],
+    fit               = fit,
     outcome_data      = data[["outcome"]],
     mods_data         = data[["mods"]],
     mods_formula      = if (is_mods) .create_fit_formula_list(data = data, "mods") else NULL,
-    mods_priors       = priors[["mods"]],
+    mods_priors       = if (is_random) priors[["location"]] else priors[["mods"]],
     is_mods           = is_mods,
     is_PET            = is_PET,
     is_PEESE          = is_PEESE,
     effect_direction  = effect_direction,
-    bias_adjusted     = FALSE,
+    bias_adjusted     = bias_adjusted,
     K                 = K,
     posterior_samples = posterior_samples
   )
+  mu_random_samples <- matrix(0, nrow = nrow(mu_samples), ncol = K)
 
   fit_data <- NULL
   if (is_multilevel || is_weightfunction) {
     fit_data <- .create_fit_data(data = data, priors = priors)
   }
 
-  if (is_multilevel) {
-    mu_samples <- mu_samples + .evaluate.brma.cluster_effects(
-      fit               = object[["fit"]],
+  cluster <- if (is_multilevel) {
+    split(seq_len(K), data[["outcome"]][["cluster"]])
+  } else {
+    NULL
+  }
+
+  if (unit == "estimate" && is_multilevel) {
+    cluster_effects <- .evaluate.brma.cluster_effects(
+      fit               = fit,
       tau_between       = tau_result[["tau_between"]],
-      cluster           = fit_data[["cluster"]],
+      cluster           = if (is.null(fit_data)) data[["outcome"]][["cluster"]] else fit_data[["cluster"]],
       same_data         = TRUE,
       effect_direction  = effect_direction,
       posterior_samples = posterior_samples
     )
+    mu_samples         <- mu_samples + cluster_effects
+    mu_random_samples <- mu_random_samples + cluster_effects
+  }
+  if (unit == "estimate" && is_random) {
+    random_effects <- .evaluate.brma.random_effects(
+      fit               = fit,
+      data              = data,
+      priors            = priors,
+      posterior_samples = posterior_samples,
+      same_data         = TRUE,
+      required          = TRUE
+    )
+    mu_samples         <- mu_samples + random_effects
+    mu_random_samples <- mu_random_samples + random_effects
   }
 
+  active_object <- list(
+    fit    = fit,
+    data   = data,
+    priors = priors
+  )
+  if (.is_data_known_v(data) && !.known_v_estimate_target_uses_backend(data)) {
+    mu_samples <- mu_samples + .evaluate.brma.sampling_dependency(
+      fit               = fit,
+      data              = data,
+      posterior_samples = posterior_samples
+    )
+  }
+  setup_sei <- .log_lik_setup_sei(active_object, data)
+
   return(list(
+    fit               = fit,
     priors            = priors,
     data              = data,
     fit_data          = fit_data,
-    yi                = yi,
-    sei               = sei,
+    yi                = .outcome_data_yi(active_object),
+    sei               = setup_sei[["likelihood_sei"]],
+    selection_sei     = setup_sei[["selection_sei"]],
     K                 = K,
     S                 = nrow(mu_samples),
     mu                = mu_samples,
+    mu_random         = mu_random_samples,
     tau_within        = tau_result[["tau_within"]],
     tau_between       = tau_result[["tau_between"]],
+    cluster           = cluster,
+    weights           = if (.is_data_weights(data)) data[["outcome"]][["weights"]] else NULL,
+    data_hash         = data_hash,
     is_weightfunction = is_weightfunction,
     outcome_type      = outcome_type,
     effect_direction  = effect_direction,
     posterior_samples = posterior_samples
   ))
+}
+
+
+.estimate_likelihood_setup.brma <- function(object, bias_adjusted = FALSE,
+                                            posterior_samples = NULL) {
+
+  .estimate_likelihood_setup_from_parts(
+    fit               = object[["fit"]],
+    data              = object[["data"]],
+    priors            = object[["priors"]],
+    posterior_samples = .get_posterior_samples(object[["fit"]], posterior_samples),
+    unit              = "estimate",
+    data_hash         = .get_outcome_hash(object),
+    bias_adjusted     = bias_adjusted,
+    caller            = ".estimate_likelihood_setup.brma()"
+  )
 }
 
 
@@ -750,4 +794,74 @@
     add_metadata         = TRUE,
     data_hash            = .get_outcome_hash(object)
   ))
+}
+
+
+.log_lik_setup_sei <- function(object, data) {
+
+  selection_sei <- .outcome_data_sei(object)
+  likelihood_sei <- if (.known_v_estimate_target_uses_backend(data)) {
+    selection_sei
+  } else {
+    .outcome_data_likelihood_sei(object)
+  }
+
+  list(
+    likelihood_sei = likelihood_sei,
+    selection_sei  = selection_sei
+  )
+}
+
+
+.estimate_log_lik_target_metadata <- function(setup, data_hash) {
+
+  known_v_estimate_backend <- .known_v_estimate_target_uses_backend(setup[["data"]])
+  known_v_schur            <- .known_v_estimate_target_uses_schur_conditioning(setup[["data"]])
+  known_V <- if (.is_data_known_v(setup[["data"]])) {
+    .data_known_v_data(setup[["data"]])
+  } else {
+    NULL
+  }
+  component_sizes <- if (known_v_estimate_backend && !is.null(known_V)) {
+    block_indices <- .known_v_dependency_blocks(
+      data = setup[["data"]],
+      K    = setup[["K"]]
+    )
+    vapply(block_indices, length, integer(1))
+  } else {
+    rep(1L, setup[["K"]])
+  }
+  random_effect_terms <- .data_random_effect_terms(setup[["data"]])
+  has_sampled_random <- length(random_effect_terms) > 0L && any(vapply(
+    random_effect_terms,
+    function(term) identical(term[["compile_mode"]], "sampled"),
+    logical(1)
+  ))
+
+  list(
+    unit                 = "estimate",
+    conditioning_depth   = "estimate",
+    target               = if (known_v_estimate_backend) "known_v_estimate" else "factorized_estimate",
+    n                    = setup[["K"]],
+    targets              = seq_len(setup[["K"]]),
+    data_hash            = data_hash,
+    known_v              = .is_data_known_v(setup[["data"]]),
+    known_v_estimate_backend = known_v_estimate_backend,
+    known_v_parameterization = if (is.null(known_V)) NULL else known_V[["parameterization"]],
+    known_v_parameterization_requested = if (is.null(known_V)) {
+      NULL
+    } else {
+      known_V[["parameterization_requested"]]
+    },
+    dependency_component_sizes = component_sizes,
+    known_v_schur       = known_v_schur,
+    random_effects       = if (has_sampled_random) "conditioned" else "none",
+    estimate_level_random = if (.data_has_marginalized_random_effects(setup[["data"]])) {
+      "marginalized"
+    } else if (.data_has_sampled_estimate_level_random_effects(setup[["data"]])) {
+      "conditioned"
+    } else {
+      "none"
+    }
+  )
 }

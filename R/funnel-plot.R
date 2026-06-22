@@ -33,16 +33,8 @@
   df_funnel_edge1 <- data$funnel_edge1
   df_funnel_edge2 <- data$funnel_edge2
   df_background <- data$background
-  x_range  <- data$x_range
-  se_range <- data$y_range
   xlab <- data$xlab
   ylab <- data$ylab
-  # extract data components
-  df_points <- data$points
-  df_funnel <- data$funnel
-  df_funnel_edge1 <- data$funnel_edge1
-  df_funnel_edge2 <- data$funnel_edge2
-  df_background <- data$background
 
   # use limits from data object or dots for PLOTTING LIMITS
   if (!is.null(dots[["xlim"]])) xlim_plot <- dots[["xlim"]] else xlim_plot <- data$xlim
@@ -52,8 +44,6 @@
   x_ticks <- pretty(xlim_plot)
   y_ticks <- pretty(ylim_plot)
 
-  xlab <- data$xlab
-  ylab <- data$ylab
   df_refline <- data$refline
 
   # set up the plot area with reversed y-axis
@@ -126,16 +116,8 @@
   df_funnel_edge1 <- data$funnel_edge1
   df_funnel_edge2 <- data$funnel_edge2
   df_background <- data$background
-  x_range   <- data$x_range
-  se_range  <- data$y_range
   xlab      <- data$xlab
   ylab      <- data$ylab
-  # extract data components
-  df_points <- data$points
-  df_funnel <- data$funnel
-  df_funnel_edge1 <- data$funnel_edge1
-  df_funnel_edge2 <- data$funnel_edge2
-  df_background   <- data$background
 
   # use limits from data object or dots
   if (!is.null(dots[["xlim"]])) xlim_plot <- dots[["xlim"]] else xlim_plot <- data$xlim
@@ -145,8 +127,6 @@
   x_ticks <- pretty(xlim_plot)
   y_ticks <- pretty(ylim_plot)
 
-  xlab <- data$xlab
-  ylab <- data$ylab
   df_refline <- data$refline
 
   out <- ggplot2::ggplot()

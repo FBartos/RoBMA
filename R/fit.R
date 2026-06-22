@@ -22,6 +22,15 @@
     # encode number of levels for the random-effects prior
     attr(prior_list[["gamma"]], "levels") <- length(unique(data[["outcome"]][["cluster"]]))
   }
+  # add known-V sampling dependency latent factors
+  if (.is_data_known_v_parameterization(data, "latent") && .data_known_v_rank(data) > 0L) {
+    prior_list[["sampling_z"]] <- BayesTools::prior_factor(
+      "normal",
+      parameters = list("mean" = 0, "sd" = 1),
+      contrast   = "independent"
+    )
+    attr(prior_list[["sampling_z"]], "levels") <- .data_known_v_rank(data)
+  }
 
   ### deal with non-prior mixture distributions (bPET, bPEESE, and bselmodel)
   # the prior name must match the output parameter for sample extraction in plots etc
@@ -48,24 +57,72 @@
 
   ### add outcome specific data
   if (.data_outcome_type(data) == "norm") {
-    # always include yi and sei
-    fit_data <- list(
-      yi  = data[["outcome"]][["yi"]],
-      sei = data[["outcome"]][["sei"]]
-    )
-
     # flip effect size direction (needed for selection models, PET, and PEESE models)
     # (done for everything for consistency)
+    yi                <- data[["outcome"]][["yi"]]
     effect_direction  <- .data_effect_direction(data)
     if (effect_direction == "negative") {
-      fit_data[["yi"]] <- -1 * fit_data[["yi"]]
+      yi <- -1 * yi
+    }
+
+    known_v_whitened  <- .is_data_known_v_parameterization(data, "whitened")
+    known_v_block_mvn <- .is_data_known_v_parameterization(data, "block_mvn")
+    if ((known_v_whitened || known_v_block_mvn) && .is_priors_weightfunction(priors)) {
+      stop(
+        "Selection-model likelihoods for known-V data require ",
+        "known_v_parameterization = 'latent'.",
+        call. = FALSE
+      )
+    }
+    if (known_v_whitened) {
+      known_V <- .data_known_v_data(data)
+      fit_data <- list(
+        whitening_y      = as.vector(known_V[["whitening_matrix"]] %*% yi),
+        whitening_var    = known_V[["whitening_variance"]],
+        whitening_matrix = known_V[["whitening_matrix"]]
+      )
+      if (.is_priors_bias(priors)) {
+        fit_data[["sei"]] <- data[["outcome"]][["sei"]]
+      }
+    } else if (known_v_block_mvn) {
+      known_V <- .data_known_v_data(data)
+      fit_data <- list()
+
+      has_singleton_blocks <- any(vapply(
+        known_V[["block_mvn_blocks"]],
+        function(block) block[["size"]] == 1L,
+        logical(1)
+      ))
+      if (has_singleton_blocks) {
+        fit_data[["yi"]]          <- yi
+        fit_data[["known_v_var"]] <- known_V[["residual_variance"]]
+      }
+      if (.is_priors_bias(priors)) {
+        fit_data[["sei"]] <- data[["outcome"]][["sei"]]
+      }
+
+      for (b in seq_along(known_V[["block_mvn_blocks"]])) {
+        block <- known_V[["block_mvn_blocks"]][[b]]
+        if (block[["size"]] > 1L) {
+          fit_data[[paste0("known_v_y_", b)]]     <- yi[block[["index"]]]
+          fit_data[[paste0("known_v_lower_", b)]] <- block[["v_lower"]]
+        }
+      }
+    } else {
+      # always include yi; include sei when the JAGS graph references selection scale
+      fit_data <- list(
+        yi = yi
+      )
+      if (!.is_data_known_v(data) || .is_priors_bias(priors)) {
+        fit_data[["sei"]] <- data[["outcome"]][["sei"]]
+      }
     }
 
     # add selection-kernel data for selection models
     if (.is_priors_weightfunction(priors)) {
       selection_spec <- .selection_spec(
         priors           = priors,
-        yi               = fit_data[["yi"]],
+        yi               = yi,
         sei              = fit_data[["sei"]],
         effect_direction = effect_direction,
         signed_data      = TRUE
@@ -73,6 +130,15 @@
 
       fit_data <- c(fit_data, selection_spec[["jags_data"]])
 
+    }
+
+    if (.is_data_known_v_parameterization(data, "latent")) {
+      known_V <- .data_known_v_data(data)
+      fit_data[["sampling_var"]] <- known_V[["residual_variance"]]
+      if (known_V[["rank"]] > 0L) {
+        fit_data[["sampling_rank"]] <- known_V[["rank"]]
+        fit_data[["sampling_B"]]    <- known_V[["B"]]
+      }
     }
 
   } else if (.data_outcome_type(data) == "bin") {
@@ -118,17 +184,22 @@
   # for scale regression - modify formula for exponential parameterization
   # (required for the exponential parameterization trick in BayesTools::JAGS_fit)
   if (parameter == "scale") {
-
-    # check whether the intercept was removed from the formula
-    # if so, warn the user and return it back (intercepts cannot be omitted from scale models)
-    if (attr(terms(formula), "intercept") == 0) {
-      warning("Intercept cannot be omitted from scale models (the regression estimates a multiplicative constant for the intercept). The intercept removal term has been ignored.", call. = FALSE)
-      formula <- BayesTools::formula_add_intercept(formula)
-    }
-
-    # add the corresponding attribute
-    attr(formula, "log(intercept)") <- TRUE
+    formula <- .create_fit_scale_formula(formula)
   }
+
+  return(formula)
+}
+.create_fit_scale_formula      <- function(formula) {
+
+  # check whether the intercept was removed from the formula
+  # if so, warn the user and return it back (intercepts cannot be omitted from scale models)
+  if (attr(terms(formula), "intercept") == 0) {
+    warning("Intercept cannot be omitted from scale models (the regression estimates a multiplicative constant for the intercept). The intercept removal term has been ignored.", call. = FALSE)
+    formula <- BayesTools::formula_add_intercept(formula)
+  }
+
+  # add the corresponding attribute
+  attr(formula, "log(intercept)") <- TRUE
 
   return(formula)
 }
@@ -145,6 +216,7 @@
   ### extract structural information about the model
   is_mods           <- .is_data_mods(data)
   is_scale          <- .is_data_scale(data)
+  is_random         <- .is_data_random(data)
   is_multilevel     <- .is_data_multilevel(data)
   is_weights        <- .is_data_weights(data)
   is_PET            <- .is_priors_PET(priors)
@@ -152,6 +224,40 @@
   is_weightfunction <- .is_priors_weightfunction(priors)
   outcome_type      <- .data_outcome_type(data)
   effect_direction  <- .data_effect_direction(data)
+  is_known_v                   <- .is_data_known_v(data)
+  known_v_rank                 <- .data_known_v_rank(data)
+  known_v_parameterization     <- .data_known_v_parameterization(data)
+  is_known_v_latent            <- is_known_v && known_v_parameterization == "latent"
+  is_known_v_whitened          <- is_known_v && known_v_parameterization == "whitened"
+  is_known_v_block_mvn         <- is_known_v && known_v_parameterization == "block_mvn"
+  has_marginalized_random      <- .data_has_marginalized_random_effects(data)
+
+  if (is_known_v_whitened && is_scale) {
+    stop(
+      "known_v_parameterization = 'whitened' is currently available only without scale regression.",
+      call. = FALSE
+    )
+  }
+  if (is_known_v_whitened && is_multilevel) {
+    stop(
+      "known_v_parameterization = 'whitened' is currently available only without cluster-level random effects.",
+      call. = FALSE
+    )
+  }
+  if (is_known_v_whitened && is_weightfunction) {
+    stop(
+      "Selection-model likelihoods for known-V data require ",
+      "known_v_parameterization = 'latent'.",
+      call. = FALSE
+    )
+  }
+  if (is_known_v_block_mvn && is_weightfunction) {
+    stop(
+      "Selection-model likelihoods for known-V data require ",
+      "known_v_parameterization = 'latent'.",
+      call. = FALSE
+    )
+  }
 
   ### create the model syntax
   model_syntax <- "model{\n"
@@ -168,7 +274,7 @@
   }
 
   ### the main model parameters are created automatically via BayesTools::JAGS_fit
-  # - mu  (!is_mods)  / mu[i]  (is_mods)
+  # - mu  (!is_mods and !is_random)  / mu[i]  (is_mods or is_random)
   # - tau (!is_scale) / tau[i] (is_scale)
   # - rho (is_multilevel)
   # for publication bias
@@ -208,7 +314,7 @@
   ### prepare effect size parameter
   # flip effect size direction (needed for selection models, PET, and PEESE models)
   # (done for everything for consistency, data are flipped within `.create_fit_data()`)
-  if (is_mods) {
+  if (is_mods || is_random) {
     mu_estimate <- ifelse(effect_direction == "negative", paste0("- mu[i]"), "mu[i]")
   } else {
     mu_estimate <- ifelse(effect_direction == "negative", "- mu", "mu")
@@ -217,12 +323,23 @@
   if (is_multilevel) {
     mu_estimate <- paste0(mu_estimate, ifelse(effect_direction == "negative", " - ", " + "),  "gamma[cluster[i]] * ", tau_between_node)
   }
+  # add known-V sampling dependency latent factors
+  if (is_known_v_latent && known_v_rank > 0L) {
+    model_syntax <- paste0(
+      model_syntax,
+      "  sampling_dependency[i] = inprod(sampling_B[i,1:sampling_rank], sampling_z[1:sampling_rank])\n"
+    )
+    mu_estimate <- paste0(mu_estimate, " + sampling_dependency[i]")
+  }
   # add PET/PEESE
   if (is_PET) {
     mu_estimate <- paste0(mu_estimate, " + PET * sei[i]")
   }
   if (is_PEESE) {
     mu_estimate <- paste0(mu_estimate, " + PEESE * pow(sei[i],2)")
+  }
+  if (is_known_v_whitened || is_known_v_block_mvn) {
+    model_syntax <- paste0(model_syntax, "  mu_observed[i] = ", mu_estimate, "\n")
   }
 
 
@@ -232,7 +349,13 @@
   # the model uses a trick to separately pass the tau_intercept and multiply it with
   # log_tau scale regression with zero intercept
   if (is_scale) {
-    model_syntax <- paste0(model_syntax, "  tau[i] = exp(log_tau[i])\n")
+    for (scale_spec in .data_scale_component_specs(data)) {
+      model_syntax <- paste0(
+        model_syntax,
+        "  ", scale_spec[["source"]], "[i] = exp(",
+        scale_spec[["parameter"]], "[i])\n"
+      )
+    }
   }
   # for multilevel: specify heterogeneity allocation & dispatch estimate-specific/common parameter
   # tau_within  - within-cluster variance (estimate-level variance)
@@ -247,11 +370,28 @@
       # the variance allocation performed outside of the loop
       tau_estimate <- tau_within_node
     }
+  } else if (is_random) {
+    tau_estimate <- "0"
   } else {
     tau_estimate <- tau_total_node
   }
-  # compute the total marginal variance of the observed estimate
-  total_var_expr <- paste0("( pow(sei[i],2) + pow(", tau_estimate, ",2) )")
+  # compute the total conditional variance of the observed estimate
+  sampling_var_node          <- if (is_known_v_latent) "sampling_var[i]" else "pow(sei[i],2)"
+  marginalized_random_var    <- .data_marginalized_random_variance_expression(data, row_index = "i")
+  random_likelihood_var_expr <- if (identical(marginalized_random_var, "0")) {
+    sampling_var_node
+  } else {
+    paste0(sampling_var_node, " + ", marginalized_random_var)
+  }
+  total_var_expr             <- if (is_random) {
+    paste0("( ", random_likelihood_var_expr, " )")
+  } else {
+    paste0("( ", sampling_var_node, " + pow(", tau_estimate, ",2) )")
+  }
+  if (is_known_v_block_mvn) {
+    tau2_expr <- if (is_random) marginalized_random_var else paste0("pow(", tau_estimate, ",2)")
+    model_syntax <- paste0(model_syntax, "  tau2_observed[i] = ", tau2_expr, "\n")
+  }
 
 
   ### specify model likelihood
@@ -305,7 +445,7 @@
           "sel_kernel_mode)\n"
         )
       }
-    } else {
+    } else if (!is_known_v_whitened && !is_known_v_block_mvn) {
       if (is_weights) {
         model_syntax <- paste0(model_syntax, "  yi[i] ~ dwnorm(", mu_estimate, ",", "1/", total_var_expr, ", weight[i])\n")
       } else {
@@ -356,6 +496,53 @@
 
 
   model_syntax <- paste0(model_syntax, "}\n")
+  if (outcome_type == "norm" && is_known_v_whitened) {
+    model_syntax <- paste0(model_syntax, "for(j in 1:K){\n")
+    model_syntax <- paste0(model_syntax, "  whitening_mu[j] = inprod(whitening_matrix[j,1:K], mu_observed[1:K])\n")
+    if (is_random) {
+      if (has_marginalized_random) {
+        marginalized_random_var <- .data_marginalized_random_variance_expression(data, row_index = "j")
+        model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] + ", marginalized_random_var, " ))\n")
+      } else {
+        model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] ))\n")
+      }
+    } else {
+      model_syntax <- paste0(model_syntax, "  whitening_y[j] ~ dnorm(whitening_mu[j], 1/( whitening_var[j] + pow(tau,2) ))\n")
+    }
+    model_syntax <- paste0(model_syntax, "}\n")
+  }
+  if (outcome_type == "norm" && is_known_v_block_mvn) {
+    known_V <- .data_known_v_data(data)
+
+    for (b in seq_along(known_V[["block_mvn_blocks"]])) {
+      block <- known_V[["block_mvn_blocks"]][[b]]
+      idx   <- block[["index"]]
+
+      if (block[["size"]] == 1L) {
+        i <- idx[[1]]
+        model_syntax <- paste0(
+          model_syntax,
+          "yi[", i, "] ~ dnorm(mu_observed[", i, "], 1/( known_v_var[", i, "] + tau2_observed[", i, "] ))\n"
+        )
+        next
+      }
+
+      for (j in seq_along(idx)) {
+        model_syntax <- paste0(
+          model_syntax,
+          "known_v_mu_", b, "[", j, "] = mu_observed[", idx[[j]], "]\n",
+          "known_v_tau2_", b, "[", j, "] = tau2_observed[", idx[[j]], "]\n"
+        )
+      }
+      model_syntax <- paste0(
+        model_syntax,
+        "known_v_y_", b, "[1:", block[["size"]], "] ~ dknown_v_mnorm(",
+        "known_v_mu_", b, "[1:", block[["size"]], "],",
+        "known_v_tau2_", b, "[1:", block[["size"]], "],",
+        "known_v_lower_", b, "[1:", length(block[["v_lower"]]), "])\n"
+      )
+    }
+  }
   model_syntax <- paste0(model_syntax, "}")
 
   return(model_syntax)
@@ -372,31 +559,10 @@
   errors   <- NULL
   warnings <- NULL
 
-  ### create arguments to be passed to BayesTools::JAGS_fit
-  fit_formula_list        <- list()
-  fit_formula_data_list   <- list()
-  fit_formula_prior_list  <- list()
-  fit_formula_scale_list  <- list()
-
   ### create model base
-  fit_priors <- .create_fit_priors(data = data, priors = priors)
-  fit_data   <- .create_fit_data(data = data, priors = priors)
-
-  ### add effect regressions
-  if (.is_data_mods(data)) {
-    fit_formula_list[["mu"]]       <- .create_fit_formula_list(data = data, parameter = "mods")
-    fit_formula_data_list[["mu"]]  <- .create_fit_formula_data_list(data = data, parameter = "mods")
-    fit_formula_prior_list[["mu"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "mods")
-    fit_formula_scale_list[["mu"]] <- .data_standardize_continuous_predictors(data)
-  }
-
-  ### add heterogeneity regressions
-  if (.is_data_scale(data)) {
-    fit_formula_list[["log_tau"]]       <- .create_fit_formula_list(data = data, parameter = "scale")
-    fit_formula_data_list[["log_tau"]]  <- .create_fit_formula_data_list(data = data, parameter = "scale")
-    fit_formula_prior_list[["log_tau"]] <- .create_fit_formula_prior_list(priors = priors, parameter = "scale")
-    fit_formula_scale_list[["log_tau"]] <- .data_standardize_continuous_predictors(data)
-  }
+  fit_priors       <- .create_fit_priors(data = data, priors = priors)
+  fit_data         <- .create_fit_data(data = data, priors = priors)
+  fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
 
   ### generate the model syntax
   model_syntax <- .create_model_syntax(data = data, priors = priors)
@@ -408,10 +574,13 @@
       model_syntax          = model_syntax,
       data                  = fit_data,
       prior_list            = fit_priors,
-      formula_list          = if (length(fit_formula_list)       > 0) fit_formula_list,
-      formula_data_list     = if (length(fit_formula_data_list)  > 0) fit_formula_data_list,
-      formula_prior_list    = if (length(fit_formula_prior_list) > 0) fit_formula_prior_list,
-      formula_scale         = if (length(fit_formula_scale_list) > 0) fit_formula_scale_list,
+      formula_list          = .optional_jags_list(fit_formula_args[["formula_list"]]),
+      formula_data_list     = .optional_jags_list(fit_formula_args[["formula_data_list"]]),
+      formula_prior_list    = .optional_jags_list(fit_formula_args[["formula_prior_list"]]),
+      formula_scale_list    = .optional_jags_list(fit_formula_args[["formula_scale_list"]]),
+      formula_random_prior_list           = .optional_jags_list(fit_formula_args[["formula_random_prior_list"]]),
+      formula_random_effects_compile_list = .optional_jags_list(fit_formula_args[["formula_random_effects_compile_list"]]),
+      add_parameters                      = .optional_jags_character(fit_formula_args[["add_parameters"]]),
       chains                = fit_control[["chains"]],
       adapt                 = fit_control[["adapt"]],
       burnin                = fit_control[["burnin"]],
@@ -532,8 +701,114 @@
 .is_data_scale            <- function(data) {
   return(isTRUE(attr(data, "scale")))
 }
+.data_scale_components    <- function(data) {
+
+  if (!.is_data_scale(data)) {
+    return(list())
+  }
+
+  scale <- data[["scale"]]
+  if (inherits(scale, "RoBMA_scale_components")) {
+    return(scale)
+  }
+
+  out <- list(tau = scale)
+  class(out) <- c("RoBMA_scale_components", "list")
+
+  return(out)
+}
+.data_scale_component_specs <- function(data) {
+
+  components <- .data_scale_components(data)
+  if (length(components) == 0L) {
+    return(list())
+  }
+
+  out <- lapply(names(components), function(name) {
+    component <- components[[name]]
+    source    <- attr(component, "source")
+    parameter <- attr(component, "parameter")
+    if (is.null(source)) {
+      source <- if (identical(name, "tau")) "tau" else paste0("tau_", name)
+    }
+    if (is.null(parameter)) {
+      parameter <- if (identical(name, "tau")) "log_tau" else paste0("log_tau_", name)
+    }
+    component_name <- attr(component, "component_name", exact = TRUE)
+    scale_name     <- attr(component, "scale_name", exact = TRUE)
+    aliases        <- attr(component, "aliases", exact = TRUE)
+    display_name   <- component_name
+    if (is.null(display_name) || length(display_name) != 1L ||
+        is.na(display_name) || !nzchar(display_name)) {
+      display_name <- scale_name
+    }
+    if (is.null(display_name) || length(display_name) != 1L ||
+        is.na(display_name) || !nzchar(display_name)) {
+      display_name <- name
+    }
+    if (is.null(aliases)) {
+      aliases <- unique(c(name, component_name, scale_name))
+      aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
+    }
+    list(
+      name           = name,
+      display_name   = display_name,
+      component_name = component_name,
+      scale_name     = scale_name,
+      aliases        = aliases,
+      source         = source,
+      parameter      = parameter,
+      data           = component,
+      formula        = attr(component, "formula")
+    )
+  })
+  names(out) <- names(components)
+
+  return(out)
+}
+.data_scale_formula_parameters <- function(data) {
+
+  vapply(.data_scale_component_specs(data), `[[`, character(1), "parameter")
+}
+.data_scale_formula_sources <- function(data) {
+
+  vapply(.data_scale_component_specs(data), `[[`, character(1), "source")
+}
+.is_data_random           <- function(data) {
+  return(isTRUE(attr(data, "random")))
+}
 .is_data_weights          <- function(data) {
   return(isTRUE(attr(data, "weights")))
+}
+.is_data_known_v          <- function(data) {
+  return(isTRUE(attr(data, "known_V")))
+}
+.data_known_v_data        <- function(data) {
+  return(attr(data, "known_V_data"))
+}
+.data_known_v_parameterization  <- function(data) {
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V) || is.null(known_V[["parameterization"]])) {
+    return("latent")
+  }
+  return(known_V[["parameterization"]])
+}
+.is_data_known_v_parameterization <- function(data, parameterization) {
+  return(.is_data_known_v(data) && .data_known_v_parameterization(data) == parameterization)
+}
+.data_known_v_rank        <- function(data) {
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V) || is.null(known_V[["rank"]])) {
+    return(0L)
+  }
+  return(known_V[["rank"]])
+}
+.data_known_v_correlated  <- function(data) {
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V)) {
+    return(FALSE)
+  }
+  return(isTRUE(known_V[["correlated"]]))
 }
 .data_outcome_type        <- function(data) {
   return(attr(data, "outcome_type"))
@@ -558,6 +833,7 @@
 .is_multilevel     <- function(object) .is_data_multilevel(object[["data"]])
 .is_mods           <- function(object) .is_data_mods(object[["data"]])
 .is_scale          <- function(object) .is_data_scale(object[["data"]])
+.is_random         <- function(object) .is_data_random(object[["data"]])
 .is_weights        <- function(object) .is_data_weights(object[["data"]])
 .outcome_type      <- function(object) .data_outcome_type(object[["data"]])
 .measure           <- function(object) .data_measure(object[["data"]])

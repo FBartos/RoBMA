@@ -64,37 +64,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .log_lik_cluster_norm.brma
-# ---------------------------------------------------------------------------- #
-#
-# Analytic cluster-unit likelihood for unweighted normal multilevel models
-# without selection. The normal cluster effect is integrated by the block
-# covariance.
-#
-# @param object brma object.
-#
-# @return S x G cluster-unit log-likelihood matrix.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm.brma <- function(object) {
-
-  setup <- .log_lik_cluster_setup.brma(object)
-  yi    <- .outcome_data_yi(object)
-  vi    <- .outcome_data_vi(object)
-
-  if (setup[["effect_direction"]] == "negative") {
-    setup[["mu"]] <- -setup[["mu"]]
-    yi            <- -yi
-  }
-
-  log_lik <- .log_lik_cluster_norm_analytic(setup = setup, yi = yi, vi = vi)
-
-  return(.add_cluster_log_lik_metadata(log_lik, setup[["cluster"]], setup[["data_hash"]]))
-}
-
-
-
-# ---------------------------------------------------------------------------- #
 # .log_dmvnorm_diag_rank_one
 # ---------------------------------------------------------------------------- #
 #
@@ -136,54 +105,6 @@
     sum(rank_one * residual * inv_diag)^2 / denom
 
   return(-0.5 * (length(x) * log(2 * pi) + log_det + quad))
-}
-
-
-
-# ---------------------------------------------------------------------------- #
-# .log_lik_cluster_norm_quadrature.brma
-# ---------------------------------------------------------------------------- #
-#
-# Gamma-quadrature cluster-unit likelihood for selected-normal models and
-# data-weighted normal models. Conditional on gamma, per-estimate likelihood
-# contributions factorize.
-#
-# @param object brma object.
-#
-# @return S x G cluster-unit log-likelihood matrix.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm_quadrature.brma <- function(object) {
-
-  setup             <- .log_lik_cluster_setup.brma(object)
-  is_weightfunction <- .is_weightfunction(object)
-  yi                <- .outcome_data_yi(object)
-  sei               <- .outcome_data_sei(object)
-
-  if (setup[["effect_direction"]] == "negative" && !is_weightfunction) {
-    setup[["mu"]] <- -setup[["mu"]]
-    yi            <- -yi
-  }
-
-  if (is_weightfunction) {
-    posterior_samples <- setup[["posterior_samples"]]
-    selection_context <- .selection_context(
-      object            = object,
-      posterior_samples = posterior_samples
-    )
-  } else {
-    selection_context <- NULL
-  }
-
-  log_lik <- .log_lik_cluster_norm_quadrature(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = is_weightfunction,
-    selection_context = selection_context
-  )
-
-  return(.add_cluster_log_lik_metadata(log_lik, setup[["cluster"]], setup[["data_hash"]]))
 }
 
 

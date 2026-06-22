@@ -17,16 +17,36 @@
 .iwmde_histogram <- function(values, xlim, mass = 1) {
 
   values <- values[is.finite(values)]
-  values <- values[values >= xlim[1] & values <= xlim[2]]
-  if (length(values) == 0L) {
-    values <- mean(xlim)
-  }
   breaks <- seq(xlim[1], xlim[2], length.out = 18)
+  mids   <- (utils::head(breaks, -1L) + utils::tail(breaks, -1L)) / 2
 
-  hist_data <- graphics::hist(values, breaks = breaks, plot = FALSE)
+  if (length(values) == 0L) {
+    return(list(
+      mids    = mids,
+      density = rep(0, length(mids)),
+      breaks  = breaks
+    ))
+  }
+
+  values_in_window <- values[values >= xlim[1] & values <= xlim[2]]
+  if (length(values_in_window) == 0L) {
+    return(list(
+      mids    = mids,
+      density = rep(0, length(mids)),
+      breaks  = breaks
+    ))
+  }
+
+  hist_data <- graphics::hist(
+    values_in_window,
+    breaks         = breaks,
+    plot           = FALSE,
+    include.lowest = TRUE
+  )
+  widths <- diff(hist_data[["breaks"]])
   return(list(
     mids    = hist_data[["mids"]],
-    density = hist_data[["density"]] * mass,
+    density = mass * hist_data[["counts"]] / (length(values) * widths),
     breaks  = hist_data[["breaks"]]
   ))
 }

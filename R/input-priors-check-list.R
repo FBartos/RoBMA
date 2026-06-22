@@ -7,6 +7,10 @@
 }
 .check_prior.heterogeneity            <- function(prior) {
 
+  if (.is_prior_random(prior)) {
+    return(prior)
+  }
+
   prior <- .check_prior.simple_or_point(prior, prior_name = "prior_heterogeneity")
 
   # check range restriction
@@ -20,6 +24,10 @@
   }
 
   return(prior)
+}
+.is_prior_random                      <- function(prior) {
+
+  inherits(prior, "prior_random")
 }
 .check_prior.simple_or_point          <- function(prior, prior_name) {
 
@@ -172,7 +180,7 @@
       paste0("The '%1$s' prior distribution cannot be rescaled using the 'rescale_priors' argument. ",
              "Only one of the following distributions can be rescaled: %2$s"),
       prior[["distribution"]],
-      paste0("'", can_be_rescaled, "'", sep = ", ")
+      paste0("'", can_be_rescaled, "'", collapse = ", ")
     ), call. = FALSE)
 
   if (prior[["distribution"]] %in% c("normal", "mnormal")) {
@@ -214,6 +222,16 @@
   ### set prior distributions
   measure       <- .data_measure(data)
   prior_outcome <- list()
+  is_random     <- .is_data_random(data)
+  is_random_prior_heterogeneity <- !missing(prior_heterogeneity) &&
+    .is_prior_random(prior_heterogeneity)
+
+  if (is_random_prior_heterogeneity && !is_random) {
+    stop(
+      "'prior_heterogeneity = BayesTools::prior_random(...)' can be used only when 'random' is specified.",
+      call. = FALSE
+    )
+  }
 
   prior_outcome[["mu"]] <- .assign_prior.simple(
       prior = prior_effect, parameter = "effect", measure = measure,
@@ -221,12 +239,21 @@
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors
     )
-  prior_outcome[["tau"]] <- .assign_prior.simple(
-    prior = prior_heterogeneity, parameter = "heterogeneity", measure = measure,
-    data = data, prior_unit_information_sd = prior_unit_information_sd,
-    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-    rescale_priors = rescale_priors
-  )
+  if (is_random_prior_heterogeneity && .is_data_scale(data)) {
+    prior_outcome[["tau"]] <- .assign_prior.simple(
+      parameter = "heterogeneity", measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    )
+  } else if (!is_random_prior_heterogeneity) {
+    prior_outcome[["tau"]] <- .assign_prior.simple(
+      prior = prior_heterogeneity, parameter = "heterogeneity", measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    )
+  }
 
   # only for multilevel models
   if (.is_data_multilevel(data)) {
@@ -268,8 +295,8 @@
   }
 
   if (.is_data_scale(data)) {
-    prior_scale <- .assign_prior_list.terms(
-      prior_list = prior_scale, prior_intercept = prior_outcome[["tau"]], parameter = "scale",
+    prior_scale <- .assign_prior_list.scale(
+      prior_list = prior_scale, prior_intercept = prior_outcome[["tau"]],
       measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors)
@@ -278,10 +305,45 @@
     prior_scale <- NULL
   }
 
+  if (is_random) {
+    prior_random <- if (is_random_prior_heterogeneity) {
+      prior_heterogeneity
+    } else {
+      .assign_prior.random(
+        prior      = prior_outcome[["tau"]],
+        data       = data,
+        sd_sources = if (.is_data_scale(data)) {
+          .assign_prior.random_scale_sources(data)
+        } else {
+          NULL
+        }
+      )
+    }
+    prior_outcome[["tau"]] <- NULL
+  } else {
+    prior_random <- NULL
+  }
+
+  prior_location <- .assign_prior.location(
+    prior_effect = prior_outcome[["mu"]],
+    prior_mods   = prior_mods,
+    data         = data
+  )
+  if (is_random) {
+    prior_outcome[["mu"]] <- NULL
+    .validate_prior_random(
+      data           = data,
+      prior_location = prior_location,
+      prior_random   = prior_random
+    )
+  }
+
   priors <- list(
     outcome  = prior_outcome,
     mods     = prior_mods,
-    scale    = prior_scale
+    scale    = prior_scale,
+    random   = prior_random,
+    location = prior_location
   )
   .check_glmm_no_bias_priors(data, priors)
 

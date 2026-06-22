@@ -4,7 +4,7 @@
 \alias{vif.brma}
 \title{Variance Inflation Factors for brma Objects}
 \usage{
-\method{vif}{brma}(object, posterior_correlation = TRUE, ...)
+\method{vif}{brma}(object, posterior_correlation = TRUE, max_samples = Inf, ...)
 }
 \arguments{
 \item{object}{a fitted brma object with moderators}
@@ -12,6 +12,11 @@
 \item{posterior_correlation}{logical; whether to also compute and return
 the posterior correlation matrix of regression coefficients. Defaults
 to \code{TRUE}.}
+
+\item{max_samples}{maximum posterior draws used for known-\code{V}
+\code{brma.mv()} marginal GLS covariance computations. Defaults to
+\code{Inf}. Finite values deterministically thin draws across posterior row
+order.}
 
 \item{...}{additional arguments (currently ignored)}
 }
@@ -54,6 +59,14 @@ Bayesian diagnostic complements VIF: while VIF diagnoses the
 posterior correlation shows the \emph{realized} identification
 given the data and priors. Informative priors can mitigate
 collinearity, reducing posterior correlations even when VIF is high.
+
+Data-only objects created with \code{only_data = TRUE} are rejected because
+VIF depends on fitted heterogeneity information, not just the parsed data.
+
+For \code{brma.mv()} known-\code{V} models, VIF is computed from the full
+marginal GLS covariance. Formula random effects are marginalized through
+BayesTools' random-effect covariance metadata rather than treated as
+conditioned fitted effects.
 }
 \examples{
 \dontrun{

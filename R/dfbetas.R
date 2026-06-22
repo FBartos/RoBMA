@@ -57,6 +57,9 @@
 #'
 #' This approximation allows computing influence statistics without refitting
 #' the model \eqn{K} times, making it computationally efficient.
+#' For \code{brma.mv()} objects, DFBETAS use estimate-unit PSIS weights. With
+#' correlated known-\code{V} data, this is influence under conditional estimate
+#' deletion, not independent-study deletion.
 #' For \code{type = "bias"}, fixed identification parameters (e.g., the reference
 #' \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
 #' These parameters are retained in the output, but their DFBETAS values are
@@ -97,32 +100,15 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   weights <- .diagnostic_psis_weights(model, .weights)
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
-  is_mods  <- .is_mods(model)
   is_scale <- .is_scale(model)
   is_bias  <- .is_bias(model)
 
   if (type == "mods") {
-    if (is_mods) {
-      # meta-regression: means mu is a formula
-      samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_formulas      = "mu",
-        remove_diagnostics = TRUE,
-        transform_factors  = transform_factors,
-        transform_scaled   = !standardized_coefficients,
-        return_samples     = TRUE
-      )
-    } else {
-      # random/fixed effects: mu is a parameter (intercept)
-      samples_table <- BayesTools::JAGS_estimates_table(
-        fit                = model[["fit"]],
-        keep_parameters    = "mu",
-        remove_diagnostics = TRUE,
-        transform_factors  = transform_factors,
-        transform_scaled   = !standardized_coefficients,
-        return_samples     = TRUE
-      )
-    }
+    samples_table <- .diagnostic_location_parameter_samples(
+      model                     = model,
+      standardized_coefficients = standardized_coefficients,
+      transform_factors         = transform_factors
+    )
   } else if (type == "scale") {
     if (is_scale) {
       # scale-regression: tau is modeled via log_tau formula
@@ -221,25 +207,23 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   # (beta_full - beta_loo) / se_loo
   dfbetas_val <- (beta_full_mat - beta_loo) / se_loo
   undefined   <- apply(se_loo <= sqrt(.Machine$double.eps), 2, any)
+  note        <- NULL
   if (any(undefined)) {
     dfbetas_val[, undefined] <- NaN
+    note <- .diagnostic_zero_variance_note(
+      diagnostic = "DFBETAS",
+      parameters = colnames(samples_mat)[undefined]
+    )
   }
-
   # convert to data frame
   dfbetas_df <- as.data.frame(dfbetas_val)
   colnames(dfbetas_df) <- colnames(samples_mat)
   dfbetas_df <- .diagnostic_set_rownames(dfbetas_df, model)
 
-  if (any(undefined)) {
-    dfbetas_df <- .diagnostic_with_note(
-      dfbetas_df,
-      class = "dfbetas.brma",
-      note  = .diagnostic_zero_variance_note(
-        diagnostic = "DFBETAS",
-        parameters = colnames(samples_mat)[undefined]
-      )
-    )
+  if (!is.null(note)) {
+    attr(dfbetas_df, "note") <- note
   }
+  class(dfbetas_df) <- c("dfbetas.brma", class(dfbetas_df))
 
   return(dfbetas_df)
 }

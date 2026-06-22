@@ -14,6 +14,21 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
+\item{V}{a known working variance-covariance matrix, or a list of block
+variance-covariance matrices, used by \code{brma.mv()}.}
+
+\item{known_v_parameterization}{known-\code{V} backend used by \code{brma.mv()}.
+\code{"auto"} chooses an exact backend when feasible; \code{"latent"} uses a latent
+\verb{D + BB'} decomposition; \code{"whitened"} uses an eigen-rotated normal
+likelihood; \code{"block_mvn"} uses an exact native block multivariate-normal
+likelihood.}
+
+\item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
+conditional independent residual sampling variance in the latent \verb{D + BB'}
+representation. Defaults to \code{0.10}; values are validated for all backends
+and explicitly supplied values are disregarded with a warning when
+\code{known_v_parameterization} is \code{"whitened"} or \code{"block_mvn"}.}
+
 \item{weights}{an optional vector of positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
@@ -28,6 +43,14 @@ location moderators (meta-regressors). Formula input is evaluated in \code{data}
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
 \code{data}.}
+
+\item{random}{an optional formula or list of formulas specifying
+BayesTools random-effect terms for \code{brma.mv()}. Use
+\link{random_effect_formula_tags}{random-effect formula structure tags} such as
+\code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
+\code{car()} inside the formula. Plain random-effect syntax is allowed only for
+random intercepts; random slopes require an explicit structure tag or the
+\code{||} diagonal shorthand.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}

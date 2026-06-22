@@ -33,19 +33,23 @@
     return(out)
   }
 
-  has_value <- rowSums(!is.na(lx)) > 0
-  lx[is.na(lx)] <- -Inf
+  valid_rows <- rowSums(is.na(lx)) == 0
+  if (!any(valid_rows)) {
+    return(rep(NA_real_, nrow(lx)))
+  }
 
-  row_max <- lx[cbind(seq_len(nrow(lx)), max.col(lx, ties.method = "first"))]
-  out     <- rep(NA_real_, nrow(lx))
+  valid_index <- which(valid_rows)
+  lx_valid    <- lx[valid_rows, , drop = FALSE]
+  row_max     <- lx_valid[cbind(seq_len(nrow(lx_valid)), max.col(lx_valid, ties.method = "first"))]
+  out         <- rep(NA_real_, nrow(lx))
 
-  infinite_rows <- has_value & is.infinite(row_max)
-  out[infinite_rows] <- row_max[infinite_rows]
+  infinite_rows <- is.infinite(row_max)
+  out[valid_index[infinite_rows]] <- row_max[infinite_rows]
 
-  finite_rows <- has_value & is.finite(row_max)
+  finite_rows <- is.finite(row_max)
   if (any(finite_rows)) {
-    out[finite_rows] <- row_max[finite_rows] +
-      log(rowSums(exp(lx[finite_rows, , drop = FALSE] - row_max[finite_rows])))
+    out[valid_index[finite_rows]] <- row_max[finite_rows] +
+      log(rowSums(exp(lx_valid[finite_rows, , drop = FALSE] - row_max[finite_rows])))
   }
 
   return(out)
@@ -299,8 +303,10 @@
 
 .glmm_pois_log_phi_grid_cache   <- new.env(parent = emptyenv())
 
+.glmm_prior_grid_hash_cache     <- new.env(parent = emptyenv())
 
-.glmm_prior_grid_key <- function(prior, n, suffix = NULL) {
+
+.glmm_prior_grid_hash_compute <- function(prior) {
 
   bytes <- as.integer(serialize(prior, NULL, version = 3))
   hash1 <- 5381
@@ -311,10 +317,41 @@
     hash2 <- (hash2 * 65599 + byte) %% 2147483629
   }
 
+  return(c(
+    sprintf("%08x", as.integer(hash1)),
+    sprintf("%08x", as.integer(hash2))
+  ))
+}
+
+
+.glmm_prior_grid_hash <- function(prior) {
+
+  cached_prior <- get0(
+    "prior",
+    envir      = .glmm_prior_grid_hash_cache,
+    inherits   = FALSE,
+    ifnotfound = NULL
+  )
+  if (!is.null(cached_prior) && identical(prior, cached_prior)) {
+    return(get("hash", envir = .glmm_prior_grid_hash_cache, inherits = FALSE))
+  }
+
+  hash <- .glmm_prior_grid_hash_compute(prior)
+  assign("prior", prior, envir = .glmm_prior_grid_hash_cache)
+  assign("hash", hash, envir = .glmm_prior_grid_hash_cache)
+
+  return(hash)
+}
+
+
+.glmm_prior_grid_key <- function(prior, n, suffix = NULL) {
+
+  hash <- .glmm_prior_grid_hash(prior)
+
   return(paste(
     n,
-    sprintf("%08x", as.integer(hash1)),
-    sprintf("%08x", as.integer(hash2)),
+    hash[[1L]],
+    hash[[2L]],
     suffix,
     sep = "|"
   ))

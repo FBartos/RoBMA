@@ -7,11 +7,11 @@
   rows <- vapply(row_states, function(state) {
     state[["row_index"]]
   }, integer(1))
-  key <- paste(
-    .iwmde_state_active_key(context, row_states[[1L]]),
-    unit,
-    paste(rows, collapse = ","),
-    sep = "|"
+  key <- .iwmde_predictor_cache_key(
+    prefix     = "predictor_setup",
+    active_key = .iwmde_state_active_key(context, row_states[[1L]]),
+    unit       = unit,
+    rows       = rows
   )
 
   if (exists(key, envir = context[["predictor_cache"]], inherits = FALSE)) {
@@ -29,6 +29,26 @@
 
   assign(key, setup, envir = context[["predictor_cache"]])
   return(setup)
+}
+
+
+.iwmde_predictor_cache_key <- function(prefix, ...) {
+
+  bytes <- as.integer(serialize(list(...), NULL, version = 3))
+  hash1 <- 5381
+  hash2 <- 0
+
+  for (byte in bytes) {
+    hash1 <- (hash1 * 33 + byte) %% 2147483647
+    hash2 <- (hash2 * 65599 + byte) %% 2147483629
+  }
+
+  return(paste(
+    prefix,
+    sprintf("%08x", as.integer(hash1)),
+    sprintf("%08x", as.integer(hash2)),
+    sep = "|"
+  ))
 }
 
 
@@ -374,13 +394,12 @@
   rows <- vapply(row_states, function(state) {
     state[["row_index"]]
   }, integer(1))
-  key <- paste(
-    "formula_basis",
-    .iwmde_state_active_key(context, row_states[[1L]]),
-    paste(rows, collapse = ","),
-    target,
-    column,
-    sep = "|"
+  key <- .iwmde_predictor_cache_key(
+    prefix     = "formula_basis",
+    active_key = .iwmde_state_active_key(context, row_states[[1L]]),
+    rows       = rows,
+    target     = target,
+    column     = column
   )
 
   if (exists(key, envir = context[["predictor_cache"]], inherits = FALSE)) {
@@ -623,8 +642,6 @@
   row_index  <- rep(seq_len(S), each = G)
   grid_index <- rep(seq_len(G), times = S)
   delta      <- values[grid_index] - basis[["current"]][row_index]
-  mean       <- setup[["mu"]][row_index, , drop = FALSE] +
-    basis[["mu_basis"]][row_index, , drop = FALSE] * delta
   sd         <- sqrt(setup[["tau_within"]]^2 +
     matrix(setup[["sei"]]^2, nrow = S, ncol = K, byrow = TRUE))
 
@@ -652,15 +669,21 @@
       phack_kind       = selection_context[["phack_kind"]],
       kernel_mode      = selection_context[["kernel_mode"]]
     )
-    out[!is.finite(delta)] <- NA_real_
-
-    if (length(out) != G * S || any(is.na(out))) {
+    if (!is.matrix(out) ||
+        !identical(dim(out), c(G, S))) {
       return(NULL)
     }
 
-    return(out)
+    out[!is.finite(delta)] <- NA_real_
+    if (any(is.na(out))) {
+      return(NULL)
+    }
+
+    return(as.numeric(out))
   }
 
+  mean <- setup[["mu"]][row_index, , drop = FALSE] +
+    basis[["mu_basis"]][row_index, , drop = FALSE] * delta
   candidate_context <- BayesTools::selection_context_subset_rows(
     context = selection_context,
     rows    = row_index
@@ -678,14 +701,14 @@
     log_norm_change <- .apply_log_lik_weights(log_norm_change, setup[["weights"]])
   }
 
-  out <- rowSums(log_norm_change)
+  out <- matrix(rowSums(log_norm_change), nrow = G, ncol = S)
   out[!is.finite(delta)] <- NA_real_
 
-  if (length(out) != G * S || any(is.na(out))) {
+  if (any(is.na(out))) {
     return(NULL)
   }
 
-  return(out)
+  return(as.numeric(out))
 }
 
 
@@ -696,14 +719,13 @@
   rows <- vapply(row_states, function(state) {
     state[["row_index"]]
   }, integer(1))
-  key <- paste(
-    "selnorm_current_log_norm",
-    .iwmde_state_active_key(context, row_states[[1L]]),
-    paste(rows, collapse = ","),
-    ncol(setup[["mu"]]),
-    selection_context[["n_bins"]],
-    selection_context[["telescope_probabilities"]],
-    sep = "|"
+  key <- .iwmde_predictor_cache_key(
+    prefix                  = "selnorm_current_log_norm",
+    active_key              = .iwmde_state_active_key(context, row_states[[1L]]),
+    rows                    = rows,
+    n_mu                    = ncol(setup[["mu"]]),
+    n_bins                  = selection_context[["n_bins"]],
+    telescope_probabilities = selection_context[["telescope_probabilities"]]
   )
 
   if (exists(key, envir = context[["predictor_cache"]], inherits = FALSE)) {

@@ -397,14 +397,14 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
 .forest_normalize_level <- function(level) {
 
   BayesTools::check_real(level, "level", check_length = 1, allow_NA = FALSE)
-  if (level > 1) {
-    level <- level / 100
-  }
-  if (level <= 0 || level >= 1) {
+  if (level <= 0 || level >= 100) {
     stop("'level' must be greater than 0 and less than 100.", call. = FALSE)
   }
+  if (level < 1) {
+    return(level)
+  }
 
-  return(level)
+  return(level / 100)
 }
 
 

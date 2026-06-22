@@ -111,6 +111,7 @@ means, residuals, influence, LOO, and the standard meta-analytic plots.
 | [*Publication-Bias Adjustment*](vignettes/v11-metafor-parity-publication-bias.Rmd) | `bselmodel()` / `bPET()` / `bPEESE()` and `metafor::selmodel()` |
 | [*Location-Scale Models*](vignettes/v12-metafor-parity-location-scale.Rmd) | `brma()` with `scale` and `metafor::rma.ls()` |
 | [*Generalized Linear Mixed-Effects Meta-Analysis*](vignettes/v13-metafor-parity-glmm.Rmd) | `brma.glmm()` and `metafor::rma.glmm()` for binomial and Poisson outcomes |
+| [*Multivariate and Multilevel Meta-Analysis*](vignettes/v14-metafor-parity-multivariate.Rmd) | `brma.mv()` with known sampling covariance matrices and structured random effects |
 
 Each vignette starts from a `metafor` package analysis and shows the
 matching `RoBMA` R package syntax, output, and diagnostics.
@@ -200,7 +201,7 @@ presence of publication bias. *Psychological Methods*.
 Bartoš, F., Maier, M., & Wagenmakers, E.-J. (2026). Robust Bayesian
 multilevel meta-analysis: Adjusting for publication bias in the presence
 of dependent effect sizes. *Behavior Research Methods*.
-<https://doi.org/10.31234/osf.io/9tgp2_v1>
+<https://doi.org/10.31234/osf.io/9tgp2_v2>
 
 </div>
 

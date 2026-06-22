@@ -163,6 +163,82 @@ test_that("loo_compare compares BMA and RoBMA product-space fits on the same dat
 })
 
 
+test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", {
+
+  mv_names <- c(
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_random_scale"
+  )
+  skip_if_missing_fits(mv_names)
+
+  for (name in mv_names) {
+    fit_brma <- fits[[name]]
+    log_lik  <- logLik(fit_brma)
+    target   <- attr(log_lik, "RoBMA_target", exact = TRUE)
+
+    expect_s3_class(log_lik, "logLik.brma")
+    expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
+    expect_true(all(is.finite(log_lik)), info = name)
+    expect_equal(target[["target"]], "known_v_estimate", info = name)
+    expect_true(isTRUE(target[["known_v"]]), info = name)
+    expect_true(isTRUE(target[["known_v_estimate_backend"]]), info = name)
+    expect_equal(
+      target[["known_v_parameterization"]],
+      .data_known_v_data(fit_brma[["data"]])[["parameterization"]],
+      info = name
+    )
+    expect_equal(
+      target[["known_v_parameterization_requested"]],
+      .data_known_v_data(fit_brma[["data"]])[["parameterization_requested"]],
+      info = name
+    )
+    expect_true(length(target[["dependency_component_sizes"]]) > 0L, info = name)
+
+    loo_result <- loo(fit_brma)
+    loo_target <- attr(loo_result, "RoBMA_target", exact = TRUE)
+    expect_s3_class(loo_result, "loo")
+    expect_equal(loo_target[["target"]], target[["target"]], info = name)
+    expect_true(isTRUE(loo_target[["known_v_estimate_backend"]]), info = name)
+    expect_equal(
+      loo_target[["dependency_component_sizes"]],
+      target[["dependency_component_sizes"]],
+      info = name
+    )
+
+    fit_waic   <- suppressWarnings(add_waic(fit_brma))
+    waic_result <- waic(fit_waic)
+    waic_target <- attr(waic_result, "RoBMA_target", exact = TRUE)
+    expect_s3_class(waic_result, "waic")
+    expect_equal(waic_target[["target"]], target[["target"]], info = name)
+    expect_true(isTRUE(waic_target[["known_v_estimate_backend"]]), info = name)
+    expect_equal(
+      waic_target[["dependency_component_sizes"]],
+      target[["dependency_component_sizes"]],
+      info = name
+    )
+  }
+})
+
+
+test_that("loo_compare accepts brma.mv backends with the same known-V target", {
+
+  mv_names <- c("brma.mv_latent", "brma.mv_whitened", "brma.mv_block_mvn")
+  skip_if_missing_fits(mv_names)
+
+  out <- suppressWarnings(loo_compare(
+    fits[["brma.mv_latent"]],
+    fits[["brma.mv_whitened"]],
+    fits[["brma.mv_block_mvn"]]
+  ))
+
+  expect_true(is.matrix(out))
+  expect_equal(nrow(out), 3)
+  expect_true("elpd_diff" %in% colnames(out))
+})
+
+
 # ---------------------------------------------------------------------------- #
 # Outcome type specific tests
 # ---------------------------------------------------------------------------- #

@@ -132,7 +132,7 @@ In the first part of this vignette we illustrate how the posterior density visua
 In the second part of the vignette, we illustrate how to compute Bayes factors based on posterior distribution in the `RoBMA` R package (which takes advantage of the qCMDE estimator when testing a point null hypothesis).
 This posterior samples route allows us to re-use a single model fit with a Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian] to compute Bayes factor for point-null hypotheses and encompassing-prior odds [@klugkist2005bayesian] for inequality and region hypotheses.
 It adds to the existing bridge sampling route [@gronau2017tutorial] which compares marginal likelihoods of separately fitted constrained and unconstrained models (see "Comparing Models with Bayes Factors" in [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html)),
-and the the product-space route [@lodewyckx2011tutorial] which fits multiple models simultaneously in a single MCMC run and estimates the Bayes factor from the posterior inclusion probabilities (see [*Bayesian Model Averaging*](v20-bayesian-model-averaging.html)).
+and the product-space route [@lodewyckx2011tutorial] which fits multiple models simultaneously in a single MCMC run and estimates the Bayes factor from the posterior inclusion probabilities (see [*Bayesian Model Averaging*](v20-bayesian-model-averaging.html)).
 
 We use the BCG vaccine dataset from the `metafor` package [@metafor] to walk through the density estimation and Bayes factor computation.
 We start with a simple random-effects meta-analysis, compare KDE and qCMDE on the average effect and heterogeneity, and use `hypothesis()` to test three hypotheses on the average effect with results matched against bridge sampling.
@@ -196,7 +196,7 @@ The qCMDE curves are visibly smoother on both panels, but otherwise track the KD
 
 Bayes factors compare two models by their prior predictive performance, usually through the ratio of marginal likelihoods [@kass1995bayes].
 For point-null hypotheses on a single parameter, the same Bayes factor can be obtained from the Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian], which needs only the prior and posterior density ordinate at the tested value.
-For inequality and region hypotheses, the encompassing-prior approach computes the Bayes factor as the change from prior odds to posterior odds for the restricted region [@klugkist2005bayesian;].
+For inequality and region hypotheses, the encompassing-prior approach computes the Bayes factor as the change from prior odds to posterior odds for the restricted region [@klugkist2005bayesian].
 The Savage--Dickey and encompassing-prior routes are both available from a single fit through `hypothesis()`; the rest of this section walks through three example hypotheses on the average effect and contrasts both routes:
 
 - $\text{BF}_{10}$: an unrestricted average effect against a point null at 0;
@@ -338,7 +338,7 @@ knitr::kable(
 
 The point-null Bayes factors agree closely across the two routes.
 The posterior-based value for $\text{BF}_{-+}$ is limited by the number of posterior draws as only a very small proportion of samples is at the positive side.
-Consequently, the encompassing prior estimate is much more variable than the corresponding bridge sampling approach (see the `%error(BF)` column).
+Consequently, the encompassing prior estimate is much more variable than the corresponding bridge sampling approach (see the `Posterior BF error (%)` column).
 In general, Bayes factors larger than 100 (lower than 1/100) are likely to have limited precision when using the posterior based or product-space approaches.
 (This usually does not matter for the interpretation, i.e., the data provide overwhelming evidence for one of the hypotheses.)
 
@@ -346,7 +346,7 @@ In general, Bayes factors larger than 100 (lower than 1/100) are likely to have 
 
 We next add absolute latitude (`ablat`) and allocation method (`alloc`) as moderators.
 For the categorical moderator we use mean-difference contrasts via `set_contrast_factor_predictors = "meandif"`.
-It specifies the prior distribution such as the the allocation levels as treated as exchangeable;
+It specifies the prior distribution such that the allocation levels are treated as exchangeable;
 the prior distribution does not depend on an arbitrary reference level and is better suited to hypothesis tests comparing allocation methods among each other.
 
 ```{r fit-meta-reg, eval = FALSE}
@@ -364,7 +364,7 @@ summary(fit_meta_reg)
 ```
 
 qCMDE is again available directly through `plot.brma()`.
-When interpreting categorical moderators, estimated marginal means (EMMs) a clearer way to report the results.
+When interpreting categorical moderators, estimated marginal means (EMMs) are a clearer way to report the results.
 The `marginal_means()` allows us to compute Bayes factors using `bf = TRUE` and use the qCMDE via `density_method = "qCMDE"` arguments.
 The density estimate is directly saved in the EMMs object, so the corresponding hypotheses can be tested later with `hypothesis()`.
 

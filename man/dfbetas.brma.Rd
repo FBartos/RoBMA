@@ -70,6 +70,9 @@ weighted standard deviation of the posterior samples.
 
 This approximation allows computing influence statistics without refitting
 the model \eqn{K} times, making it computationally efficient.
+For \code{brma.mv()} objects, DFBETAS use estimate-unit PSIS weights. With
+correlated known-\code{V} data, this is influence under conditional estimate
+deletion, not independent-study deletion.
 For \code{type = "bias"}, fixed identification parameters (e.g., the reference
 \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
 These parameters are retained in the output, but their DFBETAS values are

@@ -37,3 +37,6 @@ knowledge-base/
 /build/
 .positai
 CLAUDE.md
+
+# StatsVault local workspace and generated agent bridges
+.StatsVault/

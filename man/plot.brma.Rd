@@ -80,7 +80,8 @@ Chen-style moment-matched IWMDE densities. Matching is case-insensitive.}
 \item{density_control}{named list of density-estimation settings. Supported
 entries are \code{n_points}, \code{max_samples}, \code{display_grid},
 \code{normalization_points}, and \code{normalization_prob}. The
-normalization entries are only used with \code{density_method = "qCMDE"}.}
+normalization entries are used with \code{density_method = "qCMDE"} and
+\code{density_method = "IWMDE"}.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias

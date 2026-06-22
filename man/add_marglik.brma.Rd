@@ -28,6 +28,9 @@ in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
 use predictive comparison methods such as \code{\link{loo.brma}} instead.
+For \code{brma.mv()} known-\code{V} objects, bridge sampling evaluates the
+joint likelihood corresponding to the fitted known-\code{V} backend, not the
+conditional estimate-wise target used by LOO/WAIC diagnostics.
 }
 \examples{
 \dontrun{

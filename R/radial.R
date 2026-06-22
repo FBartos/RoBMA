@@ -92,9 +92,12 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' effect sizes by projecting from the origin through a point to the arc; when
 #' \code{center = TRUE}, the plotted slope is relative to the pooled effect.
 #'
-#' This function requires an intercept-only model; radial plots are not
-#' meaningful for meta-regression or location-scale models where the
-#' pooled effect varies across studies.
+#' This function requires an intercept-only single normal model with scalar
+#' independent sampling variances and no publication-bias or model-averaging
+#' components. Radial plots are not meaningful for meta-regression,
+#' location-scale, multilevel/random-effect, GLMM, product-space, or known-V
+#' multivariate models where the classical scalar precision target is not the
+#' fitted likelihood target.
 #'
 #' \code{galbraith()} is a same-argument alias for \code{radial()}.
 #'
@@ -167,6 +170,7 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
   if (.is_scale(x)) {
     stop("Radial plots cannot be drawn for models with scale regression.", call. = FALSE)
   }
+  .check_radial_model_supported(x)
 
   # set up graphical arguments with defaults
   dots <- .set_dots_radial(...)
@@ -209,6 +213,52 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
 galbraith.brma <- function(x, ...) {
 
   radial.brma(x, ...)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .check_radial_model_supported
+# ---------------------------------------------------------------------------- #
+#
+# Guard the classical Galbraith target. The plot assumes independent scalar
+# sampling variances and a single normal model; broader fitted objects have
+# different likelihood or averaging targets.
+#
+# ---------------------------------------------------------------------------- #
+.check_radial_model_supported <- function(x) {
+
+  if (.outcome_type(x) != "norm") {
+    stop(
+      "Radial plots are only available for normal outcome models with scalar ",
+      "independent sampling variances.",
+      call. = FALSE
+    )
+  }
+
+  if (inherits(x, "RoBMA")) {
+    stop(
+      "Radial plots are not available for product-space model-averaging objects.",
+      call. = FALSE
+    )
+  }
+
+  if (.is_weightfunction(x) || .is_PET(x) || .is_PEESE(x)) {
+    stop(
+      "Radial plots are not available for publication-bias adjusted models.",
+      call. = FALSE
+    )
+  }
+
+  if (.is_multilevel(x) || .is_random(x) ||
+      inherits(x, "brma.mv") || .is_data_known_v(x[["data"]])) {
+    stop(
+      "Radial plots are not available for multilevel, random-formula, or ",
+      "known-V models.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
 }
 
 

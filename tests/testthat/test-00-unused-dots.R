@@ -4,6 +4,11 @@ test_that("brma.norm is exported alias for brma", {
   expect_identical(brma.norm, brma)
 })
 
+test_that("brma.mv is exported", {
+
+  expect_true("brma.mv" %in% getNamespaceExports("RoBMA"))
+})
+
 test_that("top-level fitting constructors reject stale algorithm argument", {
 
   norm_args <- list(
@@ -24,6 +29,7 @@ test_that("top-level fitting constructors reject stale algorithm argument", {
   norm_constructors <- list(
     brma      = brma,
     brma.norm = brma.norm,
+    brma.mv   = brma.mv,
     RoBMA     = RoBMA,
     BMA       = BMA,
     BMA.norm  = BMA.norm,
@@ -37,8 +43,13 @@ test_that("top-level fitting constructors reject stale algorithm argument", {
   )
 
   for (constructor in norm_constructors) {
+    args <- norm_args
+    if (identical(constructor, brma.mv)) {
+      args[["V"]]  <- diag(args[["sei"]]^2)
+      args[["sei"]] <- NULL
+    }
     expect_error(
-      do.call(constructor, norm_args),
+      do.call(constructor, args),
       "Unused argument.*algorithm"
     )
   }
@@ -60,6 +71,20 @@ test_that("top-level fitting constructors reject other named dots", {
       only_data        = TRUE
     ),
     "Unused argument.*legacy_algorithm"
+  )
+})
+
+test_that("brma.mv rejects cluster through unused dots", {
+
+  expect_error(
+    brma.mv(
+      yi        = c(0.10, 0.20, 0.15),
+      V         = diag(c(0.05, 0.06, 0.07)^2),
+      cluster   = c(1, 1, 2),
+      measure   = "GEN",
+      only_data = TRUE
+    ),
+    "'cluster' is not supported in brma.mv()"
   )
 })
 

@@ -127,20 +127,29 @@
 
   return(invisible(TRUE))
 }
-
 .brma_parameter_default <- function(component, object) {
 
   if (identical(component, "mods")) {
-    if (.is_mods(object)) {
+    if (.is_mods(object) || .is_random(object)) {
       return("intercept")
     }
     return("mu")
   }
   if (identical(component, "scale")) {
     if (.is_scale(object)) {
+      scale_specs <- .data_scale_component_specs(object[["data"]])
+      if (length(scale_specs) > 1L) {
+        stop(
+          "Specify 'parameter' when component = 'scale' for component-specific scale models.",
+          call. = FALSE
+        )
+      }
       return("intercept")
     }
-    return("tau")
+    if (!is.null(object[["priors"]][["outcome"]][["tau"]])) {
+      return("tau")
+    }
+    stop("The object does not contain scale priors.", call. = FALSE)
   }
   if (identical(component, "bias")) {
     stop("Specify 'parameter' when component = 'bias'.", call. = FALSE)
@@ -157,6 +166,20 @@
                                    component = "auto",
                                    argument = "parameter") {
 
+  entry <- .brma_parameter_select_entry(
+    object    = object,
+    parameter = parameter,
+    component = component,
+    argument  = argument
+  )
+
+  return(entry[["parameter"]])
+}
+
+.brma_parameter_select_entry <- function(object, parameter,
+                                         component = "auto",
+                                         argument = "parameter") {
+
   component <- .parameter_component_normalize(component)
   BayesTools::check_char(parameter, argument, check_length = 1, allow_NA = FALSE)
 
@@ -168,7 +191,8 @@
 
   if (nrow(matches) == 0L) {
     stop(
-      "Unknown ", argument, " '", parameter, "'. Available quantities are: ",
+      "The specified ", argument, " '", parameter, "' is not available. ",
+      "Available quantities are: ",
       .brma_parameter_available(catalog, component), ".",
       call. = FALSE
     )
@@ -176,14 +200,14 @@
 
   selected <- unique(matches[["parameter"]])
   if (length(selected) == 1L) {
-    return(selected)
+    return(as.list(matches[1L, , drop = FALSE]))
   }
 
-  components <- unique(matches[["component"]])
+  quantities <- unique(paste0("'", matches[["parameter"]], "' (", matches[["component"]], ")"))
   stop(
-    "Parameter '", parameter, "' is ambiguous across components: ",
-    paste0("'", components, "'", collapse = ", "),
-    ". Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
+    "Parameter '", parameter, "' is ambiguous across quantities: ",
+    paste(quantities, collapse = ", "),
+    ". Set 'component' or use the full parameter name.",
     call. = FALSE
   )
 }
@@ -191,17 +215,24 @@
 .brma_parameter_catalog <- function(object) {
 
   rows <- list()
-  add <- function(parameter, component, term, aliases) {
+  outcome_priors <- object[["priors"]][["outcome"]]
+  if (is.null(outcome_priors)) {
+    outcome_priors <- list()
+  }
+  add <- function(parameter, component, term, aliases,
+                 source, formula_parameter = NA_character_) {
     aliases <- unique(aliases[!is.na(aliases) & nzchar(aliases)])
     if (length(aliases) == 0L) {
       return(invisible(NULL))
     }
     for (alias in aliases) {
       rows[[length(rows) + 1L]] <<- data.frame(
-        alias     = alias,
-        parameter = parameter,
-        component = component,
-        term      = term,
+        alias             = alias,
+        parameter         = parameter,
+        component         = component,
+        term              = term,
+        source            = source,
+        formula_parameter = formula_parameter,
         stringsAsFactors = FALSE,
         check.names = FALSE
       )
@@ -209,50 +240,74 @@
     return(invisible(NULL))
   }
 
-  if (.is_mods(object)) {
+  if (.is_mods(object) || .is_random(object)) {
+    location_source <- if (.is_random(object)) "location" else "mods"
     add("mu_intercept", "mods", "intercept",
-        c("mu_intercept", "mu", "intercept"))
+        c("mu_intercept", "mu", "intercept"),
+        source = location_source, formula_parameter = "mu")
     .brma_parameter_catalog_terms(
       object            = object,
       model_parameter   = "mu",
       component         = "mods",
       formula_parameter = "mu",
+      source            = location_source,
       add               = add
     )
   } else {
-    add("mu", "mods", "mu", c("mu", "effect"))
+    add("mu", "mods", "mu", c("mu", "effect"), source = "outcome")
   }
 
   if (.is_scale(object)) {
-    add("log_tau_intercept", "scale", "intercept",
-        c("log_tau_intercept", "tau", "intercept"))
-    .brma_parameter_catalog_terms(
-      object            = object,
-      model_parameter   = "log_tau",
-      component         = "scale",
-      formula_parameter = "log_tau",
-      add               = add
-    )
+    scale_specs <- .data_scale_component_specs(object[["data"]])
+    single_scale <- length(scale_specs) == 1L
+    for (scale_spec in scale_specs) {
+      formula_parameter <- scale_spec[["parameter"]]
+      if (single_scale && identical(formula_parameter, "log_tau")) {
+        intercept_parameter <- "log_tau_intercept"
+        intercept_aliases   <- c("log_tau_intercept", "tau", "intercept")
+      } else {
+        component_aliases <- scale_spec[["aliases"]]
+        intercept_parameter <- paste0(formula_parameter, "_intercept")
+        intercept_aliases   <- c(
+          intercept_parameter,
+          scale_spec[["display_name"]],
+          component_aliases,
+          paste0(component_aliases, "_intercept")
+        )
+      }
+      add(intercept_parameter, "scale", "intercept",
+          intercept_aliases, source = "scale",
+          formula_parameter = formula_parameter)
+      .brma_parameter_catalog_terms(
+        object            = object,
+        model_parameter   = formula_parameter,
+        component         = "scale",
+        formula_parameter = formula_parameter,
+        source            = "scale",
+        add               = add
+      )
+    }
   } else {
-    add("tau", "scale", "tau", c("tau", "heterogeneity"))
+    if (!is.null(outcome_priors[["tau"]])) {
+      add("tau", "scale", "tau", c("tau", "heterogeneity"), source = "outcome")
+    }
   }
 
-  if (.is_multilevel(object)) {
-    add("rho", "scale", "rho", "rho")
+  if (.is_multilevel(object) && !is.null(outcome_priors[["rho"]])) {
+    add("rho", "scale", "rho", "rho", source = "outcome")
   }
   if (.is_PET(object)) {
-    add("PET", "bias", "PET", "PET")
+    add("PET", "bias", "PET", "PET", source = "bias")
   }
   if (.is_PEESE(object)) {
-    add("PEESE", "bias", "PEESE", "PEESE")
+    add("PEESE", "bias", "PEESE", "PEESE", source = "bias")
   }
   if (.is_weightfunction(object)) {
-    add("omega", "bias", "omega", c("omega", "weightfunction"))
+    add("omega", "bias", "omega", c("omega", "weightfunction"), source = "bias")
   }
 
-  fit_priors <- attr(object[["fit"]], "prior_list")
-  if (!is.null(fit_priors[["bias"]])) {
-    add("bias", "bias", "bias", "bias")
+  if (!is.null(outcome_priors[["bias"]])) {
+    add("bias", "bias", "bias", "bias", source = "bias")
   }
 
   out <- do.call(rbind, rows)
@@ -262,7 +317,7 @@
 }
 
 .brma_parameter_catalog_terms <- function(object, model_parameter, component,
-                                          formula_parameter, add) {
+                                          formula_parameter, source, add) {
 
   terms <- .fitted_formula_terms(
     object            = object,
@@ -280,7 +335,8 @@
       parameters        = term,
       formula_parameter = formula_parameter
     )
-    add(parameter, component, term, c(parameter, term))
+    add(parameter, component, term, c(parameter, term),
+        source = source, formula_parameter = formula_parameter)
   }
 
   return(invisible(NULL))
@@ -468,230 +524,119 @@
     parameter <- "mu"
   }
 
-  priors <- object[["priors"]]
-
   if (!is.null(parameter_mods)) {
     .parameter_component_check_compatible(component, "mods", "parameter_mods")
     .check_plot_prior_name(parameter_mods, "parameter_mods")
-    return(.select_plot_prior_term(
-      prior_list = priors[["mods"]],
-      term       = parameter_mods,
-      argument   = "parameter_mods",
-      prefix     = "mu",
-      source     = "mods"
-    ))
+    entry <- .brma_parameter_select_entry(
+      object    = object,
+      parameter = parameter_mods,
+      component = "mods",
+      argument  = "parameter_mods"
+    )
+    return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
   }
 
   if (!is.null(parameter_scale)) {
     .parameter_component_check_compatible(component, "scale", "parameter_scale")
     .check_plot_prior_name(parameter_scale, "parameter_scale")
-    return(.select_plot_prior_term(
-      prior_list = priors[["scale"]],
-      term       = parameter_scale,
-      argument   = "parameter_scale",
-      prefix     = "log_tau",
-      source     = "scale"
-    ))
+    entry <- .brma_parameter_select_entry(
+      object    = object,
+      parameter = parameter_scale,
+      component = "scale",
+      argument  = "parameter_scale"
+    )
+    return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
   }
 
-  if (!identical(component, "auto")) {
-    return(.select_plot_prior_component(
-      priors           = priors,
-      parameter        = parameter,
-      component        = component,
-      allow_mixed_bias = allow_mixed_bias
-    ))
+  if (is.null(parameter)) {
+    parameter <- .brma_parameter_default(component, object)
   }
 
   .check_plot_prior_name(parameter, "parameter")
 
-  parameter <- switch(
-    parameter,
-    "effect"        = "mu",
-    "heterogeneity" = "tau",
-    "weightfunction" = "omega",
-    parameter
+  entry <- .brma_parameter_select_entry(
+    object    = object,
+    parameter = parameter,
+    component = component,
+    argument  = "parameter"
   )
 
-  if (parameter == "mu" && is.null(priors[["outcome"]][["mu"]]) && !is.null(priors[["mods"]][["intercept"]])) {
+  return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
+}
+
+.select_plot_prior_entry <- function(object, entry, allow_mixed_bias = FALSE) {
+
+  priors            <- object[["priors"]]
+  parameter         <- entry[["parameter"]]
+  source            <- entry[["source"]]
+  term              <- entry[["term"]]
+  formula_parameter <- entry[["formula_parameter"]]
+
+  if (identical(source, "outcome")) {
+    prior <- priors[["outcome"]][[parameter]]
+    if (is.null(prior)) {
+      stop(sprintf("Unknown outcome prior parameter '%s'.", parameter), call. = FALSE)
+    }
     return(list(
-      prior  = priors[["mods"]][["intercept"]],
-      label  = "mu_intercept",
-      source = "mods",
-      term   = "intercept"
+      prior             = prior,
+      label             = parameter,
+      source            = source,
+      term              = term,
+      formula_parameter = formula_parameter
     ))
   }
 
-  if (parameter == "tau" && is.null(priors[["outcome"]][["tau"]]) && !is.null(priors[["scale"]][["intercept"]])) {
-    return(list(
-      prior  = priors[["scale"]][["intercept"]],
-      label  = "log_tau_intercept",
-      source = "scale",
-      term   = "intercept"
+  if (source %in% c("mods", "location")) {
+    return(.select_plot_prior_term(
+      prior_list        = priors[[source]],
+      term              = term,
+      argument          = "parameter",
+      prefix            = "mu",
+      source            = source,
+      label             = parameter,
+      formula_parameter = formula_parameter
     ))
   }
 
-  if (parameter %in% c("omega", "PET", "PEESE", "bias") && !is.null(priors[["outcome"]][["bias"]])) {
+  if (identical(source, "scale")) {
+    scale_priors <- priors[["scale"]]
+    if (inherits(scale_priors, "RoBMA_scale_priors")) {
+      prior_list <- scale_priors[[formula_parameter]]
+    } else {
+      prior_list <- scale_priors
+    }
+    return(.select_plot_prior_term(
+      prior_list        = prior_list,
+      term              = term,
+      argument          = "parameter",
+      prefix            = formula_parameter,
+      source            = source,
+      label             = parameter,
+      formula_parameter = formula_parameter
+    ))
+  }
+
+  if (identical(source, "bias")) {
     prior <- .select_plot_prior_bias(
       prior            = priors[["outcome"]][["bias"]],
       parameter        = parameter,
       allow_mixed_bias = allow_mixed_bias
     )
-    return(list(prior = prior, label = parameter, source = "bias", term = parameter))
-  }
-
-  if (parameter %in% names(priors[["outcome"]]) && !is.null(priors[["outcome"]][[parameter]])) {
-    return(list(prior = priors[["outcome"]][[parameter]], label = parameter, source = "outcome", term = parameter))
-  }
-
-  in_mods  <- !is.null(priors[["mods"]])  && parameter %in% names(priors[["mods"]])
-  in_scale <- !is.null(priors[["scale"]]) && parameter %in% names(priors[["scale"]])
-
-  if (in_mods && in_scale) {
-    stop(sprintf(
-      "The term '%s' is available in both moderator and scale priors. Set 'component' to 'mods'/'location' or 'scale'.",
-      parameter
-    ), call. = FALSE)
-  }
-
-  if (in_mods) {
     return(list(
-      prior  = priors[["mods"]][[parameter]],
-      label  = paste0("mu_", parameter),
-      source = "mods",
-      term   = parameter
+      prior             = prior,
+      label             = parameter,
+      source            = source,
+      term              = term,
+      formula_parameter = formula_parameter
     ))
   }
 
-  if (in_scale) {
-    return(list(
-      prior  = priors[["scale"]][[parameter]],
-      label  = paste0("log_tau_", parameter),
-      source = "scale",
-      term   = parameter
-    ))
-  }
-
-  stop(sprintf(
-    "Unknown prior parameter '%s'. Available selections are: %s.",
-    parameter,
-    .collapse_plot_prior_names(priors)
-  ), call. = FALSE)
+  stop(sprintf("Unknown prior source '%s'.", source), call. = FALSE)
 }
 
-.select_plot_prior_component <- function(priors, parameter, component,
-                                         allow_mixed_bias) {
-
-  if (is.null(parameter)) {
-    parameter <- switch(
-      component,
-      "mods"    = "intercept",
-      "scale"   = "intercept",
-      "bias"    = "bias"
-    )
-  }
-
-  .check_plot_prior_name(parameter, "parameter")
-
-  if (identical(component, "mods")) {
-    parameter <- .select_plot_prior_component_term(parameter, "mods")
-    if (!is.null(priors[["mods"]]) && parameter %in% names(priors[["mods"]])) {
-      return(.select_plot_prior_term(
-        prior_list = priors[["mods"]],
-        term       = parameter,
-        argument   = "parameter",
-        prefix     = "mu",
-        source     = "mods"
-      ))
-    }
-    if (identical(parameter, "intercept") &&
-        !is.null(priors[["outcome"]][["mu"]])) {
-      return(list(
-        prior  = priors[["outcome"]][["mu"]],
-        label  = "mu",
-        source = "outcome",
-        term   = "mu"
-      ))
-    }
-    stop(sprintf("Unknown location prior parameter '%s'.", parameter), call. = FALSE)
-  }
-
-  if (identical(component, "scale")) {
-    parameter <- .select_plot_prior_component_term(parameter, "scale")
-    if (!is.null(priors[["scale"]]) && parameter %in% names(priors[["scale"]])) {
-      return(.select_plot_prior_term(
-        prior_list = priors[["scale"]],
-        term       = parameter,
-        argument   = "parameter",
-        prefix     = "log_tau",
-        source     = "scale"
-      ))
-    }
-    if (identical(parameter, "intercept") &&
-        !is.null(priors[["outcome"]][["tau"]])) {
-      return(list(
-        prior  = priors[["outcome"]][["tau"]],
-        label  = "tau",
-        source = "outcome",
-        term   = "tau"
-      ))
-    }
-    if (!is.null(priors[["outcome"]][[parameter]]) &&
-        parameter %in% c("tau", "rho")) {
-      return(list(
-        prior  = priors[["outcome"]][[parameter]],
-        label  = parameter,
-        source = "outcome",
-        term   = parameter
-      ))
-    }
-    stop(sprintf("Unknown scale prior parameter '%s'.", parameter), call. = FALSE)
-  }
-
-  parameter <- switch(
-    parameter,
-    "effect"         = "mu",
-    "heterogeneity"  = "tau",
-    "weightfunction" = "omega",
-    parameter
-  )
-
-  if (identical(component, "bias")) {
-    if (parameter %in% c("omega", "PET", "PEESE", "bias") &&
-        !is.null(priors[["outcome"]][["bias"]])) {
-      prior <- .select_plot_prior_bias(
-        prior            = priors[["outcome"]][["bias"]],
-        parameter        = parameter,
-        allow_mixed_bias = allow_mixed_bias
-      )
-      return(list(prior = prior, label = parameter, source = "bias", term = parameter))
-    }
-    stop(sprintf("Unknown bias prior parameter '%s'.", parameter), call. = FALSE)
-  }
-
-  stop(sprintf("Unknown prior component '%s'.", component), call. = FALSE)
-}
-
-.select_plot_prior_component_term <- function(parameter, component) {
-
-  if (identical(component, "mods")) {
-    if (parameter %in% c("mu", "mu_intercept")) {
-      return("intercept")
-    }
-    return(.formula_design_display_names(sub("^mu_", "", parameter)))
-  }
-
-  if (identical(component, "scale")) {
-    if (parameter %in% c("tau", "log_tau_intercept")) {
-      return("intercept")
-    }
-    return(.formula_design_display_names(sub("^log_tau_", "", parameter)))
-  }
-
-  return(parameter)
-}
-
-.select_plot_prior_term <- function(prior_list, term, argument, prefix, source) {
+.select_plot_prior_term <- function(prior_list, term, argument, prefix, source,
+                                    label = NULL,
+                                    formula_parameter = NA_character_) {
 
   if (is.null(prior_list)) {
     stop(sprintf("The '%s' argument can only be used when the object contains the corresponding priors.", argument), call. = FALSE)
@@ -707,10 +652,11 @@
   }
 
   return(list(
-    prior  = prior_list[[term]],
-    label  = paste0(prefix, "_", term),
-    source = source,
-    term   = term
+    prior             = prior_list[[term]],
+    label             = if (!is.null(label)) label else paste0(prefix, "_", term),
+    source            = source,
+    term              = term,
+    formula_parameter = formula_parameter
   ))
 }
 
@@ -770,95 +716,30 @@
   return(selected)
 }
 
-.append_print_prior_selection <- function(selected, prior, label, source, term) {
-
-  if (is.null(prior)) {
-    return(selected)
-  }
-
-  selected[[label]] <- list(
-    prior  = prior,
-    label  = label,
-    source = source,
-    term   = term
-  )
-
-  return(selected)
-}
-
 .select_print_prior_all <- function(object) {
 
-  priors  <- object[["priors"]]
-  outcome <- priors[["outcome"]]
-  mods    <- priors[["mods"]]
-  scale   <- priors[["scale"]]
-
+  catalog  <- .brma_parameter_catalog(object)
+  catalog  <- catalog[!duplicated(catalog[["parameter"]]), , drop = FALSE]
+  if (any(catalog[["source"]] == "bias" & catalog[["parameter"]] == "bias")) {
+    catalog <- catalog[
+      !(catalog[["source"]] == "bias" & catalog[["parameter"]] != "bias"),
+      ,
+      drop = FALSE
+    ]
+  }
   selected <- list()
 
-  selected <- .append_print_prior_selection(
-    selected = selected,
-    prior    = outcome[["mu"]],
-    label    = "mu",
-    source   = "outcome",
-    term     = "mu"
-  )
-
-  if (!is.null(mods)) {
-    selected <- .append_print_prior_selection(
-      selected = selected,
-      prior    = mods[["intercept"]],
-      label    = "mu_intercept",
-      source   = "mods",
-      term     = "intercept"
+  for (i in seq_len(nrow(catalog))) {
+    entry          <- as.list(catalog[i, , drop = FALSE])
+    selected_entry <- .select_plot_prior_entry(
+      object           = object,
+      entry            = entry,
+      allow_mixed_bias = TRUE
     )
-
-    for (term in setdiff(names(mods), "intercept")) {
-      selected <- .append_print_prior_selection(
-        selected = selected,
-        prior    = mods[[term]],
-        label    = paste0("mu_", term),
-        source   = "mods",
-        term     = term
-      )
+    if (is.null(selected_entry[["prior"]])) {
+      next
     }
-  }
-
-  selected <- .append_print_prior_selection(
-    selected = selected,
-    prior    = outcome[["tau"]],
-    label    = "tau",
-    source   = "outcome",
-    term     = "tau"
-  )
-
-  if (!is.null(scale)) {
-    selected <- .append_print_prior_selection(
-      selected = selected,
-      prior    = scale[["intercept"]],
-      label    = "log_tau_intercept",
-      source   = "scale",
-      term     = "intercept"
-    )
-
-    for (term in setdiff(names(scale), "intercept")) {
-      selected <- .append_print_prior_selection(
-        selected = selected,
-        prior    = scale[[term]],
-        label    = paste0("log_tau_", term),
-        source   = "scale",
-        term     = term
-      )
-    }
-  }
-
-  for (parameter in setdiff(names(outcome), c("mu", "tau"))) {
-    selected <- .append_print_prior_selection(
-      selected = selected,
-      prior    = outcome[[parameter]],
-      label    = parameter,
-      source   = if (parameter == "bias") "bias" else "outcome",
-      term     = parameter
-    )
+    selected[[selected_entry[["label"]]]] <- selected_entry
   }
 
   return(selected)
@@ -888,7 +769,7 @@
 
 .plot_prior_unstandardized <- function(object, selected, plot_type, dots) {
 
-  if (!(selected[["source"]] %in% c("mods", "scale"))) {
+  if (!(selected[["source"]] %in% c("mods", "location", "scale"))) {
     return(NULL)
   }
 
@@ -897,8 +778,8 @@
   }
 
   formula_info <- .plot_prior_formula_info(
-    object = object,
-    source = selected[["source"]]
+    object   = object,
+    selected = selected
   )
 
   if (is.null(formula_info) || is.null(formula_info[["formula_scale"]])) {
@@ -948,9 +829,13 @@
   return(plot)
 }
 
-.plot_prior_formula_info <- function(object, source) {
+.plot_prior_formula_info <- function(object, selected) {
 
-  parameter <- .fitted_formula_parameter(source)
+  source    <- selected[["source"]]
+  parameter <- selected[["formula_parameter"]]
+  if (is.null(parameter) || is.na(parameter) || !nzchar(parameter)) {
+    parameter <- .fitted_formula_parameter(source)
+  }
   design    <- .fitted_formula_design(
     object    = object,
     parameter = parameter,
@@ -1005,32 +890,4 @@
   }
 
   return(invisible(TRUE))
-}
-
-.collapse_plot_prior_names <- function(priors) {
-
-  selections <- paste0("parameter = '", names(priors[["outcome"]]), "'")
-
-  if (!is.null(priors[["outcome"]][["bias"]])) {
-    selections <- unique(c(
-      selections,
-      paste0("parameter = '", c("omega", "PET", "PEESE"), "', component = 'bias'")
-    ))
-  }
-
-  if (!is.null(priors[["mods"]])) {
-    selections <- c(
-      selections,
-      paste0("parameter = '", names(priors[["mods"]]), "', component = 'mods'")
-    )
-  }
-
-  if (!is.null(priors[["scale"]])) {
-    selections <- c(
-      selections,
-      paste0("parameter = '", names(priors[["scale"]]), "', component = 'scale'")
-    )
-  }
-
-  return(paste(unique(selections), collapse = ", "))
 }

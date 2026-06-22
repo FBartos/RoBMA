@@ -146,6 +146,7 @@ The `tau` posterior concentrates around 0.3 with credible interval comparable to
 All inference helpers available for any other `brma()` fit work the same way for the multilevel fit specified via `cluster`.
 This includes meta-regression and location-scale models, model comparison, and fit diagnostics.
 See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the full walkthrough; the only thing that changes here is the addition of `cluster = district`.
+For known sampling covariance matrices and richer random-effects structures, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 
 
 ## References

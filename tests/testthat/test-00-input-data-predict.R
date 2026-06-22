@@ -135,7 +135,8 @@ prepare_newdata_cases <- list(
       yi = yi, sei = sei, scale = ~ scale_var,
       data = test_data_norm, only_data = TRUE
     )),
-    newdata = quote(test_data_norm)
+    newdata = quote(test_data_norm),
+    type = "terms.scale"
   ),
   list(
     label = "normal moderators and scale",
@@ -143,7 +144,8 @@ prepare_newdata_cases <- list(
       yi = yi, sei = sei, mods = ~ mod_cont, scale = ~ scale_var,
       data = test_data_norm, only_data = TRUE
     )),
-    newdata = quote(test_data_norm)
+    newdata = quote(test_data_norm),
+    type = "terms.scale"
   ),
   list(
     label = "GLMM same data",
@@ -170,7 +172,7 @@ test_that(".prepare_newdata reconstructs response, moderator, and scale data", {
     result <- RoBMA:::.prepare_newdata(
       object  = fit,
       newdata = eval(case[["newdata"]]),
-      type    = "terms"
+      type    = if (!is.null(case[["type"]])) case[["type"]] else "terms"
     )
 
     compare_data_lists(
@@ -255,7 +257,7 @@ test_that(".prepare_newdata rejects missing required variables", {
       expr   = quote(RoBMA:::.prepare_newdata(
         object = fit_scale,
         newdata = data.frame(yi = c(0.1, 0.2), sei = c(0.1, 0.2)),
-        type = "terms"
+        type = "terms.scale"
       )),
       regexp = "scale_var"
     ),
@@ -268,6 +270,12 @@ test_that(".prepare_newdata rejects missing required variables", {
       )),
       regexp = "n2i"
     )
+  ))
+
+  expect_no_error(RoBMA:::.prepare_newdata(
+    object = fit_scale,
+    newdata = data.frame(yi = c(0.1, 0.2), sei = c(0.1, 0.2)),
+    type = "terms"
   ))
 })
 
@@ -332,27 +340,34 @@ test_that(".prepare_newdata preserves predictor transformation settings", {
   expect_equal(attr(result_meandif, "set_contrast_factor_predictors"), "meandif")
 })
 
-test_that(".prepare_newdata drops rows with missing outcome or moderator values", {
+test_that(".prepare_newdata errors on missing outcome or predictor values", {
 
   fit_norm <- brma.norm(
     yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
   )
-  expect_warning(
-    result_norm <- RoBMA:::.prepare_newdata(
+  expect_error(
+    RoBMA:::.prepare_newdata(
       object = fit_norm,
       newdata = data.frame(yi = c(0.1, NA, 0.3), sei = c(0.1, 0.2, 0.15)),
       type = "terms"
     ),
-    regexp = "removed"
+    regexp = "row\\(s\\): 2.*outcome_required\\$yi"
   )
-  expect_equal(nrow(result_norm[["outcome"]]), 2L)
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object = fit_norm,
+      newdata = data.frame(yi = c(0.1, 0.2, 0.3), sei = c(0.1, NA, 0.15)),
+      type = "terms"
+    ),
+    regexp = "row\\(s\\): 2.*outcome_required\\$sei"
+  )
 
   fit_mods <- brma.norm(
     yi = yi, sei = sei, mods = ~ mod_cont,
     data = test_data_norm, only_data = TRUE
   )
-  expect_warning(
-    result_mods <- RoBMA:::.prepare_newdata(
+  expect_error(
+    RoBMA:::.prepare_newdata(
       object = fit_mods,
       newdata = data.frame(
         yi = c(0.1, 0.2, 0.3), sei = c(0.1, 0.2, 0.15),
@@ -360,10 +375,24 @@ test_that(".prepare_newdata drops rows with missing outcome or moderator values"
       ),
       type = "terms"
     ),
-    regexp = "removed"
+    regexp = "row\\(s\\): 2.*mods\\$mod_cont"
   )
-  expect_equal(nrow(result_mods[["outcome"]]), 2L)
-  expect_equal(nrow(result_mods[["mods"]]), 2L)
+
+  fit_scale <- brma.norm(
+    yi = yi, sei = sei, scale = ~ scale_var,
+    data = test_data_norm, only_data = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object = fit_scale,
+      newdata = data.frame(
+        yi = c(0.1, 0.2), sei = c(0.1, 0.2),
+        scale_var = c(1, NA)
+      ),
+      type = "terms.scale"
+    ),
+    regexp = "row\\(s\\): 2.*scale\\$scale_var"
+  )
 })
 
 test_that(".prepare_newdata accepts prediction-only edge cases", {
@@ -442,6 +471,7 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
       newdata = quote(data.frame(
         yi = c(0.1, 0.2), sei = c(0.1, 0.1), scale_var = c(1, 1)
       )),
+      type = "terms.scale",
       check = function(result) expect_equal(result[["scale"]][["scale_var"]], c(1, 1))
     ),
     list(
@@ -479,7 +509,7 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
     result <- RoBMA:::.prepare_newdata(
       object  = fit,
       newdata = eval(case[["newdata"]]),
-      type    = "terms"
+      type    = if (!is.null(case[["type"]])) case[["type"]] else "terms"
     )
     case[["check"]](result)
   }

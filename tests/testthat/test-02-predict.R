@@ -416,6 +416,17 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
       unname(as.matrix(ranef_samples)),
       unname(as.matrix(blup_samples) - as.matrix(terms))
     )
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "total"))),
+      unname(as.matrix(ranef_samples))
+    )
+    ranef_list <- ranef(fit_brma, simplify = FALSE)
+    expect_type(ranef_list, "list")
+    expect_equal(names(ranef_list), "estimate")
+    expect_equal(
+      unname(as.matrix(ranef_list[["estimate"]])),
+      unname(as.matrix(ranef_samples))
+    )
   }
 })
 
@@ -436,6 +447,16 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
     expect_equal(names(out), c("cluster", "estimate"), info = name)
     expect_brma_samples_matrix(out[["cluster"]], n_studies, paste(name, "cluster ranef"))
     expect_brma_samples_matrix(out[["estimate"]], n_studies, paste(name, "estimate ranef"))
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "cluster"))),
+      unname(as.matrix(out[["cluster"]])),
+      info = paste(name, "component cluster")
+    )
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "total"))),
+      unname(as.matrix(out[["cluster"]]) + as.matrix(out[["estimate"]])),
+      info = paste(name, "component total")
+    )
   }
 })
 

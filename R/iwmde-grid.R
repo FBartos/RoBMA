@@ -179,11 +179,9 @@
     return(NULL)
   }
 
-  z_values  <- .iwmde_to_internal(values, transform)
-  z_display <- .iwmde_to_internal(display_grid, transform)
-  z_values  <- z_values[is.finite(z_values)]
-  z_display <- z_display[is.finite(z_display)]
-  if (length(z_values) < 2L || length(z_display) < 2L) {
+  z_values <- .iwmde_to_internal(values, transform)
+  z_values <- z_values[is.finite(z_values)]
+  if (length(z_values) < 2L) {
     return(NULL)
   }
 
@@ -198,7 +196,7 @@
     probs <- range(z_values)
   }
 
-  z_range <- range(c(probs, z_display))
+  z_range <- range(probs)
   width   <- diff(probs)
   if (!is.finite(width) || width <= 0) {
     width <- diff(range(z_values))

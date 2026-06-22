@@ -7,6 +7,7 @@
 \method{predict}{brma}(
   object,
   newdata = NULL,
+  V_new = NULL,
   type = "terms",
   as_measure = TRUE,
   output_measure = NULL,
@@ -32,24 +33,43 @@ since observation-level sampling variance is required.}
 measure and variability metrics (for meta-analysis) for new studies. The input
 must contain the variables used by the requested prediction type. Outcome
 columns are optional for \code{type = "terms"} unless PET/PEESE bias terms
-are included via \code{bias_adjusted = FALSE}.}
+are included via \code{bias_adjusted = FALSE}. Missing values in
+\code{newdata} are rejected; prediction never drops rows silently. For
+known-\code{V} \code{brma.mv()} response prediction, explicit
+\code{newdata} requires a new sampling covariance matrix.}
 }}
+
+\item{V_new}{optional sampling covariance matrix for explicit
+\code{newdata} response predictions from known-\code{V} \code{brma.mv()}
+models. May be a square matrix or a list of block covariance matrices whose
+total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
+rows is not supported.}
 
 \item{type}{type of prediction to be performed. Options are:
 \itemize{
 \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
 Produces the mean effect size estimate at the given predictor levels,
 not accounting for random effects.}
-\item{\code{"cluster"}: Fixed effects plus cluster-level random effects (mu + gamma).
-Only available for multilevel (3-level) models.}
+\item{\code{"cluster"}: Fixed effects plus legacy cluster-level random
+effects (mu + gamma). Only available for legacy multilevel (3-level)
+models.}
 \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
 effects (mu + gamma + theta). For existing normal data, returns posterior
-draws of conditional BLUP means, not simulated latent-effect draws. For
-new data, samples estimate-level random effects.}
+draws of conditional BLUP means, not simulated latent-effect draws.
+Existing \code{brma.mv()} random-formula models return conditional true
+effects at fitted random-effect levels. For \code{brma.mv()}
+random-formula models, explicit \code{newdata} conditions on existing
+random-effect levels and samples unseen random-effect levels. Aggregated
+random-formula predictions marginalize random effects and average across
+rows.}
 \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
-Incorporates both heterogeneity and sampling variability.}
+Incorporates both heterogeneity and sampling variability. For known-\code{V}
+\code{brma.mv()} models, explicit \code{newdata} response predictions
+require a supplied new sampling covariance matrix.}
 \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
-regression if present.}
+regression if present. For \code{brma.mv()} random-formula models with
+scale formulas, returns a named list of component-specific
+\code{brma_samples} matrices.}
 }}
 
 \item{as_measure}{logical; whether to convert GLMM response predictions from
@@ -103,11 +123,15 @@ to one chain after subsetting posterior rows.}
 \item{...}{additional arguments}
 }
 \value{
-A \code{brma_samples} object containing posterior samples. When printed,
-displays a summary table via \code{BayesTools::ensemble_estimates_table}. The
-underlying samples matrix can be accessed directly (the object inherits from matrix)
-or via \code{summary()} to obtain the summary table. The samples can also be converted
-to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
+A \code{brma_samples} object containing posterior samples. For
+\code{brma.mv()} random-formula \code{type = "terms.scale"} predictions,
+returns a named list of component-specific \code{brma_samples} objects.
+When printed, each \code{brma_samples} object displays a summary table via
+\code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
+can be accessed directly (the object inherits from matrix) or via
+\code{summary()} to obtain the summary table. The samples can also be
+converted to \pkg{posterior} draws formats using \code{as_draws()} and
+related functions.
 }
 \description{
 \code{predict.brma} predicts values
@@ -123,8 +147,14 @@ to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
 For existing normal observations, \code{type = "estimate"} reports the
 conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
 posterior draw. It is therefore an empirical-Bayes summary, not a draw from
-the full latent-effect posterior \eqn{\theta_i \mid y_i}. For new data,
-estimate-level random effects are sampled from their model distribution.
+the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
+\code{brma.mv()} random-formula models, fitted-level sampled random effects
+are added to the fixed location and the result is titled conditional true
+effects. Random-effect blocks compiled as marginalized contribute Gaussian
+BLUP means for existing-data predictions and covariance for predictive
+response draws. For explicit new data, unseen random-effect levels are
+sampled from their model distribution. For aggregated random-formula
+predictions, random effects are sampled marginally before averaging over rows.
 
 For RoBMA product-space objects, conditional posterior predictions subset
 posterior rows according to model indicators. This removes the original
@@ -143,6 +173,16 @@ They do not change the observation-level sampling error used by
 \code{type = "response"} for normal models: response predictions simulate
 raw future effect-size estimates with the supplied \code{sei}, not
 \code{sei / sqrt(weight)}.
+
+For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
+response prediction requires \code{V_new}. Non-random models draw from the
+new sampling covariance plus posterior heterogeneity. Random-formula models
+draw from a joint normal with fixed-location mean and covariance
+\code{V_new} plus the marginal random-effect covariance and any
+marginalized estimate-level variance. Cross-covariance with observed rows is
+not supported. \code{brma.mv()} prediction results carry a
+\code{brma_mv_prediction_target} attribute recording the formula,
+random-effect, and response-covariance target used.
 }
 \examples{
 \dontrun{

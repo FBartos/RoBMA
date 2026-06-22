@@ -227,6 +227,13 @@
   if ("cluster_label" %in% names(outcome_data)) {
     payload[["cluster_label"]] <- unname(as.character(outcome_data[["cluster_label"]]))
   }
+  if (.is_data_known_v(object[["data"]])) {
+    known_V <- .data_known_v_data(object[["data"]])
+    payload[["known_V"]] <- list(
+      dim = dim(known_V[["V"]]),
+      V   = unname(as.numeric(known_V[["V"]]))
+    )
+  }
 
   bytes <- as.integer(serialize(payload, NULL, version = 3))
   hash1 <- 5381
@@ -288,6 +295,74 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .check_random_formula_postfit_deferred
+# ---------------------------------------------------------------------------- #
+#
+# Error used by post-fit methods whose random-formula semantics still need a
+# dedicated RoBMA design.
+#
+# @param object brma object.
+# @param caller character; caller name for error messages.
+#
+# @return invisible NULL or stops.
+#
+# ---------------------------------------------------------------------------- #
+.check_random_formula_postfit_deferred <- function(object, caller) {
+
+  if (.is_random(object)) {
+    stop(
+      caller,
+      " is not implemented for brma.mv() random-formula models yet.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(NULL))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .check_log_lik_target_available
+# ---------------------------------------------------------------------------- #
+#
+# Shared availability gate for pointwise log-likelihood, LOO, and WAIC.
+#
+# @param object brma object.
+# @param unit   character; normalized or raw output/deletion unit.
+# @param caller character; caller name for error messages.
+#
+# @return invisible NULL or stops.
+#
+# ---------------------------------------------------------------------------- #
+.check_log_lik_target_available <- function(object, unit, caller) {
+
+  unit       <- .normalize_unit(unit)
+  data       <- object[["data"]]
+  is_brma_mv <- inherits(object, "brma.mv")
+
+  if (unit == "cluster" && is_brma_mv) {
+    stop(
+      caller,
+      " with unit = 'cluster' is not implemented for brma.mv() known-V ",
+      "models yet. Use unit = 'estimate'.",
+      call. = FALSE
+    )
+  }
+
+  if (unit == "cluster" && !.is_multilevel(object)) {
+    stop(caller, " with unit = 'cluster' is only available for multilevel models.",
+         call. = FALSE)
+  }
+
+  if (.is_random(object) && !(is_brma_mv && .is_data_known_v(data))) {
+    .check_random_formula_postfit_deferred(object, caller)
+  }
+
+  invisible(TRUE)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .check_legacy_level_arg
 # ---------------------------------------------------------------------------- #
 #
@@ -327,15 +402,21 @@
 #
 # ---------------------------------------------------------------------------- #
 .add_loo_target_metadata <- function(object, unit, conditioning_depth, targets,
-                                     data_hash) {
+                                     data_hash, metadata = NULL) {
 
-  attr(object, "RoBMA_target") <- list(
+  target <- list(
     unit               = unit,
     conditioning_depth = conditioning_depth,
     n                  = length(targets),
     targets            = targets,
     data_hash          = data_hash
   )
+  if (!is.null(metadata)) {
+    extra  <- metadata[setdiff(names(metadata), names(target))]
+    target <- c(target, extra)
+  }
+
+  attr(object, "RoBMA_target") <- target
 
   return(object)
 }
@@ -371,6 +452,7 @@
 .check_loo_target <- function(object, unit) {
 
   unit       <- .normalize_unit(unit)
+  .check_log_lik_target_available(object, unit, "loo()")
   loo_store  <- object[["loo"]]
 
   if (is.null(loo_store)) {
@@ -417,6 +499,7 @@
 .check_waic_target <- function(object, unit) {
 
   unit       <- .normalize_unit(unit)
+  .check_log_lik_target_available(object, unit, "waic()")
   waic_store <- object[["waic"]]
 
   if (is.null(waic_store)) {
@@ -512,6 +595,14 @@
       length(unique(conditioning_depths)) > 1 ||
       length(unique(data_hashes)) > 1) {
     stop("LOO/WAIC objects with different data, unit, or conditioning-depth targets cannot be compared.",
+         call. = FALSE)
+  }
+
+  target_kinds <- vapply(metadata, function(x) {
+    if (is.null(x[["target"]])) "" else as.character(x[["target"]])
+  }, character(1))
+  if (all(nzchar(target_kinds)) && length(unique(target_kinds)) > 1) {
+    stop("LOO/WAIC objects with different likelihood targets cannot be compared.",
          call. = FALSE)
   }
 

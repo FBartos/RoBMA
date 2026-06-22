@@ -1,6 +1,34 @@
 ## version 4.1.0 (IN PROGRESS)
 ### Features
 - adds `metafor::forest()` support for `brma` objects and `as_metafor_forest()` for preparing RoBMA forest-plot data.
+- adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
+  covariance matrices, including latent, whitened, and block-MVN known-`V`
+  backends and BayesTools random-effect formula integration.
+- adds opt-in likelihood-aware qCMDE/IWMDE posterior density and point-ordinate
+  estimation for supported `plot()`, `hypothesis()`/`bf_hypothesis()`,
+  `marginal_means()`, and `hypothesis.marginal_means()` workflows via
+  `density_method`.
+- adds RoBMA-owned provenance and BF-grade diagnostics to precomputed
+  qCMDE/IWMDE density and ordinate attributes.
+
+### Breaking changes
+- removes the previous `marginal_means.brma(normal_approximation)` argument;
+  marginal-means Bayes factors now use posterior ordinates from KDE/qCMDE/IWMDE
+  routes instead of the removed normal-approximation switch.
+
+### Fixes
+- separates qCMDE display, evaluation, and integration grids so plot ranges and
+  boundary nulls no longer distort row-normalizer grids.
+- makes qCMDE BF diagnostics use final-vs-validation ordinate movement instead
+  of same-grid normalization mass.
+- keeps qCMDE/IWMDE row denominators fixed when row normalizers or Chen weights
+  fail, reporting dropped rows instead of redistributing their mass.
+- freezes finite baseline row eligibility in qCMDE/IWMDE plans, cache keys, and
+  diagnostics so denominator rows and estimator rows are reported separately.
+- evaluates qCMDE/IWMDE boundary point nulls with explicit requested/evaluation
+  value provenance for one-sided Savage-Dickey Bayes factors.
+- reuses marginal-means qCMDE/IWMDE ordinates only when provenance proves the
+  method, settings, target, source object, and value are compatible.
 
 ## version 4.0.0
 ### Breaking changes

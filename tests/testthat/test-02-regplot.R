@@ -175,6 +175,35 @@ test_that("Regression plot thins location-scale prediction intervals", {
   expect_true(all(is.finite(regplot_data[["pi"]][["upper"]])))
 })
 
+test_that("Regression plot supports pointwise brma.mv random-formula PI and SI", {
+
+  name <- "brma.mv_block_mvn_random_mods_scale"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  regplot_data <- .test_regplot(
+    fit_brma,
+    mod         = "x",
+    pi          = TRUE,
+    si          = TRUE,
+    as_data     = TRUE,
+    at          = c(0, 1),
+    max_samples = 80
+  )
+
+  expect_equal(nrow(regplot_data[["pi"]]), 2 * nrow(regplot_data[["pred"]]))
+  expect_equal(nrow(regplot_data[["si"]]), 2 * nrow(regplot_data[["pred"]]))
+  expect_true(all(is.finite(regplot_data[["pi"]][["lower"]])))
+  expect_true(all(is.finite(regplot_data[["pi"]][["upper"]])))
+  expect_true(all(is.finite(regplot_data[["si"]][["lower"]])))
+  expect_true(all(is.finite(regplot_data[["si"]][["upper"]])))
+  expect_equal(
+    regplot_data[["sei"]],
+    stats::median(.outcome_data_sei(fit_brma))
+  )
+})
+
 # ============================================================================ #
 # Test: 3-Level Model Regression Plot
 # ============================================================================ #

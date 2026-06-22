@@ -122,6 +122,89 @@ test_that("RoBMA JAGS module exposes scalar selected-normal step switch kernel",
   expect_true(all(fit[[1]][, "bias_indicator"] %in% c(1, 2)))
 })
 
+test_that("RoBMA JAGS module exposes known-V multivariate normal kernel", {
+
+  RoBMA:::.load_RoBMA_module()
+
+  y       <- c(0.10, -0.20)
+  mu      <- c(0.03, -0.01)
+  tau2    <- c(0.01, 0.04)
+  V       <- matrix(c(0.04, 0.015, 0.015, 0.09), nrow = 2)
+  V_lower <- V[lower.tri(V, diag = TRUE)]
+
+  con <- textConnection(paste0(
+    "model{\n",
+    "  y[1:2] ~ dknown_v_mnorm(mu[1:2], tau2[1:2], V_lower[1:3])\n",
+    "}\n"
+  ))
+  on.exit(close(con), add = TRUE)
+
+  model <- rjags::jags.model(
+    file     = con,
+    data     = list(y = y, mu = mu, tau2 = tau2, V_lower = V_lower),
+    quiet    = TRUE,
+    n.chains = 2,
+    n.adapt  = 0
+  )
+  dic <- rjags::dic.samples(
+    model,
+    n.iter       = 5,
+    type         = "pD",
+    progress.bar = "none"
+  )
+  Sigma              <- V + diag(tau2)
+  Sigma_chol         <- chol(Sigma)
+  residual           <- y - mu
+  precision_residual <- backsolve(
+    Sigma_chol,
+    forwardsolve(t(Sigma_chol), residual)
+  )
+  reference_deviance <- length(y) * log(2 * pi) +
+    2 * sum(log(diag(Sigma_chol))) +
+    sum(residual * precision_residual)
+
+  expect_equal(
+    as.numeric(sum(dic[["deviance"]])),
+    reference_deviance,
+    tolerance = 1e-8
+  )
+})
+
+test_that("RoBMA JAGS module can sample known-V multivariate normal nodes", {
+
+  RoBMA:::.load_RoBMA_module()
+
+  mu      <- c(0.03, -0.01)
+  tau2    <- c(0.01, 0.04)
+  V       <- matrix(c(0.04, 0.015, 0.015, 0.09), nrow = 2)
+  V_lower <- V[lower.tri(V, diag = TRUE)]
+
+  con <- textConnection(paste0(
+    "model{\n",
+    "  y[1:2] ~ dknown_v_mnorm(mu[1:2], tau2[1:2], V_lower[1:3])\n",
+    "}\n"
+  ))
+  on.exit(close(con), add = TRUE)
+
+  model <- rjags::jags.model(
+    file     = con,
+    data     = list(mu = mu, tau2 = tau2, V_lower = V_lower),
+    quiet    = TRUE,
+    n.chains = 2,
+    n.adapt  = 0
+  )
+  fit <- rjags::coda.samples(
+    model,
+    variable.names = "y",
+    n.iter         = 5,
+    quiet          = TRUE,
+    progress.bar   = "none"
+  )
+
+  samples <- as.matrix(fit)
+  expect_true(all(is.finite(samples[, c("y[1]", "y[2]")])))
+})
+
 test_that("dwbinom has discrete bounded support and can sample", {
 
   RoBMA:::.load_RoBMA_module()

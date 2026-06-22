@@ -251,6 +251,34 @@ test_that("IWMDE support transforms preserve density mass", {
   )
 })
 
+test_that("IWMDE integration grid ignores display and evaluation ordinates", {
+
+  values       <- seq(-1, 1, length.out = 101)
+  display_grid <- seq(-1, 1, length.out = 21)
+  transform    <- .iwmde_parameter_transform(c(-Inf, Inf))
+
+  base <- .iwmde_normalization_grid(
+    values               = values,
+    display_grid         = display_grid,
+    support              = c(-Inf, Inf),
+    transform            = transform,
+    normalization_points = 41,
+    normalization_prob   = .90
+  )
+  with_far <- .iwmde_normalization_grid(
+    values               = values,
+    display_grid         = c(display_grid, 100),
+    support              = c(-Inf, Inf),
+    transform            = transform,
+    normalization_points = 41,
+    normalization_prob   = .90
+  )
+
+  expect_equal(with_far[["x"]], base[["x"]], tolerance = 1e-12)
+  expect_equal(with_far[["z"]], base[["z"]], tolerance = 1e-12)
+  expect_lt(max(with_far[["x"]]), 5)
+})
+
 test_that("IWMDE adaptive display grid concentrates support points", {
 
   set.seed(1)

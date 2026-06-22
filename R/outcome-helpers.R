@@ -142,6 +142,25 @@
 }
 
 
+.outcome_data_likelihood_sei <- function(object) {
+
+  if (.is_data_known_v(object[["data"]])) {
+    if ((.is_data_known_v_parameterization(object[["data"]], "whitened") ||
+         .is_data_known_v_parameterization(object[["data"]], "block_mvn")) &&
+        .data_known_v_correlated(object[["data"]])) {
+      stop(
+        "Original-scale pointwise likelihood standard errors are not available ",
+        "for correlated exact known-V models.",
+        call. = FALSE
+      )
+    }
+    return(.data_known_v_data(object[["data"]])[["residual_sei"]])
+  }
+
+  return(.outcome_data_sei(object))
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .outcome_data_weights
 # ---------------------------------------------------------------------------- #

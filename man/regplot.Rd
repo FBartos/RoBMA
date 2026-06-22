@@ -169,6 +169,11 @@ are computed at each factor level with optional jittering of points.
 
 The \code{by} argument allows displaying separate regression lines for
 different levels of a second moderator, useful for visualizing interactions.
+For \code{brma.mv()} known-\code{V} models, prediction and sampling bands are
+pointwise descriptive bands. They summarize row-wise marginal random-effect
+variation and, for sampling intervals, a representative sampling standard
+error. They are not full joint predictive regions for correlated
+known-\code{V} outcomes.
 }
 \examples{
 \dontrun{

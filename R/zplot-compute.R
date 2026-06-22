@@ -32,19 +32,8 @@
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
 
   ### extract model info
-  is_multilevel     <- .is_multilevel(object)
   is_weightfunction <- .is_weightfunction(object)
   effect_direction  <- .effect_direction(object)
-
-  ### get outcome data
-  outcome_data <- object[["data"]][["outcome"]]
-  yi           <- outcome_data[["yi"]]
-  sei          <- outcome_data[["sei"]]
-  K            <- length(yi)
-
-  ### determine mu type
-  # "cluster" for multilevel (mu + gamma), "terms" for marginal/single-level
-  mu_type <- if (is_multilevel) "cluster" else "terms"
 
   ### 1. Thin posterior samples before derived quantities
   posterior_samples <- .get_posterior_samples(object[["fit"]])
@@ -53,33 +42,16 @@
     posterior_samples <- posterior_samples[selected_ind, , drop = FALSE]
   }
 
-  ### 2. Predict mu (location) samples
-  # predict.brma handles PET/PEESE via bias_adjusted argument
-  # extrapolate=TRUE -> bias_adjusted=TRUE (unbiased predictions)
-  mu_samples <- predict.brma(
-    object             = object,
-    type               = mu_type,
-    bias_adjusted      = extrapolate,
-    quiet              = TRUE,
-    .posterior_samples = posterior_samples
+  predictive <- .zplot_predictive_components(
+    object            = object,
+    posterior_samples = posterior_samples,
+    extrapolate       = extrapolate
   )
+  mu_samples <- predictive[["mu"]]
+  tau_within <- predictive[["tau_within"]]
+  sei        <- predictive[["sei"]]
 
-  ### 3. Get tau (heterogeneity) samples
-  # specific handling to get tau_within
-  # .evaluate.brma.tau handles ML splitting logic
-  tau_result <- .evaluate.brma.tau(
-    fit               = object[["fit"]],
-    scale_data        = object[["data"]][["scale"]],
-    scale_formula     = if (.is_scale(object)) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
-    scale_priors      = object[["priors"]][["scale"]],
-    is_scale          = .is_scale(object),
-    is_multilevel     = is_multilevel,
-    K                 = K,
-    posterior_samples = posterior_samples
-  )
-  tau_within <- tau_result[["tau_within"]]
-
-  ### 4. Prepare for Computation
+  ### 2. Prepare for Computation
   selection <- .zplot_selection_context(
     object            = object,
     posterior_samples = posterior_samples,
@@ -87,7 +59,7 @@
   )
 
 
-  ### 5. Dispatch: EDR (Threshold) vs Density (Sequence)
+  ### 3. Dispatch: EDR (Threshold) vs Density (Sequence)
 
   if (!is.null(z_threshold)) {
     return(.zplot_threshold_vectorized(
@@ -114,6 +86,34 @@
   }
 
   return(NULL)
+}
+
+
+.zplot_predictive_components <- function(object, posterior_samples,
+                                         extrapolate) {
+
+  setup <- .estimate_likelihood_setup_from_parts(
+    fit               = object[["fit"]],
+    data              = object[["data"]],
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    unit              = "estimate",
+    data_hash         = .get_outcome_hash(object),
+    bias_adjusted     = extrapolate,
+    caller            = ".zplot_predictive_components()"
+  )
+
+  tau_within <- if (.is_data_known_v(setup[["data"]])) {
+    .known_v_extra_sd_from_setup(setup)
+  } else {
+    setup[["tau_within"]]
+  }
+
+  return(list(
+    mu         = setup[["mu"]],
+    tau_within = tau_within,
+    sei        = setup[["selection_sei"]]
+  ))
 }
 
 
@@ -388,28 +388,6 @@
 
   weights[weighted_rows, ] <- exp(-log_norm)
   return(weights)
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .zplot_weighted_rows / .zplot_constant_rows
-# ---------------------------------------------------------------------------- #
-#
-# Row selectors for fitted and extrapolated selection-model zplot densities.
-#
-# ---------------------------------------------------------------------------- #
-.zplot_weighted_rows <- function(selection, extrapolate) {
-
-  if (is.null(selection) || extrapolate) {
-    return(integer(0))
-  }
-
-  return(which(!selection[["use_normal"]]))
-}
-
-.zplot_constant_rows <- function(selection, extrapolate) {
-
-  return(integer(0))
 }
 
 

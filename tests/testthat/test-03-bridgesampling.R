@@ -29,6 +29,70 @@ test_that("bridge_sampler extracts bridge sampling object", {
   }
 })
 
+test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
+
+  mv_names <- c(
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_random",
+    "brma.mv_latent_estimate_scale",
+    "brma.mv_block_mvn_estimate_scale"
+  )
+  skip_if_missing_fits(mv_names)
+
+  same_model_names <- c(
+    "brma.mv_latent",
+    "brma.mv_whitened",
+    "brma.mv_block_mvn"
+  )
+  estimate_scale_names <- c(
+    "brma.mv_latent_estimate_scale",
+    "brma.mv_block_mvn_estimate_scale"
+  )
+  backend_logml        <- numeric()
+  estimate_scale_logml <- numeric()
+  for (name in mv_names) {
+    set.seed(100)
+    fit_brma <- add_marglik(load_fit(name, validate = FALSE))
+    target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
+    expect_true(inherits(fit_brma[["marglik"]], "bridge"), info = name)
+    expect_true(is.finite(logml(fit_brma)), info = name)
+    expect_equal(target[["reported_target"]], "full joint fitted likelihood", info = name)
+    expect_equal(
+      target[["known_v_parameterization"]],
+      .data_known_v_data(fit_brma[["data"]])[["parameterization"]],
+      info = name
+    )
+    expect_equal(
+      target[["known_v_parameterization_requested"]],
+      .data_known_v_data(fit_brma[["data"]])[["parameterization_requested"]],
+      info = name
+    )
+    if (name %in% same_model_names) {
+      backend_logml[[name]] <- logml(fit_brma)
+    }
+    if (name %in% estimate_scale_names) {
+      estimate_scale_logml[[name]] <- logml(fit_brma)
+    }
+  }
+  expect_lt(diff(range(backend_logml)), 0.50)
+  expect_lt(diff(range(estimate_scale_logml)), 0.75)
+})
+
+test_that("add_marglik computes bridge sampling for marginalized random allocation", {
+
+  name <- "brma.mv_block_mvn_random_scale"
+  skip_if_missing_fits(name)
+
+  set.seed(100)
+  fit_brma <- add_marglik(load_fit(name, validate = FALSE))
+  target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
+  expect_true(inherits(fit_brma[["marglik"]], "bridge"))
+  expect_true(is.finite(logml(fit_brma)))
+  expect_equal(target[["reported_target"]], "full joint fitted likelihood")
+})
+
 test_that("bridge sampling marginal likelihood is close to BIC for metafor-reference fits", {
 
   metafor_names <- list_fits(has_marglik = TRUE, has_metafor = TRUE)

@@ -35,7 +35,8 @@
 .compute_hat_matrix_samples <- function(object, conditioning_depth = "marginal",
                                         return_full_H = FALSE,
                                         return_se = FALSE, return_resid = FALSE,
-                                        summarize = FALSE) {
+                                        summarize = FALSE,
+                                        max_samples = Inf) {
   # check inputs
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
@@ -53,6 +54,19 @@
 
   # get design matrix X
   X <- .get_model_matrix(object)
+
+  if (.is_data_known_v(object[["data"]])) {
+    return(.compute_known_v_hat_matrix_samples(
+      object             = object,
+      conditioning_depth = conditioning_depth,
+      return_full_H      = return_full_H,
+      return_se          = return_se,
+      return_resid       = return_resid,
+      summarize          = summarize,
+      X                  = X,
+      max_samples        = max_samples
+    ))
+  }
 
   # get tau samples (heterogeneity)
   # tau_within: estimate-level heterogeneity (used for cluster and estimate residuals)
@@ -231,6 +245,176 @@
   if (summarize && return_se && return_resid) {
     result[["z"]] <- z_sum / S
   }
+
+  return(result)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .compute_known_v_hat_matrix_samples
+# ---------------------------------------------------------------------------- #
+#
+# Known-V residual projection for correlated sampling covariance targets.
+#
+# ---------------------------------------------------------------------------- #
+.compute_known_v_hat_matrix_samples <- function(object, conditioning_depth,
+                                                return_full_H, return_se,
+                                                return_resid, summarize, X,
+                                                max_samples = Inf) {
+
+  sample_info <- .known_v_diagnostic_posterior_samples(
+    object      = object,
+    max_samples = max_samples,
+    caller      = "known-V hat/residual diagnostics"
+  )
+  setup   <- .estimate_likelihood_setup.brma(
+    object            = object,
+    posterior_samples = sample_info[["posterior_samples"]]
+  )
+  known_V <- .data_known_v_data(setup[["data"]])
+  V       <- known_V[["V"]]
+  yi      <- setup[["yi"]]
+  S       <- setup[["S"]]
+  K       <- setup[["K"]]
+
+  if (conditioning_depth == "estimate") {
+    extra_variance <- .known_v_extra_variance_from_setup(setup)
+  }
+
+  H_diag_samples <- matrix(0, nrow = S, ncol = K)
+  H_samples      <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
+  se_samples     <- if (return_se && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  resid_samples  <- if (return_resid && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  se_sum         <- if (return_se && summarize) rep(0, K) else NULL
+  resid_sum      <- if (return_resid && summarize) rep(0, K) else NULL
+  z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
+  M_diag_samples <- matrix(0, nrow = S, ncol = K)
+  residual_tol   <- 100 * .Machine$double.eps * max(1, max(abs(yi)))
+  I_K            <- diag(K)
+  chunk_info     <- NULL
+
+  if (conditioning_depth == "estimate") {
+    offset_samples <- setup[["mu_random"]]
+    if (is.null(offset_samples)) {
+      offset_samples <- matrix(0, nrow = S, ncol = K)
+    }
+
+    for (s in seq_len(S)) {
+      covariance  <- V + diag(extra_variance[s, ], nrow = K)
+      y_offset   <- yi - offset_samples[s, ]
+      projection <- .known_v_gls_projection(
+        X          = X,
+        y          = y_offset,
+        covariance = covariance
+      )
+      residual   <- as.vector(V %*% projection[["W"]] %*% projection[["residual"]])
+      C          <- projection[["W"]] -
+        projection[["WX"]] %*% projection[["XtWX_inv"]] %*% t(projection[["WX"]])
+      C          <- (C + t(C)) / 2
+      se2        <- diag(V %*% C %*% V)
+      se         <- sqrt(pmax(se2, 0))
+
+      H_diag_samples[s, ] <- diag(projection[["H"]])
+      M_diag_samples[s, ] <- diag(projection[["covariance"]])
+
+      if (return_full_H) {
+        H_samples[s, , ] <- projection[["H"]]
+      }
+      if (return_resid) {
+        residual[abs(residual) < residual_tol] <- 0
+        if (summarize) {
+          resid_sum <- resid_sum + residual
+        } else {
+          resid_samples[s, ] <- residual
+        }
+      }
+      if (return_se) {
+        if (summarize) {
+          se_sum <- se_sum + se
+        } else {
+          se_samples[s, ] <- se
+        }
+      }
+      if (summarize && return_se && return_resid) {
+        z_s <- residual / se
+        z_s[residual == 0 & se == 0] <- 0
+        z_sum <- z_sum + z_s
+      }
+    }
+
+  } else if (conditioning_depth == "marginal") {
+    chunk_info <- .known_v_apply_marginal_covariance_chunks(
+      object            = object,
+      posterior_samples = setup[["posterior_samples"]],
+      FUN               = function(covariance_samples, rows) {
+        for (j in seq_along(rows)) {
+          s          <- rows[j]
+          covariance <- covariance_samples[j, , ]
+          projection <- .known_v_gls_projection(
+            X          = X,
+            y          = yi,
+            covariance = covariance
+          )
+          residual <- projection[["residual"]]
+          A        <- I_K - projection[["H"]]
+          se2      <- diag(A %*% projection[["covariance"]] %*% t(A))
+          se       <- sqrt(pmax(se2, 0))
+
+          H_diag_samples[s, ] <<- diag(projection[["H"]])
+          M_diag_samples[s, ] <<- diag(projection[["covariance"]])
+
+          if (return_full_H) {
+            H_samples[s, , ] <<- projection[["H"]]
+          }
+          if (return_resid) {
+            residual[abs(residual) < residual_tol] <- 0
+            if (summarize) {
+              resid_sum <<- resid_sum + residual
+            } else {
+              resid_samples[s, ] <<- residual
+            }
+          }
+          if (return_se) {
+            if (summarize) {
+              se_sum <<- se_sum + se
+            } else {
+              se_samples[s, ] <<- se
+            }
+          }
+          if (summarize && return_se && return_resid) {
+            z_s <- residual / se
+            z_s[residual == 0 & se == 0] <- 0
+            z_sum <<- z_sum + z_s
+          }
+        }
+      }
+    )
+
+  } else {
+    .check_cluster_unit_deferred("rstandard()")
+  }
+
+  result <- list(
+    H_diag = H_diag_samples,
+    M_diag = M_diag_samples
+  )
+
+  if (return_full_H) {
+    result[["H"]] <- H_samples
+  }
+  if (return_se) {
+    result[["se"]] <- if (summarize) se_sum / S else se_samples
+  }
+  if (return_resid) {
+    result[["resid"]] <- if (summarize) resid_sum / S else resid_samples
+  }
+  if (summarize && return_se && return_resid) {
+    result[["z"]] <- z_sum / S
+  }
+  result[["known_v_diagnostic"]] <- .known_v_diagnostic_metadata(
+    sample_info = sample_info,
+    chunk_info  = chunk_info
+  )
 
   return(result)
 }

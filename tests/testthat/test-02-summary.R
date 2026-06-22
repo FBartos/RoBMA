@@ -8,6 +8,7 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 
 summary_sections <- c(
   "name",
+  "known_v_backend",
   "inclusion_components",
   "inclusion_mods",
   "inclusion_scale",
@@ -17,11 +18,13 @@ summary_sections <- c(
   "estimates_mods_conditional",
   "estimates_scale",
   "estimates_scale_conditional",
+  "estimates_random",
+  "estimates_random_conditional",
   "estimates_bias",
   "estimates_bias_conditional"
 )
 
-summary_table_sections <- setdiff(summary_sections, "name")
+summary_table_sections <- setdiff(summary_sections, c("name", "known_v_backend"))
 
 summary_common_parameters <- function(fit) {
 
@@ -68,7 +71,7 @@ expect_summary_sections <- function(summary_object, fit, name, conditional = FAL
   )
   expect_equal(
     length(summary_object[["estimates_mods"]]) > 0L,
-    .is_mods(fit),
+    .is_mods(fit) || .is_random(fit),
     info = paste0("moderator estimate section for '", name, "'")
   )
   expect_equal(
@@ -82,6 +85,11 @@ expect_summary_sections <- function(summary_object, fit, name, conditional = FAL
     info = paste0("bias estimate section for '", name, "'")
   )
   expect_equal(
+    length(summary_object[["estimates_random"]]) > 0L,
+    .summary_random_components_enabled(fit),
+    info = paste0("random estimate section for '", name, "'")
+  )
+  expect_equal(
     length(summary_object[["inclusion_components"]]) > 0L,
     .is_RoBMA(fit),
     info = paste0("component inclusion section for '", name, "'")
@@ -91,6 +99,7 @@ expect_summary_sections <- function(summary_object, fit, name, conditional = FAL
     "estimates_conditional",
     "estimates_mods_conditional",
     "estimates_scale_conditional",
+    "estimates_random_conditional",
     "estimates_bias_conditional"
   )
   conditional_present <- vapply(
@@ -120,9 +129,26 @@ expect_summary_contract <- function(summary_object, fit, name,
   expect_type(summary_object[["name"]], "character")
   expect_true(length(summary_object[["name"]]) == 1L)
   expect_true(nzchar(summary_object[["name"]]))
+  expect_type(summary_object[["known_v_backend"]], "list")
+  expect_identical(
+    isTRUE(summary_object[["known_v_backend"]][["known_v"]]),
+    inherits(fit, "brma.mv") && .is_data_known_v(fit[["data"]])
+  )
+  if (isTRUE(summary_object[["known_v_backend"]][["known_v"]])) {
+    known_V <- .data_known_v_data(fit[["data"]])
+    expect_equal(
+      summary_object[["known_v_backend"]][["known_v_parameterization"]],
+      known_V[["parameterization"]]
+    )
+    expect_equal(
+      summary_object[["known_v_backend"]][["known_v_parameterization_requested"]],
+      known_V[["parameterization_requested"]]
+    )
+  }
 
   expect_identical(attr(summary_object, "mods"), .is_mods(fit))
   expect_identical(attr(summary_object, "scale"), .is_scale(fit))
+  expect_identical(attr(summary_object, "random"), .is_random(fit))
   expect_identical(attr(summary_object, "multilevel"), .is_multilevel(fit))
   expect_identical(attr(summary_object, "bias"), .is_bias(fit))
   expect_identical(attr(summary_object, "RoBMA"), .is_RoBMA(fit))
@@ -140,6 +166,8 @@ expect_printed_summary <- function(summary_object, name) {
   expect_true(any(nzchar(output)), info = paste0("printed summary for '", name, "'"))
   expect_true(any(grepl("Bayesian", output, fixed = TRUE)),
               info = paste0("printed summary model name for '", name, "'"))
+  expect_false(any(grepl("Known-V backend", output, fixed = TRUE)),
+               info = paste0("printed known-V backend for '", name, "'"))
   expect_false(any(grepl("__xXx__", output, fixed = TRUE)),
                info = paste0("printed summary labels for '", name, "'"))
 }
@@ -335,6 +363,7 @@ test_that("RoBMA conditional summaries expose conditional sections", {
       "estimates_conditional",
       "estimates_mods_conditional",
       "estimates_scale_conditional",
+      "estimates_random_conditional",
       "estimates_bias_conditional"
     ),
     function(section) {

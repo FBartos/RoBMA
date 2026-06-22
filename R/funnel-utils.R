@@ -37,18 +37,23 @@
       y_out <- c(y_out, y1)
     }
 
-    # check intersection with xmin
-    if ((x1 < xmin && x2 > xmin) || (x1 > xmin && x2 < xmin)) {
-      y_int <- y1 + (y2 - y1) * (xmin - x1) / (x2 - x1)
-      x_out <- c(x_out, xmin)
-      y_out <- c(y_out, y_int)
-    }
-
-    # check intersection with xmax
-    if ((x1 < xmax && x2 > xmax) || (x1 > xmax && x2 < xmax)) {
-      y_int <- y1 + (y2 - y1) * (xmax - x1) / (x2 - x1)
-      x_out <- c(x_out, xmax)
-      y_out <- c(y_out, y_int)
+    if (x1 != x2) {
+      t_cross <- numeric(0)
+      x_cross <- numeric(0)
+      y_cross <- numeric(0)
+      for (boundary in c(xmin, xmax)) {
+        t <- (boundary - x1) / (x2 - x1)
+        if (t > 0 && t < 1) {
+          t_cross <- c(t_cross, t)
+          x_cross <- c(x_cross, boundary)
+          y_cross <- c(y_cross, y1 + (y2 - y1) * t)
+        }
+      }
+      if (length(t_cross) > 0L) {
+        cross_order <- order(t_cross)
+        x_out <- c(x_out, x_cross[cross_order])
+        y_out <- c(y_out, y_cross[cross_order])
+      }
     }
   }
 

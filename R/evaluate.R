@@ -36,6 +36,13 @@
   if (!is.null(posterior_samples)) {
     return(posterior_samples)
   }
+  if (is.null(fit)) {
+    stop(
+      "Posterior samples are required for this operation; refit the model ",
+      "or supply '.posterior_samples'.",
+      call. = FALSE
+    )
+  }
 
   return(suppressWarnings(coda::as.mcmc(fit)))
 }
@@ -127,7 +134,8 @@
 # posterior rows while preserving formula scaling metadata from the JAGS fit.
 #
 # ---------------------------------------------------------------------------- #
-.posterior_formula_fit <- function(fit, posterior_samples) {
+.posterior_formula_fit <- function(fit, posterior_samples,
+                                   formula_design = TRUE) {
 
   formula_fit <- if (inherits(posterior_samples, "mcmc")) {
     posterior_samples
@@ -136,6 +144,11 @@
   }
 
   attr(formula_fit, "formula_scale") <- attr(fit, "formula_scale")
+  if (isTRUE(formula_design)) {
+    attr(formula_fit, "formula_design") <- attr(fit, "formula_design")
+  } else {
+    attr(formula_fit, "formula_design") <- NULL
+  }
 
   return(formula_fit)
 }
@@ -190,11 +203,12 @@
     # scale regression: evaluate log_tau formula then exponentiate
     # BayesTools::JAGS_evaluate_formula returns K x S matrix, we need S x K
     log_tau_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = .posterior_formula_fit(fit, posterior_samples),
-      formula    = scale_formula,
-      parameter  = "log_tau",
-      data       = scale_data,
-      prior_list = scale_priors
+      fit            = .posterior_formula_fit(fit, posterior_samples),
+      formula        = scale_formula,
+      parameter      = "log_tau",
+      data           = scale_data,
+      prior_list     = scale_priors,
+      formula_target = "fixed"
     ))
     tau_samples <- exp(log_tau_samples)
 
@@ -292,17 +306,37 @@
     # meta-regression: evaluate mu formula with moderators
     # returns K x S, transpose to S x K
     mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit        = .posterior_formula_fit(fit, posterior_samples),
-      formula    = mods_formula,
-      parameter  = "mu",
-      data       = mods_data,
-      prior_list = mods_priors
+      fit            = .posterior_formula_fit(fit, posterior_samples),
+      formula        = mods_formula,
+      parameter      = "mu",
+      data           = mods_data,
+      prior_list     = mods_priors,
+      formula_target = "fixed"
     ))
 
-  } else {
+  } else if ("mu" %in% colnames(posterior_samples)) {
 
     # simple model: replicate mu column to K columns
     mu_samples <- matrix(posterior_samples[, "mu"], nrow = S, ncol = K)
+
+  } else {
+
+    location_data <- data.frame(row.names = seq_len(K))
+    mu_samples <- t(BayesTools::JAGS_evaluate_formula(
+      fit            = .posterior_formula_fit(
+        fit               = fit,
+        posterior_samples = posterior_samples,
+        formula_design    = FALSE
+      ),
+      formula        = stats::as.formula("~ 1"),
+      parameter      = "mu",
+      data           = location_data,
+      prior_list     = .repair_formula_prior_list(
+        prior_list = mods_priors,
+        parameter  = "mu"
+      ),
+      formula_target = "fixed"
+    ))
 
   }
 
@@ -346,6 +380,438 @@
   }
 
   return(mu_samples)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.random_effects
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate the conditional random-effect contribution for same-data
+# random-formula models. This intentionally returns only the group-level
+# contribution; callers add it to `.evaluate.brma.mu()` explicitly.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.random_effects <- function(fit, data, priors,
+                                          posterior_samples = NULL,
+                                          same_data = TRUE,
+                                          required = FALSE,
+                                          formula_target = "conditional",
+                                          blocks = NULL,
+                                          object = NULL) {
+
+  formula_target <- match.arg(formula_target, c("conditional", "marginal"))
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  S                 <- nrow(posterior_samples)
+  K                 <- nrow(data[["outcome"]])
+
+  if (is.null(object)) {
+    object <- list(
+      fit    = fit,
+      data   = data,
+      priors = priors
+    )
+  }
+
+  if (!.is_data_random(data)) {
+    if (required) {
+      stop("Random-effect predictions require a random-formula model.",
+           call. = FALSE)
+    }
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  location_priors <- attr(fit, "prior_list")
+  if (is.null(location_priors)) {
+    location_priors <- priors[["location"]]
+  }
+  if (is.null(location_priors)) {
+    stop("Random-effect prediction requires location prior metadata.",
+         call. = FALSE)
+  }
+
+  formula_design <- if (.is_scale(object)) {
+    .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = data
+    )
+  } else {
+    .fitted_formula_design(object, "mu", required = TRUE)
+  }
+  if (is.null(formula_design)) {
+    stop(
+      "Conditional random-effect evaluation requires fitted formula-design metadata.",
+      call. = FALSE
+    )
+  }
+
+  if (identical(formula_target, "conditional")) {
+    sampled_blocks <- .formula_design_sampled_random_effect_blocks(formula_design)
+    if (is.null(blocks)) {
+      blocks <- sampled_blocks
+    }
+    if (length(blocks) == 0L) {
+      return(matrix(0, nrow = S, ncol = K))
+    }
+  }
+
+  formula_fit <- .posterior_formula_fit(
+    fit               = fit,
+    posterior_samples = posterior_samples,
+    formula_design    = TRUE
+  )
+  attr(formula_fit, "formula_design") <- list(mu = formula_design)
+
+  call_args <- list(
+    fit            = formula_fit,
+    formula        = .create_fit_formula_list(data = data, parameter = "location"),
+    parameter      = "mu",
+    data           = data[["location"]],
+    prior_list     = location_priors,
+    formula_target = formula_target
+  )
+
+  if (identical(formula_target, "conditional")) {
+    call_args[["blocks"]]     <- blocks
+    call_args[["new_levels"]] <- if (isTRUE(same_data)) "error" else "sample"
+  } else {
+    if (!is.null(blocks)) {
+      call_args[["blocks"]] <- blocks
+    }
+    call_args[["marginal_method"]] <- "sample"
+    call_args[["new_levels"]]      <- "sample"
+  }
+
+  prediction     <- do.call(BayesTools::JAGS_predict_formula, call_args)
+  random_samples <- prediction[["random"]]
+  if (is.null(random_samples)) {
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  return(t(random_samples))
+}
+
+
+.evaluate.brma.random_effects_components <- function(object, data = object[["data"]],
+                                                     posterior_samples = NULL,
+                                                     same_data = TRUE) {
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  formula_design    <- if (.is_scale(object)) {
+    .predict_known_v_formula_design_with_row_source_values(
+      object = object,
+      data   = data
+    )
+  } else {
+    .fitted_formula_design(object, "mu", required = TRUE)
+  }
+  sampled_blocks <- .formula_design_sampled_random_effect_blocks(formula_design)
+  if (length(sampled_blocks) == 0L) {
+    return(list())
+  }
+
+  out <- lapply(sampled_blocks, function(block) {
+    .evaluate.brma.random_effects(
+      fit               = object[["fit"]],
+      data              = data,
+      priors            = object[["priors"]],
+      posterior_samples = posterior_samples,
+      same_data         = same_data,
+      required          = TRUE,
+      formula_target    = "conditional",
+      blocks            = block,
+      object            = object
+    )
+  })
+  names(out) <- sampled_blocks
+
+  return(out)
+}
+
+
+.evaluate.brma.mv_marginalized_random_blup.norm <- function(object, mu_samples,
+                                                            sampled_random_samples = NULL,
+                                                            posterior_samples = NULL,
+                                                            bias_offset = NULL) {
+
+  data  <- object[["data"]]
+  terms <- .data_marginalized_random_effects(data)
+  if (length(terms) == 0L) {
+    return(list())
+  }
+  if (!.is_data_known_v(data)) {
+    stop("Marginalized brma.mv random-effect BLUPs require known-V metadata.",
+         call. = FALSE)
+  }
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  S                 <- nrow(posterior_samples)
+  K                 <- nrow(data[["outcome"]])
+
+  if (!identical(dim(mu_samples), c(S, K))) {
+    stop("'mu_samples' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+  if (is.null(sampled_random_samples)) {
+    sampled_random_samples <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(sampled_random_samples), c(S, K))) {
+    stop("'sampled_random_samples' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have dimensions posterior draw x observation.",
+         call. = FALSE)
+  }
+
+  known_V <- .data_known_v_data(data)
+  V       <- known_V[["V"]]
+  if (!is.matrix(V) || !identical(dim(V), c(K, K))) {
+    stop("Known-V covariance dimensions do not match fitted rows.",
+         call. = FALSE)
+  }
+
+  block_indices <- known_V[["block_indices"]]
+  if (is.null(block_indices)) {
+    block_indices <- list(seq_len(K))
+  }
+
+  source_samples <- .predict_known_v_newdata_marginalized_source_samples(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+  total_variance <- .evaluate_marginalized_random_variance(
+    data              = data,
+    posterior_samples = posterior_samples,
+    K                 = K,
+    source_samples    = source_samples
+  )
+  residual <- matrix(data[["outcome"]][["yi"]], nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples - sampled_random_samples
+
+  out <- lapply(terms, function(term) {
+    term_sd <- .marginalized_random_effect_sd_samples(
+      term              = term,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples
+    )
+    term_variance <- .expand_random_effect_variance(term_sd^2, S = S, K = K)
+    contribution  <- matrix(0, nrow = S, ncol = K)
+
+    for (idx in block_indices) {
+      V_block <- V[idx, idx, drop = FALSE]
+      for (s in seq_len(S)) {
+        covariance <- V_block
+        diag(covariance) <- diag(covariance) + total_variance[s, idx]
+        chol_covariance <- try(chol(covariance), silent = TRUE)
+        if (inherits(chol_covariance, "try-error")) {
+          stop(
+            "Cannot solve marginalized random-effect BLUP covariance block; ",
+            "covariance is not positive definite.",
+            call. = FALSE
+          )
+        }
+        weights <- backsolve(
+          chol_covariance,
+          forwardsolve(t(chol_covariance), residual[s, idx])
+        )
+        contribution[s, idx] <- term_variance[s, idx] * weights
+      }
+    }
+
+    contribution
+  })
+  names(out) <- vapply(terms, `[[`, character(1), "block_name")
+
+  return(out)
+}
+
+
+.expand_random_effect_variance <- function(variance, S, K) {
+
+  if (nrow(variance) != S) {
+    stop("Random-effect variance draw count does not match posterior samples.",
+         call. = FALSE)
+  }
+  if (ncol(variance) == 1L) {
+    return(matrix(variance[, 1L], nrow = S, ncol = K))
+  }
+  if (ncol(variance) == K) {
+    return(variance)
+  }
+
+  stop("Random-effect variance must be scalar or row-wise.",
+       call. = FALSE)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.scale_terms
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate row-wise scale formulas. For component-specific random-formula scale
+# models this returns one block of columns per random component source.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.scale_terms <- function(fit, data, priors,
+                                       posterior_samples = NULL,
+                                       as_list = FALSE) {
+
+  if (!.is_data_scale(data)) {
+    stop("Scale predictions are not available because the model has no scale formula.",
+         call. = FALSE)
+  }
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  scale_specs       <- .data_scale_component_specs(data)
+  scale_samples     <- lapply(scale_specs, function(scale_spec) {
+
+    scale_priors <- .repair_formula_prior_list(
+      prior_list = .create_fit_scale_formula_prior_list(
+        priors    = priors,
+        parameter = scale_spec[["parameter"]]
+      ),
+      parameter  = scale_spec[["parameter"]]
+    )
+    log_scale_samples <- t(BayesTools::JAGS_evaluate_formula(
+      fit        = .posterior_formula_fit(
+        fit               = fit,
+        posterior_samples = posterior_samples,
+        formula_design    = FALSE
+      ),
+      formula    = .create_fit_scale_formula(scale_spec[["formula"]]),
+      parameter  = scale_spec[["parameter"]],
+      data       = scale_spec[["data"]],
+      prior_list = scale_priors
+    ))
+    scale_samples <- exp(log_scale_samples)
+    if (as_list) {
+      colnames(scale_samples) <- paste0("tau[", seq_len(ncol(scale_samples)), "]")
+    } else {
+      colnames(scale_samples) <- paste0(
+        scale_spec[["source"]], "[",
+        seq_len(ncol(scale_samples)), "]"
+      )
+    }
+    scale_samples
+  })
+
+  if (as_list) {
+    names(scale_samples) <- .evaluate.brma.scale_component_names(scale_specs)
+    return(scale_samples)
+  }
+
+  return(do.call(cbind, scale_samples))
+}
+
+
+.evaluate.brma.aggregate_scale_terms_list <- function(scale_samples) {
+
+  lapply(scale_samples, function(component_samples) {
+    out <- matrix(rowMeans(component_samples), ncol = 1L)
+    colnames(out) <- "tau"
+    out
+  })
+}
+
+
+.evaluate.brma.scale_component_names <- function(scale_specs) {
+
+  vapply(scale_specs, `[[`, character(1), "display_name")
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .evaluate.brma.known_v_blup.norm
+# ---------------------------------------------------------------------------- #
+#
+# Exact same-data BLUP means for independent latent effects observed through a
+# known covariance matrix V: theta | y, mu, tau.
+#
+# ---------------------------------------------------------------------------- #
+.evaluate.brma.known_v_blup.norm <- function(mu_samples, tau_within, yi,
+                                             known_V, bias_offset = NULL) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  if (is.null(bias_offset)) {
+    bias_offset <- matrix(0, nrow = S, ncol = K)
+  } else if (!identical(dim(bias_offset), c(S, K))) {
+    stop("'bias_offset' must have the same dimensions as 'mu_samples'.",
+         call. = FALSE)
+  }
+  if (is.null(known_V) || is.null(known_V[["V"]])) {
+    stop("Known-V BLUP requires known-V metadata.", call. = FALSE)
+  }
+
+  V <- known_V[["V"]]
+  if (!is.matrix(V) || !identical(dim(V), c(K, K))) {
+    stop("Known-V covariance dimensions do not match prediction rows.",
+         call. = FALSE)
+  }
+
+  block_indices <- known_V[["block_indices"]]
+  if (is.null(block_indices)) {
+    block_indices <- list(seq_len(K))
+  }
+
+  true_effects_samples <- mu_samples
+  for (idx in block_indices) {
+    n_block      <- length(idx)
+    V_block      <- V[idx, idx, drop = FALSE]
+    tau_block    <- tau_within[, idx, drop = FALSE]
+    residual     <- matrix(yi[idx], nrow = S, ncol = n_block, byrow = TRUE) -
+      bias_offset[, idx, drop = FALSE] - mu_samples[, idx, drop = FALSE]
+    constant_tau <- n_block == 1L ||
+      isTRUE(all(tau_block == tau_block[, 1L]))
+
+    if (n_block == 1L) {
+      tau2        <- tau_block[, 1L]^2
+      denominator <- tau2 + V_block[1L, 1L]
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+             call. = FALSE)
+      }
+      true_effects_samples[, idx] <- mu_samples[, idx] +
+        residual[, 1L] * tau2 / denominator
+      next
+    }
+
+    if (constant_tau) {
+      eigen_v     <- eigen(V_block, symmetric = TRUE)
+      tau2        <- tau_block[, 1L]^2
+      denominator <- outer(tau2, eigen_v[["values"]], "+")
+      if (any(!is.finite(denominator) | denominator <= 0)) {
+        stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+             call. = FALSE)
+      }
+      solved <- (residual %*% eigen_v[["vectors"]] / denominator) %*%
+        t(eigen_v[["vectors"]])
+      true_effects_samples[, idx] <- mu_samples[, idx, drop = FALSE] +
+        solved * tau2
+      next
+    }
+
+    for (s in seq_len(S)) {
+      tau2    <- tau_block[s, ]^2
+      M_block <- V_block
+      diag(M_block) <- diag(M_block) + tau2
+      chol_m  <- try(chol(M_block), silent = TRUE)
+      if (inherits(chol_m, "try-error")) {
+        stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+             call. = FALSE)
+      }
+      solved <- backsolve(chol_m, forwardsolve(t(chol_m), residual[s, ]))
+      true_effects_samples[s, idx] <- mu_samples[s, idx] + tau2 * solved
+    }
+  }
+
+  return(true_effects_samples)
 }
 
 
@@ -453,11 +919,18 @@
 # ---------------------------------------------------------------------------- #
 #
 # Solve (diag(diagonal) + rank_one %*% t(rank_one))^-1 residual. The analytic
-# Sherman-Morrison path is O(K) per cluster and falls back to Cholesky/generalized
-# inverse when a diagonal element is non-positive.
+# Sherman-Morrison path is O(K) per cluster and falls back to Cholesky when a
+# diagonal element is non-positive.
 #
 # ---------------------------------------------------------------------------- #
 .solve_diagonal_rank_one_block <- function(diagonal, rank_one, residual) {
+
+  if (!all(is.finite(diagonal)) ||
+      !all(is.finite(rank_one)) ||
+      !all(is.finite(residual))) {
+    stop("Cannot solve known-V BLUP covariance block with non-finite inputs.",
+         call. = FALSE)
+  }
 
   if (all(is.finite(diagonal)) && all(diagonal > 0)) {
     inv_diag_residual <- residual / diagonal
@@ -475,10 +948,10 @@
   chol_m <- try(chol(covariance), silent = TRUE)
 
   if (inherits(chol_m, "try-error")) {
-    weights <- tryCatch(solve(covariance), error = function(e) MASS::ginv(covariance))
-  } else {
-    weights <- chol2inv(chol_m)
+    stop("Cannot solve known-V BLUP covariance block; covariance is not positive definite.",
+         call. = FALSE)
   }
+  weights <- chol2inv(chol_m)
 
   return(as.vector(weights %*% residual))
 }
@@ -615,6 +1088,32 @@
   }
 
   return(cluster_contribution)
+}
+
+
+.evaluate.brma.sampling_dependency <- function(fit, data, posterior_samples = NULL) {
+
+  known_V <- .data_known_v_data(data)
+  if (is.null(known_V) || !.is_data_known_v_parameterization(data, "latent") ||
+      known_V[["rank"]] == 0L) {
+    K <- nrow(data[["outcome"]])
+    posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+    return(matrix(0, nrow = nrow(posterior_samples), ncol = K))
+  }
+
+  posterior_samples <- .get_posterior_samples(fit, posterior_samples)
+  z_samples <- .extract_posterior_matrix(
+    posterior_samples = posterior_samples,
+    parameter         = "sampling_z",
+    K                 = known_V[["rank"]]
+  )
+
+  sampling_dependency <- z_samples %*% t(known_V[["B"]])
+  if (.data_effect_direction(data) == "negative") {
+    sampling_dependency <- -sampling_dependency
+  }
+
+  return(sampling_dependency)
 }
 
 

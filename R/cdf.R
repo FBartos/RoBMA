@@ -182,6 +182,21 @@
 
   ### input validation
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
+  if (.is_data_known_v(object[["data"]])) {
+    if (conditioning_depth == "estimate") {
+      cdf_vals <- .cdf_lik_estimate.brma(object)
+      colnames(cdf_vals) <- paste0("cdf[", seq_len(ncol(cdf_vals)), "]")
+      return(cdf_vals)
+    }
+    stop(
+      ".cdf.brma() with known-V data is available only with ",
+      "conditioning_depth = 'estimate'.",
+      call. = FALSE
+    )
+  }
+  if (.is_random(object)) {
+    .check_random_formula_postfit_deferred(object, ".cdf.brma()")
+  }
 
   ### extract structural information about the model
   priors            <- object[["priors"]]
@@ -332,9 +347,12 @@
 # @return S x K matrix of CDF values in (0, 1)
 #
 # ---------------------------------------------------------------------------- #
-.cdf_lik_estimate.brma <- function(object) {
+.cdf_lik_estimate.brma <- function(object, setup = NULL) {
 
-  setup             <- .estimate_likelihood_setup.brma(object)
+  if (is.null(setup)) {
+    setup <- .estimate_likelihood_setup.brma(object)
+  }
+
   yi                <- setup[["yi"]]
   sei               <- setup[["sei"]]
   K                 <- setup[["K"]]
@@ -344,6 +362,12 @@
   is_weightfunction <- setup[["is_weightfunction"]]
   effect_direction  <- setup[["effect_direction"]]
   posterior_samples <- setup[["posterior_samples"]]
+
+  if (.known_v_estimate_target_uses_backend(setup[["data"]])) {
+    cdf_vals <- .cdf_known_v_estimate_target_from_setup(setup)
+    colnames(cdf_vals) <- paste0("cdf_lik[", seq_len(K), "]")
+    return(cdf_vals)
+  }
 
   if (outcome_type == "norm") {
 

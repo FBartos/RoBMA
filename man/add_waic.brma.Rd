@@ -31,6 +31,12 @@ observations.
 In most cases, LOO-PSIS (via \code{\link{add_loo}}) is preferred over WAIC
 because it provides better estimates and includes diagnostics (Pareto k
 values) that indicate when the approximation may be unreliable.
+
+For correlated known-\code{V} \code{brma.mv()} models, estimate-unit WAIC uses
+the same conditional log-likelihood matrix as estimate-unit LOO,
+\eqn{p(y_i \mid y_{-i}, \theta)}. It therefore has the same interpretation as
+an existing-estimate diagnostic rather than an independent new-estimate
+prediction target.
 }
 \seealso{
 \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}

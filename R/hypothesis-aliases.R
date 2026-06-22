@@ -168,7 +168,13 @@
 
 .hypothesis_brma_replace_symbol <- function(text, symbol, replacement) {
 
+  n_delimiters <- nchar(text, type = "bytes") -
+    nchar(gsub("`", "", text, fixed = TRUE), type = "bytes")
   pieces <- strsplit(text, "`", fixed = TRUE)[[1L]]
+  expected_length <- n_delimiters + 1L
+  if (length(pieces) < expected_length) {
+    pieces <- c(pieces, rep("", expected_length - length(pieces)))
+  }
   if (length(pieces) == 0L) {
     return(text)
   }

@@ -2,6 +2,7 @@
 #include "distributions/DWN.h"
 #include "distributions/DWB.h"
 #include "distributions/DWP.h"
+#include "distributions/DKNOWNVMNORM.h"
 
 #include "distributions/DSELNORMKERNEL.h"
 #include "distributions/DSELNORMSTEP.h"
@@ -24,6 +25,7 @@ namespace jags {
       insert(new DWN);
       insert(new DWB);
       insert(new DWP);
+      insert(new DKNOWNVMNORM);
 
       // mixture distributions
       insert(new DSELNORMSTEP);

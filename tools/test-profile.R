@@ -18,6 +18,18 @@ Sys.setenv(AGENT = "1")
 
 source(file.path("tests", "testthat", "common-functions.R"))
 
+set_full_test_env <- function() {
+
+  Sys.setenv(
+    ROBMA_TEST_EXTENDED         = "TRUE",
+    ROBMA_TEST_FULL_VISUALS    = "TRUE",
+    ROBMA_TEST_FULL_DIAGNOSTICS = "TRUE"
+  )
+
+  return(invisible(TRUE))
+}
+
+
 run_tests <- function(filter = NULL) {
 
   test_args <- list(
@@ -31,14 +43,50 @@ run_tests <- function(filter = NULL) {
   do.call(devtools::test, test_args)
 }
 
-if (identical(profile, "all")) {
+
+validate_fit_cache <- function() {
+
+  expected <- fit_catalog()[["name"]]
+  available <- list_fits(validate = TRUE)
+  missing <- setdiff(expected, available)
+
+  if (length(missing) > 0L) {
+    stop(
+      "Cached fit generation incomplete. Missing or stale fits: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  message("Validated ", length(available), " cached fits.")
+
+  return(invisible(available))
+}
+
+
+run_release_profile <- function() {
+
+  set_full_test_env()
   clean_cached_fits()
+  run_tests("01-")
+  validate_fit_cache()
   Sys.setenv(
-    ROBMA_TEST_EXTENDED         = "TRUE",
-    ROBMA_TEST_FULL_VISUALS    = "TRUE",
-    ROBMA_TEST_FULL_DIAGNOSTICS = "TRUE"
+    ROBMA_TEST_FORCE_REFIT = "FALSE",
+    ROBMA_TEST_SKIP_REFIT  = "TRUE"
   )
   run_tests()
+  devtools::check(error_on = "warning")
+
+  return(invisible(TRUE))
+}
+
+
+if (identical(profile, "all")) {
+  clean_cached_fits()
+  set_full_test_env()
+  run_tests()
+} else if (profile %in% c("release", "pre-release", "pre_release")) {
+  run_release_profile()
 } else if (profile %in% c("cache", "01-cache")) {
   clean_cached_fits()
   run_tests("01-")

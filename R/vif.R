@@ -11,7 +11,9 @@
 # VIF is computed from the correlation matrix of the coefficient
 # variance-covariance matrix: vcov = (X'WX)^{-1}. For simple models, W uses
 # diag(weight_i/(vi + tau^2)); scale and multilevel models average this
-# coefficient covariance over posterior heterogeneity draws.
+# coefficient covariance over posterior heterogeneity draws. brma.mv known-V
+# models use the full supplied sampling covariance plus any marginal
+# heterogeneity or formula random-effect covariance.
 #
 # GVIF formula (Fox & Monette, 1992, for multi-df terms):
 #   GVIF = det(R_11) * det(R_22) / det(R)
@@ -61,6 +63,10 @@ vif <- function(object, ...) {
 #' @param posterior_correlation logical; whether to also compute and return
 #' the posterior correlation matrix of regression coefficients. Defaults
 #' to \code{TRUE}.
+#' @param max_samples maximum posterior draws used for known-\code{V}
+#' \code{brma.mv()} marginal GLS covariance computations. Defaults to
+#' \code{Inf}. Finite values deterministically thin draws across posterior row
+#' order.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -89,6 +95,14 @@ vif <- function(object, ...) {
 #' posterior correlation shows the \emph{realized} identification
 #' given the data and priors. Informative priors can mitigate
 #' collinearity, reducing posterior correlations even when VIF is high.
+#'
+#' Data-only objects created with \code{only_data = TRUE} are rejected because
+#' VIF depends on fitted heterogeneity information, not just the parsed data.
+#'
+#' For \code{brma.mv()} known-\code{V} models, VIF is computed from the full
+#' marginal GLS covariance. Formula random effects are marginalized through
+#' BayesTools' random-effect covariance metadata rather than treated as
+#' conditioned fitted effects.
 #'
 #' @return An object of class \code{vif.brma} containing:
 #' \item{vif}{A data frame with columns \code{term}, \code{df}, \code{GVIF},
@@ -128,17 +142,25 @@ vif <- function(object, ...) {
 #'
 #' @seealso [regplot()], [summary.brma()]
 #' @exportS3Method
-vif.brma <- function(object, posterior_correlation = TRUE, ...) {
+vif.brma <- function(object, posterior_correlation = TRUE,
+                     max_samples = Inf, ...) {
 
   BayesTools::check_bool(posterior_correlation, "posterior_correlation")
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
 
   # require moderators
+  if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
+    stop("VIF is not available for data-only objects.", call. = FALSE)
+  }
+  if (is.null(object[["fit"]])) {
+    stop("VIF is available only for fitted objects.", call. = FALSE)
+  }
   if (!.is_mods(object)) {
     stop("VIF is only meaningful for models with moderators (meta-regression).", call. = FALSE)
   }
 
   # compute VIF from vcov correlation matrix
-  vif_df <- .compute_vif(object)
+  vif_df <- .compute_vif(object, max_samples = max_samples)
 
   # posterior correlation of regression coefficients
   post_cor <- NULL
@@ -150,6 +172,12 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
     vif                  = vif_df,
     posterior_correlation = post_cor
   )
+  if (!is.null(attr(vif_df, "known_v_diagnostic"))) {
+    output <- .known_v_attach_diagnostic_metadata(
+      output,
+      attr(vif_df, "known_v_diagnostic")
+    )
+  }
 
   class(output) <- "vif.brma"
 
@@ -171,11 +199,45 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 # @return data frame with columns: term, df, GVIF, GVIF^(1/(2*df))
 #
 # ---------------------------------------------------------------------------- #
-.compute_vif <- function(object) {
+.compute_vif <- function(object, max_samples = Inf) {
 
   # extract model matrix
   X      <- .get_model_matrix(object)
   assign <- attr(X, "assign")
+
+  if (inherits(object, "brma.mv")) {
+    vcov <- .vif_vcov_brma_mv(
+      object      = object,
+      X           = X,
+      max_samples = max_samples
+    )
+  } else {
+    vcov <- .vif_vcov_brma(object, X)
+  }
+  known_v_metadata <- attr(vcov, "known_v_diagnostic")
+
+  vif_df <- .vif_table_from_vcov(
+    vcov   = vcov,
+    assign = assign,
+    object = object,
+    X      = X
+  )
+  if (!is.null(known_v_metadata)) {
+    vif_df <- .known_v_attach_diagnostic_metadata(vif_df, known_v_metadata)
+  }
+
+  return(vif_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_brma
+# ---------------------------------------------------------------------------- #
+#
+# Coefficient covariance for standard brma objects.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_brma <- function(object, X) {
 
   # extract sampling variances
   vi      <- .outcome_data_vi(object)
@@ -189,7 +251,7 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   is_multilevel <- .is_multilevel(object)
 
   if (!is_scale && !is_multilevel) {
-    tau_within_samples  <- matrix(object[["summary"]]["tau", "Mean"], nrow = 1, ncol = K)
+    tau_within_samples  <- matrix(.vif_scalar_tau_mean(object), nrow = 1, ncol = K)
     tau_between_samples <- matrix(0, nrow = 1, ncol = K)
   } else {
     tau_result <- .evaluate.brma.tau(
@@ -214,6 +276,66 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
     tau_between_samples = tau_between_samples,
     cluster             = if (is_multilevel) object[["data"]][["outcome"]][["cluster"]] else NULL
   )
+
+  return(vcov)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_brma_mv
+# ---------------------------------------------------------------------------- #
+#
+# Coefficient covariance for brma.mv() known-V models. This is a marginal GLS
+# design diagnostic: sampled and marginalized formula random effects contribute
+# through ZGZ', not through fitted random-effect means.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_brma_mv <- function(object, X, max_samples = Inf) {
+
+  if (!.is_data_known_v(object[["data"]])) {
+    stop("VIF for brma.mv() requires known-V covariance metadata.",
+         call. = FALSE)
+  }
+  if (!identical(.outcome_type(object), "norm")) {
+    stop("VIF for brma.mv() is available only for normal outcome models.",
+         call. = FALSE)
+  }
+  if (.is_weights(object)) {
+    stop("VIF for brma.mv() weighted likelihoods is not implemented.",
+         call. = FALSE)
+  }
+
+  sample_info <- .known_v_diagnostic_posterior_samples(
+    object      = object,
+    max_samples = max_samples,
+    caller      = "known-V VIF diagnostics"
+  )
+  vcov <- .vif_vcov_from_covariance_chunks(
+    object            = object,
+    X                 = X,
+    posterior_samples = sample_info[["posterior_samples"]]
+  )
+  vcov <- .known_v_attach_diagnostic_metadata(
+    vcov,
+    .known_v_diagnostic_metadata(
+      sample_info = sample_info,
+      chunk_info  = attr(vcov, "known_v_covariance_chunks")
+    )
+  )
+  attr(vcov, "known_v_covariance_chunks") <- NULL
+
+  return(vcov)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_table_from_vcov
+# ---------------------------------------------------------------------------- #
+#
+# Compute GVIF/GVIF-adjusted table from the fixed-effect covariance.
+#
+# ---------------------------------------------------------------------------- #
+.vif_table_from_vcov <- function(vcov, assign, object, X) {
 
   # identify and remove intercept (assign == 0)
   has_intercept <- 0 %in% assign
@@ -282,6 +404,111 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   )
 
   return(vif_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_scalar_tau_mean
+# ---------------------------------------------------------------------------- #
+#
+# Scalar heterogeneity plug-in used by classical VIF. Fixed-effect models report
+# no tau row, so their extra heterogeneity covariance is zero.
+#
+# ---------------------------------------------------------------------------- #
+.vif_scalar_tau_mean <- function(object) {
+
+  summary_table <- object[["summary"]]
+  if (is.null(summary_table) || !"tau" %in% rownames(summary_table)) {
+    return(0)
+  }
+
+  tau <- summary_table["tau", "Mean"]
+  if (!is.finite(tau)) {
+    stop("VIF cannot determine a finite scalar heterogeneity estimate.",
+         call. = FALSE)
+  }
+
+  return(tau)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_from_covariance_samples
+# ---------------------------------------------------------------------------- #
+#
+# Compute mean_s solve(X' M_s^{-1} X) from full marginal covariance samples.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_from_covariance_samples <- function(X, covariance_samples,
+                                              average = TRUE) {
+
+  K <- nrow(X)
+  P <- ncol(X)
+
+  if (is.matrix(covariance_samples)) {
+    covariance_samples <- array(covariance_samples, dim = c(1L, K, K))
+  }
+  if (length(dim(covariance_samples)) != 3L ||
+      dim(covariance_samples)[2L] != K ||
+      dim(covariance_samples)[3L] != K) {
+    stop("VIF covariance samples must have dimensions draw x row x row.",
+         call. = FALSE)
+  }
+
+  S        <- dim(covariance_samples)[1L]
+  vcov_sum <- matrix(0, nrow = P, ncol = P)
+
+  for (s in seq_len(S)) {
+    covariance <- covariance_samples[s, , , drop = FALSE]
+    covariance <- matrix(covariance, nrow = K, ncol = K)
+    covariance <- (covariance + t(covariance)) / 2
+
+    chol_covariance <- tryCatch(
+      chol(covariance),
+      error = function(e) NULL
+    )
+    if (is.null(chol_covariance)) {
+      stop("VIF marginal covariance is not positive definite.",
+           call. = FALSE)
+    }
+
+    W <- chol2inv(chol_covariance)
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(crossprod(X, W %*% X))
+  }
+
+  vcov <- if (average) vcov_sum / S else vcov_sum
+  if (!is.null(colnames(X))) {
+    dimnames(vcov) <- list(colnames(X), colnames(X))
+  }
+
+  return(vcov)
+}
+
+
+.vif_vcov_from_covariance_chunks <- function(object, X, posterior_samples) {
+
+  P        <- ncol(X)
+  vcov_sum <- matrix(0, nrow = P, ncol = P)
+
+  chunk_info <- .known_v_apply_marginal_covariance_chunks(
+    object            = object,
+    posterior_samples = posterior_samples,
+    FUN               = function(covariance_samples, rows) {
+      vcov_sum <<- vcov_sum + .vif_vcov_from_covariance_samples(
+        X                  = X,
+        covariance_samples = covariance_samples,
+        average            = FALSE
+      )
+    }
+  )
+
+  vcov <- vcov_sum / nrow(posterior_samples)
+  if (!is.null(colnames(X))) {
+    dimnames(vcov) <- list(colnames(X), colnames(X))
+  }
+  attr(vcov, "known_v_covariance_chunks") <- chunk_info
+
+  return(vcov)
 }
 
 
@@ -410,6 +637,10 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
     transform_scaled   = TRUE,
     return_samples     = TRUE
   ))
+  samples_mat <- .diagnostic_fixed_location_coefficient_samples(
+    samples_mat,
+    require_mu_columns = TRUE
+  )
 
   # need at least 2 coefficients for correlation
   if (ncol(samples_mat) < 2) {

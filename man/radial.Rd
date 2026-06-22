@@ -117,9 +117,12 @@ pooled-effect line. The arc on the right side allows reading individual
 effect sizes by projecting from the origin through a point to the arc; when
 \code{center = TRUE}, the plotted slope is relative to the pooled effect.
 
-This function requires an intercept-only model; radial plots are not
-meaningful for meta-regression or location-scale models where the
-pooled effect varies across studies.
+This function requires an intercept-only single normal model with scalar
+independent sampling variances and no publication-bias or model-averaging
+components. Radial plots are not meaningful for meta-regression,
+location-scale, multilevel/random-effect, GLMM, product-space, or known-V
+multivariate models where the classical scalar precision target is not the
+fitted likelihood target.
 
 \code{galbraith()} is a same-argument alias for \code{radial()}.
 }

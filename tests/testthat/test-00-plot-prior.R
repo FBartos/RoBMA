@@ -133,6 +133,115 @@ test_that("plot_prior selects moderator and scale priors", {
   )))
 })
 
+test_that("plot_prior selects brma.mv location and component-scale priors", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect    = test_data[["effect"]],
+    std_err   = test_data[["std_err"]],
+    mod_cont  = test_data[["mod_cont"]],
+    scale_var = test_data[["scale_var"]],
+    study     = c("s1", "s1", "s2", "s2", "s3"),
+    site      = c("a", "b", "a", "b", "a"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    mods                      = ~ mod_cont,
+    random                    = list(study = ~ 1 | study, site = ~ 1 | site),
+    scale                     = list(study = ~ scale_var, site = ~ scale_var),
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  catalog <- .brma_parameter_catalog(mv_priors)
+  expect_true(any(
+    catalog[["parameter"]] == "mu_mod_cont" &
+      catalog[["source"]] == "location"
+  ))
+  expect_true(any(
+    catalog[["parameter"]] == "log_tau_study_scale_var" &
+      catalog[["formula_parameter"]] == "log_tau_study"
+  ))
+
+  expect_true(BayesTools::is.prior(print_prior(
+    mv_priors, parameter = "mod_cont", component = "location", silent = TRUE
+  )))
+  expect_true(BayesTools::is.prior(print_prior(
+    mv_priors,
+    parameter = "log_tau_study_scale_var",
+    component = "scale",
+    silent    = TRUE
+  )))
+  expect_error(
+    print_prior(mv_priors, parameter = "scale_var", component = "scale", silent = TRUE),
+    "ambiguous"
+  )
+  expect_error(
+    print_prior(mv_priors, component = "scale", silent = TRUE),
+    "component-specific scale"
+  )
+
+  selected <- print_prior(mv_priors, silent = TRUE)
+  expect_true("mu_mod_cont" %in% names(selected))
+  expect_true("log_tau_study_scale_var" %in% names(selected))
+  expect_true("log_tau_site_scale_var" %in% names(selected))
+
+  expect_true(.is_ggplot(plot_prior(
+    mv_priors,
+    parameter                 = "mod_cont",
+    component                 = "location",
+    standardized_coefficients = FALSE,
+    plot_type                 = "ggplot"
+  )))
+  expect_true(.is_ggplot(plot_prior(
+    mv_priors,
+    parameter                 = "log_tau_study_scale_var",
+    component                 = "scale",
+    standardized_coefficients = FALSE,
+    plot_type                 = "ggplot"
+  )))
+})
+
+test_that("plot_prior omits absent scalar scale priors for random brma.mv", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect  = test_data[["effect"]],
+    std_err = test_data[["std_err"]],
+    study   = c("s1", "s1", "s2", "s2", "s3"),
+    site    = c("a", "b", "a", "b", "a"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    random                    = list(study = ~ 1 | study, site = ~ 1 | site),
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  catalog <- .brma_parameter_catalog(mv_priors)
+  expect_false("tau" %in% catalog[["parameter"]])
+
+  selected <- print_prior(mv_priors, silent = TRUE)
+  expect_true("mu_intercept" %in% names(selected))
+  expect_false("tau" %in% names(selected))
+  expect_error(
+    print_prior(mv_priors, component = "scale", silent = TRUE),
+    "does not contain scale priors"
+  )
+})
+
 test_that("plot_prior supports direct prior objects", {
 
   skip_on_cran()

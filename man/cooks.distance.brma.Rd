@@ -29,6 +29,11 @@ distance between the full-data and leave-one-out fitted-value vectors:
 where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
 generalized inverse of the full-posterior fitted-value covariance, and
 \eqn{P} is the rank of the fixed-effect model matrix.
+For \code{brma.mv()} known-\code{V} models, Cook's distance uses
+estimate-unit PSIS weights. With correlated known-\code{V}, deletion is
+conditional estimate deletion and the reported fitted-value target is the
+fixed-location mean \eqn{\mu = X\beta}; sampled or marginalized random
+effects are not included in the reported fitted value.
 }
 \examples{
 \dontrun{

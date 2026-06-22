@@ -52,6 +52,10 @@ summary_heterogeneity <- function(object, ...) {
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
+#' @param component heterogeneity component to return for \code{brma.mv()}
+#' models. Defaults to \code{"all"}. Use \code{"total"} for the
+#' variance-additive total heterogeneity. Random-formula allocation nodes can
+#' be selected by their displayed name, such as \code{"study/esid"}.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -85,10 +89,29 @@ summary_heterogeneity <- function(object, ...) {
 #' \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 #' the partitioned I^2 follows the approach described in the metafor documentation.
 #'
+#' For \code{brma.mv()} models, the method reports absolute heterogeneity
+#' summaries (\code{tau}, \code{tau2}) for selected random-effect components.
+#' Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
+#' known-V covariance structures. For \code{component = "total"}, independent
+#' component variances are summed before summarizing \code{tau2}; \code{tau}
+#' is the square root of this variance draw.
+#' When a random-formula model uses a shared total-SD plus variance-allocation
+#' node, \code{component = "all"} also includes an allocation-node table with
+#' \code{tau}, \code{tau2}, and \code{var_frac(...)} rows. For nested formulas
+#' such as \code{random = ~ 1 | study / esid}, this table is displayed under
+#' the user-facing path \code{"study/esid"}.
+#' For heterogeneous structured random effects, such as
+#' \code{random = ~ har(time | study)}, the allocation table reports
+#' \code{sd_total(...)}, level-specific \code{sd(...)} rows, and
+#' \code{var_ratio(...)} rows for the heterogeneous standard-deviation
+#' components.
+#'
 #' @return A list of class \code{summary_heterogeneity.brma} containing:
 #' \itemize{
 #'   \item \code{estimates}: A \code{BayesTools_table} with heterogeneity statistics
 #' }
+#' For decomposed \code{brma.mv()} models with multiple selected components,
+#' a named list of such summary objects is returned.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -111,10 +134,23 @@ summary_heterogeneity <- function(object, ...) {
 #'
 #' @seealso [pooled_heterogeneity()], [summary.brma()]
 #' @export
-summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
+summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
+                                       component = "all", ...) {
 
   # input validation
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
+  if (inherits(object, "brma.mv")) {
+    return(
+      .summary_heterogeneity_brma_mv(
+        object    = object,
+        probs     = probs,
+        component = component,
+        ...
+      )
+    )
+  }
+
+  .check_univariate_heterogeneity_component(component)
 
   # extract model characteristics
   is_multilevel <- .is_multilevel(object)
@@ -273,6 +309,20 @@ print.summary_heterogeneity.brma <- function(x, ...) {
   cat("\n")
   print(x$estimates)
   cat("\n")
+
+  return(invisible(x))
+}
+
+
+#' @rdname summary_heterogeneity.brma
+#' @export
+print.summary_heterogeneity.brma_list <- function(x, ...) {
+
+  cat("\n")
+  for (i in seq_along(x)) {
+    print(x[[i]][["estimates"]])
+    cat("\n")
+  }
 
   return(invisible(x))
 }

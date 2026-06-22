@@ -16,23 +16,41 @@
 #'   measure and variability metrics (for meta-analysis) for new studies. The input
 #'   must contain the variables used by the requested prediction type. Outcome
 #'   columns are optional for \code{type = "terms"} unless PET/PEESE bias terms
-#'   are included via \code{bias_adjusted = FALSE}.}
+#'   are included via \code{bias_adjusted = FALSE}. Missing values in
+#'   \code{newdata} are rejected; prediction never drops rows silently. For
+#'   known-\code{V} \code{brma.mv()} response prediction, explicit
+#'   \code{newdata} requires a new sampling covariance matrix.}
 #' }
+#' @param V_new optional sampling covariance matrix for explicit
+#' \code{newdata} response predictions from known-\code{V} \code{brma.mv()}
+#' models. May be a square matrix or a list of block covariance matrices whose
+#' total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
+#' rows is not supported.
 #' @param type type of prediction to be performed. Options are:
 #' \itemize{
 #'   \item{\code{"terms"} (alias: \code{"marginal"}): Fixed-effect parameters only (mu).
 #'   Produces the mean effect size estimate at the given predictor levels,
 #'   not accounting for random effects.}
-#'   \item{\code{"cluster"}: Fixed effects plus cluster-level random effects (mu + gamma).
-#'   Only available for multilevel (3-level) models.}
+#'   \item{\code{"cluster"}: Fixed effects plus legacy cluster-level random
+#'   effects (mu + gamma). Only available for legacy multilevel (3-level)
+#'   models.}
 #'   \item{\code{"estimate"} (aliases: \code{"effect"}, \code{"blup"}): True
 #'   effects (mu + gamma + theta). For existing normal data, returns posterior
-#'   draws of conditional BLUP means, not simulated latent-effect draws. For
-#'   new data, samples estimate-level random effects.}
+#'   draws of conditional BLUP means, not simulated latent-effect draws.
+#'   Existing \code{brma.mv()} random-formula models return conditional true
+#'   effects at fitted random-effect levels. For \code{brma.mv()}
+#'   random-formula models, explicit \code{newdata} conditions on existing
+#'   random-effect levels and samples unseen random-effect levels. Aggregated
+#'   random-formula predictions marginalize random effects and average across
+#'   rows.}
 #'   \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
-#'   Incorporates both heterogeneity and sampling variability.}
+#'   Incorporates both heterogeneity and sampling variability. For known-\code{V}
+#'   \code{brma.mv()} models, explicit \code{newdata} response predictions
+#'   require a supplied new sampling covariance matrix.}
 #'   \item{\code{"terms.scale"}: Scale parameter (tau), incorporating scale
-#'   regression if present.}
+#'   regression if present. For \code{brma.mv()} random-formula models with
+#'   scale formulas, returns a named list of component-specific
+#'   \code{brma_samples} matrices.}
 #' }
 #' @param as_measure logical; whether to convert GLMM response predictions from
 #' simulated counts to continuity-corrected effect-size estimators (logOR for
@@ -85,8 +103,14 @@
 #' For existing normal observations, \code{type = "estimate"} reports the
 #' conditional BLUP mean \eqn{E(\theta_i \mid y_i, \mu_i, \tau_i)} for each
 #' posterior draw. It is therefore an empirical-Bayes summary, not a draw from
-#' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For new data,
-#' estimate-level random effects are sampled from their model distribution.
+#' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
+#' \code{brma.mv()} random-formula models, fitted-level sampled random effects
+#' are added to the fixed location and the result is titled conditional true
+#' effects. Random-effect blocks compiled as marginalized contribute Gaussian
+#' BLUP means for existing-data predictions and covariance for predictive
+#' response draws. For explicit new data, unseen random-effect levels are
+#' sampled from their model distribution. For aggregated random-formula
+#' predictions, random effects are sampled marginally before averaging over rows.
 #'
 #' For RoBMA product-space objects, conditional posterior predictions subset
 #' posterior rows according to model indicators. This removes the original
@@ -105,6 +129,16 @@
 #' \code{type = "response"} for normal models: response predictions simulate
 #' raw future effect-size estimates with the supplied \code{sei}, not
 #' \code{sei / sqrt(weight)}.
+#'
+#' For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
+#' response prediction requires \code{V_new}. Non-random models draw from the
+#' new sampling covariance plus posterior heterogeneity. Random-formula models
+#' draw from a joint normal with fixed-location mean and covariance
+#' \code{V_new} plus the marginal random-effect covariance and any
+#' marginalized estimate-level variance. Cross-covariance with observed rows is
+#' not supported. \code{brma.mv()} prediction results carry a
+#' \code{brma_mv_prediction_target} attribute recording the formula,
+#' random-effect, and response-covariance target used.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&
@@ -135,14 +169,18 @@
 #' }
 #' }
 #'
-#' @return A \code{brma_samples} object containing posterior samples. When printed,
-#' displays a summary table via \code{BayesTools::ensemble_estimates_table}. The
-#' underlying samples matrix can be accessed directly (the object inherits from matrix)
-#' or via \code{summary()} to obtain the summary table. The samples can also be converted
-#' to \pkg{posterior} draws formats using \code{as_draws()} and related functions.
+#' @return A \code{brma_samples} object containing posterior samples. For
+#' \code{brma.mv()} random-formula \code{type = "terms.scale"} predictions,
+#' returns a named list of component-specific \code{brma_samples} objects.
+#' When printed, each \code{brma_samples} object displays a summary table via
+#' \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
+#' can be accessed directly (the object inherits from matrix) or via
+#' \code{summary()} to obtain the summary table. The samples can also be
+#' converted to \pkg{posterior} draws formats using \code{as_draws()} and
+#' related functions.
 #' @seealso [pooled_effect()], [pooled_heterogeneity()], [blup()]
 #' @export
-predict.brma <- function(object, newdata = NULL,
+predict.brma <- function(object, newdata = NULL, V_new = NULL,
                          type = "terms",
                          as_measure = TRUE,
                          output_measure = NULL,
@@ -181,6 +219,8 @@ predict.brma <- function(object, newdata = NULL,
          call. = FALSE)
   }
 
+  is_brma_mv_object <- inherits(object, "brma.mv")
+  is_random_object  <- .is_random(object)
   # check newdata: NULL, TRUE, or data.frame/list
   if (!is.null(newdata) && !isTRUE(newdata)) {
     if (!is.data.frame(newdata) && !is.list(newdata)) {
@@ -191,10 +231,40 @@ predict.brma <- function(object, newdata = NULL,
     }
   }
 
-  # check incompatible options: aggregate predictions not available for response
+  known_v_newdata_response <- .is_data_known_v(object[["data"]]) &&
+    !is.null(newdata) && !isTRUE(newdata) && type == "response"
+  known_V_new <- NULL
+  if (!is.null(V_new)) {
+    if (!known_v_newdata_response) {
+      stop(
+        "'V_new' is only available for known-V brma.mv() response ",
+        "predictions with explicit 'newdata'.",
+        call. = FALSE
+      )
+    }
+    newdata_frame <- .prepare_newdata_as_data_frame(newdata)
+    known_V_new   <- .known_v_newdata_prepare(
+      V_new,
+      k = nrow(newdata_frame)
+    )
+    newdata <- .predict_known_v_newdata_add_vi(
+      newdata = newdata_frame,
+      V_new   = known_V_new[["V"]]
+    )
+  }
+
+  # check incompatible options
   if (isTRUE(newdata) && type == "response") {
     stop("Aggregated predictions (newdata = TRUE) are not available for type = 'response' ",
          "because observation-level sampling variance is required.", call. = FALSE)
+  }
+  if (.is_data_known_v(object[["data"]]) && !is.null(newdata) &&
+      !isTRUE(newdata) && type == "response" && is.null(known_V_new)) {
+    stop(
+      "Newdata response predictions for brma.mv() known-V models require ",
+      "a supplied 'V_new' sampling covariance matrix.",
+      call. = FALSE
+    )
   }
 
   ### types of predictions
@@ -230,7 +300,12 @@ predict.brma <- function(object, newdata = NULL,
       object        = object,
       newdata       = newdata,
       type          = type,
-      bias_adjusted = bias_adjusted
+      bias_adjusted  = bias_adjusted,
+      include_scale  = type != "terms",
+      include_random = is_random_object && is_brma_mv_object &&
+        type %in% c("estimate", "response"),
+      include_random_metadata = is_random_object && is_brma_mv_object &&
+        type == "terms.scale"
     )
 
   }
@@ -240,12 +315,31 @@ predict.brma <- function(object, newdata = NULL,
   is_mods           <- .is_mods(object)
   is_multilevel     <- .is_multilevel(object)
   is_scale          <- .is_scale(object)
+  is_random         <- is_random_object
   is_PET            <- .is_PET(object)
   is_PEESE          <- .is_PEESE(object)
   is_weightfunction <- .is_weightfunction(object)
   is_weights        <- .is_weights(object)
+  is_known_v        <- .is_data_known_v(new_data) || !is.null(known_V_new)
   outcome_type      <- .outcome_type(object)
   effect_direction  <- .effect_direction(object)
+
+  if (type == "response" && outcome_type == "norm" && is_known_v &&
+      is_weightfunction && !bias_adjusted) {
+    stop(
+      "Bias-unadjusted response predictions for known-V weightfunction ",
+      "models are not supported because selected-normal sampling does not ",
+      "support known-V covariance.",
+      call. = FALSE
+    )
+  }
+
+  # check: cluster type requires multilevel model
+  if (type == "cluster" && !is_multilevel) {
+    stop("type = 'cluster' is only available for multilevel (3-level) models. ",
+         "Use type = 'terms' for non-multilevel models.", call. = FALSE)
+  }
+
   posterior_samples <- .get_posterior_samples(object[["fit"]], dots[[".posterior_samples"]])
   effect_transform  <- .effect_output_setup(
     object         = object,
@@ -269,12 +363,6 @@ predict.brma <- function(object, newdata = NULL,
     )
   }
 
-  # check: cluster type requires multilevel model
-  if (type == "cluster" && !is_multilevel) {
-    stop("type = 'cluster' is only available for multilevel (3-level) models. ",
-         "Use type = 'terms' for non-multilevel models.", call. = FALSE)
-  }
-
   ### extract outcome data and fit data for convenience
   outcome_data      <- new_data[["outcome"]]
   fit_data          <- .create_fit_data(data = new_data, priors = priors)
@@ -283,21 +371,148 @@ predict.brma <- function(object, newdata = NULL,
   K_original <- nrow(outcome_data)
   K          <- K_original
 
-  ### obtain tau samples using helper function
-  # returns list(tau_within, tau_between) - all S x K matrices
-  # see .evaluate.brma.tau() in evaluate.R for details
-  tau_result          <- .evaluate.brma.tau(
-    fit               = object[["fit"]],
-    scale_data        = new_data[["scale"]],
-    scale_formula     = if (is_scale) .create_fit_formula_list(data = new_data, "scale") else NULL,
-    scale_priors      = priors[["scale"]],
-    is_scale          = is_scale,
-    is_multilevel     = is_multilevel,
-    K                 = K_original,
-    posterior_samples = posterior_samples
+  ### extract MCMC chain info for brma_samples construction
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
   )
-  tau_within_samples  <- tau_result[["tau_within"]]
-  tau_between_samples <- tau_result[["tau_between"]]
+  n_chains <- chain_info[["n_chains"]]
+  n_iter   <- chain_info[["n_iter"]]
+
+  random_mv <- is_brma_mv_object && is_random
+
+  if (type == "terms") {
+    mu_samples <- .evaluate.brma.mu(
+      fit               = object[["fit"]],
+      outcome_data      = outcome_data,
+      mods_data         = new_data[["mods"]],
+      mods_formula      = if (is_mods) .create_fit_formula_list(data = new_data, "mods") else NULL,
+      mods_priors       = if (is_random) priors[["location"]] else priors[["mods"]],
+      is_mods           = is_mods,
+      is_PET            = is_PET,
+      is_PEESE          = is_PEESE,
+      effect_direction  = effect_direction,
+      bias_adjusted     = bias_adjusted,
+      K                 = K_original,
+      posterior_samples = posterior_samples
+    )
+
+    if (aggregate) {
+      if (is_mods && K_original > 1 && !quiet) {
+        message("Aggregated prediction averages mu across the moderator model matrix (K = ", K_original, " observations).")
+      }
+      mu_samples <- matrix(rowMeans(mu_samples), ncol = 1L)
+      K <- 1L
+    }
+
+    colnames(mu_samples) <- if (aggregate) "mu" else paste0("mu[", seq_len(K), "]")
+
+    out <- .new_effect_brma_samples(
+      samples          = mu_samples,
+      n_chains         = n_chains,
+      n_iter           = n_iter,
+      title            = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:",
+      probs            = probs,
+      data             = if (aggregate) NULL else new_data,
+      effect_transform = effect_transform
+    )
+    out <- .predict_brma_attach_mv_metadata(
+      samples     = out,
+      object      = object,
+      type        = type,
+      same_data   = same_data,
+      aggregate   = aggregate,
+      random_mv   = random_mv,
+      known_V_new = known_V_new
+    )
+    return(.condition_prediction_samples(
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_effect_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
+    ))
+  }
+
+  if (random_mv) {
+    tau_within_samples  <- matrix(0, nrow = nrow(posterior_samples), ncol = K_original)
+    tau_between_samples <- matrix(0, nrow = nrow(posterior_samples), ncol = K_original)
+  } else {
+    ### obtain tau samples using helper function
+    # returns list(tau_within, tau_between) - all S x K matrices
+    # see .evaluate.brma.tau() in evaluate.R for details
+    tau_result          <- .evaluate.brma.tau(
+      fit               = object[["fit"]],
+      scale_data        = new_data[["scale"]],
+      scale_formula     = if (is_scale) .create_fit_formula_list(data = new_data, "scale") else NULL,
+      scale_priors      = priors[["scale"]],
+      is_scale          = is_scale,
+      is_multilevel     = is_multilevel,
+      K                 = K_original,
+      posterior_samples = posterior_samples
+    )
+    tau_within_samples  <- tau_result[["tau_within"]]
+    tau_between_samples <- tau_result[["tau_between"]]
+  }
+
+  if (type == "terms.scale" && random_mv) {
+    if (!.is_data_scale(new_data)) {
+      stop(
+        "Component-scale prediction for brma.mv() random-formula models ",
+        "currently requires a scale formula.",
+        call. = FALSE
+      )
+    }
+    scale_samples <- .evaluate.brma.scale_terms(
+      fit               = object[["fit"]],
+      data              = new_data,
+      priors            = priors,
+      posterior_samples = posterior_samples,
+      as_list           = TRUE
+    )
+    if (aggregate) {
+      if (K_original > 1 && !quiet) {
+        message("Aggregated prediction averages scale terms across the scale model matrix (K = ", K_original, " observations).")
+      }
+      scale_samples <- .evaluate.brma.aggregate_scale_terms_list(scale_samples)
+      K <- 1L
+    }
+
+    out <- lapply(names(scale_samples), function(component) {
+      .new_brma_samples(
+        samples  = scale_samples[[component]],
+        n_chains = n_chains,
+        n_iter   = n_iter,
+        title    = if (aggregate) {
+          paste0("Aggregated Scale Term Posterior Prediction (", component, "):")
+        } else {
+          paste0("Scale Term Posterior Prediction (", component, "):")
+        },
+        probs    = probs,
+        data     = if (aggregate) NULL else new_data
+      )
+    })
+    names(out) <- names(scale_samples)
+    out <- .predict_brma_attach_mv_metadata(
+      samples     = out,
+      object      = object,
+      type        = type,
+      same_data   = same_data,
+      aggregate   = aggregate,
+      random_mv   = random_mv,
+      known_V_new = known_V_new
+    )
+
+    return(.condition_prediction_samples(
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_heterogeneity_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
+    ))
+  }
 
   ### aggregate tau samples if requested (for terms.scale only at this point)
   ### mu aggregation happens after mu computation
@@ -312,14 +527,6 @@ predict.brma <- function(object, newdata = NULL,
     tau_between_samples <- matrix(rowMeans(tau_between_samples), ncol = 1)
     K <- 1L
   }
-
-  ### extract MCMC chain info for brma_samples construction
-  chain_info <- .brma_samples_chain_info(
-    fit       = object[["fit"]],
-    n_samples = nrow(posterior_samples)
-  )
-  n_chains <- chain_info[["n_chains"]]
-  n_iter   <- chain_info[["n_iter"]]
 
   ### return only tau samples if type = "terms.scale" is selected
   if (type == "terms.scale") {
@@ -337,6 +544,15 @@ predict.brma <- function(object, newdata = NULL,
       probs    = probs,
       data     = if (aggregate) NULL else new_data
     )
+    out <- .predict_brma_attach_mv_metadata(
+      samples     = out,
+      object      = object,
+      type        = type,
+      same_data   = same_data,
+      aggregate   = aggregate,
+      random_mv   = random_mv,
+      known_V_new = known_V_new
+    )
     return(.condition_prediction_samples(
       object            = object,
       samples           = out,
@@ -347,15 +563,13 @@ predict.brma <- function(object, newdata = NULL,
     ))
   }
 
-  ### get the base mu samples using helper function
-  # returns S x K matrix of location samples
-  # see .evaluate.brma.mu() in evaluate.R for details
+  ### get fixed location samples and add conditional random-formula effects explicitly
   mu_samples <- .evaluate.brma.mu(
     fit               = object[["fit"]],
     outcome_data      = outcome_data,
     mods_data         = new_data[["mods"]],
     mods_formula      = if (is_mods) .create_fit_formula_list(data = new_data, "mods") else NULL,
-    mods_priors       = priors[["mods"]],
+    mods_priors       = if (is_random) priors[["location"]] else priors[["mods"]],
     is_mods           = is_mods,
     is_PET            = is_PET,
     is_PEESE          = is_PEESE,
@@ -364,9 +578,21 @@ predict.brma <- function(object, newdata = NULL,
     K                 = K_original,
     posterior_samples = posterior_samples
   )
+  if (random_mv && (type == "estimate" || (type == "response" && is.null(known_V_new)))) {
+    mu_samples <- mu_samples + .evaluate.brma.random_effects(
+      fit               = object[["fit"]],
+      data              = new_data,
+      priors            = priors,
+      posterior_samples = posterior_samples,
+      same_data         = same_data,
+      required          = TRUE,
+      formula_target    = if (aggregate) "marginal" else "conditional",
+      object            = object
+    )
+  }
 
-  ### aggregate mu and tau samples if requested (for terms/cluster/estimate types)
-  if (aggregate && type %in% c("terms", "cluster", "estimate")) {
+  ### aggregate mu and tau samples if requested (for cluster/estimate types)
+  if (aggregate && type %in% c("cluster", "estimate")) {
     # average mu across observations (rows are samples, columns are observations)
     # for non-mods models, all columns are identical so this is a no-op
     # for mods models, this averages across the model matrix
@@ -379,31 +605,6 @@ predict.brma <- function(object, newdata = NULL,
     K <- 1L
   }
 
-  ### return only mu samples if type = "terms" is selected
-  # terms incorporate fixed effects only (i.e., random effects are not incorporated)
-  if (type == "terms") {
-    # rename samples
-    colnames(mu_samples) <- if (aggregate) "mu" else paste0("mu[", seq_len(K), "]")
-
-    out <- .new_effect_brma_samples(
-      samples          = mu_samples,
-      n_chains         = n_chains,
-      n_iter           = n_iter,
-      title            = if (aggregate) "Aggregated Location Term Posterior Prediction:" else "Location Term Posterior Prediction:",
-      probs            = probs,
-      data             = if (aggregate) NULL else new_data,
-      effect_transform = effect_transform
-    )
-    return(.condition_prediction_samples(
-      object            = object,
-      samples           = out,
-      conditional       = conditional,
-      parameters        = .conditional_effect_parameters(object),
-      posterior_samples = posterior_samples,
-      quiet             = quiet
-    ))
-  }
-
   ### include 3-level (cluster-level) random-effects using helper function
   # returns contribution matrix gamma[cluster] * tau_between for multilevel models
   # see .evaluate.brma.cluster_effects() in evaluate.R for details
@@ -411,12 +612,19 @@ predict.brma <- function(object, newdata = NULL,
   blup_vi <- NULL
   if (outcome_type == "norm") {
     blup_vi <- outcome_data[["sei"]]^2
+    if (!is.null(known_V_new)) {
+      blup_vi <- known_V_new[["residual_variance"]]
+    } else if (is_known_v) {
+      blup_vi <- .data_known_v_data(new_data)[["residual_variance"]]
+    }
     if (is_weights) {
       blup_vi <- blup_vi / outcome_data[["weights"]]
     }
   }
 
   blup_bias_offset <- NULL
+  use_known_v_blup <- outcome_type == "norm" && same_data && is_known_v &&
+    !random_mv
   if (outcome_type == "norm" && same_data && bias_adjusted && (is_PET || is_PEESE)) {
     blup_bias_offset <- .evaluate.brma.bias_offset(
       fit               = object[["fit"]],
@@ -466,6 +674,20 @@ predict.brma <- function(object, newdata = NULL,
     mu_samples <- mu_samples + cluster_contribution
   }
 
+  if (random_mv && type %in% c("estimate", "response") &&
+      outcome_type == "norm" && same_data && is_known_v &&
+      .data_has_marginalized_random_effects(new_data)) {
+    marginalized_blup <- .evaluate.brma.mv_marginalized_random_blup.norm(
+      object            = object,
+      mu_samples        = mu_samples,
+      posterior_samples = posterior_samples,
+      bias_offset       = blup_bias_offset
+    )
+    if (length(marginalized_blup) > 0L) {
+      mu_samples <- mu_samples + Reduce(`+`, marginalized_blup)
+    }
+  }
+
   ### return cluster-level predictions if type = "cluster" is selected
   # cluster incorporates fixed effects + cluster-level random effects (mu + gamma)
   if (type == "cluster") {
@@ -480,6 +702,15 @@ predict.brma <- function(object, newdata = NULL,
       probs            = probs,
       data             = if (aggregate) NULL else new_data,
       effect_transform = effect_transform
+    )
+    out <- .predict_brma_attach_mv_metadata(
+      samples     = out,
+      object      = object,
+      type        = type,
+      same_data   = same_data,
+      aggregate   = aggregate,
+      random_mv   = random_mv,
+      known_V_new = known_V_new
     )
     return(.condition_prediction_samples(
       object            = object,
@@ -500,6 +731,16 @@ predict.brma <- function(object, newdata = NULL,
 
     if (!is.null(multilevel_blup)) {
       true_effects_samples <- mu_samples + multilevel_blup[["estimate"]]
+    } else if (random_mv) {
+      true_effects_samples <- mu_samples
+    } else if (use_known_v_blup) {
+      true_effects_samples <- .evaluate.brma.known_v_blup.norm(
+        mu_samples  = mu_samples,
+        tau_within  = tau_within_samples,
+        yi          = outcome_data[["yi"]],
+        known_V     = .data_known_v_data(new_data),
+        bias_offset = blup_bias_offset
+      )
     } else if (outcome_type == "norm") {
       true_effects_samples <- .evaluate.brma.true_effects.norm(
         mu_samples  = mu_samples,
@@ -527,7 +768,9 @@ predict.brma <- function(object, newdata = NULL,
       samples          = true_effects_samples,
       n_chains         = n_chains,
       n_iter           = n_iter,
-      title            = if (same_data && outcome_type == "norm") {
+      title            = if (random_mv && same_data) {
+        "Conditional True Effects:"
+      } else if (same_data && outcome_type == "norm") {
         "True Effects (BLUP Means):"
       } else if (aggregate) {
         "Aggregated True Effect Posterior Prediction:"
@@ -537,6 +780,15 @@ predict.brma <- function(object, newdata = NULL,
       probs            = probs,
       data             = if (aggregate) NULL else new_data,
       effect_transform = effect_transform
+    )
+    out <- .predict_brma_attach_mv_metadata(
+      samples     = out,
+      object      = object,
+      type        = type,
+      same_data   = same_data,
+      aggregate   = aggregate,
+      random_mv   = random_mv,
+      known_V_new = known_V_new
     )
     return(.condition_prediction_samples(
       object            = object,
@@ -652,16 +904,45 @@ predict.brma <- function(object, newdata = NULL,
       # - bias_adjusted = TRUE: sample from unweighted normal (as if no bias)
       # - bias_adjusted = FALSE with weightfunction: sample from selected-normal
       # - bias_adjusted = FALSE without weightfunction: sample from unweighted normal
+      response_tau_within_samples <- tau_within_samples
+      if (random_mv && is_known_v && is.null(known_V_new)) {
+        response_tau_within_samples <- sqrt(
+          .predict_known_v_newdata_marginalized_variance(
+            object            = object,
+            data              = new_data,
+            posterior_samples = posterior_samples
+          )
+        )
+      }
 
       if (bias_adjusted || !is_weightfunction) {
 
-        # sample from unweighted normal distribution
-        # y[s,k] ~ N(mu[s,k], sqrt(tau_within[s,k]^2 + sei[k]^2))
-        outcome_samples <- .outcome_rng.norm(
-          mu_samples = mu_samples,
-          tau_within = tau_within_samples,
-          sei        = outcome_data[["sei"]]
-        )
+        if (!is.null(known_V_new) && random_mv) {
+          covariance_samples <- .predict_known_v_newdata_response_covariance(
+            object            = object,
+            data              = new_data,
+            known_V_new       = known_V_new,
+            posterior_samples = posterior_samples
+          )
+          outcome_samples <- .outcome_rng.norm_known_v_covariance(
+            mu_samples         = mu_samples,
+            covariance_samples = covariance_samples
+          )
+        } else if (is_known_v) {
+          outcome_samples <- .outcome_rng.norm_known_v(
+            mu_samples = mu_samples,
+            tau_within = response_tau_within_samples,
+            known_V    = if (!is.null(known_V_new)) known_V_new else .data_known_v_data(new_data)
+          )
+        } else {
+          # sample from unweighted normal distribution
+          # y[s,k] ~ N(mu[s,k], sqrt(tau_within[s,k]^2 + sei[k]^2))
+          outcome_samples <- .outcome_rng.norm(
+            mu_samples = mu_samples,
+            tau_within = response_tau_within_samples,
+            sei        = outcome_data[["sei"]]
+          )
+        }
 
       } else {
 
@@ -673,7 +954,7 @@ predict.brma <- function(object, newdata = NULL,
 
         outcome_samples <- .outcome_rng.selnorm(
           mu_samples        = mu_samples,
-          tau_within        = tau_within_samples,
+          tau_within        = response_tau_within_samples,
           sei               = outcome_data[["sei"]],
           selection_context = selection_context
         )
@@ -692,6 +973,15 @@ predict.brma <- function(object, newdata = NULL,
       probs            = probs,
       data             = new_data,
       effect_transform = effect_transform
+    )
+    out <- .predict_brma_attach_mv_metadata(
+      samples     = out,
+      object      = object,
+      type        = type,
+      same_data   = same_data,
+      aggregate   = aggregate,
+      random_mv   = random_mv,
+      known_V_new = known_V_new
     )
     return(.condition_prediction_samples(
       object            = object,
@@ -815,12 +1105,31 @@ predict.brma <- function(object, newdata = NULL,
   return("Observations Posterior Prediction:")
 }
 
+
 .condition_prediction_samples <- function(object, samples, conditional,
                                           parameters, posterior_samples = NULL,
                                           quiet = FALSE) {
 
   if (!conditional) {
     return(samples)
+  }
+
+  if (is.list(samples) && !is.matrix(samples)) {
+    metadata <- attr(samples, "brma_mv_prediction_target", exact = TRUE)
+    out <- lapply(samples, function(component_samples) {
+      .condition_prediction_samples(
+        object            = object,
+        samples           = component_samples,
+        conditional       = conditional,
+        parameters        = parameters,
+        posterior_samples = posterior_samples,
+        quiet             = quiet
+      )
+    })
+    if (!is.null(metadata)) {
+      attr(out, "brma_mv_prediction_target") <- metadata
+    }
+    return(out)
   }
 
   keep <- .conditional_parameter_rows(
@@ -839,7 +1148,8 @@ predict.brma <- function(object, newdata = NULL,
     message("Conditional posterior samples flattened to one chain.")
   }
 
-  return(.new_brma_samples(
+  metadata <- attr(samples, "brma_mv_prediction_target", exact = TRUE)
+  out <- .new_brma_samples(
     samples          = sample_matrix,
     n_chains         = 1L,
     n_iter           = nrow(sample_matrix),
@@ -847,7 +1157,12 @@ predict.brma <- function(object, newdata = NULL,
     probs            = attr(samples, "probs"),
     data             = attr(samples, "data"),
     effect_transform = attr(samples, "effect_transform")
-  ))
+  )
+  if (!is.null(metadata)) {
+    attr(out, "brma_mv_prediction_target") <- metadata
+  }
+
+  return(out)
 }
 
 .conditional_effect_parameters <- function(object) {

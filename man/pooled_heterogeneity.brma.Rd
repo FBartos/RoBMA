@@ -4,7 +4,13 @@
 \alias{pooled_heterogeneity.brma}
 \title{Pooled Heterogeneity for brma Objects}
 \usage{
-\method{pooled_heterogeneity}{brma}(object, probs = c(0.025, 0.975), conditional = FALSE, ...)
+\method{pooled_heterogeneity}{brma}(
+  object,
+  probs = c(0.025, 0.975),
+  conditional = FALSE,
+  component = "all",
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -16,13 +22,19 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 the heterogeneity component for RoBMA product-space objects. Defaults to
 \code{FALSE}.}
 
+\item{component}{heterogeneity component to return for \code{brma.mv()}
+models. Defaults to \code{"all"}. Use \code{"total"} for the
+variance-additive total heterogeneity.}
+
 \item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
 arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
-displays a summary table. Use \code{summary()} to obtain the summary table directly.
-The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
+displays a summary table. For decomposed \code{brma.mv()} models, a named
+list of \code{brma_samples} objects is returned. Use \code{summary()} to
+obtain the summary table directly. The samples can be converted to
+\pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
 Computes the pooled (aggregated) heterogeneity estimate (tau)
@@ -40,6 +52,12 @@ For models without scale regression, this returns the single tau parameter.
 
 For multilevel (3-level) models, the returned tau is the total heterogeneity:
 \code{tau = sqrt(tau_within^2 + tau_between^2)}.
+
+For \code{brma.mv()} random-formula models, \code{component = "all"}
+returns one \code{brma_samples} object when there is a single heterogeneity
+component and a named list when there are multiple components.
+\code{component = "total"} computes the variance-additive row-level total
+\eqn{\sqrt{\sum_j \tau_{ij}^2}} and then averages this total across rows.
 }
 \examples{
 \dontrun{

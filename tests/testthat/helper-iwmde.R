@@ -6,7 +6,8 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   source(testthat::test_path("common-functions.R"), local = TRUE)
 }
 
-.expect_iwmde_ok <- function(out, parameters) {
+.expect_iwmde_ok <- function(out, parameters, estimator = "q_grid_cmde",
+                             mass_tolerance = NULL) {
 
   expect_named(out, parameters)
 
@@ -23,11 +24,6 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
     expect_gt(diagnostic[["diagnostics"]][["display_mass_fraction"]], 0)
     expect_true(is.finite(diagnostic[["diagnostics"]][["display_mass_fraction"]]))
     expect_lt(diagnostic[["diagnostics"]][["display_mass_fraction"]], 10)
-    expect_equal(
-      diagnostic[["diagnostics"]][["normalization_integral"]],
-      diagnostic[["active_mass"]],
-      tolerance = 1e-6
-    )
     expect_true(is.finite(diagnostic[["diagnostics"]][["min_ess"]]))
     expect_gt(diagnostic[["diagnostics"]][["min_ess"]], 0)
     expect_true(
@@ -37,7 +33,12 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
     expect_true(is.finite(diagnostic[["diagnostics"]][["normalization_points"]]))
     expect_gt(diagnostic[["diagnostics"]][["normalization_points"]], 0)
     expect_true(is.finite(diagnostic[["diagnostics"]][["n_batches"]]))
-    expect_equal(diagnostic[["diagnostics"]][["estimator"]], "q_grid_cmde")
+    expect_equal(diagnostic[["diagnostics"]][["estimator"]], estimator)
+    .expect_iwmde_mass_contract(
+      diagnostic     = diagnostic,
+      estimator      = estimator,
+      mass_tolerance = mass_tolerance
+    )
     expect_equal(
       diagnostic[["active_mass"]] +
         sum(diagnostic[["point_masses"]][["mass"]]),
@@ -109,6 +110,7 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   expect_equal(dim(batch), dim(scalar))
   expect_equal(is.finite(batch), is.finite(scalar))
   finite_terms <- is.finite(batch) & is.finite(scalar)
+  expect_true(any(finite_terms))
   if (any(finite_terms)) {
     expect_equal(batch[finite_terms], scalar[finite_terms], tolerance = 1e-8)
   }
@@ -171,8 +173,41 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   expect_equal(dim(fast), dim(scalar))
   expect_equal(is.finite(fast), is.finite(scalar))
   finite_terms <- is.finite(fast) & is.finite(scalar)
+  expect_true(any(finite_terms))
   if (any(finite_terms)) {
     expect_equal(fast[finite_terms], scalar[finite_terms], tolerance = 1e-8)
+  }
+}
+
+
+.expect_iwmde_mass_contract <- function(diagnostic, estimator,
+                                        mass_tolerance = NULL) {
+
+  active_mass            <- diagnostic[["active_mass"]]
+  normalization_integral <- diagnostic[["diagnostics"]][["normalization_integral"]]
+  normalization_mass_ratio <- diagnostic[["diagnostics"]][["normalization_mass_ratio"]]
+
+  expect_true(is.finite(active_mass))
+  expect_gt(active_mass, 0)
+  expect_true(is.finite(normalization_integral))
+  expect_gt(normalization_integral, 0)
+  expect_true(is.finite(normalization_mass_ratio))
+  expect_gt(normalization_mass_ratio, 0)
+  if (identical(estimator, "q_grid_cmde")) {
+    normalizer_change <- diagnostic[["diagnostics"]][["max_normalizer_relative_change"]]
+    ordinate_change   <- diagnostic[["diagnostics"]][["max_ordinate_relative_change"]]
+    expect_equal(normalization_mass_ratio, 1, tolerance = 1e-6)
+    expect_true(is.finite(normalizer_change))
+    expect_gte(normalizer_change, 0)
+    expect_true(is.finite(ordinate_change))
+    expect_gte(ordinate_change, 0)
+  } else if (identical(estimator, "iwmde") && !is.null(mass_tolerance)) {
+    expect_equal(
+      normalization_mass_ratio,
+      active_mass / normalization_integral,
+      tolerance = 1e-6
+    )
+    expect_equal(normalization_integral, active_mass, tolerance = mass_tolerance)
   }
 }
 
@@ -262,6 +297,7 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   expect_equal(dim(fast), dim(scalar))
   expect_equal(is.finite(fast), is.finite(scalar))
   finite_terms <- is.finite(fast) & is.finite(scalar)
+  expect_true(any(finite_terms))
   if (any(finite_terms)) {
     expect_equal(fast[finite_terms], scalar[finite_terms], tolerance = 1e-8)
   }

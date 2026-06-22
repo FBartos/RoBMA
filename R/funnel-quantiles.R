@@ -14,6 +14,14 @@
 #
 # ---------------------------------------------------------------------------- #
 .get_funnel_tau <- function(object) {
+
+  if (.is_data_known_v(object[["data"]])) {
+    setup       <- .estimate_likelihood_setup.brma(object)
+    tau_samples <- sqrt(rowMeans(.known_v_extra_sd_from_setup(setup)^2))
+
+    return(mean(tau_samples))
+  }
+
   # use pooled_heterogeneity to get mean tau
   tau_samples <- pooled_heterogeneity(object)
   tau_summary <- summary(tau_samples)
