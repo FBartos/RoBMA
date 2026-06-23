@@ -1,7 +1,7 @@
 ---
 title: "Multilevel Meta-Analysis"
 author: "František Bartoš"
-date: "28th of April 2026"
+date: "28th of April 2026 (updated 22nd of June 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes

@@ -706,15 +706,37 @@ test_that(".evaluate.brma.tau returns correct structure", {
     # Direct tau extraction for scale formulas is exercised through predict().
     if (is_scale) next
 
-    result <- .evaluate.brma.tau(
-      fit           = object[["fit"]],
-      scale_data    = object[["data"]][["scale"]],
-      scale_formula = if (is_scale) attr(object[["data"]][["scale"]], "formula") else NULL,
-      scale_priors  = priors[["scale"]],
-      is_scale      = is_scale,
-      is_multilevel = is_multilevel,
-      K             = K
-    )
+    posterior_samples <- as.matrix(object[["fit"]][["mcmc"]])
+    has_tau_samples <- !is.null(.extract_indexed_parameter_samples(
+      posterior_samples = posterior_samples,
+      parameter         = "tau",
+      required          = FALSE
+    ))
+
+    evaluate_tau <- function(allow_missing_tau = FALSE) {
+      .evaluate.brma.tau(
+        fit               = object[["fit"]],
+        scale_data        = object[["data"]][["scale"]],
+        scale_formula     = if (is_scale) attr(object[["data"]][["scale"]], "formula") else NULL,
+        scale_priors      = priors[["scale"]],
+        is_scale          = is_scale,
+        is_multilevel     = is_multilevel,
+        K                 = K,
+        posterior_samples = posterior_samples,
+        allow_missing_tau = allow_missing_tau
+      )
+    }
+
+    if (!has_tau_samples && .has_fixed_zero_tau_prior(priors)) {
+      expect_error(
+        evaluate_tau(),
+        "Missing posterior tau columns",
+        info = paste(name, ": missing tau requires explicit allowance")
+      )
+      result <- evaluate_tau(allow_missing_tau = TRUE)
+    } else {
+      result <- evaluate_tau()
+    }
 
     # verify structure
     expect_true(is.list(result), info = paste(name, ": returns list"))

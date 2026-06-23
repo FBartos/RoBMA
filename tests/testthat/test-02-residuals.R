@@ -401,6 +401,49 @@ test_that("brma.mv known-V residual diagnostics are internally consistent", {
   }
 })
 
+test_that("v14 brma.mv residual diagnostics return finite estimate-unit output", {
+
+  mv_names <- c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  )
+  skip_if_missing_fits(mv_names)
+
+  for (name in mv_names) {
+    fit_brma <- fits[[name]]
+    n        <- nobs(fit_brma)
+
+    expect_residual_vector(residuals(fit_brma), n, info = name)
+    expect_residual_vector(
+      residuals(fit_brma, conditioning_depth = "estimate"),
+      n,
+      info = name
+    )
+    expect_residual_vector(
+      residuals(fit_brma, type = "pearson"),
+      n,
+      info = name
+    )
+    expect_residual_table(rstandard(fit_brma), n, info = name)
+    expect_residual_table(
+      rstandard(fit_brma, conditioning_depth = "estimate"),
+      n,
+      info = name
+    )
+    expect_residual_table(suppressWarnings(rstudent(fit_brma)), n, info = name)
+
+    fit_missing <- fit_brma
+    fit_missing[["loo"]] <- NULL
+    expect_error(
+      rstudent(fit_missing),
+      "LOO has not been computed",
+      info = name
+    )
+  }
+})
+
 
 test_that("brma.mv known-V residual diagnostics match Schur and GLS oracles", {
 

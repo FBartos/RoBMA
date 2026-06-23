@@ -204,7 +204,8 @@ influence.brma <- function(model, ...) {
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    allow_missing_tau = .has_fixed_zero_tau_prior(model[["priors"]])
   )
   tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
 

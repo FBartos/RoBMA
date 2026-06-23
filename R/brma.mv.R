@@ -105,8 +105,9 @@
 #' summary(fit)
 #' }
 #'
-#' @seealso \code{\link{random_effect_formula_tags}}, [brma()], [summary.brma()],
-#'   [predict.brma()]
+#' @seealso \code{\link{random_effect_formula_tags}},
+#'   \code{\link{random_effect_prior_specification}}, [brma()],
+#'   [summary.brma()], [predict.brma()]
 #'
 #' @export
 brma.mv <- function(

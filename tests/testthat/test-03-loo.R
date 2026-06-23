@@ -169,7 +169,11 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     "brma.mv_latent",
     "brma.mv_whitened",
     "brma.mv_block_mvn",
-    "brma.mv_block_mvn_random_scale"
+    "brma.mv_block_mvn_fixed_random_null",
+    "brma.mv_block_mvn_random_scale",
+    "brma.mv_block_mvn_3lvl_scale_total",
+    "brma.mv_block_mvn_3lvl_scale_top",
+    "brma.mv_block_mvn_3lvl_scale_bottom"
   )
   skip_if_missing_fits(mv_names)
 
@@ -219,6 +223,75 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
       info = name
     )
   }
+})
+
+test_that("v14 brma.mv metafor fixtures cache usable estimate-unit LOO", {
+
+  mv_names <- c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  )
+  skip_if_missing_fits(mv_names)
+
+  for (name in mv_names) {
+    fit_brma <- fits[[name]]
+    log_lik  <- logLik(fit_brma)
+    target   <- attr(log_lik, "RoBMA_target", exact = TRUE)
+
+    expect_s3_class(log_lik, "logLik.brma")
+    expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
+    expect_true(all(is.finite(log_lik)), info = name)
+    expect_equal(target[["target"]], "known_v_estimate", info = name)
+    expect_true(isTRUE(target[["known_v_estimate_backend"]]), info = name)
+
+    loo_result <- suppressWarnings(loo(fit_brma))
+    loo_target <- attr(loo_result, "RoBMA_target", exact = TRUE)
+    weights    <- suppressWarnings(loo_weights(fit_brma))
+
+    expect_s3_class(loo_result, "loo")
+    expect_true(all(c("elpd_loo", "p_loo", "looic") %in%
+      rownames(loo_result[["estimates"]])), info = name)
+    expect_true(all(is.finite(loo_result[["estimates"]][, "Estimate"])),
+                info = name)
+    expect_equal(loo_target[["target"]], target[["target"]], info = name)
+    expect_true(isTRUE(loo_target[["known_v_estimate_backend"]]), info = name)
+    expect_true(is.matrix(weights), info = name)
+    expect_equal(dim(weights), dim(log_lik), info = name)
+    expect_equal(colSums(weights), rep(1, ncol(weights)), tolerance = 1e-10,
+                 info = name)
+  }
+})
+
+test_that("brma.mv estimate-unit LOO rejects unsupported and missing targets", {
+
+  mv_name      <- "brma.mv_block_mvn"
+  regular_name <- "bcg_meta-analysis"
+  skip_if_missing_fits(c(mv_name, regular_name))
+
+  fit_brma <- fits[[mv_name]]
+
+  expect_error(
+    logLik(fit_brma, unit = "cluster"),
+    "cluster"
+  )
+  expect_error(
+    add_loo(fit_brma, unit = "cluster"),
+    "cluster"
+  )
+
+  fit_missing <- fit_brma
+  fit_missing[["loo"]] <- NULL
+  expect_error(
+    loo(fit_missing),
+    "LOO has not been computed"
+  )
+
+  expect_error(
+    suppressWarnings(loo_compare(fit_brma, fits[[regular_name]])),
+    "same outcome target|same data|target"
+  )
 })
 
 

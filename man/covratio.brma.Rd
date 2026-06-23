@@ -40,9 +40,11 @@ variance), while values < 1 indicate that the observation decreases precision
 For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
 correlated known-\code{V} data, this is influence under conditional estimate
 deletion, not independent-study deletion.
-If any included parameter has zero posterior variance, or if a full or LOO
-covariance determinant is zero or non-finite, COVRATIO is undefined. In that
-case, values are reported as \code{NaN} with a printed note when available.
+Parameters with zero posterior variance are excluded from the covariance
+determinant and reported in a printed note when available. If no estimable
+parameters remain, or if a full or LOO covariance determinant is zero or
+non-finite after exclusion, COVRATIO is undefined and values are reported as
+\code{NaN}.
 }
 \examples{
 \dontrun{

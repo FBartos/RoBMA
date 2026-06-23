@@ -181,7 +181,8 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    allow_missing_tau = .has_fixed_zero_tau_prior(object[["priors"]])
   )
 
   samples_list <- .summary_heterogeneity_samples(

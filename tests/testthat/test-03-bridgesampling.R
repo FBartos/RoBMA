@@ -35,6 +35,7 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
     "brma.mv_latent",
     "brma.mv_whitened",
     "brma.mv_block_mvn",
+    "brma.mv_block_mvn_fixed_random_null",
     "brma.mv_block_mvn_random",
     "brma.mv_latent_estimate_scale",
     "brma.mv_block_mvn_estimate_scale"
@@ -52,6 +53,7 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
   )
   backend_logml        <- numeric()
   estimate_scale_logml <- numeric()
+  same_models          <- list()
   for (name in mv_names) {
     set.seed(100)
     fit_brma <- add_marglik(load_fit(name, validate = FALSE))
@@ -71,6 +73,7 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
     )
     if (name %in% same_model_names) {
       backend_logml[[name]] <- logml(fit_brma)
+      same_models[[name]]   <- fit_brma
     }
     if (name %in% estimate_scale_names) {
       estimate_scale_logml[[name]] <- logml(fit_brma)
@@ -78,6 +81,29 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
   }
   expect_lt(diff(range(backend_logml)), 0.50)
   expect_lt(diff(range(estimate_scale_logml)), 0.75)
+
+  bf_result <- bf(
+    same_models[["brma.mv_latent"]],
+    same_models[["brma.mv_whitened"]]
+  )
+  bf_alias <- bayes_factor(
+    same_models[["brma.mv_latent"]],
+    same_models[["brma.mv_block_mvn"]]
+  )
+  pp_result <- post_prob(
+    same_models[["brma.mv_latent"]],
+    same_models[["brma.mv_whitened"]],
+    same_models[["brma.mv_block_mvn"]],
+    model_names = names(same_models)
+  )
+
+  expect_s3_class(bf_result, "bf_default")
+  expect_s3_class(bf_alias, "bf_default")
+  expect_true(is.finite(bf_result[["bf"]]))
+  expect_true(is.finite(bf_alias[["bf"]]))
+  expect_equal(length(pp_result), length(same_models))
+  expect_true(all(is.finite(pp_result)))
+  expect_equal(sum(pp_result), 1, tolerance = sqrt(.Machine$double.eps))
 })
 
 test_that("add_marglik computes bridge sampling for marginalized random allocation", {
@@ -93,6 +119,41 @@ test_that("add_marglik computes bridge sampling for marginalized random allocati
   expect_equal(target[["reported_target"]], "full joint fitted likelihood")
 })
 
+test_that("v14 brma.mv metafor fixtures cache usable marginal likelihoods", {
+
+  mv_names <- c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  )
+  skip_if_missing_fits(mv_names)
+
+  for (name in mv_names) {
+    fit_brma <- fits[[name]]
+    bridge   <- bridge_sampler(fit_brma)
+    target   <- attr(bridge, "RoBMA_target", exact = TRUE)
+
+    expect_true(inherits(bridge, "bridge"), info = name)
+    expect_true(is.finite(logml(fit_brma)), info = name)
+    expect_true(is.finite(bridge[["mcse_logml"]]), info = name)
+    expect_true(bridge[["mcse_logml"]] < 1, info = name)
+    expect_equal(target[["reported_target"]], "full joint fitted likelihood",
+                 info = name)
+    expect_true(isTRUE(target[["known_v"]]), info = name)
+    expect_equal(
+      target[["known_v_parameterization"]],
+      .data_known_v_data(fit_brma[["data"]])[["parameterization"]],
+      info = name
+    )
+    expect_equal(
+      target[["known_v_parameterization_requested"]],
+      .data_known_v_data(fit_brma[["data"]])[["parameterization_requested"]],
+      info = name
+    )
+  }
+})
+
 test_that("bridge sampling marginal likelihood is close to BIC for metafor-reference fits", {
 
   metafor_names <- list_fits(has_marglik = TRUE, has_metafor = TRUE)
@@ -102,9 +163,6 @@ test_that("bridge sampling marginal likelihood is close to BIC for metafor-refer
     # the marginal likelihood and BIC-based marglik are close
     # (the analyses don't use unit information priors but the
     #  difference should not be large)
-    BIC_metafor <- BIC(info[[name]][["metafor"]])
-    marglik     <- logml(fits[[name]])
-
     if (name %in% c("bcg_glmm", "nielweise2008_glmm", "bcg_glmm_reg")) {
       next
     } # skip glmm because of marginalization differences
@@ -112,6 +170,12 @@ test_that("bridge sampling marginal likelihood is close to BIC for metafor-refer
     if (name %in% c("bcg_meta-regression", "bcg_meta-regression2", "bcg_meta-regression3", "bcg_meta-regression3b", "bcg_meta-regression4", "bcg_meta-regression4b")) {
       next
     } # skip because of scaled priors differences
+    if (inherits(fits[[name]], "brma.mv")) {
+      next
+    } # skip because brma.mv marginal likelihood targets the full known-V joint likelihood
+
+    BIC_metafor <- BIC(info[[name]][["metafor"]])
+    marglik     <- logml(fits[[name]])
 
     expect_equal(-BIC_metafor / 2, marglik, tolerance = 0.15)
   }
@@ -229,15 +293,18 @@ test_that("post_prob rejects single model", {
 
 test_that("bridge_sampler rejects fits without marginal likelihood", {
 
-  skip_if_missing_fits("bcg_meta-analysis")
+  model_names <- c("bcg_meta-analysis", "brma.mv_block_mvn_fixed_random_null")
+  skip_if_missing_fits(model_names)
 
-  # create a fit without marglik
-  fit_brma <- fits[["bcg_meta-analysis"]]
-  fit_brma[["marglik"]] <- NULL
-  expect_error(
-    bridge_sampler(fit_brma),
-    "add_marglik"
-  )
+  for (name in model_names) {
+    fit_brma <- load_fit(name, validate = FALSE)
+    fit_brma[["marglik"]] <- NULL
+    expect_error(
+      bridge_sampler(fit_brma),
+      "add_marglik",
+      info = name
+    )
+  }
 })
 
 test_that("add_marglik rejects product-space model-averaging objects", {

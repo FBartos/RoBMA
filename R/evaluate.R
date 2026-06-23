@@ -47,6 +47,22 @@
   return(suppressWarnings(coda::as.mcmc(fit)))
 }
 
+.is_zero_point_prior <- function(prior) {
+
+  !is.null(prior) &&
+    BayesTools::is.prior.point(prior) &&
+    isTRUE(all.equal(mean(prior), 0))
+}
+
+.has_fixed_zero_tau_prior <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(FALSE)
+  }
+
+  return(.is_zero_point_prior(priors[["outcome"]][["tau"]]))
+}
+
 
 # ---------------------------------------------------------------------------- #
 # .extract_posterior_matrix
@@ -187,7 +203,8 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.tau <- function(fit, scale_data, scale_formula, scale_priors,
                                is_scale, is_multilevel, K,
-                               posterior_samples = NULL) {
+                               posterior_samples = NULL,
+                               allow_missing_tau = FALSE) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)  # number of posterior samples
@@ -214,10 +231,30 @@
 
   } else {
 
-    # simple model: extract tau column and replicate to K columns
-    # matrix(vec, nrow = S, ncol = K) replicates vec across columns
-    # equivalent to: for (k in 1:K) result[, k] <- posterior_samples[, "tau"]
-    tau_samples <- matrix(posterior_samples[, "tau"], nrow = S, ncol = K)
+    tau_parameter <- .extract_indexed_parameter_samples(
+      posterior_samples = posterior_samples,
+      parameter         = "tau",
+      required          = FALSE
+    )
+    if (is.null(tau_parameter)) {
+      if (!isTRUE(allow_missing_tau) &&
+          !any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+        stop("Missing posterior tau columns.", call. = FALSE)
+      }
+      tau_samples <- matrix(0, nrow = S, ncol = K)
+    } else if (ncol(tau_parameter) == 1L) {
+      # simple model: extract tau column and replicate to K columns
+      # matrix(vec, nrow = S, ncol = K) replicates vec across columns
+      # equivalent to: for (k in 1:K) result[, k] <- tau_parameter[, 1]
+      tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = K)
+    } else if (ncol(tau_parameter) == K) {
+      tau_samples <- tau_parameter
+    } else {
+      stop(
+        "Posterior tau samples must be scalar or row-wise.",
+        call. = FALSE
+      )
+    }
 
   }
 

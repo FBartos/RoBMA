@@ -77,7 +77,8 @@
 #' random-effect block name used by `BayesTools::prior_random()` block
 #' overrides.
 #'
-#' @seealso [brma.mv()], [BayesTools::random_effects_formula()],
+#' @seealso [brma.mv()], \code{\link{random_effect_prior_specification}},
+#'   [BayesTools::random_effects_formula()],
 #'   [BayesTools::random_covariance()], [BayesTools::prior_random()]
 #'
 #' @examples

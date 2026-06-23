@@ -22,6 +22,21 @@
 }
 
 
+.diagnostic_excluded_zero_variance_note <- function(diagnostic, parameters,
+                                                    variance = "posterior") {
+
+  parameters <- paste(parameters, collapse = ", ")
+  return(paste0(
+    diagnostic,
+    " excluded parameter(s) ",
+    parameters,
+    " because the ",
+    variance,
+    " variance is zero."
+  ))
+}
+
+
 .diagnostic_with_note <- function(x, class, note) {
 
   attr(x, "note") <- note

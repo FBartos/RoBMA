@@ -41,6 +41,31 @@ skip_refit_if_cached("brma.mv")
   )
 }
 
+.brma_mv_metafor_fit_args <- function(seed) {
+
+  list(
+    chains             = 2,
+    sample             = 1200,
+    burnin             = 1200,
+    adapt              = 2000,
+    seed               = seed,
+    silent             = TRUE,
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL,
+      min_ESS  = NULL
+    )
+  )
+}
+
+.brma_mv_add_cached_diagnostics <- function(fit, seed) {
+
+  set.seed(seed)
+  fit <- add_marglik(fit)
+  fit <- suppressWarnings(add_loo(fit))
+
+  return(fit)
+}
+
 .brma_mv_model_syntax <- function(fit) {
 
   syntax <- fit[["fit"]][["model_syntax"]]
@@ -279,6 +304,138 @@ test_that("brma.mv fits known-V backend smoke models", {
     info = list(data = dat, V = V, scale = "x")
   )
 
+  fit_3lvl_scale_total <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    data                      = dat,
+    random                    = list(total = ~ 1 | study / effect),
+    scale                     = ~ x,
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  scale_total_syntax <- .brma_mv_model_syntax(fit_3lvl_scale_total)
+  expect_s3_class(fit_3lvl_scale_total, "brma.mv")
+  expect_true(.is_random(fit_3lvl_scale_total))
+  expect_true(.is_scale(fit_3lvl_scale_total))
+  expect_true(.summary_random_components_enabled(fit_3lvl_scale_total))
+  expect_equal(
+    .data_scale_formula_parameters(fit_3lvl_scale_total[["data"]]),
+    c(tau = "log_tau")
+  )
+  expect_equal(
+    .data_scale_formula_sources(fit_3lvl_scale_total[["data"]]),
+    c(tau = "tau")
+  )
+  expect_true(any(grepl("(log_tau) x", rownames(fit_3lvl_scale_total[["summary"]]),
+                        fixed = TRUE)))
+  expect_match(scale_total_syntax, "tau\\[i\\] = exp\\(log_tau\\[i\\]\\)")
+  expect_match(scale_total_syntax, "mu__xRE_ALLOCx_total__weight", fixed = TRUE)
+  fit_3lvl_scale_total <- suppressWarnings(add_loo(fit_3lvl_scale_total))
+  expect_s3_class(fit_3lvl_scale_total[["loo"]][["estimate"]], "loo")
+  save_fit(
+    "brma.mv_block_mvn_3lvl_scale_total",
+    fit_3lvl_scale_total,
+    info = list(data = dat, V = V, random = "study/effect", scale = "total")
+  )
+
+  fit_3lvl_scale_top <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    data                      = dat,
+    random                    = list(study = ~ 1 | study, effect = ~ 1 | study:effect),
+    scale                     = list(study = ~ x, effect = ~ 1),
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  scale_top_syntax <- .brma_mv_model_syntax(fit_3lvl_scale_top)
+  expect_s3_class(fit_3lvl_scale_top, "brma.mv")
+  expect_true(.is_random(fit_3lvl_scale_top))
+  expect_true(.is_scale(fit_3lvl_scale_top))
+  expect_equal(
+    .data_scale_formula_parameters(fit_3lvl_scale_top[["data"]]),
+    c(study = "log_tau_study", effect = "log_tau_effect")
+  )
+  expect_equal(
+    .data_scale_formula_sources(fit_3lvl_scale_top[["data"]]),
+    c(study = "tau_study", effect = "tau_effect")
+  )
+  expect_true(any(grepl("(log_tau_study) x", rownames(fit_3lvl_scale_top[["summary"]]),
+                        fixed = TRUE)))
+  expect_true(any(grepl("(log_tau_effect) intercept", rownames(fit_3lvl_scale_top[["summary"]]),
+                        fixed = TRUE)))
+  expect_false(any(grepl("(log_tau_effect) x", rownames(fit_3lvl_scale_top[["summary"]]),
+                         fixed = TRUE)))
+  expect_match(scale_top_syntax, "tau_study\\[i\\] = exp\\(log_tau_study\\[i\\]\\)")
+  expect_match(scale_top_syntax, "tau_effect\\[i\\] = exp\\(log_tau_effect\\[i\\]\\)")
+  fit_3lvl_scale_top <- suppressWarnings(add_loo(fit_3lvl_scale_top))
+  expect_s3_class(fit_3lvl_scale_top[["loo"]][["estimate"]], "loo")
+  save_fit(
+    "brma.mv_block_mvn_3lvl_scale_top",
+    fit_3lvl_scale_top,
+    info = list(data = dat, V = V, random = c("study", "study:effect"), scale = "study")
+  )
+
+  fit_3lvl_scale_bottom <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    data                      = dat,
+    random                    = list(study = ~ 1 | study, effect = ~ 1 | study:effect),
+    scale                     = list(study = ~ 1, effect = ~ x),
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  scale_bottom_syntax <- .brma_mv_model_syntax(fit_3lvl_scale_bottom)
+  expect_s3_class(fit_3lvl_scale_bottom, "brma.mv")
+  expect_true(.is_random(fit_3lvl_scale_bottom))
+  expect_true(.is_scale(fit_3lvl_scale_bottom))
+  expect_equal(
+    .data_scale_formula_parameters(fit_3lvl_scale_bottom[["data"]]),
+    c(study = "log_tau_study", effect = "log_tau_effect")
+  )
+  expect_equal(
+    .data_scale_formula_sources(fit_3lvl_scale_bottom[["data"]]),
+    c(study = "tau_study", effect = "tau_effect")
+  )
+  expect_true(any(grepl("(log_tau_study) intercept", rownames(fit_3lvl_scale_bottom[["summary"]]),
+                        fixed = TRUE)))
+  expect_false(any(grepl("(log_tau_study) x", rownames(fit_3lvl_scale_bottom[["summary"]]),
+                         fixed = TRUE)))
+  expect_true(any(grepl("(log_tau_effect) x", rownames(fit_3lvl_scale_bottom[["summary"]]),
+                        fixed = TRUE)))
+  expect_match(scale_bottom_syntax, "tau_study\\[i\\] = exp\\(log_tau_study\\[i\\]\\)")
+  expect_match(scale_bottom_syntax, "tau_effect\\[i\\] = exp\\(log_tau_effect\\[i\\]\\)")
+  fit_3lvl_scale_bottom <- suppressWarnings(add_loo(fit_3lvl_scale_bottom))
+  expect_s3_class(fit_3lvl_scale_bottom[["loo"]][["estimate"]], "loo")
+  save_fit(
+    "brma.mv_block_mvn_3lvl_scale_bottom",
+    fit_3lvl_scale_bottom,
+    info = list(data = dat, V = V, random = c("study", "study:effect"), scale = "effect")
+  )
+
   fit_block_mods <- brma.mv(
     yi                        = yi,
     V                         = V,
@@ -331,5 +488,284 @@ test_that("brma.mv fits known-V backend smoke models", {
     "brma.mv_block_mvn_random_mods_scale",
     fit_block_random_mods_scale,
     info = list(data = dat, V = V, mods = c("x", "z"), random = "study/effect", scale = "x")
+  )
+})
+
+test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
+
+  skip_if_not_installed("metafor")
+
+  smoke <- .brma_mv_smoke_data()
+  dat   <- smoke[["dat"]]
+  V     <- smoke[["V"]]
+  args  <- .brma_mv_fit_args()
+
+  fit_metafor <- metafor::rma.mv(
+    yi,
+    V      = V,
+    random = NULL,
+    data   = dat,
+    method = "ML"
+  )
+  fit_brma <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    data                      = dat,
+    random                    = NULL,
+    prior_heterogeneity       = BayesTools::prior(
+      distribution = "spike",
+      parameters   = list(location = 0)
+    ),
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  fixed_syntax <- .brma_mv_model_syntax(fit_brma)
+  expect_s3_class(fit_brma, "brma.mv")
+  expect_false(.is_random(fit_brma))
+  expect_false(any(grepl("__xRE", rownames(fit_brma[["summary"]]), fixed = TRUE)))
+  expect_match(fixed_syntax, "dknown_v_mnorm", fixed = TRUE)
+  fit_brma <- suppressWarnings(add_loo(fit_brma))
+  expect_s3_class(fit_brma[["loo"]][["estimate"]], "loo")
+  save_fit(
+    "brma.mv_block_mvn_fixed_random_null",
+    fit_brma,
+    info = list(
+      metafor = fit_metafor,
+      data    = dat,
+      V       = V
+    )
+  )
+})
+
+test_that("brma.mv fits v14 metafor parity models", {
+
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  data("dat.konstantopoulos2011", package = "metadat")
+  dat_konstantopoulos <- dat.konstantopoulos2011
+  fit1_metafor <- metafor::rma.mv(
+    yi,
+    vi,
+    random = ~ school | district,
+    struct = "CS",
+    data   = dat_konstantopoulos
+  )
+  args <- .brma_mv_metafor_fit_args(seed = 1)
+  fit1_brma <- brma.mv(
+    yi                 = yi,
+    V                  = vi,
+    measure            = "SMD",
+    random             = ~ cs(school | district),
+    data               = dat_konstantopoulos,
+    chains             = args[["chains"]],
+    sample             = args[["sample"]],
+    burnin             = args[["burnin"]],
+    adapt              = args[["adapt"]],
+    seed               = args[["seed"]],
+    silent             = args[["silent"]],
+    convergence_checks = args[["convergence_checks"]]
+  )
+  expect_s3_class(fit1_brma, "brma.mv")
+  fit1_brma <- .brma_mv_add_cached_diagnostics(fit1_brma, seed = 101)
+  save_fit(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    fit1_brma,
+    info = list(
+      metafor = fit1_metafor,
+      data    = dat_konstantopoulos
+    )
+  )
+
+  data("dat.assink2016", package = "metadat")
+  dat_assink <- dat.assink2016
+  V_assink   <- metafor::vcalc(
+    vi,
+    cluster = study,
+    type    = deltype,
+    obs     = esid,
+    rho     = c(0.7, 0.5),
+    data    = dat_assink
+  )
+  fit2_metafor <- metafor::rma.mv(
+    yi,
+    V_assink,
+    random = ~ 1 | study / esid,
+    data   = dat_assink
+  )
+  args <- .brma_mv_metafor_fit_args(seed = 2)
+  fit2_brma <- brma.mv(
+    yi                 = yi,
+    V                  = V_assink,
+    measure            = "SMD",
+    random             = ~ 1 | study / esid,
+    data               = dat_assink,
+    chains             = args[["chains"]],
+    sample             = args[["sample"]],
+    burnin             = args[["burnin"]],
+    adapt              = args[["adapt"]],
+    seed               = args[["seed"]],
+    silent             = args[["silent"]],
+    convergence_checks = args[["convergence_checks"]]
+  )
+  expect_s3_class(fit2_brma, "brma.mv")
+  fit2_brma <- .brma_mv_add_cached_diagnostics(fit2_brma, seed = 102)
+  save_fit(
+    "brma.mv_v14_assink2016_nested",
+    fit2_brma,
+    info = list(
+      metafor = fit2_metafor,
+      data    = dat_assink,
+      V       = V_assink
+    )
+  )
+
+  data("dat.ishak2007", package = "metadat")
+  dat_ishak <- dat.ishak2007
+  dat_ishak <- reshape(
+    dat_ishak,
+    direction = "long",
+    idvar     = "study",
+    v.names   = c("yi", "vi"),
+    varying   = list(c(2, 4, 6, 8), c(3, 5, 7, 9))
+  )
+  dat_ishak <- dat_ishak[order(dat_ishak$study, dat_ishak$time), ]
+  dat_ishak <- dat_ishak[!is.na(dat_ishak$yi), ]
+  rownames(dat_ishak) <- NULL
+  dat_ishak$time_factor <- factor(dat_ishak$time)
+  V_ishak <- metafor::vcalc(
+    vi,
+    cluster = study,
+    time1   = time,
+    phi     = 0.97,
+    data    = dat_ishak
+  )
+  fit3_metafor <- metafor::rma.mv(
+    yi,
+    V_ishak,
+    mods   = ~ 0 + time_factor,
+    random = ~ time | study,
+    struct = "HAR",
+    data   = dat_ishak
+  )
+  ishak_unit_information_sd <- estimate_unit_information_sd(
+    sei = sqrt(14.3),
+    ni  = 15
+  )
+  ishak_time_prior <- BayesTools::prior_factor(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = ishak_unit_information_sd),
+    contrast     = "independent"
+  )
+  args <- .brma_mv_metafor_fit_args(seed = 3)
+  fit3_brma <- brma.mv(
+    yi                        = yi,
+    V                         = V_ishak,
+    measure                   = "GEN",
+    mods                      = ~ 0 + time_factor,
+    random                    = ~ har(time | study),
+    prior_effect              = NULL,
+    prior_mods                = ishak_time_prior,
+    prior_unit_information_sd = ishak_unit_information_sd,
+    data                      = dat_ishak,
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  expect_s3_class(fit3_brma, "brma.mv")
+  fit3_brma <- .brma_mv_add_cached_diagnostics(fit3_brma, seed = 103)
+  save_fit(
+    "brma.mv_v14_ishak2007_har",
+    fit3_brma,
+    info = list(
+      metafor = fit3_metafor,
+      data    = dat_ishak,
+      V       = V_ishak
+    )
+  )
+
+  data("dat.begg1989", package = "metadat")
+  dat_begg <- dat.begg1989
+  dat_begg$trt <- relevel(factor(dat_begg$trt), ref = "CMO")
+  dat_begg$ni  <- as.numeric(round(with(dat_begg, yi * (1 - yi) / sei^2)))
+  fit4_metafor <- metafor::rma.mv(
+    yi,
+    vi,
+    mods   = ~ trt,
+    random = list(
+      ~ 1 | study,
+      ~ trt | study
+    ),
+    struct = "CS",
+    rho    = 0,
+    data   = dat_begg,
+    method = "ML"
+  )
+  begg_unit_information_sd <- estimate_unit_information_sd(
+    sei = dat_begg$sei,
+    ni  = dat_begg$ni
+  )
+  sd_prior <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = begg_unit_information_sd),
+    truncation   = list(lower = 0, upper = Inf)
+  )
+  rho_zero <- BayesTools::prior(
+    distribution = "spike",
+    parameters   = list(location = 0)
+  )
+  cs_zero <- BayesTools::random_covariance(
+    rho       = rho_zero,
+    rho_scale = "rho"
+  )
+  args <- .brma_mv_metafor_fit_args(seed = 4)
+  fit4_brma <- brma.mv(
+    yi                        = yi,
+    V                         = vi,
+    ni                        = ni,
+    measure                   = "GEN",
+    mods                      = ~ trt,
+    random                    = list(
+      study     = ~ 1 | study,
+      treatment = ~ cs(trt | study)
+    ),
+    prior_heterogeneity       = BayesTools::prior_random(
+      study     = BayesTools::random_block(sd = sd_prior),
+      treatment = BayesTools::random_block(
+        sd         = sd_prior,
+        covariance = cs_zero
+      )
+    ),
+    prior_unit_information_sd = begg_unit_information_sd,
+    data                      = dat_begg,
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = args[["seed"]],
+    silent                    = args[["silent"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  expect_s3_class(fit4_brma, "brma.mv")
+  fit4_brma <- .brma_mv_add_cached_diagnostics(fit4_brma, seed = 104)
+  save_fit(
+    "brma.mv_v14_begg1989_study_treatment",
+    fit4_brma,
+    info = list(
+      metafor = fit4_metafor,
+      data    = dat_begg
+    )
   )
 })

@@ -375,7 +375,8 @@
     is_scale          = .is_scale(x),
     is_multilevel     = .is_multilevel(x),
     K                 = nrow(x[["data"]][["outcome"]]),
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    allow_missing_tau = .has_fixed_zero_tau_prior(x[["priors"]])
   )
 
   return(rowMeans(tau_result[["tau_total"]]))

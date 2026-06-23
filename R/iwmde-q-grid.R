@@ -118,7 +118,8 @@
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
     K                 = K,
-    posterior_samples = samples
+    posterior_samples = samples,
+    allow_missing_tau = .has_fixed_zero_tau_prior(context[["object"]][["priors"]])
   )
 
   return(.log_lik_glmm_conditional_sum_from_evaluated_predictors(

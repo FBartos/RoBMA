@@ -191,6 +191,26 @@ test_that("plot_prior selects brma.mv location and component-scale priors", {
   expect_true("mu_mod_cont" %in% names(selected))
   expect_true("log_tau_study_scale_var" %in% names(selected))
   expect_true("log_tau_site_scale_var" %in% names(selected))
+  expect_s3_class(selected[["random"]], "prior_random")
+  expect_s3_class(
+    print_prior(mv_priors, parameter = "random", silent = TRUE),
+    "prior_random"
+  )
+  selected_random <- print_prior(
+    mv_priors,
+    parameter = c("mod_cont", "random"),
+    silent    = TRUE
+  )
+  expect_true(BayesTools::is.prior(selected_random[["mod_cont"]]))
+  expect_s3_class(selected_random[["random"]], "prior_random")
+  expect_error(
+    print_prior(mv_priors, parameter = "random", component = "scale", silent = TRUE),
+    "not available"
+  )
+  expect_error(
+    print_prior(mv_priors, parameter = "random", component = "nope", silent = TRUE),
+    "should be one of"
+  )
 
   expect_true(.is_ggplot(plot_prior(
     mv_priors,
@@ -205,6 +225,55 @@ test_that("plot_prior selects brma.mv location and component-scale priors", {
     component                 = "scale",
     standardized_coefficients = FALSE,
     plot_type                 = "ggplot"
+  )))
+})
+
+test_that("print_prior respects regular terms named random", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect  = test_data[["effect"]],
+    std_err = test_data[["std_err"]],
+    random  = test_data[["mod_cont"]],
+    study   = c("s1", "s1", "s2", "s2", "s3"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    mods                      = ~ random,
+    random                    = ~ 1 | study,
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  auto_selected <- print_prior(mv_priors, parameter = "random", silent = TRUE)
+  mods_selected <- print_prior(
+    mv_priors,
+    parameter = "random", component = "mods",
+    silent    = TRUE
+  )
+
+  expect_true(BayesTools::is.prior(auto_selected))
+  expect_true(BayesTools::is.prior(mods_selected))
+  expect_false(inherits(auto_selected, "prior_random"))
+  expect_false(inherits(mods_selected, "prior_random"))
+  expect_s3_class(
+    print_prior(mv_priors, parameter = "mu_random", silent = TRUE),
+    "prior"
+  )
+  expect_error(
+    print_prior(mv_priors, parameter = "random", component = "scale", silent = TRUE),
+    "not available"
+  )
+  expect_true(.is_ggplot(plot_prior(
+    mv_priors,
+    parameter = "random", component = "mods",
+    plot_type = "ggplot"
   )))
 })
 
@@ -236,6 +305,9 @@ test_that("plot_prior omits absent scalar scale priors for random brma.mv", {
   selected <- print_prior(mv_priors, silent = TRUE)
   expect_true("mu_intercept" %in% names(selected))
   expect_false("tau" %in% names(selected))
+  expect_s3_class(selected[["random"]], "prior_random")
+  full_printed <- capture.output(print_prior(mv_priors))
+  expect_true("random:" %in% full_printed)
   expect_error(
     print_prior(mv_priors, component = "scale", silent = TRUE),
     "does not contain scale priors"

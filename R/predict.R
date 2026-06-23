@@ -450,30 +450,41 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       is_scale          = is_scale,
       is_multilevel     = is_multilevel,
       K                 = K_original,
-      posterior_samples = posterior_samples
+      posterior_samples = posterior_samples,
+      allow_missing_tau = .has_fixed_zero_tau_prior(priors)
     )
     tau_within_samples  <- tau_result[["tau_within"]]
     tau_between_samples <- tau_result[["tau_between"]]
   }
 
   if (type == "terms.scale" && random_mv) {
-    if (!.is_data_scale(new_data)) {
-      stop(
-        "Component-scale prediction for brma.mv() random-formula models ",
-        "currently requires a scale formula.",
-        call. = FALSE
+    if (.is_data_scale(new_data)) {
+      scale_samples <- .evaluate.brma.scale_terms(
+        fit               = object[["fit"]],
+        data              = new_data,
+        priors            = priors,
+        posterior_samples = posterior_samples,
+        as_list           = TRUE
       )
+    } else {
+      scale_samples <- .brma_mv_random_heterogeneity_components(
+        object            = object,
+        posterior_samples = posterior_samples,
+        K                 = K_original
+      )
+      scale_samples <- lapply(scale_samples, function(component_samples) {
+        colnames(component_samples) <- paste0(
+          "tau[", seq_len(ncol(component_samples)), "]"
+        )
+        component_samples
+      })
     }
-    scale_samples <- .evaluate.brma.scale_terms(
-      fit               = object[["fit"]],
-      data              = new_data,
-      priors            = priors,
-      posterior_samples = posterior_samples,
-      as_list           = TRUE
-    )
     if (aggregate) {
       if (K_original > 1 && !quiet) {
-        message("Aggregated prediction averages scale terms across the scale model matrix (K = ", K_original, " observations).")
+        message(
+          "Aggregated prediction averages scale terms across prediction rows ",
+          "(K = ", K_original, " observations)."
+        )
       }
       scale_samples <- .evaluate.brma.aggregate_scale_terms_list(scale_samples)
       K <- 1L

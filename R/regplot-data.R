@@ -468,8 +468,9 @@
       } else {
         newdata[[var]] <- .regplot_representative_variable(
           original_location[[var]],
-          n_pred = n_pred,
-          name   = var
+          n_pred      = n_pred,
+          name        = var,
+          random_term = term
         )
       }
     }
@@ -479,7 +480,7 @@
 }
 
 
-.regplot_representative_variable <- function(x, n_pred, name) {
+.regplot_representative_variable <- function(x, n_pred, name, random_term = NULL) {
 
   if (is.null(x)) {
     stop(
@@ -487,6 +488,19 @@
       "variable '", name, "' is missing from the fitted data.",
       call. = FALSE
     )
+  }
+
+  term_levels <- NULL
+  term_type   <- NULL
+  if (!is.null(random_term)) {
+    term_levels <- random_term[["xlevels"]][[name]]
+    term_type   <- random_term[["model_terms_type"]][[name]]
+  }
+  if (!is.null(term_levels) || identical(term_type, "factor")) {
+    if (is.null(term_levels)) {
+      term_levels <- levels(factor(x))
+    }
+    return(factor(rep(term_levels[1L], n_pred), levels = term_levels))
   }
 
   if (is.factor(x)) {
@@ -830,7 +844,8 @@
         is_scale          = is_scale,
         is_multilevel     = is_multilevel,
         K                 = n_pred,
-        posterior_samples = posterior_samples
+        posterior_samples = posterior_samples,
+        allow_missing_tau = .has_fixed_zero_tau_prior(x[["priors"]])
       )
       tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
     }

@@ -102,6 +102,7 @@ fit_network <- brma.mv(
 }
 }
 \seealso{
-\code{\link[=brma.mv]{brma.mv()}}, \code{\link[BayesTools:random_effects_formula]{BayesTools::random_effects_formula()}},
+\code{\link[=brma.mv]{brma.mv()}}, \code{\link{random_effect_prior_specification}},
+\code{\link[BayesTools:random_effects_formula]{BayesTools::random_effects_formula()}},
 \code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}}, \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}}
 }

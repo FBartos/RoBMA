@@ -1,0 +1,576 @@
+context("brma.mv metafor references")
+
+source(testthat::test_path("common-functions.R"))
+
+skip_if_no_fits()
+skip_if_not_installed("metafor")
+
+mv_fixed_metafor_fit_name <- "brma.mv_block_mvn_fixed_random_null"
+mv_metafor_fit_names <- c(
+  "brma.mv_v14_konstantopoulos2011_cs",
+  "brma.mv_v14_assink2016_nested",
+  "brma.mv_v14_ishak2007_har",
+  "brma.mv_v14_begg1989_study_treatment"
+)
+
+fits <- lazy_fits(c(mv_fixed_metafor_fit_name, mv_metafor_fit_names),
+                  validate = FALSE)
+info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_metafor_fit_names),
+                   validate = FALSE)
+
+.mv_metafor <- function(name) {
+
+  info[[name]][["metafor"]]
+}
+
+.mv_summary_mean <- function(name, section, row) {
+
+  table <- summary(
+    fits[[name]],
+    include_mcmc_diagnostics = FALSE
+  )[[section]]
+
+  table[row, "Mean"]
+}
+
+.mv_heterogeneity_mean <- function(name, component, row) {
+
+  heterogeneity <- summary_heterogeneity(
+    fits[[name]],
+    component = component
+  )
+
+  heterogeneity[["estimates"]][row, "Mean"]
+}
+
+.expect_close_abs <- function(observed, expected, tolerance, label) {
+
+  expect_true(
+    is.finite(observed) && is.finite(expected) &&
+      abs(observed - expected) <= tolerance,
+    info = paste0(
+      label,
+      " | observed = ", signif(observed, 6),
+      ", expected = ", signif(expected, 6),
+      ", abs diff = ", signif(abs(observed - expected), 6),
+      ", tolerance = ", tolerance
+    )
+  )
+}
+
+.metafor_fixed_prediction <- function(fit_metafor) {
+
+  as.vector(fit_metafor[["X"]] %*% fit_metafor[["beta"]])
+}
+
+.metafor_marginal_residual <- function(fit_metafor) {
+
+  as.numeric(fit_metafor[["yi"]] - .metafor_fixed_prediction(fit_metafor))
+}
+
+.brma_fixed_prediction_mean <- function(fit_brma) {
+
+  colMeans(as.matrix(predict(
+    fit_brma,
+    newdata = NULL,
+    type    = "terms",
+    quiet   = TRUE
+  )))
+}
+
+.mv_sample_means <- function(samples) {
+
+  colMeans(as.matrix(samples))
+}
+
+.mv_posterior_subset <- function(fit_brma, n = 600) {
+
+  posterior_samples <- as.matrix(fit_brma[["fit"]][["mcmc"]])
+  posterior_samples[seq_len(min(n, nrow(posterior_samples))), , drop = FALSE]
+}
+
+test_that("fixed-effect brma.mv with random = NULL matches metafor", {
+
+  skip_if_missing_fits(mv_fixed_metafor_fit_name)
+
+  name        <- mv_fixed_metafor_fit_name
+  fit_brma    <- fits[[name]]
+  fit_metafor <- .mv_metafor(name)
+
+  brma_pred    <- .brma_fixed_prediction_mean(fit_brma)
+  metafor_pred <- .metafor_fixed_prediction(fit_metafor)
+  brma_blup    <- .mv_sample_means(blup(fit_brma))
+
+  expect_false(.is_random(fit_brma))
+  .expect_close_abs(
+    observed  = .mv_summary_mean(name, "estimates", 1L),
+    expected  = as.numeric(fit_metafor[["beta"]]),
+    tolerance = 0.05,
+    label     = paste(name, "fixed effect")
+  )
+  .expect_close_abs(
+    observed  = max(abs(brma_pred - metafor_pred)),
+    expected  = 0,
+    tolerance = 0.05,
+    label     = paste(name, "fixed fitted values")
+  )
+  expect_equal(
+    unname(fitted(fit_brma)),
+    unname(brma_pred),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(fitted(fit_brma, conditioning_depth = "estimate")),
+    unname(brma_blup),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(brma_blup),
+    unname(.mv_sample_means(true_effects(fit_brma))),
+    tolerance = 1e-12
+  )
+})
+
+test_that("v14 brma.mv fixed effects match metafor references", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  cases <- list(
+    list(
+      name      = "brma.mv_v14_konstantopoulos2011_cs",
+      rows      = "intercept",
+      expected  = function(m) as.numeric(m[["beta"]]),
+      tolerance = 0.05
+    ),
+    list(
+      name      = "brma.mv_v14_assink2016_nested",
+      rows      = "intercept",
+      expected  = function(m) as.numeric(m[["beta"]]),
+      tolerance = 0.05
+    ),
+    list(
+      name      = "brma.mv_v14_ishak2007_har",
+      rows      = paste0("time_factor[", 1:4, "]"),
+      expected  = function(m) as.numeric(m[["beta"]]),
+      tolerance = 0.75
+    ),
+    list(
+      name      = "brma.mv_v14_begg1989_study_treatment",
+      rows      = c("intercept", "trt[BMT]"),
+      expected  = function(m) as.numeric(m[["beta"]]),
+      tolerance = 0.05
+    )
+  )
+
+  for (case in cases) {
+      name     <- case[["name"]]
+      observed <- vapply(
+        case[["rows"]],
+        function(row) .mv_summary_mean(name, "estimates_mods", row),
+        numeric(1)
+      )
+    expected <- case[["expected"]](.mv_metafor(name))
+
+    for (i in seq_along(observed)) {
+      .expect_close_abs(
+        observed  = observed[[i]],
+        expected  = expected[[i]],
+        tolerance = case[["tolerance"]],
+        label     = paste(name, case[["rows"]][[i]], "fixed effect")
+      )
+    }
+  }
+})
+
+test_that("v14 brma.mv heterogeneity components match metafor references", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  cases <- list(
+    list(
+      name      = "brma.mv_v14_konstantopoulos2011_cs",
+      component = "district",
+      row       = "tau",
+      expected  = function(m) sqrt(m[["tau2"]]),
+      tolerance = 0.05
+    ),
+    list(
+      name      = "brma.mv_v14_assink2016_nested",
+      component = "study/esid",
+      row       = "tau",
+      expected  = function(m) sqrt(sum(m[["sigma2"]])),
+      tolerance = 0.05
+    ),
+    list(
+      name      = "brma.mv_v14_assink2016_nested",
+      component = "study",
+      row       = "tau",
+      expected  = function(m) sqrt(m[["sigma2"]][[1]]),
+      tolerance = 0.05
+    ),
+    list(
+      name      = "brma.mv_v14_assink2016_nested",
+      component = "esid_study",
+      row       = "tau",
+      expected  = function(m) sqrt(m[["sigma2"]][[2]]),
+      tolerance = 0.05
+    ),
+    list(
+      name      = "brma.mv_v14_assink2016_nested",
+      component = "study/esid",
+      row       = "var_frac(random_total: study)",
+      expected  = function(m) m[["sigma2"]][[1]] / sum(m[["sigma2"]]),
+      tolerance = 0.08
+    ),
+    list(
+      name      = "brma.mv_v14_assink2016_nested",
+      component = "study/esid",
+      row       = "var_frac(random_total: esid_study)",
+      expected  = function(m) m[["sigma2"]][[2]] / sum(m[["sigma2"]]),
+      tolerance = 0.08
+    ),
+    list(
+      name      = "brma.mv_v14_ishak2007_har",
+      component = "study",
+      row       = "sd(time[1] | study)",
+      expected  = function(m) sqrt(m[["tau2"]][[1]]),
+      tolerance = 0.75
+    ),
+    list(
+      name      = "brma.mv_v14_ishak2007_har",
+      component = "study",
+      row       = "sd(time[2] | study)",
+      expected  = function(m) sqrt(m[["tau2"]][[2]]),
+      tolerance = 0.75
+    ),
+    list(
+      name      = "brma.mv_v14_ishak2007_har",
+      component = "study",
+      row       = "sd(time[3] | study)",
+      expected  = function(m) sqrt(m[["tau2"]][[3]]),
+      tolerance = 0.75
+    ),
+    list(
+      name      = "brma.mv_v14_ishak2007_har",
+      component = "study",
+      row       = "sd(time[4] | study)",
+      expected  = function(m) sqrt(m[["tau2"]][[4]]),
+      tolerance = 0.75
+    ),
+    list(
+      name      = "brma.mv_v14_begg1989_study_treatment",
+      component = "study",
+      row       = "tau",
+      expected  = function(m) sqrt(m[["sigma2"]][[1]]),
+      tolerance = 0.06
+    ),
+    list(
+      name      = "brma.mv_v14_begg1989_study_treatment",
+      component = "treatment",
+      row       = "tau",
+      expected  = function(m) sqrt(m[["tau2"]]),
+      tolerance = 0.06
+    )
+  )
+
+  for (case in cases) {
+    name     <- case[["name"]]
+    observed <- .mv_heterogeneity_mean(name, case[["component"]], case[["row"]])
+    expected <- case[["expected"]](.mv_metafor(name))
+
+    .expect_close_abs(
+      observed  = observed,
+      expected  = expected,
+      tolerance = case[["tolerance"]],
+      label     = paste(name, case[["component"]], case[["row"]])
+    )
+  }
+})
+
+test_that("v14 brma.mv heterogeneity component selectors expose expected names", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  expected <- list(
+    brma.mv_v14_konstantopoulos2011_cs        = "district",
+    brma.mv_v14_assink2016_nested             = c("study/esid", "esid_study", "study"),
+    brma.mv_v14_ishak2007_har                 = "study",
+    brma.mv_v14_begg1989_study_treatment      = c("study", "treatment")
+  )
+
+  for (name in mv_metafor_fit_names) {
+    fit_brma <- fits[[name]]
+    out_all  <- summary_heterogeneity(fit_brma, component = "all")
+
+    if (length(expected[[name]]) == 1L) {
+      expect_equal(names(out_all), "estimates", info = name)
+    } else {
+      expect_equal(names(out_all), expected[[name]], info = name)
+      total <- summary_heterogeneity(fit_brma, component = "total")
+      expect_equal(names(total), "estimates", info = paste(name, "total"))
+    }
+
+    for (component in expected[[name]]) {
+      selected <- summary_heterogeneity(fit_brma, component = component)
+      expect_equal(names(selected), "estimates",
+                   info = paste(name, component))
+    }
+    expect_error(
+      summary_heterogeneity(fit_brma, component = "missing"),
+      "Unknown|Available",
+      info = name
+    )
+  }
+})
+
+test_that("v14 brma.mv random-covariance parameters match metafor references", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  cases <- list(
+    list(
+      name      = "brma.mv_v14_konstantopoulos2011_cs",
+      row       = "rho(district)",
+      expected  = function(m) m[["rho"]],
+      tolerance = 0.12
+    ),
+    list(
+      name      = "brma.mv_v14_ishak2007_har",
+      row       = "rho(study)",
+      expected  = function(m) m[["rho"]],
+      tolerance = 0.12
+    ),
+    list(
+      name      = "brma.mv_v14_begg1989_study_treatment",
+      row       = "rho(study)",
+      expected  = function(m) m[["rho"]],
+      tolerance = 1e-12
+    )
+  )
+
+  for (case in cases) {
+    name     <- case[["name"]]
+    observed <- .mv_summary_mean(name, "estimates_random", case[["row"]])
+    expected <- case[["expected"]](.mv_metafor(name))
+
+    .expect_close_abs(
+      observed  = observed,
+      expected  = expected,
+      tolerance = case[["tolerance"]],
+      label     = paste(name, case[["row"]])
+    )
+  }
+})
+
+test_that("v14 brma.mv fixed fitted values and residuals match metafor references", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  tolerances <- c(
+    brma.mv_v14_konstantopoulos2011_cs        = 0.05,
+    brma.mv_v14_assink2016_nested             = 0.05,
+    brma.mv_v14_ishak2007_har                 = 0.75,
+    brma.mv_v14_begg1989_study_treatment      = 0.05
+  )
+
+  for (name in mv_metafor_fit_names) {
+    fit_brma    <- fits[[name]]
+    fit_metafor <- .mv_metafor(name)
+    tolerance   <- tolerances[[name]]
+
+    brma_pred    <- .brma_fixed_prediction_mean(fit_brma)
+    metafor_pred <- .metafor_fixed_prediction(fit_metafor)
+    brma_resid   <- residuals(
+      fit_brma,
+      type               = "outcome",
+      conditioning_depth = "marginal"
+    )
+    metafor_resid <- .metafor_marginal_residual(fit_metafor)
+
+    expect_equal(length(brma_pred), length(metafor_pred))
+    expect_equal(length(brma_resid), length(metafor_resid))
+
+    .expect_close_abs(
+      observed  = max(abs(brma_pred - metafor_pred)),
+      expected  = 0,
+      tolerance = tolerance,
+      label     = paste(name, "maximum fixed fitted-value difference")
+    )
+    .expect_close_abs(
+      observed  = max(abs(brma_resid - metafor_resid)),
+      expected  = 0,
+      tolerance = tolerance,
+      label     = paste(name, "maximum marginal residual difference")
+    )
+  }
+})
+
+test_that("v14 brma.mv ranef components track metafor references", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  cases <- list(
+    list(
+      name              = "brma.mv_v14_konstantopoulos2011_cs",
+      component         = "district",
+      metafor_component = "~school | district",
+      tolerance         = 0.08
+    ),
+    list(
+      name              = "brma.mv_v14_assink2016_nested",
+      component         = "study",
+      metafor_component = "study",
+      tolerance         = 0.08
+    ),
+    list(
+      name              = "brma.mv_v14_assink2016_nested",
+      component         = "esid_study",
+      metafor_component = "study/esid",
+      tolerance         = 0.08
+    ),
+    list(
+      name              = "brma.mv_v14_ishak2007_har",
+      component         = "study",
+      metafor_component = "~time | study",
+      tolerance         = 2.00,
+      rank              = 0.98
+    ),
+    list(
+      name              = "brma.mv_v14_begg1989_study_treatment",
+      component         = "study",
+      metafor_component = "study",
+      tolerance         = 0.08
+    ),
+    list(
+      name              = "brma.mv_v14_begg1989_study_treatment",
+      component         = "treatment",
+      metafor_component = "~trt | study",
+      tolerance         = 0.08
+    )
+  )
+
+  for (case in cases) {
+    name        <- case[["name"]]
+    fit_brma    <- fits[[name]]
+    fit_metafor <- .mv_metafor(name)
+    posterior   <- .mv_posterior_subset(fit_brma)
+
+    observed <- .mv_sample_means(ranef(
+      fit_brma,
+      component          = case[["component"]],
+      .posterior_samples = posterior
+    ))
+    expected <- metafor::ranef(
+      fit_metafor,
+      expand = TRUE
+    )[[case[["metafor_component"]]]][["intrcpt"]]
+
+    expect_equal(length(observed), length(expected), info = name)
+    expect_true(all(is.finite(observed)), info = name)
+    expect_true(all(is.finite(expected)), info = name)
+    .expect_close_abs(
+      observed  = max(abs(observed - expected)),
+      expected  = 0,
+      tolerance = case[["tolerance"]],
+      label     = paste(name, case[["component"]], "ranef maximum difference")
+    )
+    if (!is.null(case[["rank"]])) {
+      expect_true(
+        stats::cor(observed, expected, method = "spearman") > case[["rank"]],
+        info = paste(name, case[["component"]], "ranef rank correlation")
+      )
+    }
+  }
+})
+
+test_that("v14 brma.mv ranef, blup, and true_effects use consistent targets", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  expected_components <- list(
+    brma.mv_v14_konstantopoulos2011_cs        = "district",
+    brma.mv_v14_assink2016_nested             = c("esid_study", "study"),
+    brma.mv_v14_ishak2007_har                 = "study",
+    brma.mv_v14_begg1989_study_treatment      = c("study", "treatment")
+  )
+
+  for (name in mv_metafor_fit_names) {
+    fit_brma  <- fits[[name]]
+    posterior <- .mv_posterior_subset(fit_brma, n = 300)
+
+    terms    <- as.matrix(predict(
+      fit_brma,
+      type               = "terms",
+      quiet              = TRUE,
+      .posterior_samples = posterior
+    ))
+    estimate <- as.matrix(predict(
+      fit_brma,
+      type               = "estimate",
+      quiet              = TRUE,
+      .posterior_samples = posterior
+    ))
+    total <- as.matrix(ranef(
+      fit_brma,
+      component          = "total",
+      .posterior_samples = posterior
+    ))
+    components <- ranef(
+      fit_brma,
+      simplify           = FALSE,
+      .posterior_samples = posterior
+    )[["location"]]
+
+    expect_equal(names(components), expected_components[[name]], info = name)
+    expect_equal(
+      unname(total),
+      unname(Reduce(`+`, lapply(components, as.matrix))),
+      tolerance = 1e-12,
+      info      = paste(name, "total random effect")
+    )
+    expect_equal(
+      unname(total),
+      unname(estimate - terms),
+      tolerance = 1e-12,
+      info      = paste(name, "estimate minus terms")
+    )
+    expect_equal(
+      unname(as.matrix(blup(fit_brma, .posterior_samples = posterior))),
+      unname(as.matrix(true_effects(fit_brma, .posterior_samples = posterior))),
+      tolerance = 1e-12,
+      info      = paste(name, "blup true_effects alias")
+    )
+    expect_error(
+      ranef(fit_brma, component = "missing",
+            .posterior_samples = posterior),
+      "Unknown random-effect component"
+    )
+  }
+})
+
+test_that("v14 brma.mv hatvalues track metafor leverages", {
+
+  skip_if_missing_fits(mv_metafor_fit_names)
+
+  for (name in mv_metafor_fit_names) {
+    fit_brma    <- fits[[name]]
+    fit_metafor <- .mv_metafor(name)
+
+    brma_hat    <- suppressWarnings(hatvalues(fit_brma, max_samples = 200))
+    metafor_hat <- as.numeric(metafor::hatvalues.rma.mv(fit_metafor))
+
+    expect_equal(length(brma_hat), length(metafor_hat))
+    expect_true(all(is.finite(brma_hat)))
+    expect_true(all(is.finite(metafor_hat)))
+    expect_true(
+      stats::cor(brma_hat, metafor_hat, method = "spearman") > 0.85,
+      info = paste(name, "hatvalue rank correlation")
+    )
+    .expect_close_abs(
+      observed  = max(abs(brma_hat - metafor_hat)),
+      expected  = 0,
+      tolerance = 0.15,
+      label     = paste(name, "maximum hatvalue difference")
+    )
+  }
+})

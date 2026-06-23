@@ -229,8 +229,10 @@ void truncated_raw_moments(double lower, double upper, double mean, double sd,
     2 * mean * sd * tail_shift + sd * sd * second_shift;
 }
 
-double source_power_moment(double lower, double upper, double mean, double sd,
-                           double source_lower, double source_upper, int q)
+[[maybe_unused]] double source_power_moment(
+  double lower, double upper, double mean, double sd,
+  double source_lower, double source_upper, int q
+)
 {
   lower = std::max(lower, source_lower);
   upper = std::min(upper, source_upper);
@@ -259,8 +261,10 @@ double source_power_moment(double lower, double upper, double mean, double sd,
   return out < 0 && out > -1e-14 ? 0 : out;
 }
 
-double dest_power_moment(double lower, double upper, double mean, double sd,
-                         double dest_lower, double dest_upper, int q)
+[[maybe_unused]] double dest_power_moment(
+  double lower, double upper, double mean, double sd,
+  double dest_lower, double dest_upper, int q
+)
 {
   lower = std::max(lower, dest_lower);
   upper = std::min(upper, dest_upper);

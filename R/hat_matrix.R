@@ -77,8 +77,9 @@
     scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
     scale_priors  = priors[["scale"]],
     is_scale      = is_scale,
-    is_multilevel = is_multilevel,
-    K             = K
+    is_multilevel     = is_multilevel,
+    K                 = K,
+    allow_missing_tau = .has_fixed_zero_tau_prior(priors)
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]

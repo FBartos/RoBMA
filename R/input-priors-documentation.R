@@ -148,6 +148,8 @@
 #' `prior_heterogeneity`, `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation`
 #' arguments. These should be prior distribution objects created via `BayesTools::prior()`
 #' or related functions (e.g., `prior_factor()`).
+#' For `brma.mv()` random-effect formulas, see
+#' \code{\link{random_effect_prior_specification}}.
 #'
 #' ### Rescaling prior distributions
 #' The `rescale_priors` argument allows rescaling supported prior distributions by a
@@ -160,9 +162,152 @@
 #' \insertAllCited{}
 #'
 #' @seealso \code{\link{publication_bias_prior_specification}},
+#' \code{\link{random_effect_prior_specification}},
 #' \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}},
 #' \code{\link{brma}}
 #' @aliases prior_specification
+NULL
+
+
+#' @title Random-effect prior specification
+#' @name random_effect_prior_specification
+#'
+#' @description
+#' Random-effect prior distributions are used by \code{\link{brma.mv}} when
+#' `random` is supplied. The `random` formula describes the grouping variables,
+#' coefficient design, and covariance structure. The `prior_heterogeneity`
+#' argument supplies the standard-deviation, correlation, allocation, and
+#' monitoring policy for the parsed random-effect blocks.
+#'
+#' If `prior_heterogeneity` is omitted, RoBMA constructs a
+#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object
+#' automatically. If it is an ordinary positive prior distribution, RoBMA uses
+#' it as the base standard-deviation prior distribution and keeps the default
+#' random-effect allocation rules. If it is a
+#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object, it
+#' is used as the full random-effect prior specification.
+#'
+#' @param random an optional formula or list of formulas specifying
+#' BayesTools random-effect terms for \code{\link{brma.mv}}. See
+#' \code{\link{random_effect_formula_tags}} for the formula syntax.
+#' @param prior_heterogeneity prior distribution for residual heterogeneity.
+#' In random-formula \code{\link{brma.mv}} models, an ordinary positive prior
+#' distribution changes the base or total random-effect standard-deviation
+#' prior distribution; a
+#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} object
+#' replaces the full random-effect prior specification.
+#' @param scale an optional formula or named list of formulas specifying
+#' location-scale predictors. With random-effect formulas, `scale` models the
+#' row-wise total random-effect standard deviation consumed by a random-effect
+#' component.
+#' @param prior_scale prior distribution for scale-regression coefficients.
+#' A single prior applies to all terms; a named list can specify term-specific
+#' priors. If omitted or `NULL`, default priors are used.
+#' @param prior_unit_information_sd numeric. The unit information standard
+#' deviation used to construct the default base heterogeneity prior distribution.
+#' @param rescale_priors numeric. A scaling factor for supported prior
+#' distributions. It rescales the base heterogeneity prior distribution before
+#' RoBMA constructs the random-effect prior specification.
+#'
+#' @details
+#' ## Formula structure and component names
+#'
+#' The `random` argument controls the random-effect design. Plain random
+#' intercept syntax, such as `random = ~ 1 | study`, defines one homogeneous
+#' random-effect block. Nested syntax, such as `random = ~ 1 | study / esid`,
+#' defines multiple blocks. Structure tags such as `cs()`, `hcs()`, `ar1()`,
+#' `har()`, and `us()` define random coefficients and covariance structures;
+#' see \code{\link{random_effect_formula_tags}}.
+#'
+#' A named list of formulas defines top-level random-effect components:
+#' \preformatted{
+#' random = list(
+#'   study   = ~ 1 | study,
+#'   outcome = ~ 1 | outcome
+#' )
+#' }
+#' These names are used by summaries and by component-specific `scale` models.
+#' For custom \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}}
+#' objects, match block overrides to the block names shown by
+#' `print_prior(fit, parameter = "random")`.
+#'
+#' ## Default random-effect prior distributions
+#'
+#' RoBMA first constructs the base heterogeneity standard-deviation prior
+#' distribution as described in \code{\link{prior_specification}}. The base
+#' prior distribution follows the same `measure`, `ni`,
+#' `prior_unit_information_sd`, informed-prior, and `rescale_priors` rules as
+#' the standard random effects meta-analysis
+#'
+#' The random-effect structure determines how this base prior distribution is
+#' used:
+#' \itemize{
+#'   \item A single homogeneous standard deviation receives the base prior
+#'   distribution directly.
+#'   \item Multiple homogeneous blocks share one total standard-deviation prior
+#'   distribution and a symmetric Dirichlet allocation prior distribution over
+#'   variance fractions. If \eqn{w_j} is a variance fraction, the component
+#'   standard deviation is \eqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{w_j}}.
+#'   \item A heterogeneous block with \eqn{q} standard-deviation components uses
+#'   a symmetric Dirichlet allocation prior distribution with
+#'   `scale = "mean_variance"`. If \eqn{w_j} is the allocation weight, the
+#'   component standard deviation is
+#'   \eqn{\sigma_j = \sigma_{\mathrm{total}}\sqrt{q w_j}}. Equal weights keep
+#'   each component on the total-standard-deviation scale.
+#' }
+#'
+#' The default correlation prior distributions depend on the formula structure:
+#' \tabular{lll}{
+#' Random-effect structure \tab SD parameters \tab Default correlation prior distribution \cr
+#' plain `1 | group`, `id()` \tab one shared SD \tab none \cr
+#' `diag()` or `||` \tab one SD per coefficient \tab none \cr
+#' `cs()`, `ar1()`, `car()` \tab one shared SD \tab `Beta(1, 1)` on raw \eqn{\rho} \cr
+#' `hcs()`, `har()` \tab one SD per coefficient \tab `Beta(1, 1)` on raw \eqn{\rho} \cr
+#' `us()` / `un()` \tab one SD per coefficient \tab `LKJ(1)` correlation matrix
+#' }
+#' Correlation prior distributions are only added when the resolved block has
+#' more than one random coefficient.
+#'
+#' ## Custom random-effect prior distributions
+#'
+#' The simplest customization is to pass an ordinary positive prior distribution
+#' to `prior_heterogeneity`. RoBMA then keeps the default random-effect
+#' allocation and covariance rules but uses that prior distribution as the base
+#' standard-deviation prior distribution.
+#'
+#' For full control, pass
+#' `prior_heterogeneity = BayesTools::prior_random(...)`. This can set global
+#' standard-deviation defaults, block-specific
+#' \code{\link[BayesTools:prior_random]{BayesTools::random_block()}} overrides,
+#' covariance prior distributions via
+#' \code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}}, and
+#' total-standard-deviation allocations via
+#' \code{\link[BayesTools:prior_random]{BayesTools::random_variance_allocation()}}.
+#' See \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} for the
+#' generic random-effect prior constructors and use
+#' \code{vignette("v14-metafor-parity-multivariate", package = "RoBMA")} for
+#' worked `brma.mv()` examples.
+#'
+#' ## Location-scale random-effect models
+#'
+#' When `scale` is used together with `random`, the scale model targets the
+#' row-wise total random-effect standard deviation. With one top-level
+#' random-effect component, a single `scale` formula is unambiguous. With
+#' multiple top-level random-effect components, `scale` must be a named list
+#' whose names match the random-effect components. The random-effect allocation
+#' rules then split the row-wise standard-deviation source rather than a scalar
+#' total standard-deviation parameter.
+#'
+#' @seealso
+#' \code{\link{prior_specification}},
+#' \code{\link{random_effect_formula_tags}},
+#' \code{\link{brma.mv}},
+#' \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}},
+#' \code{\link[BayesTools:prior_random]{BayesTools::random_block()}},
+#' \code{\link[BayesTools:prior_random]{BayesTools::random_covariance()}},
+#' \code{\link[BayesTools:prior_random]{BayesTools::random_variance_allocation()}}
+#'
+#' @aliases random_effect_prior_specification random_prior_specification
 NULL
 
 

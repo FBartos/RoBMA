@@ -37,6 +37,24 @@ test_that("COVRATIO note objects print and preserve numeric values", {
 })
 
 
+test_that("COVRATIO exclusion notes print and preserve numeric values", {
+
+  x <- RoBMA:::.diagnostic_with_note(
+    c(.9, 1.1),
+    class = "covratio.brma",
+    note  = RoBMA:::.diagnostic_excluded_zero_variance_note(
+      diagnostic = "COVRATIO",
+      parameters = "rho",
+      variance   = "posterior"
+    )
+  )
+
+  expect_s3_class(x, "covratio.brma")
+  expect_equal(as.numeric(x), c(.9, 1.1))
+  expect_true(any(grepl("Note: COVRATIO excluded parameter", capture.output(print(x)))))
+})
+
+
 test_that("Diagnostic label helpers preserve study labels and repair invalid row names", {
 
   object <- brma.norm(

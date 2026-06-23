@@ -564,6 +564,33 @@
   return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
 }
 
+.select_print_prior_parameter <- function(
+    object, parameter, parameter_mods, parameter_scale,
+    component = "auto", allow_mixed_bias = FALSE) {
+
+  component <- .parameter_component_normalize(component)
+  if (is.null(parameter_mods) && is.null(parameter_scale) &&
+      !is.null(parameter) && identical(parameter, "random")) {
+    catalog <- .brma_parameter_catalog(object)
+    matches <- catalog[catalog[["alias"]] == parameter, , drop = FALSE]
+    if (!identical(component, "auto")) {
+      matches <- matches[matches[["component"]] == component, , drop = FALSE]
+    }
+    if (nrow(matches) == 0L && identical(component, "auto")) {
+      return(.select_print_prior_random(object))
+    }
+  }
+
+  .select_plot_prior_parameter(
+    object           = object,
+    parameter        = parameter,
+    parameter_mods   = parameter_mods,
+    parameter_scale  = parameter_scale,
+    component        = component,
+    allow_mixed_bias = allow_mixed_bias
+  )
+}
+
 .select_plot_prior_entry <- function(object, entry, allow_mixed_bias = FALSE) {
 
   priors            <- object[["priors"]]
@@ -742,7 +769,35 @@
     selected[[selected_entry[["label"]]]] <- selected_entry
   }
 
+  if (.has_print_prior_random(object)) {
+    selected[["random"]] <- .select_print_prior_random(object)
+  }
+
   return(selected)
+}
+
+.has_print_prior_random <- function(object) {
+
+  inherits(object[["priors"]][["random"]], "prior_random")
+}
+
+.select_print_prior_random <- function(object) {
+
+  if (!.has_print_prior_random(object)) {
+    stop(
+      "The specified parameter 'random' is not available. ",
+      "The object does not contain random-effect priors.",
+      call. = FALSE
+    )
+  }
+
+  list(
+    prior             = object[["priors"]][["random"]],
+    label             = "random",
+    source            = "random",
+    term              = "random",
+    formula_parameter = NA_character_
+  )
 }
 
 .print_prior_object <- function(x, label = NULL, ...) {

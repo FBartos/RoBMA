@@ -300,15 +300,22 @@ test_that("fit catalog is internally consistent", {
                info = "fit catalog names must be unique")
   expect_true(all(file.exists(testthat::test_path(catalog[["source_file"]]))),
               info = "all catalog source files must exist")
-  expect_equal(catalog[["name"]][!catalog[["has_loo"]]],
-               "brma.mv_block_mvn_random_mods_scale",
-               info = "only VIF-only random-formula brma.mv cache omits pre-computed LOO")
+  no_loo_fits <- c("brma.mv_block_mvn_random_mods_scale")
+  expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
+               info = "selected brma.mv cache fixtures omit pre-computed LOO")
   expect_true(all(!catalog[["has_waic"]]),
               info = "WAIC is not pre-computed for cached test fits")
   expect_true(all(!catalog[catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "RoBMA"), "has_marglik"]),
               info = "product-space model averaging fits must not cache marginal likelihoods")
-  expect_true(all(!catalog[catalog[["class"]] == "brma.mv", "has_marglik"]),
-              info = "brma.mv cached test fits do not pre-compute marginal likelihoods")
+  v14_marglik_fits <- c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment"
+  )
+  expect_equal(catalog[["name"]][catalog[["class"]] == "brma.mv" & catalog[["has_marglik"]]],
+               v14_marglik_fits,
+               info = "only v14 brma.mv cache fixtures pre-compute marginal likelihoods")
   expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "RoBMA", "brma.mv"), "has_marglik"]),
               info = "implemented single-model cached fits include marginal likelihoods")
   expect_true(all(catalog[catalog[["class"]] %in% c("brma.glmm", "BMA.glmm"), "family"] == "glmm"),

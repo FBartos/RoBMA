@@ -1019,7 +1019,8 @@
     is_scale          = .is_data_scale(data),
     is_multilevel     = .is_data_multilevel(data),
     K                 = nrow(data[["outcome"]]),
-    posterior_samples = samples
+    posterior_samples = samples,
+    allow_missing_tau = .has_fixed_zero_tau_prior(context[["object"]][["priors"]])
   ))
 }
 

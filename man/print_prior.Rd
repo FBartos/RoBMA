@@ -33,8 +33,10 @@ Common options are \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"},
 \code{"effect"} = \code{"mu"}, \code{"heterogeneity"} = \code{"tau"},
 and \code{"weightfunction"} = \code{"omega"}. GLMM outcome priors
 \code{"pi"} and \code{"phi"} are available when present. Moderator and
-scale terms can also be selected by name when unambiguous. A character vector
-requests multiple base parameters.}
+scale terms can also be selected by name when unambiguous. For
+\code{brma.mv()} objects with random-effect formulas, \code{"random"} prints
+the structured random-effect prior specification. A character vector requests
+multiple base parameters.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the

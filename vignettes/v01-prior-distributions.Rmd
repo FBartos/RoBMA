@@ -1,7 +1,7 @@
 ---
 title: "Prior Distributions"
 author: "František Bartoš"
-date: "28th of April 2026"
+date: "28th of April 2026 (updated 22nd of June 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -327,6 +327,79 @@ print_prior(Havrankova_per_mod)
 
 The `facing_customer` prior distribution is now the user-specified `mNormal(0, 5)` mean-difference contrast, while `N` retains the default per-standard-deviation prior distribution.
 The named list extends naturally: with multiple moderators, each entry can specify its own prior family, scale, and (for categorical moderators) `contrast` value.
+
+### Random-effect component prior distributions
+
+The `brma.mv()` function uses random-effect formulas to decompose residual heterogeneity into named components.
+The default prior distributions follow the same unit-information scaling as the scalar heterogeneity prior distribution, but the printed random-effect prior distribution makes the allocation logic explicit.
+It shows the standard-deviation prior distributions, the allocation weights, and the implied component standard deviations.
+
+For illustration, we use a small display-only dataset.
+
+```{r mv-prior-data}
+mv_dat <- data.frame(
+  yi      = c(0.10, 0.20, 0.30, 0.40),
+  study   = c("s1", "s1", "s2", "s2"),
+  esid    = paste0("e", 1:4),
+  outcome = factor(c("c1", "c2", "c1", "c2"))
+)
+mv_V <- diag(rep(0.04, nrow(mv_dat)))
+```
+
+A single homogeneous random-effect component receives the default positive-normal prior distribution directly on its standard deviation:
+
+```{r mv-random-single-default}
+mv_random_single <- brma.mv(
+  yi = yi, V = mv_V, measure = "GEN",
+  random = ~ 1 | study,
+  prior_unit_information_sd = 1,
+  data = mv_dat, only_priors = TRUE
+)
+
+print_prior(mv_random_single, parameter = "random")
+```
+
+The printed output shows one block, `study`, and one standard-deviation prior distribution.
+There is no allocation layer because there is only one homogeneous random-effect standard deviation.
+
+Nested random intercepts need more than one variance component.
+In that case, the default prior distribution uses one total standard deviation and a `Dirichlet(1, 1)` allocation prior distribution:
+
+```{r mv-random-nested-default}
+mv_random_nested <- brma.mv(
+  yi = yi, V = mv_V, measure = "GEN",
+  random = ~ 1 | study / esid,
+  prior_unit_information_sd = 1,
+  data = mv_dat, only_priors = TRUE
+)
+
+print_prior(mv_random_nested, parameter = "random")
+```
+
+The output reports the total standard-deviation prior distribution, the allocation weights `w`, and the implied component standard deviations.
+For this nested model, the two components are the estimate-within-study component (`esid_study`) and the study component (`study`).
+The allocation is on the variance scale, so `sigma_esid_study` and `sigma_study` are computed by multiplying `sigma_total` by the square root of the corresponding weight.
+
+Heterogeneous random-effect structures use the same idea inside a single block.
+For example, `hcs(outcome | study)` estimates one standard deviation per outcome level and one common correlation parameter:
+
+```{r mv-random-heterogeneous-default}
+mv_random_heterogeneous <- brma.mv(
+  yi = yi, V = mv_V, measure = "GEN",
+  random = ~ hcs(outcome | study),
+  prior_unit_information_sd = 1,
+  data = mv_dat, only_priors = TRUE
+)
+
+print_prior(mv_random_heterogeneous, parameter = "random")
+```
+
+The printed output now shows `scale: mean_variance`.
+For a heterogeneous block with $q$ standard-deviation components and allocation weight $w_j$, the $j$th component standard deviation is `sigma_total * sqrt(q * w[j])`.
+Equal weights keep every component on the total-standard-deviation scale, while unequal weights move variance among the components without changing the average component variance.
+The block also receives the default `Beta(1, 1)` prior distribution on the common correlation parameter `rho`.
+
+For custom random-effect prior distributions via `BayesTools::prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 
 ## Informed Empirical Prior Distributions
 

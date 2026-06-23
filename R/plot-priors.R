@@ -240,8 +240,10 @@ plot.only_priors.brma <- function(x, ...) {
 #' \code{"effect"} = \code{"mu"}, \code{"heterogeneity"} = \code{"tau"},
 #' and \code{"weightfunction"} = \code{"omega"}. GLMM outcome priors
 #' \code{"pi"} and \code{"phi"} are available when present. Moderator and
-#' scale terms can also be selected by name when unambiguous. A character vector
-#' requests multiple base parameters.
+#' scale terms can also be selected by name when unambiguous. For
+#' \code{brma.mv()} objects with random-effect formulas, \code{"random"} prints
+#' the structured random-effect prior specification. A character vector requests
+#' multiple base parameters.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -330,7 +332,7 @@ print_prior.brma <- function(
     }
 
     selected <- lapply(parameter, function(parameter_i) {
-      .select_plot_prior_parameter(
+      .select_print_prior_parameter(
         object           = x,
         parameter        = parameter_i,
         parameter_mods   = NULL,
@@ -349,7 +351,7 @@ print_prior.brma <- function(
     return(invisible(priors))
   }
 
-  selected <- .select_plot_prior_parameter(
+  selected <- .select_print_prior_parameter(
     object           = x,
     parameter        = if (has_parameter) parameter else NULL,
     parameter_mods   = if (has_parameter_mods) parameter_mods else NULL,

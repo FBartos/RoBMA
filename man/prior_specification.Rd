@@ -170,6 +170,8 @@ Prior distributions can be fully customized by directly specifying the \code{pri
 \code{prior_heterogeneity}, \code{prior_mods}, \code{prior_scale}, and \code{prior_heterogeneity_allocation}
 arguments. These should be prior distribution objects created via \code{BayesTools::prior()}
 or related functions (e.g., \code{prior_factor()}).
+For \code{brma.mv()} random-effect formulas, see
+\code{\link{random_effect_prior_specification}}.
 }
 
 \subsection{Rescaling prior distributions}{
@@ -186,6 +188,7 @@ prior distributions, see \code{\link{publication_bias_prior_specification}}.
 }
 \seealso{
 \code{\link{publication_bias_prior_specification}},
+\code{\link{random_effect_prior_specification}},
 \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}},
 \code{\link{brma}}
 }

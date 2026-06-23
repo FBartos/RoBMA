@@ -212,6 +212,109 @@ test_that("random-formula brma.mv predict uses cached fit", {
   )
 })
 
+test_that("3-level location-scale brma.mv fixtures expose targeted SD components", {
+
+  model_names <- c(
+    total  = "brma.mv_block_mvn_3lvl_scale_total",
+    top    = "brma.mv_block_mvn_3lvl_scale_top",
+    bottom = "brma.mv_block_mvn_3lvl_scale_bottom"
+  )
+  skip_if_missing_fits(unname(model_names))
+
+  expected_components <- list(
+    total  = "total",
+    top    = c("study", "effect"),
+    bottom = c("study", "effect")
+  )
+  expected_parameters <- list(
+    total  = c(tau = "log_tau"),
+    top    = c(study = "log_tau_study", effect = "log_tau_effect"),
+    bottom = c(study = "log_tau_study", effect = "log_tau_effect")
+  )
+  expected_rows <- list(
+    total  = c("(log_tau) x"),
+    top    = c("(log_tau_study) x", "(log_tau_effect) intercept"),
+    bottom = c("(log_tau_study) intercept", "(log_tau_effect) x")
+  )
+  unexpected_rows <- list(
+    total  = character(),
+    top    = c("(log_tau_effect) x"),
+    bottom = c("(log_tau_study) x")
+  )
+
+  for (target in names(model_names)) {
+    fit_brma <- fits[[model_names[[target]]]]
+    n_studies <- nobs(fit_brma)
+
+    terms_scale <- predict(fit_brma, type = "terms.scale", quiet = TRUE)
+    new_scale   <- predict(
+      fit_brma,
+      newdata = data.frame(x = c(0, 1)),
+      type    = "terms.scale",
+      quiet   = TRUE
+    )
+    aggregate_scale <- predict(
+      fit_brma,
+      newdata = TRUE,
+      type    = "terms.scale",
+      quiet   = TRUE
+    )
+    scale_fitted <- fitted(fit_brma, component = "scale")
+
+    expect_equal(names(terms_scale), expected_components[[target]], info = target)
+    expect_equal(names(new_scale), expected_components[[target]], info = target)
+    expect_equal(names(aggregate_scale), expected_components[[target]], info = target)
+    expect_equal(names(scale_fitted), expected_components[[target]], info = target)
+    expect_equal(
+      .data_scale_formula_parameters(fit_brma[["data"]]),
+      expected_parameters[[target]],
+      info = target
+    )
+
+    for (row in expected_rows[[target]]) {
+      expect_true(
+        any(grepl(row, rownames(fit_brma[["summary"]]), fixed = TRUE)),
+        info = paste(target, row)
+      )
+    }
+    for (row in unexpected_rows[[target]]) {
+      expect_false(
+        any(grepl(row, rownames(fit_brma[["summary"]]), fixed = TRUE)),
+        info = paste(target, row)
+      )
+    }
+
+    for (component in expected_components[[target]]) {
+      expect_brma_samples_matrix(
+        terms_scale[[component]],
+        n_studies,
+        paste(target, component, "terms.scale")
+      )
+      expect_brma_samples_matrix(
+        new_scale[[component]],
+        2L,
+        paste(target, component, "newdata terms.scale")
+      )
+      expect_brma_samples_matrix(
+        aggregate_scale[[component]],
+        1L,
+        paste(target, component, "aggregate terms.scale")
+      )
+      expect_equal(
+        colnames(terms_scale[[component]]),
+        paste0("tau[", seq_len(n_studies), "]"),
+        info = paste(target, component)
+      )
+      expect_equal(
+        unname(scale_fitted[[component]]),
+        unname(colMeans(as.matrix(terms_scale[[component]]))),
+        tolerance = 1e-12,
+        info      = paste(target, component)
+      )
+    }
+  }
+})
+
 test_that("random-formula brma.mv fitted scale summarizes list-valued predictions", {
 
   object <- .brma_mv_prior_object(random = TRUE)
@@ -254,6 +357,62 @@ test_that("random-formula brma.mv fitted scale summarizes list-valued prediction
   expect_type(all[["scale"]], "list")
   expect_equal(all[["location"]], .diagnostic_set_names(colMeans(location_samples), object))
   expect_equal(all[["scale"]][["Component 1"]], scale[["Component 1"]])
+})
+
+test_that("cached brma.mv fitted wrappers agree with prediction targets", {
+
+  model_names <- c(
+    "brma.mv_block_mvn_fixed_random_null",
+    "brma.mv_block_mvn_random_scale"
+  )
+  skip_if_missing_fits(model_names)
+
+  for (name in model_names) {
+    fit_brma <- fits[[name]]
+    terms    <- as.matrix(predict(fit_brma, type = "terms", quiet = TRUE))
+    estimate <- as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE))
+
+    expect_equal(
+      unname(fitted(fit_brma)),
+      unname(colMeans(terms)),
+      tolerance = 1e-12,
+      info      = paste(name, "location fitted")
+    )
+    expect_equal(
+      unname(fitted(fit_brma, conditioning_depth = "estimate")),
+      unname(colMeans(estimate)),
+      tolerance = 1e-12,
+      info      = paste(name, "estimate-depth fitted")
+    )
+    expect_error(
+      fitted(fit_brma, unit = "cluster"),
+      "cluster",
+      info = name
+    )
+  }
+
+  fit_scale     <- fits[["brma.mv_block_mvn_random_scale"]]
+  scale_samples <- predict(fit_scale, type = "terms.scale", quiet = TRUE)
+  scale_fitted  <- fitted(fit_scale, component = "scale")
+  all_fitted    <- fitted(fit_scale, component = "all")
+
+  expect_type(scale_fitted, "list")
+  expect_equal(names(scale_fitted), names(scale_samples))
+  expect_equal(names(all_fitted), c("location", "scale"))
+  expect_equal(all_fitted[["scale"]], scale_fitted)
+  for (component in names(scale_samples)) {
+    expect_equal(
+      unname(scale_fitted[[component]]),
+      unname(colMeans(as.matrix(scale_samples[[component]]))),
+      tolerance = 1e-12,
+      info      = component
+    )
+  }
+  expect_error(
+    fitted(fit_scale, component = "scale", transform = exp),
+    "only available for location fitted values",
+    fixed = TRUE
+  )
 })
 
 test_that("random-formula brma.mv estimate and response predictions use cached fit", {
@@ -514,6 +673,47 @@ test_that("random-formula brma.mv V_new response evaluates row-varying marginali
   expect_true(all(captured[, 1L, 1L] > V_new[1L, 1L]))
 })
 
+test_that("3-level component-scale brma.mv V_new response evaluates named SD sources", {
+
+  model_names <- c(
+    top    = "brma.mv_block_mvn_3lvl_scale_top",
+    bottom = "brma.mv_block_mvn_3lvl_scale_bottom"
+  )
+  skip_if_missing_fits(unname(model_names))
+
+  newdata <- data.frame(
+    study  = c("s_new", "s_new"),
+    effect = c("e1", "e2"),
+    x      = c(0, 1)
+  )
+  V_new <- matrix(c(0.04, 0.010, 0.010, 0.05), nrow = 2)
+
+  for (target in names(model_names)) {
+    fit_brma <- fits[[model_names[[target]]]]
+    posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+    posterior_samples <- posterior_samples[seq_len(min(10L, nrow(posterior_samples))), , drop = FALSE]
+
+    set.seed(1)
+    response <- predict(
+      fit_brma,
+      newdata            = newdata,
+      V_new              = V_new,
+      type               = "response",
+      quiet              = TRUE,
+      .posterior_samples = posterior_samples
+    )
+    response_target <- attr(response, "brma_mv_prediction_target")
+
+    expect_brma_samples_matrix(response, nrow(newdata), paste(target, "V_new response"))
+    expect_true(all(is.finite(as.matrix(response))), info = target)
+    expect_equal(
+      response_target[["covariance_target"]],
+      "V_new_plus_marginal_random_effect_covariance",
+      info = target
+    )
+  }
+})
+
 
 test_that("random-formula brma.mv V_new response respects covariance memory budget", {
 
@@ -706,30 +906,38 @@ test_that("marginalized brma.mv ranef uses Gaussian BLUP component", {
   )
 })
 
-test_that("random-formula brma.mv terms.scale requires scale formula", {
+test_that("random-formula brma.mv terms.scale returns random SD components", {
 
-  object <- .brma_mv_prior_object(random = TRUE)
+  object  <- .brma_mv_prior_object(random = TRUE)
   newdata <- data.frame(
     study  = c("s1", "s2"),
     effect = c("a", "b"),
     x      = c(0, 1)
   )
+  sd_names          <- .brma_mv_random_sd_names(object)
   posterior_samples <- matrix(
-    c(0.1, 0.2),
-    nrow = 2,
-    ncol = 1,
-    dimnames = list(NULL, "mu")
+    c(0.1, 0.2, 0.30, 0.40, 0.05, 0.06),
+    nrow     = 2,
+    dimnames = list(NULL, c("mu", unname(sd_names)))
   )
 
-  expect_error(
-    predict(
-      object,
-      type = "terms.scale",
-      quiet = TRUE,
-      .posterior_samples = posterior_samples
-    ),
-    "Component-scale.*requires a scale formula"
+  scale <- predict(
+    object,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
   )
+
+  expect_type(scale, "list")
+  expect_equal(names(scale), names(sd_names))
+  for (component in names(scale)) {
+    expect_brma_samples_matrix(scale[[component]], nobs(object), component)
+    expect_equal(
+      colnames(scale[[component]]),
+      paste0("tau[", seq_len(nobs(object)), "]")
+    )
+  }
+
   expect_error(
     predict(object, newdata = newdata, type = "estimate", quiet = TRUE),
     "Posterior samples are required"

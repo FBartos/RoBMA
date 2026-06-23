@@ -183,35 +183,96 @@
 
 .predict_known_v_tau_source_values_function <- function(object, data) {
 
-  fit           <- object[["fit"]]
-  scale_data    <- data[["scale"]]
-  scale_formula <- .create_fit_formula_list(data = data, "scale")
-  scale_priors  <- object[["priors"]][["scale"]]
+  fit          <- object[["fit"]]
+  model_data   <- data
+  priors       <- object[["priors"]]
+  source_names <- unname(.data_scale_formula_sources(model_data))
 
   force(fit)
-  force(scale_data)
-  force(scale_formula)
-  force(scale_priors)
+  force(model_data)
+  force(priors)
 
-  function(parameters, data, n_rows) {
+  values <- lapply(source_names, function(source_name) {
 
-    parameter_values <- unlist(parameters, use.names = TRUE)
-    posterior_row    <- matrix(as.numeric(parameter_values), nrow = 1L)
-    colnames(posterior_row) <- names(parameter_values)
+    force(source_name)
+    function(parameters, data, n_rows) {
 
-    tau_result <- .evaluate.brma.tau(
-      fit               = fit,
-      scale_data        = scale_data,
-      scale_formula     = scale_formula,
-      scale_priors      = scale_priors,
-      is_scale          = TRUE,
-      is_multilevel     = FALSE,
-      K                 = n_rows,
-      posterior_samples = posterior_row
-    )
+      parameter_values <- unlist(parameters, use.names = TRUE)
+      posterior_row    <- matrix(as.numeric(parameter_values), nrow = 1L)
+      colnames(posterior_row) <- names(parameter_values)
 
-    as.numeric(tau_result[["tau_total"]][1L, ])
+      source_samples <- .predict_known_v_scale_source_samples(
+        fit               = fit,
+        data              = model_data,
+        priors            = priors,
+        posterior_samples = posterior_row,
+        source_names      = source_name
+      )
+      values <- source_samples[[source_name]]
+      if (ncol(values) != n_rows) {
+        stop(
+          "Known-V row SD source '", source_name, "' evaluated to ",
+          ncol(values), " row value(s), expected ", n_rows, ".",
+          call. = FALSE
+        )
+      }
+
+      as.numeric(values[1L, ])
+    }
+  })
+  names(values) <- source_names
+
+  return(values)
+}
+
+
+.predict_known_v_scale_source_samples <- function(fit, data, priors,
+                                                  posterior_samples,
+                                                  source_names = NULL) {
+
+  if (!.is_data_scale(data)) {
+    return(list())
   }
+
+  available_sources <- unname(.data_scale_formula_sources(data))
+  if (is.null(source_names)) {
+    source_names <- available_sources
+  }
+  source_names <- unique(source_names)
+
+  missing_sources <- setdiff(source_names, available_sources)
+  if (length(missing_sources) > 0L) {
+    stop(
+      "Known-V prediction cannot evaluate random-effect row SD source(s): ",
+      paste(missing_sources, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  K             <- nrow(data[["outcome"]])
+  scale_samples <- .evaluate.brma.scale_terms(
+    fit               = fit,
+    data              = data,
+    priors            = priors,
+    posterior_samples = posterior_samples,
+    as_list           = FALSE
+  )
+
+  out <- lapply(source_names, function(source_name) {
+    columns <- paste0(source_name, "[", seq_len(K), "]")
+    if (!all(columns %in% colnames(scale_samples))) {
+      stop(
+        "Known-V prediction cannot evaluate random-effect row SD source '",
+        source_name, "'.",
+        call. = FALSE
+      )
+    }
+
+    unname(scale_samples[, columns, drop = FALSE])
+  })
+  names(out) <- source_names
+
+  return(out)
 }
 
 
@@ -267,17 +328,22 @@
 
 .predict_known_v_source_with_tau_values <- function(source, values) {
 
+  source_name <- source[["name"]]
   if (is.null(source) ||
-      !identical(source[["name"]], "tau") ||
+      !is.character(source_name) || length(source_name) != 1L ||
+      is.na(source_name) || !nzchar(source_name) ||
       !identical(source[["shape"]], "row")) {
+    return(source)
+  }
+  if (!source_name %in% names(values)) {
     return(source)
   }
 
   BayesTools::random_sd_source(
     BayesTools::parameter_source(
-      name   = "tau",
+      name   = source_name,
       shape  = "row",
-      values = values
+      values = values[[source_name]]
     )
   )
 }
@@ -294,29 +360,13 @@
   if (length(source_names) == 0L) {
     return(NULL)
   }
-  unsupported <- setdiff(source_names, "tau")
-  if (length(unsupported) > 0L) {
-    stop(
-      "Known-V newdata response prediction cannot evaluate marginalized ",
-      "random-effect row SD source(s): ",
-      paste(unsupported, collapse = ", "),
-      call. = FALSE
-    )
-  }
-
-  K <- nrow(data[["outcome"]])
-  tau_result <- .evaluate.brma.tau(
+  .predict_known_v_scale_source_samples(
     fit               = object[["fit"]],
-    scale_data        = data[["scale"]],
-    scale_formula     = .create_fit_formula_list(data = data, "scale"),
-    scale_priors      = object[["priors"]][["scale"]],
-    is_scale          = TRUE,
-    is_multilevel     = FALSE,
-    K                 = K,
-    posterior_samples = posterior_samples
+    data              = data,
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    source_names      = source_names
   )
-
-  return(list(tau = tau_result[["tau_total"]]))
 }
 
 

@@ -39,9 +39,11 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
 #' correlated known-\code{V} data, this is influence under conditional estimate
 #' deletion, not independent-study deletion.
-#' If any included parameter has zero posterior variance, or if a full or LOO
-#' covariance determinant is zero or non-finite, COVRATIO is undefined. In that
-#' case, values are reported as \code{NaN} with a printed note when available.
+#' Parameters with zero posterior variance are excluded from the covariance
+#' determinant and reported in a printed note when available. If no estimable
+#' parameters remain, or if a full or LOO covariance determinant is zero or
+#' non-finite after exclusion, COVRATIO is undefined and values are reported as
+#' \code{NaN}.
 #'
 #' @return A named numeric vector of COVRATIO values, one for each observation.
 #'
@@ -99,22 +101,31 @@ covratio.brma <- function(model, type = "mods", ...) {
   S <- nrow(beta_samples)
   K <- ncol(weights)
 
+  note <- NULL
   undefined <- apply(
     beta_samples,
     2,
     function(x) diff(range(x, na.rm = TRUE)) <= sqrt(.Machine$double.eps)
   )
   if (any(undefined)) {
-    note <- .diagnostic_zero_variance_note(
+    zero_note <- .diagnostic_excluded_zero_variance_note(
       diagnostic = "COVRATIO",
       parameters = colnames(beta_samples)[undefined],
       variance   = "posterior"
     )
-    return(.diagnostic_with_note(
-      .diagnostic_set_names(rep(NaN, K), model),
-      class = "covratio.brma",
-      note  = note
-    ))
+    if (all(undefined)) {
+      note <- .diagnostic_collect_notes(
+        zero_note,
+        "COVRATIO could not be computed because no parameters with non-zero posterior variance remain; values are reported as NaN."
+      )
+      return(.diagnostic_with_note(
+        .diagnostic_set_names(rep(NaN, K), model),
+        class = "covratio.brma",
+        note  = note
+      ))
+    }
+    note <- .diagnostic_collect_notes(note, zero_note)
+    beta_samples <- beta_samples[, !undefined, drop = FALSE]
   }
 
   # 1. Full Covariance (Method = "ML" for consistency)
@@ -127,7 +138,10 @@ covratio.brma <- function(model, type = "mods", ...) {
   # determinant() returns $modulus which is the log-abs-determinant
   val_full <- as.numeric(determinant(cov_full_res$cov, logarithm = TRUE)$modulus)
   if (!is.finite(val_full)) {
-    note <- "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
+    note <- .diagnostic_collect_notes(
+      note,
+      "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
+    )
     return(.diagnostic_with_note(
       .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
@@ -155,7 +169,6 @@ covratio.brma <- function(model, type = "mods", ...) {
   }
 
   out <- .diagnostic_set_names(out, model)
-  note <- NULL
   if (any(is.nan(out))) {
     note <- .diagnostic_collect_notes(
       note,
