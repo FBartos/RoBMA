@@ -259,6 +259,61 @@ test_that("cache source hash requires a complete source root", {
   )
 })
 
+test_that("package source hash refreshes after source edits", {
+
+  real_root    <- .fit_cache_source_root()
+  source_files <- .fit_cache_source_files(package_root = real_root, relative = TRUE)
+  skip_if_not(
+    length(source_files) > 0L,
+    "Complete package R/src source tree is not available under source-build checks."
+  )
+
+  package_root <- tempfile("robma-complete-source-")
+  dir.create(package_root, recursive = TRUE)
+  on.exit(unlink(package_root, recursive = TRUE), add = TRUE)
+
+  for (source_file in source_files) {
+    from <- file.path(real_root, source_file)
+    to   <- file.path(package_root, source_file)
+    dir.create(dirname(to), recursive = TRUE, showWarnings = FALSE)
+    file.copy(from, to, overwrite = TRUE)
+  }
+
+  old_cache_names <- ls(envir = .package_source_md5_cache)
+  old_cache       <- mget(old_cache_names, envir = .package_source_md5_cache,
+                          inherits = FALSE)
+  on.exit({
+    .clear_package_source_md5_cache()
+    if (length(old_cache) > 0L) {
+      list2env(old_cache, envir = .package_source_md5_cache)
+    }
+  }, add = TRUE)
+
+  .clear_package_source_md5_cache()
+  assign(
+    "source_root",
+    normalizePath(package_root, winslash = "/", mustWork = TRUE),
+    envir = .package_source_md5_cache
+  )
+
+  hash_before <- package_source_md5()
+  fit_file    <- file.path(package_root, "R", "fit.R")
+
+  writeLines(
+    c(readLines(fit_file, warn = FALSE), "# cache hash refresh probe"),
+    fit_file,
+    useBytes = TRUE
+  )
+  expect_identical(package_source_md5(), hash_before)
+
+  writeLines(
+    c(readLines(fit_file, warn = FALSE), ".robma_cache_hash_probe <- 1"),
+    fit_file,
+    useBytes = TRUE
+  )
+  expect_false(identical(package_source_md5(), hash_before))
+})
+
 test_that("R source hashes ignore comments and formatting", {
 
   file_a <- tempfile("robma-source-a-", fileext = ".R")

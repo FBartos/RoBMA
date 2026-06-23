@@ -359,7 +359,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
     is_scale      = is_scale,
     is_multilevel     = is_multilevel,
     K                 = K,
-    allow_missing_tau = .has_fixed_zero_tau_prior(priors)
+    allow_missing_tau = .fixed_tau_prior_value(priors)
   )
 
   tau_within  <- tau_result[["tau_within"]]

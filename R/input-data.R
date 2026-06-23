@@ -630,7 +630,7 @@ NULL
     stop("The 'yi' argument must contain at least one non-NA value.", call. = FALSE)
 
   k        <- length(yi)
-  V_matrix <- .known_v_as_matrix(V, k = k)
+  V_matrix <- .known_v_as_matrix(V, k = k, warn_singular = FALSE)
   sei      <- sqrt(diag(V_matrix))
 
   if (!is.null(ni))

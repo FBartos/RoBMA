@@ -259,7 +259,8 @@
     parameters    = parameters,
     is_scale      = .is_data_scale(data),
     is_multilevel = .is_data_multilevel(data),
-    K             = K
+    K             = K,
+    fixed_tau     = .fixed_tau_prior_value(active_setup[["priors"]])
   )
 
   if (!outcome_type %in% c("norm", "bin", "pois")) {

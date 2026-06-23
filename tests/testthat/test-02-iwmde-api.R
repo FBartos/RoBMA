@@ -58,6 +58,76 @@ test_that("plot qCMDE/IWMDE matrix samples use exact parameter columns", {
 })
 
 
+test_that("fixed nonzero tau priors fill missing posterior tau", {
+
+  priors <- list(
+    outcome = list(
+      tau = BayesTools::prior("spike", list(0.05))
+    )
+  )
+  samples <- matrix(
+    seq_len(4) / 10,
+    ncol     = 1L,
+    dimnames = list(NULL, "mu")
+  )
+
+  expect_equal(.fixed_tau_prior_value(priors), 0.05)
+  expect_false(.has_fixed_zero_tau_prior(priors))
+
+  expect_error(
+    .evaluate.brma.tau(
+      fit               = NULL,
+      scale_data        = NULL,
+      scale_formula     = NULL,
+      scale_priors      = NULL,
+      is_scale          = FALSE,
+      is_multilevel     = FALSE,
+      K                 = 3L,
+      posterior_samples = samples
+    ),
+    "Missing posterior tau columns"
+  )
+
+  tau_result <- .evaluate.brma.tau(
+    fit               = NULL,
+    scale_data        = NULL,
+    scale_formula     = NULL,
+    scale_priors      = NULL,
+    is_scale          = FALSE,
+    is_multilevel     = FALSE,
+    K                 = 3L,
+    posterior_samples = samples,
+    allow_missing_tau = .fixed_tau_prior_value(priors)
+  )
+  expect_equal(tau_result[["tau_total"]], matrix(0.05, nrow = 4L, ncol = 3L))
+
+  active_setup <- list(
+    priors            = priors,
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    is_weightfunction = FALSE
+  )
+  localized <- .iwmde_likelihood_posterior_samples(
+    context      = list(indicator_names = character(), selection_spec = NULL),
+    samples      = samples,
+    active_setup = active_setup
+  )
+  expect_equal(localized[, "tau"], rep(0.05, nrow(samples)))
+
+  data <- list(
+    outcome = data.frame(yi = seq_len(3)),
+    measure = "GEN"
+  )
+  attr(data, "outcome_type") <- "norm"
+  row_parameters <- .iwmde_row_parameters(
+    context      = list(data = data),
+    row          = samples[1L, ],
+    active_setup = c(active_setup, list(fit_priors = list()))
+  )
+  expect_equal(row_parameters[["tau"]], 0.05)
+})
+
+
 test_that("factor qCMDE/IWMDE densities attach only when all plotted columns resolve", {
 
   expect_true(.plot_brma_factor_density_complete(

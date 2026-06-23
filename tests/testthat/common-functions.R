@@ -481,6 +481,14 @@ source_file_md5 <- function(source_file) {
 
 .package_source_md5_cache <- new.env(parent = emptyenv())
 
+.clear_package_source_md5_cache <- function() {
+
+  rm(list = ls(envir = .package_source_md5_cache),
+     envir = .package_source_md5_cache)
+
+  return(invisible(TRUE))
+}
+
 .fit_cache_required_source_files <- function() {
 
   # Keep this scoped to code that can change saved fit objects or cached fit
@@ -670,22 +678,43 @@ source_file_md5 <- function(source_file) {
   return(unname(tools::md5sum(path)))
 }
 
-package_source_md5 <- function() {
+.fit_cache_source_fingerprint <- function(package_root, source_files) {
 
-  if (exists("value", envir = .package_source_md5_cache, inherits = FALSE)) {
-    return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
-  }
+  info <- file.info(source_files)
+  paste(
+    package_root,
+    paste(source_files, info[["size"]], info[["mtime"]], sep = ":", collapse = "\n"),
+    sep = "\n"
+  )
+}
+
+package_source_md5 <- function() {
 
   package_root <- .fit_cache_source_root()
   if (is.na(package_root)) {
     assign("value", NA_character_, envir = .package_source_md5_cache)
+    assign("fingerprint", NA_character_, envir = .package_source_md5_cache)
     return(NA_character_)
   }
 
   source_files <- .fit_cache_source_files(package_root = package_root)
   if (length(source_files) == 0L) {
     assign("value", NA_character_, envir = .package_source_md5_cache)
+    assign("fingerprint", NA_character_, envir = .package_source_md5_cache)
     return(NA_character_)
+  }
+
+  fingerprint <- .fit_cache_source_fingerprint(
+    package_root = package_root,
+    source_files = source_files
+  )
+  if (exists("value", envir = .package_source_md5_cache, inherits = FALSE) &&
+      exists("fingerprint", envir = .package_source_md5_cache, inherits = FALSE) &&
+      identical(
+        get("fingerprint", envir = .package_source_md5_cache, inherits = FALSE),
+        fingerprint
+      )) {
+    return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
   }
 
   file_hashes    <- vapply(source_files, .fit_cache_source_file_md5, character(1))
@@ -701,6 +730,7 @@ package_source_md5 <- function() {
 
   value <- unname(tools::md5sum(normalized))
   assign("value", value, envir = .package_source_md5_cache)
+  assign("fingerprint", fingerprint, envir = .package_source_md5_cache)
 
   return(value)
 }
@@ -1276,6 +1306,7 @@ clean_cached_fits <- function(name) {
     .clear_fit_object_cache()
     .clear_info_object_cache()
   }
+  .clear_package_source_md5_cache()
 
   message("Cleaned cached fits in: ", test_files_dir)
 

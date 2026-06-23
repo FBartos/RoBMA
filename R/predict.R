@@ -451,7 +451,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       is_multilevel     = is_multilevel,
       K                 = K_original,
       posterior_samples = posterior_samples,
-      allow_missing_tau = .has_fixed_zero_tau_prior(priors)
+      allow_missing_tau = .fixed_tau_prior_value(priors)
     )
     tau_within_samples  <- tau_result[["tau_within"]]
     tau_between_samples <- tau_result[["tau_between"]]

@@ -168,6 +168,55 @@ test_that("RoBMA JAGS module exposes known-V multivariate normal kernel", {
     reference_deviance,
     tolerance = 1e-8
   )
+
+  se_rank_one      <- c(0.20, 0.30, 0.40)
+  y_rank_one       <- c(0.10, 0.20, -0.05)
+  mu_rank_one      <- c(0.02, 0.00, 0.03)
+  tau2_rank_one    <- rep(0.01, 3)
+  V_rank_one       <- tcrossprod(se_rank_one)
+  V_rank_one_lower <- V_rank_one[lower.tri(V_rank_one, diag = TRUE)]
+
+  con_rank_one <- textConnection(paste0(
+    "model{\n",
+    "  y[1:3] ~ dknown_v_mnorm(mu[1:3], tau2[1:3], V_lower[1:6])\n",
+    "}\n"
+  ))
+  on.exit(close(con_rank_one), add = TRUE)
+
+  model_rank_one <- rjags::jags.model(
+    file     = con_rank_one,
+    data     = list(
+      y       = y_rank_one,
+      mu      = mu_rank_one,
+      tau2    = tau2_rank_one,
+      V_lower = V_rank_one_lower
+    ),
+    quiet    = TRUE,
+    n.chains = 2,
+    n.adapt  = 0
+  )
+  dic_rank_one <- rjags::dic.samples(
+    model_rank_one,
+    n.iter       = 5,
+    type         = "pD",
+    progress.bar = "none"
+  )
+  Sigma_rank_one              <- V_rank_one + diag(tau2_rank_one)
+  Sigma_rank_one_chol         <- chol(Sigma_rank_one)
+  residual_rank_one           <- y_rank_one - mu_rank_one
+  precision_residual_rank_one <- backsolve(
+    Sigma_rank_one_chol,
+    forwardsolve(t(Sigma_rank_one_chol), residual_rank_one)
+  )
+  reference_rank_one_deviance <- length(y_rank_one) * log(2 * pi) +
+    2 * sum(log(diag(Sigma_rank_one_chol))) +
+    sum(residual_rank_one * precision_residual_rank_one)
+
+  expect_equal(
+    as.numeric(sum(dic_rank_one[["deviance"]])),
+    reference_rank_one_deviance,
+    tolerance = 1e-8
+  )
 })
 
 test_that("RoBMA JAGS module can sample known-V multivariate normal nodes", {

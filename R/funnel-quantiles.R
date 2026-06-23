@@ -376,7 +376,7 @@
     is_multilevel     = .is_multilevel(x),
     K                 = nrow(x[["data"]][["outcome"]]),
     posterior_samples = posterior_samples,
-    allow_missing_tau = .has_fixed_zero_tau_prior(x[["priors"]])
+    allow_missing_tau = .fixed_tau_prior_value(x[["priors"]])
   )
 
   return(rowMeans(tau_result[["tau_total"]]))

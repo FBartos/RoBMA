@@ -221,7 +221,8 @@
   } else if ("tau" %in% names(row)) {
     parameters[["tau"]] <- row[["tau"]]
   } else if (is.null(parameters[["tau"]])) {
-    parameters[["tau"]] <- 0
+    fixed_tau <- .fixed_tau_prior_value(active_setup[["priors"]])
+    parameters[["tau"]] <- if (is.null(fixed_tau)) 0 else fixed_tau
   }
 
   if (.is_data_multilevel(data)) {

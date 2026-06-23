@@ -49,9 +49,34 @@
 
 .is_zero_point_prior <- function(prior) {
 
-  !is.null(prior) &&
-    BayesTools::is.prior.point(prior) &&
-    isTRUE(all.equal(mean(prior), 0))
+  value <- .point_prior_value(prior)
+
+  return(!is.null(value) && isTRUE(all.equal(value, 0)))
+}
+
+.point_prior_value <- function(prior) {
+
+  if (is.null(prior) || !BayesTools::is.prior.point(prior)) {
+    return(NULL)
+  }
+
+  value <- try(mean(prior), silent = TRUE)
+  if (inherits(value, "try-error") ||
+      length(value) != 1L ||
+      !is.finite(value)) {
+    return(NULL)
+  }
+
+  return(as.numeric(value))
+}
+
+.fixed_tau_prior_value <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(priors[["outcome"]][["tau"]]))
 }
 
 .has_fixed_zero_tau_prior <- function(priors) {
@@ -61,6 +86,20 @@
   }
 
   return(.is_zero_point_prior(priors[["outcome"]][["tau"]]))
+}
+
+.resolve_missing_tau_value <- function(allow_missing_tau) {
+
+  if (isTRUE(allow_missing_tau)) {
+    return(0)
+  }
+  if (is.numeric(allow_missing_tau) &&
+      length(allow_missing_tau) == 1L &&
+      is.finite(allow_missing_tau)) {
+    return(as.numeric(allow_missing_tau))
+  }
+
+  return(NULL)
 }
 
 
@@ -237,11 +276,15 @@
       required          = FALSE
     )
     if (is.null(tau_parameter)) {
-      if (!isTRUE(allow_missing_tau) &&
+      missing_tau <- .resolve_missing_tau_value(allow_missing_tau)
+      if (is.null(missing_tau) &&
           !any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
         stop("Missing posterior tau columns.", call. = FALSE)
       }
-      tau_samples <- matrix(0, nrow = S, ncol = K)
+      if (is.null(missing_tau)) {
+        missing_tau <- 0
+      }
+      tau_samples <- matrix(missing_tau, nrow = S, ncol = K)
     } else if (ncol(tau_parameter) == 1L) {
       # simple model: extract tau column and replicate to K columns
       # matrix(vec, nrow = S, ncol = K) replicates vec across columns

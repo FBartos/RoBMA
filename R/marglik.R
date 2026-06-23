@@ -142,6 +142,7 @@ add_marglik.brma <- function(object, ...) {
     is_PET                   = .is_priors_PET(priors),
     is_PEESE                 = .is_priors_PEESE(priors),
     is_weightfunction        = .is_priors_weightfunction(priors),
+    fixed_tau                = .fixed_tau_prior_value(priors),
     fixed_zero_tau           = .has_fixed_zero_tau_prior(priors),
     effect_direction         = .data_effect_direction(data),
     outcome_type             = .data_outcome_type(data)
@@ -333,7 +334,8 @@ add_marglik.brma <- function(object, ...) {
     is_mods, is_scale, is_multilevel, is_weights,
     is_known_v, is_PET, is_PEESE, is_weightfunction, effect_direction,
     outcome_type, is_random = FALSE, known_v_parameterization = "latent",
-    model_data = NULL, bridge_context = NULL, fixed_zero_tau = FALSE) {
+    model_data = NULL, bridge_context = NULL, fixed_tau = NULL,
+    fixed_zero_tau = FALSE) {
 
   ### extract number of observations
   K <- data[["K"]]
@@ -365,6 +367,7 @@ add_marglik.brma <- function(object, ...) {
       is_scale        = is_scale,
       is_multilevel   = is_multilevel,
       K               = K,
+      fixed_tau       = fixed_tau,
       fixed_zero_tau  = fixed_zero_tau
     )
   }
@@ -541,6 +544,7 @@ add_marglik.brma <- function(object, ...) {
 
 #' @keywords internal
 .marglik_get_tau_samples <- function(parameters, is_scale, is_multilevel, K,
+                                     fixed_tau = NULL,
                                      fixed_zero_tau = FALSE) {
 
   # BayesTools returns:
@@ -550,8 +554,11 @@ add_marglik.brma <- function(object, ...) {
     # log_tau vector -> exponentiate and convert to 1 x K matrix
     tau_samples <- matrix(exp(parameters[["log_tau"]]), nrow = 1, ncol = K)
   } else {
-    if (isTRUE(fixed_zero_tau) && is.null(parameters[["tau"]])) {
-      tau_samples <- matrix(0, nrow = 1, ncol = K)
+    missing_tau <- .resolve_missing_tau_value(
+      if (!is.null(fixed_tau)) fixed_tau else fixed_zero_tau
+    )
+    if (!is.null(missing_tau) && is.null(parameters[["tau"]])) {
+      tau_samples <- matrix(missing_tau, nrow = 1, ncol = K)
     } else {
       # scalar tau -> replicate to 1 x K matrix
       tau_samples <- matrix(parameters[["tau"]], nrow = 1, ncol = K)

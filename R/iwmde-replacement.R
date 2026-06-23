@@ -139,6 +139,10 @@
     samples      = samples,
     active_setup = active_setup
   )
+  samples <- .iwmde_add_fixed_tau_sample_column(
+    samples      = samples,
+    active_setup = active_setup
+  )
 
   if (!isTRUE(active_setup[["is_weightfunction"]])) {
     return(samples)
@@ -169,6 +173,29 @@
   out  <- cbind(samples[, keep, drop = FALSE], active_omega)
 
   return(out)
+}
+
+
+.iwmde_add_fixed_tau_sample_column <- function(samples, active_setup) {
+
+  columns <- colnames(samples)
+  if (is.null(columns) || "tau" %in% columns) {
+    return(samples)
+  }
+
+  fixed_tau <- .fixed_tau_prior_value(active_setup[["priors"]])
+  if (is.null(fixed_tau)) {
+    return(samples)
+  }
+
+  tau_samples <- matrix(
+    fixed_tau,
+    nrow     = nrow(samples),
+    ncol     = 1L,
+    dimnames = list(NULL, "tau")
+  )
+
+  return(cbind(samples, tau_samples))
 }
 
 

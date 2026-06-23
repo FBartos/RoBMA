@@ -1,6 +1,6 @@
 # Known-V input helpers -----
 
-.known_v_as_matrix <- function(V, k = NULL) {
+.known_v_as_matrix <- function(V, k = NULL, warn_singular = TRUE) {
 
   if (is.matrix(V)) {
     V_matrix <- V
@@ -41,10 +41,47 @@
   eigenvalues <- eigen(correlation, symmetric = TRUE, only.values = TRUE)[["values"]]
   tolerance   <- .Machine$double.eps * max(1, max(abs(eigenvalues)))
   if (min(eigenvalues) <= tolerance) {
-    stop("The 'V' argument must be positive definite.", call. = FALSE)
+    semidefinite_tolerance <- sqrt(.Machine$double.eps) *
+      max(1, max(abs(eigenvalues)))
+    if (min(eigenvalues) >= -semidefinite_tolerance &&
+        .known_v_has_only_all_one_singular_blocks(
+          V_matrix    = V_matrix,
+          correlation = correlation,
+          tolerance   = semidefinite_tolerance
+        )) {
+      if (isTRUE(warn_singular)) {
+        .known_v_warn_singular()
+      }
+    } else {
+      stop("The 'V' argument must be positive definite.", call. = FALSE)
+    }
   }
 
   return(V_matrix)
+}
+
+.known_v_has_only_all_one_singular_blocks <- function(V_matrix, correlation,
+                                                      tolerance) {
+
+  block_indices <- .known_v_block_indices(V_matrix)
+
+  for (idx in block_indices) {
+    block_correlation <- correlation[idx, idx, drop = FALSE]
+    block_eigenvalues <- eigen(
+      block_correlation,
+      symmetric    = TRUE,
+      only.values  = TRUE
+    )[["values"]]
+    block_tolerance <- .Machine$double.eps *
+      max(1, max(abs(block_eigenvalues)))
+
+    if (min(block_eigenvalues) <= block_tolerance &&
+        max(abs(block_correlation - 1)) > tolerance) {
+      return(FALSE)
+    }
+  }
+
+  return(TRUE)
 }
 
 .known_v_blockdiag <- function(blocks) {
@@ -173,17 +210,30 @@
   .known_v_check_residual_fraction(known_v_residual_fraction)
 
   V <- V[keep_rows, keep_rows, drop = FALSE]
-  V <- .known_v_as_matrix(V)
+  V <- .known_v_as_matrix(V, warn_singular = FALSE)
 
   block_indices <- .known_v_block_indices(V)
   correlated    <- any(vapply(block_indices, length, integer(1)) > 1L)
+  singular       <- .known_v_is_singular(V)
 
   if (known_v_parameterization == "auto") {
     known_v_parameterization <- .known_v_auto_parameterization(
       block_indices         = block_indices,
       known_v_is_scale      = known_v_is_scale,
-      known_v_is_multilevel = known_v_is_multilevel
+      known_v_is_multilevel = known_v_is_multilevel,
+      known_v_is_singular   = singular
     )
+  }
+  if (isTRUE(singular) && known_v_parameterization == "latent") {
+    stop(
+      "Singular all-correlated known-V matrices cannot use ",
+      "known_v_parameterization = 'latent'. Use 'block_mvn', or 'whitened' ",
+      "when no scale regression or cluster-level random effects are present.",
+      call. = FALSE
+    )
+  }
+  if (isTRUE(singular)) {
+    .known_v_warn_singular()
   }
 
   if (known_v_parameterization == "whitened") {
@@ -208,7 +258,7 @@
         residual_sei                = sqrt(diag(V)),
         B                           = matrix(numeric(0), nrow = nrow(V), ncol = 0L),
         rank                        = 0L,
-        sampling_factor             = chol(V)
+        sampling_factor             = .known_v_sampling_factor(V)
       ),
       whitening
     ))
@@ -236,7 +286,7 @@
         residual_sei                = sqrt(diag(V)),
         B                           = matrix(numeric(0), nrow = nrow(V), ncol = 0L),
         rank                        = 0L,
-        sampling_factor             = chol(V)
+        sampling_factor             = .known_v_sampling_factor(V)
       ),
       block_mvn
     ))
@@ -262,18 +312,72 @@
       correlated                  = correlated,
       residual_fraction_requested = known_v_residual_fraction,
       max_reconstruction_error    = reconstruction_error,
-      sampling_factor             = chol(V)
+      sampling_factor             = .known_v_sampling_factor(V)
     ),
     decomposition
   ))
 }
 
+.known_v_sampling_factor <- function(V) {
+
+  chol_factor <- tryCatch(
+    chol(V),
+    error = function(e) NULL
+  )
+  if (!is.null(chol_factor)) {
+    return(chol_factor)
+  }
+
+  eig       <- eigen(V, symmetric = TRUE)
+  values    <- eig[["values"]]
+  tolerance <- sqrt(.Machine$double.eps) * max(1, max(abs(values)))
+  if (min(values) < -tolerance) {
+    stop("Known-V sampling covariance is not positive semidefinite.",
+         call. = FALSE)
+  }
+
+  values[values < 0] <- 0
+  return(
+    eig[["vectors"]] %*%
+      diag(sqrt(values), nrow = length(values)) %*%
+      t(eig[["vectors"]])
+  )
+}
+
+.known_v_is_singular <- function(V) {
+
+  correlation <- stats::cov2cor(V)
+  eigenvalues <- eigen(
+    correlation,
+    symmetric   = TRUE,
+    only.values = TRUE
+  )[["values"]]
+  tolerance   <- .Machine$double.eps * max(1, max(abs(eigenvalues)))
+
+  return(min(eigenvalues) <= tolerance)
+}
+
+.known_v_warn_singular <- function() {
+
+  warning(
+    "The 'V' argument is positive semidefinite, not positive definite, ",
+    "because at least one dependency block has a correlation matrix of ",
+    "ones. Proceeding with the singular known-V matrix.",
+    call.      = FALSE,
+    immediate. = TRUE
+  )
+}
+
 .known_v_auto_parameterization <- function(block_indices, known_v_is_scale,
                                            known_v_is_multilevel,
+                                           known_v_is_singular = FALSE,
                                            max_block_size = NULL) {
 
   if (!isTRUE(known_v_is_scale) && !isTRUE(known_v_is_multilevel)) {
     return("whitened")
+  }
+  if (isTRUE(known_v_is_singular)) {
+    return("block_mvn")
   }
 
   if (.known_v_block_mvn_auto_feasible(
@@ -460,18 +564,25 @@
   diagnostics        <- vector("list", length(block_indices))
 
   for (b in seq_along(block_indices)) {
-    idx     <- block_indices[[b]]
-    V_block <- V[idx, idx, drop = FALSE]
-    eig     <- eigen(V_block, symmetric = TRUE)
+    idx       <- block_indices[[b]]
+    V_block   <- V[idx, idx, drop = FALSE]
+    eig       <- eigen(V_block, symmetric = TRUE)
+    values    <- eig[["values"]]
+    tolerance <- sqrt(.Machine$double.eps) * max(1, max(abs(values)))
+    if (min(values) < -tolerance) {
+      stop("Known-V whitening covariance is not positive semidefinite.",
+           call. = FALSE)
+    }
+    values[values < 0] <- 0
 
     whitening_matrix[idx, idx]   <- t(eig[["vectors"]])
-    whitening_variance[idx]      <- eig[["values"]]
+    whitening_variance[idx]      <- values
     diagnostics[[b]] <- data.frame(
       block                   = b,
       block_size              = length(idx),
       rank                    = length(idx),
-      min_whitening_variance  = min(eig[["values"]]),
-      max_whitening_variance  = max(eig[["values"]]),
+      min_whitening_variance  = min(values),
+      max_whitening_variance  = max(values),
       stringsAsFactors        = FALSE
     )
   }

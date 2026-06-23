@@ -340,7 +340,11 @@
     extra_variance <- matrix(posterior_samples[, "tau"]^2,
                              nrow = S, ncol = K)
   } else {
-    extra_variance <- matrix(0, nrow = S, ncol = K)
+    fixed_tau <- .fixed_tau_prior_value(object[["priors"]])
+    if (is.null(fixed_tau)) {
+      fixed_tau <- 0
+    }
+    extra_variance <- matrix(fixed_tau^2, nrow = S, ncol = K)
   }
 
   covariance_samples <- array(0, dim = c(S, K, K))

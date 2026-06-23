@@ -75,6 +75,70 @@ test_that("brma.mv supports variance vector V input", {
 })
 
 
+test_that("brma.mv warns and accepts rank-one all-correlated known V", {
+
+  sei <- c(0.20, 0.30, 0.40)
+  V   <- tcrossprod(sei)
+
+  expect_warning(
+    object <- brma.mv(
+      yi                        = c(0.10, 0.20, 0.30),
+      V                         = V,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "positive semidefinite"
+  )
+
+  known_V <- attr(object[["data"]], "known_V_data")
+
+  expect_equal(known_V[["V"]], V)
+  expect_equal(known_V[["parameterization"]], "whitened")
+  expect_equal(crossprod(known_V[["sampling_factor"]]), V, tolerance = 1e-10)
+  expect_lte(min(abs(known_V[["diagnostics"]][["min_whitening_variance"]])), 1e-10)
+
+  expect_error(
+    brma.mv(
+      yi                        = c(0.10, 0.20, 0.30),
+      V                         = V,
+      known_v_parameterization  = "latent",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "cannot use known_v_parameterization = 'latent'"
+  )
+
+  dat <- data.frame(
+    yi = c(0.10, 0.20, 0.30),
+    x  = c(0, 1, 2)
+  )
+  old_max_block <- getOption("RoBMA.known_v_block_mvn_max_block_size", NULL)
+  on.exit({
+    options(RoBMA.known_v_block_mvn_max_block_size = old_max_block)
+  }, add = TRUE)
+  options(RoBMA.known_v_block_mvn_max_block_size = 2L)
+
+  expect_warning(
+    scale_object <- brma.mv(
+      yi                        = yi,
+      V                         = V,
+      scale                     = ~ x,
+      data                      = dat,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "positive semidefinite"
+  )
+  expect_equal(
+    attr(scale_object[["data"]], "known_V_data")[["parameterization"]],
+    "block_mvn"
+  )
+})
+
+
 test_that("brma.mv aligns V after subset and missing rows", {
 
   V <- matrix(
@@ -121,6 +185,28 @@ test_that("brma.mv rejects invalid and unsupported inputs", {
     brma.mv(
       yi                        = c(0.10, 0.20),
       V                         = matrix(c(1, 2, 2, 1), nrow = 2),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "positive definite"
+  )
+
+  sei <- c(0.20, 0.30, 0.40)
+  R   <- matrix(
+    c(
+      1,  0,  0,
+      0,  1, -1,
+      0, -1,  1
+    ),
+    nrow  = 3,
+    byrow = TRUE
+  )
+  V_singular_not_ones <- diag(sei) %*% R %*% diag(sei)
+  expect_error(
+    brma.mv(
+      yi                        = c(0.10, 0.20, 0.30),
+      V                         = V_singular_not_ones,
       measure                   = "GEN",
       prior_unit_information_sd = 1,
       only_data                 = TRUE
@@ -2191,6 +2277,85 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       model_data                 = whitened[["data"]]
     ),
     block_expected,
+    tolerance = 1e-10
+  )
+
+  rank_one_sei        <- c(0.20, 0.30, 0.40)
+  rank_one_V          <- tcrossprod(rank_one_sei)
+  rank_one_parameters <- list(mu = 0, tau = 0.10)
+  rank_one_expected   <- .marglik_mvn_log_density(
+    y          = c(0.10, 0.20, -0.05),
+    mean       = rep(0, 3),
+    covariance = rank_one_V + diag(rank_one_parameters[["tau"]]^2, nrow = 3)
+  )
+
+  expect_warning(
+    rank_one_block <- brma.mv(
+      yi                        = c(0.10, 0.20, -0.05),
+      V                         = rank_one_V,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "positive semidefinite"
+  )
+  expect_equal(
+    .log_posterior(
+      parameters                 = rank_one_parameters,
+      data                       = .create_fit_data(
+        rank_one_block[["data"]],
+        rank_one_block[["priors"]]
+      ),
+      is_mods                    = FALSE,
+      is_scale                   = FALSE,
+      is_multilevel              = FALSE,
+      is_weights                 = FALSE,
+      is_known_v                 = TRUE,
+      is_PET                     = FALSE,
+      is_PEESE                   = FALSE,
+      is_weightfunction          = FALSE,
+      effect_direction           = "positive",
+      outcome_type               = "norm",
+      known_v_parameterization   = "block_mvn",
+      model_data                 = rank_one_block[["data"]]
+    ),
+    rank_one_expected,
+    tolerance = 1e-10
+  )
+
+  expect_warning(
+    rank_one_whitened <- brma.mv(
+      yi                        = c(0.10, 0.20, -0.05),
+      V                         = rank_one_V,
+      known_v_parameterization  = "whitened",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "positive semidefinite"
+  )
+  expect_equal(
+    .log_posterior(
+      parameters                 = rank_one_parameters,
+      data                       = .create_fit_data(
+        rank_one_whitened[["data"]],
+        rank_one_whitened[["priors"]]
+      ),
+      is_mods                    = FALSE,
+      is_scale                   = FALSE,
+      is_multilevel              = FALSE,
+      is_weights                 = FALSE,
+      is_known_v                 = TRUE,
+      is_PET                     = FALSE,
+      is_PEESE                   = FALSE,
+      is_weightfunction          = FALSE,
+      effect_direction           = "positive",
+      outcome_type               = "norm",
+      known_v_parameterization   = "whitened",
+      model_data                 = rank_one_whitened[["data"]]
+    ),
+    rank_one_expected,
     tolerance = 1e-10
   )
 

@@ -119,7 +119,7 @@
     is_multilevel     = is_multilevel,
     K                 = K,
     posterior_samples = samples,
-    allow_missing_tau = .has_fixed_zero_tau_prior(context[["object"]][["priors"]])
+    allow_missing_tau = .fixed_tau_prior_value(active_setup[["priors"]])
   )
 
   return(.log_lik_glmm_conditional_sum_from_evaluated_predictors(

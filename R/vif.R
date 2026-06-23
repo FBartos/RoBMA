@@ -262,7 +262,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
       is_scale      = is_scale,
       is_multilevel     = is_multilevel,
       K                 = K,
-      allow_missing_tau = .has_fixed_zero_tau_prior(object[["priors"]])
+      allow_missing_tau = .fixed_tau_prior_value(object[["priors"]])
     )
     tau_within_samples  <- tau_result[["tau_within"]]
     tau_between_samples <- tau_result[["tau_between"]]
