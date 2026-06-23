@@ -79,6 +79,81 @@
   return(.point_prior_value(priors[["outcome"]][["tau"]]))
 }
 
+.fixed_mu_prior_value <- function(priors) {
+
+  if (is.null(priors) || is.null(priors[["outcome"]])) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(priors[["outcome"]][["mu"]]))
+}
+
+.fixed_bias_parameter_value <- function(priors, parameter) {
+
+  if (is.null(priors) ||
+      is.null(priors[["outcome"]]) ||
+      is.null(priors[["outcome"]][["bias"]])) {
+    return(NULL)
+  }
+
+  prior <- priors[["outcome"]][["bias"]]
+  if (parameter == "PET" && !BayesTools::is.prior.PET(prior)) {
+    return(NULL)
+  }
+  if (parameter == "PEESE" && !BayesTools::is.prior.PEESE(prior)) {
+    return(NULL)
+  }
+
+  return(.point_prior_value(prior))
+}
+
+.fixed_prior_list_values <- function(prior_list) {
+
+  if (is.null(prior_list) || length(prior_list) == 0L) {
+    return(numeric())
+  }
+
+  values <- vapply(prior_list, function(prior) {
+    value <- .point_prior_value(prior)
+    if (is.null(value)) NA_real_ else value
+  }, numeric(1))
+  values <- values[is.finite(values)]
+
+  return(values)
+}
+
+.add_fixed_prior_sample_columns <- function(posterior_samples, prior_list) {
+
+  fixed_values <- .fixed_prior_list_values(prior_list)
+  if (length(fixed_values) == 0L) {
+    return(posterior_samples)
+  }
+
+  columns <- colnames(posterior_samples)
+  if (is.null(columns)) {
+    return(posterior_samples)
+  }
+
+  fixed_columns <- intersect(names(fixed_values), columns)
+  for (column in fixed_columns) {
+    posterior_samples[, column] <- fixed_values[[column]]
+  }
+
+  missing_values <- fixed_values[!names(fixed_values) %in% columns]
+  if (length(missing_values) == 0L) {
+    return(posterior_samples)
+  }
+
+  fixed_samples <- matrix(
+    rep(missing_values, each = nrow(posterior_samples)),
+    nrow     = nrow(posterior_samples),
+    ncol     = length(missing_values),
+    dimnames = list(NULL, names(missing_values))
+  )
+
+  return(cbind(posterior_samples, fixed_samples))
+}
+
 .has_fixed_zero_tau_prior <- function(priors) {
 
   if (is.null(priors) || is.null(priors[["outcome"]])) {
@@ -97,6 +172,23 @@
       length(allow_missing_tau) == 1L &&
       is.finite(allow_missing_tau)) {
     return(as.numeric(allow_missing_tau))
+  }
+
+  return(NULL)
+}
+
+.posterior_or_fixed_scalar <- function(posterior_samples, parameter,
+                                       fixed_value = NULL,
+                                       required = TRUE) {
+
+  if (!is.null(fixed_value)) {
+    return(rep(fixed_value, nrow(posterior_samples)))
+  }
+  if (parameter %in% colnames(posterior_samples)) {
+    return(as.numeric(posterior_samples[, parameter]))
+  }
+  if (isTRUE(required)) {
+    stop("Missing posterior ", parameter, " columns.", call. = FALSE)
   }
 
   return(NULL)
@@ -270,33 +362,43 @@
 
   } else {
 
-    tau_parameter <- .extract_indexed_parameter_samples(
-      posterior_samples = posterior_samples,
-      parameter         = "tau",
-      required          = FALSE
-    )
-    if (is.null(tau_parameter)) {
-      missing_tau <- .resolve_missing_tau_value(allow_missing_tau)
-      if (is.null(missing_tau) &&
-          !any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
-        stop("Missing posterior tau columns.", call. = FALSE)
-      }
-      if (is.null(missing_tau)) {
-        missing_tau <- 0
-      }
-      tau_samples <- matrix(missing_tau, nrow = S, ncol = K)
-    } else if (ncol(tau_parameter) == 1L) {
-      # simple model: extract tau column and replicate to K columns
-      # matrix(vec, nrow = S, ncol = K) replicates vec across columns
-      # equivalent to: for (k in 1:K) result[, k] <- tau_parameter[, 1]
-      tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = K)
-    } else if (ncol(tau_parameter) == K) {
-      tau_samples <- tau_parameter
+    fixed_tau <- if (is.numeric(allow_missing_tau)) {
+      .resolve_missing_tau_value(allow_missing_tau)
     } else {
-      stop(
-        "Posterior tau samples must be scalar or row-wise.",
-        call. = FALSE
+      NULL
+    }
+
+    if (!is.null(fixed_tau)) {
+      tau_samples <- matrix(fixed_tau, nrow = S, ncol = K)
+    } else {
+      tau_parameter <- .extract_indexed_parameter_samples(
+        posterior_samples = posterior_samples,
+        parameter         = "tau",
+        required          = FALSE
       )
+      if (is.null(tau_parameter)) {
+        missing_tau <- .resolve_missing_tau_value(allow_missing_tau)
+        if (is.null(missing_tau) &&
+            !any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+          stop("Missing posterior tau columns.", call. = FALSE)
+        }
+        if (is.null(missing_tau)) {
+          missing_tau <- 0
+        }
+        tau_samples <- matrix(missing_tau, nrow = S, ncol = K)
+      } else if (ncol(tau_parameter) == 1L) {
+        # simple model: extract tau column and replicate to K columns
+        # matrix(vec, nrow = S, ncol = K) replicates vec across columns
+        # equivalent to: for (k in 1:K) result[, k] <- tau_parameter[, 1]
+        tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = K)
+      } else if (ncol(tau_parameter) == K) {
+        tau_samples <- tau_parameter
+      } else {
+        stop(
+          "Posterior tau samples must be scalar or row-wise.",
+          call. = FALSE
+        )
+      }
     }
 
   }
@@ -370,7 +472,8 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.mu <- function(fit, outcome_data, mods_data, mods_formula, mods_priors,
                               is_mods, is_PET, is_PEESE, effect_direction,
-                              bias_adjusted, K, posterior_samples = NULL) {
+                              bias_adjusted, K, posterior_samples = NULL,
+                              priors = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)
@@ -394,29 +497,38 @@
       formula_target = "fixed"
     ))
 
-  } else if ("mu" %in% colnames(posterior_samples)) {
-
-    # simple model: replicate mu column to K columns
-    mu_samples <- matrix(posterior_samples[, "mu"], nrow = S, ncol = K)
-
   } else {
 
-    location_data <- data.frame(row.names = seq_len(K))
-    mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit            = .posterior_formula_fit(
-        fit               = fit,
-        posterior_samples = posterior_samples,
-        formula_design    = FALSE
-      ),
-      formula        = stats::as.formula("~ 1"),
-      parameter      = "mu",
-      data           = location_data,
-      prior_list     = .repair_formula_prior_list(
-        prior_list = mods_priors,
-        parameter  = "mu"
-      ),
-      formula_target = "fixed"
-    ))
+    fixed_mu <- .fixed_mu_prior_value(priors)
+    if (!is.null(fixed_mu)) {
+
+      # point prior: mu is fixed and therefore absent from posterior samples
+      mu_samples <- matrix(fixed_mu, nrow = S, ncol = K)
+
+    } else if ("mu" %in% colnames(posterior_samples)) {
+
+      # simple model: replicate mu column to K columns
+      mu_samples <- matrix(posterior_samples[, "mu"], nrow = S, ncol = K)
+
+    } else {
+
+      location_data <- data.frame(row.names = seq_len(K))
+      mu_samples <- t(BayesTools::JAGS_evaluate_formula(
+        fit            = .posterior_formula_fit(
+          fit               = fit,
+          posterior_samples = posterior_samples,
+          formula_design    = FALSE
+        ),
+        formula        = stats::as.formula("~ 1"),
+        parameter      = "mu",
+        data           = location_data,
+        prior_list     = .repair_formula_prior_list(
+          prior_list = mods_priors,
+          parameter  = "mu"
+        ),
+        formula_target = "fixed"
+      ))
+    }
 
   }
 
@@ -435,7 +547,11 @@
   # So the sign of PET adjustment depends on effect_direction
   if (is_PET && !bias_adjusted) {
 
-    PET_samples <- posterior_samples[, "PET"]
+    PET_samples <- .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "PET",
+      fixed_value       = .fixed_bias_parameter_value(priors, "PET")
+    )
     sei_vec     <- outcome_data[["sei"]]
 
     # vectorized: outer(PET_samples, sei_vec) creates S x K matrix
@@ -450,7 +566,11 @@
   # PEESE model: Same logic as PET but with sei^2
   if (is_PEESE && !bias_adjusted) {
 
-    PEESE_samples <- posterior_samples[, "PEESE"]
+    PEESE_samples <- .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "PEESE",
+      fixed_value       = .fixed_bias_parameter_value(priors, "PEESE")
+    )
     sei_sq_vec    <- outcome_data[["sei"]]^2
 
     # direction multiplier: +1 for positive, -1 for negative
@@ -921,7 +1041,8 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.bias_offset <- function(fit, outcome_data, is_PET, is_PEESE,
                                        effect_direction, K,
-                                       posterior_samples = NULL) {
+                                       posterior_samples = NULL,
+                                       priors = NULL) {
 
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S                 <- nrow(posterior_samples)
@@ -929,13 +1050,23 @@
   direction         <- if (effect_direction == "negative") -1 else 1
 
   if (is_PET) {
+    PET_samples <- .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "PET",
+      fixed_value       = .fixed_bias_parameter_value(priors, "PET")
+    )
     bias_offset <- bias_offset +
-      direction * outer(posterior_samples[, "PET"], outcome_data[["sei"]])
+      direction * outer(PET_samples, outcome_data[["sei"]])
   }
 
   if (is_PEESE) {
+    PEESE_samples <- .posterior_or_fixed_scalar(
+      posterior_samples = posterior_samples,
+      parameter         = "PEESE",
+      fixed_value       = .fixed_bias_parameter_value(priors, "PEESE")
+    )
     bias_offset <- bias_offset +
-      direction * outer(posterior_samples[, "PEESE"], outcome_data[["sei"]]^2)
+      direction * outer(PEESE_samples, outcome_data[["sei"]]^2)
   }
 
   return(bias_offset)

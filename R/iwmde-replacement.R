@@ -139,7 +139,8 @@
     samples      = samples,
     active_setup = active_setup
   )
-  samples <- .iwmde_add_fixed_tau_sample_column(
+  samples <- .iwmde_add_fixed_prior_sample_columns(
+    context      = context,
     samples      = samples,
     active_setup = active_setup
   )
@@ -176,26 +177,26 @@
 }
 
 
-.iwmde_add_fixed_tau_sample_column <- function(samples, active_setup) {
+.iwmde_add_fixed_prior_sample_columns <- function(context, samples,
+                                                  active_setup) {
 
-  columns <- colnames(samples)
-  if (is.null(columns) || "tau" %in% columns) {
-    return(samples)
+  prior_list <- active_setup[["fit_priors"]]
+  if (is.null(prior_list) &&
+      !is.null(context[["data"]]) &&
+      !is.null(active_setup[["priors"]])) {
+    prior_list <- try(
+      .create_fit_priors(
+        data   = context[["data"]],
+        priors = active_setup[["priors"]]
+      ),
+      silent = TRUE
+    )
+    if (inherits(prior_list, "try-error")) {
+      prior_list <- NULL
+    }
   }
 
-  fixed_tau <- .fixed_tau_prior_value(active_setup[["priors"]])
-  if (is.null(fixed_tau)) {
-    return(samples)
-  }
-
-  tau_samples <- matrix(
-    fixed_tau,
-    nrow     = nrow(samples),
-    ncol     = 1L,
-    dimnames = list(NULL, "tau")
-  )
-
-  return(cbind(samples, tau_samples))
+  return(.add_fixed_prior_sample_columns(samples, prior_list))
 }
 
 
@@ -660,7 +661,7 @@
   }
 
   row     <- state[["row"]]
-  current <- .iwmde_linear_value_row(row, weights)
+  current <- .iwmde_linear_value_row(context, row, weights)
   if (!is.finite(current)) {
     out <- list(valid = FALSE, current = current)
     assign(key, out, envir = context[["row_cache"]])
@@ -889,9 +890,13 @@
 }
 
 
-.iwmde_linear_value_row <- function(row, weights) {
+.iwmde_linear_value_row <- function(context, row, weights) {
 
-  return(sum(as.numeric(row[names(weights)]) * weights))
+  values <- vapply(names(weights), function(parameter) {
+    .iwmde_parameter_value_row(context, row, parameter)
+  }, numeric(1))
+
+  return(sum(values * weights))
 }
 
 

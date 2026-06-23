@@ -938,7 +938,8 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       is_PEESE          = .is_PEESE(object),
       effect_direction  = .effect_direction(object),
       K                 = K,
-      posterior_samples = posterior_samples
+      posterior_samples = posterior_samples,
+      priors            = object[["priors"]]
     )
   }
 

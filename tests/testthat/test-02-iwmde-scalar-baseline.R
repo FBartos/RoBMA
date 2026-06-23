@@ -607,7 +607,7 @@ test_that("IWMDE linear replacement maps preserve derived ordinates", {
     )
     expect_true(shifted[["valid"]])
     expect_equal(
-      .iwmde_linear_value_row(shifted[["row"]], spec[["weights"]]),
+      .iwmde_linear_value_row(context, shifted[["row"]], spec[["weights"]]),
       values[rows[i]] + .1,
       tolerance = 1e-10
     )

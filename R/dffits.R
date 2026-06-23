@@ -126,7 +126,8 @@ dffits.brma <- function(model, ...) {
     effect_direction  = .effect_direction(model),
     bias_adjusted     = FALSE,
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    priors            = priors
   )
 
   colnames(fit_samples) <- .get_estimate_labels(model)

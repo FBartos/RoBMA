@@ -236,10 +236,20 @@
   }
 
   if (active_setup[["is_PET"]]) {
-    parameters[["PET"]] <- if ("PET" %in% names(row)) row[["PET"]] else 0
+    if ("PET" %in% names(row)) {
+      parameters[["PET"]] <- row[["PET"]]
+    } else if (is.null(parameters[["PET"]])) {
+      fixed_PET <- .fixed_bias_parameter_value(active_setup[["priors"]], "PET")
+      parameters[["PET"]] <- if (is.null(fixed_PET)) 0 else fixed_PET
+    }
   }
   if (active_setup[["is_PEESE"]]) {
-    parameters[["PEESE"]] <- if ("PEESE" %in% names(row)) row[["PEESE"]] else 0
+    if ("PEESE" %in% names(row)) {
+      parameters[["PEESE"]] <- row[["PEESE"]]
+    } else if (is.null(parameters[["PEESE"]])) {
+      fixed_PEESE <- .fixed_bias_parameter_value(active_setup[["priors"]], "PEESE")
+      parameters[["PEESE"]] <- if (is.null(fixed_PEESE)) 0 else fixed_PEESE
+    }
   }
   if (active_setup[["is_weightfunction"]] &&
       !.iwmde_omega_is_usable(parameters[["omega"]], active_setup)) {

@@ -108,7 +108,8 @@
     effect_direction  = .data_effect_direction(data),
     bias_adjusted     = FALSE,
     K                 = K,
-    posterior_samples = samples
+    posterior_samples = samples,
+    priors            = active_setup[["priors"]]
   )
   tau_result <- .evaluate.brma.tau(
     fit               = context[["object"]][["fit"]],

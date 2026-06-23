@@ -62,6 +62,11 @@
 #'   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 #'
 #'   plot(fit, parameter = "mu")
+#'   lines(fit, parameter = "mu", col = "blue", lwd = 2)
+#'
+#'   ggplot_fit <- plot(fit, parameter = "mu", plot_type = "ggplot")
+#'   ggplot_fit + lines(fit, parameter = "mu", plot_type = "ggplot", col = "blue")
+#'
 #'   plot(fit, parameter = "tau", prior = TRUE)
 #'   plot(fit, parameter = "PET")
 #' }
@@ -70,10 +75,12 @@
 #'
 #' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
 #' or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
+#' \code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
+#' ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 #'
 #' @seealso [RoBMA()]
 #' @export
-plot.brma  <- function(
+plot.brma <- function(
     x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
     prior = FALSE, standardized_coefficients = FALSE,
     conditional = FALSE,
@@ -82,17 +89,91 @@ plot.brma  <- function(
     density_method = c("KDE", "qCMDE", "IWMDE"),
     density_control = NULL, component = "auto", ...) {
 
+  .plot_brma(
+    x                         = x,
+    parameter                 = parameter,
+    parameter_mods            = parameter_mods,
+    parameter_scale           = parameter_scale,
+    prior                     = prior,
+    standardized_coefficients = standardized_coefficients,
+    conditional               = conditional,
+    output_measure            = output_measure,
+    transform                 = transform,
+    plot_type                 = plot_type,
+    dots_prior                = dots_prior,
+    density_method            = density_method,
+    density_control           = density_control,
+    component                 = component,
+    add                       = FALSE,
+    ...
+  )
+}
+
+#' @details \code{lines.brma()} adds the posterior density to an existing base
+#' plot. With \code{plot_type = "ggplot"}, it returns ggplot2 layer(s) that can
+#' be added to a \code{plot.brma(..., plot_type = "ggplot")} object with
+#' \code{+}.
+#'
+#' @rdname plot.brma
+#' @export
+lines.brma <- function(
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    prior = FALSE, standardized_coefficients = FALSE,
+    conditional = FALSE,
+    output_measure = NULL, transform = NULL,
+    plot_type = "base", dots_prior = NULL,
+    density_method = c("KDE", "qCMDE", "IWMDE"),
+    density_control = NULL, component = "auto", ...) {
+
+  BayesTools::check_bool(prior, "prior")
+  if (isTRUE(prior)) {
+    stop(
+      "'lines.brma' adds posterior densities only; use 'plot_prior()' or ",
+      "prior-specific 'lines()' methods for prior overlays.",
+      call. = FALSE
+    )
+  }
+
+  .plot_brma(
+    x                         = x,
+    parameter                 = parameter,
+    parameter_mods            = parameter_mods,
+    parameter_scale           = parameter_scale,
+    prior                     = FALSE,
+    standardized_coefficients = standardized_coefficients,
+    conditional               = conditional,
+    output_measure            = output_measure,
+    transform                 = transform,
+    plot_type                 = plot_type,
+    dots_prior                = dots_prior,
+    density_method            = density_method,
+    density_control           = density_control,
+    component                 = component,
+    add                       = TRUE,
+    ...
+  )
+}
+
+.plot_brma <- function(
+    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    prior = FALSE, standardized_coefficients = FALSE,
+    conditional = FALSE,
+    output_measure = NULL, transform = NULL,
+    plot_type = "base", dots_prior = NULL,
+    density_method = c("KDE", "qCMDE", "IWMDE"),
+    density_control = NULL, component = "auto", add = FALSE, ...) {
 
   ### check user input
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   BayesTools::check_bool(prior, "prior")
   BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
   BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_bool(add, "add")
   dots_raw <- list(...)
   .warn_unused_dots(
     dots    = dots_raw,
     allowed = .plot_dots_allowed(),
-    caller  = "plot.brma()"
+    caller  = if (add) "lines.brma()" else "plot.brma()"
   )
   dots_raw <- .keep_allowed_dots(dots_raw, .plot_dots_allowed())
   density_method <- .density_method_normalize(density_method)
@@ -178,6 +259,7 @@ plot.brma  <- function(
   args$dots_prior               <- dots_prior
   args$individual               <- TRUE
   args$show_figures             <- NULL
+  args$add                      <- add
   args$density_method           <- if (
     .plot_brma_has_posterior_density(samples, density_sample_parameter)
   ) {

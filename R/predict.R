@@ -394,7 +394,8 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       effect_direction  = effect_direction,
       bias_adjusted     = bias_adjusted,
       K                 = K_original,
-      posterior_samples = posterior_samples
+      posterior_samples = posterior_samples,
+      priors            = priors
     )
 
     if (aggregate) {
@@ -587,7 +588,8 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     effect_direction  = effect_direction,
     bias_adjusted     = bias_adjusted,
     K                 = K_original,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    priors            = priors
   )
   if (random_mv && (type == "estimate" || (type == "response" && is.null(known_V_new)))) {
     mu_samples <- mu_samples + .evaluate.brma.random_effects(
@@ -644,7 +646,8 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       is_PEESE          = is_PEESE,
       effect_direction  = effect_direction,
       K                 = K,
-      posterior_samples = posterior_samples
+      posterior_samples = posterior_samples,
+      priors            = priors
     )
   }
 

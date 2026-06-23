@@ -151,6 +151,38 @@ test_that("plot.brma component disambiguates shared location-scale terms", {
 })
 
 
+test_that("lines.brma forwards posterior overlays", {
+
+  captured <- NULL
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      captured <<- list(samples = samples, parameter = parameter, dots = list(...))
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- lines(
+    fits[["bcg_meta-analysis"]],
+    parameter = "mu",
+    plot_type = "ggplot",
+    col = "green"
+  )
+
+  expect_s3_class(out, "mock_plot")
+  expect_equal(captured[["parameter"]], "mu")
+  expect_true(captured[["dots"]][["add"]])
+  expect_false(captured[["dots"]][["prior"]])
+  expect_equal(captured[["dots"]][["plot_type"]], "ggplot")
+  expect_equal(captured[["dots"]][["col"]], "green")
+
+  expect_error(
+    lines(fits[["bcg_meta-analysis"]], parameter = "mu", prior = TRUE),
+    "posterior densities only"
+  )
+})
+
+
 test_that("plot.brma uses KDE by default", {
 
   captured <- NULL

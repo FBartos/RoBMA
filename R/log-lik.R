@@ -674,7 +674,8 @@
     effect_direction  = effect_direction,
     bias_adjusted     = bias_adjusted,
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    priors            = priors
   )
   mu_random_samples <- matrix(0, nrow = nrow(mu_samples), ncol = K)
 

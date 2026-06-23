@@ -1001,7 +1001,8 @@
     effect_direction  = .data_effect_direction(data),
     bias_adjusted     = FALSE,
     K                 = nrow(data[["outcome"]]),
-    posterior_samples = samples
+    posterior_samples = samples,
+    priors            = active_setup[["priors"]]
   ))
 }
 
@@ -1117,7 +1118,7 @@
     state   <- row_states[[i]]
     row     <- state[["row"]]
     idx     <- (i - 1L) * G + seq_len(G)
-    current <- .iwmde_linear_value_row(row, weights)
+    current <- .iwmde_linear_value_row(context, row, weights)
     if (!is.finite(current)) {
       next
     }

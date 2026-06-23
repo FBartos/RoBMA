@@ -58,21 +58,40 @@ test_that("plot qCMDE/IWMDE matrix samples use exact parameter columns", {
 })
 
 
-test_that("fixed nonzero tau priors fill missing posterior tau", {
+test_that("fixed nonzero priors fill missing evaluator columns", {
 
   priors <- list(
     outcome = list(
+      mu  = BayesTools::prior("spike", list(0.20)),
       tau = BayesTools::prior("spike", list(0.05))
     )
   )
   samples <- matrix(
     seq_len(4) / 10,
     ncol     = 1L,
-    dimnames = list(NULL, "mu")
+    dimnames = list(NULL, "theta")
   )
 
+  expect_equal(.fixed_mu_prior_value(priors), 0.20)
   expect_equal(.fixed_tau_prior_value(priors), 0.05)
   expect_false(.has_fixed_zero_tau_prior(priors))
+
+  mu_result <- .evaluate.brma.mu(
+    fit               = NULL,
+    outcome_data      = data.frame(sei = c(0.10, 0.20, 0.30)),
+    mods_data         = NULL,
+    mods_formula      = NULL,
+    mods_priors       = NULL,
+    is_mods           = FALSE,
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    effect_direction  = "positive",
+    bias_adjusted     = FALSE,
+    K                 = 3L,
+    posterior_samples = samples,
+    priors            = priors
+  )
+  expect_equal(mu_result, matrix(0.20, nrow = 4L, ncol = 3L))
 
   expect_error(
     .evaluate.brma.tau(
@@ -103,6 +122,10 @@ test_that("fixed nonzero tau priors fill missing posterior tau", {
 
   active_setup <- list(
     priors            = priors,
+    fit_priors        = list(
+      mu  = BayesTools::prior("spike", list(0.20)),
+      tau = BayesTools::prior("spike", list(0.05))
+    ),
     is_PET            = FALSE,
     is_PEESE          = FALSE,
     is_weightfunction = FALSE
@@ -112,6 +135,7 @@ test_that("fixed nonzero tau priors fill missing posterior tau", {
     samples      = samples,
     active_setup = active_setup
   )
+  expect_equal(localized[, "mu"], rep(0.20, nrow(samples)))
   expect_equal(localized[, "tau"], rep(0.05, nrow(samples)))
 
   data <- list(
@@ -122,9 +146,148 @@ test_that("fixed nonzero tau priors fill missing posterior tau", {
   row_parameters <- .iwmde_row_parameters(
     context      = list(data = data),
     row          = samples[1L, ],
-    active_setup = c(active_setup, list(fit_priors = list()))
+    active_setup = active_setup
   )
+  expect_equal(row_parameters[["mu"]], 0.20)
   expect_equal(row_parameters[["tau"]], 0.05)
+})
+
+
+test_that("fixed PET and PEESE priors fill missing bias columns", {
+
+  samples <- matrix(
+    seq_len(4) / 10,
+    ncol     = 1L,
+    dimnames = list(NULL, "mu")
+  )
+  outcome_data <- data.frame(sei = c(0.10, 0.20, 0.30))
+
+  pet_priors <- list(
+    outcome = list(
+      bias = BayesTools::prior_PET("spike", list(location = 0.30))
+    )
+  )
+  pet_mu <- .evaluate.brma.mu(
+    fit               = NULL,
+    outcome_data      = outcome_data,
+    mods_data         = NULL,
+    mods_formula      = NULL,
+    mods_priors       = NULL,
+    is_mods           = FALSE,
+    is_PET            = TRUE,
+    is_PEESE          = FALSE,
+    effect_direction  = "positive",
+    bias_adjusted     = FALSE,
+    K                 = 3L,
+    posterior_samples = samples,
+    priors            = pet_priors
+  )
+  expect_equal(pet_mu, matrix(samples[, "mu"], nrow = 4L, ncol = 3L) +
+                 outer(rep(0.30, 4L), outcome_data[["sei"]]))
+
+  data <- list(
+    outcome = data.frame(yi = seq_len(3), sei = outcome_data[["sei"]]),
+    measure = "GEN"
+  )
+  attr(data, "outcome_type") <- "norm"
+  row_parameters <- .iwmde_row_parameters(
+    context      = list(data = data),
+    row          = samples[1L, ],
+    active_setup = list(
+      priors            = pet_priors,
+      fit_priors        = list(PET = pet_priors[["outcome"]][["bias"]]),
+      is_PET            = TRUE,
+      is_PEESE          = FALSE,
+      is_weightfunction = FALSE
+    )
+  )
+  expect_equal(row_parameters[["PET"]], 0.30)
+
+  peese_priors <- list(
+    outcome = list(
+      bias = BayesTools::prior_PEESE("spike", list(location = 0.40))
+    )
+  )
+  peese_offset <- .evaluate.brma.bias_offset(
+    fit               = NULL,
+    outcome_data      = outcome_data,
+    is_PET            = FALSE,
+    is_PEESE          = TRUE,
+    effect_direction  = "positive",
+    K                 = 3L,
+    posterior_samples = samples,
+    priors            = peese_priors
+  )
+  expect_equal(peese_offset, outer(rep(0.40, 4L), outcome_data[["sei"]]^2))
+})
+
+
+test_that("fixed priors are constants, not IWMDE geometry dimensions", {
+
+  samples <- matrix(
+    seq_len(4) / 10,
+    ncol     = 1L,
+    dimnames = list(NULL, "mu")
+  )
+  context <- .iwmde_context_ensure_caches(list(
+    posterior_samples = samples,
+    flat_prior_list   = list(
+      tau      = BayesTools::prior("spike", list(0.05)),
+      mu_fixed = BayesTools::prior("spike", list(0.20))
+    ),
+    object = list(
+      fit        = list(),
+      likelihood = list(family = "normal"),
+      data       = list(measure = "GEN")
+    ),
+    data  = list(measure = "GEN"),
+    priors = list()
+  ))
+
+  fixed_spec <- .iwmde_parameter_spec(context, "mu_fixed")
+  expect_equal(fixed_spec[["status"]], "ok")
+  expect_equal(
+    .iwmde_parameter_values(context, "mu_fixed", fixed_spec),
+    rep(0.20, nrow(samples))
+  )
+  fixed_component <- .iwmde_parameter_components(context, "mu_fixed", fixed_spec)
+  expect_false(any(fixed_component[["active"]]))
+  expect_equal(fixed_component[["point_masses"]][["x"]], 0.20)
+
+  linear_spec <- .iwmde_parameter_spec(
+    context,
+    "mu_plus_tau",
+    list(type = "linear", weights = c(mu = 1, tau = 2))
+  )
+  expect_equal(linear_spec[["status"]], "ok")
+  expect_equal(
+    .iwmde_parameter_values(context, "mu_plus_tau", linear_spec),
+    as.numeric(samples[, "mu"]) + 0.10
+  )
+  expect_equal(
+    .iwmde_linear_value_row(context, samples[1L, ], linear_spec[["weights"]]),
+    as.numeric(samples[1L, "mu"]) + 0.10
+  )
+  expect_equal(
+    .iwmde_linear_active_columns(context, samples[1L, ], linear_spec[["weights"]]),
+    "mu"
+  )
+
+  varying_samples <- matrix(
+    c(seq_len(4) / 10, c(0.10, 0.20, 0.30, 0.40)),
+    ncol     = 2L,
+    dimnames = list(NULL, c("mu", "tau"))
+  )
+  conditioning_context <- context
+  conditioning_context[["posterior_samples"]] <- varying_samples
+  conditioning <- .iwmde_chen_conditioning_matrix(
+    context        = conditioning_context,
+    parameter      = "mu",
+    parameter_spec = list(type = "primitive", parameter = "mu"),
+    active_rows    = seq_len(nrow(varying_samples)),
+    weight_rows    = seq_len(nrow(varying_samples))
+  )
+  expect_false("tau" %in% conditioning[["columns"]])
 })
 
 

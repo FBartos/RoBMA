@@ -2,9 +2,28 @@
 % Please edit documentation in R/plot-main.R
 \name{plot.brma}
 \alias{plot.brma}
+\alias{lines.brma}
 \title{Plots brma Object}
 \usage{
 \method{plot}{brma}(
+  x,
+  parameter = NULL,
+  parameter_mods = NULL,
+  parameter_scale = NULL,
+  prior = FALSE,
+  standardized_coefficients = FALSE,
+  conditional = FALSE,
+  output_measure = NULL,
+  transform = NULL,
+  plot_type = "base",
+  dots_prior = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
+  component = "auto",
+  ...
+)
+
+\method{lines}{brma}(
   x,
   parameter = NULL,
   parameter_mods = NULL,
@@ -99,10 +118,18 @@ respectively.}
 \value{
 \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
 or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
+\code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
+ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 }
 \description{
 \code{plot.brma} visualizes posterior
 (and prior) distribution a brma object.
+}
+\details{
+\code{lines.brma()} adds the posterior density to an existing base
+plot. With \code{plot_type = "ggplot"}, it returns ggplot2 layer(s) that can
+be added to a \code{plot.brma(..., plot_type = "ggplot")} object with
+\code{+}.
 }
 \examples{
 \dontrun{
@@ -111,6 +138,11 @@ if (requireNamespace("metadat", quietly = TRUE)) {
   fit <- bPET(yi = yi, vi = vi, data = dat.lehmann2018, measure = "SMD")
 
   plot(fit, parameter = "mu")
+  lines(fit, parameter = "mu", col = "blue", lwd = 2)
+
+  ggplot_fit <- plot(fit, parameter = "mu", plot_type = "ggplot")
+  ggplot_fit + lines(fit, parameter = "mu", plot_type = "ggplot", col = "blue")
+
   plot(fit, parameter = "tau", prior = TRUE)
   plot(fit, parameter = "PET")
 }

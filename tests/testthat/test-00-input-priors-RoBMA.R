@@ -665,6 +665,53 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
   )
 })
 
+test_that("GEN RoBMA accepts fully specified named formula priors without UISD", {
+
+  explicit_effect <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 10)
+  )
+  explicit_heterogeneity <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 1),
+    truncation   = list(0, Inf)
+  )
+  explicit_mods <- list(
+    mod_cont   = BayesTools::prior("normal", parameters = list(mean = 0, sd = 2)),
+    mod_factor = BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list(mean = 0, sd = 3),
+      contrast     = "treatment"
+    )
+  )
+  explicit_scale <- list(
+    scale_var = BayesTools::prior("normal", parameters = list(mean = 0, sd = 4))
+  )
+
+  result <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err,
+    mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
+    data = test_data, measure = "GEN", model_type = "6w",
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    prior_scale         = explicit_scale,
+    only_priors         = TRUE,
+    silent              = TRUE
+  )[["priors"]])
+
+  is_null_cont <- .get_is_null(result[["mods"]][["mod_cont"]])
+  alt_cont     <- which(!is_null_cont)[1]
+  is_null_fact <- .get_is_null(result[["mods"]][["mod_factor"]])
+  alt_fact     <- which(!is_null_fact)[1]
+  is_null_scale <- .get_is_null(result[["scale"]][["scale_var"]])
+  alt_scale     <- which(!is_null_scale)[1]
+
+  expect_equal(result[["mods"]][["mod_cont"]][[alt_cont]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["mods"]][["mod_factor"]][[alt_fact]][["parameters"]][["sd"]], 3)
+  expect_equal(result[["scale"]][["scale_var"]][[alt_scale]][["parameters"]][["sd"]], 4)
+})
+
 
 # ============================================================================
 # Tests for scale priors (simple priors, not mixtures for terms)

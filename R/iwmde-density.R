@@ -1209,6 +1209,7 @@
                                             parameter_spec, active_rows,
                                             weight_rows) {
 
+  context <- .iwmde_context_ensure_caches(context)
   samples <- context[["posterior_samples"]]
   columns <- .iwmde_chen_conditioning_columns(
     context        = context,
@@ -1231,8 +1232,16 @@
   for (column in columns) {
     transformed <- .iwmde_chen_transform_conditioning_column(
       context     = context,
-      fit_values  = samples[weight_rows, column],
-      eval_values = samples[active_rows, column],
+      fit_values  = .iwmde_parameter_column_values(
+        context   = context,
+        samples   = samples[weight_rows, , drop = FALSE],
+        parameter = column
+      ),
+      eval_values = .iwmde_parameter_column_values(
+        context   = context,
+        samples   = samples[active_rows, , drop = FALSE],
+        parameter = column
+      ),
       column      = column
     )
     fit_values[, column]  <- transformed[["fit"]]

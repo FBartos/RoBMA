@@ -33,6 +33,42 @@
     contrast     = contrast
   ))
 }
+.term_default_prior_sd                 <- function(parameter, measure, data, prior_unit_information_sd) {
+
+  if (parameter == "mods") {
+    if (is.null(prior_unit_information_sd)) {
+      prior_unit_information_sd <- .get_unit_information_sd(data = data, measure = measure)
+    }
+    return(prior_unit_information_sd * RoBMA.get_option("default_UISD.mods"))
+  }
+
+  if (parameter == "scale") {
+    return(RoBMA.get_option("default_UISD.scale"))
+  }
+}
+.term_default_continuous_normal_prior  <- function(prior_sd, rescale_priors) {
+
+  prior <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd))
+  return(.rescale_prior_object(prior, rescale_priors))
+}
+.term_default_factor_normal_prior      <- function(prior_sd, contrast, rescale_priors) {
+
+  if (contrast == "treatment") {
+    prior <- BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list("mean" = 0, "sd" = prior_sd),
+      contrast     = "treatment"
+    )
+  } else {
+    prior <- BayesTools::prior_factor(
+      distribution = "mnormal",
+      parameters   = list("mean" = 0, "sd" = prior_sd),
+      contrast     = contrast
+    )
+  }
+
+  return(.rescale_prior_object(prior, rescale_priors))
+}
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield, rescale_priors,
@@ -156,37 +192,51 @@
   } else {
 
     ### use prior_unit_information_sd otherwise
-    if (missing(prior_unit_information_sd)) {
-      # if not passed directly, obtain from data
-      prior_unit_information_sd <- .get_unit_information_sd(data = data, measure = measure)
+    if (!missing(prior_unit_information_sd)) {
+      default_prior_unit_information_sd <- prior_unit_information_sd
+    } else {
+      default_prior_unit_information_sd <- NULL
     }
 
-    # get the prior standard deviation based on unit information
-    prior_sd <- switch(
-      parameter,
-      "mods"          = prior_unit_information_sd * RoBMA.get_option("default_UISD.mods"),
-      "scale"         = RoBMA.get_option("default_UISD.scale") # moderators for scale do not depend on UISD (multiplicative)
-    )
+    default_prior_sd <- local({
+      prior_sd <- NULL
+      function() {
+        if (is.null(prior_sd)) {
+          prior_sd <<- .term_default_prior_sd(
+            parameter                 = parameter,
+            measure                   = measure,
+            data                      = data,
+            prior_unit_information_sd = default_prior_unit_information_sd
+          )
+        }
+        return(prior_sd)
+      }
+    })
 
-    default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd))
-    if (attr(data, "set_contrast_factor_predictors") == "treatment") {
-      default_prior_factor <- BayesTools::prior_factor(
-        distribution = "normal",
-        parameters   = list("mean" = 0, "sd" = prior_sd),
-        contrast     = "treatment"
-      )
-    } else {
-      default_prior_factor <- BayesTools::prior_factor(
-        distribution = "mnormal",
-        parameters   = list("mean" = 0, "sd" = prior_sd),
-        contrast     = attr(data, "set_contrast_factor_predictors")
-      )
+    default_prior_continuous <- function() {
+
+      return(.term_default_continuous_normal_prior(
+        prior_sd       = default_prior_sd(),
+        rescale_priors = rescale_priors
+      ))
+    }
+    default_prior_factor <- function() {
+
+      return(.term_default_factor_normal_prior(
+        prior_sd       = default_prior_sd(),
+        contrast       = attr(data, "set_contrast_factor_predictors"),
+        rescale_priors = rescale_priors
+      ))
     }
   }
 
   # apply rescaling if specified
-  default_prior_continuous <- .rescale_prior_object(default_prior_continuous, rescale_priors)
-  default_prior_factor     <- .rescale_prior_object(default_prior_factor, rescale_priors)
+  if (!is.function(default_prior_continuous)) {
+    default_prior_continuous <- .rescale_prior_object(default_prior_continuous, rescale_priors)
+  }
+  if (!is.function(default_prior_factor)) {
+    default_prior_factor <- .rescale_prior_object(default_prior_factor, rescale_priors)
+  }
 
   # list the priors into the default positions
   prior_list[["__default_continuous"]] <- default_prior_continuous

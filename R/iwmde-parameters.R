@@ -7,7 +7,7 @@
   samples <- context[["posterior_samples"]]
 
   if (is.null(parameter_spec)) {
-    if (!parameter %in% colnames(samples)) {
+    if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
       return(list(status = "unsupported", reason = "posterior column is missing"))
     }
     if (.iwmde_parameter_is_indicator(parameter)) {
@@ -27,7 +27,7 @@
   }
 
   if (identical(parameter_spec[["type"]], "primitive")) {
-    if (!parameter %in% colnames(samples)) {
+    if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
       return(list(status = "unsupported", reason = "posterior column is missing"))
     }
     if (.iwmde_parameter_is_indicator(parameter)) {
@@ -62,6 +62,9 @@
   }
 
   missing <- setdiff(names(weights), colnames(samples))
+  missing <- missing[!vapply(missing, function(parameter) {
+    .iwmde_parameter_has_resolved_values(context, parameter)
+  }, logical(1))]
   if (length(missing) > 0L) {
     return(list(
       status = "unsupported",
@@ -126,22 +129,76 @@
 }
 
 
+.iwmde_parameter_has_resolved_values <- function(context, parameter) {
+
+  samples <- context[["posterior_samples"]]
+  if (parameter %in% colnames(samples)) {
+    return(TRUE)
+  }
+
+  return(.iwmde_parameter_is_point_only(context, parameter))
+}
+
+
+.iwmde_parameter_is_point_only <- function(context, parameter) {
+
+  samples <- context[["posterior_samples"]]
+  if (is.null(.iwmde_parameter_prior_name(context, parameter)) ||
+      is.null(samples) ||
+      nrow(samples) == 0L) {
+    return(FALSE)
+  }
+
+  return(all(vapply(seq_len(nrow(samples)), function(i) {
+    state <- .iwmde_focal_prior_state(context, parameter, samples[i, ])
+
+    identical(state[["status"]], "point")
+  }, logical(1))))
+}
+
+
 .iwmde_parameter_values <- function(context, parameter, parameter_spec) {
 
   samples <- context[["posterior_samples"]]
   if (identical(parameter_spec[["type"]], "linear")) {
-    return(.iwmde_linear_values(samples, parameter_spec[["weights"]]))
+    return(.iwmde_linear_values(context, samples, parameter_spec[["weights"]]))
   }
 
-  return(as.numeric(samples[, parameter]))
+  return(.iwmde_parameter_column_values(context, samples, parameter))
 }
 
 
-.iwmde_linear_values <- function(samples, weights) {
+.iwmde_parameter_column_values <- function(context, samples, parameter) {
+
+  return(vapply(seq_len(nrow(samples)), function(i) {
+    .iwmde_parameter_value_row(context, samples[i, ], parameter)
+  }, numeric(1)))
+}
+
+
+.iwmde_parameter_value_row <- function(context, row, parameter) {
+
+  state <- .iwmde_focal_prior_state(context, parameter, row)
+  if (identical(state[["status"]], "point")) {
+    return(as.numeric(state[["location"]]))
+  }
+
+  if (parameter %in% names(row)) {
+    return(as.numeric(row[[parameter]]))
+  }
+
+  return(NA_real_)
+}
+
+
+.iwmde_linear_values <- function(context, samples, weights) {
 
   columns <- names(weights)
+  values <- vapply(columns, function(parameter) {
+    .iwmde_parameter_column_values(context, samples, parameter)
+  }, numeric(nrow(samples)))
 
-  return(as.numeric(as.matrix(samples[, columns, drop = FALSE]) %*% weights))
+  return(as.numeric(values %*% weights))
 }
 
 
@@ -665,7 +722,7 @@
 
   for (i in seq_along(rows)) {
     row          <- samples[rows[[i]], ]
-    current      <- .iwmde_linear_value_row(row, weights)
+    current      <- .iwmde_linear_value_row(context, row, weights)
     active_names <- .iwmde_linear_active_columns(context, row, weights)
 
     if (!is.finite(current)) {
@@ -692,7 +749,7 @@
       coefficient <- coefficients[[parameter]]
       state  <- .iwmde_focal_prior_state(context, parameter, row)
       support <- .iwmde_prior_support(state[["prior"]])
-      value   <- as.numeric(row[[parameter]])
+      value   <- .iwmde_parameter_value_row(context, row, parameter)
 
       if (!is.finite(coefficient) || coefficient == 0) {
         next
