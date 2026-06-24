@@ -384,7 +384,12 @@
     is_weightfunction    = .is_priors_weightfunction(priors),
     outcome_type         = .data_outcome_type(data),
     effect_direction     = .data_effect_direction(data),
-    posterior_samples    = posterior_samples
+    posterior_samples    = posterior_samples,
+    marginalized_random_source_samples =
+      .known_v_marginalized_random_source_samples_from_tau(
+        data                = data,
+        tau_within_samples  = tau_within_samples
+      )
   ))
 }
 
@@ -749,7 +754,14 @@
     is_weightfunction = is_weightfunction,
     outcome_type      = outcome_type,
     effect_direction  = effect_direction,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    marginalized_random_source_samples =
+      .known_v_marginalized_random_source_samples(
+        fit               = fit,
+        data              = data,
+        priors            = priors,
+        posterior_samples = posterior_samples
+      )
   ))
 }
 

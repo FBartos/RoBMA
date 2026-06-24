@@ -4,6 +4,7 @@ context("Prior and posterior plots")
 source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
+source(testthat::test_path("helper-iwmde.R"))
 
 test_that("plot.brma clears stale posterior density before qCMDE attach", {
 
@@ -26,6 +27,40 @@ test_that("plot.brma clears stale posterior density before qCMDE attach", {
 
   expect_null(attr(samples[["mu"]], "posterior_density", exact = TRUE))
   expect_null(attr(samples[["mu"]], "posterior_densities", exact = TRUE))
+})
+
+
+test_that("plot.brma qCMDE keeps known-V marginalized random SDs", {
+
+  fit <- try(load_fit("brma.mv_block_mvn_random", validate = FALSE), silent = TRUE)
+  if (inherits(fit, "try-error")) {
+    skip("Raw cached fit unavailable: brma.mv_block_mvn_random")
+  }
+
+  testthat::local_mocked_bindings(
+    plot_posterior = function(samples, parameter, ...) {
+      return(structure(list(), class = "mock_plot"))
+    },
+    .package = "BayesTools"
+  )
+
+  warnings <- character()
+  out <- withCallingHandlers(
+    plot(
+      fit,
+      parameter       = "mu",
+      plot_type       = "ggplot",
+      density_method  = "qCMDE",
+      density_control = list(n_points = 20, max_samples = 20)
+    ),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  expect_s3_class(out, "mock_plot")
+  expect_false(any(grepl("Missing posterior column", warnings, fixed = TRUE)))
 })
 
 
@@ -209,6 +244,7 @@ test_that("plot.brma uses KDE by default", {
 test_that("plot.brma forwards attached qCMDE posterior density", {
 
   captured <- NULL
+  .local_mock_iwmde_estimate_success()
   testthat::local_mocked_bindings(
     plot_posterior = function(samples, parameter, ...) {
       captured <<- list(samples = samples, parameter = parameter, dots = list(...))
@@ -240,6 +276,7 @@ test_that("plot.brma forwards attached qCMDE posterior density", {
 test_that("plot.brma forwards attached IWMDE posterior density", {
 
   captured <- NULL
+  .local_mock_iwmde_estimate_success()
   testthat::local_mocked_bindings(
     plot_posterior = function(samples, parameter, ...) {
       captured <<- list(samples = samples, parameter = parameter, dots = list(...))
@@ -270,6 +307,7 @@ test_that("plot.brma forwards attached IWMDE posterior density", {
 test_that("plot.brma aligns qCMDE density to plotted coefficient scale", {
 
   captured <- NULL
+  .local_mock_iwmde_estimate_success()
   testthat::local_mocked_bindings(
     plot_posterior = function(samples, parameter, ...) {
       captured <<- list(samples = samples, parameter = parameter, dots = list(...))
@@ -309,6 +347,7 @@ test_that("plot.brma forwards attached qCMDE/IWMDE densities for factor terms", 
     list(method = "IWMDE", max_samples = 50L, standardized = TRUE)
   )) {
     captured <- NULL
+    .local_mock_iwmde_estimate_success()
     testthat::local_mocked_bindings(
       plot_posterior = function(samples, parameter, ...) {
         captured <<- list(samples = samples, parameter = parameter, dots = list(...))
@@ -360,6 +399,7 @@ test_that("plot.brma forwards qCMDE/IWMDE densities for single-column factor ter
     list(method = "IWMDE", max_samples = 50L, conditional = TRUE)
   )) {
     captured <- NULL
+    .local_mock_iwmde_estimate_success()
     testthat::local_mocked_bindings(
       plot_posterior = function(samples, parameter, ...) {
         captured <<- list(samples = samples, parameter = parameter, dots = list(...))
@@ -432,6 +472,7 @@ test_that("plot.brma forwards factor densities under transformed BayesTools alia
 
   for (i in seq_len(nrow(cases))) {
     captured <- NULL
+    .local_mock_iwmde_estimate_success()
     testthat::local_mocked_bindings(
       plot_posterior = function(samples, parameter, ...) {
         captured <<- list(samples = samples, parameter = parameter, dots = list(...))
@@ -486,6 +527,7 @@ test_that("plot.brma forwards attached qCMDE density for PET and PEESE parameter
     list(fit = "dat.lehmann2018-PEESE", parameter = "PEESE")
   )) {
     captured <- NULL
+    .local_mock_iwmde_estimate_success()
     testthat::local_mocked_bindings(
       plot_posterior = function(samples, parameter, ...) {
         captured <<- list(samples = samples, parameter = parameter, dots = list(...))

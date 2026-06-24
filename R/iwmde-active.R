@@ -298,7 +298,56 @@
     parameters[c("gamma", "theta", "pi", "phi")] <- NULL
   }
 
+  parameters <- .iwmde_attach_marginalized_random_parameters(
+    parameters = parameters,
+    data       = data,
+    row        = row
+  )
+
   return(parameters)
+}
+
+
+.iwmde_attach_marginalized_random_parameters <- function(parameters, data,
+                                                         row) {
+
+  if (!.data_has_marginalized_random_effects(data)) {
+    return(parameters)
+  }
+
+  terms <- .data_marginalized_random_effects(data)
+  for (term in terms) {
+    parameter <- .iwmde_marginalized_random_parameter_columns(term)
+    for (name in parameter) {
+      if (name %in% names(row) && is.null(parameters[[name]])) {
+        parameters[[name]] <- row[[name]]
+      }
+    }
+  }
+
+  return(parameters)
+}
+
+
+.iwmde_marginalized_random_parameter_columns <- function(term) {
+
+  columns <- term[["sd_parameter_names"]]
+
+  sources <- .predict_known_v_marginalized_sd_sources(term)
+  for (source in sources) {
+    if (identical(source[["shape"]], "scalar")) {
+      columns <- c(columns, source[["name"]])
+    }
+  }
+
+  if (.marginalized_random_effect_has_allocation(term)) {
+    factors <- .marginalized_random_effect_allocation_factors(term)
+    columns <- c(columns, vapply(factors, function(factor) {
+      paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
+    }, character(1)))
+  }
+
+  unique(columns[!is.na(columns) & nzchar(columns)])
 }
 
 

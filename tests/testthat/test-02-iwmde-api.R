@@ -8,6 +8,17 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-iwmde.R"))
 
 
+.load_raw_fit_or_skip <- function(name) {
+
+  fit <- try(load_fit(name, validate = FALSE), silent = TRUE)
+  if (inherits(fit, "try-error")) {
+    skip(paste0("Raw cached fit unavailable: ", name))
+  }
+
+  fit
+}
+
+
 test_that("density methods are case-insensitive", {
 
   expect_equal(.density_method_normalize("kde"), "KDE")
@@ -427,6 +438,99 @@ test_that("global IWMDE state excludes local latent parameters", {
   expect_equal(local_parameters[["gamma"]], c(.30, -.20))
   expect_false("gamma" %in% names(global_priors))
   expect_true("gamma" %in% names(local_priors))
+})
+
+
+test_that("known-V marginalized random SDs stay in global IWMDE state", {
+
+  fit     <- .load_raw_fit_or_skip("brma.mv_block_mvn_random")
+  context <- .iwmde_context(fit)
+  term    <- .data_marginalized_random_effects(fit[["data"]])[[1L]]
+  row     <- context[["posterior_samples"]][1L, ]
+  setup   <- .iwmde_active_setup(context, row)
+
+  parameters <- .iwmde_row_parameters(
+    context      = context,
+    row          = row,
+    active_setup = setup,
+    state_scope  = "global"
+  )
+
+  expect_true(term[["sd_parameter_names"]] %in% names(parameters))
+  expect_silent(.iwmde_log_likelihood_parameters_marginal_internal(
+    context      = context,
+    parameters   = parameters,
+    active_setup = setup
+  ))
+
+  parameter <- .check_and_select_plot_parameter(
+    parameter       = "mu",
+    parameter_mods  = NULL,
+    parameter_scale = NULL,
+    component       = NULL,
+    object          = fit
+  )
+  sample_parameter <- .as_mixed_posteriors_parameters(fit, parameter)
+  samples <- BayesTools::as_mixed_posteriors(
+    model            = fit[["fit"]],
+    parameters       = sample_parameter,
+    conditional      = NULL,
+    transform_scaled = TRUE
+  )
+  density_sample_parameter <- .plot_brma_density_sample_parameter(
+    samples          = samples,
+    parameter        = parameter,
+    sample_parameter = sample_parameter
+  )
+  samples <- .plot_brma_attach_iwmde(
+    object               = fit,
+    samples              = samples,
+    parameter            = parameter,
+    sample_parameter     = density_sample_parameter,
+    conditional          = NULL,
+    n_points             = 20,
+    max_samples          = 20,
+    normalization_points = 20,
+    normalization_prob   = .999,
+    density_method       = "qCMDE",
+    display_grid         = "adaptive"
+  )
+  diagnostic <- attr(samples, "iwmde_diagnostics")[[1L]]
+  diagnostic_reason <- if (is.null(diagnostic[["reason"]])) {
+    ""
+  } else {
+    diagnostic[["reason"]]
+  }
+
+  expect_equal(diagnostic[["status"]], "ok")
+  expect_false(grepl("Missing posterior column", diagnostic_reason))
+  expect_true(!is.null(attr(
+    samples[[density_sample_parameter]],
+    "posterior_density"
+  )))
+})
+
+
+test_that("known-V marginalized allocation weights stay in global IWMDE state", {
+
+  fit     <- .load_raw_fit_or_skip("brma.mv_block_mvn_random_scale")
+  context <- .iwmde_context(fit)
+  row     <- context[["posterior_samples"]][1L, ]
+  setup   <- .iwmde_active_setup(context, row)
+
+  parameters <- .iwmde_row_parameters(
+    context      = context,
+    row          = row,
+    active_setup = setup,
+    state_scope  = "global"
+  )
+
+  expect_true(any(grepl("__xRE_ALLOCx_", names(parameters), fixed = TRUE)))
+  expect_silent(.iwmde_log_likelihood_parameters_marginal_internal(
+    context      = context,
+    parameters   = parameters,
+    active_setup = setup
+  ))
 })
 
 

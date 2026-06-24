@@ -4,6 +4,7 @@ context("Estimated marginal means")
 source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-test-matrix.R"))
 source(testthat::test_path("helper-visuals.R"))
+source(testthat::test_path("helper-iwmde.R"))
 REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
 
 .expect_marginal_means_bf_values <- function(actual, expected) {
@@ -776,6 +777,8 @@ test_that("marginal_means hides normal approximation density method", {
 
 test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
 
+  .local_mock_marginal_means_iwmde_success()
+
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
     n_samples         = 1000,
@@ -857,6 +860,8 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
 
 test_that("marginal_means restricts qCMDE precomputation targets", {
 
+  .local_mock_marginal_means_iwmde_success()
+
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
     n_samples       = 1000,
@@ -906,6 +911,8 @@ test_that("marginal_means restricts qCMDE precomputation targets", {
 
 test_that("marginal_means computes BF ordinates when density target is averaged", {
 
+  .local_mock_marginal_means_iwmde_success()
+
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
     n_samples       = 1000,
@@ -947,6 +954,8 @@ test_that("marginal_means computes BF ordinates when density target is averaged"
 
 test_that("marginal_means IWMDE ordinates do not expand plot densities", {
 
+  .local_mock_marginal_means_iwmde_success()
+
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
     null_hypothesis  = 5,
@@ -980,6 +989,8 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
 
 
 test_that("marginal_means precomputes qCMDE ordinates when BFs are hidden", {
+
+  .local_mock_marginal_means_iwmde_success()
 
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],
@@ -1019,6 +1030,8 @@ test_that("marginal_means precomputes qCMDE ordinates when BFs are hidden", {
 
 
 test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
+
+  .local_mock_marginal_means_iwmde_success(omit_ordinate_levels = "systematic")
 
   mm <- marginal_means(
     fits[["bcg_meta-regression2"]],

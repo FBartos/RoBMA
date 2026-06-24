@@ -248,7 +248,8 @@
     .evaluate_marginalized_random_variance(
       data              = data,
       posterior_samples = posterior_samples,
-      K                 = K
+      K                 = K,
+      source_samples    = setup[["marginalized_random_source_samples"]]
     )
   } else {
     setup[["tau_within"]]^2
@@ -265,6 +266,68 @@
   }
 
   return(extra_variance)
+}
+
+
+.known_v_marginalized_random_source_samples <- function(fit, data, priors,
+                                                        posterior_samples) {
+
+  if (!.is_data_known_v(data) ||
+      !.data_has_marginalized_random_effects(data) ||
+      !.is_data_scale(data)) {
+    return(NULL)
+  }
+
+  object <- list(
+    fit    = fit,
+    data   = data,
+    priors = priors
+  )
+
+  .predict_known_v_newdata_marginalized_source_samples(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+}
+
+
+.known_v_marginalized_random_source_samples_from_tau <- function(
+    data, tau_within_samples) {
+
+  if (!.is_data_known_v(data) ||
+      !.data_has_marginalized_random_effects(data) ||
+      !.is_data_scale(data)) {
+    return(NULL)
+  }
+
+  source_names <- .known_v_marginalized_random_row_source_names(data)
+  if (!"tau" %in% source_names) {
+    return(NULL)
+  }
+
+  list(tau = as.matrix(tau_within_samples))
+}
+
+
+.known_v_marginalized_random_row_source_names <- function(data) {
+
+  terms <- .data_marginalized_random_effects(data)
+  if (length(terms) == 0L) {
+    return(character())
+  }
+
+  out <- character()
+  for (term in terms) {
+    sources <- .predict_known_v_marginalized_sd_sources(term)
+    for (source in sources) {
+      if (identical(source[["shape"]], "row")) {
+        out <- c(out, source[["name"]])
+      }
+    }
+  }
+
+  unique(out[!is.na(out) & nzchar(out)])
 }
 
 
