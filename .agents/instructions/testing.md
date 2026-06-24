@@ -50,6 +50,26 @@ devtools::test(filter = "your-feature", reporter = "llm")
 devtools::test(reporter = "llm")
 ```
 
+### Pre-Release Workflow
+
+Use the release profile when cached-fit integration coverage must be treated as
+required evidence:
+
+```sh
+Rscript tools/test-profile.R release
+```
+
+This cleans the active cache, runs `devtools::test(filter = "01-", reporter =
+"llm")`, validates that every `fit_catalog()` entry is available and current,
+forces the subsequent pass to reuse the validated cache, runs the full extended
+`devtools::test(reporter = "llm")`, then runs `devtools::check(error_on =
+"warning")`. The legacy wrapper `Rscript tools/full-tests.R` runs the same
+release profile.
+
+If this profile reports missing or stale cached fits, do not treat downstream
+`skip_if_no_fits()` / `skip_if_missing_fits()` skips as release evidence; fix the
+cache generation failure first.
+
 ## Cache System
 
 ### How It Works

@@ -37,6 +37,7 @@ Treat [engineer-mode.md](.agents/instructions/engineer-mode.md) as the default e
 - [sampling-bias-parameter.md](.agents/instructions/sampling-bias-parameter.md) - sampling_bias parameter pattern for RoBMA/bPET/bPEESE/bselmodel
 - [r-package-plotting-architecture.md](.agents/instructions/r-package-plotting-architecture.md) - Plotting architecture for base/ggplot/as_data methods
 - [r-visual-testing-vdiffr.md](.agents/instructions/r-visual-testing-vdiffr.md) - Visual regression testing patterns
+- [brma-mv-conditioning-depths.md](.agents/instructions/brma-mv-conditioning-depths.md) - `brma.mv()` conditioning depths, known-`V`/known-`R` predictive targets, LOO/WAIC/marglik consistency
 - [workflow.md](.agents/instructions/workflow.md) - Repository workflow expectations
 - [engineer-mode.md](.agents/instructions/engineer-mode.md) - Senior engineering judgment for larger changes
 
