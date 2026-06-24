@@ -34,7 +34,8 @@ diagnostic documentation, keep `.brma_mv_diagnostic_target_table()` in
 | `brma.mv()`, known `V`, no random formula | `unit = "estimate"` | One contribution per estimate. Correlated known `V` uses Schur conditionals `p(y_i | y_-i, theta)` inside dependency blocks. |
 | `brma.mv()`, known `V` plus sampled random formula | `unit = "estimate"` | One contribution per estimate, conditional on sampled fitted random effects. Correlated known `V` still uses Schur conditionals around the conditional mean. |
 | `brma.mv()`, known `V` plus marginalized random block | `unit = "estimate"` | Same known-`V` estimate target, with marginalized estimate-level random variance entering as diagonal extra variance. |
-| `brma.mv()`, known `V` plus known `R` | `unit = "estimate"` | Same as sampled random formula: known-`R` sampled random effects are conditioned on. `R` shapes their posterior/prior but is not added as pointwise `ZGZ'`. |
+| `brma.mv()`, known `V` plus sampled known `R` | `unit = "estimate"` | Same as sampled random formula: known-`R` sampled random effects are conditioned on. `R` shapes their posterior/prior but is not added as pointwise `ZGZ'`. |
+| `brma.mv()`, known `V` plus marginalized known `R` | `unit = "estimate"` | Same known-`V` estimate target, with BayesTools-prepared known-`R` row multipliers entering as diagonal extra variance. |
 | `brma.mv()` random formula, no known `V` | `unit = "estimate"` | Deferred for post-fit log-likelihood/LOO/WAIC. Availability is guarded in `.check_log_lik_target_available()`. |
 | `brma.mv()` known `V` | `unit = "cluster"` | Deferred. There is no implemented joint dependency-block LOO target yet. |
 
@@ -112,18 +113,31 @@ Current known-`R` rules:
 
 - Public RoBMA API is `R`/`Rscale` on `brma.mv()`.
 - BayesTools remains the implementation authority via group covariance metadata.
-- Current support is sampled random intercepts only.
-- Known-`R` blocks are not auto-marginalized by
-  `marginalize_estimate_level = TRUE`.
+- Current support is random intercepts only.
+- Supported known-`R` blocks may be auto-marginalized by
+  `marginalize_estimate_level = TRUE` only when BayesTools validates a
+  one-column random-intercept block with diagonal `Z K Z'` row-space
+  contribution and one-to-one fitted row/group mapping.
+- RoBMA obtains row multipliers with
+  `BayesTools::random_effects_marginal_variance_factors(...,
+  require_diagonal = TRUE, require_one_to_one = TRUE)` and uses them as
+  `tau^2 * row_multiplier[i]` in known-`V` extra variance.
+- Known-`R` blocks with off-diagonal row-space covariance, repeated group rows,
+  random slopes, multi-column blocks, or row-indexed external SD sources are
+  sampled or rejected by BayesTools/RoBMA validation; RoBMA does not implement a
+  dense known-`R` likelihood.
 - New prediction levels for known-`R` blocks are rejected.
 - In estimate-unit `logLik()`, LOO, WAIC, and LOO-PIT residuals, sampled
-  known-`R` random effects are conditioned on.
+  known-`R` random effects are conditioned on; marginalized known-`R` blocks
+  enter as diagonal extra variance.
 - Known `R` is not split into pointwise likelihood terms and is not added again
   as pointwise marginal `ZGZ'` covariance for estimate-depth LOO/WAIC.
 
-This is deliberate. Adding `R` as pointwise likelihood would mix prior density
-with observation likelihood and would double count sampled random effects in
-the estimate-depth target.
+This is deliberate. Adding sampled `R` as pointwise likelihood would mix prior
+density with observation likelihood and would double count sampled random
+effects in the estimate-depth target. The supported marginalized known-`R` path
+is different: the latent random effects are not sampled, so their validated
+diagonal row-space contribution belongs in the observation variance.
 
 Known-`R` target metadata is attached by
 `.known_r_log_lik_target_metadata()` in `R/log-lik.R`:
@@ -184,6 +198,8 @@ For known `R`:
   model is conditional;
 - the known group covariance enters through the latent random-effect prior
   density handled by BayesTools/JAGS bridge machinery;
+- supported marginalized known-`R` blocks are not latent `dmnorm` blocks and
+  instead enter through the same diagonal known-`V` extra variance used by JAGS;
 - it is valid that `R` is not a pointwise likelihood term.
 
 Key files:
@@ -209,11 +225,14 @@ Current consistency checks:
 - WAIC target metadata is copied from the same log-likelihood target used by
   LOO.
 
-## If Adding a Fully Marginalized Known-R Predictive Score
+## If Adding a Dense Fully Marginalized Known-R Predictive Score
 
-A fully marginalized known-`R` predictive score would be a new target, not a
-silent replacement for estimate-depth LOO. It would integrate sampled
-known-`R` random effects and score with a covariance containing `ZGZ'`.
+A dense fully marginalized known-`R` predictive score for sampled or
+off-diagonal known-`R` blocks would be a new target, not a silent replacement
+for estimate-depth LOO. It would integrate sampled known-`R` random effects and
+score with a covariance containing `ZGZ'`. This is broader than the current MVP,
+which only adds BayesTools-validated diagonal `tau^2 * row_multiplier[i]`
+variance for blocks that are not sampled.
 
 To add it safely:
 
@@ -238,11 +257,14 @@ Current relevant tests include:
   - diagnostic target registry
   - known-`V` Schur target
   - target metadata availability
+  - known-`R` row multipliers in known-`V` syntax/data
+  - logLik/bridge extra variance from `tau^2 * row_multiplier`
+  - backend restrictions for row-varying known-`R` variance
 - `tests/testthat/test-00-brma-mv-known-r.R`
   - known-`R` metadata
   - JAGS/formula design preservation
   - `Rscale = "none"` marginal covariance semantics
-  - no auto-marginalization for known-`R` blocks
+  - supported known-`R` auto-marginalization and sampled fallbacks
 - `tests/testthat/test-03-loo.R`
   - direct known-`R` `logLik()`, LOO, and WAIC metadata
   - known-`V` estimate-unit target metadata

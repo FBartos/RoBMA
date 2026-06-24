@@ -136,7 +136,10 @@
 #' draw from a joint normal with fixed-location mean and covariance
 #' \code{V_new} plus the marginal random-effect covariance and any
 #' marginalized estimate-level variance. Cross-covariance with observed rows is
-#' not supported. \code{brma.mv()} prediction results carry a
+#' not supported. Explicit \code{newdata} estimate/response predictions are not
+#' available for \code{brma.mv()} objects with marginalized known-\code{R}
+#' blocks, because their row multipliers are fitted-row metadata.
+#' \code{brma.mv()} prediction results carry a
 #' \code{brma_mv_prediction_target} attribute recording the formula,
 #' random-effect, and response-covariance target used.
 #'
@@ -263,6 +266,17 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     stop(
       "Newdata response predictions for brma.mv() known-V models require ",
       "a supplied 'V_new' sampling covariance matrix.",
+      call. = FALSE
+    )
+  }
+  if (is_brma_mv_object &&
+      !is.null(newdata) &&
+      !isTRUE(newdata) &&
+      type %in% c("estimate", "response") &&
+      .data_has_marginalized_known_group_covariance(object[["data"]])) {
+    stop(
+      "Newdata predictions with new or reordered known-R rows are not ",
+      "available for marginalized known-R random-effect blocks.",
       call. = FALSE
     )
   }

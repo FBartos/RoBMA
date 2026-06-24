@@ -364,6 +364,141 @@ test_that("factor qCMDE/IWMDE densities attach only when all plotted columns res
 })
 
 
+test_that("global IWMDE state excludes local latent parameters", {
+
+  samples <- matrix(
+    c(.10, .20, .40, .30, -.20),
+    nrow     = 1L,
+    dimnames = list(NULL, c("mu", "tau", "rho", "gamma[1]", "gamma[2]"))
+  )
+  data <- list(
+    outcome = data.frame(
+      yi      = c(.1, .2, .3),
+      sei     = c(.1, .1, .1),
+      cluster = c(1L, 1L, 2L)
+    ),
+    measure = "GEN"
+  )
+  attr(data, "outcome_type") <- "norm"
+  attr(data, "cluster")      <- TRUE
+  active_setup <- list(
+    priors            = list(outcome = list()),
+    fit_priors        = list(
+      mu    = BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+      tau   = BayesTools::prior("normal", parameters = list(mean = 0, sd = 1)),
+      rho   = BayesTools::prior("beta", parameters = list(alpha = 1, beta = 1)),
+      gamma = BayesTools::prior("normal", parameters = list(mean = 0, sd = 1))
+    ),
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    is_weightfunction = FALSE
+  )
+  context <- list(
+    data            = data,
+    flat_prior_list = active_setup[["fit_priors"]]
+  )
+
+  global_parameters <- .iwmde_row_parameters(
+    context      = context,
+    row          = samples[1L, ],
+    active_setup = active_setup,
+    state_scope  = "global"
+  )
+  local_parameters <- .iwmde_row_parameters(
+    context      = context,
+    row          = samples[1L, ],
+    active_setup = active_setup,
+    state_scope  = "local"
+  )
+  global_priors <- .iwmde_active_flat_prior_list(
+    context     = context,
+    row         = samples[1L, ],
+    parameter   = "mu",
+    state_scope = "global"
+  )
+  local_priors <- .iwmde_active_flat_prior_list(
+    context     = context,
+    row         = samples[1L, ],
+    parameter   = "gamma[1]",
+    state_scope = "local"
+  )
+
+  expect_null(global_parameters[["gamma"]])
+  expect_equal(local_parameters[["gamma"]], c(.30, -.20))
+  expect_false("gamma" %in% names(global_priors))
+  expect_true("gamma" %in% names(local_priors))
+})
+
+
+test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
+
+  diagnostics <- list(
+    estimator                         = "q_grid_cmde",
+    max_relative_mcse                 = .01,
+    min_finite_terms                  = 80L,
+    min_ess                           = 80,
+    max_weight_share                  = .05,
+    active_mass                       = 1,
+    normalization_integral            = 1,
+    normalization_mass_ratio          = 1,
+    row_drop_fraction                 = 0,
+    max_ordinate_relative_change      = .06,
+    max_normalizer_relative_change    = .06,
+    max_quadrature_relative_change    = NA_real_
+  )
+  diagnostic <- list(
+    status       = "ok",
+    iwmde        = list(
+      x         = c(0, 1),
+      y         = c(1, 1),
+      estimator = "q_grid_cmde"
+    ),
+    diagnostics  = diagnostics,
+    point_masses = NULL
+  )
+
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "qCMDE.*ordinate"
+  )
+  expect_null(.iwmde_posterior_density_attribute(
+    diagnostic     = diagnostic,
+    density_method = "qCMDE"
+  ))
+
+  diagnostics[["max_ordinate_relative_change"]] <- .01
+  diagnostics[["max_normalizer_relative_change"]] <- .01
+  diagnostics[["n_estimator_rows"]] <- 80
+  diagnostics[["n_active_state_keys"]] <- 1
+  expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
+  expect_true(any(grepl(
+    "estimator rows",
+    .iwmde_diagnostics_density_warning(diagnostics)
+  )))
+  diagnostics[["n_active_state_keys"]] <- 2
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "model-averaged density"
+  )
+  diagnostics[["n_estimator_rows"]] <- 600
+  diagnostics[["n_active_state_keys"]] <- 2
+  diagnostics[["min_ess"]] <- 120
+
+  diagnostics[["max_quadrature_relative_change"]] <- .03
+  expect_null(.iwmde_diagnostics_density_failure_reason(diagnostics))
+  expect_true(any(grepl(
+    "quadrature",
+    .iwmde_diagnostics_density_warning(diagnostics)
+  )))
+
+  diagnostics[["max_quadrature_relative_change"]] <- .06
+  expect_match(
+    .iwmde_diagnostics_density_failure_reason(diagnostics),
+    "quadrature"
+  )
+})
+
+
 test_that("IWMDE diagnostics compute for representative cached fits", {
 
   fit_names <- c(
@@ -535,10 +670,11 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
       bf_mcse             = .01,
       bf_relative_mcse    = .01,
       bf_error_percent    = 1,
-      bf_finite_terms     = 40,
-      bf_ess              = 30,
-      bf_max_weight_share = .2,
+      bf_finite_terms     = 500,
+      bf_ess              = 120,
+      bf_max_weight_share = .05,
       bf_max_log_ratio    = 0,
+      n_estimator_rows    = 500,
       active_mass         = 1,
       normalization_integral = 1,
       bf_ordinate_relative_change = 0,
@@ -698,10 +834,11 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
         bf_mcse             = .01,
         bf_relative_mcse    = .01,
         bf_error_percent    = 1,
-        bf_finite_terms     = 40,
-        bf_ess              = 30,
-        bf_max_weight_share = .2,
+        bf_finite_terms     = 500,
+        bf_ess              = 120,
+        bf_max_weight_share = .05,
         bf_max_log_ratio    = 0,
+        n_estimator_rows    = 500,
         active_mass         = 1,
         normalization_integral = 1,
         bf_ordinate_relative_change = 0,
@@ -1229,6 +1366,8 @@ test_that("density_control validates public density settings", {
       normalization_prob   = .95
     )
   )
+  expect_equal(valid_iwmde[["n_points"]], 100)
+  expect_equal(valid_iwmde[["max_samples"]], 500)
   expect_equal(valid_iwmde[["normalization_points"]], 40)
   expect_equal(valid_iwmde[["normalization_prob"]], .95)
   mm_iwmde <- .hypothesis_marginal_means_density_control(

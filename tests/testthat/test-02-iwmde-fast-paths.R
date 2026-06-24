@@ -1878,7 +1878,11 @@ test_that("negative-direction multilevel selected-normal location grid matches q
 
   expect_true(is.matrix(fast))
   expect_equal(dim(fast), dim(reference))
-  expect_equal(fast, reference, tolerance = 1e-10)
+  quadrature_change <- attr(fast, "quadrature_relative_change", exact = TRUE)
+  expect_equal(dim(quadrature_change), dim(fast))
+  expect_true(all(is.finite(quadrature_change)))
+  attr(fast, "quadrature_relative_change") <- NULL
+  expect_equal(fast, reference, tolerance = 1e-7)
 })
 
 

@@ -847,15 +847,53 @@
     }
     as.character(label)
   }, character(1))
+  block_names <- vapply(terms, `[[`, character(1), "block_name")
+
+  marginalized_terms <- .data_marginalized_random_effects(data)
+  marginalized_known_r_blocks <- if (length(marginalized_terms) > 0L) {
+    vapply(
+      marginalized_terms[
+        vapply(
+          marginalized_terms,
+          .marginalized_random_effect_has_row_multiplier,
+          logical(1)
+        )
+      ],
+      `[[`,
+      character(1),
+      "block_name"
+    )
+  } else {
+    character()
+  }
+  has_marginalized_known_r <- any(block_names %in% marginalized_known_r_blocks)
+  has_sampled_known_r      <- any(!block_names %in% marginalized_known_r_blocks)
+
+  semantics <- character()
+  if (has_sampled_known_r) {
+    semantics <- c(
+      semantics,
+      paste0(
+        "estimate-unit log-score conditions on sampled fitted random effects; ",
+        "known R shapes their posterior/prior but is not added as a ",
+        "marginal ZGZ' covariance term"
+      )
+    )
+  }
+  if (has_marginalized_known_r) {
+    semantics <- c(
+      semantics,
+      paste0(
+        "supported marginalized known-R blocks enter estimate-unit targets ",
+        "as BayesTools-prepared diagonal tau^2 row multipliers"
+      )
+    )
+  }
 
   list(
     known_r           = TRUE,
     known_r_blocks    = unname(block_labels),
-    known_r_semantics = paste0(
-      "estimate-unit log-score conditions on sampled fitted random effects; ",
-      "known R shapes their posterior/prior but is not added as a ",
-      "marginal ZGZ' covariance term"
-    )
+    known_r_semantics = paste(semantics, collapse = "; ")
   )
 }
 

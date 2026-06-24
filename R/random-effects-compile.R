@@ -28,7 +28,7 @@
     random_effects_compile = NULL
   )
   candidates <- .marginalized_random_effect_candidates(
-    random_effects = sampled_design[["random_effects"]],
+    formula_design = sampled_design,
     data           = object[["data"]]
   )
 
@@ -60,6 +60,12 @@
     compiled_design,
     "marginalized"
   )
+  known_r_metadata <- .attach_known_r_marginal_variance_factors(
+    formula_design = compiled_design,
+    terms          = marginalized_terms
+  )
+  compiled_design     <- known_r_metadata[["formula_design"]]
+  marginalized_terms  <- known_r_metadata[["terms"]]
   object[["data"]] <- .known_v_auto_update_for_marginalized_random(
     data  = object[["data"]],
     terms = marginalized_terms
@@ -117,8 +123,9 @@
 }
 
 
-.marginalized_random_effect_candidates <- function(random_effects, data) {
+.marginalized_random_effect_candidates <- function(formula_design, data) {
 
+  random_effects <- formula_design[["random_effects"]]
   if (length(random_effects) == 0L) {
     return(list())
   }
@@ -128,16 +135,26 @@
     random_effects,
     .is_marginalized_estimate_level_candidate,
     logical(1),
-    k = k
+    k              = k,
+    formula_design = formula_design
   )]
 }
 
 
-.is_marginalized_estimate_level_candidate <- function(term, k) {
+.is_marginalized_estimate_level_candidate <- function(term, k,
+                                                      formula_design = NULL) {
 
-  identical(term[["compile_mode"]], "sampled") &&
-    !.random_effect_term_has_known_group_covariance(term) &&
-    .is_estimate_level_random_intercept(term, k)
+  if (!identical(term[["compile_mode"]], "sampled")) {
+    return(FALSE)
+  }
+  if (.random_effect_term_has_known_group_covariance(term)) {
+    return(.known_r_marginal_variance_factors_available(
+      formula_design = formula_design,
+      block          = term[["block_name"]]
+    ))
+  }
+
+  .is_estimate_level_random_intercept(term, k)
 }
 
 .random_effect_term_has_known_group_covariance <- function(term) {
@@ -150,6 +167,146 @@
   inherits(group_covariance, "random_group_covariance") ||
     inherits(group_covariance, "random_group_covariance_kernel") ||
     (is.list(group_covariance) && identical(group_covariance[["type"]], "known"))
+}
+
+
+.known_r_marginal_variance_factors_available <- function(formula_design,
+                                                         block) {
+
+  if (is.null(formula_design)) {
+    return(FALSE)
+  }
+
+  .brma_mv_require_marginal_variance_factors_api()
+  factors <- tryCatch(
+    BayesTools::random_effects_marginal_variance_factors(
+      formula_design      = formula_design,
+      blocks              = block,
+      require_diagonal    = TRUE,
+      require_one_to_one  = TRUE
+    ),
+    error = function(e) NULL
+  )
+
+  !is.null(factors)
+}
+
+
+.brma_mv_require_marginal_variance_factors_api <- function() {
+
+  if (!exists(
+    "random_effects_marginal_variance_factors",
+    envir   = asNamespace("BayesTools"),
+    mode    = "function",
+    inherits = FALSE
+  )) {
+    stop(
+      "Known-R marginalization requires BayesTools with ",
+      "random_effects_marginal_variance_factors().",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+.attach_known_r_marginal_variance_factors <- function(formula_design, terms) {
+
+  known_r_blocks <- vapply(
+    terms,
+    function(term) {
+      if (.random_effect_term_has_known_group_covariance(term)) {
+        term[["block_name"]]
+      } else {
+        NA_character_
+      }
+    },
+    character(1)
+  )
+  known_r_blocks <- known_r_blocks[!is.na(known_r_blocks)]
+
+  if (length(known_r_blocks) == 0L) {
+    return(list(formula_design = formula_design, terms = terms))
+  }
+
+  .brma_mv_require_marginal_variance_factors_api()
+  factors <- BayesTools::random_effects_marginal_variance_factors(
+    formula_design      = formula_design,
+    blocks              = known_r_blocks,
+    require_diagonal    = TRUE,
+    require_one_to_one  = TRUE
+  )
+
+  for (i in seq_along(terms)) {
+    block_name <- terms[[i]][["block_name"]]
+    if (!block_name %in% known_r_blocks) {
+      next
+    }
+    terms[[i]] <- .attach_known_r_marginal_variance_factor(
+      term   = terms[[i]],
+      factor = factors[["blocks"]][[block_name]]
+    )
+  }
+
+  formula_design[["random_effects"]] <- .replace_formula_design_random_terms(
+    random_effects = formula_design[["random_effects"]],
+    replacements   = terms
+  )
+
+  list(formula_design = formula_design, terms = terms)
+}
+
+
+.attach_known_r_marginal_variance_factor <- function(term, factor) {
+
+  if (is.null(factor)) {
+    stop(
+      "Known-R marginal variance metadata is missing for random-effect block '",
+      term[["block_name"]], "'.",
+      call. = FALSE
+    )
+  }
+
+  row_multiplier <- as.numeric(factor[["row_multiplier"]])
+  if (length(row_multiplier) != factor[["n_rows"]] ||
+      anyNA(row_multiplier) ||
+      any(!is.finite(row_multiplier)) ||
+      any(row_multiplier < 0)) {
+    stop(
+      "Known-R marginal variance multipliers are invalid for random-effect ",
+      "block '", term[["block_name"]], "'.",
+      call. = FALSE
+    )
+  }
+  names(row_multiplier) <- names(factor[["row_multiplier"]])
+
+  term[["marginal_variance_factor"]] <- factor
+  term[["row_multiplier"]]           <- row_multiplier
+  term[["row_multiplier_name"]]      <- .marginalized_random_effect_row_multiplier_name(
+    term[["block_name"]]
+  )
+
+  term
+}
+
+
+.replace_formula_design_random_terms <- function(random_effects, replacements) {
+
+  if (length(replacements) == 0L) {
+    return(random_effects)
+  }
+
+  replacement_names <- vapply(replacements, `[[`, character(1), "block_name")
+  for (i in seq_along(random_effects)) {
+    block_name <- random_effects[[i]][["block_name"]]
+    match      <- match(block_name, replacement_names)
+    if (!is.na(match)) {
+      random_effects[[i]] <- replacements[[match]]
+    }
+  }
+
+  random_effects
 }
 
 .is_estimate_level_random_intercept <- function(term, k) {
@@ -282,6 +439,21 @@
 .data_has_marginalized_random_effects <- function(data) {
 
   length(.data_marginalized_random_effects(data)) > 0L
+}
+
+
+.data_has_marginalized_known_group_covariance <- function(data) {
+
+  terms <- .data_marginalized_random_effects(data)
+  if (length(terms) == 0L) {
+    return(FALSE)
+  }
+
+  any(vapply(
+    terms,
+    .marginalized_random_effect_has_row_multiplier,
+    logical(1)
+  ))
 }
 
 
@@ -474,19 +646,77 @@
       source_samples    = source_samples
     )
 
-    if (ncol(sd_samples) == 1L) {
-      variance <- variance + matrix(sd_samples[, 1L]^2, nrow = nrow(sd_samples), ncol = K)
-    } else if (ncol(sd_samples) == K) {
-      variance <- variance + sd_samples^2
+    term_variance <- .marginalized_random_effect_variance_samples(
+      term       = term,
+      sd_samples = sd_samples,
+      K          = K
+    )
+
+    if (ncol(term_variance) == K) {
+      variance <- variance + term_variance
     } else {
       stop(
-        "Marginalized random-effect SD samples must be scalar or row-wise.",
+        "Marginalized random-effect variance samples must be row-wise.",
         call. = FALSE
       )
     }
   }
 
   return(variance)
+}
+
+
+.marginalized_random_effect_variance_samples <- function(term, sd_samples, K) {
+
+  if (ncol(sd_samples) == 1L) {
+    variance <- matrix(
+      sd_samples[, 1L]^2,
+      nrow = nrow(sd_samples),
+      ncol = K
+    )
+  } else if (ncol(sd_samples) == K) {
+    variance <- sd_samples^2
+  } else {
+    stop(
+      "Marginalized random-effect SD samples must be scalar or row-wise.",
+      call. = FALSE
+    )
+  }
+
+  multiplier <- .marginalized_random_effect_row_multiplier(term, K = K)
+  if (!is.null(multiplier)) {
+    variance <- variance * matrix(
+      multiplier,
+      nrow  = nrow(variance),
+      ncol  = K,
+      byrow = TRUE
+    )
+  }
+
+  variance
+}
+
+
+.marginalized_random_effect_row_multiplier <- function(term, K) {
+
+  if (!.marginalized_random_effect_has_row_multiplier(term)) {
+    return(NULL)
+  }
+
+  multiplier <- term[["row_multiplier"]]
+  if (!is.numeric(multiplier) ||
+      length(multiplier) != K ||
+      anyNA(multiplier) ||
+      any(!is.finite(multiplier)) ||
+      any(multiplier < 0)) {
+    stop(
+      "Known-R marginalized random-effect multipliers cannot be reused for ",
+      "new or reordered data.",
+      call. = FALSE
+    )
+  }
+
+  multiplier
 }
 
 
@@ -512,11 +742,85 @@
     term      = term,
     row_index = row_index
   )
+  multiplier_expression <- .marginalized_random_effect_row_multiplier_expression(
+    term      = term,
+    row_index = row_index
+  )
+
+  expression <- paste0("pow(", sd_expression[["expression"]], ",2)")
+  if (!identical(multiplier_expression[["expression"]], "1")) {
+    expression <- paste0(
+      expression,
+      " * ",
+      multiplier_expression[["expression"]]
+    )
+  }
 
   return(list(
-    expression  = paste0("pow(", sd_expression[["expression"]], ",2)"),
-    row_varying = sd_expression[["row_varying"]]
+    expression  = expression,
+    row_varying = sd_expression[["row_varying"]] ||
+      multiplier_expression[["row_varying"]]
   ))
+}
+
+
+.marginalized_random_effect_row_multiplier_expression <- function(term,
+                                                                  row_index) {
+
+  if (!.marginalized_random_effect_has_row_multiplier(term)) {
+    return(list(expression = "1", row_varying = FALSE))
+  }
+
+  return(list(
+    expression  = paste0(term[["row_multiplier_name"]], "[", row_index, "]"),
+    row_varying = .marginalized_random_effect_row_multiplier_varying(term)
+  ))
+}
+
+
+.marginalized_random_effect_has_row_multiplier <- function(term) {
+
+  !is.null(term[["row_multiplier"]]) &&
+    !is.null(term[["row_multiplier_name"]])
+}
+
+
+.marginalized_random_effect_row_multiplier_varying <- function(term) {
+
+  if (!.marginalized_random_effect_has_row_multiplier(term)) {
+    return(FALSE)
+  }
+
+  multiplier <- term[["row_multiplier"]]
+  max(abs(multiplier - multiplier[[1L]])) > sqrt(.Machine$double.eps) *
+    max(1, max(abs(multiplier)))
+}
+
+
+.marginalized_random_effect_row_multiplier_name <- function(block_name) {
+
+  paste0("mu__xRE_MVARx_", block_name)
+}
+
+
+.add_marginalized_random_effect_row_multiplier_data <- function(fit_data,
+                                                                data) {
+
+  terms <- .data_marginalized_random_effects(data)
+  if (length(terms) == 0L) {
+    return(fit_data)
+  }
+
+  K <- nrow(data[["outcome"]])
+  for (term in terms) {
+    multiplier <- .marginalized_random_effect_row_multiplier(term, K = K)
+    if (is.null(multiplier)) {
+      next
+    }
+    fit_data[[term[["row_multiplier_name"]]]] <- multiplier
+  }
+
+  fit_data
 }
 
 

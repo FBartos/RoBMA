@@ -266,6 +266,25 @@
 }
 
 
+.iwmde_plan_active_key_counts <- function(row_states) {
+
+  if (length(row_states) == 0L) {
+    return(integer())
+  }
+
+  keys <- vapply(row_states, function(state) {
+    key <- state[["active_key"]]
+    if (length(key) != 1L || is.na(key) || !nzchar(key)) {
+      return("all")
+    }
+
+    return(as.character(key))
+  }, character(1))
+
+  return(table(keys))
+}
+
+
 .iwmde_plan_output_cache_key <- function(plan, output) {
 
   return(.iwmde_hash("iwmde_plan_output", list(
@@ -408,6 +427,7 @@
     plan[["grids"]][["requested_values"]]
   }
   bf_diagnostics <- .iwmde_density_bf_diagnostics(density, bf_values)
+  active_key_counts <- .iwmde_plan_active_key_counts(execution[["row_states"]])
 
   diagnostics <- list(
     integral                    = plot_integral,
@@ -435,6 +455,8 @@
       .iwmde_max_or_na(density[["ordinate_relative_change"]]),
     max_normalizer_relative_change =
       density[["max_normalizer_relative_change"]],
+    max_quadrature_relative_change =
+      density[["max_quadrature_relative_change"]],
     p95_normalizer_relative_change =
       density[["p95_normalizer_relative_change"]],
     median_normalizer_relative_change =
@@ -458,6 +480,12 @@
     n_dropped_rows              = density[["n_dropped_rows"]],
     row_drop_fraction           = density[["row_drop_fraction"]],
     n_active                    = length(execution[["active_rows"]]),
+    n_active_state_keys         = length(active_key_counts),
+    min_active_state_rows       = if (length(active_key_counts) == 0L) {
+      NA_integer_
+    } else {
+      min(active_key_counts)
+    },
     n_total                     = rows[["n_total"]],
     n_dropped_log_q             = execution[["n_dropped_log_q"]],
     n_dropped_weight            = density[["n_dropped_weight"]],

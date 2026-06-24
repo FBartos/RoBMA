@@ -445,7 +445,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   for (name in names(specs)) {
     estimate <- estimates[[name]]
     diagnostic <- estimate[["diagnostics"]][["density"]]
-    if (!identical(diagnostic[["status"]], "ok")) {
+    if (!identical(diagnostic[["status"]], "ok") ||
+        is.null(estimate[["posterior_density"]])) {
       next
     }
 

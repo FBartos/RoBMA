@@ -65,7 +65,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \code{R}, estimate-unit LOO keeps sampled random effects at the estimate
 #' conditioning depth. The known \code{R} matrix shapes the posterior and prior
 #' for those sampled random effects, but it is not added again as a marginal
-#' \eqn{ZGZ'} covariance term in this target.
+#' \eqn{ZGZ'} covariance term in this target. Supported known-\code{R} blocks
+#' compiled as marginalized instead enter through the diagonal extra variance
+#' term prepared by BayesTools.
 #'
 #' The PSIS object is essential for model comparison via
 #' \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.

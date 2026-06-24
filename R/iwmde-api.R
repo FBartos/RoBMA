@@ -54,8 +54,8 @@
 #' \code{as_data = TRUE} or \code{plot = FALSE}, and invisibly after plotting.
 #'
 #' @noRd
-plot_iwmde_diagnostics <- function(object, parameters = NULL, n_points = 150,
-                                   max_samples = 400,
+plot_iwmde_diagnostics <- function(object, parameters = NULL, n_points = 100,
+                                   max_samples = 500,
                                    normalization_points = NULL,
                                    normalization_prob = .999,
                                    density_method = c("qCMDE", "IWMDE"),
@@ -169,8 +169,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
                                                   type = NULL, levels = NULL,
                                                   marginal_means_object = NULL,
                                                   n_marginal_samples = 10000,
-                                                  n_points = 150,
-                                                  max_samples = 400,
+                                                  n_points = 100,
+                                                  max_samples = 500,
                                                   normalization_points = NULL,
                                                   normalization_prob = .999,
                                                   density_method = c("qCMDE", "IWMDE"),
@@ -560,8 +560,8 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
     "display_grid"
   )
   defaults <- list(
-    n_points             = 150L,
-    max_samples          = 400L,
+    n_points             = 100L,
+    max_samples          = 500L,
     normalization_points = NULL,
     normalization_prob   = .999,
     display_grid         = "adaptive"
@@ -637,6 +637,15 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   density <- diagnostic[["iwmde"]]
+  diagnostics <- diagnostic[["diagnostics"]]
+  density_failure <- .iwmde_diagnostics_density_failure_reason(diagnostics)
+  if (!is.null(density_failure)) {
+    return(NULL)
+  }
+  density_warning <- .iwmde_diagnostics_density_warning(diagnostics)
+  if (length(density_warning) > 0L) {
+    diagnostics[["warning"]] <- density_warning
+  }
   provenance <- .iwmde_result_provenance(
     diagnostic      = diagnostic,
     density_method  = density_method,
@@ -650,7 +659,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
       y              = density[["y"]],
       method         = density[["estimator"]],
       density_method = .density_method_normalize(density_method),
-      diagnostics    = diagnostic[["diagnostics"]],
+      diagnostics    = diagnostics,
       point_masses   = diagnostic[["point_masses"]],
       iwmde_provenance = provenance
     ),
@@ -910,6 +919,47 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
+.iwmde_diagnostics_density_failure_reason <- function(diagnostics) {
+
+  if (is.null(diagnostics) || !is.list(diagnostics)) {
+    return("missing qCMDE/IWMDE density diagnostics")
+  }
+  density_diagnostics <- .iwmde_density_diagnostics_as_ordinate(diagnostics)
+
+  estimator <- diagnostics[["estimator"]]
+  if (length(estimator) != 1L) {
+    return("missing qCMDE/IWMDE estimator diagnostics")
+  }
+  estimator <- as.character(estimator)
+  if (!estimator %in% c("q_grid_cmde", "iwmde")) {
+    return("unknown qCMDE/IWMDE estimator")
+  }
+
+  reason <- .iwmde_diagnostics_density_sample_failure_reason(density_diagnostics)
+  if (!is.null(reason)) {
+    return(reason)
+  }
+
+  row_loss_reason <- .iwmde_diagnostics_row_loss_failure_reason(
+    diagnostics = density_diagnostics,
+    estimator   = estimator
+  )
+  if (!is.null(row_loss_reason)) {
+    return(row_loss_reason)
+  }
+
+  mass_reason <- .iwmde_diagnostics_mass_failure_reason(
+    diagnostics = density_diagnostics,
+    estimator   = estimator
+  )
+  if (!is.null(mass_reason)) {
+    return(mass_reason)
+  }
+
+  return(.iwmde_diagnostics_quadrature_failure_reason(density_diagnostics))
+}
+
+
 .iwmde_diagnostics_mass_failure_reason <- function(diagnostics, estimator) {
 
   normalization_error <- .iwmde_diagnostics_normalization_relative_error(
@@ -933,6 +983,234 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   return(NULL)
+}
+
+
+.iwmde_diagnostics_density_warning <- function(diagnostics) {
+
+  if (is.null(diagnostics) || !is.list(diagnostics)) {
+    return(character())
+  }
+
+  density_diagnostics <- .iwmde_density_diagnostics_as_ordinate(diagnostics)
+  estimator <- diagnostics[["estimator"]]
+  if (length(estimator) != 1L) {
+    return(character())
+  }
+  estimator <- as.character(estimator)
+  if (!estimator %in% c("q_grid_cmde", "iwmde")) {
+    return(character())
+  }
+
+  warnings <- .iwmde_diagnostics_density_sample_warning(density_diagnostics)
+  normalization_warning <- .iwmde_diagnostics_density_mass_warning(
+    diagnostics = density_diagnostics,
+    estimator   = estimator
+  )
+  quadrature_warning <- .iwmde_diagnostics_quadrature_warning(density_diagnostics)
+  warnings <- c(warnings, normalization_warning, quadrature_warning)
+
+  return(unique(warnings[nzchar(warnings)]))
+}
+
+
+.iwmde_diagnostics_density_sample_failure_reason <- function(diagnostics) {
+
+  estimator_rows <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("n_estimator_rows", "n_normalized_rows", "n_evaluated_rows")
+  )
+  n_active_state_keys <- .iwmde_diagnostic_scalar(
+    diagnostics,
+    "n_active_state_keys"
+  )
+  if (is.finite(estimator_rows) &&
+      is.finite(n_active_state_keys) &&
+      n_active_state_keys > 1 &&
+      estimator_rows < .iwmde_density_min_estimator_rows()) {
+    return(paste0(
+      "model-averaged density uses only ",
+      .iwmde_count(estimator_rows),
+      " estimator rows across ",
+      .iwmde_count(n_active_state_keys),
+      " active states (minimum ",
+      .iwmde_count(.iwmde_density_min_estimator_rows()),
+      ")"
+    ))
+  }
+
+  relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_relative_mcse", "relative_mcse", "bf_relative_mcse")
+  )
+  if (!is.finite(relative_mcse) || relative_mcse < 0 ||
+      relative_mcse >= .iwmde_density_max_relative_mcse()) {
+    return(paste0(
+      "density relative MCSE is ",
+      .iwmde_percent(relative_mcse),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")"
+    ))
+  }
+
+  ess <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("min_ess", "ess", "bf_ess")
+  )
+  min_ess <- .iwmde_density_min_ess(estimator_rows)
+  if (!is.finite(ess) || ess < min_ess) {
+    return(paste0(
+      "density effective sample size is ", .iwmde_count(ess),
+      " (minimum ", .iwmde_count(min_ess), ")"
+    ))
+  }
+
+  max_weight_share <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_weight_share", "bf_max_weight_share")
+  )
+  if (!is.finite(max_weight_share) ||
+      max_weight_share >= .iwmde_density_max_weight_share()) {
+    return(paste0(
+      "largest density importance weight contributes ",
+      .iwmde_percent(max_weight_share),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_density_max_weight_share()),
+      ")"
+    ))
+  }
+
+  return(NULL)
+}
+
+
+.iwmde_diagnostics_density_sample_warning <- function(diagnostics) {
+
+  warnings <- character()
+  estimator_rows <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("n_estimator_rows", "n_normalized_rows", "n_evaluated_rows")
+  )
+  if (is.finite(estimator_rows) &&
+      estimator_rows < .iwmde_density_warning_min_estimator_rows()) {
+    warnings <- c(warnings, paste0(
+      "Density uses only ",
+      .iwmde_count(estimator_rows),
+      " estimator rows",
+      " (warning threshold ",
+      .iwmde_count(.iwmde_density_warning_min_estimator_rows()),
+      "; recommended minimum ",
+      .iwmde_count(.iwmde_density_min_estimator_rows()),
+      ")."
+    ))
+  }
+
+  relative_mcse <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_relative_mcse", "relative_mcse", "bf_relative_mcse")
+  )
+  if (is.finite(relative_mcse) &&
+      relative_mcse >= .iwmde_density_warning_relative_mcse() &&
+      relative_mcse < .iwmde_density_max_relative_mcse()) {
+    warnings <- c(warnings, paste0(
+      "Density relative MCSE is ",
+      .iwmde_percent(relative_mcse),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_density_warning_relative_mcse()),
+      "; rejection threshold ",
+      .iwmde_percent(.iwmde_density_max_relative_mcse()),
+      ")."
+    ))
+  }
+
+  ess <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("min_ess", "ess", "bf_ess")
+  )
+  min_ess <- .iwmde_density_min_ess(estimator_rows)
+  warning_min_ess <- .iwmde_density_warning_min_ess(estimator_rows)
+  if (is.finite(ess) &&
+      ess >= min_ess &&
+      ess < warning_min_ess) {
+    warnings <- c(warnings, paste0(
+      "Density effective sample size is ",
+      .iwmde_count(ess),
+      " (warning threshold ",
+      .iwmde_count(warning_min_ess),
+      "; rejection threshold ",
+      .iwmde_count(min_ess),
+      ")."
+    ))
+  }
+
+  max_weight_share <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_weight_share", "bf_max_weight_share")
+  )
+  if (is.finite(max_weight_share) &&
+      max_weight_share >= .iwmde_density_warning_weight_share() &&
+      max_weight_share < .iwmde_density_max_weight_share()) {
+    warnings <- c(warnings, paste0(
+      "Largest density importance weight contributes ",
+      .iwmde_percent(max_weight_share),
+      " (warning threshold ",
+      .iwmde_percent(.iwmde_density_warning_weight_share()),
+      "; rejection threshold ",
+      .iwmde_percent(.iwmde_density_max_weight_share()),
+      ")."
+    ))
+  }
+
+  return(warnings)
+}
+
+
+.iwmde_diagnostics_density_mass_warning <- function(diagnostics, estimator) {
+
+  warnings <- character()
+  row_loss <- .iwmde_diagnostics_row_loss_fraction(diagnostics)
+  if (is.finite(row_loss)) {
+    warning_tolerance <- .iwmde_bf_mass_warning_tolerance(estimator)
+    fail_tolerance    <- .iwmde_bf_mass_fail_tolerance(estimator)
+    if (row_loss > warning_tolerance &&
+        row_loss <= fail_tolerance) {
+      warnings <- c(warnings, paste0(
+        .iwmde_estimator_label(estimator),
+        " dropped ",
+        .iwmde_percent(row_loss),
+        " of target rows during density estimation",
+        " (warning threshold ",
+        .iwmde_percent(warning_tolerance),
+        "; rejection threshold ",
+        .iwmde_percent(fail_tolerance),
+        ")."
+      ))
+    }
+  }
+
+  normalization_error <- .iwmde_diagnostics_normalization_relative_error(
+    diagnostics = diagnostics,
+    estimator   = estimator
+  )
+  warning_tolerance <- .iwmde_bf_mass_warning_tolerance(estimator)
+  fail_tolerance    <- .iwmde_bf_mass_fail_tolerance(estimator)
+  if (is.finite(normalization_error) &&
+      normalization_error > warning_tolerance &&
+      normalization_error <= fail_tolerance) {
+    warnings <- c(warnings, paste0(
+      .iwmde_estimator_label(estimator),
+      .iwmde_diagnostics_normalization_error_phrase(estimator),
+      .iwmde_percent(normalization_error),
+      " (warning threshold ",
+      .iwmde_percent(warning_tolerance),
+      "; rejection threshold ",
+      .iwmde_percent(fail_tolerance),
+      ")."
+    ))
+  }
+
+  return(warnings)
 }
 
 
@@ -1066,6 +1344,89 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   return(warnings)
+}
+
+
+.iwmde_density_diagnostics_as_ordinate <- function(diagnostics) {
+
+  out <- diagnostics
+  out[["relative_mcse"]] <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_relative_mcse", "relative_mcse")
+  )
+  out[["finite_terms"]] <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("min_finite_terms", "finite_terms")
+  )
+  out[["ess"]] <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("min_ess", "ess")
+  )
+  out[["max_weight_share"]] <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_weight_share", "bf_max_weight_share")
+  )
+  out[["ordinate_relative_change"]] <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_ordinate_relative_change", "ordinate_relative_change")
+  )
+
+  return(out)
+}
+
+
+.iwmde_diagnostics_quadrature_failure_reason <- function(diagnostics) {
+
+  quadrature_change <- .iwmde_diagnostics_quadrature_relative_change(diagnostics)
+  if (!is.finite(quadrature_change)) {
+    return(NULL)
+  }
+  if (quadrature_change > .iwmde_quadrature_fail_tolerance()) {
+    return(paste0(
+      "adaptive quadrature sensitivity is ",
+      .iwmde_percent(quadrature_change),
+      " (maximum allowed ",
+      .iwmde_percent(.iwmde_quadrature_fail_tolerance()),
+      ")"
+    ))
+  }
+
+  return(NULL)
+}
+
+
+.iwmde_diagnostics_quadrature_warning <- function(diagnostics) {
+
+  quadrature_change <- .iwmde_diagnostics_quadrature_relative_change(diagnostics)
+  if (!is.finite(quadrature_change) ||
+      quadrature_change <= .iwmde_quadrature_warning_tolerance() ||
+      quadrature_change > .iwmde_quadrature_fail_tolerance()) {
+    return(character())
+  }
+
+  return(paste0(
+    "Adaptive quadrature sensitivity is ",
+    .iwmde_percent(quadrature_change),
+    " (warning threshold ",
+    .iwmde_percent(.iwmde_quadrature_warning_tolerance()),
+    "; rejection threshold ",
+    .iwmde_percent(.iwmde_quadrature_fail_tolerance()),
+    ")."
+  ))
+}
+
+
+.iwmde_diagnostics_quadrature_relative_change <- function(diagnostics) {
+
+  quadrature_change <- .iwmde_diagnostic_scalar_any(
+    diagnostics,
+    c("max_quadrature_relative_change", "quadrature_relative_change")
+  )
+  if (!is.finite(quadrature_change) || quadrature_change < 0) {
+    return(NA_real_)
+  }
+
+  return(quadrature_change)
 }
 
 
@@ -1255,6 +1616,76 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   }
 
   return(0)
+}
+
+
+.iwmde_density_min_estimator_rows <- function() {
+
+  return(300)
+}
+
+
+.iwmde_density_warning_min_estimator_rows <- function() {
+
+  return(500)
+}
+
+
+.iwmde_density_max_relative_mcse <- function() {
+
+  return(.25)
+}
+
+
+.iwmde_density_warning_relative_mcse <- function() {
+
+  return(.10)
+}
+
+
+.iwmde_density_min_ess <- function(estimator_rows = NA_real_) {
+
+  estimator_rows <- as.numeric(estimator_rows)[1]
+  if (is.finite(estimator_rows) && estimator_rows > 0) {
+    return(min(50, max(4, .25 * estimator_rows)))
+  }
+
+  return(50)
+}
+
+
+.iwmde_density_warning_min_ess <- function(estimator_rows = NA_real_) {
+
+  estimator_rows <- as.numeric(estimator_rows)[1]
+  if (is.finite(estimator_rows) && estimator_rows > 0) {
+    return(min(100, max(20, .50 * estimator_rows)))
+  }
+
+  return(100)
+}
+
+
+.iwmde_density_max_weight_share <- function() {
+
+  return(.25)
+}
+
+
+.iwmde_density_warning_weight_share <- function() {
+
+  return(.10)
+}
+
+
+.iwmde_quadrature_warning_tolerance <- function() {
+
+  return(.025)
+}
+
+
+.iwmde_quadrature_fail_tolerance <- function() {
+
+  return(.05)
 }
 
 
@@ -1692,13 +2123,23 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 }
 
 
-.iwmde_select_active_rows <- function(rows, max_samples) {
+.iwmde_select_active_rows <- function(rows, max_samples, context = NULL) {
 
   if (length(rows) <= max_samples) {
     return(rows)
   }
 
-  selected <- .thin_sample_rows(length(rows), max_samples)
+  selected <- NULL
+  if (!is.null(context) && length(context[["indicator_names"]]) > 0L) {
+    samples <- context[["posterior_samples"]]
+    group <- vapply(rows, function(row) {
+      .iwmde_active_key(context, samples[row, ])
+    }, character(1))
+    selected <- .thin_sample_rows_by_group(group, max_samples)
+  }
+  if (is.null(selected)) {
+    selected <- .thin_sample_rows(length(rows), max_samples)
+  }
 
   return(rows[selected])
 }

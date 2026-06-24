@@ -5,7 +5,9 @@
   covariance matrices, including latent, whitened, and block-MVN known-`V`
   backends and BayesTools random-effect formula integration.
 - adds metafor-style `R`/`Rscale` support to `brma.mv()` for known
-  random-effect group covariance in sampled random-intercept blocks.
+  random-effect group covariance in random-intercept blocks, including
+  supported one-to-one marginalized known-`R` blocks under known-`V` normal
+  models.
 - adds opt-in likelihood-aware qCMDE/IWMDE posterior density and point-ordinate
   estimation for supported `plot()`, `hypothesis()`/`bf_hypothesis()`,
   `marginal_means()`, and `hypothesis.marginal_means()` workflows via

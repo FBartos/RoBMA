@@ -334,7 +334,7 @@ test_that("brma.mv delegates known R matching and level validation to BayesTools
 })
 
 
-test_that("brma.mv does not auto-marginalize known R blocks", {
+test_that("brma.mv marginalizes supported one-to-one known R blocks", {
 
   dat <- data.frame(
     yi       = c(0.10, 0.20, 0.30),
@@ -355,6 +355,19 @@ test_that("brma.mv does not auto-marginalize known R blocks", {
     only_priors               = TRUE
   )
   known_r_term <- .fitted_formula_design(known_r, "mu")[["random_effects"]][[1L]]
+  known_r_terms <- .data_marginalized_random_effects(known_r[["data"]])
+  fit_data      <- .create_fit_data(known_r[["data"]], known_r[["priors"]])
+  syntax        <- .create_model_syntax(known_r[["data"]], known_r[["priors"]])
+
+  result <- BayesTools::JAGS_formula(
+    formula                = .create_fit_formula_list(known_r[["data"]], "location"),
+    parameter              = "mu",
+    data                   = known_r[["data"]][["location"]],
+    prior_list             = known_r[["priors"]][["location"]],
+    formula_scale          = .data_standardize_continuous_predictors(known_r[["data"]]),
+    prior_random           = known_r[["priors"]][["random"]],
+    random_effects_compile = .data_random_effects_compile(known_r[["data"]])
+  )
 
   ordinary <- brma.mv(
     yi                        = yi,
@@ -367,8 +380,157 @@ test_that("brma.mv does not auto-marginalize known R blocks", {
   )
   ordinary_term <- .fitted_formula_design(ordinary, "mu")[["random_effects"]][[1L]]
 
-  expect_equal(known_r_term[["compile_mode"]], "sampled")
-  expect_false(.data_has_marginalized_random_effects(known_r[["data"]]))
+  expect_equal(known_r_term[["compile_mode"]], "marginalized")
+  expect_true(.data_has_marginalized_random_effects(known_r[["data"]]))
+  expect_true(.data_has_marginalized_known_group_covariance(known_r[["data"]]))
+  expect_length(known_r_terms, 1L)
+  expect_equal(unname(known_r_terms[[1L]][["row_multiplier"]]), c(4, 9, 16))
+  expect_equal(
+    fit_data[[known_r_terms[[1L]][["row_multiplier_name"]]]],
+    known_r_terms[[1L]][["row_multiplier"]]
+  )
+  expect_match(syntax, "mu__xRE_MVARx_estimate\\[i\\]")
+  expect_false(grepl("_xRE_GROUP_Zx", result[["formula_syntax"]], fixed = TRUE))
+  expect_false(any(grepl("_xRE_GROUP_PRECx", names(result[["data"]]),
+                         fixed = TRUE)))
+  expect_error(
+    predict(known_r, newdata = dat, type = "estimate"),
+    "new or reordered known-R rows"
+  )
   expect_equal(ordinary_term[["compile_mode"]], "marginalized")
   expect_true(.data_has_marginalized_random_effects(ordinary[["data"]]))
+})
+
+
+test_that("brma.mv sampled known R path is preserved when requested", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  K <- diag(c(4, 9, 16))
+  dimnames(K) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(dat)),
+    random                    = ~ 1 | estimate,
+    R                         = K,
+    Rscale                    = "none",
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    marginalize_estimate_level  = FALSE,
+    only_priors               = TRUE
+  )
+  term <- .fitted_formula_design(object, "mu")[["random_effects"]][[1L]]
+  result <- BayesTools::JAGS_formula(
+    formula       = .create_fit_formula_list(object[["data"]], "location"),
+    parameter     = "mu",
+    data          = object[["data"]][["location"]],
+    prior_list    = object[["priors"]][["location"]],
+    formula_scale = .data_standardize_continuous_predictors(object[["data"]]),
+    prior_random  = object[["priors"]][["random"]]
+  )
+
+  expect_equal(term[["compile_mode"]], "sampled")
+  expect_false(.data_has_marginalized_random_effects(object[["data"]]))
+  expect_match(result[["formula_syntax"]], "_xRE_GROUP_Zx", fixed = TRUE)
+  expect_true(any(grepl("_xRE_GROUP_PRECx", names(result[["data"]]),
+                        fixed = TRUE)))
+})
+
+
+test_that("brma.mv known R row multipliers respect Rscale", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  K <- diag(c(4, 9, 16))
+  dimnames(K) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+
+  expected <- list(
+    none = c(4, 9, 16),
+    cor  = c(1, 1, 1),
+    cor0 = c(1, 1, 1),
+    cov0 = c(4, 9, 16)
+  )
+
+  for (Rscale in names(expected)) {
+    object <- brma.mv(
+      yi                        = yi,
+      V                         = diag(0.01, nrow(dat)),
+      random                    = ~ 1 | estimate,
+      R                         = K,
+      Rscale                    = Rscale,
+      data                      = dat,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )
+    term <- .data_marginalized_random_effects(object[["data"]])[[1L]]
+
+    expect_equal(unname(term[["row_multiplier"]]), expected[[Rscale]],
+                 info = Rscale)
+  }
+})
+
+
+test_that("brma.mv keeps unsupported known R marginalization designs sampled", {
+
+  repeated <- known_r_data()
+  repeated_R <- known_r_kernel()
+
+  repeated_object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(repeated)),
+    random                    = ~ 1 | id,
+    R                         = repeated_R,
+    Rscale                    = "none",
+    data                      = repeated,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  repeated_term <- .fitted_formula_design(
+    repeated_object,
+    "mu"
+  )[["random_effects"]][[1L]]
+
+  offdiag <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  offdiag_R <- matrix(
+    c(
+      4, 1, 0,
+      1, 9, 0,
+      0, 0, 16
+    ),
+    nrow  = 3,
+    byrow = TRUE,
+    dimnames = list(levels(offdiag[["estimate"]]),
+                    levels(offdiag[["estimate"]]))
+  )
+  offdiag_object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(offdiag)),
+    random                    = ~ 1 | estimate,
+    R                         = offdiag_R,
+    Rscale                    = "none",
+    data                      = offdiag,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  offdiag_term <- .fitted_formula_design(
+    offdiag_object,
+    "mu"
+  )[["random_effects"]][[1L]]
+
+  expect_equal(repeated_term[["compile_mode"]], "sampled")
+  expect_false(.data_has_marginalized_random_effects(repeated_object[["data"]]))
+  expect_equal(offdiag_term[["compile_mode"]], "sampled")
+  expect_false(.data_has_marginalized_random_effects(offdiag_object[["data"]]))
 })

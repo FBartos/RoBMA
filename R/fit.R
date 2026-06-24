@@ -141,6 +141,11 @@
       }
     }
 
+    fit_data <- .add_marginalized_random_effect_row_multiplier_data(
+      fit_data = fit_data,
+      data     = data
+    )
+
   } else if (.data_outcome_type(data) == "bin") {
     # always include ai, ci, n1i, and n2i
     fit_data <- list(

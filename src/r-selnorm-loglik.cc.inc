@@ -367,96 +367,71 @@ extern "C" SEXP RoBMA_selnorm_cluster_location_grid(
 
   const int G_values = Rf_length(values);
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, G_values, args.S));
+  SEXP sensitivity = PROTECT(Rf_allocMatrix(REALSXP, G_values, args.S));
 
-  SelNormKernelData data;
+  args.selected          = true;
+  args.yi                = REAL(yi);
+  args.sei               = REAL(sei);
+  args.mu                = REAL(mu_samples);
+  args.tau_within        = REAL(tau_within);
+  args.tau_between       = REAL(tau_between);
+  args.cluster_index     = INTEGER(cluster_index);
+  args.cluster_size      = INTEGER(cluster_size);
+  args.weights           = weights == R_NilValue ? 0 : REAL(weights);
+  args.gamma             = REAL(gamma_grid);
+  args.log_gamma         = REAL(log_gamma_weights);
+  args.omega             = REAL(omega);
+  args.alpha             = REAL(alpha);
+  args.phack_kind        = INTEGER(phack_kind);
+  args.kernel_mode       = INTEGER(kernel_mode);
+  args.obs_bin           = INTEGER(obs_bin);
+  args.alpha_len         = Rf_length(alpha);
+  args.phack_kind_len    = Rf_length(phack_kind);
+  args.kernel_mode_len   = Rf_length(kernel_mode);
+
+  validate_omega_matrix(args.omega, args.S, B);
   set_kernel_data(
-    &data, B, n_segments, sign, q, z_lower, z_upper,
+    &args.selection_data, B, n_segments, sign, q, z_lower, z_upper,
     phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
     segment_phack_region, LOGICAL(telescope_probabilities)[0] == TRUE
   );
 
-  const double *yi_p             = REAL(yi);
-  const double *sei_p            = REAL(sei);
-  const double *mu_p             = REAL(mu_samples);
-  const double *basis_p          = REAL(mu_basis);
   const double *current_p        = REAL(current);
   const double *values_p         = REAL(values);
-  const double *tau_within_p     = REAL(tau_within);
-  const double *tau_between_p    = REAL(tau_between);
-  const int *cluster_index_p     = INTEGER(cluster_index);
-  const int *cluster_size_p      = INTEGER(cluster_size);
-  const double *weights_p        = weights == R_NilValue ? 0 : REAL(weights);
-  const double *gamma_p          = REAL(gamma_grid);
-  const double *log_gamma_p      = REAL(log_gamma_weights);
-  const double *omega_p          = REAL(omega);
-  const double *alpha_p          = REAL(alpha);
-  const int *phack_kind_p        = INTEGER(phack_kind);
-  const int *kernel_mode_p       = INTEGER(kernel_mode);
-  const int *obs_bin_p           = INTEGER(obs_bin);
+  const double *basis_p          = REAL(mu_basis);
   double *out_p                  = REAL(out);
-
-  validate_omega_matrix(omega_p, args.S, B);
+  double *sensitivity_p          = REAL(sensitivity);
 
   std::vector<double> gamma_terms(static_cast<size_t>(args.n_gamma));
-  std::vector<double> cluster_terms(static_cast<size_t>(args.n_gamma));
 
   for (int s = 0; s < args.S; ++s) {
     for (int g_value = 0; g_value < G_values; ++g_value) {
       const double delta = values_p[g_value] - current_p[s];
       if (!std::isfinite(delta)) {
         out_p[g_value + G_values * s] = NA_REAL;
+        sensitivity_p[g_value + G_values * s] = NA_REAL;
         continue;
       }
 
       double row_sum = 0.0;
+      double row_sensitivity = 0.0;
       int cluster_offset = 0;
       for (int g = 0; g < args.G; ++g) {
-        const int cluster_n = cluster_size_p[g];
-        std::fill(cluster_terms.begin(), cluster_terms.end(), 0.0);
-
-        for (int m = 0; m < cluster_n; ++m) {
-          const int k = cluster_index_p[cluster_offset + m] - 1;
-          const double weight = weights_p == 0 ? 1.0 : weights_p[k];
-
-          for (int j = 0; j < args.n_gamma; ++j) {
-            const int cell = s + args.S * k;
-            const double mu_node = mu_p[cell] + basis_p[cell] * delta +
-              gamma_p[j] * tau_between_p[cell];
-            const double sd = std::sqrt(
-              tau_within_p[cell] * tau_within_p[cell] + sei_p[k] * sei_p[k]
-            );
-
-            cluster_terms[j] += weight * cpp_selnorm_kernel_lpdf(
-              yi_p[k],
-              mu_node,
-              sd,
-              mu_node,
-              sd,
-              sei_p[k],
-              1.0,
-              omega_p + s,
-              obs_bin_p[k],
-              scalar_or_row_real(alpha_p, Rf_length(alpha), s, "alpha"),
-              scalar_or_row_int(phack_kind_p, Rf_length(phack_kind), s, "phack_kind"),
-              scalar_or_row_int(kernel_mode_p, Rf_length(kernel_mode), s, "kernel_mode"),
-              data,
-              args.S,
-              false
-            );
-          }
-        }
-
-        for (int j = 0; j < args.n_gamma; ++j) {
-          gamma_terms[j] = cluster_terms[j] + log_gamma_p[j];
-        }
-        row_sum += norm_cluster_logsumexp(gamma_terms);
+        const int cluster_n = args.cluster_size[g];
+        row_sum += norm_cluster_adaptive_log_integral(
+          args, s, cluster_offset, cluster_n, basis_p, delta, gamma_terms,
+          &row_sensitivity
+        );
         cluster_offset += cluster_n;
       }
 
       out_p[g_value + G_values * s] = row_sum;
+      sensitivity_p[g_value + G_values * s] = row_sensitivity;
     }
   }
 
-  UNPROTECT(1);
+  Rf_setAttrib(out, Rf_install("quadrature_relative_change"), sensitivity);
+
+  UNPROTECT(2);
   return out;
 }

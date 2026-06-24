@@ -77,6 +77,25 @@ REFERENCE_DIR <<- testthat::test_path("..", "results", "marginal_means")
 }
 
 
+.marginal_means_iwmde_density_diagnostics <- function(estimator = "q_grid_cmde") {
+
+  list(
+    estimator                         = estimator,
+    max_relative_mcse                 = .01,
+    min_finite_terms                  = 100L,
+    min_ess                           = 100,
+    max_weight_share                  = .10,
+    row_drop_fraction                 = 0,
+    active_mass                       = 1,
+    normalization_integral            = 1,
+    normalization_mass_ratio          = 1,
+    max_ordinate_relative_change      = 0,
+    max_normalizer_relative_change    = 0,
+    max_quadrature_relative_change    = 0
+  )
+}
+
+
 test_that("marginal_means base plot keeps separate level colors", {
 
   emm  <- .marginal_means_test_object()
@@ -147,7 +166,10 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
           diagnostics       = list(density = diagnostic),
           posterior_density = list(
             density_method = density_method,
-            marginal_type  = parameter_spec[["marginal_type"]]
+            marginal_type  = parameter_spec[["marginal_type"]],
+            diagnostics    = .marginal_means_iwmde_density_diagnostics(
+              .density_method_iwmde_estimator(density_method)
+            )
           )
         ))
       }
@@ -233,7 +255,7 @@ test_that("marginal_means plot defaults to KDE despite stored posterior density"
     y              = rep(.5, 5),
     density_method = "qCMDE",
     method         = "q_grid_cmde",
-    diagnostics    = list(estimator = "q_grid_cmde"),
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
     point_masses   = data.frame(x = numeric(), mass = numeric())
   )
   attr(
@@ -280,7 +302,7 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
     y              = rep(.5, 5),
     density_method = "qCMDE",
     method         = "q_grid_cmde",
-    diagnostics    = list(estimator = "q_grid_cmde"),
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
     point_masses   = data.frame(x = numeric(), mass = numeric())
   )
   attr(
@@ -389,7 +411,8 @@ test_that("marginal_means plot density coverage requires provenance", {
     x              = seq(-1, 1, length.out = 5),
     y              = rep(.5, 5),
     density_method = "qCMDE",
-    method         = "q_grid_cmde"
+    method         = "q_grid_cmde",
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde")
   )
   for (level in levels) {
     density <- qcmde_density
@@ -512,12 +535,14 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
     y              = rep(.5, 5),
     density_method = "qCMDE",
     method         = "q_grid_cmde",
-    diagnostics    = list(estimator = "q_grid_cmde"),
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
     point_masses   = data.frame(x = numeric(), mass = numeric())
   )
   iwmde_density <- qcmde_density
   iwmde_density[["density_method"]] <- "IWMDE"
   iwmde_density[["method"]]         <- "iwmde"
+  iwmde_density[["diagnostics"]]    <-
+    .marginal_means_iwmde_density_diagnostics("iwmde")
   for (level in levels) {
     attr(
       emm[["inference"]][["averaged"]][["mu_alloc"]][[level]],
@@ -1080,7 +1105,9 @@ test_that("marginal_means does not mix qCMDE and KDE BF refresh within a paramet
   samples <- list(
     level_a = structure(
       rnorm(20),
-      posterior_density = list(diagnostics = list(estimator = "q_grid_cmde"))
+      posterior_density = list(
+        diagnostics = .marginal_means_iwmde_density_diagnostics("q_grid_cmde")
+      )
     ),
     level_b = rnorm(20)
   )

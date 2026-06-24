@@ -266,8 +266,10 @@ lines.brma <- function(
     "precomputed"
   } else {
     if (.density_method_uses_precomputed(density_method)) {
-      warning(density_method, " density was not available; using KDE.",
-              call. = FALSE)
+      warning(
+        .plot_brma_iwmde_unavailable_message(samples, density_method),
+        call. = FALSE
+      )
     }
     "KDE"
   }
@@ -359,7 +361,8 @@ lines.brma <- function(
   diagnostic <- estimate[["diagnostics"]][["density"]]
   attr(samples, "iwmde_diagnostics") <- list(parameter = diagnostic)
 
-  if (identical(diagnostic[["status"]], "ok")) {
+  if (identical(diagnostic[["status"]], "ok") &&
+      !is.null(estimate[["posterior_density"]])) {
     posterior_density <- estimate[["posterior_density"]]
     posterior_density <- .plot_brma_align_iwmde_density(
       posterior_density = posterior_density,
@@ -486,7 +489,8 @@ lines.brma <- function(
     diagnostic <- estimate[["diagnostics"]][["density"]]
     diagnostics[[column]] <- diagnostic
 
-    if (!identical(diagnostic[["status"]], "ok")) {
+    if (!identical(diagnostic[["status"]], "ok") ||
+        is.null(estimate[["posterior_density"]])) {
       next
     }
 
@@ -541,7 +545,8 @@ lines.brma <- function(
     diagnostic <- estimate[["diagnostics"]][["density"]]
     diagnostics[[column]] <- diagnostic
 
-    if (identical(diagnostic[["status"]], "ok")) {
+    if (identical(diagnostic[["status"]], "ok") &&
+        !is.null(estimate[["posterior_density"]])) {
       posterior_density <- estimate[["posterior_density"]]
       posterior_density <- .plot_brma_align_iwmde_density(
         posterior_density = posterior_density,
@@ -811,8 +816,51 @@ lines.brma <- function(
 }
 
 
+.plot_brma_iwmde_unavailable_message <- function(samples, density_method) {
+
+  reason <- .plot_brma_iwmde_unavailable_reason(samples)
+  if (is.null(reason)) {
+    return(paste0(density_method, " density was not available; using KDE."))
+  }
+
+  return(paste0(
+    density_method,
+    " density was rejected by diagnostics: ",
+    reason,
+    "; using KDE."
+  ))
+}
+
+
+.plot_brma_iwmde_unavailable_reason <- function(samples) {
+
+  diagnostics <- attr(samples, "iwmde_diagnostics", exact = TRUE)
+  if (is.null(diagnostics) || length(diagnostics) == 0L) {
+    return(NULL)
+  }
+
+  for (diagnostic in diagnostics) {
+    if (!identical(diagnostic[["status"]], "ok")) {
+      reason <- diagnostic[["reason"]]
+      if (length(reason) == 1L && !is.na(reason) && nzchar(reason)) {
+        return(reason)
+      }
+      next
+    }
+    reason <- .iwmde_diagnostics_density_failure_reason(
+      diagnostic[["diagnostics"]]
+    )
+    if (!is.null(reason)) {
+      return(reason)
+    }
+  }
+
+  return(NULL)
+}
+
+
 .plot_brma_align_iwmde_density <- function(posterior_density, raw_samples,
-                                           plotted_samples) {
+                                            plotted_samples) {
 
   transform <- .plot_brma_affine_sample_transform(raw_samples, plotted_samples)
   if (is.null(posterior_density) || is.null(transform)) {

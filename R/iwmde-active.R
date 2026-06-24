@@ -133,8 +133,10 @@
 }
 
 
-.iwmde_active_flat_prior_list <- function(context, row, parameter = NULL) {
+.iwmde_active_flat_prior_list <- function(context, row, parameter = NULL,
+                                          state_scope = c("local", "global")) {
 
+  state_scope <- match.arg(state_scope)
   prior_list <- context[["flat_prior_list"]]
   if (length(prior_list) == 0L) {
     return(list())
@@ -142,6 +144,11 @@
 
   out <- list()
   for (name in names(prior_list)) {
+    if (identical(state_scope, "global") &&
+        .iwmde_prior_name_is_local_latent(name)) {
+      next
+    }
+
     prior <- .iwmde_select_prior_component(
       prior     = prior_list[[name]],
       row       = row,
@@ -184,8 +191,10 @@
 }
 
 
-.iwmde_row_parameters <- function(context, row, active_setup) {
+.iwmde_row_parameters <- function(context, row, active_setup,
+                                  state_scope = c("local", "global")) {
 
+  state_scope <- match.arg(state_scope)
   row <- .resolve_fixed_prior_row(row, active_setup[["fit_priors"]])
   parameters <- list()
   base_parameters <- try(
@@ -230,9 +239,15 @@
     if ("rho" %in% names(row)) {
       parameters[["rho"]] <- row[["rho"]]
     }
-    gamma_cols <- paste0("gamma[", seq_len(length(unique(data[["outcome"]][["cluster"]]))), "]")
-    if (all(gamma_cols %in% names(row))) {
-      parameters[["gamma"]] <- as.numeric(row[gamma_cols])
+    if (identical(state_scope, "local")) {
+      gamma_cols <- paste0(
+        "gamma[",
+        seq_len(length(unique(data[["outcome"]][["cluster"]]))),
+        "]"
+      )
+      if (all(gamma_cols %in% names(row))) {
+        parameters[["gamma"]] <- as.numeric(row[gamma_cols])
+      }
     }
   }
 
@@ -257,7 +272,8 @@
     parameters[["omega"]] <- .iwmde_active_omega(context, row, active_setup)
   }
 
-  if (.data_outcome_type(data) == "bin") {
+  if (identical(state_scope, "local") &&
+      .data_outcome_type(data) == "bin") {
     pi_cols    <- paste0("pi[", seq_len(K), "]")
     theta_cols <- paste0("theta[", seq_len(K), "]")
     if (all(pi_cols %in% names(row))) {
@@ -266,7 +282,8 @@
     if (all(theta_cols %in% names(row))) {
       parameters[["theta"]] <- as.numeric(row[theta_cols])
     }
-  } else if (.data_outcome_type(data) == "pois") {
+  } else if (identical(state_scope, "local") &&
+             .data_outcome_type(data) == "pois") {
     phi_cols   <- paste0("phi[", seq_len(K), "]")
     theta_cols <- paste0("theta[", seq_len(K), "]")
     if (all(phi_cols %in% names(row))) {
@@ -275,6 +292,10 @@
     if (all(theta_cols %in% names(row))) {
       parameters[["theta"]] <- as.numeric(row[theta_cols])
     }
+  }
+
+  if (identical(state_scope, "global")) {
+    parameters[c("gamma", "theta", "pi", "phi")] <- NULL
   }
 
   return(parameters)

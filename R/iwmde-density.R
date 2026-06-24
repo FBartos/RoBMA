@@ -35,6 +35,28 @@
 }
 
 
+.iwmde_state_scope <- function(parameter, parameter_spec = NULL) {
+
+  if (identical(.iwmde_likelihood_mode(parameter, parameter_spec), "conditional")) {
+    return("local")
+  }
+
+  return("global")
+}
+
+
+.iwmde_state_scope_value <- function(state) {
+
+  state_scope <- state[["state_scope"]]
+  if (length(state_scope) != 1L ||
+      !state_scope %in% c("local", "global")) {
+    return("local")
+  }
+
+  return(state_scope)
+}
+
+
 .iwmde_linear_uses_local_latent <- function(weights) {
 
   return(any(vapply(
@@ -55,17 +77,45 @@
 }
 
 
+.iwmde_prior_name_is_local_latent <- function(parameter) {
+
+  if (is.null(parameter) || length(parameter) != 1L || is.na(parameter)) {
+    return(FALSE)
+  }
+
+  return(parameter %in% c("gamma", "theta", "pi", "phi"))
+}
+
+
+.iwmde_drop_local_latent_sample_columns <- function(samples) {
+
+  keep <- !vapply(
+    colnames(samples),
+    .iwmde_parameter_is_local_latent,
+    logical(1)
+  )
+
+  return(samples[, keep, drop = FALSE])
+}
+
+
 .iwmde_row_state <- function(context, row_index, parameter = NULL,
                              parameter_spec = NULL) {
 
-  base_state      <- .iwmde_base_row_state(context, row_index)
   likelihood_mode <- .iwmde_likelihood_mode(parameter, parameter_spec)
+  state_scope     <- .iwmde_state_scope(parameter, parameter_spec)
+  base_state      <- .iwmde_base_row_state(
+    context     = context,
+    row_index   = row_index,
+    state_scope = state_scope
+  )
   is_primitive    <- is.null(parameter_spec) ||
     identical(parameter_spec[["type"]], "primitive")
   prior_list <- .iwmde_active_flat_prior_list(
-    context   = context,
-    row       = base_state[["row"]],
-    parameter = parameter
+    context     = context,
+    row         = base_state[["row"]],
+    parameter   = parameter,
+    state_scope = state_scope
   )
   log_prior <- .iwmde_log_prior_row(base_state[["row"]], prior_list)
   if (is_primitive) {
@@ -102,6 +152,7 @@
     .iwmde_can_use_focal_prior_delta(focal_prior)
   base_state[["baseline_log_q"]]               <- baseline_log_q
   base_state[["likelihood_mode"]]              <- likelihood_mode
+  base_state[["state_scope"]]                  <- state_scope
 
   return(base_state)
 }
@@ -120,12 +171,19 @@
     return(get(key, envir = context[["likelihood_cache"]]))
   }
 
+  row <- if (identical(base_state[["state_scope"]], "global") &&
+             identical(likelihood_mode, "marginal")) {
+    NULL
+  } else {
+    base_state[["row"]]
+  }
+
   log_lik <- .iwmde_log_likelihood_parameters(
     context         = context,
     parameters      = base_state[["parameters"]],
     active_setup    = base_state[["active_setup"]],
     likelihood_mode = likelihood_mode,
-    row             = base_state[["row"]]
+    row             = row
   )
 
   assign(key, log_lik, envir = context[["likelihood_cache"]])
@@ -133,9 +191,11 @@
 }
 
 
-.iwmde_base_row_state <- function(context, row_index) {
+.iwmde_base_row_state <- function(context, row_index,
+                                  state_scope = c("local", "global")) {
 
-  key <- as.character(row_index)
+  state_scope <- match.arg(state_scope)
+  key <- paste(row_index, state_scope, sep = "|")
   if (exists(key, envir = context[["row_cache"]], inherits = FALSE)) {
     return(get(key, envir = context[["row_cache"]]))
   }
@@ -143,14 +203,20 @@
   row          <- context[["posterior_samples"]][row_index, ]
   active_key   <- .iwmde_active_key(context, row)
   active_setup <- .iwmde_active_setup(context, row, active_key)
-  parameters   <- .iwmde_row_parameters(context, row, active_setup)
+  parameters   <- .iwmde_row_parameters(
+    context      = context,
+    row          = row,
+    active_setup = active_setup,
+    state_scope  = state_scope
+  )
 
   state <- list(
     row_index        = row_index,
     row              = row,
     active_key       = active_key,
     active_setup     = active_setup,
-    parameters       = parameters
+    parameters       = parameters,
+    state_scope      = state_scope
   )
 
   assign(key, state, envir = context[["row_cache"]])
@@ -199,6 +265,14 @@
     row_states  = row_states,
     replacement = replacement
   )
+  quadrature_change <- attr(
+    log_q_grid,
+    "max_quadrature_relative_change",
+    exact = TRUE
+  )
+  if (is.null(quadrature_change)) {
+    quadrature_change <- NA_real_
+  }
   all_grid_rows    <- length(display_grid) + seq_along(all_grid[["x"]])
   log_q_display    <- log_q_grid[seq_along(display_grid), , drop = FALSE]
   log_q_all        <- log_q_grid[all_grid_rows, , drop = FALSE]
@@ -295,6 +369,7 @@
       ordinate_relative_change          = rep(NA_real_, n_display),
       ordinate_log_change               = rep(NA_real_, n_display),
       max_normalizer_relative_change    = normalizer_change[["max"]],
+      max_quadrature_relative_change    = quadrature_change,
       p95_normalizer_relative_change    = normalizer_change[["p95"]],
       median_normalizer_relative_change = normalizer_change[["median"]],
       normalization_refined_points      = length(final_grid[["x"]]),
@@ -386,6 +461,7 @@
     pilot_ordinate_relative_change    = pilot_change[["relative"]],
     pilot_ordinate_log_change         = pilot_change[["log"]],
     max_normalizer_relative_change    = normalizer_change[["max"]],
+    max_quadrature_relative_change    = quadrature_change,
     p95_normalizer_relative_change    = normalizer_change[["p95"]],
     median_normalizer_relative_change = normalizer_change[["median"]],
     normalization_refined_points      = length(final_grid[["x"]]),
@@ -466,6 +542,7 @@
       normalization_scale               = NA_character_,
       normalization_mass_ratio          = NA_real_,
       max_normalizer_relative_change    = NA_real_,
+      max_quadrature_relative_change    = NA_real_,
       median_normalizer_relative_change = NA_real_,
       normalization_refined_points      = 0L,
       normalization_refined_range       = c(NA_real_, NA_real_),
@@ -494,6 +571,14 @@
     row_states  = row_states,
     replacement = replacement
   )
+  quadrature_change <- attr(
+    log_q_grid,
+    "max_quadrature_relative_change",
+    exact = TRUE
+  )
+  if (is.null(quadrature_change)) {
+    quadrature_change <- NA_real_
+  }
   log_q_display <- log_q_grid[seq_len(n_display), , drop = FALSE]
   log_q_norm <- if (has_normalization_grid) {
     log_q_grid[n_display + seq_along(normalization_grid[["x"]]), , drop = FALSE]
@@ -557,6 +642,7 @@
     normalization_scale               = normalization[["scale_type"]],
     normalization_mass_ratio          = normalization[["mass_ratio"]],
     max_normalizer_relative_change    = NA_real_,
+    max_quadrature_relative_change    = quadrature_change,
     median_normalizer_relative_change = NA_real_,
     normalization_refined_points      = 0L,
     normalization_refined_range       = c(NA_real_, NA_real_),

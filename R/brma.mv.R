@@ -43,9 +43,9 @@
 #' across random-effect grouping levels, following `metafor::rma.mv()` naming.
 #' `R` is separate from the known sampling covariance `V`: `V` describes
 #' sampling-error dependence between estimates, while `R` describes the
-#' latent group-axis covariance of sampled random intercepts. Current
-#' `R` support is limited to sampled random-intercept blocks. `Rscale`
-#' controls how each supplied `R` matrix is scaled before fitting and accepts
+#' latent group-axis covariance of random intercepts. Current `R` support is
+#' limited to random-intercept blocks. `Rscale` controls how each supplied
+#' `R` matrix is scaled before fitting and accepts
 #' `"cor"`, `"none"`, `"cor0"`, `"cov0"`, plus metafor-compatible aliases
 #' `TRUE`/`1` for `"cor"`, `FALSE`/`0` for `"none"`, `2` for `"cor0"`,
 #' and `3` for `"cov0"`.
@@ -71,7 +71,13 @@
 #' maps one-to-one to estimates is compiled as a marginalized variance component
 #' instead of sampled latent coefficients. This preserves estimate-level
 #' heterogeneity semantics while keeping shared higher-level random effects
-#' conditional. Ambiguous cases with multiple one-to-one blocks are rejected.
+#' conditional. For known `R`, this automatic marginalization is available only
+#' when BayesTools validates a one-column random-intercept block whose
+#' `Z K Z'` row-space contribution is diagonal and one-to-one with the fitted
+#' rows; RoBMA then adds the BayesTools-prepared row multiplier to the known-`V`
+#' extra variance. Other known-`R` blocks remain sampled or are rejected by
+#' BayesTools validation. Ambiguous cases with multiple one-to-one blocks are
+#' rejected.
 #'
 #' The implementation intentionally omits the `weights` and `cluster` arguments
 #' from `metafor::rma.mv()`. Use `random` for multilevel structures.
@@ -93,14 +99,18 @@
 #'     When known random-effect covariance `R` is supplied, sampled random
 #'     effects remain conditioned in these estimate-depth targets. The known
 #'     `R` matrix shapes the posterior and prior for those random effects, but
-#'     it is not added again as a marginal \eqn{ZGZ'} covariance term.
+#'     it is not added again as a marginal \eqn{ZGZ'} covariance term. Supported
+#'     known-`R` blocks compiled as marginalized instead enter through the
+#'     diagonal extra variance term \eqn{\tau^2 r_i} prepared by BayesTools.
 #'   \item `dfbetas()` and `covratio()` use estimate-unit PSIS weights. With
 #'     correlated known `V`, their interpretation is parameter influence under
 #'     conditional estimate deletion, not independent-study deletion.
 #'   \item `add_marglik()`/`bridge_sampler()` uses the full joint fitted
 #'     likelihood corresponding to the selected known-`V` backend. It does not
 #'     use the estimate-wise conditional target from LOO/WAIC. Known `R`
-#'     enters this full joint target through the latent random-effect prior.
+#'     enters this full joint target either through the latent random-effect
+#'     prior for sampled blocks or through the diagonal marginalized
+#'     known-`R` variance for supported marginalized blocks.
 #'   \item `hatvalues()`, marginal `rstandard()`, and `vif()` use a marginal
 #'     GLS covariance target based on `V + ZGZ'`, where formula random effects
 #'     are marginalized through the BayesTools covariance metadata.

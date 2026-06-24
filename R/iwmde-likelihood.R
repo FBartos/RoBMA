@@ -128,12 +128,21 @@
 .iwmde_log_q_state <- function(context, row, active_setup, parameters,
                                prior_list, likelihood_mode) {
 
+  likelihood_row <- if (identical(likelihood_mode, "marginal") &&
+                        !("gamma" %in% names(parameters)) &&
+                        !("theta" %in% names(parameters)) &&
+                        !("pi" %in% names(parameters)) &&
+                        !("phi" %in% names(parameters))) {
+    NULL
+  } else {
+    row
+  }
   log_lik <- .iwmde_log_likelihood_parameters(
     context         = context,
     parameters      = parameters,
     active_setup    = active_setup,
     likelihood_mode = likelihood_mode,
-    row             = row
+    row             = likelihood_row
   )
   if (!is.finite(log_lik)) {
     return(-Inf)

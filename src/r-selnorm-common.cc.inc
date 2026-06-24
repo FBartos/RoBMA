@@ -939,12 +939,213 @@ double norm_cluster_cell_loglik(const NormClusterArgs &args, int s, int k,
   return weight * Rf_dnorm4(args.yi[k], mu_node, sd, 1);
 }
 
+double norm_cluster_loglik_at_gamma(const NormClusterArgs &args, int s,
+                                    int cluster_offset, int cluster_n,
+                                    double gamma, const double *basis,
+                                    double delta)
+{
+  double out = 0.0;
+
+  for (int m = 0; m < cluster_n; ++m) {
+    const int k = args.cluster_index[cluster_offset + m] - 1;
+    const int cell = s + args.S * k;
+    const double mu_node = args.mu[cell] +
+      (basis == 0 ? 0.0 : basis[cell] * delta) +
+      gamma * args.tau_between[cell];
+    const double sd = std::sqrt(
+      args.tau_within[cell] * args.tau_within[cell] +
+        args.sei[k] * args.sei[k]
+    );
+
+    out += norm_cluster_cell_loglik(args, s, k, mu_node, sd);
+  }
+
+  return out;
+}
+
+double norm_cluster_log_posterior_gamma(const NormClusterArgs &args, int s,
+                                        int cluster_offset, int cluster_n,
+                                        double gamma, const double *basis,
+                                        double delta)
+{
+  const double log_lik = norm_cluster_loglik_at_gamma(
+    args, s, cluster_offset, cluster_n, gamma, basis, delta
+  );
+  if (!std::isfinite(log_lik)) {
+    return log_lik;
+  }
+
+  return log_lik - 0.5 * gamma * gamma;
+}
+
+double norm_cluster_start_mode(const NormClusterArgs &args, int s,
+                               int cluster_offset, int cluster_n,
+                               const double *basis, double delta,
+                               double *curvature)
+{
+  double precision = 1.0;
+  double numerator = 0.0;
+
+  for (int m = 0; m < cluster_n; ++m) {
+    const int k = args.cluster_index[cluster_offset + m] - 1;
+    const int cell = s + args.S * k;
+    const double sd2 = args.tau_within[cell] * args.tau_within[cell] +
+      args.sei[k] * args.sei[k];
+    const double tau_between = args.tau_between[cell];
+    const double mu_base = args.mu[cell] +
+      (basis == 0 ? 0.0 : basis[cell] * delta);
+    const double weight = args.weights == 0 ? 1.0 : args.weights[k];
+
+    if (!std::isfinite(sd2) || sd2 <= 0 ||
+        !std::isfinite(tau_between) || !std::isfinite(mu_base) ||
+        !std::isfinite(weight) || weight < 0) {
+      continue;
+    }
+
+    precision += weight * tau_between * tau_between / sd2;
+    numerator += weight * tau_between * (args.yi[k] - mu_base) / sd2;
+  }
+
+  if (!std::isfinite(precision) || precision <= 0) {
+    *curvature = 1.0;
+    return 0.0;
+  }
+
+  *curvature = precision;
+  const double mode = numerator / precision;
+  return std::isfinite(mode) ? mode : 0.0;
+}
+
+double norm_cluster_fixed_gh_log_integral(const NormClusterArgs &args, int s,
+                                          int cluster_offset, int cluster_n,
+                                          const double *basis, double delta,
+                                          std::vector<double> &terms)
+{
+  for (int j = 0; j < args.n_gamma; ++j) {
+    const double log_lik = norm_cluster_loglik_at_gamma(
+      args, s, cluster_offset, cluster_n, args.gamma[j], basis, delta
+    );
+    terms[j] = log_lik + args.log_gamma[j];
+  }
+
+  return norm_cluster_logsumexp(terms);
+}
+
+double norm_cluster_adaptive_log_integral(const NormClusterArgs &args, int s,
+                                          int cluster_offset, int cluster_n,
+                                          const double *basis, double delta,
+                                          std::vector<double> &terms,
+                                          double *quadrature_change = 0)
+{
+  double curvature = 1.0;
+  double mode = norm_cluster_start_mode(
+    args, s, cluster_offset, cluster_n, basis, delta, &curvature
+  );
+  double scale = 1.0 / std::sqrt(std::max(curvature, 1e-8));
+  double best_mode = mode;
+  double best_value = norm_cluster_log_posterior_gamma(
+    args, s, cluster_offset, cluster_n, mode, basis, delta
+  );
+  const double offsets[] = {-4.0, -2.0, -1.0, 0.0, 1.0, 2.0, 4.0};
+
+  for (int i = 0; i < 7; ++i) {
+    const double candidate = mode + offsets[i] * scale;
+    const double value = norm_cluster_log_posterior_gamma(
+      args, s, cluster_offset, cluster_n, candidate, basis, delta
+    );
+    if (std::isfinite(value) &&
+        (!std::isfinite(best_value) || value > best_value)) {
+      best_mode = candidate;
+      best_value = value;
+    }
+  }
+
+  mode = best_mode;
+  const double eps = 1e-3 * std::max(1.0, std::fabs(mode));
+  const double f0 = norm_cluster_log_posterior_gamma(
+    args, s, cluster_offset, cluster_n, mode, basis, delta
+  );
+  const double fp = norm_cluster_log_posterior_gamma(
+    args, s, cluster_offset, cluster_n, mode + eps, basis, delta
+  );
+  const double fm = norm_cluster_log_posterior_gamma(
+    args, s, cluster_offset, cluster_n, mode - eps, basis, delta
+  );
+  const double fitted_curvature = -(fp - 2.0 * f0 + fm) / (eps * eps);
+  if (std::isfinite(fitted_curvature) && fitted_curvature > 1e-8) {
+    curvature = fitted_curvature;
+  }
+  if (!std::isfinite(curvature) || curvature <= 1e-8) {
+    return norm_cluster_fixed_gh_log_integral(
+      args, s, cluster_offset, cluster_n, basis, delta, terms
+    );
+  }
+
+  const double inv_sqrt_curvature = 1.0 / std::sqrt(curvature);
+  const double log_jacobian = -0.5 * std::log(curvature);
+  for (int j = 0; j < args.n_gamma; ++j) {
+    const double z = args.gamma[j];
+    const double gamma = mode + z * inv_sqrt_curvature;
+    const double log_lik = norm_cluster_loglik_at_gamma(
+      args, s, cluster_offset, cluster_n, gamma, basis, delta
+    );
+    if (!std::isfinite(log_lik)) {
+      return norm_cluster_fixed_gh_log_integral(
+        args, s, cluster_offset, cluster_n, basis, delta, terms
+      );
+    }
+    terms[j] = args.log_gamma[j] + log_lik -
+      0.5 * gamma * gamma + 0.5 * z * z + log_jacobian;
+  }
+
+  const double full = norm_cluster_logsumexp(terms);
+  if (quadrature_change != 0 &&
+      args.n_gamma >= 5 &&
+      std::isfinite(full)) {
+    double inner_max = -INFINITY;
+    for (int j = 1; j < args.n_gamma - 1; ++j) {
+      if (terms[j] > inner_max) {
+        inner_max = terms[j];
+      }
+    }
+    if (std::isfinite(inner_max)) {
+      double inner_sum = 0.0;
+      for (int j = 1; j < args.n_gamma - 1; ++j) {
+        inner_sum += std::exp(terms[j] - inner_max);
+      }
+      const double inner = inner_max + std::log(inner_sum);
+      const double relative = std::fabs(std::expm1(inner - full));
+      if (std::isfinite(relative) && relative > *quadrature_change) {
+        *quadrature_change = relative;
+      }
+    }
+  }
+
+  return full;
+}
+
 SEXP norm_cluster_accumulate(const NormClusterArgs &args)
 {
   SEXP out = PROTECT(Rf_allocMatrix(REALSXP, args.S, args.G));
   double *out_p = REAL(out);
 
   std::vector<double> gamma_terms(static_cast<size_t>(args.n_gamma));
+  if (args.selected) {
+    int cluster_offset = 0;
+    for (int g = 0; g < args.G; ++g) {
+      const int cluster_n = args.cluster_size[g];
+      for (int s = 0; s < args.S; ++s) {
+        out_p[s + args.S * g] = norm_cluster_adaptive_log_integral(
+          args, s, cluster_offset, cluster_n, 0, 0.0, gamma_terms
+        );
+      }
+      cluster_offset += cluster_n;
+    }
+
+    UNPROTECT(1);
+    return out;
+  }
+
   std::vector<double> cluster_terms(
     static_cast<size_t>(args.S) * static_cast<size_t>(args.n_gamma)
   );
@@ -997,6 +1198,22 @@ SEXP norm_cluster_accumulate_row_sum(const NormClusterArgs &args)
   std::fill(out_p, out_p + args.S, 0.0);
 
   std::vector<double> gamma_terms(static_cast<size_t>(args.n_gamma));
+  if (args.selected) {
+    int cluster_offset = 0;
+    for (int g = 0; g < args.G; ++g) {
+      const int cluster_n = args.cluster_size[g];
+      for (int s = 0; s < args.S; ++s) {
+        out_p[s] += norm_cluster_adaptive_log_integral(
+          args, s, cluster_offset, cluster_n, 0, 0.0, gamma_terms
+        );
+      }
+      cluster_offset += cluster_n;
+    }
+
+    UNPROTECT(1);
+    return out;
+  }
+
   std::vector<double> cluster_terms(
     static_cast<size_t>(args.S) * static_cast<size_t>(args.n_gamma)
   );

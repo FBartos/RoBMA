@@ -1176,7 +1176,7 @@ NULL
     if (!is.character(structure) || length(structure) != 1L ||
         is.na(structure) || !tolower(structure) %in% c("id", "diag", "us")) {
       stop(
-        "'R' currently supports sampled random-intercept blocks only; ",
+        "'R' currently supports random-intercept blocks only; ",
         "random-effect block '", block, "' uses structure '",
         structure_label, "'.",
         call. = FALSE
@@ -1184,7 +1184,7 @@ NULL
     }
     if (!identical(term[["expr"]], 1)) {
       stop(
-        "'R' currently supports sampled random intercepts only; ",
+        "'R' currently supports random intercepts only; ",
         "random-effect block '", block, "' contains random slopes.",
         call. = FALSE
       )

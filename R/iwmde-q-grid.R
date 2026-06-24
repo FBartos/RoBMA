@@ -152,6 +152,7 @@
   keys <- vapply(row_states, function(state) {
     .iwmde_state_active_key(context, state)
   }, character(1))
+  quadrature_change <- NA_real_
 
   for (key in unique(keys)) {
     state_cols   <- which(keys == key)
@@ -169,6 +170,23 @@
     }
 
     out[, state_cols] <- group_out
+    group_quadrature_change <- attr(
+      group_out,
+      "max_quadrature_relative_change",
+      exact = TRUE
+    )
+    if (length(group_quadrature_change) == 1L &&
+        is.finite(group_quadrature_change)) {
+      quadrature_change <- max(
+        quadrature_change,
+        group_quadrature_change,
+        na.rm = TRUE
+      )
+    }
+  }
+
+  if (is.finite(quadrature_change)) {
+    attr(out, "max_quadrature_relative_change") <- quadrature_change
   }
 
   return(out)

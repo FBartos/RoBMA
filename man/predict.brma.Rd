@@ -180,7 +180,10 @@ new sampling covariance plus posterior heterogeneity. Random-formula models
 draw from a joint normal with fixed-location mean and covariance
 \code{V_new} plus the marginal random-effect covariance and any
 marginalized estimate-level variance. Cross-covariance with observed rows is
-not supported. \code{brma.mv()} prediction results carry a
+not supported. Explicit \code{newdata} estimate/response predictions are not
+available for \code{brma.mv()} objects with marginalized known-\code{R}
+blocks, because their row multipliers are fitted-row metadata.
+\code{brma.mv()} prediction results carry a
 \code{brma_mv_prediction_target} attribute recording the formula,
 random-effect, and response-covariance target used.
 }

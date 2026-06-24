@@ -30,7 +30,10 @@ and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
 use predictive comparison methods such as \code{\link{loo.brma}} instead.
 For \code{brma.mv()} known-\code{V} objects, bridge sampling evaluates the
 joint likelihood corresponding to the fitted known-\code{V} backend, not the
-conditional estimate-wise target used by LOO/WAIC diagnostics.
+conditional estimate-wise target used by LOO/WAIC diagnostics. Known
+\code{R} enters through the latent random-effect prior for sampled
+random-effect blocks and through diagonal marginalized row variance for
+supported marginalized known-\code{R} blocks.
 }
 \examples{
 \dontrun{

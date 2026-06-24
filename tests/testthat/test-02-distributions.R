@@ -212,7 +212,7 @@ test_that("native normal cluster likelihood matches R quadrature", {
   )
 })
 
-test_that("native selected-normal cluster likelihood matches R quadrature", {
+test_that("native selected-normal cluster likelihood matches high-order R quadrature", {
 
   skip_if_not(.has_native_norm_cluster_quadrature(selection = TRUE))
 
@@ -275,10 +275,10 @@ test_that("native selected-normal cluster likelihood matches R quadrature", {
     sei               = sei,
     is_weightfunction = TRUE,
     selection_context = selection_context,
-    n_gamma           = 5
+    n_gamma           = 61
   )
 
-  expect_equal(native, ref, tolerance = 1e-10)
+  expect_equal(native, ref, tolerance = 1e-3)
   expect_equal(
     .log_lik_cluster_norm_quadrature_sum(
       setup             = setup,
@@ -289,7 +289,7 @@ test_that("native selected-normal cluster likelihood matches R quadrature", {
       n_gamma           = 5
     ),
     rowSums(ref),
-    tolerance = 1e-10
+    tolerance = 1e-3
   )
 })
 

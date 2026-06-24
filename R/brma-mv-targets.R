@@ -46,10 +46,16 @@
     ),
     known_r_semantics = c(
       rep(
-        "sampled known-R random effects are conditioned in estimate-depth targets",
+        paste0(
+          "sampled known-R random effects are conditioned; marginalized ",
+          "known-R blocks enter as diagonal row variance"
+        ),
         6
       ),
-      "known R enters through the latent random-effect prior",
+      paste0(
+        "known R enters through the latent random-effect prior or ",
+        "marginalized diagonal row variance"
+      ),
       rep("known R contributes through ZGZ' marginal covariance", 3),
       rep("conditional estimate deletion with sampled random effects", 2),
       "deferred for brma.mv()"

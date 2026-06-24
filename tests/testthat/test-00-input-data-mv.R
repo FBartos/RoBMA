@@ -1854,6 +1854,238 @@ test_that("brma.mv prepares whitened known-V backend", {
 })
 
 
+test_that("brma.mv marginalized known R contributes known-V row variance", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  R <- diag(c(4, 9, 16))
+  dimnames(R) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(dat)),
+    random                    = ~ 1 | estimate,
+    R                         = R,
+    Rscale                    = "none",
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  known_V  <- attr(object[["data"]], "known_V_data")
+  term     <- .data_marginalized_random_effects(object[["data"]])[[1L]]
+  sd_name  <- term[["sd_parameter_names"]]
+  row_name <- term[["row_multiplier_name"]]
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  syntax   <- .create_model_syntax(object[["data"]], object[["priors"]])
+
+  expect_equal(known_V[["parameterization_requested"]], "auto")
+  expect_equal(known_V[["parameterization"]], "block_mvn")
+  expect_equal(unname(term[["row_multiplier"]]), c(4, 9, 16))
+  expect_equal(unname(fit_data[[row_name]]), c(4, 9, 16))
+  expect_match(
+    .data_marginalized_random_variance_expression(object[["data"]]),
+    paste0("pow\\(", sd_name, ",2\\) \\* ", row_name, "\\[i\\]")
+  )
+  expect_match(syntax, paste0("tau2_observed\\[i\\] = pow\\(", sd_name))
+  expect_match(syntax, paste0(row_name, "\\[i\\]"))
+
+  posterior <- matrix(
+    0.20,
+    nrow     = 1L,
+    dimnames = list(NULL, sd_name)
+  )
+  expected_extra_variance <- matrix(
+    0.20^2 * c(4, 9, 16),
+    nrow = 1L
+  )
+  expect_equal(
+    .evaluate_marginalized_random_variance(
+      data              = object[["data"]],
+      posterior_samples = posterior
+    ),
+    expected_extra_variance
+  )
+
+  setup <- list(
+    fit               = NULL,
+    priors            = object[["priors"]],
+    data              = object[["data"]],
+    yi                = dat[["yi"]],
+    sei               = object[["data"]][["outcome"]][["sei"]],
+    selection_sei     = object[["data"]][["outcome"]][["sei"]],
+    K                 = 3L,
+    S                 = 1L,
+    mu                = matrix(0, nrow = 1L, ncol = 3L),
+    tau_within        = matrix(0, nrow = 1L, ncol = 3L),
+    tau_between       = matrix(0, nrow = 1L, ncol = 3L),
+    cluster           = NULL,
+    weights           = NULL,
+    data_hash         = .get_outcome_hash(object),
+    is_weightfunction = FALSE,
+    outcome_type      = "norm",
+    effect_direction  = "positive",
+    posterior_samples = posterior
+  )
+  expected_log_lik <- matrix(
+    stats::dnorm(
+      dat[["yi"]],
+      mean = 0,
+      sd   = sqrt(0.01 + as.numeric(expected_extra_variance)),
+      log  = TRUE
+    ),
+    nrow = 1L
+  )
+  parameters <- list(mu = 0)
+  parameters[[sd_name]] <- 0.20
+
+  expect_equal(
+    .known_v_extra_variance_from_setup(setup),
+    expected_extra_variance
+  )
+  expect_equal(
+    .log_lik_estimate_from_setup(setup),
+    expected_log_lik,
+    tolerance = 1e-12
+  )
+  expect_equal(
+    .marglik_known_v_extra_variance(
+      parameters         = parameters,
+      model_data         = object[["data"]],
+      bridge_context     = NULL,
+      tau_within_samples = matrix(0, nrow = 1L, ncol = 3L),
+      is_random          = TRUE,
+      K                  = 3L
+    ),
+    expected_extra_variance
+  )
+  expect_equal(
+    .log_posterior(
+      parameters                 = parameters,
+      data                       = fit_data,
+      is_mods                    = FALSE,
+      is_scale                   = FALSE,
+      is_random                  = TRUE,
+      is_multilevel              = FALSE,
+      is_weights                 = FALSE,
+      is_known_v                 = TRUE,
+      is_PET                     = FALSE,
+      is_PEESE                   = FALSE,
+      is_weightfunction          = FALSE,
+      effect_direction           = "positive",
+      outcome_type               = "norm",
+      known_v_parameterization   = "block_mvn",
+      model_data                 = object[["data"]]
+    ),
+    sum(expected_log_lik),
+    tolerance = 1e-12
+  )
+
+  target <- .estimate_log_lik_target_metadata(
+    setup     = setup,
+    data_hash = .get_outcome_hash(object)
+  )
+  expect_true(target[["known_r"]])
+  expect_equal(target[["known_r_blocks"]], "estimate")
+  expect_true(grepl("diagonal tau^2 row multipliers",
+                    target[["known_r_semantics"]], fixed = TRUE))
+  expect_equal(target[["estimate_level_random"]], "marginalized")
+})
+
+
+test_that("brma.mv known R row multipliers enter known-V backends consistently", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3")),
+    x        = c(0, 1, 2)
+  )
+  R <- diag(c(4, 9, 16))
+  dimnames(R) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+  V <- matrix(
+    c(
+      0.04, 0.01, 0.005,
+      0.01, 0.09, 0.002,
+      0.005, 0.002, 0.16
+    ),
+    nrow  = 3,
+    byrow = TRUE
+  )
+
+  latent <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = ~ 1 | estimate,
+    R                         = R,
+    Rscale                    = "none",
+    data                      = dat,
+    known_v_parameterization  = "latent",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  latent_term   <- .data_marginalized_random_effects(latent[["data"]])[[1L]]
+  latent_syntax <- .create_model_syntax(latent[["data"]], latent[["priors"]])
+  expect_match(latent_syntax, "sampling_var\\[i\\]")
+  expect_match(latent_syntax, latent_term[["row_multiplier_name"]],
+               fixed = TRUE)
+
+  whitened <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = ~ 1 | estimate,
+    R                         = R,
+    Rscale                    = "cor",
+    data                      = dat,
+    known_v_parameterization  = "whitened",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  whitened_term   <- .data_marginalized_random_effects(whitened[["data"]])[[1L]]
+  whitened_syntax <- .create_model_syntax(whitened[["data"]], whitened[["priors"]])
+  expect_false(.marginalized_random_effects_row_varying(list(whitened_term)))
+  expect_equal(unname(whitened_term[["row_multiplier"]]), c(1, 1, 1))
+  expect_match(whitened_syntax, "whitening_var\\[j\\]")
+  expect_match(whitened_syntax, whitened_term[["row_multiplier_name"]],
+               fixed = TRUE)
+
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      V                         = V,
+      random                    = ~ 1 | estimate,
+      R                         = R,
+      Rscale                    = "none",
+      data                      = dat,
+      known_v_parameterization  = "whitened",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "row-varying marginalized estimate-level random effects"
+  )
+
+  expect_error(
+    brma.mv(
+      yi                        = yi,
+      V                         = diag(0.01, nrow(dat)),
+      scale                     = ~ x,
+      random                    = ~ 1 | estimate,
+      R                         = R,
+      Rscale                    = "none",
+      data                      = dat,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "row-indexed external SD sources"
+  )
+})
+
+
 test_that("brma.mv adds whitened known-V likelihood to fit syntax", {
 
   object <- brma.mv(

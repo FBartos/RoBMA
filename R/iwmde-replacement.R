@@ -576,6 +576,15 @@
   )
   samples <- synced[["samples"]]
   valid   <- valid & synced[["valid"]]
+  state_scope <- unique(vapply(
+    row_states,
+    .iwmde_state_scope_value,
+    character(1)
+  ))
+  if (length(state_scope) == 1L &&
+      identical(state_scope, "global")) {
+    samples <- .iwmde_drop_local_latent_sample_columns(samples)
+  }
 
   return(list(
     samples     = samples,
@@ -727,12 +736,18 @@
 
   if (isTRUE(state[["use_focal_prior_delta"]]) &&
       isTRUE(replaced[["use_focal_prior_delta"]])) {
+    likelihood_row <- if (identical(.iwmde_state_scope_value(state), "global") &&
+                          identical(state[["likelihood_mode"]], "marginal")) {
+      NULL
+    } else {
+      row
+    }
     log_lik <- .iwmde_log_likelihood_parameters(
       context         = context,
       parameters      = parameters,
       active_setup    = state[["active_setup"]],
       likelihood_mode = state[["likelihood_mode"]],
-      row             = row
+      row             = likelihood_row
     )
     if (!is.finite(log_lik)) {
       return(-Inf)
@@ -834,7 +849,8 @@
     parameters = .iwmde_row_parameters(
       context      = context,
       row          = synced[["row"]],
-      active_setup = state[["active_setup"]]
+      active_setup = state[["active_setup"]],
+      state_scope  = .iwmde_state_scope_value(state)
     )
   ))
 }
@@ -883,7 +899,8 @@
   parameters <- .iwmde_row_parameters(
     context      = context,
     row          = synced[["row"]],
-    active_setup = state[["active_setup"]]
+    active_setup = state[["active_setup"]],
+    state_scope  = .iwmde_state_scope_value(state)
   )
 
   return(out(synced[["row"]], parameters))

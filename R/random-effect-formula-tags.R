@@ -61,7 +61,10 @@
 #' RoBMA translates `R` internally to BayesTools random-effect group covariance
 #' metadata; users should continue to use `R`/`Rscale` in `brma.mv()` rather
 #' than BayesTools-native `group_covariance` arguments. Current support is
-#' limited to sampled random-intercept blocks such as `random = ~ 1 | study`.
+#' limited to random-intercept blocks such as `random = ~ 1 | study`. Supported
+#' one-to-one known-`R` blocks in known-`V` normal models can be compiled as
+#' marginalized diagonal row-variance terms; other supported known-`R` blocks
+#' remain sampled.
 #'
 #' The scalar-correlation structures `cs()`, `hcs()`, `ar1()` / `ar()`,
 #' `har()`, and `car()` use a default `Beta(1, 1)` prior distribution directly

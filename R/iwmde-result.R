@@ -289,6 +289,10 @@
   if (!.iwmde_attribute_method_matches_request(posterior_density, provenance)) {
     return(FALSE)
   }
+  diagnostics <- posterior_density[["diagnostics"]]
+  if (!is.null(.iwmde_diagnostics_density_failure_reason(diagnostics))) {
+    return(FALSE)
+  }
   if (is.null(posterior_density[["x"]]) ||
       is.null(posterior_density[["y"]])) {
     return(FALSE)

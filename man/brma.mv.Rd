@@ -207,9 +207,9 @@ The optional \code{R} argument supplies known covariance or correlation matrices
 across random-effect grouping levels, following \code{metafor::rma.mv()} naming.
 \code{R} is separate from the known sampling covariance \code{V}: \code{V} describes
 sampling-error dependence between estimates, while \code{R} describes the
-latent group-axis covariance of sampled random intercepts. Current
-\code{R} support is limited to sampled random-intercept blocks. \code{Rscale}
-controls how each supplied \code{R} matrix is scaled before fitting and accepts
+latent group-axis covariance of random intercepts. Current \code{R} support is
+limited to random-intercept blocks. \code{Rscale} controls how each supplied
+\code{R} matrix is scaled before fitting and accepts
 \code{"cor"}, \code{"none"}, \code{"cor0"}, \code{"cov0"}, plus metafor-compatible aliases
 \code{TRUE}/\code{1} for \code{"cor"}, \code{FALSE}/\code{0} for \code{"none"}, \code{2} for \code{"cor0"},
 and \code{3} for \code{"cov0"}.
@@ -235,7 +235,13 @@ If \code{marginalize_estimate_level = TRUE}, a single random-intercept block tha
 maps one-to-one to estimates is compiled as a marginalized variance component
 instead of sampled latent coefficients. This preserves estimate-level
 heterogeneity semantics while keeping shared higher-level random effects
-conditional. Ambiguous cases with multiple one-to-one blocks are rejected.
+conditional. For known \code{R}, this automatic marginalization is available only
+when BayesTools validates a one-column random-intercept block whose
+\verb{Z K Z'} row-space contribution is diagonal and one-to-one with the fitted
+rows; RoBMA then adds the BayesTools-prepared row multiplier to the known-\code{V}
+extra variance. Other known-\code{R} blocks remain sampled or are rejected by
+BayesTools validation. Ambiguous cases with multiple one-to-one blocks are
+rejected.
 
 The implementation intentionally omits the \code{weights} and \code{cluster} arguments
 from \code{metafor::rma.mv()}. Use \code{random} for multilevel structures.
@@ -258,14 +264,18 @@ independent new-estimate prediction targets.
 When known random-effect covariance \code{R} is supplied, sampled random
 effects remain conditioned in these estimate-depth targets. The known
 \code{R} matrix shapes the posterior and prior for those random effects, but
-it is not added again as a marginal \eqn{ZGZ'} covariance term.
+it is not added again as a marginal \eqn{ZGZ'} covariance term. Supported
+known-\code{R} blocks compiled as marginalized instead enter through the
+diagonal extra variance term \eqn{\tau^2 r_i} prepared by BayesTools.
 \item \code{dfbetas()} and \code{covratio()} use estimate-unit PSIS weights. With
 correlated known \code{V}, their interpretation is parameter influence under
 conditional estimate deletion, not independent-study deletion.
 \item \code{add_marglik()}/\code{bridge_sampler()} uses the full joint fitted
 likelihood corresponding to the selected known-\code{V} backend. It does not
 use the estimate-wise conditional target from LOO/WAIC. Known \code{R}
-enters this full joint target through the latent random-effect prior.
+enters this full joint target either through the latent random-effect
+prior for sampled blocks or through the diagonal marginalized
+known-\code{R} variance for supported marginalized blocks.
 \item \code{hatvalues()}, marginal \code{rstandard()}, and \code{vif()} use a marginal
 GLS covariance target based on \verb{V + ZGZ'}, where formula random effects
 are marginalized through the BayesTools covariance metadata.

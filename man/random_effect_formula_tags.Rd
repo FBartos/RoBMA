@@ -63,7 +63,10 @@ grouping levels and is distinct from the known sampling covariance \code{V}.
 RoBMA translates \code{R} internally to BayesTools random-effect group covariance
 metadata; users should continue to use \code{R}/\code{Rscale} in \code{brma.mv()} rather
 than BayesTools-native \code{group_covariance} arguments. Current support is
-limited to sampled random-intercept blocks such as \code{random = ~ 1 | study}.
+limited to random-intercept blocks such as \code{random = ~ 1 | study}. Supported
+one-to-one known-\code{R} blocks in known-\code{V} normal models can be compiled as
+marginalized diagonal row-variance terms; other supported known-\code{R} blocks
+remain sampled.
 
 The scalar-correlation structures \code{cs()}, \code{hcs()}, \code{ar1()} / \code{ar()},
 \code{har()}, and \code{car()} use a default \code{Beta(1, 1)} prior distribution directly

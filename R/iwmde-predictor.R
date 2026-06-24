@@ -7,11 +7,20 @@
   rows <- vapply(row_states, function(state) {
     state[["row_index"]]
   }, integer(1))
+  state_scope <- unique(vapply(
+    row_states,
+    .iwmde_state_scope_value,
+    character(1)
+  ))
+  if (length(state_scope) != 1L) {
+    state_scope <- "mixed"
+  }
   key <- .iwmde_predictor_cache_key(
-    prefix     = "predictor_setup",
-    active_key = .iwmde_state_active_key(context, row_states[[1L]]),
-    unit       = unit,
-    rows       = rows
+    prefix      = "predictor_setup",
+    active_key  = .iwmde_state_active_key(context, row_states[[1L]]),
+    unit        = unit,
+    state_scope = state_scope,
+    rows        = rows
   )
 
   if (exists(key, envir = context[["predictor_cache"]], inherits = FALSE)) {
@@ -19,6 +28,9 @@
   }
 
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
+  if (identical(state_scope, "global")) {
+    samples <- .iwmde_drop_local_latent_sample_columns(samples)
+  }
   setup <- .iwmde_log_lik_posterior_setup_active_branch(
     context           = context,
     posterior_samples = samples,
@@ -602,6 +614,11 @@
       ncol(log_lik) != length(row_states)) {
     return(NULL)
   }
+  quadrature_change <- attr(
+    log_lik,
+    "quadrature_relative_change",
+    exact = TRUE
+  )
 
   G          <- length(values)
   S          <- length(row_states)
@@ -610,8 +627,17 @@
   delta      <- values[grid_index] - basis[["current"]][row_index]
   log_q      <- as.vector(log_lik) + log_prior
   log_q[!is.finite(delta)] <- -Inf
+  out <- matrix(log_q, nrow = G, ncol = S)
+  if (!is.null(quadrature_change)) {
+    quadrature_change <- suppressWarnings(as.numeric(quadrature_change))
+    quadrature_change <- quadrature_change[is.finite(quadrature_change)]
+    if (length(quadrature_change) > 0L) {
+      attr(out, "max_quadrature_relative_change") <-
+        max(quadrature_change)
+    }
+  }
 
-  return(matrix(log_q, nrow = G, ncol = S))
+  return(out)
 }
 
 
