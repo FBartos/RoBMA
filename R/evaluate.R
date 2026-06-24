@@ -60,14 +60,12 @@
     return(NULL)
   }
 
-  value <- try(mean(prior), silent = TRUE)
-  if (inherits(value, "try-error") ||
-      length(value) != 1L ||
-      !is.finite(value)) {
-    return(NULL)
+  value <- prior[["parameters"]][["location"]]
+  if (length(value) == 1L && is.finite(value)) {
+    return(as.numeric(value))
   }
 
-  return(as.numeric(value))
+  return(NULL)
 }
 
 .fixed_tau_prior_value <- function(priors) {
@@ -122,7 +120,21 @@
   return(values)
 }
 
-.add_fixed_prior_sample_columns <- function(posterior_samples, prior_list) {
+.resolve_fixed_prior_row <- function(row, prior_list) {
+
+  fixed_values <- .fixed_prior_list_values(prior_list)
+  if (length(fixed_values) == 0L) {
+    return(row)
+  }
+
+  for (parameter in names(fixed_values)) {
+    row[[parameter]] <- fixed_values[[parameter]]
+  }
+
+  return(row)
+}
+
+.resolve_fixed_prior_sample_columns <- function(posterior_samples, prior_list) {
 
   fixed_values <- .fixed_prior_list_values(prior_list)
   if (length(fixed_values) == 0L) {
@@ -655,6 +667,10 @@
       return(matrix(0, nrow = S, ncol = K))
     }
   }
+  has_known_group_covariance <- .formula_design_blocks_have_known_group_covariance(
+    formula_design = formula_design,
+    blocks         = blocks
+  )
 
   formula_fit <- .posterior_formula_fit(
     fit               = fit,
@@ -674,13 +690,21 @@
 
   if (identical(formula_target, "conditional")) {
     call_args[["blocks"]]     <- blocks
-    call_args[["new_levels"]] <- if (isTRUE(same_data)) "error" else "sample"
+    call_args[["new_levels"]] <- if (isTRUE(same_data) || has_known_group_covariance) {
+      "error"
+    } else {
+      "sample"
+    }
   } else {
     if (!is.null(blocks)) {
       call_args[["blocks"]] <- blocks
     }
-    call_args[["marginal_method"]] <- "sample"
-    call_args[["new_levels"]]      <- "sample"
+    call_args[["marginal_method"]] <- if (has_known_group_covariance) {
+      "covariance"
+    } else {
+      "sample"
+    }
+    call_args[["new_levels"]]      <- if (has_known_group_covariance) "error" else "sample"
   }
 
   prediction     <- do.call(BayesTools::JAGS_predict_formula, call_args)

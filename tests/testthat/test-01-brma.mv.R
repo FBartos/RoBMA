@@ -198,6 +198,75 @@ test_that("brma.mv fits known-V backend smoke models", {
     info = list(data = dat, V = V, random = "estimate")
   )
 
+  study_R <- matrix(
+    c(
+      4.0, 1.0, 0.5,
+      1.0, 9.0, 2.0,
+      0.5, 2.0, 16.0
+    ),
+    nrow = 3,
+    byrow = TRUE,
+    dimnames = list(c("s1", "s2", "s3"), c("s1", "s2", "s3"))
+  )
+  fit_known_R_metafor <- metafor::rma.mv(
+    yi      = yi,
+    V       = V,
+    mods    = ~ x + z,
+    random  = ~ 1 | study,
+    R       = list(study = study_R),
+    Rscale  = "none",
+    data    = dat,
+    method  = "ML"
+  )
+  fit_known_R <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    mods                      = ~ x + z,
+    data                      = dat,
+    random                    = ~ 1 | study,
+    R                         = list(study = study_R),
+    Rscale                    = list(study = "none"),
+    known_v_parameterization  = "block_mvn",
+    measure                   = args[["measure"]],
+    chains                    = args[["chains"]],
+    sample                    = args[["sample"]],
+    burnin                    = args[["burnin"]],
+    adapt                     = args[["adapt"]],
+    seed                      = 11,
+    silent                    = args[["silent"]],
+    prior_unit_information_sd = args[["prior_unit_information_sd"]],
+    convergence_checks        = args[["convergence_checks"]]
+  )
+  known_R_syntax <- .brma_mv_model_syntax(fit_known_R)
+  known_R_term <- .fitted_formula_design(fit_known_R, "mu")[["random_effects"]][[1L]]
+  known_R_summary <- summary(
+    fit_known_R,
+    include_mcmc_diagnostics = FALSE
+  )
+  known_R_output <- capture.output(print(known_R_summary))
+  expect_s3_class(fit_known_R, "brma.mv")
+  expect_true(.is_mods(fit_known_R))
+  expect_true(.is_random(fit_known_R))
+  expect_equal(known_R_term[["compile_mode"]], "sampled")
+  expect_equal(known_R_term[["group_covariance"]][["scale"]], "none")
+  expect_match(known_R_syntax, "_xRE_GROUP_Zx", fixed = TRUE)
+  expect_true(any(grepl("sd_multiplier(", known_R_output, fixed = TRUE)))
+  fit_known_R <- suppressWarnings(add_loo(fit_known_R))
+  expect_s3_class(fit_known_R[["loo"]][["estimate"]], "loo")
+  save_fit(
+    "brma.mv_block_mvn_known_R",
+    fit_known_R,
+    info = list(
+      metafor = fit_known_R_metafor,
+      data    = dat,
+      V       = V,
+      R       = study_R,
+      Rscale  = "none",
+      mods    = c("x", "z"),
+      random  = "study"
+    )
+  )
+
   estimate_dat <- transform(dat, estimate = seq_len(nrow(dat)))
   fit_latent_estimate_scale <- brma.mv(
     yi                        = yi,

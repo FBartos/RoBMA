@@ -186,6 +186,7 @@
 
 .iwmde_row_parameters <- function(context, row, active_setup) {
 
+  row <- .resolve_fixed_prior_row(row, active_setup[["fit_priors"]])
   parameters <- list()
   base_parameters <- try(
     BayesTools::JAGS_marglik_parameters(row, active_setup[["fit_priors"]]),

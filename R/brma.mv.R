@@ -10,6 +10,12 @@
 #' @inheritParams data_input
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @param R optional known random-effect group covariance/correlation matrix,
+#' or a named list of matrices. Matrix row and column names identify grouping
+#' levels. This is distinct from the known sampling covariance `V`.
+#' @param Rscale scaling applied to each supplied `R` matrix before fitting.
+#' Supported values are `"cor"`, `"none"`, `"cor0"`, `"cov0"`, with
+#' metafor-compatible aliases `TRUE`, `FALSE`, `0`, `1`, `2`, and `3`.
 #' @param marginalize_estimate_level logical; should a one-to-one estimate-level
 #' random-intercept block be integrated into the likelihood variance instead of
 #' sampled as latent random coefficients? Defaults to `TRUE`.
@@ -33,6 +39,16 @@
 #' Plain shorthand is accepted only for random intercepts such as
 #' `~ 1 | study` or nested intercepts such as `~ 1 | study/effect`; random
 #' slopes require an explicit structure tag or the `||` diagonal shorthand.
+#' The optional `R` argument supplies known covariance or correlation matrices
+#' across random-effect grouping levels, following `metafor::rma.mv()` naming.
+#' `R` is separate from the known sampling covariance `V`: `V` describes
+#' sampling-error dependence between estimates, while `R` describes the
+#' latent group-axis covariance of sampled random intercepts. Current
+#' `R` support is limited to sampled random-intercept blocks. `Rscale`
+#' controls how each supplied `R` matrix is scaled before fitting and accepts
+#' `"cor"`, `"none"`, `"cor0"`, `"cov0"`, plus metafor-compatible aliases
+#' `TRUE`/`1` for `"cor"`, `FALSE`/`0` for `"none"`, `2` for `"cor0"`,
+#' and `3` for `"cov0"`.
 #' When `random` is used, shared sampled
 #' random-effect blocks enter the conditional mean through BayesTools. With
 #' `marginalize_estimate_level = TRUE`, a single one-to-one random-intercept
@@ -74,12 +90,17 @@
 #'     Schur-complement conditionals \eqn{p(y_i \mid y_{-i}, \theta)} within
 #'     dependency blocks. They are existing-estimate diagnostics, not
 #'     independent new-estimate prediction targets.
+#'     When known random-effect covariance `R` is supplied, sampled random
+#'     effects remain conditioned in these estimate-depth targets. The known
+#'     `R` matrix shapes the posterior and prior for those random effects, but
+#'     it is not added again as a marginal \eqn{ZGZ'} covariance term.
 #'   \item `dfbetas()` and `covratio()` use estimate-unit PSIS weights. With
 #'     correlated known `V`, their interpretation is parameter influence under
 #'     conditional estimate deletion, not independent-study deletion.
 #'   \item `add_marglik()`/`bridge_sampler()` uses the full joint fitted
 #'     likelihood corresponding to the selected known-`V` backend. It does not
-#'     use the estimate-wise conditional target from LOO/WAIC.
+#'     use the estimate-wise conditional target from LOO/WAIC. Known `R`
+#'     enters this full joint target through the latent random-effect prior.
 #'   \item `hatvalues()`, marginal `rstandard()`, and `vif()` use a marginal
 #'     GLS covariance target based on `V + ZGZ'`, where formula random effects
 #'     are marginalized through the BayesTools covariance metadata.
@@ -114,6 +135,7 @@ brma.mv <- function(
     # input specification
     yi, V, ni,
     mods, scale, random,
+    R = NULL, Rscale = "cor",
     data, slab, subset,
     measure,
 
@@ -151,6 +173,10 @@ brma.mv <- function(
   if (missing_measure) {
     measure <- "GEN"
   }
+  random_group_covariance <- .brma_mv_make_group_covariance(
+    R      = R,
+    Rscale = Rscale
+  )
   known_v_parameterization <- match.arg(
     known_v_parameterization,
     c("auto", "latent", "whitened", "block_mvn")
@@ -171,6 +197,7 @@ brma.mv <- function(
     set_contrast_factor_predictors    = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
     measure                            = measure,
+    random_group_covariance            = random_group_covariance,
     known_v_parameterization            = known_v_parameterization,
     known_v_residual_fraction           = known_v_residual_fraction,
     known_v_residual_fraction_specified = known_v_residual_fraction_specified

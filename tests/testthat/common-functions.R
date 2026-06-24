@@ -183,6 +183,7 @@ fit_catalog <- function() {
       "brma.mv_block_mvn",
       "brma.mv_block_mvn_fixed_random_null",
       "brma.mv_block_mvn_random",
+      "brma.mv_block_mvn_known_R",
       "brma.mv_latent_estimate_scale",
       "brma.mv_block_mvn_estimate_scale",
       "brma.mv_block_mvn_random_scale",
@@ -205,7 +206,7 @@ fit_catalog <- function() {
       rep("BMA.norm", 4),
       rep("BMA.glmm", 4),
       rep("RoBMA", 5),
-      rep("brma.mv", 17)
+      rep("brma.mv", 18)
     ),
     family = c(
       rep("norm", 11),
@@ -216,7 +217,7 @@ fit_catalog <- function() {
       rep("norm", 4),
       rep("glmm", 4),
       rep("norm", 5),
-      rep("norm", 17)
+      rep("norm", 18)
     ),
     source_file = c(
       rep("test-01-brma.norm.R", 11),
@@ -227,7 +228,7 @@ fit_catalog <- function() {
       rep("test-01-BMA.norm.R", 4),
       rep("test-01-BMA.glmm.R", 4),
       rep("test-01-RoBMA.R", 5),
-      rep("test-01-brma.mv.R", 17)
+      rep("test-01-brma.mv.R", 18)
     ),
     has_metafor = c(
       TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, TRUE, FALSE, TRUE, TRUE, TRUE,
@@ -237,7 +238,9 @@ fit_catalog <- function() {
       TRUE, TRUE, TRUE, TRUE,
       rep(FALSE, 16),
       TRUE,
-      rep(FALSE, 9),
+      FALSE,
+      TRUE,
+      rep(FALSE, 8),
       rep(TRUE, 4)
     ),
     has_waic = FALSE,
@@ -251,7 +254,7 @@ fit_catalog <- function() {
       "core", "extended", "core", "extended",
       "core", "core", "extended", "extended",
       "core", "extended", "core", "extended", "extended",
-      "core", "core", "core", "core", "core", "core", "core", "core", "core",
+      "core", "core", "core", "core", "core", "core", "core", "core", "core", "core",
       "core", "core", "core", "core", "core", "core", "core", "core"
     ),
     stringsAsFactors = FALSE
@@ -312,6 +315,7 @@ fit_catalog <- function() {
     c("brma.mv", "normal", "known_v", "block_mvn"),
     c("brma.mv", "metafor", "normal", "known_v", "block_mvn", "fixed", "random_null"),
     c("brma.mv", "normal", "known_v", "block_mvn", "random"),
+    c("brma.mv", "metafor", "normal", "known_v", "known_R", "block_mvn", "random", "mods"),
     c("brma.mv", "normal", "known_v", "latent", "random", "scale"),
     c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale"),
     c("brma.mv", "normal", "known_v", "block_mvn", "random", "scale", "allocation"),

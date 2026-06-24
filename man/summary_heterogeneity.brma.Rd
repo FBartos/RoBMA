@@ -21,6 +21,8 @@ variance-additive total heterogeneity. Random-formula allocation nodes can
 be selected by their displayed name, such as \code{"study/esid"}.}
 
 \item{...}{additional arguments (currently ignored)}
+
+\item{x}{a \code{summary_heterogeneity.brma_list} object}
 }
 \value{
 A list of class \code{summary_heterogeneity.brma} containing:

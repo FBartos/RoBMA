@@ -57,6 +57,14 @@ Alias tags are normalized before model compilation: \code{un()} to \code{us()},
 \code{ar()} to \code{ar1()}, and unqualified \code{random()} / \code{re()} to \code{us()} unless a
 covariance override changes the structure.
 
+\code{brma.mv()} also accepts metafor-style known group covariance through its
+\code{R} and \code{Rscale} arguments. This covariance is attached to random-effect
+grouping levels and is distinct from the known sampling covariance \code{V}.
+RoBMA translates \code{R} internally to BayesTools random-effect group covariance
+metadata; users should continue to use \code{R}/\code{Rscale} in \code{brma.mv()} rather
+than BayesTools-native \code{group_covariance} arguments. Current support is
+limited to sampled random-intercept blocks such as \code{random = ~ 1 | study}.
+
 The scalar-correlation structures \code{cs()}, \code{hcs()}, \code{ar1()} / \code{ar()},
 \code{har()}, and \code{car()} use a default \code{Beta(1, 1)} prior distribution directly
 on the raw correlation parameter \eqn{\rho}. This default prior distribution

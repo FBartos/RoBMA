@@ -4,6 +4,8 @@
 - adds `brma.mv()` for normal-likelihood meta-analysis with known sampling
   covariance matrices, including latent, whitened, and block-MVN known-`V`
   backends and BayesTools random-effect formula integration.
+- adds metafor-style `R`/`Rscale` support to `brma.mv()` for known
+  random-effect group covariance in sampled random-intercept blocks.
 - adds opt-in likelihood-aware qCMDE/IWMDE posterior density and point-ordinate
   estimation for supported `plot()`, `hypothesis()`/`bf_hypothesis()`,
   `marginal_means()`, and `hypothesis.marginal_means()` workflows via

@@ -316,6 +316,7 @@ print.summary_heterogeneity.brma <- function(x, ...) {
 
 
 #' @rdname summary_heterogeneity.brma
+#' @param x a \code{summary_heterogeneity.brma_list} object
 #' @export
 print.summary_heterogeneity.brma_list <- function(x, ...) {
 

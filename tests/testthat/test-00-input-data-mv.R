@@ -1454,7 +1454,10 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   targets <- .brma_mv_diagnostic_target_table()
 
   expect_s3_class(targets, "data.frame")
-  expect_named(targets, c("method", "status", "target", "known_v_semantics"))
+  expect_named(
+    targets,
+    c("method", "status", "target", "known_v_semantics", "known_r_semantics")
+  )
   expect_equal(anyDuplicated(targets[["method"]]), 0L)
   expect_true(all(c("implemented", "deferred") %in% targets[["status"]]))
 
@@ -1463,10 +1466,14 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_equal(loo_target[["target"]], "estimate-unit log-score")
   expect_true(grepl("p(y_i | y_-i", loo_target[["known_v_semantics"]],
                     fixed = TRUE))
+  expect_true(grepl("conditioned", loo_target[["known_r_semantics"]],
+                    fixed = TRUE))
 
   marglik_target <- .brma_mv_target_row("add_marglik()/bridge_sampler()")
   expect_equal(marglik_target[["status"]], "implemented")
   expect_equal(marglik_target[["target"]], "full joint fitted likelihood")
+  expect_true(grepl("latent random-effect prior",
+                    marglik_target[["known_r_semantics"]], fixed = TRUE))
 
   known_v_object <- brma.mv(
     yi                        = c(0.10, 0.20),

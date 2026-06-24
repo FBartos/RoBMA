@@ -41,7 +41,11 @@ test_that("Hatvalues for BMA.norm fits are internally consistent", {
 
 test_that("Hatvalues support brma.mv known-V marginal GLS targets", {
 
-  model_names <- c("brma.mv_block_mvn", "brma.mv_block_mvn_random_scale")
+  model_names <- c(
+    "brma.mv_block_mvn",
+    "brma.mv_block_mvn_random_scale",
+    "brma.mv_block_mvn_known_R"
+  )
   skip_if_missing_fits(model_names)
 
   for (name in model_names) {

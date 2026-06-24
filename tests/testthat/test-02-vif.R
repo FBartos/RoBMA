@@ -282,6 +282,41 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_true(any(abs(random_vcov[["samples"]]) > 0))
 })
 
+test_that("VIF supports brma.mv known-R marginal GLS covariance", {
+
+  name <- "brma.mv_block_mvn_known_R"
+  skip_if_missing_fits(name)
+
+  object      <- fits[[name]]
+  known_V     <- .data_known_v_data(object[["data"]])
+  random_vcov <- BayesTools::random_effects_marginal_vcov(
+    fit       = object[["fit"]],
+    parameter = "mu"
+  )
+  covariance_samples <- .known_v_marginal_covariance_samples(object)
+
+  expected <- .vif_known_v_table_oracle(
+    object             = object,
+    covariance_samples = covariance_samples
+  )
+  actual <- vif(object, posterior_correlation = FALSE)[["vif"]]
+  group_covariance <- random_vcov[["metadata"]][["blocks"]][["study"]][["group_covariance"]]
+
+  expect_vif_table(actual, 2, info = name)
+  expect_equal(actual, expected, tolerance = 1e-10)
+  expect_equal(
+    covariance_samples,
+    .known_v_add_base_covariance(
+      base_covariance    = known_V[["V"]],
+      covariance_samples = random_vcov[["samples"]]
+    )
+  )
+  expect_equal(random_vcov[["metadata"]][["included_blocks"]], "study")
+  expect_equal(group_covariance[["scale"]], "none")
+  expect_equal(unname(diag(group_covariance[["kernel"]])), c(4, 9, 16))
+  expect_true(any(abs(random_vcov[["samples"]]) > 0))
+})
+
 test_that("VIF chunks brma.mv known-V marginal covariance without changing results", {
 
   name <- "brma.mv_block_mvn_random_mods_scale"

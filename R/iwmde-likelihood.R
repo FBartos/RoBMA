@@ -298,6 +298,10 @@
     return(0)
   }
 
+  row <- .resolve_fixed_prior_row(
+    row        = row,
+    prior_list = prior_list
+  )
   log_prior <- BayesTools::JAGS_marglik_priors(row, prior_list)
   if (length(log_prior) != 1L || !is.finite(log_prior)) {
     return(-Inf)

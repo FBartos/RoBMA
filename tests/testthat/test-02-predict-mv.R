@@ -518,6 +518,48 @@ test_that("random-formula brma.mv newdata estimate predictions use BayesTools ta
   )
 })
 
+test_that("known-R brma.mv prediction rejects new group levels", {
+
+  name <- "brma.mv_block_mvn_known_R"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  newdata <- data.frame(
+    x     = c(0, 1),
+    z     = c(-1, 0),
+    study = c("s1", "s2")
+  )
+
+  estimate <- predict(
+    fit_brma,
+    newdata = newdata,
+    type    = "estimate",
+    quiet   = TRUE
+  )
+  expect_brma_samples_matrix(
+    estimate,
+    nrow(newdata),
+    "known-R brma.mv newdata estimate"
+  )
+  aggregate <- predict(
+    fit_brma,
+    newdata = TRUE,
+    type    = "effect",
+    quiet   = TRUE
+  )
+  expect_brma_samples_matrix(
+    aggregate,
+    1,
+    "known-R brma.mv aggregate effect"
+  )
+
+  newdata[["study"]][2L] <- "s4"
+  expect_error(
+    predict(fit_brma, newdata = newdata, type = "estimate", quiet = TRUE),
+    "known group covariance"
+  )
+})
+
 test_that("random-formula brma.mv newdata response predictions use V_new covariance", {
 
   object <- .brma_mv_prior_object(random = TRUE)

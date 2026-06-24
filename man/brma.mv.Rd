@@ -11,6 +11,8 @@ brma.mv(
   mods,
   scale,
   random,
+  R = NULL,
+  Rscale = "cor",
   data,
   slab,
   subset,
@@ -67,6 +69,14 @@ BayesTools random-effect terms for \code{brma.mv()}. Use
 \code{car()} inside the formula. Plain random-effect syntax is allowed only for
 random intercepts; random slopes require an explicit structure tag or the
 \code{||} diagonal shorthand.}
+
+\item{R}{optional known random-effect group covariance/correlation matrix,
+or a named list of matrices. Matrix row and column names identify grouping
+levels. This is distinct from the known sampling covariance \code{V}.}
+
+\item{Rscale}{scaling applied to each supplied \code{R} matrix before fitting.
+Supported values are \code{"cor"}, \code{"none"}, \code{"cor0"}, \code{"cov0"}, with
+metafor-compatible aliases \code{TRUE}, \code{FALSE}, \code{0}, \code{1}, \code{2}, and \code{3}.}
 
 \item{data}{an optional data frame containing the variables.}
 
@@ -193,6 +203,16 @@ The \code{random} argument uses BayesTools
 Plain shorthand is accepted only for random intercepts such as
 \code{~ 1 | study} or nested intercepts such as \code{~ 1 | study/effect}; random
 slopes require an explicit structure tag or the \code{||} diagonal shorthand.
+The optional \code{R} argument supplies known covariance or correlation matrices
+across random-effect grouping levels, following \code{metafor::rma.mv()} naming.
+\code{R} is separate from the known sampling covariance \code{V}: \code{V} describes
+sampling-error dependence between estimates, while \code{R} describes the
+latent group-axis covariance of sampled random intercepts. Current
+\code{R} support is limited to sampled random-intercept blocks. \code{Rscale}
+controls how each supplied \code{R} matrix is scaled before fitting and accepts
+\code{"cor"}, \code{"none"}, \code{"cor0"}, \code{"cov0"}, plus metafor-compatible aliases
+\code{TRUE}/\code{1} for \code{"cor"}, \code{FALSE}/\code{0} for \code{"none"}, \code{2} for \code{"cor0"},
+and \code{3} for \code{"cov0"}.
 When \code{random} is used, shared sampled
 random-effect blocks enter the conditional mean through BayesTools. With
 \code{marginalize_estimate_level = TRUE}, a single one-to-one random-intercept
@@ -235,12 +255,17 @@ targets. When known \code{V} induces dependence, these contributions are
 Schur-complement conditionals \eqn{p(y_i \mid y_{-i}, \theta)} within
 dependency blocks. They are existing-estimate diagnostics, not
 independent new-estimate prediction targets.
+When known random-effect covariance \code{R} is supplied, sampled random
+effects remain conditioned in these estimate-depth targets. The known
+\code{R} matrix shapes the posterior and prior for those random effects, but
+it is not added again as a marginal \eqn{ZGZ'} covariance term.
 \item \code{dfbetas()} and \code{covratio()} use estimate-unit PSIS weights. With
 correlated known \code{V}, their interpretation is parameter influence under
 conditional estimate deletion, not independent-study deletion.
 \item \code{add_marglik()}/\code{bridge_sampler()} uses the full joint fitted
 likelihood corresponding to the selected known-\code{V} backend. It does not
-use the estimate-wise conditional target from LOO/WAIC.
+use the estimate-wise conditional target from LOO/WAIC. Known \code{R}
+enters this full joint target through the latent random-effect prior.
 \item \code{hatvalues()}, marginal \code{rstandard()}, and \code{vif()} use a marginal
 GLS covariance target based on \verb{V + ZGZ'}, where formula random effects
 are marginalized through the BayesTools covariance metadata.

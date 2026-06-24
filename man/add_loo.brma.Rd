@@ -52,6 +52,12 @@ conditional predictive contributions \eqn{p(y_i \mid y_{-i}, \theta)} within
 known-\code{V} dependency blocks. This is an existing-estimate diagnostic, not
 an independent new-estimate prediction target.
 
+For \code{brma.mv()} models with known random-effect group covariance
+\code{R}, estimate-unit LOO keeps sampled random effects at the estimate
+conditioning depth. The known \code{R} matrix shapes the posterior and prior
+for those sampled random effects, but it is not added again as a marginal
+\eqn{ZGZ'} covariance term in this target.
+
 The PSIS object is essential for model comparison via
 \code{\link[loo]{loo_compare}} and is automatically saved in the loo result.
 RoBMA stores target metadata so comparisons can reject mismatched data,

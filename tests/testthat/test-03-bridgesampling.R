@@ -37,6 +37,7 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
     "brma.mv_block_mvn",
     "brma.mv_block_mvn_fixed_random_null",
     "brma.mv_block_mvn_random",
+    "brma.mv_block_mvn_known_R",
     "brma.mv_latent_estimate_scale",
     "brma.mv_block_mvn_estimate_scale"
   )

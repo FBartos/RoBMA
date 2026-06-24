@@ -136,7 +136,20 @@
 .is_marginalized_estimate_level_candidate <- function(term, k) {
 
   identical(term[["compile_mode"]], "sampled") &&
+    !.random_effect_term_has_known_group_covariance(term) &&
     .is_estimate_level_random_intercept(term, k)
+}
+
+.random_effect_term_has_known_group_covariance <- function(term) {
+
+  group_covariance <- term[["group_covariance"]]
+  if (is.null(group_covariance)) {
+    return(FALSE)
+  }
+
+  inherits(group_covariance, "random_group_covariance") ||
+    inherits(group_covariance, "random_group_covariance_kernel") ||
+    (is.list(group_covariance) && identical(group_covariance[["type"]], "known"))
 }
 
 .is_estimate_level_random_intercept <- function(term, k) {
@@ -362,6 +375,26 @@
   }
 
   return(vapply(terms[sampled], `[[`, character(1), "block_name"))
+}
+
+
+.formula_design_blocks_have_known_group_covariance <- function(formula_design,
+                                                               blocks = NULL) {
+
+  terms <- formula_design[["random_effects"]]
+  if (length(terms) == 0L) {
+    return(FALSE)
+  }
+
+  if (!is.null(blocks)) {
+    block_names <- vapply(terms, `[[`, character(1), "block_name")
+    terms <- terms[block_names %in% blocks]
+  }
+  if (length(terms) == 0L) {
+    return(FALSE)
+  }
+
+  any(vapply(terms, .random_effect_term_has_known_group_covariance, logical(1)))
 }
 
 

@@ -184,6 +184,19 @@ test_that("summary.brma returns a stable object contract", {
   }
 })
 
+test_that("summary.brma prints known-R random-effect parameters", {
+
+  name <- "brma.mv_block_mvn_known_R"
+  skip_if_missing_fits(name)
+
+  out    <- summary(fits[[name]], include_mcmc_diagnostics = FALSE)
+  output <- capture.output(print(out))
+
+  expect_summary_contract(out, fits[[name]], name)
+  expect_true(any(grepl("sd_multiplier(", output, fixed = TRUE)))
+  expect_false(any(grepl("group_covariance", output, fixed = TRUE)))
+})
+
 test_that("summary.brma options change table schema", {
 
   name <- "bcg_meta-analysis"

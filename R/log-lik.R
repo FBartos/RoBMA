@@ -815,10 +815,56 @@
 }
 
 
+.known_r_log_lik_target_metadata <- function(data) {
+
+  terms <- .data_random_effect_terms(data)
+  if (length(terms) == 0L) {
+    return(list(
+      known_r           = FALSE,
+      known_r_blocks    = character(),
+      known_r_semantics = NULL
+    ))
+  }
+
+  known_r <- vapply(
+    terms,
+    .random_effect_term_has_known_group_covariance,
+    logical(1)
+  )
+  terms <- terms[known_r]
+  if (length(terms) == 0L) {
+    return(list(
+      known_r           = FALSE,
+      known_r_blocks    = character(),
+      known_r_semantics = NULL
+    ))
+  }
+
+  block_labels <- vapply(terms, function(term) {
+    label <- term[["group_label"]]
+    if (is.null(label) || length(label) != 1L || is.na(label) || !nzchar(label)) {
+      label <- term[["block_name"]]
+    }
+    as.character(label)
+  }, character(1))
+
+  list(
+    known_r           = TRUE,
+    known_r_blocks    = unname(block_labels),
+    known_r_semantics = paste0(
+      "estimate-unit log-score conditions on sampled fitted random effects; ",
+      "known R shapes their posterior/prior but is not added as a ",
+      "marginal ZGZ' covariance term"
+    )
+  )
+}
+
+
 .estimate_log_lik_target_metadata <- function(setup, data_hash) {
 
   known_v_estimate_backend <- .known_v_estimate_target_uses_backend(setup[["data"]])
   known_v_schur            <- .known_v_estimate_target_uses_schur_conditioning(setup[["data"]])
+  known_r_metadata         <- .known_r_log_lik_target_metadata(setup[["data"]])
   known_V <- if (.is_data_known_v(setup[["data"]])) {
     .data_known_v_data(setup[["data"]])
   } else {
@@ -836,7 +882,7 @@
   random_effect_terms <- .data_random_effect_terms(setup[["data"]])
   has_sampled_random <- length(random_effect_terms) > 0L && any(vapply(
     random_effect_terms,
-    function(term) identical(term[["compile_mode"]], "sampled"),
+    function(term) identical(.random_effect_term_compile_mode(term), "sampled"),
     logical(1)
   ))
 
@@ -857,6 +903,9 @@
     },
     dependency_component_sizes = component_sizes,
     known_v_schur       = known_v_schur,
+    known_r              = known_r_metadata[["known_r"]],
+    known_r_blocks       = known_r_metadata[["known_r_blocks"]],
+    known_r_semantics    = known_r_metadata[["known_r_semantics"]],
     random_effects       = if (has_sampled_random) "conditioned" else "none",
     estimate_level_random = if (.data_has_marginalized_random_effects(setup[["data"]])) {
       "marginalized"

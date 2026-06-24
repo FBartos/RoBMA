@@ -55,6 +55,14 @@
 #' `ar()` to `ar1()`, and unqualified `random()` / `re()` to `us()` unless a
 #' covariance override changes the structure.
 #'
+#' `brma.mv()` also accepts metafor-style known group covariance through its
+#' `R` and `Rscale` arguments. This covariance is attached to random-effect
+#' grouping levels and is distinct from the known sampling covariance `V`.
+#' RoBMA translates `R` internally to BayesTools random-effect group covariance
+#' metadata; users should continue to use `R`/`Rscale` in `brma.mv()` rather
+#' than BayesTools-native `group_covariance` arguments. Current support is
+#' limited to sampled random-intercept blocks such as `random = ~ 1 | study`.
+#'
 #' The scalar-correlation structures `cs()`, `hcs()`, `ar1()` / `ar()`,
 #' `har()`, and `car()` use a default `Beta(1, 1)` prior distribution directly
 #' on the raw correlation parameter \eqn{\rho}. This default prior distribution

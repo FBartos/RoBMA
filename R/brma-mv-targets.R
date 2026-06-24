@@ -44,6 +44,16 @@
       rep("conditional estimate deletion; reported target fixed_location_fitted_value", 2),
       "deferred for brma.mv()"
     ),
+    known_r_semantics = c(
+      rep(
+        "sampled known-R random effects are conditioned in estimate-depth targets",
+        6
+      ),
+      "known R enters through the latent random-effect prior",
+      rep("known R contributes through ZGZ' marginal covariance", 3),
+      rep("conditional estimate deletion with sampled random effects", 2),
+      "deferred for brma.mv()"
+    ),
     stringsAsFactors = FALSE
   )
 }
@@ -72,6 +82,7 @@
     status              = row[["status"]],
     deletion_target     = "estimate",
     known_v_semantics   = row[["known_v_semantics"]],
+    known_r_semantics   = row[["known_r_semantics"]],
     reported_target     = if (method %in% c("dffits()", "cooks.distance()")) {
       "fixed_location_fitted_value"
     } else {

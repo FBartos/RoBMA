@@ -356,7 +356,8 @@ test_that("brma.mv known-V residual diagnostics are internally consistent", {
     "brma.mv_latent",
     "brma.mv_whitened",
     "brma.mv_block_mvn",
-    "brma.mv_block_mvn_random_scale"
+    "brma.mv_block_mvn_random_scale",
+    "brma.mv_block_mvn_known_R"
   )
   skip_if_missing_fits(mv_names)
 

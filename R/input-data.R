@@ -226,6 +226,7 @@ NULL
                                  effect_direction = "positive", skip_validation = FALSE,
                                  allow_na_drop = TRUE,
                                  random_effects_metadata = NULL,
+                                 random_group_covariance = NULL,
                                  known_v_parameterization = "auto",
                                  known_v_residual_fraction = NULL,
                                  known_v_residual_fraction_specified = FALSE) {
@@ -304,7 +305,8 @@ NULL
     data                    = data,
     .envir                  = .envir,
     k                       = k,
-    random_effects_metadata = random_effects_metadata
+    random_effects_metadata = random_effects_metadata,
+    random_group_covariance = random_group_covariance
   )
 
   data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
@@ -1061,10 +1063,14 @@ NULL
 }
 
 .check_and_list_data.random <- function(.call, data, .envir, k,
-                                        random_effects_metadata = NULL) {
+                                        random_effects_metadata = NULL,
+                                        random_group_covariance = NULL) {
 
   arg_index <- match("random", names(.call))
   if (is.na(arg_index)) {
+    if (!is.null(random_group_covariance)) {
+      stop("'R' requires a 'random' formula.", call. = FALSE)
+    }
     if (!is.null(random_effects_metadata)) {
       if (!inherits(random_effects_metadata, "BayesTools_random_effects")) {
         stop("Internal error: random-effect metadata must be a BayesTools random-effect object.",
@@ -1082,6 +1088,9 @@ NULL
 
   random_expr <- .call[[arg_index]]
   if (is.null(random_expr)) {
+    if (!is.null(random_group_covariance)) {
+      stop("'R' requires a non-NULL 'random' formula.", call. = FALSE)
+    }
     return(list(formula = NULL, data = NULL, terms = list()))
   }
 
@@ -1099,11 +1108,28 @@ NULL
   }
 
   if (inherits(random, "BayesTools_random_effects")) {
+    if (!is.null(random_group_covariance)) {
+      stop(
+        "'R' cannot be combined with a pre-parsed BayesTools random-effect ",
+        "object; supply the random-effect formula to 'random' instead.",
+        call. = FALSE
+      )
+    }
     random_effects <- random
   } else {
-    random_effects <- BayesTools::random_effects_formula(
-      random = random,
-      envir  = .envir
+    random_effects <- tryCatch(
+      BayesTools::random_effects_formula(
+        random           = random,
+        envir            = .envir,
+        group_covariance = random_group_covariance
+      ),
+      error = function(e) {
+        message <- conditionMessage(e)
+        if (!is.null(random_group_covariance)) {
+          message <- .brma_mv_group_covariance_error_message(message)
+        }
+        stop(message, call. = FALSE)
+      }
     )
     random_effects <- .check_and_list_data.random_annotate_formula_component(
       random_effects = random_effects,
@@ -1113,6 +1139,7 @@ NULL
   formula <- random_effects[["formula"]]
   terms   <- random_effects[["terms"]]
   .check_and_list_data.random_validate_terms(terms)
+  .check_and_list_data.random_validate_group_covariance_terms(terms)
 
   variables <- all.vars(formula)
   random_data <- .check_and_list_data.random_variables(
@@ -1129,6 +1156,42 @@ NULL
     terms          = terms,
     random_effects = random_effects
   ))
+}
+
+.check_and_list_data.random_validate_group_covariance_terms <- function(terms) {
+
+  for (term in terms) {
+    if (!.random_effect_term_has_known_group_covariance(term)) {
+      next
+    }
+
+    block <- term[["block_name"]]
+    structure <- term[["structure"]]
+    structure_label <- if (is.character(structure) && length(structure) == 1L &&
+                           !is.na(structure) && nzchar(structure)) {
+      structure
+    } else {
+      "unknown"
+    }
+    if (!is.character(structure) || length(structure) != 1L ||
+        is.na(structure) || !tolower(structure) %in% c("id", "diag", "us")) {
+      stop(
+        "'R' currently supports sampled random-intercept blocks only; ",
+        "random-effect block '", block, "' uses structure '",
+        structure_label, "'.",
+        call. = FALSE
+      )
+    }
+    if (!identical(term[["expr"]], 1)) {
+      stop(
+        "'R' currently supports sampled random intercepts only; ",
+        "random-effect block '", block, "' contains random slopes.",
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(TRUE)
 }
 
 .check_and_list_data.random_annotate_formula_component <- function(random_effects,
@@ -1326,10 +1389,16 @@ NULL
 
   random_rhs <- .check_and_list_data.formula_rhs(data_random[["formula"]])
 
-  stats::as.formula(
+  formula <- stats::as.formula(
     paste("~", fixed_rhs, "+", random_rhs),
     env = environment(data_random[["formula"]])
   )
+  attr(formula, "random_terms") <- data_random[["terms"]]
+  if (!is.null(data_random[["random_effects"]][["components"]])) {
+    attr(formula, "random_components") <- data_random[["random_effects"]][["components"]]
+  }
+
+  formula
 }
 
 

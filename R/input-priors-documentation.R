@@ -237,7 +237,7 @@ NULL
 #' distribution as described in \code{\link{prior_specification}}. The base
 #' prior distribution follows the same `measure`, `ni`,
 #' `prior_unit_information_sd`, informed-prior, and `rescale_priors` rules as
-#' the standard random effects meta-analysis
+#' the scalar heterogeneity prior distribution.
 #'
 #' The random-effect structure determines how this base prior distribution is
 #' used:

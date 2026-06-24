@@ -139,7 +139,7 @@
     samples      = samples,
     active_setup = active_setup
   )
-  samples <- .iwmde_add_fixed_prior_sample_columns(
+  samples <- .iwmde_resolve_fixed_prior_sample_columns(
     context      = context,
     samples      = samples,
     active_setup = active_setup
@@ -177,8 +177,8 @@
 }
 
 
-.iwmde_add_fixed_prior_sample_columns <- function(context, samples,
-                                                  active_setup) {
+.iwmde_resolve_fixed_prior_sample_columns <- function(context, samples,
+                                                      active_setup) {
 
   prior_list <- active_setup[["fit_priors"]]
   if (is.null(prior_list) &&
@@ -196,7 +196,7 @@
     }
   }
 
-  return(.add_fixed_prior_sample_columns(samples, prior_list))
+  return(.resolve_fixed_prior_sample_columns(samples, prior_list))
 }
 
 

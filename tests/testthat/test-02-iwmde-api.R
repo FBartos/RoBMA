@@ -76,6 +76,17 @@ test_that("fixed nonzero priors fill missing evaluator columns", {
   expect_equal(.fixed_tau_prior_value(priors), 0.05)
   expect_false(.has_fixed_zero_tau_prior(priors))
 
+  factor_prior <- BayesTools::prior_factor(
+    "spike",
+    parameters = list(0.10),
+    contrast   = "meandif"
+  )
+  expect_equal(.point_prior_value(factor_prior), 0.10)
+  expect_equal(
+    .fixed_prior_list_values(list(mod_factor = factor_prior)),
+    c(mod_factor = 0.10)
+  )
+
   mu_result <- .evaluate.brma.mu(
     fit               = NULL,
     outcome_data      = data.frame(sei = c(0.10, 0.20, 0.30)),
@@ -150,6 +161,23 @@ test_that("fixed nonzero priors fill missing evaluator columns", {
   )
   expect_equal(row_parameters[["mu"]], 0.20)
   expect_equal(row_parameters[["tau"]], 0.05)
+
+  raw_fixed_samples <- matrix(
+    c(9, 8),
+    nrow     = 1L,
+    dimnames = list(NULL, c("mu", "tau"))
+  )
+  raw_row_parameters <- .iwmde_row_parameters(
+    context      = list(data = data),
+    row          = raw_fixed_samples[1L, ],
+    active_setup = active_setup
+  )
+  expect_equal(raw_row_parameters[["mu"]], 0.20)
+  expect_equal(raw_row_parameters[["tau"]], 0.05)
+  expect_equal(
+    .iwmde_log_prior_row(raw_fixed_samples[1L, ], active_setup[["fit_priors"]]),
+    .iwmde_log_prior_row(c(mu = 0.20, tau = 0.05), active_setup[["fit_priors"]])
+  )
 })
 
 
@@ -203,6 +231,20 @@ test_that("fixed PET and PEESE priors fill missing bias columns", {
   )
   expect_equal(row_parameters[["PET"]], 0.30)
 
+  raw_pet_row <- c(mu = 0.10, PET = 9)
+  row_parameters <- .iwmde_row_parameters(
+    context      = list(data = data),
+    row          = raw_pet_row,
+    active_setup = list(
+      priors            = pet_priors,
+      fit_priors        = list(PET = pet_priors[["outcome"]][["bias"]]),
+      is_PET            = TRUE,
+      is_PEESE          = FALSE,
+      is_weightfunction = FALSE
+    )
+  )
+  expect_equal(row_parameters[["PET"]], 0.30)
+
   peese_priors <- list(
     outcome = list(
       bias = BayesTools::prior_PEESE("spike", list(location = 0.40))
@@ -219,6 +261,20 @@ test_that("fixed PET and PEESE priors fill missing bias columns", {
     priors            = peese_priors
   )
   expect_equal(peese_offset, outer(rep(0.40, 4L), outcome_data[["sei"]]^2))
+
+  raw_peese_row <- c(mu = 0.10, PEESE = 9)
+  row_parameters <- .iwmde_row_parameters(
+    context      = list(data = data),
+    row          = raw_peese_row,
+    active_setup = list(
+      priors            = peese_priors,
+      fit_priors        = list(PEESE = peese_priors[["outcome"]][["bias"]]),
+      is_PET            = FALSE,
+      is_PEESE          = TRUE,
+      is_weightfunction = FALSE
+    )
+  )
+  expect_equal(row_parameters[["PEESE"]], 0.40)
 })
 
 

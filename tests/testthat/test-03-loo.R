@@ -170,6 +170,7 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     "brma.mv_whitened",
     "brma.mv_block_mvn",
     "brma.mv_block_mvn_fixed_random_null",
+    "brma.mv_block_mvn_known_R",
     "brma.mv_block_mvn_random_scale",
     "brma.mv_block_mvn_3lvl_scale_total",
     "brma.mv_block_mvn_3lvl_scale_top",
@@ -179,6 +180,10 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
 
   for (name in mv_names) {
     fit_brma <- fits[[name]]
+    is_known_r <- identical(name, "brma.mv_block_mvn_known_R")
+    if (is_known_r) {
+      fit_brma <- suppressWarnings(add_loo(fit_brma))
+    }
     log_lik  <- logLik(fit_brma)
     target   <- attr(log_lik, "RoBMA_target", exact = TRUE)
 
@@ -199,12 +204,28 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
       info = name
     )
     expect_true(length(target[["dependency_component_sizes"]]) > 0L, info = name)
+    expect_equal(isTRUE(target[["known_r"]]), is_known_r, info = name)
+    if (is_known_r) {
+      expect_equal(target[["known_r_blocks"]], "study", info = name)
+      expect_true(grepl("conditions on sampled fitted random effects",
+                        target[["known_r_semantics"]], fixed = TRUE),
+                  info = name)
+      expect_equal(target[["random_effects"]], "conditioned", info = name)
+    } else {
+      expect_equal(length(target[["known_r_blocks"]]), 0L, info = name)
+      expect_null(target[["known_r_semantics"]], info = name)
+    }
 
     loo_result <- loo(fit_brma)
     loo_target <- attr(loo_result, "RoBMA_target", exact = TRUE)
     expect_s3_class(loo_result, "loo")
     expect_equal(loo_target[["target"]], target[["target"]], info = name)
     expect_true(isTRUE(loo_target[["known_v_estimate_backend"]]), info = name)
+    expect_equal(loo_target[["known_r"]], target[["known_r"]], info = name)
+    expect_equal(loo_target[["known_r_blocks"]], target[["known_r_blocks"]],
+                 info = name)
+    expect_equal(loo_target[["known_r_semantics"]],
+                 target[["known_r_semantics"]], info = name)
     expect_equal(
       loo_target[["dependency_component_sizes"]],
       target[["dependency_component_sizes"]],
@@ -217,6 +238,11 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     expect_s3_class(waic_result, "waic")
     expect_equal(waic_target[["target"]], target[["target"]], info = name)
     expect_true(isTRUE(waic_target[["known_v_estimate_backend"]]), info = name)
+    expect_equal(waic_target[["known_r"]], target[["known_r"]], info = name)
+    expect_equal(waic_target[["known_r_blocks"]], target[["known_r_blocks"]],
+                 info = name)
+    expect_equal(waic_target[["known_r_semantics"]],
+                 target[["known_r_semantics"]], info = name)
     expect_equal(
       waic_target[["dependency_component_sizes"]],
       target[["dependency_component_sizes"]],

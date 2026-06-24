@@ -37,6 +37,11 @@ the same conditional log-likelihood matrix as estimate-unit LOO,
 \eqn{p(y_i \mid y_{-i}, \theta)}. It therefore has the same interpretation as
 an existing-estimate diagnostic rather than an independent new-estimate
 prediction target.
+
+For \code{brma.mv()} models with known random-effect group covariance
+\code{R}, estimate-unit WAIC has the same conditioning convention as
+estimate-unit LOO: sampled random effects are conditioned on, and known
+\code{R} is not added again as a marginal \eqn{ZGZ'} covariance term.
 }
 \seealso{
 \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}
