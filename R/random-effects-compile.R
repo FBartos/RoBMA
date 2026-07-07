@@ -107,12 +107,15 @@
     return(data)
   }
 
+  known_v_residual_fraction_specified <- !is.null(
+    known_V[["residual_fraction_requested"]]
+  )
   new_known_V <- .known_v_prepare(
     V                                   = known_V[["V"]],
     keep_rows                           = rep(TRUE, nrow(known_V[["V"]])),
     known_v_parameterization            = "auto",
-    known_v_residual_fraction           = NULL,
-    known_v_residual_fraction_specified = FALSE,
+    known_v_residual_fraction           = known_V[["residual_fraction_requested"]],
+    known_v_residual_fraction_specified = known_v_residual_fraction_specified,
     known_v_is_scale                    = TRUE,
     known_v_is_multilevel               = FALSE
   )

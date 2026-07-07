@@ -57,7 +57,9 @@ For \code{brma.mv()} random-formula models, \code{component = "all"}
 returns one \code{brma_samples} object when there is a single heterogeneity
 component and a named list when there are multiple components.
 \code{component = "total"} computes the variance-additive row-level total
-\eqn{\sqrt{\sum_j \tau_{ij}^2}} and then averages this total across rows.
+\eqn{\sqrt{\sum_j \tau_{ij}^2}} and returns its root-mean-square value
+across rows. Shared allocation nodes can be selected with the same
+component aliases as \code{summary_heterogeneity()}.
 }
 \examples{
 \dontrun{

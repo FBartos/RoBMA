@@ -151,10 +151,11 @@ the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
 \code{brma.mv()} random-formula models, fitted-level sampled random effects
 are added to the fixed location and the result is titled conditional true
 effects. Random-effect blocks compiled as marginalized contribute Gaussian
-BLUP means for existing-data predictions and covariance for predictive
-response draws. For explicit new data, unseen random-effect levels are
-sampled from their model distribution. For aggregated random-formula
-predictions, random effects are sampled marginally before averaging over rows.
+BLUP means for existing-data predictions; existing-data response predictions
+then add only the known sampling covariance. For explicit new data, unseen
+random-effect levels are sampled from their model distribution. For aggregated
+random-formula predictions, random effects are sampled marginally before
+averaging over rows.
 
 For RoBMA product-space objects, conditional posterior predictions subset
 posterior rows according to model indicators. This removes the original

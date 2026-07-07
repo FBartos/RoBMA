@@ -495,6 +495,9 @@
   if (.data_outcome_type(context[["data"]]) != "norm") {
     return(NULL)
   }
+  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+    return(NULL)
+  }
   if (isTRUE(basis[["formula_mu"]]) ||
       isTRUE(basis[["formula_logtau"]]) ||
       !identical(basis[["scale_update"]], "none") ||

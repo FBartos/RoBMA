@@ -224,6 +224,14 @@
       known_v_is_singular   = singular
     )
   }
+  known_v_residual_fraction_metadata <- if (
+    known_v_parameterization == "latent" ||
+      isTRUE(known_v_residual_fraction_specified)
+  ) {
+    known_v_residual_fraction
+  } else {
+    NULL
+  }
   if (isTRUE(singular) && known_v_parameterization == "latent") {
     stop(
       "Singular all-correlated known-V matrices cannot use ",
@@ -239,7 +247,8 @@
   if (known_v_parameterization == "whitened") {
     .known_v_warn_unused_residual_fraction(
       known_v_parameterization,
-      known_v_residual_fraction_specified
+      known_v_residual_fraction_specified &&
+        !identical(known_v_requested_parameterization, "auto")
     )
 
     whitening <- .known_v_whiten_blocks(
@@ -254,6 +263,7 @@
         parameterization            = known_v_parameterization,
         parameterization_requested  = known_v_requested_parameterization,
         correlated                  = correlated,
+        residual_fraction_requested = known_v_residual_fraction_metadata,
         residual_variance           = diag(V),
         residual_sei                = sqrt(diag(V)),
         B                           = matrix(numeric(0), nrow = nrow(V), ncol = 0L),
@@ -267,7 +277,8 @@
   if (known_v_parameterization == "block_mvn") {
     .known_v_warn_unused_residual_fraction(
       known_v_parameterization,
-      known_v_residual_fraction_specified
+      known_v_residual_fraction_specified &&
+        !identical(known_v_requested_parameterization, "auto")
     )
 
     block_mvn <- .known_v_block_mvn_blocks(
@@ -282,6 +293,7 @@
         parameterization            = known_v_parameterization,
         parameterization_requested  = known_v_requested_parameterization,
         correlated                  = correlated,
+        residual_fraction_requested = known_v_residual_fraction_metadata,
         residual_variance           = diag(V),
         residual_sei                = sqrt(diag(V)),
         B                           = matrix(numeric(0), nrow = nrow(V), ncol = 0L),
@@ -310,7 +322,7 @@
       parameterization            = known_v_parameterization,
       parameterization_requested  = known_v_requested_parameterization,
       correlated                  = correlated,
-      residual_fraction_requested = known_v_residual_fraction,
+      residual_fraction_requested = known_v_residual_fraction_metadata,
       max_reconstruction_error    = reconstruction_error,
       sampling_factor             = .known_v_sampling_factor(V)
     ),

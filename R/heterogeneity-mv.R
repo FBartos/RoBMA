@@ -27,11 +27,38 @@
     object            = object,
     posterior_samples = posterior_samples
   )
-  selected <- .select_brma_mv_heterogeneity_components(
-    components = components,
-    component  = component,
-    object     = object
+  allocation_samples <- .brma_mv_allocation_sample_lists(
+    object            = object,
+    posterior_samples = posterior_samples
   )
+
+  component <- .normalize_brma_mv_heterogeneity_component(component)
+  if (identical(component, "all")) {
+    replaced_components <- .brma_mv_allocation_replaced_components(
+      allocation_samples
+    )
+    selected <- components[!names(components) %in% replaced_components]
+    selected <- c(allocation_samples, selected)
+  } else {
+    allocation_component <- if (identical(component, "total")) {
+      NULL
+    } else {
+      .match_brma_mv_allocation_summary_component(
+        component            = component,
+        allocation_summaries = allocation_samples
+      )
+    }
+    if (!is.null(allocation_component)) {
+      selected <- allocation_samples[allocation_component]
+    } else {
+      selected <- .select_brma_mv_heterogeneity_components(
+        components            = components,
+        component             = component,
+        object                = object,
+        extra_component_names = names(allocation_samples)
+      )
+    }
+  }
 
   chain_info <- .brma_samples_chain_info(
     fit       = object[["fit"]],
@@ -39,8 +66,7 @@
   )
 
   out <- lapply(names(selected), function(name) {
-    samples <- matrix(rowMeans(selected[[name]]), ncol = 1L)
-    colnames(samples) <- "tau"
+    samples <- .pooled_brma_mv_heterogeneity_samples(selected[[name]])
     .new_brma_samples(
       samples  = samples,
       n_chains = chain_info[["n_chains"]],
@@ -69,6 +95,36 @@
   }
 
   return(out)
+}
+
+
+.pooled_brma_mv_heterogeneity_samples <- function(samples) {
+
+  if (is.matrix(samples)) {
+    samples <- matrix(.brma_mv_rms_sd_samples(samples), ncol = 1L)
+    colnames(samples) <- "tau"
+    return(samples)
+  }
+
+  if (is.list(samples) && length(samples) > 0L) {
+    sample_name <- if ("tau" %in% names(samples)) {
+      "tau"
+    } else {
+      names(samples)[[1L]]
+    }
+    samples <- matrix(samples[[sample_name]], ncol = 1L)
+    colnames(samples) <- "tau"
+    return(samples)
+  }
+
+  stop("Heterogeneity samples must be a posterior-draw matrix.",
+       call. = FALSE)
+}
+
+
+.brma_mv_rms_sd_samples <- function(tau_samples) {
+
+  sqrt(rowMeans(tau_samples^2))
 }
 
 
@@ -185,6 +241,47 @@
                                                        posterior_samples,
                                                        probs) {
 
+  allocation_samples <- .brma_mv_allocation_sample_lists(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  if (length(allocation_samples) == 0L) {
+    return(list())
+  }
+
+  out <- lapply(names(allocation_samples), function(name) {
+    samples_list <- allocation_samples[[name]]
+    estimates <- BayesTools::ensemble_estimates_table(
+      samples    = samples_list,
+      parameters = names(samples_list),
+      probs      = probs,
+      title      = paste0("Heterogeneity Estimates (", name, "):")
+    )
+
+    output <- list(estimates = estimates)
+    class(output) <- "summary_heterogeneity.brma"
+
+    output
+  })
+  names(out) <- names(allocation_samples)
+
+  attr(out, "component_aliases") <- attr(
+    allocation_samples,
+    "component_aliases",
+    exact = TRUE
+  )
+  attr(out, "component_replacements") <- attr(
+    allocation_samples,
+    "component_replacements",
+    exact = TRUE
+  )
+
+  return(out)
+}
+
+
+.brma_mv_allocation_sample_lists <- function(object, posterior_samples) {
+
   if (!.is_random(object)) {
     return(list())
   }
@@ -233,17 +330,7 @@
       K                 = K
     )
 
-    estimates <- BayesTools::ensemble_estimates_table(
-      samples    = samples_list,
-      parameters = names(samples_list),
-      probs      = probs,
-      title      = paste0("Heterogeneity Estimates (", name, "):")
-    )
-
-    output <- list(estimates = estimates)
-    class(output) <- "summary_heterogeneity.brma"
-
-    out[[length(out) + 1L]] <- output
+    out[[length(out) + 1L]] <- samples_list
     names(out)[[length(out)]] <- name
     aliases[[length(aliases) + 1L]] <- .brma_mv_allocation_summary_aliases(
       name       = name,

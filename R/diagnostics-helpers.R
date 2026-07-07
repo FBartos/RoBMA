@@ -221,19 +221,3 @@
 
   return(paste(notes, collapse = " "))
 }
-
-
-.check_brma_mv_classical_influence_deferred <- function(model, caller) {
-
-  if (inherits(model, "brma.mv")) {
-    stop(
-      caller,
-      " is not implemented for brma.mv() yet; use rstudent(), qqnorm(), ",
-      "dfbetas(), covratio(), or hatvalues() for implemented estimate-unit ",
-      "diagnostics.",
-      call. = FALSE
-    )
-  }
-
-  return(invisible(TRUE))
-}

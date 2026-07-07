@@ -710,10 +710,41 @@
   prediction     <- do.call(BayesTools::JAGS_predict_formula, call_args)
   random_samples <- prediction[["random"]]
   if (is.null(random_samples)) {
+    random_samples <- .random_effects_from_marginal_vcov(
+      prediction = prediction,
+      S          = S,
+      K          = K
+    )
+  }
+  if (is.null(random_samples)) {
     return(matrix(0, nrow = S, ncol = K))
   }
 
   return(t(random_samples))
+}
+
+
+.random_effects_from_marginal_vcov <- function(prediction, S, K) {
+
+  vcov <- prediction[["vcov"]]
+  if (is.null(vcov) || is.null(vcov[["samples"]])) {
+    return(NULL)
+  }
+
+  covariance_samples <- vcov[["samples"]]
+  if (length(dim(covariance_samples)) != 3L ||
+      dim(covariance_samples)[1L] != S ||
+      dim(covariance_samples)[2L] != K ||
+      dim(covariance_samples)[3L] != K) {
+    stop("Random-effect covariance samples have inconsistent dimensions.",
+         call. = FALSE)
+  }
+
+  zero_mu <- matrix(0, nrow = S, ncol = K)
+  return(t(.outcome_rng.norm_known_v_covariance(
+    mu_samples         = zero_mu,
+    covariance_samples = covariance_samples
+  )))
 }
 
 

@@ -172,7 +172,8 @@
   }
 
   row <- if (identical(base_state[["state_scope"]], "global") &&
-             identical(likelihood_mode, "marginal")) {
+             identical(likelihood_mode, "marginal") &&
+             !.iwmde_marginal_likelihood_requires_row(context)) {
     NULL
   } else {
     base_state[["row"]]
@@ -188,6 +189,12 @@
 
   assign(key, log_lik, envir = context[["likelihood_cache"]])
   return(log_lik)
+}
+
+
+.iwmde_marginal_likelihood_requires_row <- function(context) {
+
+  .is_data_known_v(context[["data"]]) && .is_data_random(context[["data"]])
 }
 
 

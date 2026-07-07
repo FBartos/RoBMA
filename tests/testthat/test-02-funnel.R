@@ -26,6 +26,32 @@ test_that("funnel line clipping preserves segment order", {
 })
 
 
+test_that("known-V funnel tau uses marginal covariance samples", {
+
+  V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
+  data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- list(V = V)
+  object <- list(data = data)
+  class(object) <- c("brma.mv", "brma")
+
+  covariance_samples <- array(NA_real_, dim = c(2L, 2L, 2L))
+  covariance_samples[1L, , ] <- V + diag(c(.01, .04), nrow = 2L)
+  covariance_samples[2L, , ] <- V + diag(c(.09, .16), nrow = 2L)
+  testthat::local_mocked_bindings(
+    .known_v_marginal_covariance_samples = function(object, ...) {
+
+      covariance_samples
+    },
+    .package = "RoBMA"
+  )
+
+  expected <- mean(sqrt(rowMeans(rbind(c(.01, .04), c(.09, .16)))))
+
+  expect_equal(.get_funnel_tau(object), expected)
+})
+
+
 # list cached fits lazily
 skip_if_no_fits()
 skip_if_not_installed("metafor")

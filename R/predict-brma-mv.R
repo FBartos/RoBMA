@@ -160,6 +160,24 @@
 }
 
 
+.predict_known_v_marginalized_random_draws <- function(object, data,
+                                                       posterior_samples) {
+
+  variance <- .predict_known_v_newdata_marginalized_variance(
+    object            = object,
+    data              = data,
+    posterior_samples = posterior_samples
+  )
+  sd <- sqrt(pmax(variance, 0))
+
+  matrix(
+    stats::rnorm(length(sd), mean = 0, sd = as.vector(sd)),
+    nrow = nrow(sd),
+    ncol = ncol(sd)
+  )
+}
+
+
 .predict_known_v_formula_design_with_row_source_values <- function(object, data) {
 
   formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
@@ -493,6 +511,8 @@
       "V_new_plus_marginal_random_effect_covariance"
     } else if (!is.null(known_V_new)) {
       "V_new_plus_heterogeneity"
+    } else if (random_mv && .is_data_known_v(object[["data"]]) && same_data) {
+      "known_V_conditional_on_random_effects"
     } else if (random_mv && .data_has_marginalized_random_effects(object[["data"]])) {
       "known_V_plus_marginalized_estimate_level_variance"
     } else if (.is_data_known_v(object[["data"]])) {

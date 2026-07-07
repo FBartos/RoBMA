@@ -107,10 +107,11 @@
 #' \code{brma.mv()} random-formula models, fitted-level sampled random effects
 #' are added to the fixed location and the result is titled conditional true
 #' effects. Random-effect blocks compiled as marginalized contribute Gaussian
-#' BLUP means for existing-data predictions and covariance for predictive
-#' response draws. For explicit new data, unseen random-effect levels are
-#' sampled from their model distribution. For aggregated random-formula
-#' predictions, random effects are sampled marginally before averaging over rows.
+#' BLUP means for existing-data predictions; existing-data response predictions
+#' then add only the known sampling covariance. For explicit new data, unseen
+#' random-effect levels are sampled from their model distribution. For aggregated
+#' random-formula predictions, random effects are sampled marginally before
+#' averaging over rows.
 #'
 #' For RoBMA product-space objects, conditional posterior predictions subset
 #' posterior rows according to model indicators. This removes the original
@@ -617,6 +618,15 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       object            = object
     )
   }
+  if (random_mv && type == "estimate" && !same_data && !aggregate &&
+      .is_data_known_v(object[["data"]]) &&
+      .data_has_marginalized_random_effects(object[["data"]])) {
+    mu_samples <- mu_samples + .predict_known_v_marginalized_random_draws(
+      object            = object,
+      data              = new_data,
+      posterior_samples = posterior_samples
+    )
+  }
 
   ### aggregate mu and tau samples if requested (for cluster/estimate types)
   if (aggregate && type %in% c("cluster", "estimate")) {
@@ -934,13 +944,15 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       # - bias_adjusted = FALSE without weightfunction: sample from unweighted normal
       response_tau_within_samples <- tau_within_samples
       if (random_mv && is_known_v && is.null(known_V_new)) {
-        response_tau_within_samples <- sqrt(
-          .predict_known_v_newdata_marginalized_variance(
+        response_tau_within_samples <- if (same_data) {
+          matrix(0, nrow = nrow(mu_samples), ncol = ncol(mu_samples))
+        } else {
+          sqrt(.predict_known_v_newdata_marginalized_variance(
             object            = object,
             data              = new_data,
             posterior_samples = posterior_samples
-          )
-        )
+          ))
+        }
       }
 
       if (bias_adjusted || !is_weightfunction) {

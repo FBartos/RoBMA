@@ -125,6 +125,72 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .log_lik_known_v_joint_sum_from_setup
+# ---------------------------------------------------------------------------- #
+#
+# Full observed-data known-V log-likelihood for one posterior/evaluated row.
+#
+# ---------------------------------------------------------------------------- #
+.log_lik_known_v_joint_sum_from_setup <- function(setup) {
+
+  if (!identical(setup[["outcome_type"]], "norm")) {
+    stop(
+      "Known-V joint log-likelihood is only available for normal outcome models.",
+      call. = FALSE
+    )
+  }
+  if (isTRUE(setup[["is_weightfunction"]])) {
+    stop(
+      "Known-V joint log-likelihood is not available for selection models.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(setup[["weights"]])) {
+    stop(
+      "Known-V joint log-likelihood is not available for weighted likelihoods.",
+      call. = FALSE
+    )
+  }
+
+  data       <- setup[["data"]]
+  known_V    <- .data_known_v_data(data)
+  V          <- known_V[["V"]]
+  K          <- setup[["K"]]
+  S          <- setup[["S"]]
+  yi         <- setup[["yi"]]
+  mu_samples <- setup[["mu"]]
+
+  if (identical(setup[["effect_direction"]], "negative")) {
+    yi         <- -yi
+    mu_samples <- -mu_samples
+  }
+
+  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+    stop("Known-V covariance metadata is inconsistent with the outcome data.",
+         call. = FALSE)
+  }
+
+  block_indices  <- .known_v_dependency_blocks(data = data, K = K)
+  extra_variance <- .known_v_extra_variance_from_setup(setup)
+  log_lik        <- numeric(S)
+
+  for (s in seq_len(S)) {
+    for (idx in block_indices) {
+      covariance <- V[idx, idx, drop = FALSE] +
+        diag(extra_variance[s, idx], nrow = length(idx))
+      log_lik[[s]] <- log_lik[[s]] + .marglik_mvn_log_density(
+        y          = yi[idx],
+        mean       = mu_samples[s, idx],
+        covariance = covariance
+      )
+    }
+  }
+
+  return(log_lik)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .cdf_known_v_estimate_target_from_setup
 # ---------------------------------------------------------------------------- #
 #

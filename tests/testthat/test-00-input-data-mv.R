@@ -1842,7 +1842,7 @@ test_that("brma.mv prepares whitened known-V backend", {
   expect_equal(known_V[["parameterization"]], "whitened")
   expect_true(known_V[["correlated"]])
   expect_equal(known_V[["rank"]], 0L)
-  expect_null(known_V[["residual_fraction_requested"]])
+  expect_equal(known_V[["residual_fraction_requested"]], 0.50)
 
   rotated_V <- known_V[["whitening_matrix"]] %*% V %*%
     t(known_V[["whitening_matrix"]])
@@ -1851,6 +1851,51 @@ test_that("brma.mv prepares whitened known-V backend", {
     diag(known_V[["whitening_variance"]], nrow = 2),
     tolerance = 1e-10
   )
+})
+
+
+test_that("brma.mv auto known-V update preserves residual fraction", {
+
+  old_options <- options(RoBMA.known_v_block_mvn_max_block_size = 1L)
+  on.exit(options(old_options))
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  V <- matrix(
+    c(
+      0.040, 0.018, 0.012,
+      0.018, 0.090, 0.024,
+      0.012, 0.024, 0.160
+    ),
+    nrow  = 3,
+    byrow = TRUE
+  )
+  R <- diag(c(1, 4, 9))
+  dimnames(R) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+
+  expect_warning(
+    object <- brma.mv(
+      yi                          = yi,
+      V                           = V,
+      random                      = ~ 1 | estimate,
+      R                           = R,
+      Rscale                      = "none",
+      data                        = dat,
+      known_v_parameterization    = "auto",
+      known_v_residual_fraction   = 0.35,
+      measure                     = "GEN",
+      prior_unit_information_sd   = 1,
+      only_priors                 = TRUE
+    ),
+    NA
+  )
+
+  known_V <- attr(object[["data"]], "known_V_data")
+  expect_equal(known_V[["parameterization_requested"]], "auto")
+  expect_equal(known_V[["parameterization"]], "latent")
+  expect_equal(known_V[["residual_fraction_requested"]], 0.35)
 })
 
 

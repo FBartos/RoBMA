@@ -62,6 +62,17 @@
     active_setup = active_setup
   )
 
+  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+    return(.log_lik_known_v_joint_sum_from_posterior_samples(
+      fit               = context[["object"]][["fit"]],
+      posterior_samples = posterior_samples,
+      data              = context[["data"]],
+      priors            = active_setup[["priors"]],
+      unit              = unit,
+      data_hash         = data_hash
+    ))
+  }
+
   return(.log_lik_from_posterior_samples_sum(
     fit                  = context[["object"]][["fit"]],
     posterior_samples    = posterior_samples,
@@ -90,6 +101,20 @@
     )
   }
 
+  if (.iwmde_uses_known_v_joint_likelihood(context)) {
+    return(.log_lik_known_v_joint_sum_from_evaluated_predictors(
+      fit                 = context[["object"]][["fit"]],
+      data                = context[["data"]],
+      priors              = active_setup[["priors"]],
+      mu_samples          = mu_samples,
+      tau_within_samples  = tau_within_samples,
+      tau_between_samples = tau_between_samples,
+      posterior_samples   = posterior_samples,
+      unit                = unit,
+      data_hash           = data_hash
+    ))
+  }
+
   return(.log_lik_from_evaluated_predictors_sum(
     fit                  = context[["object"]][["fit"]],
     data                 = context[["data"]],
@@ -101,6 +126,12 @@
     unit                 = unit,
     data_hash            = data_hash
   ))
+}
+
+
+.iwmde_uses_known_v_joint_likelihood <- function(context) {
+
+  .known_v_estimate_target_uses_backend(context[["data"]])
 }
 
 
@@ -129,6 +160,7 @@
                                prior_list, likelihood_mode) {
 
   likelihood_row <- if (identical(likelihood_mode, "marginal") &&
+                        !.iwmde_marginal_likelihood_requires_row(context) &&
                         !("gamma" %in% names(parameters)) &&
                         !("theta" %in% names(parameters)) &&
                         !("pi" %in% names(parameters)) &&
@@ -235,15 +267,14 @@
     "estimate"
   }
 
-  log_lik <- .iwmde_log_lik_from_posterior_samples_active_branch(
+  log_lik <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(
     context           = context,
     posterior_samples = samples,
     active_setup      = active_setup,
-    unit              = unit,
-    add_metadata      = FALSE
+    unit              = unit
   )
 
-  return(sum(log_lik))
+  return(log_lik)
 }
 
 

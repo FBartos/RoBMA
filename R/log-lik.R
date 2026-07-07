@@ -185,6 +185,32 @@
 }
 
 
+.log_lik_known_v_joint_sum_from_evaluated_predictors <- function(fit, data,
+                                                                  priors,
+                                                                  mu_samples,
+                                                                  tau_within_samples,
+                                                                  tau_between_samples = NULL,
+                                                                  posterior_samples = NULL,
+                                                                  unit = "estimate",
+                                                                  data_hash = NULL) {
+
+  unit  <- .normalize_unit(unit)
+  setup <- .log_lik_evaluated_setup(
+    fit                  = fit,
+    data                 = data,
+    priors               = priors,
+    unit                 = unit,
+    data_hash            = data_hash,
+    mu_samples           = mu_samples,
+    tau_within_samples   = tau_within_samples,
+    tau_between_samples  = tau_between_samples,
+    posterior_samples    = posterior_samples
+  )
+
+  return(.log_lik_known_v_joint_sum_from_setup(setup))
+}
+
+
 .log_lik_glmm_conditional_sum_from_evaluated_predictors <- function(fit, data,
                                                                     posterior_samples,
                                                                     mu_samples,
@@ -295,6 +321,26 @@
   }
 
   return(.log_lik_cluster_sum_from_setup(setup))
+}
+
+
+.log_lik_known_v_joint_sum_from_posterior_samples <- function(fit,
+                                                               posterior_samples,
+                                                               data, priors,
+                                                               unit = "estimate",
+                                                               data_hash = NULL) {
+
+  unit  <- .normalize_unit(unit)
+  setup <- .log_lik_posterior_setup(
+    fit                  = fit,
+    posterior_samples    = posterior_samples,
+    data                 = data,
+    priors               = priors,
+    unit                 = unit,
+    data_hash            = data_hash
+  )
+
+  return(.log_lik_known_v_joint_sum_from_setup(setup))
 }
 
 

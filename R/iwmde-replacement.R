@@ -737,7 +737,8 @@
   if (isTRUE(state[["use_focal_prior_delta"]]) &&
       isTRUE(replaced[["use_focal_prior_delta"]])) {
     likelihood_row <- if (identical(.iwmde_state_scope_value(state), "global") &&
-                          identical(state[["likelihood_mode"]], "marginal")) {
+                          identical(state[["likelihood_mode"]], "marginal") &&
+                          !.iwmde_marginal_likelihood_requires_row(context)) {
       NULL
     } else {
       row

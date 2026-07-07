@@ -3,7 +3,7 @@
 #' @description Fits normal-likelihood Bayesian meta-analytic models with a
 #' known working variance-covariance matrix `V`. The interface supports
 #' location moderators, BayesTools random-effect formulas using
-#' \link{random_effect_formula_tags}{random-effect formula structure tags}, and
+#' [random-effect formula structure tags][random_effect_formula_tags], and
 #' `brma.mv()`-specific known-`V` backends.
 #'
 #' @inheritParams brma
@@ -35,7 +35,7 @@
 #' `value` is a positive integer or `Inf`.
 #'
 #' The `random` argument uses BayesTools
-#' \link{random_effect_formula_tags}{random-effect formula structure tags}.
+#' [random-effect formula structure tags][random_effect_formula_tags].
 #' Plain shorthand is accepted only for random intercepts such as
 #' `~ 1 | study` or nested intercepts such as `~ 1 | study/effect`; random
 #' slopes require an explicit structure tag or the `||` diagonal shorthand.
@@ -114,9 +114,9 @@
 #'   \item `hatvalues()`, marginal `rstandard()`, and `vif()` use a marginal
 #'     GLS covariance target based on `V + ZGZ'`, where formula random effects
 #'     are marginalized through the BayesTools covariance metadata.
-#'   \item `dffits()`, `cooks.distance()`, and cluster/block LOO are currently
-#'     deferred for `brma.mv()` because their deletion or influence target is a
-#'     joint dependency block, not an independent row.
+#'   \item `dffits()` and `cooks.distance()` use fixed-location fitted-value
+#'     influence targets. Cluster/block LOO is deferred for `brma.mv()` because
+#'     its deletion target is a joint dependency block, not an independent row.
 #' }
 #' Default scalar heterogeneity summaries are not reported for `brma.mv()`
 #' because known-`V` and random-formula structures need component-specific
@@ -127,11 +127,12 @@
 #' @examples \dontrun{
 #' V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
 #' fit <- brma.mv(
-#'   yi      = c(0.10, 0.20),
-#'   V       = V,
-#'   measure = "GEN",
-#'   seed    = 1,
-#'   silent  = TRUE
+#'   yi                        = c(0.10, 0.20),
+#'   V                         = V,
+#'   measure                   = "GEN",
+#'   prior_unit_information_sd = 1,
+#'   seed                      = 1,
+#'   silent                    = TRUE
 #' )
 #' summary(fit)
 #' }

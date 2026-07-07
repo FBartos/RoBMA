@@ -40,7 +40,7 @@
 #' `data`.
 #' @param random an optional formula or list of formulas specifying
 #' BayesTools random-effect terms for `brma.mv()`. Use
-#' \link{random_effect_formula_tags}{random-effect formula structure tags} such as
+#' [random-effect formula structure tags][random_effect_formula_tags] such as
 #' `diag()`, `us()`/`un()`, `cs()`, `hcs()`, `ar1()`/`ar()`, `har()`, or
 #' `car()` inside the formula. Plain random-effect syntax is allowed only for
 #' random intercepts; random slopes require an explicit structure tag or the

@@ -106,20 +106,47 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 }
 
 
+.brma_mv_two_component_allocation_posterior <- function(first_sd,
+                                                        second_sd,
+                                                        first_column,
+                                                        second_column) {
+
+  total_sd <- sqrt(first_sd^2 + second_sd^2)
+  out <- cbind(
+    total_sd,
+    first_sd^2 / total_sd^2,
+    second_sd^2 / total_sd^2,
+    first_sd,
+    second_sd
+  )
+  colnames(out) <- c(
+    "mu__xRE_ALLOCx_random_total__total_sd",
+    "mu__xRE_ALLOCx_random_total__weight[1]",
+    "mu__xRE_ALLOCx_random_total__weight[2]",
+    first_column,
+    second_column
+  )
+
+  out
+}
+
+
 test_that("brma.mv heterogeneity resolves aliases and component errors", {
 
   object <- .brma_mv_heterogeneity_named_object()
-  posterior_samples <- matrix(
-    c(
-      0.20, 0.30,
-      0.25, 0.35
-    ),
-    nrow = 2,
-    byrow = TRUE,
-    dimnames = list(NULL, c(
-      "mu__xREx__Study_effects_intercept",
-      "mu__xREx__Effect_effects_intercept"
-    ))
+  posterior_samples <- .brma_mv_two_component_allocation_posterior(
+    first_sd      = c(0.20, 0.25),
+    second_sd     = c(0.30, 0.35),
+    first_column  = "mu__xREx__Study_effects_intercept",
+    second_column = "mu__xREx__Effect_effects_intercept"
+  )
+  components <- .brma_mv_heterogeneity_components(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  allocation_samples <- .brma_mv_allocation_sample_lists(
+    object            = object,
+    posterior_samples = posterior_samples
   )
 
   all_components <- pooled_heterogeneity(
@@ -137,7 +164,7 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
     .posterior_samples = posterior_samples
   )
 
-  expect_named(all_components, c("Study_effects", "Effect_effects"))
+  expect_named(all_components, c(names(allocation_samples), names(components)))
   expect_equal(
     unname(as.matrix(study)),
     matrix(c(0.20, 0.25), ncol = 1),
@@ -159,6 +186,26 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
 })
 
 
+test_that("brma.mv pooled heterogeneity uses RMS row aggregation", {
+
+  samples <- matrix(c(1, 3, 5, 7), nrow = 2, byrow = TRUE)
+  expected <- matrix(
+    c(
+      sqrt(mean(c(1^2, 3^2))),
+      sqrt(mean(c(5^2, 7^2)))
+    ),
+    ncol = 1,
+    dimnames = list(NULL, "tau")
+  )
+
+  expect_equal(
+    .pooled_brma_mv_heterogeneity_samples(samples),
+    expected,
+    tolerance = 1e-12
+  )
+})
+
+
 test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
 
   object            <- .brma_mv_heterogeneity_nested_object()
@@ -174,6 +221,16 @@ test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
     .posterior_samples = posterior_samples
   )
   allocation_by_node <- summary_heterogeneity(
+    object,
+    component          = "random_total",
+    .posterior_samples = posterior_samples
+  )
+  pooled_allocation <- pooled_heterogeneity(
+    object,
+    component          = "study/esid",
+    .posterior_samples = posterior_samples
+  )
+  pooled_by_node <- pooled_heterogeneity(
     object,
     component          = "random_total",
     .posterior_samples = posterior_samples
@@ -213,6 +270,24 @@ test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
   )
   expect_s3_class(allocation, "summary_heterogeneity.brma")
   expect_equal(allocation[["estimates"]], allocation_by_node[["estimates"]])
+  expect_equal(
+    unname(as.matrix(pooled_allocation)),
+    matrix(c(0.50, 0.80), ncol = 1),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(as.matrix(pooled_allocation)),
+    unname(as.matrix(pooled_by_node)),
+    tolerance = 1e-12
+  )
+  expect_error(
+    pooled_heterogeneity(
+      object,
+      component          = "missing",
+      .posterior_samples = posterior_samples
+    ),
+    "study/esid"
+  )
   .expect_mv_heterogeneity_summary(study, "study leaf summary")
 })
 
@@ -234,17 +309,11 @@ test_that("brma.mv heterogeneity reports ambiguous component aliases", {
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
-  posterior_samples <- matrix(
-    c(
-      0.20, 0.30,
-      0.25, 0.35
-    ),
-    nrow = 2,
-    byrow = TRUE,
-    dimnames = list(NULL, c(
-      "mu__xREx__estimate_study_intercept",
-      "mu__xREx__study_intercept"
-    ))
+  posterior_samples <- .brma_mv_two_component_allocation_posterior(
+    first_sd      = c(0.20, 0.25),
+    second_sd     = c(0.30, 0.35),
+    first_column  = "mu__xREx__estimate_study_intercept",
+    second_column = "mu__xREx__study_intercept"
   )
 
   expect_error(
@@ -416,15 +485,29 @@ test_that("brma.mv heterogeneity decomposes random-formula SD components", {
     object            = fit_brma,
     posterior_samples = posterior_samples
   )
+  allocation_samples <- .brma_mv_allocation_sample_lists(
+    object            = fit_brma,
+    posterior_samples = posterior_samples
+  )
+  pooled_component_names <- c(
+    names(allocation_samples),
+    names(components)[
+      !names(components) %in%
+        .brma_mv_allocation_replaced_components(allocation_samples)
+    ]
+  )
 
   pooled <- pooled_heterogeneity(fit_brma)
   total  <- pooled_heterogeneity(fit_brma, component = "total")
   study  <- pooled_heterogeneity(fit_brma, component = "study")
 
   expect_type(pooled, "list")
-  expect_named(pooled, names(components))
-  for (component in names(components)) {
-    expected <- matrix(rowMeans(components[[component]]), ncol = 1L)
+  expect_named(pooled, pooled_component_names)
+  for (component in intersect(names(components), names(pooled))) {
+    expected <- matrix(
+      .brma_mv_rms_sd_samples(components[[component]]),
+      ncol = 1L
+    )
     colnames(expected) <- "tau"
     expect_brma_samples_matrix(
       pooled[[component]],
@@ -434,9 +517,16 @@ test_that("brma.mv heterogeneity decomposes random-formula SD components", {
     expect_equal(unname(as.matrix(pooled[[component]])), unname(expected),
                  tolerance = 1e-12)
   }
+  for (component in names(allocation_samples)) {
+    expected <- .pooled_brma_mv_heterogeneity_samples(
+      allocation_samples[[component]]
+    )
+    expect_equal(unname(as.matrix(pooled[[component]])), unname(expected),
+                 tolerance = 1e-12)
+  }
 
   total_expected <- matrix(
-    rowMeans(.total_brma_mv_heterogeneity_samples(components)),
+    .brma_mv_rms_sd_samples(.total_brma_mv_heterogeneity_samples(components)),
     ncol = 1L
   )
   colnames(total_expected) <- "tau"

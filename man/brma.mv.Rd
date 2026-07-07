@@ -64,7 +64,7 @@ scale predictors for location-scale models. Formula input is evaluated in
 
 \item{random}{an optional formula or list of formulas specifying
 BayesTools random-effect terms for \code{brma.mv()}. Use
-\link{random_effect_formula_tags}{random-effect formula structure tags} such as
+\link[=random_effect_formula_tags]{random-effect formula structure tags} such as
 \code{diag()}, \code{us()}/\code{un()}, \code{cs()}, \code{hcs()}, \code{ar1()}/\code{ar()}, \code{har()}, or
 \code{car()} inside the formula. Plain random-effect syntax is allowed only for
 random intercepts; random slopes require an explicit structure tag or the
@@ -181,7 +181,7 @@ A fitted object of class \code{c("brma.mv", "brma.norm", "brma")}.
 Fits normal-likelihood Bayesian meta-analytic models with a
 known working variance-covariance matrix \code{V}. The interface supports
 location moderators, BayesTools random-effect formulas using
-\link{random_effect_formula_tags}{random-effect formula structure tags}, and
+\link[=random_effect_formula_tags]{random-effect formula structure tags}, and
 \code{brma.mv()}-specific known-\code{V} backends.
 }
 \details{
@@ -199,7 +199,7 @@ changed with \code{options(RoBMA.known_v_block_mvn_max_block_size = value)}, whe
 \code{value} is a positive integer or \code{Inf}.
 
 The \code{random} argument uses BayesTools
-\link{random_effect_formula_tags}{random-effect formula structure tags}.
+\link[=random_effect_formula_tags]{random-effect formula structure tags}.
 Plain shorthand is accepted only for random intercepts such as
 \code{~ 1 | study} or nested intercepts such as \code{~ 1 | study/effect}; random
 slopes require an explicit structure tag or the \code{||} diagonal shorthand.
@@ -279,9 +279,9 @@ known-\code{R} variance for supported marginalized blocks.
 \item \code{hatvalues()}, marginal \code{rstandard()}, and \code{vif()} use a marginal
 GLS covariance target based on \verb{V + ZGZ'}, where formula random effects
 are marginalized through the BayesTools covariance metadata.
-\item \code{dffits()}, \code{cooks.distance()}, and cluster/block LOO are currently
-deferred for \code{brma.mv()} because their deletion or influence target is a
-joint dependency block, not an independent row.
+\item \code{dffits()} and \code{cooks.distance()} use fixed-location fitted-value
+influence targets. Cluster/block LOO is deferred for \code{brma.mv()} because
+its deletion target is a joint dependency block, not an independent row.
 }
 Default scalar heterogeneity summaries are not reported for \code{brma.mv()}
 because known-\code{V} and random-formula structures need component-specific
@@ -292,11 +292,12 @@ summaries rather than a single \eqn{\tau}/\eqn{I^2} table.
 \dontrun{
 V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
 fit <- brma.mv(
-  yi      = c(0.10, 0.20),
-  V       = V,
-  measure = "GEN",
-  seed    = 1,
-  silent  = TRUE
+  yi                        = c(0.10, 0.20),
+  V                         = V,
+  measure                   = "GEN",
+  prior_unit_information_sd = 1,
+  seed                      = 1,
+  silent                    = TRUE
 )
 summary(fit)
 }

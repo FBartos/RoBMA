@@ -432,7 +432,7 @@ test_that("random-formula brma.mv estimate and response predictions use cached f
   expect_equal(attr(estimate, "title"), "Conditional True Effects:")
 })
 
-test_that("random-formula brma.mv existing-data response uses conditional random effects in mean", {
+test_that("random-formula brma.mv existing-data response conditions on random effects", {
 
   name <- "brma.mv_block_mvn_random_scale"
   skip_if_missing_fits(name)
@@ -460,12 +460,13 @@ test_that("random-formula brma.mv existing-data response uses conditional random
     quiet              = TRUE,
     .posterior_samples = posterior_samples
   ))
-  response <- as.matrix(predict(
+  response_samples <- predict(
     fit_brma,
     type               = "response",
     quiet              = TRUE,
     .posterior_samples = posterior_samples
-  ))
+  )
+  response <- as.matrix(response_samples)
 
   fixed_only <- as.matrix(predict(
     fit_brma,
@@ -476,7 +477,11 @@ test_that("random-formula brma.mv existing-data response uses conditional random
 
   expect_equal(unname(response), unname(expected), tolerance = 1e-12)
   expect_false(isTRUE(all.equal(unname(response), unname(fixed_only), tolerance = 1e-8)))
-  expect_true(any(captured[["tau"]] > 0))
+  expect_equal(captured[["tau"]], captured[["tau"]] * 0)
+  expect_equal(
+    attr(response_samples, "brma_mv_prediction_target")[["covariance_target"]],
+    "known_V_conditional_on_random_effects"
+  )
 })
 
 test_that("random-formula brma.mv newdata estimate predictions use BayesTools targets", {
@@ -517,6 +522,68 @@ test_that("random-formula brma.mv newdata estimate predictions use BayesTools ta
     "V_new"
   )
 })
+
+
+test_that("random-formula brma.mv newdata estimate includes marginalized random draws", {
+
+  object <- .brma_mv_prior_object(random = TRUE)
+  sd_names <- .brma_mv_random_sd_names(object)
+  posterior_samples <- matrix(
+    0,
+    nrow = 2,
+    ncol = 1 + length(sd_names),
+    dimnames = list(NULL, c("mu", unname(sd_names)))
+  )
+  posterior_samples[, "mu"] <- c(.10, .20)
+  posterior_samples[, unname(sd_names)] <- .05
+  newdata <- data.frame(
+    study  = c("s1", "s2"),
+    effect = c("a", "b"),
+    x      = c(0, 1),
+    yi     = c(.10, .15),
+    vi     = c(.04, .05)
+  )
+  contribution <- matrix(.25, nrow = nrow(posterior_samples), ncol = nrow(newdata))
+
+  testthat::local_mocked_bindings(
+    .evaluate.brma.random_effects = function(fit, data, priors,
+                                             posterior_samples = NULL,
+                                             same_data = TRUE,
+                                             required = FALSE,
+                                             formula_target = "conditional",
+                                             blocks = NULL,
+                                             object = NULL) {
+      matrix(0, nrow = nrow(posterior_samples), ncol = nrow(data[["outcome"]]))
+    },
+    .predict_known_v_marginalized_random_draws = function(object, data,
+                                                          posterior_samples) {
+      contribution
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- predict(
+    object,
+    newdata            = newdata,
+    type               = "estimate",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  terms <- predict(
+    object,
+    newdata            = newdata,
+    type               = "terms",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(
+    unname(as.matrix(estimate) - as.matrix(terms)),
+    unname(contribution),
+    tolerance = 1e-12
+  )
+})
+
 
 test_that("known-R brma.mv prediction rejects new group levels", {
 
@@ -559,6 +626,76 @@ test_that("known-R brma.mv prediction rejects new group levels", {
     "known group covariance"
   )
 })
+
+
+test_that("marginal covariance random effects are returned as random draws", {
+
+  covariance <- array(0, dim = c(2L, 2L, 2L))
+  covariance[1L, , ] <- diag(c(.04, .09))
+  covariance[2L, , ] <- diag(c(.01, .16))
+  draws <- matrix(c(.1, .2, .3, .4), nrow = 2L, byrow = TRUE)
+  captured <- NULL
+
+  testthat::local_mocked_bindings(
+    .outcome_rng.norm_known_v_covariance = function(mu_samples,
+                                                    covariance_samples) {
+      captured <<- list(mu = mu_samples, covariance = covariance_samples)
+      draws
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .random_effects_from_marginal_vcov(
+    prediction = list(vcov = list(samples = covariance)),
+    S          = 2L,
+    K          = 2L
+  )
+
+  expect_equal(captured[["mu"]], matrix(0, nrow = 2L, ncol = 2L))
+  expect_equal(captured[["covariance"]], covariance)
+  expect_equal(out, t(draws))
+})
+
+
+test_that("known-R brma.mv aggregate estimate samples marginal covariance", {
+
+  name <- "brma.mv_block_mvn_known_R"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+  posterior_samples <- posterior_samples[seq_len(min(4L, nrow(posterior_samples))), , drop = FALSE]
+  random_draws <- matrix(.15, nrow = nobs(fit_brma), ncol = nrow(posterior_samples))
+
+  testthat::local_mocked_bindings(
+    .random_effects_from_marginal_vcov = function(prediction, S, K) {
+      random_draws
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- predict(
+    fit_brma,
+    newdata            = TRUE,
+    type               = "estimate",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  terms <- predict(
+    fit_brma,
+    newdata            = TRUE,
+    type               = "terms",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(
+    unname(as.matrix(estimate) - as.matrix(terms)),
+    matrix(.15, nrow = nrow(posterior_samples), ncol = 1L),
+    tolerance = 1e-12
+  )
+})
+
 
 test_that("random-formula brma.mv newdata response predictions use V_new covariance", {
 

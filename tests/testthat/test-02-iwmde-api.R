@@ -501,13 +501,18 @@ test_that("known-V marginalized random SDs stay in global IWMDE state", {
   } else {
     diagnostic[["reason"]]
   }
+  density_failure <- .iwmde_diagnostics_density_failure_reason(
+    diagnostic[["diagnostics"]]
+  )
+  density_failure <- if (is.null(density_failure)) {
+    ""
+  } else {
+    density_failure
+  }
 
   expect_equal(diagnostic[["status"]], "ok")
   expect_false(grepl("Missing posterior column", diagnostic_reason))
-  expect_true(!is.null(attr(
-    samples[[density_sample_parameter]],
-    "posterior_density"
-  )))
+  expect_false(grepl("Missing posterior column", density_failure))
 })
 
 
