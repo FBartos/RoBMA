@@ -297,6 +297,11 @@ print.summary.brma <- function(x, ...) {
   cat("\n")
   cat(x_print[["name"]])
   cat("\n")
+  known_v_label <- .brma_mv_known_v_backend_label(x_print[["known_v_backend"]])
+  if (!is.null(known_v_label)) {
+    cat(known_v_label)
+    cat("\n")
+  }
 
   for (type in c(
     "inclusion_components", "inclusion_mods", "inclusion_scale",

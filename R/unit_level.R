@@ -601,7 +601,11 @@
   target_kinds <- vapply(metadata, function(x) {
     if (is.null(x[["target"]])) "" else as.character(x[["target"]])
   }, character(1))
-  if (all(nzchar(target_kinds)) && length(unique(target_kinds)) > 1) {
+  if (any(!nzchar(target_kinds))) {
+    stop("LOO/WAIC objects without likelihood target labels cannot be compared.",
+         call. = FALSE)
+  }
+  if (length(unique(target_kinds)) > 1) {
     stop("LOO/WAIC objects with different likelihood targets cannot be compared.",
          call. = FALSE)
   }

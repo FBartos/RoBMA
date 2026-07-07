@@ -43,6 +43,18 @@ test_that("brma.mv normalizes metafor Rscale aliases", {
   expect_equal(.brma_mv_normalize_Rscale(3, "id"), c(id = "cov0"))
   expect_equal(.brma_mv_normalize_Rscale("none", c("id", "lab")),
                c(id = "none", lab = "none"))
+
+  unnamed_Rscale <- c("none")
+  names(unnamed_Rscale) <- NA_character_
+  expect_equal(.brma_mv_normalize_Rscale(unnamed_Rscale, "id"), c(id = "none"))
+
+  partially_named_Rscale <- c("cor", "none")
+  names(partially_named_Rscale) <- c("id", NA_character_)
+  expect_error(
+    .brma_mv_normalize_Rscale(partially_named_Rscale, c("id", "lab")),
+    "must be named"
+  )
+
   expect_equal(
     .brma_mv_normalize_Rscale(
       list(id = "none", lab = "cor"),

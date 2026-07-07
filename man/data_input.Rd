@@ -34,8 +34,8 @@ normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
 two-arm likelihood for one study.}
 
-\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
-or when estimating \code{"UISD"}).}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
+when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}.}

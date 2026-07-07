@@ -126,13 +126,18 @@
   }
 
   Rscale_names <- names(Rscale)
-  if (length(Rscale) == 1L && (is.null(Rscale_names) || !nzchar(Rscale_names[[1L]]))) {
+  if (is.null(Rscale_names)) {
+    Rscale_names <- rep("", length(Rscale))
+  }
+  Rscale_names[is.na(Rscale_names)] <- ""
+
+  if (length(Rscale) == 1L && !nzchar(Rscale_names[[1L]])) {
     out <- rep(.brma_mv_normalize_Rscale_value(Rscale), n_R)
     names(out) <- R_names
     return(out)
   }
 
-  if (is.null(Rscale_names) || any(!nzchar(Rscale_names))) {
+  if (any(!nzchar(Rscale_names))) {
     stop(
       "Multi-entry 'Rscale' must be named to match supplied 'R' entries.",
       call. = FALSE

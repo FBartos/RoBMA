@@ -42,3 +42,49 @@ test_that("known-V joint log-likelihood uses block MVN density", {
     rowSums(.log_lik_known_v_estimate_target_from_setup(setup))
   )))
 })
+
+
+test_that("evaluated known-V random log-likelihood requires conditioned mu", {
+
+  dat <- data.frame(
+    yi    = c(.10, -.20),
+    study = c("s1", "s2")
+  )
+  object <- brma.mv(
+    yi                         = yi,
+    V                          = diag(c(.04, .09)),
+    random                     = ~ 1 | study,
+    data                       = dat,
+    measure                    = "GEN",
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd  = 1,
+    only_priors                = TRUE
+  )
+
+  mu                <- matrix(0, nrow = 1L, ncol = 2L)
+  tau_within        <- matrix(0, nrow = 1L, ncol = 2L)
+  posterior_samples <- matrix(numeric(0), nrow = 1L, ncol = 0L)
+
+  expect_error(
+    .log_lik_known_v_joint_sum_from_evaluated_predictors(
+      fit                = object[["fit"]],
+      data               = object[["data"]],
+      priors             = object[["priors"]],
+      mu_samples         = mu,
+      tau_within_samples = tau_within,
+      posterior_samples  = posterior_samples
+    ),
+    "sampled random effects included"
+  )
+  expect_silent(
+    .log_lik_known_v_joint_sum_from_evaluated_predictors(
+      fit                         = object[["fit"]],
+      data                        = object[["data"]],
+      priors                      = object[["priors"]],
+      mu_samples                  = mu,
+      tau_within_samples          = tau_within,
+      posterior_samples           = posterior_samples,
+      random_effects_conditioning = "included_in_mu"
+    )
+  )
+})

@@ -52,8 +52,8 @@ left-hand side and location moderators on the right-hand side (for example
 \item{V}{a known working variance-covariance matrix, or a list of block
 variance-covariance matrices, used by \code{brma.mv()}.}
 
-\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
-or when estimating \code{"UISD"}).}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
+when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}.}

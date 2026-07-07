@@ -475,15 +475,17 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' \itemize{
 #'   \item \code{resid}: Raw residuals (observed - fitted values)
 #'   \item \code{se}: Standard errors of the residuals
-#'   \item \code{z}: Standardized residuals (resid / se)
+#'   \item \code{z}: Posterior mean of draw-wise standardized residuals
 #' }
 #'
-#' Internally standardized residuals divide the observed residuals by their
-#' corresponding standard errors computed using the hat matrix. For correlated
-#' known-\code{V} models, marginal residuals use the GLS residual covariance and
-#' estimate-depth residuals use the BLUP-style sampling residual projection.
-#' For a correctly specified model, these residuals should approximately follow
-#' a standard normal distribution.
+#' Internally standardized residuals are computed draw by draw by dividing the
+#' observed residual by its corresponding residual standard error from the hat
+#' matrix. The returned \code{z} column is the posterior mean of those draw-wise
+#' ratios, so it is not generally equal to the displayed \code{resid / se}
+#' summaries. For correlated known-\code{V} models, marginal residuals use the
+#' GLS residual covariance and estimate-depth residuals use the BLUP-style
+#' sampling residual projection. For a correctly specified model, these
+#' residuals should approximately follow a standard normal distribution.
 #'
 #' This function is only available for normal outcome models without selection
 #' (weightfunction) bias adjustment. For other model types, use

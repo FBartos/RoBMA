@@ -102,16 +102,20 @@
   }
 
   if (.iwmde_uses_known_v_joint_likelihood(context)) {
+    random_effects_conditioning <- .iwmde_random_effects_conditioning_for_evaluated_mu(
+      context
+    )
     return(.log_lik_known_v_joint_sum_from_evaluated_predictors(
-      fit                 = context[["object"]][["fit"]],
-      data                = context[["data"]],
-      priors              = active_setup[["priors"]],
-      mu_samples          = mu_samples,
-      tau_within_samples  = tau_within_samples,
-      tau_between_samples = tau_between_samples,
-      posterior_samples   = posterior_samples,
-      unit                = unit,
-      data_hash           = data_hash
+      fit                         = context[["object"]][["fit"]],
+      data                        = context[["data"]],
+      priors                      = active_setup[["priors"]],
+      mu_samples                  = mu_samples,
+      tau_within_samples          = tau_within_samples,
+      tau_between_samples         = tau_between_samples,
+      posterior_samples           = posterior_samples,
+      unit                        = unit,
+      data_hash                   = data_hash,
+      random_effects_conditioning = random_effects_conditioning
     ))
   }
 
@@ -132,6 +136,17 @@
 .iwmde_uses_known_v_joint_likelihood <- function(context) {
 
   .known_v_estimate_target_uses_backend(context[["data"]])
+}
+
+
+.iwmde_random_effects_conditioning_for_evaluated_mu <- function(context) {
+
+  if (.is_data_known_v(context[["data"]]) &&
+      length(.data_effective_sampled_random_effect_terms(context[["data"]])) > 0L) {
+    return("included_in_mu")
+  }
+
+  return("none")
 }
 
 

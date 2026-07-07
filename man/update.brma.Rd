@@ -65,7 +65,9 @@ quantities.
 \details{
 Extending a fit adds posterior samples only. It does not rerun adaptation or
 burn-in. Prior, data, and model-structure updates are intentionally not
-supported by this method.
+supported by this method. For \code{brma.mv()} objects, the stored \code{V},
+\code{R}, known-\code{V} backend, and marginalized random-effect metadata are
+preserved because the fitted model structure is reused.
 }
 \examples{
 \dontrun{

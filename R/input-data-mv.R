@@ -7,7 +7,7 @@
   } else if (is.numeric(V) && is.null(dim(V)) && length(V) > 0L) {
     V_matrix <- diag(as.numeric(V), nrow = length(V), ncol = length(V))
   } else if (is.list(V) && length(V) > 0L && all(vapply(V, is.matrix, logical(1)))) {
-    V_matrix <- .known_v_blockdiag(V)
+    V_matrix <- .known_v_blockdiag(V, arg = "V")
   } else {
     stop("The 'V' argument must be a variance vector, a square matrix, or a non-empty list of square matrices.",
          call. = FALSE)
@@ -26,10 +26,7 @@
     stop("The 'V' argument must contain only finite non-missing values.", call. = FALSE)
   }
 
-  symmetry_error <- max(abs(V_matrix - t(V_matrix)))
-  if (symmetry_error > sqrt(.Machine$double.eps)) {
-    stop("The 'V' argument must be symmetric.", call. = FALSE)
-  }
+  .known_v_check_symmetric(V_matrix, "'V'")
 
   V_matrix <- (V_matrix + t(V_matrix)) / 2
   diagonal <- diag(V_matrix)
@@ -84,12 +81,33 @@
   return(TRUE)
 }
 
-.known_v_blockdiag <- function(blocks) {
+.known_v_check_symmetric <- function(V_matrix, arg) {
+
+  symmetry_error <- max(abs(V_matrix - t(V_matrix)))
+  tolerance      <- sqrt(.Machine$double.eps) * max(1, max(abs(V_matrix)))
+
+  if (symmetry_error > tolerance) {
+    stop(arg, " must be symmetric.", call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+
+.known_v_blockdiag <- function(blocks, arg = "V") {
 
   sizes <- vapply(blocks, nrow, integer(1))
   for (i in seq_along(blocks)) {
-    if (nrow(blocks[[i]]) != ncol(blocks[[i]])) {
-      stop("All matrices in the 'V' list must be square.", call. = FALSE)
+    if (!is.numeric(blocks[[i]])) {
+      stop("All matrices in the '", arg, "' list must be numeric.",
+           call. = FALSE)
+    }
+    if (nrow(blocks[[i]]) == 0L || nrow(blocks[[i]]) != ncol(blocks[[i]])) {
+      stop(
+        "All matrices in the '", arg,
+        "' list must be non-empty square matrices.",
+        call. = FALSE
+      )
     }
   }
 
@@ -142,7 +160,7 @@
     V_matrix <- diag(as.numeric(V_new), nrow = length(V_new), ncol = length(V_new))
   } else if (is.list(V_new) && length(V_new) > 0L &&
              all(vapply(V_new, is.matrix, logical(1)))) {
-    V_matrix <- .known_v_blockdiag(V_new)
+    V_matrix <- .known_v_blockdiag(V_new, arg = "V_new")
   } else {
     stop(
       "'V_new' must be a variance vector, a square matrix, or a non-empty list of square matrices.",
@@ -166,10 +184,7 @@
     stop("'V_new' must contain only finite non-missing values.", call. = FALSE)
   }
 
-  symmetry_error <- max(abs(V_matrix - t(V_matrix)))
-  if (symmetry_error > sqrt(.Machine$double.eps)) {
-    stop("'V_new' must be symmetric.", call. = FALSE)
-  }
+  .known_v_check_symmetric(V_matrix, "'V_new'")
 
   V_matrix <- (V_matrix + t(V_matrix)) / 2
   if (any(diag(V_matrix) < 0)) {

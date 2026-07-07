@@ -2,6 +2,41 @@ context("Summary")
 
 source(testthat::test_path("common-functions.R"))
 
+test_that("summary.brma prints known-V backend metadata", {
+
+  section_names <- c(
+    "inclusion_components",
+    "inclusion_mods",
+    "inclusion_scale",
+    "estimates",
+    "estimates_conditional",
+    "estimates_mods",
+    "estimates_mods_conditional",
+    "estimates_scale",
+    "estimates_scale_conditional",
+    "estimates_random",
+    "estimates_random_conditional",
+    "estimates_bias",
+    "estimates_bias_conditional"
+  )
+  out <- as.list(stats::setNames(vector("list", length(section_names)), section_names))
+  out[["name"]] <- "Bayesian Multivariate Meta-Analysis"
+  out[["known_v_backend"]] <- list(
+    known_v                             = TRUE,
+    known_v_parameterization           = "block_mvn",
+    known_v_parameterization_requested = "auto"
+  )
+  class(out) <- "summary.brma"
+
+  output <- capture.output(print(out))
+
+  expect_true(any(grepl(
+    "Known-V backend: block_mvn (requested: auto)",
+    output,
+    fixed = TRUE
+  )))
+})
+
 skip_if_no_fits()
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
@@ -166,8 +201,18 @@ expect_printed_summary <- function(summary_object, name) {
   expect_true(any(nzchar(output)), info = paste0("printed summary for '", name, "'"))
   expect_true(any(grepl("Bayesian", output, fixed = TRUE)),
               info = paste0("printed summary model name for '", name, "'"))
-  expect_false(any(grepl("Known-V backend", output, fixed = TRUE)),
-               info = paste0("printed known-V backend for '", name, "'"))
+  known_v_label <- .brma_mv_known_v_backend_label(summary_object[["known_v_backend"]])
+  expect_identical(
+    any(grepl("Known-V backend", output, fixed = TRUE)),
+    !is.null(known_v_label),
+    info = paste0("printed known-V backend for '", name, "'")
+  )
+  if (!is.null(known_v_label)) {
+    expect_true(
+      any(grepl(known_v_label, output, fixed = TRUE)),
+      info = paste0("printed known-V backend label for '", name, "'")
+    )
+  }
   expect_false(any(grepl("__xXx__", output, fixed = TRUE)),
                info = paste0("printed summary labels for '", name, "'"))
 }

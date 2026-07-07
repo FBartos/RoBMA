@@ -83,6 +83,79 @@ test_that("PSIS tau deletion helper aggregates remaining scale rows", {
   expect_equal(.influence_tau_del_from_samples(tau_samples, weights), expected)
 })
 
+test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
+
+  model <- structure(
+    list(
+      data = list(
+        outcome = data.frame(
+          yi   = c(0, 1),
+          sei  = c(1, 1),
+          slab = c("a", "b")
+        )
+      ),
+      fit = list()
+    ),
+    class = "brma"
+  )
+  psis_weights <- matrix(
+    c(
+      0.2, 0.5, 0.3,
+      0.5, 0.3, 0.2
+    ),
+    nrow = 3
+  )
+  samples <- matrix(c(0, 1, 2), ncol = 1)
+  colnames(samples) <- "(mu) intercept"
+  checked       <- 0L
+  context_calls <- 0L
+
+  testthat::local_mocked_bindings(
+    .diagnostic_check_loo = function(model, context = NULL, unit = "estimate") {
+
+      checked <<- checked + 1L
+      invisible(NULL)
+    },
+    .diagnostic_psis_context = function(model, context = NULL) {
+
+      context_calls <<- context_calls + 1L
+      list(psis_weights = psis_weights)
+    },
+    .diagnostic_psis_weights = function(model, weights = NULL) {
+
+      if (!is.null(weights)) {
+        return(weights)
+      }
+      psis_weights
+    },
+    .diagnostic_location_parameter_samples = function(model,
+                                                      standardized_coefficients = FALSE,
+                                                      transform_factors = TRUE) {
+
+      samples
+    },
+    .is_scale = function(model) {
+
+      FALSE
+    },
+    .is_bias = function(model) {
+
+      FALSE
+    },
+    .package = "RoBMA"
+  )
+
+  expect_s3_class(dfbetas(model), "dfbetas.brma")
+  expect_length(covratio(model), 2L)
+  expect_identical(checked, 2L)
+  expect_identical(context_calls, 2L)
+
+  dfbetas(model, .weights = psis_weights)
+  covratio(model, .weights = psis_weights)
+  expect_identical(checked, 2L)
+  expect_identical(context_calls, 2L)
+})
+
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 

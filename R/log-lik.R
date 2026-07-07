@@ -113,19 +113,21 @@
                                                posterior_samples = NULL,
                                                unit = "estimate",
                                                add_metadata = FALSE,
-                                               data_hash = NULL) {
+                                               data_hash = NULL,
+                                               random_effects_conditioning = "none") {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
-    fit                  = fit,
-    data                 = data,
-    priors               = priors,
-    unit                 = unit,
-    data_hash            = data_hash,
-    mu_samples           = mu_samples,
-    tau_within_samples   = tau_within_samples,
-    tau_between_samples  = tau_between_samples,
-    posterior_samples    = posterior_samples
+    fit                         = fit,
+    data                        = data,
+    priors                      = priors,
+    unit                        = unit,
+    data_hash                   = data_hash,
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_within_samples,
+    tau_between_samples         = tau_between_samples,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = random_effects_conditioning
   )
 
   log_lik <- if (unit == "estimate") {
@@ -162,19 +164,21 @@
                                                    tau_between_samples = NULL,
                                                    posterior_samples = NULL,
                                                    unit = "estimate",
-                                                   data_hash = NULL) {
+                                                   data_hash = NULL,
+                                                   random_effects_conditioning = "none") {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
-    fit                  = fit,
-    data                 = data,
-    priors               = priors,
-    unit                 = unit,
-    data_hash            = data_hash,
-    mu_samples           = mu_samples,
-    tau_within_samples   = tau_within_samples,
-    tau_between_samples  = tau_between_samples,
-    posterior_samples    = posterior_samples
+    fit                         = fit,
+    data                        = data,
+    priors                      = priors,
+    unit                        = unit,
+    data_hash                   = data_hash,
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_within_samples,
+    tau_between_samples         = tau_between_samples,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = random_effects_conditioning
   )
 
   if (unit == "estimate") {
@@ -192,19 +196,21 @@
                                                                   tau_between_samples = NULL,
                                                                   posterior_samples = NULL,
                                                                   unit = "estimate",
-                                                                  data_hash = NULL) {
+                                                                  data_hash = NULL,
+                                                                  random_effects_conditioning = "none") {
 
   unit  <- .normalize_unit(unit)
   setup <- .log_lik_evaluated_setup(
-    fit                  = fit,
-    data                 = data,
-    priors               = priors,
-    unit                 = unit,
-    data_hash            = data_hash,
-    mu_samples           = mu_samples,
-    tau_within_samples   = tau_within_samples,
-    tau_between_samples  = tau_between_samples,
-    posterior_samples    = posterior_samples
+    fit                         = fit,
+    data                        = data,
+    priors                      = priors,
+    unit                        = unit,
+    data_hash                   = data_hash,
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_within_samples,
+    tau_between_samples         = tau_between_samples,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = random_effects_conditioning
   )
 
   return(.log_lik_known_v_joint_sum_from_setup(setup))
@@ -345,13 +351,20 @@
 
 
 
+# random_effects_conditioning records whether mu_samples already includes
+# sampled random-formula effects for known-V estimate-unit likelihoods.
 .log_lik_evaluated_setup <- function(fit, data, priors, unit, data_hash,
                                       mu_samples, tau_within_samples,
-                                      tau_between_samples, posterior_samples) {
+                                      tau_between_samples, posterior_samples,
+                                      random_effects_conditioning = "none") {
 
   is_multilevel <- .is_data_multilevel(data)
   is_random     <- .is_data_random(data)
   K             <- nrow(data[["outcome"]])
+  random_effects_conditioning <- match.arg(
+    random_effects_conditioning,
+    c("none", "included_in_mu")
+  )
 
   if (is_random && !.is_data_known_v(data)) {
     stop(
@@ -394,6 +407,15 @@
   if (nrow(posterior_samples) != nrow(mu_samples)) {
     stop("Posterior samples must match evaluated predictor rows.",
          call. = FALSE)
+  }
+  has_sampled_random <- length(.data_effective_sampled_random_effect_terms(data)) > 0L
+  if (unit == "estimate" && .is_data_known_v(data) && has_sampled_random &&
+      !identical(random_effects_conditioning, "included_in_mu")) {
+    stop(
+      "Internal error: evaluated known-V random-formula log-likelihoods ",
+      "must receive mu_samples with sampled random effects included.",
+      call. = FALSE
+    )
   }
 
   active_object <- list(
@@ -975,12 +997,13 @@
   } else {
     rep(1L, setup[["K"]])
   }
-  random_effect_terms <- .data_random_effect_terms(setup[["data"]])
-  has_sampled_random <- length(random_effect_terms) > 0L && any(vapply(
-    random_effect_terms,
-    function(term) identical(.random_effect_term_compile_mode(term), "sampled"),
-    logical(1)
-  ))
+  has_sampled_random <- length(.data_effective_sampled_random_effect_terms(
+    setup[["data"]]
+  )) > 0L
+  has_marginalized_random <- .data_has_marginalized_random_effects(setup[["data"]])
+  has_sampled_estimate_random <- .data_has_sampled_estimate_level_random_effects(
+    setup[["data"]]
+  )
 
   list(
     unit                 = "estimate",
@@ -1003,9 +1026,11 @@
     known_r_blocks       = known_r_metadata[["known_r_blocks"]],
     known_r_semantics    = known_r_metadata[["known_r_semantics"]],
     random_effects       = if (has_sampled_random) "conditioned" else "none",
-    estimate_level_random = if (.data_has_marginalized_random_effects(setup[["data"]])) {
+    estimate_level_random = if (has_sampled_estimate_random && has_marginalized_random) {
+      "conditioned_and_marginalized"
+    } else if (has_marginalized_random) {
       "marginalized"
-    } else if (.data_has_sampled_estimate_level_random_effects(setup[["data"]])) {
+    } else if (has_sampled_estimate_random) {
       "conditioned"
     } else {
       "none"

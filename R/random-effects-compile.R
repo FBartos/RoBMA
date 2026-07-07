@@ -462,7 +462,7 @@
 
 .data_has_sampled_estimate_level_random_effects <- function(data) {
 
-  terms <- .data_random_effect_terms(data)
+  terms <- .data_effective_sampled_random_effect_terms(data)
   if (length(terms) == 0L) {
     return(FALSE)
   }
@@ -471,11 +471,43 @@
   any(vapply(
     terms,
     function(term) {
-      identical(term[["compile_mode"]], "sampled") &&
+      identical(.random_effect_term_compile_mode(term), "sampled") &&
         .is_estimate_level_random_intercept(term, k = k)
     },
     logical(1)
   ))
+}
+
+
+.data_effective_sampled_random_effect_terms <- function(data) {
+
+  terms <- .data_random_effect_terms(data)
+  if (length(terms) == 0L) {
+    return(list())
+  }
+
+  marginalized_blocks <- .data_marginalized_random_effect_blocks(data)
+  sampled <- vapply(
+    terms,
+    function(term) {
+      identical(.random_effect_term_compile_mode(term), "sampled") &&
+        !(.random_effect_term_block_name(term) %in% marginalized_blocks)
+    },
+    logical(1)
+  )
+
+  terms[sampled]
+}
+
+
+.data_marginalized_random_effect_blocks <- function(data) {
+
+  terms <- .data_marginalized_random_effects(data)
+  if (length(terms) == 0L) {
+    return(character())
+  }
+
+  vapply(terms, .random_effect_term_block_name, character(1))
 }
 
 
@@ -499,6 +531,18 @@
 }
 
 
+.random_effect_term_block_name <- function(term) {
+
+  block_name <- term[["block_name"]]
+  if (is.null(block_name) || length(block_name) != 1L ||
+      is.na(block_name) || !nzchar(block_name)) {
+    return("")
+  }
+
+  as.character(block_name)
+}
+
+
 .random_effect_term_compile_mode <- function(term) {
 
   mode <- term[["compile_mode"]]
@@ -515,21 +559,12 @@
 
 .data_sampled_random_effect_blocks <- function(data) {
 
-  terms <- .data_random_effect_terms(data)
+  terms <- .data_effective_sampled_random_effect_terms(data)
   if (length(terms) == 0L) {
     return(character())
   }
 
-  sampled <- vapply(
-    terms,
-    function(term) identical(.random_effect_term_compile_mode(term), "sampled"),
-    logical(1)
-  )
-  if (!any(sampled)) {
-    return(character())
-  }
-
-  return(vapply(terms[sampled], `[[`, character(1), "block_name"))
+  return(vapply(terms, .random_effect_term_block_name, character(1)))
 }
 
 

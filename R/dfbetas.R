@@ -96,8 +96,13 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale", "bias"))
 
-  # get PSIS weights (S x K matrix)
-  weights <- .diagnostic_psis_weights(model, .weights)
+  if (is.null(.weights)) {
+    psis_context <- .diagnostic_psis_context(model)
+    .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
+    weights <- psis_context[["psis_weights"]]
+  } else {
+    weights <- .diagnostic_psis_weights(model, .weights)
+  }
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
   is_scale <- .is_scale(model)

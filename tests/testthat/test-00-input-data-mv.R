@@ -56,6 +56,66 @@ test_that("brma.mv supports list V input", {
 })
 
 
+test_that("known V list input rejects empty blocks", {
+
+  expect_error(
+    brma.mv(
+      yi                        = c(0.10, 0.20),
+      V                         = list(matrix(numeric(0), nrow = 0L, ncol = 0L)),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    ),
+    "non-empty square"
+  )
+})
+
+
+test_that("known V symmetry tolerance scales with covariance magnitude", {
+
+  V <- matrix(
+    c(1e8, 1e4, 1e4 + 1e-4, 2e8),
+    nrow = 2L
+  )
+  object <- brma.mv(
+    yi                        = c(0.10, 0.20),
+    V                         = V,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+
+  expect_equal(
+    attr(object[["data"]], "known_V_data")[["V"]],
+    (V + t(V)) / 2
+  )
+})
+
+
+test_that("V_new list input rejects empty blocks", {
+
+  expect_error(
+    .known_v_newdata_prepare(
+      V_new = list(matrix(numeric(0), nrow = 0L, ncol = 0L)),
+      k     = 0L
+    ),
+    "V_new.*non-empty square"
+  )
+})
+
+
+test_that("V_new symmetry tolerance scales with covariance magnitude", {
+
+  V_new <- matrix(
+    c(1e8, 1e4, 1e4 + 1e-4, 2e8),
+    nrow = 2L
+  )
+  out <- .known_v_newdata_prepare(V_new, k = 2L)
+
+  expect_equal(out[["V"]], (V_new + t(V_new)) / 2)
+})
+
+
 test_that("brma.mv supports variance vector V input", {
 
   vi <- c(0.04, 0.09, 0.16)
@@ -1201,6 +1261,14 @@ test_that("brma.mv marginalizes nested estimate level with allocation child SD",
     ),
     matrix(rep(c(0.04, 0.09), times = 4), nrow = 2)
   )
+  target <- .estimate_log_lik_target_metadata(
+    setup     = list(data = object[["data"]], K = nrow(dat)),
+    data_hash = .get_outcome_hash(object)
+  )
+  expect_equal(.data_sampled_random_effect_blocks(object[["data"]]), "study")
+  expect_false(.data_has_sampled_estimate_level_random_effects(object[["data"]]))
+  expect_equal(target[["random_effects"]], "conditioned")
+  expect_equal(target[["estimate_level_random"]], "marginalized")
 })
 
 
@@ -1501,6 +1569,26 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_equal(dffits_target[["target"]], "fixed-location fitted-value influence")
   expect_true(grepl("fixed_location_fitted_value", dffits_target[["known_v_semantics"]],
                     fixed = TRUE))
+})
+
+
+test_that("LOO target comparison rejects missing likelihood target labels", {
+
+  metadata <- list(
+    unit               = "estimate",
+    conditioning_depth = "estimate",
+    data_hash          = "same-data",
+    target             = "known_v_estimate"
+  )
+  loo_a <- structure(list(), class = "loo")
+  loo_b <- structure(list(), class = "loo")
+  attr(loo_a, "RoBMA_target") <- metadata
+  attr(loo_b, "RoBMA_target") <- metadata[names(metadata) != "target"]
+
+  expect_error(
+    .check_loo_compare_targets(list(loo_a, loo_b)),
+    "without likelihood target labels"
+  )
 })
 
 
@@ -2036,6 +2124,7 @@ test_that("brma.mv marginalized known R contributes known-V row variance", {
   expect_equal(target[["known_r_blocks"]], "estimate")
   expect_true(grepl("diagonal tau^2 row multipliers",
                     target[["known_r_semantics"]], fixed = TRUE))
+  expect_equal(target[["random_effects"]], "none")
   expect_equal(target[["estimate_level_random"]], "marginalized")
 })
 

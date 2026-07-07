@@ -1018,7 +1018,7 @@
   data         <- context[["data"]]
   mods_formula <- context[["formula_inputs"]][["mods"]][["formula"]]
 
-  return(.evaluate.brma.mu(
+  mu_samples <- .evaluate.brma.mu(
     fit               = context[["object"]][["fit"]],
     outcome_data      = data[["outcome"]],
     mods_data         = data[["mods"]],
@@ -1032,7 +1032,21 @@
     K                 = nrow(data[["outcome"]]),
     posterior_samples = samples,
     priors            = active_setup[["priors"]]
-  ))
+  )
+
+  if (.is_data_known_v(data) &&
+      length(.data_effective_sampled_random_effect_terms(data)) > 0L) {
+    mu_samples <- mu_samples + .evaluate.brma.random_effects(
+      fit               = context[["object"]][["fit"]],
+      data              = data,
+      priors            = active_setup[["priors"]],
+      posterior_samples = samples,
+      same_data         = TRUE,
+      required          = TRUE
+    )
+  }
+
+  return(mu_samples)
 }
 
 
