@@ -19,6 +19,20 @@ source(testthat::test_path("helper-iwmde.R"))
 }
 
 
+.mock_random_non_known_v_iwmde_object <- function() {
+
+  data <- structure(list(), random = TRUE)
+  structure(
+    list(
+      fit    = list(dummy = TRUE),
+      data   = data,
+      priors = list()
+    ),
+    class = c("brma.mv", "brma")
+  )
+}
+
+
 test_that("density methods are case-insensitive", {
 
   expect_equal(.density_method_normalize("kde"), "KDE")
@@ -27,6 +41,53 @@ test_that("density methods are case-insensitive", {
   expect_equal(.density_method_normalize("NORMAL", allow_normal = TRUE), "normal")
   expect_equal(.density_method_normalize_precomputed("qcmde"), "qCMDE")
   expect_equal(.density_method_normalize_precomputed("Iwmde"), "IWMDE")
+})
+
+
+test_that("IWMDE diagnostics guard non-known-V random-formula objects upfront", {
+
+  object <- .mock_random_non_known_v_iwmde_object()
+
+  expect_error(
+    plot_iwmde_diagnostics(
+      object,
+      parameters     = "mu",
+      n_points       = 20,
+      max_samples    = 20,
+      density_method = "qCMDE",
+      plot           = FALSE
+    ),
+    "plot_iwmde_diagnostics\\(\\).*random-formula"
+  )
+})
+
+
+test_that("IWMDE plan marks non-known-V random-formula contexts unsupported", {
+
+  context <- list(
+    data              = .mock_random_non_known_v_iwmde_object()[["data"]],
+    posterior_samples = matrix(
+      seq_len(25),
+      ncol     = 1L,
+      dimnames = list(NULL, "mu")
+    ),
+    flat_prior_list = list()
+  )
+  plan <- .iwmde_plan(
+    context         = context,
+    parameter       = "mu",
+    density_method  = "qCMDE",
+    density_control = list(n_points = 20, max_samples = 20),
+    outputs         = "density",
+    parameter_spec  = list(type = "primitive")
+  )
+
+  expect_equal(plan[["status"]], "unsupported")
+  expect_match(plan[["reason"]], "random-formula")
+
+  known_v_context <- context
+  attr(known_v_context[["data"]], "known_V") <- TRUE
+  expect_null(.iwmde_context_unavailable_reason(known_v_context))
 })
 
 test_that("IWMDE histogram uses global active-sample mass", {

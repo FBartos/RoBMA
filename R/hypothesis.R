@@ -147,6 +147,9 @@ hypothesis.brma <- function(object, hypothesis,
     stop("'conditional' hypotheses are available only for RoBMA objects.",
          call. = FALSE)
   }
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+    .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
+  }
 
   selected <- .hypothesis_brma_select_parameter(
     object     = object,

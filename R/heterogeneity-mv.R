@@ -324,7 +324,8 @@
       formula_design = formula_design
     )
     samples_list <- .brma_mv_allocation_summary_samples(
-      allocation       = allocation,
+      allocation        = allocation,
+      formula_design    = formula_design,
       posterior_samples = posterior_samples,
       source_samples    = source_samples,
       K                 = K
@@ -396,6 +397,7 @@
 
 
 .brma_mv_allocation_summary_samples <- function(allocation,
+                                                formula_design,
                                                 posterior_samples,
                                                 source_samples,
                                                 K) {
@@ -403,6 +405,10 @@
   if (identical(allocation[["target"]], "sd_component")) {
     return(.brma_mv_sd_component_allocation_summary_samples(
       allocation        = allocation,
+      term              = .brma_mv_sd_component_allocation_term(
+        allocation     = allocation,
+        formula_design = formula_design
+      ),
       posterior_samples = posterior_samples,
       source_samples    = source_samples,
       K                 = K
@@ -469,11 +475,13 @@
 
 
 .brma_mv_sd_component_allocation_summary_samples <- function(allocation,
+                                                            term = NULL,
                                                             posterior_samples,
                                                             source_samples,
                                                             K) {
 
-  total <- .random_sd_source_samples(
+  source_shape <- allocation[["source"]][["shape"]]
+  total        <- .random_sd_source_samples(
     source            = allocation[["source"]],
     posterior_samples = posterior_samples,
     K                 = K,
@@ -519,7 +527,14 @@
     if (length(columns) == 0L) {
       sd_samples <- total_sd * sqrt(variance_ratio)
     } else {
-      sd_samples <- sqrt(rowMeans(total[, columns, drop = FALSE]^2) *
+      rows <- .brma_mv_sd_component_allocation_rows(
+        allocation   = allocation,
+        term         = term,
+        component    = i,
+        source_shape = source_shape,
+        K            = ncol(total)
+      )
+      sd_samples <- sqrt(rowMeans(total[, rows, drop = FALSE]^2) *
                            variance_ratio)
     }
 
@@ -538,6 +553,60 @@
   }
 
   samples
+}
+
+
+.brma_mv_sd_component_allocation_term <- function(allocation, formula_design) {
+
+  block <- .brma_mv_sd_component_allocation_block(allocation)
+  terms <- formula_design[["random_effects"]]
+  if (length(terms) == 0L) {
+    return(NULL)
+  }
+  for (term in terms) {
+    if (identical(term[["block_name"]], block)) {
+      return(term)
+    }
+  }
+
+  NULL
+}
+
+
+.brma_mv_sd_component_allocation_rows <- function(allocation, term,
+                                                  component, source_shape, K) {
+
+  leaf_index <- allocation[["leaf_index_by_column"]]
+  columns    <- which(leaf_index == component)
+
+  if (!identical(source_shape, "row")) {
+    return(columns)
+  }
+
+  model_matrix <- term[["model_matrix"]]
+  if (is.null(term) ||
+      !is.matrix(model_matrix) ||
+      nrow(model_matrix) != K ||
+      length(leaf_index) != ncol(model_matrix) ||
+      length(columns) == 0L) {
+    stop(
+      "Cannot summarize row-varying SD-component allocation because its ",
+      "design-column allocation does not map to observation-level SD samples.",
+      call. = FALSE
+    )
+  }
+
+  active <- rowSums(abs(model_matrix[, columns, drop = FALSE]) > 1e-12) > 0
+  rows   <- which(active)
+  if (length(rows) == 0L) {
+    stop(
+      "Cannot summarize row-varying SD-component allocation because no ",
+      "observations map to one of its components.",
+      call. = FALSE
+    )
+  }
+
+  return(rows)
 }
 
 

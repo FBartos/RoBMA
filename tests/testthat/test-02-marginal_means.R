@@ -677,10 +677,16 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
 
 # list cached fits lazily
 skip_if_no_fits()
+mv_marginal_means_fit_names <- c(
+  "brma.mv_block_mvn_mods",
+  "brma.mv_block_mvn_random_mods_scale",
+  "brma.mv_v14_ishak2007_har"
+)
 fit_names <- unique(c(
   "bcg_meta-analysis",
   marginal_means_cases()[["name"]],
-  marginal_means_interaction_plot_cases()[["name"]]
+  marginal_means_interaction_plot_cases()[["name"]],
+  mv_marginal_means_fit_names
 ))
 fits <- lazy_fits(fit_names, validate = FALSE)
 
@@ -725,6 +731,35 @@ test_that("marginal_means stores BayesTools marginal inference", {
   expect_false("normal_approximation" %in% names(formals(marginal_means.brma)))
   expect_equal(mm[["density_method"]], "KDE")
   expect_identical(mm[["source_object"]], fits[["bcg_meta-regression2"]])
+})
+
+
+test_that("marginal_means supports brma.mv moderator fits", {
+
+  skip_if_missing_fits(mv_marginal_means_fit_names)
+
+  expected_terms <- list(
+    brma.mv_block_mvn_mods              = c("intercept", "x", "z"),
+    brma.mv_block_mvn_random_mods_scale = c("intercept", "x", "z"),
+    brma.mv_v14_ishak2007_har           = "time_factor"
+  )
+
+  for (name in names(expected_terms)) {
+    mm <- marginal_means(fits[[name]], n_samples = 200)
+    summary_mm <- summary(mm)
+
+    expect_s3_class(mm, "marginal_means.brma", info = name)
+    expect_s3_class(summary_mm, "summary.marginal_means.brma", info = name)
+    expect_true(all(expected_terms[[name]] %in% mm[["term_map"]][["term"]]),
+                info = name)
+    expect_true(all(mm[["parameters"]] %in% names(mm[["inference"]][["averaged"]])),
+                info = name)
+    numeric_columns <- vapply(summary_mm, is.numeric, logical(1))
+    expect_true(
+      all(is.finite(as.matrix(summary_mm[, numeric_columns, drop = FALSE]))),
+      info = name
+    )
+  }
 })
 
 

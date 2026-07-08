@@ -3,6 +3,20 @@ context("Hypothesis Bayes factors")
 source(testthat::test_path("common-functions.R"))
 
 
+.mock_random_non_known_v_brma_mv <- function() {
+
+  data <- structure(list(), random = TRUE)
+  structure(
+    list(
+      fit    = list(dummy = TRUE),
+      data   = data,
+      priors = list()
+    ),
+    class = c("brma.mv", "brma")
+  )
+}
+
+
 .hypothesis_expect_bridge_ready <- function(object) {
 
   expect_true(is.finite(logml(object)))
@@ -63,6 +77,22 @@ test_that("qCMDE factor point guards use display aliases", {
       density_control = NULL
     ),
     "alloc\\[level\\] = 0"
+  )
+})
+
+
+test_that("qCMDE/IWMDE hypotheses guard non-known-V random-formula objects upfront", {
+
+  object <- .mock_random_non_known_v_brma_mv()
+
+  expect_error(
+    hypothesis.brma(
+      object,
+      "mu = 0",
+      density_method  = "qCMDE",
+      density_control = list(n_points = 20, max_samples = 20)
+    ),
+    "qCMDE/IWMDE hypothesis\\(\\).*random-formula"
   )
 })
 

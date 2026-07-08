@@ -93,6 +93,7 @@ plot_iwmde_diagnostics <- function(object, parameters = NULL, n_points = 100,
   }
   density_method <- .density_method_normalize_precomputed(density_method)
   display_grid <- .iwmde_normalize_display_grid(display_grid)
+  .check_iwmde_available(object, "plot_iwmde_diagnostics()")
 
   context <- .iwmde_context(object)
   if (is.null(parameters)) {
@@ -221,6 +222,7 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
   } else {
     object <- .iwmde_marginal_means_source_object(marginal_means_object)
   }
+  .check_iwmde_available(object, "plot_iwmde_marginal_means_diagnostics()")
   if (!inherits(marginal_means_object, "marginal_means.brma")) {
     stop("'marginal_means_object' must inherit from 'marginal_means.brma'.",
          call. = FALSE)
@@ -328,6 +330,35 @@ plot_iwmde_marginal_means_diagnostics <- function(object, parameter = NULL,
 
   class(context) <- "iwmde_context"
   return(context)
+}
+
+
+.check_iwmde_available <- function(object, caller) {
+
+  if (.is_random(object) && !.is_data_known_v(object[["data"]])) {
+    .check_random_formula_postfit_deferred(object, caller)
+  }
+
+  return(invisible(TRUE))
+}
+
+
+.iwmde_context_unavailable_reason <- function(context) {
+
+  object <- context[["object"]]
+  data   <- context[["data"]]
+  if (!is.null(object)) {
+    data <- object[["data"]]
+  }
+
+  if (is.null(data) || !.is_data_random(data)) {
+    return(NULL)
+  }
+  if (.is_data_known_v(data)) {
+    return(NULL)
+  }
+
+  "qCMDE/IWMDE is not implemented for brma.mv() random-formula models yet."
 }
 
 

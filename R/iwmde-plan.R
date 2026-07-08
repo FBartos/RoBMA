@@ -68,6 +68,14 @@
   parameter      <- plan[["target"]][["parameter"]]
   parameter_spec <- plan[["parameter_spec"]]
 
+  unavailable_reason <- .iwmde_context_unavailable_reason(context)
+  if (!is.null(unavailable_reason)) {
+    plan[["status"]] <- "unsupported"
+    plan[["reason"]] <- unavailable_reason
+    plan[["rows"]]   <- .iwmde_plan_empty_rows()
+    return(plan)
+  }
+
   if (identical(parameter_spec[["status"]], "unsupported")) {
     plan[["status"]] <- "unsupported"
     plan[["reason"]] <- parameter_spec[["reason"]]

@@ -449,6 +449,55 @@ test_that("brma.mv summary heterogeneity reports SD-component allocation tables"
 })
 
 
+test_that("brma.mv SD-component allocation summaries map row SD sources through observations", {
+
+  dat <- data.frame(
+    yi    = c(0.10, 0.20, 0.30, 0.40),
+    study = c("s1", "s1", "s2", "s2"),
+    time  = c(0, 1, 0, 1)
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, 4)),
+    data                      = dat,
+    random                    = ~ har(time | study),
+    scale                     = ~ time,
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  design     <- .fitted_formula_design(object, "mu", required = TRUE)
+  term       <- design[["random_effects"]][[1L]]
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  posterior_samples <- matrix(
+    c(.25, .75),
+    nrow     = 1L,
+    dimnames = list(NULL, paste0(allocation[["weight_name"]], "[", 1:2, "]"))
+  )
+  source_samples <- list(tau = matrix(c(1, 10, 2, 20), nrow = 1L))
+
+  samples <- .brma_mv_sd_component_allocation_summary_samples(
+    allocation        = allocation,
+    term              = term,
+    posterior_samples = posterior_samples,
+    source_samples    = source_samples,
+    K                 = 4L
+  )
+
+  expect_equal(
+    unname(samples[["sd(time[0] | study)"]]),
+    sqrt(mean(c(1, 2)^2) * (2 * .25)),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    unname(samples[["sd(time[1] | study)"]]),
+    sqrt(mean(c(10, 20)^2) * (2 * .75)),
+    tolerance = 1e-12
+  )
+})
+
+
 test_that("brma.mv heterogeneity supports single known-V component", {
 
   name <- "brma.mv_block_mvn"

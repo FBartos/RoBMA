@@ -291,7 +291,8 @@ test_that("brma.mv aligns V after subset and missing rows", {
   dat <- data.frame(
     yi    = c(0.10, NA, 0.30, 0.40),
     x     = c(0, 1, 1, 0),
-    study = c("a", "b", "c", "d")
+    study = c("a", "b", "c", "d"),
+    label = paste0("Study ", 1:4)
   )
 
   expect_warning(
@@ -301,6 +302,7 @@ test_that("brma.mv aligns V after subset and missing rows", {
       mods                      = ~ x,
       random                    = ~ 1 | study,
       data                      = dat,
+      slab                      = label,
       subset                    = c(TRUE, TRUE, TRUE, TRUE),
       measure                   = "GEN",
       prior_unit_information_sd = 1,
@@ -312,6 +314,9 @@ test_that("brma.mv aligns V after subset and missing rows", {
   expected_V <- V[c(1, 3, 4), c(1, 3, 4), drop = FALSE]
   expect_equal(attr(object[["data"]], "known_V_data")[["V"]], expected_V)
   expect_equal(object[["data"]][["outcome"]][["yi"]], c(0.10, 0.30, 0.40))
+  expect_equal(object[["data"]][["outcome"]][["slab"]],
+               c("Study 1", "Study 3", "Study 4"))
+  expect_true(attr(object[["data"]], "slab"))
   expect_equal(as.character(object[["data"]][["location"]][["study"]]), c("a", "c", "d"))
 })
 
@@ -1244,6 +1249,46 @@ test_that("brma.mv marginalizes one-to-one random intercepts into likelihood var
 })
 
 
+test_that("marginalized row SD sources require newdata-shaped source samples", {
+
+  term <- list(
+    block_name         = "study",
+    sd_parameter_names = NA_character_,
+    sd_binding         = list(
+      source = list(name = "tau", shape = "row")
+    )
+  )
+  data <- list(
+    outcome  = data.frame(yi = seq_len(4)),
+    location = data.frame(row = seq_len(4))
+  )
+  attr(data[["location"]], "marginalized_random_effects") <- list(term)
+  posterior_samples <- matrix(
+    c(.10, .20, .30, .40),
+    nrow     = 1L,
+    dimnames = list(NULL, paste0("tau[", 1:4, "]"))
+  )
+
+  expect_error(
+    .evaluate_marginalized_random_variance(
+      data              = data,
+      posterior_samples = posterior_samples,
+      K                 = 2L
+    ),
+    "different row count"
+  )
+  expect_equal(
+    .evaluate_marginalized_random_variance(
+      data              = data,
+      posterior_samples = posterior_samples,
+      K                 = 2L,
+      source_samples    = list(tau = matrix(c(.50, .60), nrow = 1L))
+    ),
+    matrix(c(.25, .36), nrow = 1L)
+  )
+})
+
+
 test_that("brma.mv can keep one-to-one random intercepts sampled", {
 
   dat <- data.frame(
@@ -1646,6 +1691,28 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_equal(dffits_target[["target"]], "fixed-location fitted-value influence")
   expect_true(grepl("fixed_location_fitted_value", dffits_target[["known_v_semantics"]],
                     fixed = TRUE))
+})
+
+
+test_that("brma.mv honors forced known-V backend requests", {
+
+  V <- matrix(c(0.04, 0.015, 0.015, 0.09), nrow = 2)
+
+  for (parameterization in c("latent", "whitened", "block_mvn")) {
+    object <- brma.mv(
+      yi                        = c(0.10, 0.20),
+      V                         = V,
+      known_v_parameterization  = parameterization,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+    known_V <- attr(object[["data"]], "known_V_data")
+
+    expect_equal(known_V[["parameterization_requested"]], parameterization)
+    expect_equal(known_V[["parameterization"]], parameterization)
+    expect_equal(.data_known_v_parameterization(object[["data"]]), parameterization)
+  }
 })
 
 
@@ -2106,6 +2173,32 @@ test_that("brma.mv auto known-V update preserves residual fraction", {
   expect_equal(known_V[["parameterization_requested"]], "auto")
   expect_equal(known_V[["parameterization"]], "latent")
   expect_equal(known_V[["residual_fraction_requested"]], 0.35)
+
+  data <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(0.04, 0.09, 0.16)),
+    data                      = data.frame(yi = c(0.10, 0.20, 0.30)),
+    known_v_parameterization  = "auto",
+    known_v_residual_fraction = 0.40,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )[["data"]]
+  term <- list(
+    block_name           = "study",
+    sd_parameter_names   = "tau",
+    row_multiplier       = c(1, 4, 9),
+    row_multiplier_name  = "known_r_multiplier"
+  )
+
+  updated_known_V <- attr(.known_v_auto_update_for_marginalized_random(
+    data  = data,
+    terms = list(term)
+  ), "known_V_data")
+
+  expect_equal(updated_known_V[["parameterization_requested"]], "auto")
+  expect_equal(updated_known_V[["parameterization"]], "block_mvn")
+  expect_equal(updated_known_V[["residual_fraction_requested"]], 0.40)
 })
 
 

@@ -1,11 +1,14 @@
 context("brma.mv metafor references")
 
 source(testthat::test_path("common-functions.R"))
+source(testthat::test_path("helper-contracts.R"))
+source(testthat::test_path("helper-metafor.R"))
 
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 
 mv_fixed_metafor_fit_name <- "brma.mv_block_mvn_fixed_random_null"
+mv_known_r_metafor_fit_name <- "brma.mv_block_mvn_known_R"
 mv_metafor_fit_names <- c(
   "brma.mv_v14_konstantopoulos2011_cs",
   "brma.mv_v14_assink2016_nested",
@@ -13,9 +16,11 @@ mv_metafor_fit_names <- c(
   "brma.mv_v14_begg1989_study_treatment"
 )
 
-fits <- lazy_fits(c(mv_fixed_metafor_fit_name, mv_metafor_fit_names),
+fits <- lazy_fits(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
+                    mv_metafor_fit_names),
                   validate = FALSE)
-info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_metafor_fit_names),
+info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
+                     mv_metafor_fit_names),
                    validate = FALSE)
 
 .mv_metafor <- function(name) {
@@ -130,6 +135,52 @@ test_that("fixed-effect brma.mv with random = NULL matches metafor", {
     tolerance = 1e-12
   )
 })
+
+
+test_that("known-R brma.mv rstandard and VIF track metafor references", {
+
+  skip_if_missing_fits(mv_known_r_metafor_fit_name)
+
+  name        <- mv_known_r_metafor_fit_name
+  fit_brma    <- fits[[name]]
+  fit_metafor <- .mv_metafor(name)
+
+  brma_standard    <- rstandard(fit_brma)
+  metafor_standard <- metafor::rstandard.rma.mv(fit_metafor)
+
+  expect_residual_table(brma_standard, nobs(fit_brma), info = name)
+  expect_equal(nrow(brma_standard), nrow(metafor_standard), info = name)
+  expect_true(
+    stats::cor(brma_standard[["z"]], metafor_standard[["z"]],
+               method = "spearman", use = "complete.obs") > 0.85,
+    info = paste(name, "rstandard z rank correlation")
+  )
+  .expect_close_abs(
+    observed  = max(abs(brma_standard[["z"]] - metafor_standard[["z"]])),
+    expected  = 0,
+    tolerance = 0.30,
+    label     = paste(name, "maximum rstandard z difference")
+  )
+
+  brma_vif    <- vif(fit_brma, posterior_correlation = FALSE)[["vif"]]
+  metafor_vif <- metafor_vif_table(fit_brma, fit_metafor)
+
+  expect_vif_table(brma_vif, nrow(metafor_vif), info = name)
+  expect_equal(brma_vif[["df"]], metafor_vif[["df"]], info = name)
+  expect_equal(
+    brma_vif[["GVIF"]],
+    metafor_vif[["GVIF"]],
+    tolerance = 0.20,
+    info      = paste(name, "known-R GVIF")
+  )
+  expect_equal(
+    brma_vif[["GVIF^(1/(2*df))"]],
+    metafor_vif[["GVIF^(1/(2*df))"]],
+    tolerance = 0.20,
+    info      = paste(name, "known-R adjusted GVIF")
+  )
+})
+
 
 test_that("v14 brma.mv fixed effects match metafor references", {
 

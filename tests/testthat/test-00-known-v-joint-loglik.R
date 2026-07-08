@@ -88,3 +88,80 @@ test_that("evaluated known-V random log-likelihood requires conditioned mu", {
     )
   )
 })
+
+
+test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
+
+  V <- matrix(c(0.04, 0.015, 0.015, 0.09), nrow = 2L)
+  object <- brma.mv(
+    yi                         = c(0.10, -0.20),
+    V                          = V,
+    random                     = ~ 1 | study,
+    data                       = data.frame(
+      yi    = c(0.10, -0.20),
+      study = c("s1", "s2")
+    ),
+    known_v_parameterization   = "block_mvn",
+    measure                    = "GEN",
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd  = 1,
+    only_priors                = TRUE
+  )
+  mu_samples  <- matrix(c(0.02, -0.10, 0.06, -0.16), nrow = 2L, byrow = TRUE)
+  tau_samples <- matrix(c(0.05, 0.08, 0.04, 0.06), nrow = 2L, byrow = TRUE)
+  context <- list(
+    object = object,
+    data   = object[["data"]]
+  )
+  active_setup <- list(
+    priors            = object[["priors"]],
+    is_PET            = FALSE,
+    is_PEESE          = FALSE,
+    is_weightfunction = FALSE
+  )
+
+  posterior_samples <- matrix(numeric(0), nrow = 2L, ncol = 0L)
+  setup <- .log_lik_evaluated_setup(
+    fit                         = object[["fit"]],
+    data                        = object[["data"]],
+    priors                      = object[["priors"]],
+    unit                        = "estimate",
+    data_hash                   = NULL,
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_samples,
+    tau_between_samples         = NULL,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = "included_in_mu"
+  )
+  expected <- vapply(seq_len(nrow(mu_samples)), function(s) {
+    .marglik_mvn_log_density(
+      y          = object[["data"]][["outcome"]][["yi"]],
+      mean       = mu_samples[s, ],
+      covariance = V
+    )
+  }, numeric(1))
+
+  expect_true(.iwmde_uses_known_v_joint_likelihood(context))
+  expect_equal(
+    .log_lik_known_v_joint_sum_from_setup(setup),
+    expected,
+    tolerance = 1e-12
+  )
+  expect_false(isTRUE(all.equal(
+    rowSums(.log_lik_known_v_estimate_target_from_setup(setup)),
+    expected,
+    tolerance = 1e-8
+  )))
+  expect_equal(
+    .iwmde_log_lik_from_evaluated_predictors_sum_active_branch(
+      context            = context,
+      active_setup       = active_setup,
+      mu_samples         = mu_samples,
+      tau_within_samples = tau_samples,
+      posterior_samples  = posterior_samples,
+      unit               = "estimate"
+    ),
+    expected,
+    tolerance = 1e-12
+  )
+})

@@ -690,11 +690,23 @@
 
   if (identical(formula_target, "conditional")) {
     call_args[["blocks"]]     <- blocks
-    call_args[["new_levels"]] <- if (isTRUE(same_data) || has_known_group_covariance) {
-      "error"
-    } else {
-      "sample"
+    if (!isTRUE(same_data) &&
+        has_known_group_covariance &&
+        length(blocks) > 1L) {
+      random_samples <- .evaluate.brma.random_effects_by_block(
+        call_args      = call_args,
+        formula_design = formula_design,
+        blocks         = blocks,
+        S              = S,
+        K              = K
+      )
+      return(t(random_samples))
     }
+    call_args[["new_levels"]] <- .evaluate.brma.random_effects_new_levels(
+      formula_design = formula_design,
+      blocks         = blocks,
+      same_data      = same_data
+    )
   } else {
     if (!is.null(blocks)) {
       call_args[["blocks"]] <- blocks
@@ -708,6 +720,63 @@
   }
 
   prediction     <- do.call(BayesTools::JAGS_predict_formula, call_args)
+  random_samples <- .evaluate.brma.random_effects_prediction_samples(
+    prediction = prediction,
+    S          = S,
+    K          = K
+  )
+  if (is.null(random_samples)) {
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  return(t(random_samples))
+}
+
+
+.evaluate.brma.random_effects_by_block <- function(call_args, formula_design,
+                                                   blocks, S, K) {
+
+  random_samples <- matrix(0, nrow = K, ncol = S)
+  for (block in blocks) {
+    block_call_args <- call_args
+    block_call_args[["blocks"]]     <- block
+    block_call_args[["new_levels"]] <- .evaluate.brma.random_effects_new_levels(
+      formula_design = formula_design,
+      blocks         = block,
+      same_data      = FALSE
+    )
+    prediction <- do.call(BayesTools::JAGS_predict_formula, block_call_args)
+    block_samples <- .evaluate.brma.random_effects_prediction_samples(
+      prediction = prediction,
+      S          = S,
+      K          = K
+    )
+    if (!is.null(block_samples)) {
+      random_samples <- random_samples + block_samples
+    }
+  }
+
+  return(random_samples)
+}
+
+
+.evaluate.brma.random_effects_new_levels <- function(formula_design, blocks,
+                                                     same_data) {
+
+  if (isTRUE(same_data) ||
+      .formula_design_blocks_have_known_group_covariance(
+        formula_design = formula_design,
+        blocks         = blocks
+      )) {
+    return("error")
+  }
+
+  return("sample")
+}
+
+
+.evaluate.brma.random_effects_prediction_samples <- function(prediction, S, K) {
+
   random_samples <- prediction[["random"]]
   if (is.null(random_samples)) {
     random_samples <- .random_effects_from_marginal_vcov(
@@ -716,11 +785,8 @@
       K          = K
     )
   }
-  if (is.null(random_samples)) {
-    return(matrix(0, nrow = S, ncol = K))
-  }
 
-  return(t(random_samples))
+  return(random_samples)
 }
 
 
@@ -1007,7 +1073,11 @@
          call. = FALSE)
   }
 
-  block_indices <- .known_v_dependency_blocks(data = data, K = K)
+  block_indices <- known_V[["block_indices"]]
+  if (is.null(block_indices) || length(block_indices) == 0L) {
+    block_indices <- .known_v_block_indices(V)
+  }
+  .known_v_validate_dependency_blocks(block_indices, K)
 
   true_effects_samples <- mu_samples
   for (idx in block_indices) {

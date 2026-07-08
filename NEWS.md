@@ -72,14 +72,14 @@
 ### Changes
 - renames the multilevel clustering argument to `cluster`.
 - renames study labels to `slab`, matching `metafor` naming.
-- renames likelihood weights to `weights` and applies them consistently to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics.
+- renames likelihood weights to `weights` for supported constructors and applies them consistently to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics; `brma.mv()` currently rejects likelihood weights.
 - uses `measure`, `output_measure`, and `transform` for effect-size scale handling. Supported conversions include `SMD`, `COR`, `ZCOR`, and `OR`; `transform = "EXP"` exponentiates log ratio measures for display.
 - standardizes continuous predictors by default and transforms reported coefficients back to the original scale unless standardized coefficients are requested.
 - uses treatment contrasts by default for single-model constructors and mean-difference contrasts by default for model-averaged constructors.
 - changes `predict.brma()` default to `type = "terms"`. GLMM `type = "response"` predictions return continuity-corrected effect-size estimators by default via `as_measure = TRUE`.
 - separates output `unit` from `conditioning_depth` for residuals, fitted values, LOO, WAIC, and related diagnostics.
-- supports estimate-level and, for multilevel models, cluster-level LOO/WAIC targets with target metadata to prevent invalid comparisons.
-- keeps bridge-sampling marginal likelihoods for single-model `brma` objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects relly on product-space only.
+- supports estimate-level LOO/WAIC targets for `brma.mv()` and estimate-/cluster-level LOO/WAIC targets for multilevel `brma()` models, with target metadata to prevent invalid comparisons.
+- keeps bridge-sampling marginal likelihoods for single-model `brma` objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects rely on product-space only.
 - routes selection-weightfunction priors through the BayesTools selection backend and selected-normal kernel, removing legacy weighted-normal mapping paths.
 - uses `bias_indicator` and branch-aware selected-normal contexts for RoBMA publication-bias mixtures instead of inferring selection branches from `omega`.
 - increases zplot default posterior thinning controls to `10000` samples and accepts `Inf` where full posterior evaluation is requested.

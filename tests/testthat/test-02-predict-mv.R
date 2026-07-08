@@ -47,6 +47,49 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
   )
 }
 
+test_that("brma.mv newdata uses fitted continuous-predictor scaling metadata", {
+
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(c(0.04, 0.05, 0.06)),
+    mods                      = ~ x,
+    data                      = data.frame(
+      yi = c(0.10, 0.20, 0.30),
+      x  = c(10, 20, 30)
+    ),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- matrix(
+    c(1, 2, 0.10, 0.20, 0, 0),
+    nrow     = 2L,
+    dimnames = list(NULL, c("mu_intercept", "mu_x", "tau"))
+  )
+  newdata <- data.frame(x = c(10, 20, 30, 40))
+
+  prediction <- predict(
+    object,
+    newdata            = newdata,
+    type               = "terms",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  expected <- cbind(
+    posterior_samples[, "mu_intercept"] + 10 * posterior_samples[, "mu_x"],
+    posterior_samples[, "mu_intercept"] + 20 * posterior_samples[, "mu_x"],
+    posterior_samples[, "mu_intercept"] + 30 * posterior_samples[, "mu_x"],
+    posterior_samples[, "mu_intercept"] + 40 * posterior_samples[, "mu_x"]
+  )
+
+  expect_equal(unname(as.matrix(prediction)), expected, tolerance = 1e-12)
+  expect_equal(
+    attr(prediction, "data")[["mods"]][["x"]],
+    newdata[["x"]]
+  )
+})
+
+
 test_that("type cluster is rejected for brma.mv models", {
 
   nonrandom_object <- .brma_mv_prior_object(random = FALSE)
@@ -444,7 +487,7 @@ test_that("random-formula brma.mv existing-data response conditions on random ef
 
   testthat::local_mocked_bindings(
     .outcome_rng.norm_known_v = function(mu_samples, tau_within, known_V) {
-      captured <<- list(mu = mu_samples, tau = tau_within)
+      captured <<- list(mu = mu_samples, tau = tau_within, known_V = known_V)
       mu_samples
     },
     .outcome_rng.norm_known_v_covariance = function(mu_samples, covariance_samples) {
@@ -478,6 +521,7 @@ test_that("random-formula brma.mv existing-data response conditions on random ef
   expect_equal(unname(response), unname(expected), tolerance = 1e-12)
   expect_false(isTRUE(all.equal(unname(response), unname(fixed_only), tolerance = 1e-8)))
   expect_equal(captured[["tau"]], captured[["tau"]] * 0)
+  expect_equal(captured[["known_V"]][["V"]], .data_known_v_data(fit_brma[["data"]])[["V"]])
   expect_equal(
     attr(response_samples, "brma_mv_prediction_target")[["covariance_target"]],
     "known_V_conditional_on_random_effects"
@@ -582,6 +626,85 @@ test_that("random-formula brma.mv newdata estimate includes marginalized random 
     unname(contribution),
     tolerance = 1e-12
   )
+})
+
+
+test_that("conditional newdata random effects split known-R new-level policy by block", {
+
+  posterior_samples <- matrix(
+    0,
+    nrow     = 2L,
+    ncol     = 1L,
+    dimnames = list(NULL, "mu")
+  )
+  fit <- coda::as.mcmc(posterior_samples)
+  attr(fit, "prior_list") <- list()
+  data <- list(
+    outcome  = data.frame(yi = c(.10, .20, .30)),
+    location = data.frame(study = c("s1", "s2", "s3"))
+  )
+  attr(data, "random") <- TRUE
+  formula_design <- list(
+    random_effects = list(
+      list(
+        block_name       = "known",
+        compile_mode     = "sampled",
+        group_covariance = structure(list(), class = "random_group_covariance")
+      ),
+      list(
+        block_name   = "ordinary",
+        compile_mode = "sampled"
+      )
+    )
+  )
+  object <- list(
+    fit    = fit,
+    data   = data,
+    priors = list(location = list())
+  )
+  calls <- list()
+
+  testthat::local_mocked_bindings(
+    .fitted_formula_design = function(object, parameter, required = FALSE) {
+      formula_design
+    },
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    JAGS_predict_formula = function(fit, parameter, formula = NULL, data = NULL,
+                                    prior_list = NULL,
+                                    formula_target = "conditional",
+                                    blocks = NULL, new_levels = NULL, ...) {
+
+      calls[[length(calls) + 1L]] <<- list(
+        blocks     = blocks,
+        new_levels = new_levels
+      )
+      value <- if (identical(blocks, "known")) 1 else 2
+      list(random = matrix(value, nrow = 3L, ncol = 2L))
+    },
+    .package = "BayesTools"
+  )
+
+  out <- .evaluate.brma.random_effects(
+    fit               = fit,
+    data              = data,
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples,
+    same_data         = FALSE,
+    formula_target    = "conditional",
+    object            = object
+  )
+
+  expect_equal(
+    vapply(calls, `[[`, character(1), "blocks"),
+    c("known", "ordinary")
+  )
+  expect_equal(
+    vapply(calls, `[[`, character(1), "new_levels"),
+    c("error", "sample")
+  )
+  expect_equal(out, matrix(3, nrow = 2L, ncol = 3L))
 })
 
 
@@ -694,6 +817,36 @@ test_that("known-R brma.mv aggregate estimate samples marginal covariance", {
     matrix(.15, nrow = nrow(posterior_samples), ncol = 1L),
     tolerance = 1e-12
   )
+})
+
+
+test_that("known-R brma.mv aggregate estimate has nonzero random contribution", {
+
+  name <- "brma.mv_block_mvn_known_R"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
+  posterior_samples <- posterior_samples[seq_len(min(100L, nrow(posterior_samples))), , drop = FALSE]
+
+  estimate <- predict(
+    fit_brma,
+    newdata            = TRUE,
+    type               = "estimate",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  terms <- predict(
+    fit_brma,
+    newdata            = TRUE,
+    type               = "terms",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  random_contribution <- as.numeric(as.matrix(estimate) - as.matrix(terms))
+
+  expect_true(stats::sd(random_contribution) > 0)
+  expect_false(all(abs(random_contribution) < sqrt(.Machine$double.eps)))
 })
 
 

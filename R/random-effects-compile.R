@@ -689,6 +689,7 @@
   posterior_samples <- as.matrix(posterior_samples)
   terms             <- .data_marginalized_random_effects(data)
   variance          <- matrix(0, nrow = nrow(posterior_samples), ncol = K)
+  fitted_K          <- nrow(data[["outcome"]])
 
   if (length(terms) == 0L) {
     return(variance)
@@ -699,7 +700,8 @@
       term              = term,
       posterior_samples = posterior_samples,
       K                 = K,
-      source_samples    = source_samples
+      source_samples    = source_samples,
+      fitted_K          = fitted_K
     )
 
     term_variance <- .marginalized_random_effect_variance_samples(
@@ -933,7 +935,8 @@
 
 
 .marginalized_random_effect_sd_samples <- function(term, posterior_samples, K,
-                                                  source_samples = NULL) {
+                                                  source_samples = NULL,
+                                                  fitted_K = K) {
 
   parameter <- term[["sd_parameter_names"]]
   if (length(parameter) == 1L && !is.na(parameter) && nzchar(parameter)) {
@@ -949,7 +952,8 @@
       term              = term,
       posterior_samples = posterior_samples,
       K                 = K,
-      source_samples    = source_samples
+      source_samples    = source_samples,
+      fitted_K          = fitted_K
     ))
   }
 
@@ -959,7 +963,8 @@
       source            = source,
       posterior_samples = posterior_samples,
       K                 = K,
-      source_samples    = source_samples
+      source_samples    = source_samples,
+      fitted_K          = fitted_K
     ))
   }
 
@@ -969,7 +974,8 @@
       source            = sources_by_column[[1L]],
       posterior_samples = posterior_samples,
       K                 = K,
-      source_samples    = source_samples
+      source_samples    = source_samples,
+      fitted_K          = fitted_K
     ))
   }
 
@@ -994,7 +1000,8 @@
 .marginalized_random_effect_allocated_sd_samples <- function(term,
                                                              posterior_samples,
                                                              K,
-                                                             source_samples = NULL) {
+                                                             source_samples = NULL,
+                                                             fitted_K = K) {
 
   binding    <- term[["sd_binding"]]
   allocation <- binding[["allocations"]][[1L]]
@@ -1002,7 +1009,8 @@
     source            = allocation[["source"]],
     posterior_samples = posterior_samples,
     K                 = K,
-    source_samples    = source_samples
+    source_samples    = source_samples,
+    fitted_K          = fitted_K
   )
 
   factors <- .marginalized_random_effect_allocation_factors(term)
@@ -1107,7 +1115,8 @@
 
 
 .random_sd_source_samples <- function(source, posterior_samples, K,
-                                      source_samples = NULL) {
+                                      source_samples = NULL,
+                                      fitted_K = K) {
 
   name <- source[["name"]]
   if (!is.character(name) || length(name) != 1L || is.na(name) || !nzchar(name)) {
@@ -1129,6 +1138,13 @@
 
   shape <- source[["shape"]]
   if (identical(shape, "row")) {
+    if (K != fitted_K) {
+      stop(
+        "Cannot evaluate row-shaped SD source '", name,
+        "' for a different row count without external source samples.",
+        call. = FALSE
+      )
+    }
     return(.extract_posterior_matrix(
       posterior_samples = posterior_samples,
       parameter         = name,
