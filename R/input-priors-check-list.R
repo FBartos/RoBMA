@@ -294,6 +294,7 @@
     prior_mods <- NULL
   }
 
+  prior_random_sd <- prior_outcome[["tau"]]
   if (.is_data_scale(data)) {
     prior_scale <- .assign_prior_list.scale(
       prior_list = prior_scale, prior_intercept = prior_outcome[["tau"]],
@@ -310,7 +311,7 @@
       prior_heterogeneity
     } else {
       .assign_prior.random(
-        prior      = prior_outcome[["tau"]],
+        prior      = prior_random_sd,
         data       = data,
         sd_sources = if (.is_data_scale(data)) {
           .assign_prior.random_scale_sources(data)

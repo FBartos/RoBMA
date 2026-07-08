@@ -1708,16 +1708,10 @@ NULL
     scale_names        <- names(data_scale)
     mapped_components  <- unname(component_map[scale_names])
     unknown_components <- names(data_scale)[is.na(mapped_components)]
-    missing_components <- setdiff(
-      component_labels,
-      mapped_components[!is.na(mapped_components)]
-    )
-    if (length(missing_components) > 0L || length(unknown_components) > 0L) {
+    if (length(unknown_components) > 0L) {
       stop(
-        "Component-specific 'scale' names must exactly match the top-level ",
-        "'random' components. Missing: ",
-        .check_and_list_data.collapse_or_none(missing_components),
-        "; unknown: ",
+        "Component-specific 'scale' names must match top-level 'random' ",
+        "components. Unknown: ",
         .check_and_list_data.collapse_or_none(unknown_components),
         ".",
         call. = FALSE
@@ -1731,13 +1725,14 @@ NULL
       )
     }
 
-    scale_names_by_component <- scale_names[match(component_labels, mapped_components)]
-    names(scale_names_by_component) <- component_labels
+    scaled_components <- component_labels[component_labels %in% mapped_components]
+    scale_names_by_component <- scale_names[match(scaled_components, mapped_components)]
+    names(scale_names_by_component) <- scaled_components
     component_names <- stats::setNames(components[["name"]], component_labels)
 
-    data_scale <- data_scale[match(component_labels, mapped_components)]
-    names(data_scale) <- component_labels
-    for (component in component_labels) {
+    data_scale <- data_scale[match(scaled_components, mapped_components)]
+    names(data_scale) <- scaled_components
+    for (component in scaled_components) {
       .check_and_list_data.validate_scale_component_name(component)
       component_name <- component_names[[component]]
       scale_name     <- scale_names_by_component[[component]]

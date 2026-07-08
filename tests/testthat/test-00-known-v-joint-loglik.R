@@ -93,21 +93,30 @@ test_that("evaluated known-V random log-likelihood requires conditioned mu", {
 test_that("evaluated known-V marginalized scale maps component row source", {
 
   dat <- data.frame(
-    yi       = c(0.10, 0.20, -0.05, 0.15),
-    estimate = paste0("e", 1:4),
-    x        = c(0, 1, 0, 1)
+    yi   = c(0.10, 0.20, -0.05, 0.15),
+    type = factor(
+      c("RCT", "RCT", "cohort", "cohort"),
+      levels = c("RCT", "cohort")
+    )
   )
+  dat$study   <- factor(seq_len(nrow(dat)))
+  dat$cohort  <- as.numeric(dat$type == "cohort")
+  dat$bias_id <- factor("cohort_bias")
   object <- brma.mv(
     yi                        = yi,
     V                         = diag(rep(0.04, 4)),
-    random                    = list(effect = ~ 1 | estimate),
-    scale                     = list(effect = ~ x),
+    random                    = list(
+      coh_bias    = ~ diag(0 + cohort | bias_id),
+      ran_effects = ~ 1 | study
+    ),
+    scale                     = list(ran_effects = ~ type),
     data                      = dat,
     known_v_parameterization  = "block_mvn",
     measure                   = "GEN",
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
+  expect_equal(.data_sampled_random_effect_blocks(object[["data"]]), "coh_bias")
 
   mu_samples         <- matrix(0, nrow = 1L, ncol = 4L)
   tau_within_samples <- matrix(c(0.10, 0.20, 0.30, 0.40), nrow = 1L)
@@ -117,14 +126,14 @@ test_that("evaluated known-V marginalized scale maps component row source", {
     data               = object[["data"]],
     tau_within_samples = tau_within_samples
   )
-  expect_named(source_samples, "tau_effect")
-  expect_equal(source_samples[["tau_effect"]], tau_within_samples)
+  expect_named(source_samples, "tau_ran_effects")
+  expect_equal(source_samples[["tau_ran_effects"]], tau_within_samples)
 
   formula_args <- .create_jags_formula_args(
     data   = object[["data"]],
     priors = object[["priors"]]
   )
-  expect_true("tau_effect" %in% formula_args[["add_parameters"]])
+  expect_true("tau_ran_effects" %in% formula_args[["add_parameters"]])
 
   log_lik <- .log_lik_known_v_joint_sum_from_evaluated_predictors(
     fit                         = object[["fit"]],
@@ -146,7 +155,7 @@ test_that("evaluated known-V marginalized scale maps component row source", {
   bridge_context <- structure(
     list(nodes = stats::setNames(
       as.numeric(tau_within_samples),
-      paste0("tau_effect[", seq_len(ncol(tau_within_samples)), "]")
+      paste0("tau_ran_effects[", seq_len(ncol(tau_within_samples)), "]")
     )),
     class = c("BayesTools_bridge_context", "list")
   )

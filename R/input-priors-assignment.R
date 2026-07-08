@@ -125,15 +125,15 @@
         block_names = block_names
       )
       for (group in groups) {
-        if (length(group[["blocks"]]) != 1L) {
-          stop(
-            "Internal error: missing random allocation for component '",
-            group[["label"]], "'.",
-            call. = FALSE
-          )
+        source <- sd_sources[[group[["label"]]]]
+        if (is.null(source)) {
+          for (block in group[["blocks"]]) {
+            block_sds[[block]] <- prior
+          }
+          next
         }
         block <- group[["blocks"]][[1L]]
-        block_sd_sources[[block]] <- sd_sources[[group[["label"]]]]
+        block_sd_sources[[block]] <- source
       }
     } else {
       block <- block_info[[1L]][["block"]]
@@ -149,10 +149,17 @@
       vapply(block_info, `[[`, character(1), "block")
     )
     for (group in groups) {
+      source <- sd_sources[[group[["label"]]]]
+      if (is.null(source)) {
+        for (block in group[["blocks"]]) {
+          block_sds[[block]] <- prior
+        }
+        next
+      }
       block <- group[["blocks"]][[1L]]
       if (length(group[["blocks"]]) == 1L &&
           !isTRUE(block_heterogeneous[[block]])) {
-        block_sd_sources[[block]] <- sd_sources[[group[["label"]]]]
+        block_sd_sources[[block]] <- source
       }
     }
   }
@@ -246,7 +253,11 @@
   for (term in formula_design[["random_effects"]]) {
     block     <- term[["block_name"]]
     component <- component_by_block[[block]]
-    expected  <- expected_sources[[component]]
+    expected  <- if (component %in% names(expected_sources)) {
+      expected_sources[[component]]
+    } else {
+      NULL
+    }
     if (is.null(expected)) {
       next
     }
@@ -554,11 +565,7 @@
   for (group in groups) {
     source <- sd_sources[[group[["label"]]]]
     if (is.null(source)) {
-      stop(
-        "Internal error: missing scale source for random component '",
-        group[["label"]], "'.",
-        call. = FALSE
-      )
+      next
     }
 
     if (length(group[["blocks"]]) > 1L) {

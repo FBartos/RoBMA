@@ -990,7 +990,7 @@ test_that("brma.mv validates random formula edge cases", {
       prior_unit_information_sd = 1,
       only_data                 = TRUE
     ),
-    "must exactly match"
+    "Unknown: missing"
   )
 
   component_scale_prior <- brma.mv(
@@ -1440,6 +1440,108 @@ test_that("brma.mv marginalized estimate-level scale uses row SD source", {
     priors = object[["priors"]]
   )
   expect_true("tau" %in% formula_args[["add_parameters"]])
+})
+
+
+test_that("brma.mv supports partial random scale with sampled random component", {
+
+  dat <- data.frame(
+    yi   = c(0.10, 0.20, 0.30, 0.40, 0.15, 0.25),
+    vi   = c(0.04, 0.05, 0.06, 0.07, 0.02, 0.03),
+    type = factor(
+      c("RCT", "RCT", "RCT", "cohort", "cohort", "cohort"),
+      levels = c("RCT", "cohort")
+    )
+  )
+  dat$study   <- factor(seq_len(nrow(dat)))
+  dat$cohort  <- as.numeric(dat$type == "cohort")
+  dat$bias_id <- factor("cohort_bias")
+
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = vi,
+    random                    = list(
+      coh_bias    = ~ diag(0 + cohort | bias_id),
+      ran_effects = ~ 1 | study
+    ),
+    scale                     = list(ran_effects = ~ type),
+    data                      = dat,
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  expect_equal(
+    .data_scale_formula_sources(object[["data"]]),
+    c(ran_effects = "tau_ran_effects")
+  )
+  expect_equal(
+    .data_scale_formula_parameters(object[["data"]]),
+    c(ran_effects = "log_tau_ran_effects")
+  )
+  expect_equal(
+    .data_sampled_random_effect_blocks(object[["data"]]),
+    "coh_bias"
+  )
+
+  marginalized_effects <- .data_marginalized_random_effects(object[["data"]])
+  expect_length(marginalized_effects, 1L)
+  expect_equal(marginalized_effects[[1L]][["block_name"]], "ran_effects")
+
+  design <- .fitted_formula_design(object, "mu", required = TRUE)
+  random_terms <- stats::setNames(
+    design[["random_effects"]],
+    vapply(design[["random_effects"]], `[[`, character(1), "block_name")
+  )
+  expect_equal(random_terms[["coh_bias"]][["compile_mode"]], "sampled")
+  expect_null(random_terms[["coh_bias"]][["sd_binding"]][["source"]])
+  expect_equal(random_terms[["ran_effects"]][["compile_mode"]], "marginalized")
+  ran_effects_source <- random_terms[["ran_effects"]][["sd_binding"]][["source"]]
+  expect_equal(ran_effects_source[["name"]], "tau_ran_effects")
+  expect_equal(ran_effects_source[["shape"]], "row")
+
+  random_priors <- object[["priors"]][["random"]][["blocks"]]
+  expect_s3_class(random_priors[["coh_bias"]][["sd"]], "prior")
+  expect_null(random_priors[["coh_bias"]][["sd_source"]])
+  expect_null(random_priors[["ran_effects"]][["sd"]])
+  expect_equal(
+    random_priors[["ran_effects"]][["sd_source"]][["name"]],
+    "tau_ran_effects"
+  )
+
+  syntax <- .create_model_syntax(object[["data"]], object[["priors"]])
+  expect_match(
+    syntax,
+    "tau_ran_effects\\[i\\] = exp\\(log_tau_ran_effects\\[i\\]\\)"
+  )
+  expect_match(
+    syntax,
+    "tau2_observed\\[i\\] = pow\\(tau_ran_effects\\[i\\],2\\)"
+  )
+
+  posterior <- matrix(
+    c(
+      0.10, 0.20, 0.30, 0.40, 0.50, 0.60,
+      0.15, 0.25, 0.35, 0.45, 0.55, 0.65
+    ),
+    nrow     = 2,
+    byrow    = TRUE,
+    dimnames = list(NULL, paste0("tau_ran_effects[", 1:6, "]"))
+  )
+  expect_equal(
+    .evaluate_marginalized_random_variance(
+      data              = object[["data"]],
+      posterior_samples = posterior
+    ),
+    posterior^2
+  )
+
+  formula_args <- .create_jags_formula_args(
+    data   = object[["data"]],
+    priors = object[["priors"]]
+  )
+  expect_true("tau_ran_effects" %in% formula_args[["add_parameters"]])
 })
 
 
