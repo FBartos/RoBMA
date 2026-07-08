@@ -867,14 +867,11 @@ add_marglik.brma <- function(object, ...) {
 
   known_V       <- .data_known_v_data(model_data)
   yi            <- model_data[["outcome"]][["yi"]]
-  block_indices <- known_V[["block_indices"]]
+  block_indices <- .known_v_dependency_blocks(data = model_data, K = K)
   log_lik       <- 0
 
   if (effect_direction == "negative") {
     yi <- -yi
-  }
-  if (is.null(block_indices) || length(block_indices) == 0L) {
-    block_indices <- as.list(seq_len(K))
   }
 
   for (idx in block_indices) {
@@ -893,13 +890,10 @@ add_marglik.brma <- function(object, ...) {
 
 .marglik_mvn_log_density <- function(y, mean, covariance) {
 
-  chol_covariance <- tryCatch(
-    chol(covariance),
-    error = function(e) NULL
+  chol_covariance <- .known_v_chol_covariance(
+    covariance = covariance,
+    context    = "bridge"
   )
-  if (is.null(chol_covariance)) {
-    stop("Known-V bridge covariance is not positive definite.", call. = FALSE)
-  }
 
   residual <- y - mean
   z        <- backsolve(chol_covariance, residual, transpose = TRUE)

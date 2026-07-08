@@ -204,8 +204,7 @@
 .known_v_prepare <- function(V, keep_rows, known_v_parameterization,
                              known_v_residual_fraction,
                              known_v_residual_fraction_specified = FALSE,
-                             known_v_is_scale = FALSE,
-                             known_v_is_multilevel = FALSE) {
+                             known_v_is_scale = FALSE) {
 
   known_v_parameterization <- match.arg(
     known_v_parameterization,
@@ -217,7 +216,6 @@
     stop("Internal error: invalid known-V row selector.", call. = FALSE)
   }
   BayesTools::check_bool(known_v_is_scale, "known_v_is_scale")
-  BayesTools::check_bool(known_v_is_multilevel, "known_v_is_multilevel")
 
   if (is.null(known_v_residual_fraction)) {
     known_v_residual_fraction <- 0.10
@@ -235,7 +233,6 @@
     known_v_parameterization <- .known_v_auto_parameterization(
       block_indices         = block_indices,
       known_v_is_scale      = known_v_is_scale,
-      known_v_is_multilevel = known_v_is_multilevel,
       known_v_is_singular   = singular
     )
   }
@@ -251,7 +248,7 @@
     stop(
       "Singular all-correlated known-V matrices cannot use ",
       "known_v_parameterization = 'latent'. Use 'block_mvn', or 'whitened' ",
-      "when no scale regression or cluster-level random effects are present.",
+      "when no scale regression or row-varying marginalized variance is present.",
       call. = FALSE
     )
   }
@@ -396,11 +393,10 @@
 }
 
 .known_v_auto_parameterization <- function(block_indices, known_v_is_scale,
-                                           known_v_is_multilevel,
                                            known_v_is_singular = FALSE,
                                            max_block_size = NULL) {
 
-  if (!isTRUE(known_v_is_scale) && !isTRUE(known_v_is_multilevel)) {
+  if (!isTRUE(known_v_is_scale)) {
     return("whitened")
   }
   if (isTRUE(known_v_is_singular)) {

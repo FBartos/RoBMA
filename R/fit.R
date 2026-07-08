@@ -67,13 +67,6 @@
 
     known_v_whitened  <- .is_data_known_v_parameterization(data, "whitened")
     known_v_block_mvn <- .is_data_known_v_parameterization(data, "block_mvn")
-    if ((known_v_whitened || known_v_block_mvn) && .is_priors_weightfunction(priors)) {
-      stop(
-        "Selection-model likelihoods for known-V data require ",
-        "known_v_parameterization = 'latent'.",
-        call. = FALSE
-      )
-    }
     if (known_v_whitened) {
       known_V <- .data_known_v_data(data)
       fit_data <- list(
@@ -81,9 +74,6 @@
         whitening_var    = known_V[["whitening_variance"]],
         whitening_matrix = known_V[["whitening_matrix"]]
       )
-      if (.is_priors_bias(priors)) {
-        fit_data[["sei"]] <- data[["outcome"]][["sei"]]
-      }
     } else if (known_v_block_mvn) {
       known_V <- .data_known_v_data(data)
       fit_data <- list()
@@ -97,9 +87,6 @@
         fit_data[["yi"]]          <- yi
         fit_data[["known_v_var"]] <- known_V[["residual_variance"]]
       }
-      if (.is_priors_bias(priors)) {
-        fit_data[["sei"]] <- data[["outcome"]][["sei"]]
-      }
 
       for (b in seq_along(known_V[["block_mvn_blocks"]])) {
         block <- known_V[["block_mvn_blocks"]][[b]]
@@ -109,7 +96,7 @@
         }
       }
     } else {
-      # always include yi; include sei when the JAGS graph references selection scale
+      # ordinary normal and latent known-V bias graphs reference sei
       fit_data <- list(
         yi = yi
       )
@@ -240,26 +227,6 @@
   if (is_known_v_whitened && is_scale) {
     stop(
       "known_v_parameterization = 'whitened' is currently available only without scale regression.",
-      call. = FALSE
-    )
-  }
-  if (is_known_v_whitened && is_multilevel) {
-    stop(
-      "known_v_parameterization = 'whitened' is currently available only without cluster-level random effects.",
-      call. = FALSE
-    )
-  }
-  if (is_known_v_whitened && is_weightfunction) {
-    stop(
-      "Selection-model likelihoods for known-V data require ",
-      "known_v_parameterization = 'latent'.",
-      call. = FALSE
-    )
-  }
-  if (is_known_v_block_mvn && is_weightfunction) {
-    stop(
-      "Selection-model likelihoods for known-V data require ",
-      "known_v_parameterization = 'latent'.",
       call. = FALSE
     )
   }

@@ -46,10 +46,44 @@
 
   block_indices <- known_V[["block_indices"]]
   if (is.null(block_indices) || length(block_indices) == 0L) {
-    block_indices <- as.list(seq_len(K))
+    V <- known_V[["V"]]
+    if (!is.matrix(V) || !identical(dim(V), c(K, K))) {
+      stop("Known-V block metadata is missing and cannot be reconstructed.",
+           call. = FALSE)
+    }
+    block_indices <- .known_v_block_indices(V)
   }
 
+  .known_v_validate_dependency_blocks(block_indices, K)
   return(block_indices)
+}
+
+
+.known_v_validate_dependency_blocks <- function(block_indices, K) {
+
+  if (!is.list(block_indices) || length(block_indices) == 0L) {
+    stop("Known-V block metadata must be a non-empty list.", call. = FALSE)
+  }
+
+  flat <- unlist(block_indices, use.names = FALSE)
+  if (!is.numeric(flat) && !is.integer(flat)) {
+    stop("Known-V block metadata must contain row indices.", call. = FALSE)
+  }
+  if (anyNA(flat) || any(!is.finite(flat))) {
+    stop("Known-V block metadata must partition the fitted rows.",
+         call. = FALSE)
+  }
+  if (any(flat != as.integer(flat))) {
+    stop("Known-V block metadata must contain integer row indices.",
+         call. = FALSE)
+  }
+  flat <- as.integer(flat)
+  if (length(flat) != K || !identical(sort(flat), seq_len(K))) {
+    stop("Known-V block metadata must partition the fitted rows.",
+         call. = FALSE)
+  }
+
+  return(invisible(TRUE))
 }
 
 
@@ -467,16 +501,10 @@
     ))
   }
 
-  chol_covariance <- tryCatch(
-    chol(covariance),
-    error = function(e) NULL
+  chol_covariance <- .known_v_chol_covariance(
+    covariance = covariance,
+    context    = "conditional"
   )
-  if (is.null(chol_covariance)) {
-    stop(
-      "Known-V conditional covariance is not positive definite.",
-      call. = FALSE
-    )
-  }
 
   precision          <- chol2inv(chol_covariance)
   precision_diagonal <- diag(precision)
@@ -498,4 +526,47 @@
     variance = conditional_variance,
     residual = conditional_residual
   ))
+}
+
+
+.known_v_chol_covariance <- function(covariance, context) {
+
+  chol_covariance <- tryCatch(
+    chol(covariance),
+    error = function(e) NULL
+  )
+  if (is.null(chol_covariance)) {
+    .known_v_stop_non_positive_definite_covariance(covariance, context)
+  }
+
+  return(chol_covariance)
+}
+
+
+.known_v_stop_non_positive_definite_covariance <- function(covariance, context) {
+
+  eigenvalues <- tryCatch(
+    eigen((covariance + t(covariance)) / 2,
+          symmetric = TRUE, only.values = TRUE)[["values"]],
+    error = function(e) NULL
+  )
+
+  if (!is.null(eigenvalues)) {
+    tolerance <- sqrt(.Machine$double.eps) *
+      max(1, max(abs(eigenvalues)))
+    if (min(eigenvalues) >= -tolerance) {
+      stop(
+        "Known-V ", context, " covariance is positive semidefinite, ",
+        "not positive definite; this Cholesky-based target is not ",
+        "available for singular known-V blocks unless posterior extra ",
+        "variance makes the block positive definite.",
+        call. = FALSE
+      )
+    }
+  }
+
+  stop(
+    "Known-V ", context, " covariance is not positive definite.",
+    call. = FALSE
+  )
 }

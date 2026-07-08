@@ -116,8 +116,7 @@
     known_v_parameterization            = "auto",
     known_v_residual_fraction           = known_V[["residual_fraction_requested"]],
     known_v_residual_fraction_specified = known_v_residual_fraction_specified,
-    known_v_is_scale                    = TRUE,
-    known_v_is_multilevel               = FALSE
+    known_v_is_scale                    = TRUE
   )
   attr(data, "known_V_data") <- new_known_V
   data[["outcome"]][["sei"]] <- sqrt(diag(new_known_V[["V"]]))

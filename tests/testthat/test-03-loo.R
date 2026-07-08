@@ -190,7 +190,15 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     expect_s3_class(log_lik, "logLik.brma")
     expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
     expect_true(all(is.finite(log_lik)), info = name)
-    expect_equal(target[["target"]], "known_v_estimate", info = name)
+    expect_equal(
+      target[["target"]],
+      if (isTRUE(target[["known_v_schur"]])) {
+        "known_v_estimate"
+      } else {
+        "factorized_estimate"
+      },
+      info = name
+    )
     expect_true(isTRUE(target[["known_v"]]), info = name)
     expect_true(isTRUE(target[["known_v_estimate_backend"]]), info = name)
     expect_equal(
@@ -269,7 +277,15 @@ test_that("v14 brma.mv metafor fixtures cache usable estimate-unit LOO", {
     expect_s3_class(log_lik, "logLik.brma")
     expect_equal(ncol(log_lik), nobs(fit_brma), info = name)
     expect_true(all(is.finite(log_lik)), info = name)
-    expect_equal(target[["target"]], "known_v_estimate", info = name)
+    expect_equal(
+      target[["target"]],
+      if (isTRUE(target[["known_v_schur"]])) {
+        "known_v_estimate"
+      } else {
+        "factorized_estimate"
+      },
+      info = name
+    )
     expect_true(isTRUE(target[["known_v_estimate_backend"]]), info = name)
 
     loo_result <- suppressWarnings(loo(fit_brma))

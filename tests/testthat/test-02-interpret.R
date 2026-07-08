@@ -140,6 +140,58 @@ test_that("interpret.brma handles options and errors", {
   )
 })
 
+
+test_that("interpret.brma summarizes heterogeneity component lists separately", {
+
+  total_samples <- .new_brma_samples(
+    matrix(
+      c(0.10, 0.12, 0.14, 0.16),
+      ncol     = 1,
+      dimnames = list(NULL, "tau")
+    ),
+    n_chains = 1,
+    n_iter   = 4,
+    title    = "total heterogeneity"
+  )
+  study_samples <- .new_brma_samples(
+    matrix(
+      c(0.20, 0.22, 0.24, 0.26),
+      ncol     = 1,
+      dimnames = list(NULL, "tau")
+    ),
+    n_chains = 1,
+    n_iter   = 4,
+    title    = "study heterogeneity"
+  )
+  sources <- .interpret_add_heterogeneity_sources(
+    sources       = list(),
+    heterogeneity = list(
+      "total heterogeneity" = total_samples,
+      study                 = study_samples
+    ),
+    conditional   = FALSE,
+    probs         = c(.025, .975),
+    central       = "mean"
+  )
+  plan <- .interpret_brma_plan(
+    summary_object   = list(inclusion_components = NULL),
+    effect_transform = NULL,
+    scope            = "estimates",
+    sources          = sources
+  )
+  records <- .interpret_records_standard(sources = sources, plan = plan)
+  text    <- .interpret_records_text(records, digits = 3, averaged = FALSE)
+
+  expect_true("estimates.heterogeneity.total.heterogeneity.estimate" %in%
+    records[["record_id"]])
+  expect_true("estimates.heterogeneity.study.estimate" %in%
+    records[["record_id"]])
+  expect_true(any(grepl("Pooled heterogeneity (total heterogeneity)",
+                        text, fixed = TRUE)))
+  expect_true(any(grepl("Pooled heterogeneity (study)", text, fixed = TRUE)))
+})
+
+
 test_that("interpret.brma printed output matches reference text", {
 
   cases <- list(

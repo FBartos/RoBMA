@@ -396,12 +396,6 @@ NULL
       call. = FALSE
     )
   }
-  if (!is.null(known_V_input) && known_v_parameterization == "whitened" && cluster_provided) {
-    stop(
-      "known_v_parameterization = 'whitened' is currently available only without cluster-level random effects.",
-      call. = FALSE
-    )
-  }
 
   # Generate default study labels if not provided (after NA dropping)
   if (!slab_provided) {
@@ -428,8 +422,7 @@ NULL
       known_v_parameterization            = known_v_parameterization,
       known_v_residual_fraction           = known_v_residual_fraction,
       known_v_residual_fraction_specified = known_v_residual_fraction_specified,
-      known_v_is_scale                    = !is.null(data_scale),
-      known_v_is_multilevel               = cluster_provided
+      known_v_is_scale                    = !is.null(data_scale)
     )
     data_outcome[["sei"]] <- sqrt(diag(known_V[["V"]]))
   }
@@ -624,14 +617,22 @@ NULL
     }
   }
 
-  V  <- .get_variable(.call, data, .envir, "V", allow_NULL = FALSE)
-  ni <- .get_variable(.call, data, .envir, "ni", allow_NULL = TRUE)
+  V   <- .get_variable(.call, data, .envir, "V", allow_NULL = TRUE)
+  vi  <- .get_variable(.call, data, .envir, "vi", allow_NULL = TRUE)
+  sei <- .get_variable(.call, data, .envir, "sei", allow_NULL = TRUE)
+  ni  <- .get_variable(.call, data, .envir, "ni", allow_NULL = TRUE)
 
   BayesTools::check_real(yi, "yi", check_length = 0, allow_NULL = FALSE, allow_NA = TRUE)
   if (all(is.na(yi)))
     stop("The 'yi' argument must contain at least one non-NA value.", call. = FALSE)
 
   k        <- length(yi)
+  V        <- .check_and_list_data.mv_known_v_input(
+    V   = V,
+    vi  = vi,
+    sei = sei,
+    k   = k
+  )
   V_matrix <- .known_v_as_matrix(V, k = k, warn_singular = FALSE)
   sei      <- sqrt(diag(V_matrix))
 
@@ -653,7 +654,7 @@ NULL
     cluster       = rep(NA_character_, k),
     cluster_label = rep(NA_character_, k),
     slab          = if (!is.null(optional$slab))       optional$slab    else rep(NA_character_, k),
-    weights       = if (!is.null(optional$weights))    optional$weights else rep(NA, k),
+    weights       = rep(NA, k),
     stringsAsFactors = FALSE
   )
 
@@ -662,7 +663,7 @@ NULL
     k                  = k,
     mods_from_yi       = mods_from_yi,
     formula_yi         = formula_yi,
-    weights_provided   = optional$weights_provided,
+    weights_provided   = FALSE,
     slab_provided      = optional$slab_provided,
     cluster_provided   = FALSE,
     na_check_cols      = c("yi", "sei"),
@@ -670,6 +671,64 @@ NULL
     outcome_type       = "norm",
     known_V_input      = V_matrix
   ))
+}
+
+
+.check_and_list_data.mv_known_v_input <- function(V, vi, sei, k) {
+
+  has_V   <- !is.null(V)
+  has_vi  <- !is.null(vi)
+  has_sei <- !is.null(sei)
+
+  if (has_V && (has_vi || has_sei)) {
+    stop("Use only one of 'V' and hidden 'vi'/'sei' inputs in brma.mv().",
+         call. = FALSE)
+  }
+  if (!has_V && !has_vi && !has_sei) {
+    stop("For brma.mv(), provide 'V' or hidden diagonal input 'vi'/'sei'.",
+         call. = FALSE)
+  }
+  if (has_V) {
+    return(V)
+  }
+
+  if (has_vi) {
+    BayesTools::check_real(
+      vi,
+      "vi",
+      check_length = k,
+      allow_NULL   = FALSE,
+      allow_NA     = FALSE,
+      lower        = 0,
+      allow_bound  = FALSE
+    )
+  }
+  if (has_sei) {
+    BayesTools::check_real(
+      sei,
+      "sei",
+      check_length = k,
+      allow_NULL   = FALSE,
+      allow_NA     = FALSE,
+      lower        = 0,
+      allow_bound  = FALSE
+    )
+  }
+  if (has_vi && has_sei) {
+    implied_vi <- sei^2
+    tolerance  <- sqrt(.Machine$double.eps) *
+      pmax(1, abs(vi), abs(implied_vi))
+    if (any(abs(vi - implied_vi) > tolerance)) {
+      stop("Hidden brma.mv() inputs 'vi' and 'sei' must be consistent.",
+           call. = FALSE)
+    }
+  }
+
+  if (has_vi) {
+    return(vi)
+  }
+
+  return(sei^2)
 }
 
 

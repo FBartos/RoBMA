@@ -828,10 +828,7 @@
          call. = FALSE)
   }
 
-  block_indices <- known_V[["block_indices"]]
-  if (is.null(block_indices)) {
-    block_indices <- list(seq_len(K))
-  }
+  block_indices <- .known_v_dependency_blocks(data = data, K = K)
 
   source_samples <- .predict_known_v_newdata_marginalized_source_samples(
     object            = object,
@@ -1010,10 +1007,7 @@
          call. = FALSE)
   }
 
-  block_indices <- known_V[["block_indices"]]
-  if (is.null(block_indices)) {
-    block_indices <- list(seq_len(K))
-  }
+  block_indices <- .known_v_dependency_blocks(data = data, K = K)
 
   true_effects_samples <- mu_samples
   for (idx in block_indices) {

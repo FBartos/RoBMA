@@ -1008,7 +1008,7 @@
   list(
     unit                 = "estimate",
     conditioning_depth   = "estimate",
-    target               = if (known_v_estimate_backend) "known_v_estimate" else "factorized_estimate",
+    target               = if (known_v_schur) "known_v_estimate" else "factorized_estimate",
     n                    = setup[["K"]],
     targets              = seq_len(setup[["K"]]),
     data_hash            = data_hash,

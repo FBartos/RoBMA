@@ -88,9 +88,12 @@ NULL
   return(object)
 }
 
-.validate_constructor_dots <- function(dots, caller) {
+.validate_constructor_dots <- function(dots, caller, allowed_extra = character()) {
 
-  allowed <- c("only_data", "only_priors", "is_JASP", "is_JASP_prefix")
+  allowed <- c(
+    "only_data", "only_priors", "is_JASP", "is_JASP_prefix",
+    allowed_extra
+  )
   .check_unused_dots(
     dots    = dots,
     allowed = allowed,

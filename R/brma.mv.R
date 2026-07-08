@@ -192,7 +192,11 @@ brma.mv <- function(
     known_v_parameterization,
     c("auto", "latent", "whitened", "block_mvn")
   )
-  dots <- .validate_constructor_dots(dots, caller = "brma.mv()")
+  dots <- .validate_constructor_dots(
+    dots          = dots,
+    caller        = "brma.mv()",
+    allowed_extra = c("vi", "sei")
+  )
 
   object <- .createObject(
     dots = dots, class = c("brma.mv", "brma.norm", "brma"),

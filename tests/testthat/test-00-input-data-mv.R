@@ -135,6 +135,59 @@ test_that("brma.mv supports variance vector V input", {
 })
 
 
+test_that("brma.mv supports hidden vi and sei diagonal known-V input", {
+
+  vi <- c(0.04, 0.09, 0.16)
+
+  vi_object <- brma.mv(
+    yi                        = c(0.10, 0.20, -0.05),
+    vi                        = vi,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+  sei_object <- brma.mv(
+    yi                        = c(0.10, 0.20, -0.05),
+    sei                       = sqrt(vi),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+  both_object <- brma.mv(
+    yi                        = c(0.10, 0.20, -0.05),
+    vi                        = vi,
+    sei                       = sqrt(vi),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+
+  expect_equal(.data_known_v_data(vi_object[["data"]])[["V"]], diag(vi))
+  expect_equal(.data_known_v_data(sei_object[["data"]])[["V"]], diag(vi))
+  expect_equal(.data_known_v_data(both_object[["data"]])[["V"]], diag(vi))
+  expect_error(
+    brma.mv(
+      yi        = c(0.10, 0.20, -0.05),
+      V         = vi,
+      vi        = vi,
+      measure   = "GEN",
+      only_data = TRUE
+    ),
+    "Use only one of 'V' and hidden 'vi'/'sei'"
+  )
+  expect_error(
+    brma.mv(
+      yi        = c(0.10, 0.20, -0.05),
+      vi        = vi,
+      sei       = sqrt(vi) + 0.01,
+      measure   = "GEN",
+      only_data = TRUE
+    ),
+    "must be consistent"
+  )
+})
+
+
 test_that("brma.mv warns and accepts rank-one all-correlated known V", {
 
   sei <- c(0.20, 0.30, 0.40)
@@ -1705,6 +1758,51 @@ test_that("diagonal brma.mv estimate likelihood matches brma.norm factorization"
 })
 
 
+test_that("diagonal brma.mv random estimate target remains factorized", {
+
+  object <- brma.mv(
+    yi                         = c(0.10, 0.20, -0.05),
+    V                          = diag(c(0.04, 0.09, 0.16)),
+    random                     = ~ 1 | study,
+    data                       = data.frame(study = c("a", "b", "c")),
+    measure                    = "GEN",
+    prior_unit_information_sd  = 1,
+    marginalize_estimate_level = FALSE,
+    only_priors                = TRUE
+  )
+  setup <- list(
+    fit               = NULL,
+    priors            = object[["priors"]],
+    data              = object[["data"]],
+    yi                = object[["data"]][["outcome"]][["yi"]],
+    sei               = object[["data"]][["outcome"]][["sei"]],
+    selection_sei     = object[["data"]][["outcome"]][["sei"]],
+    K                 = 3L,
+    S                 = 1L,
+    mu                = matrix(c(0, 0, 0), nrow = 1),
+    tau_within        = matrix(0, nrow = 1, ncol = 3),
+    tau_between       = matrix(0, nrow = 1, ncol = 3),
+    cluster           = NULL,
+    weights           = NULL,
+    data_hash         = .get_outcome_hash(object),
+    is_weightfunction = FALSE,
+    outcome_type      = "norm",
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 1, ncol = 0L)
+  )
+
+  target <- .estimate_log_lik_target_metadata(
+    setup     = setup,
+    data_hash = .get_outcome_hash(object)
+  )
+  expect_true(target[["known_v_estimate_backend"]])
+  expect_false(target[["known_v_schur"]])
+  expect_equal(target[["target"]], "factorized_estimate")
+  expect_equal(target[["dependency_component_sizes"]], rep(1L, 3L))
+  expect_equal(target[["random_effects"]], "conditioned")
+})
+
+
 test_that("brma.mv omits latent factors for diagonal known V", {
 
   object <- brma.mv(
@@ -3173,6 +3271,96 @@ test_that("brma.mv known-V estimate log-likelihood uses Schur conditional target
   expect_true(target[["known_v_estimate_backend"]])
   expect_true(target[["known_v_schur"]])
   expect_equal(target[["target"]], "known_v_estimate")
+})
+
+
+test_that("known-V dependency blocks are canonicalized from V metadata", {
+
+  object <- brma.mv(
+    yi                        = c(0.10, 0.20, -0.05),
+    V                         = matrix(
+      c(
+        0.04, 0.01, 0.00,
+        0.01, 0.09, 0.00,
+        0.00, 0.00, 0.16
+      ),
+      nrow = 3,
+      byrow = TRUE
+    ),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  data_missing_blocks <- object[["data"]]
+  known_V             <- .data_known_v_data(data_missing_blocks)
+  known_V[["block_indices"]] <- NULL
+  attr(data_missing_blocks, "known_V_data") <- known_V
+
+  blocks <- .known_v_dependency_blocks(data_missing_blocks, K = 3L)
+  expect_equal(blocks, list(1:2, 3L))
+
+  data_bad_blocks <- object[["data"]]
+  known_V         <- .data_known_v_data(data_bad_blocks)
+  known_V[["block_indices"]] <- list(c(1L, 1L), 3L)
+  attr(data_bad_blocks, "known_V_data") <- known_V
+  expect_error(
+    .known_v_dependency_blocks(data_bad_blocks, K = 3L),
+    "partition"
+  )
+})
+
+
+test_that("singular PSD known-V Cholesky targets fail with targeted messages", {
+
+  sei <- c(0.20, 0.30, 0.40)
+  V   <- tcrossprod(sei)
+
+  expect_warning(
+    object <- brma.mv(
+      yi                        = c(0.10, 0.20, -0.05),
+      V                         = V,
+      known_v_parameterization  = "block_mvn",
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    ),
+    "positive semidefinite"
+  )
+
+  setup <- list(
+    fit               = NULL,
+    priors            = object[["priors"]],
+    data              = object[["data"]],
+    yi                = object[["data"]][["outcome"]][["yi"]],
+    sei               = object[["data"]][["outcome"]][["sei"]],
+    selection_sei     = object[["data"]][["outcome"]][["sei"]],
+    K                 = 3L,
+    S                 = 1L,
+    mu                = matrix(c(0, 0, 0), nrow = 1),
+    tau_within        = matrix(0, nrow = 1, ncol = 3),
+    tau_between       = matrix(0, nrow = 1, ncol = 3),
+    cluster           = NULL,
+    weights           = NULL,
+    data_hash         = .get_outcome_hash(object),
+    is_weightfunction = FALSE,
+    outcome_type      = "norm",
+    effect_direction  = "positive",
+    posterior_samples = matrix(numeric(0), nrow = 1, ncol = 0L)
+  )
+
+  expect_error(
+    .log_lik_estimate_from_setup(setup),
+    "positive semidefinite"
+  )
+  expect_error(
+    .marglik_mvn_log_density(
+      y          = c(0.10, 0.20, -0.05),
+      mean       = rep(0, 3),
+      covariance = V
+    ),
+    "positive semidefinite"
+  )
 })
 
 
