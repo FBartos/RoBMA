@@ -301,10 +301,6 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     stop("VIF for brma.mv() is available only for normal outcome models.",
          call. = FALSE)
   }
-  if (.is_weights(object)) {
-    stop("VIF for brma.mv() weighted likelihoods is not implemented.",
-         call. = FALSE)
-  }
 
   sample_info <- .known_v_diagnostic_posterior_samples(
     object      = object,

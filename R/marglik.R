@@ -343,6 +343,13 @@ add_marglik.brma <- function(object, ...) {
   ### extract number of observations
   K <- data[["K"]]
 
+  if (is_known_v && is_weights) {
+    stop(
+      "Known-V bridge likelihoods do not support likelihood weights.",
+      call. = FALSE
+    )
+  }
+
   ### compute mu samples as 1 x K matrix
   # BayesTools evaluates the formula and returns:
   # - scalar mu (no mods) -> replicate to K columns

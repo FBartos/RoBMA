@@ -132,6 +132,11 @@ with \eqn{\Phi^{-1}}. When \code{smooth = TRUE}, bounds are smoothed using
 Friedman's SuperSmoother. When \code{bonferroni = TRUE}, the confidence
 level is adjusted for simultaneous inference across all \eqn{k} comparisons.
 
+For correlated known-\code{V} \code{brma.mv()} \code{"rstandard"} residuals,
+this envelope remains an independent order-statistic reference band. It is
+descriptive and does not model residual correlation induced by known sampling
+covariance.
+
 For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
 approximate effect-size scale used by \code{loo}; they are not exact
 count-scale PIT diagnostics.

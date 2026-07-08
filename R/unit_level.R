@@ -288,9 +288,12 @@
 # @return stops.
 #
 # ---------------------------------------------------------------------------- #
-.check_cluster_unit_deferred <- function(caller) {
+.check_cluster_unit_deferred <- function(caller, argument = "unit") {
   # Cluster residual diagnostics need a separate Mahalanobis/chi-square design
-  stop(caller, " with unit = 'cluster' is not implemented currently.", call. = FALSE)
+  stop(
+    caller, " with ", argument, " = 'cluster' is not implemented currently.",
+    call. = FALSE
+  )
 }
 
 
@@ -341,10 +344,15 @@
   is_brma_mv <- inherits(object, "brma.mv")
 
   if (unit == "cluster" && is_brma_mv) {
+    mv_scope <- if (.is_data_known_v(data)) {
+      "brma.mv() known-V models"
+    } else {
+      "brma.mv() models"
+    }
     stop(
       caller,
-      " with unit = 'cluster' is not implemented for brma.mv() known-V ",
-      "models yet. Use unit = 'estimate'.",
+      " with unit = 'cluster' is not implemented for ", mv_scope,
+      " yet. Use unit = 'estimate'.",
       call. = FALSE
     )
   }

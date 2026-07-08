@@ -243,7 +243,7 @@ NULL
   BayesTools::check_bool(allow_na_drop, "allow_na_drop")
   BayesTools::check_bool(known_v_residual_fraction_specified, "known_v_residual_fraction_specified")
   if (is.null(known_v_parameterization)) {
-    known_v_parameterization <- "latent"
+    known_v_parameterization <- "auto"
   }
   BayesTools::check_char(
     known_v_parameterization,
@@ -390,12 +390,6 @@ NULL
   .check_and_list_data.validate_predictors(data_mods, "mods", skip_validation)
   .check_and_list_data.scale_validate_predictors(data_scale, skip_validation)
   data_scale <- .check_and_list_data.validate_scale_random(data_scale, data_random)
-  if (!is.null(known_V_input) && known_v_parameterization == "whitened" && !is.null(data_scale)) {
-    stop(
-      "known_v_parameterization = 'whitened' is currently available only without scale regression.",
-      call. = FALSE
-    )
-  }
 
   # Generate default study labels if not provided (after NA dropping)
   if (!slab_provided) {
@@ -641,10 +635,14 @@ NULL
 
   optional <- .check_and_list_data.optional_vars(.call, data, .envir, k, "yi")
   if (optional$weights_provided) {
-    stop("'weights' are not yet supported for brma.mv().", call. = FALSE)
+    stop("'weights' are not supported in brma.mv().", call. = FALSE)
   }
   if (optional$cluster_provided) {
-    stop("'cluster' is not supported for brma.mv().", call. = FALSE)
+    stop(
+      "'cluster' is not supported in brma.mv(); use the dedicated ",
+      "'random' argument for multilevel structures.",
+      call. = FALSE
+    )
   }
 
   data_outcome <- data.frame(

@@ -61,6 +61,9 @@ influence.brma <- function(model, ...) {
   # hatvalues, dffit, and cooks distance are possible only for normal-normal models
   outcome_type       <- .outcome_type(model)
   is_weightfunction  <- .is_weightfunction(model)
+  if (inherits(model, "brma.mv")) {
+    .check_fixed_location_influence_available(model, "influence")
+  }
   psis_context       <- .diagnostic_psis_context(model)
   loo_wts            <- psis_context[["psis_weights"]]
 

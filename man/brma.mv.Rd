@@ -176,6 +176,9 @@ arguments; currently recognized internal arguments include \code{only_data},
 }
 \value{
 A fitted object of class \code{c("brma.mv", "brma.norm", "brma")}.
+The advanced internal \code{only_data = TRUE} path returns checked data before
+prior validation and random-effect marginalization decisions; use
+\code{only_priors = TRUE} when inspecting the compiled random-effect structure.
 }
 \description{
 Fits normal-likelihood Bayesian meta-analytic models with a

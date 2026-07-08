@@ -83,6 +83,29 @@ test_that("PSIS tau deletion helper aggregates remaining scale rows", {
   expect_equal(.influence_tau_del_from_samples(tau_samples, weights), expected)
 })
 
+test_that("influence mv branch uses fixed-location availability guard", {
+
+  model <- structure(
+    list(data = structure(list(), outcome_type = "norm"), priors = list()),
+    class = c("brma.mv", "brma.norm", "brma")
+  )
+
+  testthat::local_mocked_bindings(
+    .outcome_type = function(model) {
+      "norm"
+    },
+    .is_weightfunction = function(model) {
+      TRUE
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    influence(model),
+    "selection models"
+  )
+})
+
 test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
 
   model <- structure(

@@ -51,17 +51,7 @@
 #' @exportS3Method
 cooks.distance.brma <- function(model, ...) {
 
-  # the function relies on hatvalues
-  # as such it is sensible only sensible for normal models
-  outcome_type       <- .outcome_type(model)
-  is_weightfunction  <- .is_weightfunction(model)
-
-  if (outcome_type != "norm") {
-    stop("cooks.distance is only available for normal outcome models.", call. = FALSE)
-  }
-  if (is_weightfunction) {
-    stop("cooks.distance is not available for selection models (weightfunction).", call. = FALSE)
-  }
+  .check_fixed_location_influence_available(model, "cooks.distance")
 
   fit_samples <- .influence_fit_samples(model)
   weights     <- .diagnostic_psis_weights(model)

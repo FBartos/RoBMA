@@ -392,7 +392,7 @@
     )
 
   } else {
-    .check_cluster_unit_deferred("rstandard()")
+    .check_cluster_unit_deferred("rstandard()", argument = "conditioning_depth")
   }
 
   result <- list(

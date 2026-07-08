@@ -123,6 +123,9 @@
 #' summaries rather than a single \eqn{\tau}/\eqn{I^2} table.
 #'
 #' @return A fitted object of class `c("brma.mv", "brma.norm", "brma")`.
+#' The advanced internal `only_data = TRUE` path returns checked data before
+#' prior validation and random-effect marginalization decisions; use
+#' `only_priors = TRUE` when inspecting the compiled random-effect structure.
 #'
 #' @examples \dontrun{
 #' V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)

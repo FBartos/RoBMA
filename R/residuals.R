@@ -429,7 +429,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
     )
     out
   } else {
-    .check_cluster_unit_deferred("residuals()")
+    .check_cluster_unit_deferred("residuals()", argument = "conditioning_depth")
   }
 
   out <- sqrt(se2)

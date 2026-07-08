@@ -88,6 +88,21 @@
 }
 
 
+.check_fixed_location_influence_available <- function(model, caller) {
+
+  if (.outcome_type(model) != "norm") {
+    stop(caller, " is only available for normal outcome models.",
+         call. = FALSE)
+  }
+  if (.is_weightfunction(model)) {
+    stop(caller, " is not available for selection models (weightfunction).",
+         call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+
 .diagnostic_location_parameter_samples <- function(model,
                                                    standardized_coefficients = FALSE,
                                                    transform_factors = TRUE) {

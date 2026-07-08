@@ -489,6 +489,153 @@ test_that("brma.mv known R row multipliers respect Rscale", {
 })
 
 
+test_that("known-R marginalization availability rethrows unexpected errors", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  K <- diag(c(4, 9, 16))
+  dimnames(K) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+  object <- brma.mv(
+    yi                         = yi,
+    V                          = diag(0.01, nrow(dat)),
+    random                     = ~ 1 | estimate,
+    R                          = K,
+    Rscale                     = "none",
+    data                       = dat,
+    measure                    = "GEN",
+    marginalize_estimate_level = FALSE,
+    prior_unit_information_sd  = 1,
+    only_priors                = TRUE
+  )
+  sampled_design <- .object_bayestools_formula_design(
+    object                 = object,
+    parameter              = "mu",
+    source                 = "location",
+    random_effects_compile = NULL
+  )
+
+  testthat::local_mocked_bindings(
+    random_effects_marginal_variance_factors = function(...) {
+      stop("sentinel BayesTools failure", call. = FALSE)
+    },
+    .package = "BayesTools"
+  )
+
+  expect_error(
+    .known_r_marginal_variance_factors_available(
+      formula_design = sampled_design,
+      block          = "estimate"
+    ),
+    "sentinel BayesTools failure"
+  )
+})
+
+
+test_that("known-V marginal covariance includes marginalized known-R row multipliers", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30),
+    estimate = factor(c("e1", "e2", "e3"), levels = c("e1", "e2", "e3"))
+  )
+  K <- diag(c(4, 9, 16))
+  dimnames(K) <- list(levels(dat[["estimate"]]), levels(dat[["estimate"]]))
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(dat)),
+    random                    = ~ 1 | estimate,
+    R                         = K,
+    Rscale                    = "none",
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  term       <- .data_marginalized_random_effects(object[["data"]])[[1L]]
+  sd_name    <- term[["sd_parameter_names"]]
+  sd_samples <- c(0.20, 0.40)
+  posterior_samples <- matrix(
+    sd_samples,
+    nrow     = length(sd_samples),
+    dimnames = list(NULL, sd_name)
+  )
+  covariance_samples <- .known_v_marginal_covariance_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  expected_diag <- matrix(
+    rep(0.01, length(sd_samples) * nrow(dat)),
+    nrow = length(sd_samples)
+  ) + tcrossprod(sd_samples^2, unname(term[["row_multiplier"]]))
+
+  for (s in seq_along(sd_samples)) {
+    expect_equal(
+      unname(covariance_samples[s, , ]),
+      diag(expected_diag[s, ], nrow = nrow(dat)),
+      tolerance = 1e-12
+    )
+  }
+
+  mixed_dat <- data.frame(
+    yi       = c(0.10, 0.20, 0.30, 0.40),
+    study    = c("s1", "s1", "s2", "s2"),
+    estimate = factor(paste0("e", 1:4))
+  )
+  mixed_K <- diag(c(4, 9, 16, 25))
+  dimnames(mixed_K) <- list(
+    levels(mixed_dat[["estimate"]]),
+    levels(mixed_dat[["estimate"]])
+  )
+  mixed_object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(0.01, nrow(mixed_dat)),
+    random                    = list(
+      study    = ~ 1 | study,
+      estimate = ~ 1 | estimate
+    ),
+    R                         = list(estimate = mixed_K),
+    Rscale                    = "none",
+    data                      = mixed_dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  mixed_terms <- .fitted_formula_design(
+    mixed_object,
+    "mu",
+    required = TRUE
+  )[["random_effects"]]
+  mixed_sd_names <- stats::setNames(
+    vapply(mixed_terms, `[[`, character(1), "sd_parameter_names"),
+    vapply(mixed_terms, `[[`, character(1), "block_name")
+  )
+  mixed_posterior <- matrix(
+    c(0.20, 0.30),
+    nrow     = 1,
+    dimnames = list(NULL, mixed_sd_names[c("study", "estimate")])
+  )
+  mixed_covariance <- .known_v_marginal_covariance_samples(
+    object            = mixed_object,
+    posterior_samples = mixed_posterior
+  )[1, , ]
+  mixed_row_multiplier <- .data_marginalized_random_effects(
+    mixed_object[["data"]]
+  )[[1L]][["row_multiplier"]]
+  expected_mixed <- diag(0.01, nrow(mixed_dat))
+  expected_mixed[1:2, 1:2] <- expected_mixed[1:2, 1:2] + 0.20^2
+  expected_mixed[3:4, 3:4] <- expected_mixed[3:4, 3:4] + 0.20^2
+  expected_mixed <- expected_mixed +
+    diag(0.30^2 * unname(mixed_row_multiplier), nrow = nrow(mixed_dat))
+
+  expect_equal(
+    unname(mixed_covariance),
+    expected_mixed,
+    tolerance = 1e-12
+  )
+})
+
+
 test_that("brma.mv keeps unsupported known R marginalization designs sampled", {
 
   repeated <- known_r_data()

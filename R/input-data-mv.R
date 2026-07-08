@@ -216,6 +216,12 @@
     stop("Internal error: invalid known-V row selector.", call. = FALSE)
   }
   BayesTools::check_bool(known_v_is_scale, "known_v_is_scale")
+  if (known_v_parameterization == "whitened" && known_v_is_scale) {
+    stop(
+      "known_v_parameterization = 'whitened' is currently available only without scale regression.",
+      call. = FALSE
+    )
+  }
 
   if (is.null(known_v_residual_fraction)) {
     known_v_residual_fraction <- 0.10

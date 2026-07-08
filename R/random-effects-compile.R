@@ -187,10 +187,29 @@
       require_diagonal    = TRUE,
       require_one_to_one  = TRUE
     ),
-    error = function(e) NULL
+    error = function(e) {
+      if (.known_r_marginal_variance_factors_unavailable_error(e)) {
+        return(NULL)
+      }
+      stop(e)
+    }
   )
 
   !is.null(factors)
+}
+
+
+.known_r_marginal_variance_factors_unavailable_error <- function(error) {
+
+  error_message <- conditionMessage(error)
+  expected <- c(
+    "do not support row-indexed external SD sources",
+    "require one random-effect column",
+    "require diagonal row-space covariance",
+    "require a one-to-one row-to-group mapping"
+  )
+
+  any(vapply(expected, grepl, logical(1), x = error_message, fixed = TRUE))
 }
 
 

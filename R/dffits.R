@@ -62,26 +62,17 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' @exportS3Method
 dffits.brma <- function(model, ...) {
 
-    # the function relies on the normal-normal hat matrix
-    outcome_type      <- .outcome_type(model)
-    is_weightfunction <- .is_weightfunction(model)
+  .check_fixed_location_influence_available(model, "dffits")
 
-    if (outcome_type != "norm") {
-      stop("dffits is only available for normal outcome models.", call. = FALSE)
-    }
-    if (is_weightfunction) {
-      stop("dffits is not available for selection models (weightfunction).", call. = FALSE)
-    }
+  fit_samples <- .influence_fit_samples(model)
+  weights     <- .diagnostic_psis_weights(model)
+  dffits_vec  <- .dffits_internal(fit_samples, weights)
+  dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
+  if (inherits(model, "brma.mv")) {
+    dffits_vec <- .brma_mv_attach_target_metadata(dffits_vec, "dffits()")
+  }
 
-    fit_samples <- .influence_fit_samples(model)
-    weights     <- .diagnostic_psis_weights(model)
-    dffits_vec  <- .dffits_internal(fit_samples, weights)
-    dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
-    if (inherits(model, "brma.mv")) {
-      dffits_vec <- .brma_mv_attach_target_metadata(dffits_vec, "dffits()")
-    }
-
-    return(dffits_vec)
+  return(dffits_vec)
 }
 
 .dffits_internal <- function(fit_samples, weights) {

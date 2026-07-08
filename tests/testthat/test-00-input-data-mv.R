@@ -188,6 +188,30 @@ test_that("brma.mv supports hidden vi and sei diagonal known-V input", {
 })
 
 
+test_that("internal mv data input defaults NULL known-V parameterization to auto", {
+
+  yi <- c(0.10, 0.20)
+  V  <- matrix(c(0.04, 0.01, 0.01, 0.09), nrow = 2)
+
+  data <- .check_and_list_data(
+    .call                              = quote(brma.mv(yi = yi, V = V)),
+    .envir                             = environment(),
+    class                              = "mv",
+    measure                            = "GEN",
+    set_contrast_factor_predictors    = "treatment",
+    standardize_continuous_predictors = FALSE,
+    random_group_covariance            = NULL,
+    known_v_parameterization            = NULL,
+    known_v_residual_fraction           = NULL,
+    known_v_residual_fraction_specified = FALSE
+  )
+  known_V <- .data_known_v_data(data)
+
+  expect_equal(known_V[["parameterization_requested"]], "auto")
+  expect_equal(known_V[["parameterization"]], "whitened")
+})
+
+
 test_that("brma.mv warns and accepts rank-one all-correlated known V", {
 
   sei <- c(0.20, 0.30, 0.40)
@@ -2606,6 +2630,17 @@ test_that("brma.mv rejects unsupported whitened known-V combinations", {
     ),
     "scale regression"
   )
+  expect_error(
+    .known_v_prepare(
+      V                                   = matrix(c(0.04, 0.03, 0.03, 0.09), nrow = 2),
+      keep_rows                           = c(TRUE, TRUE),
+      known_v_parameterization            = "whitened",
+      known_v_residual_fraction           = NULL,
+      known_v_residual_fraction_specified = FALSE,
+      known_v_is_scale                    = TRUE
+    ),
+    "scale regression"
+  )
 })
 
 
@@ -2693,6 +2728,25 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     ),
     block_expected,
     tolerance = 1e-10
+  )
+  expect_error(
+    .log_posterior(
+      parameters                 = parameters,
+      data                       = block_fit_data,
+      is_mods                    = FALSE,
+      is_scale                   = FALSE,
+      is_multilevel              = FALSE,
+      is_weights                 = TRUE,
+      is_known_v                 = TRUE,
+      is_PET                     = FALSE,
+      is_PEESE                   = FALSE,
+      is_weightfunction          = FALSE,
+      effect_direction           = "positive",
+      outcome_type               = "norm",
+      known_v_parameterization   = "block_mvn",
+      model_data                 = block_mvn[["data"]]
+    ),
+    "Known-V bridge likelihoods"
   )
   block_setup <- list(
     fit               = NULL,
