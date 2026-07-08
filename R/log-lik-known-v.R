@@ -402,11 +402,14 @@
   }
 
   source_names <- .known_v_marginalized_random_row_source_names(data)
-  if (!"tau" %in% source_names) {
+  if (length(source_names) != 1L) {
     return(NULL)
   }
 
-  list(tau = as.matrix(tau_within_samples))
+  stats::setNames(
+    list(as.matrix(tau_within_samples)),
+    source_names
+  )
 }
 
 

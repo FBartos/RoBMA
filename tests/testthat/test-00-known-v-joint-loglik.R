@@ -90,6 +90,91 @@ test_that("evaluated known-V random log-likelihood requires conditioned mu", {
 })
 
 
+test_that("evaluated known-V marginalized scale maps component row source", {
+
+  dat <- data.frame(
+    yi       = c(0.10, 0.20, -0.05, 0.15),
+    estimate = paste0("e", 1:4),
+    x        = c(0, 1, 0, 1)
+  )
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = diag(rep(0.04, 4)),
+    random                    = list(effect = ~ 1 | estimate),
+    scale                     = list(effect = ~ x),
+    data                      = dat,
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  mu_samples         <- matrix(0, nrow = 1L, ncol = 4L)
+  tau_within_samples <- matrix(c(0.10, 0.20, 0.30, 0.40), nrow = 1L)
+  posterior_samples  <- matrix(numeric(0), nrow = 1L, ncol = 0L)
+
+  source_samples <- .known_v_marginalized_random_source_samples_from_tau(
+    data               = object[["data"]],
+    tau_within_samples = tau_within_samples
+  )
+  expect_named(source_samples, "tau_effect")
+  expect_equal(source_samples[["tau_effect"]], tau_within_samples)
+
+  formula_args <- .create_jags_formula_args(
+    data   = object[["data"]],
+    priors = object[["priors"]]
+  )
+  expect_true("tau_effect" %in% formula_args[["add_parameters"]])
+
+  log_lik <- .log_lik_known_v_joint_sum_from_evaluated_predictors(
+    fit                         = object[["fit"]],
+    data                        = object[["data"]],
+    priors                      = object[["priors"]],
+    mu_samples                  = mu_samples,
+    tau_within_samples          = tau_within_samples,
+    posterior_samples           = posterior_samples,
+    random_effects_conditioning = "included_in_mu"
+  )
+  expected <- .marglik_mvn_log_density(
+    y          = dat[["yi"]],
+    mean       = rep(0, 4),
+    covariance = diag(rep(0.04, 4) + as.numeric(tau_within_samples)^2)
+  )
+
+  expect_equal(log_lik, expected, tolerance = 1e-12)
+
+  bridge_context <- structure(
+    list(nodes = stats::setNames(
+      as.numeric(tau_within_samples),
+      paste0("tau_effect[", seq_len(ncol(tau_within_samples)), "]")
+    )),
+    class = c("BayesTools_bridge_context", "list")
+  )
+  expect_equal(
+    .log_posterior(
+      parameters                 = list(mu = 0),
+      data                       = .create_fit_data(object[["data"]], object[["priors"]]),
+      is_mods                    = FALSE,
+      is_scale                   = TRUE,
+      is_random                  = TRUE,
+      is_multilevel              = FALSE,
+      is_weights                 = FALSE,
+      is_known_v                 = TRUE,
+      is_PET                     = FALSE,
+      is_PEESE                   = FALSE,
+      is_weightfunction          = FALSE,
+      effect_direction           = "positive",
+      outcome_type               = "norm",
+      known_v_parameterization   = "block_mvn",
+      model_data                 = object[["data"]],
+      bridge_context             = bridge_context
+    ),
+    expected,
+    tolerance = 1e-12
+  )
+})
+
+
 test_that("IWMDE evaluated known-V likelihood matches joint MVN oracle", {
 
   V <- matrix(c(0.04, 0.015, 0.015, 0.09), nrow = 2L)
