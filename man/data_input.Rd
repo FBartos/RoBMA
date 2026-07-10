@@ -26,8 +26,10 @@ likelihood.}
 \item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
 conditional independent residual sampling variance in the latent \verb{D + BB'}
 representation. Defaults to \code{0.10}; values are validated for all backends
-and explicitly supplied values are disregarded with a warning when
-\code{known_v_parameterization} is \code{"whitened"} or \code{"block_mvn"}.}
+but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
+\code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
+Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
+supplied.}
 
 \item{weights}{an optional vector of positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For

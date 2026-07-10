@@ -378,7 +378,8 @@ pooled_heterogeneity <- function(object, ...) {
 #' @title Pooled Heterogeneity for brma Objects
 #'
 #' @description Computes the pooled (aggregated) heterogeneity estimate (tau)
-#' from a fitted brma object by averaging across the scale model matrix.
+#' from a fitted brma object by pooling heterogeneity variances across the
+#' scale model matrix.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
@@ -393,12 +394,11 @@ pooled_heterogeneity <- function(object, ...) {
 #' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.
 #'
 #' @details
-#' This function is a convenience wrapper around \code{predict.brma(...,
-#' type = "terms.scale", newdata = TRUE)}.
-#'
 #' For location-scale models (with scale regression), the pooled heterogeneity
-#' averages tau across the scale model matrix proportionately to the levels
-#' observed in the data.
+#' is the square root of the average observation-specific heterogeneity
+#' variance, \eqn{\sqrt{mean(\tau_i^2)}}. This differs from
+#' \code{predict(..., type = "terms.scale", newdata = TRUE)}, which reports the
+#' average predicted standard deviation.
 #'
 #' For models without scale regression, this returns the single tau parameter.
 #'
@@ -454,20 +454,30 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
 
   .check_univariate_heterogeneity_component(component)
 
-  out <- predict.brma(
+  scale_samples <- predict.brma(
     object      = object,
-    newdata     = TRUE,
+    newdata     = NULL,
     type        = "terms.scale",
     probs       = probs,
     conditional = conditional,
     quiet       = TRUE,
     ...
   )
-  attr(out, "title") <- if (conditional) {
-    "Conditional Pooled Heterogeneity"
-  } else {
-    "Pooled Heterogeneity"
-  }
+  samples <- matrix(sqrt(rowMeans(as.matrix(scale_samples)^2)), ncol = 1L)
+  colnames(samples) <- "tau"
+
+  out <- .new_brma_samples(
+    samples  = samples,
+    n_chains = attr(scale_samples, "nchains"),
+    n_iter   = attr(scale_samples, "niter"),
+    title    = if (conditional) {
+      "Conditional Pooled Heterogeneity"
+    } else {
+      "Pooled Heterogeneity"
+    },
+    probs    = probs,
+    data     = NULL
+  )
   return(out)
 }
 

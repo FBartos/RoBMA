@@ -21,6 +21,19 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 info      <- lazy_infos(fit_names, validate = FALSE)
 
 
+.expected_known_v_estimate_target <- function(object) {
+
+  known_V <- .data_known_v_data(object[["data"]])
+  V       <- known_V[["V"]]
+
+  if (any(V[row(V) != col(V)] != 0)) {
+    return("known_v_estimate")
+  }
+
+  return("factorized_estimate")
+}
+
+
 test_that("logLik returns finite pointwise matrices for cached fits", {
 
   for (name in c("bcg_meta-analysis", "bcg_meta-regression")) {
@@ -192,11 +205,7 @@ test_that("brma.mv known-V fits expose conditional estimate-unit LOO and WAIC", 
     expect_true(all(is.finite(log_lik)), info = name)
     expect_equal(
       target[["target"]],
-      if (isTRUE(target[["known_v_schur"]])) {
-        "known_v_estimate"
-      } else {
-        "factorized_estimate"
-      },
+      .expected_known_v_estimate_target(fit_brma),
       info = name
     )
     expect_true(isTRUE(target[["known_v"]]), info = name)
@@ -279,11 +288,7 @@ test_that("v14 brma.mv metafor fixtures cache usable estimate-unit LOO", {
     expect_true(all(is.finite(log_lik)), info = name)
     expect_equal(
       target[["target"]],
-      if (isTRUE(target[["known_v_schur"]])) {
-        "known_v_estimate"
-      } else {
-        "factorized_estimate"
-      },
+      .expected_known_v_estimate_target(fit_brma),
       info = name
     )
     expect_true(isTRUE(target[["known_v_estimate_backend"]]), info = name)

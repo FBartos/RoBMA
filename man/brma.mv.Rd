@@ -139,8 +139,10 @@ likelihood.}
 \item{known_v_residual_fraction}{proportion of the diagonal of \code{V} left as
 conditional independent residual sampling variance in the latent \verb{D + BB'}
 representation. Defaults to \code{0.10}; values are validated for all backends
-and explicitly supplied values are disregarded with a warning when
-\code{known_v_parameterization} is \code{"whitened"} or \code{"block_mvn"}.}
+but affect only the latent backend. When \code{"auto"} selects \code{"whitened"} or
+\code{"block_mvn"}, explicitly supplied values are disregarded by the likelihood.
+Direct \code{"whitened"} or \code{"block_mvn"} requests warn when an explicit value is
+supplied.}
 
 \item{marginalize_estimate_level}{logical; should a one-to-one estimate-level
 random-intercept block be integrated into the likelihood variance instead of
@@ -200,6 +202,10 @@ threshold, and falls back to the latent backend for large blocks. The automatic
 block-MVN threshold defaults to 128 rows per covariance block and can be
 changed with \code{options(RoBMA.known_v_block_mvn_max_block_size = value)}, where
 \code{value} is a positive integer or \code{Inf}.
+As a convenience for diagonal known-\code{V} inputs, \code{brma.mv()} also accepts
+hidden \code{vi} or \code{sei} arguments through \code{...} when \code{V} is omitted; these are
+converted to \code{diag(vi)} or \code{diag(sei^2)}. Do not supply \code{V} together with
+\code{vi} or \code{sei}.
 
 The \code{random} argument uses BayesTools
 \link[=random_effect_formula_tags]{random-effect formula structure tags}.

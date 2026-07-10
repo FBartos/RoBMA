@@ -895,11 +895,12 @@ add_marglik.brma <- function(object, ...) {
 }
 
 
-.marglik_mvn_log_density <- function(y, mean, covariance) {
+.marglik_mvn_log_density <- function(y, mean, covariance,
+                                     context = "bridge") {
 
   chol_covariance <- .known_v_chol_covariance(
     covariance = covariance,
-    context    = "bridge"
+    context    = context
   )
 
   residual <- y - mean

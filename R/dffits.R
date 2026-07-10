@@ -64,8 +64,11 @@ dffits.brma <- function(model, ...) {
 
   .check_fixed_location_influence_available(model, "dffits")
 
+  psis_context <- .diagnostic_psis_context(model)
+  .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
+
   fit_samples <- .influence_fit_samples(model)
-  weights     <- .diagnostic_psis_weights(model)
+  weights     <- psis_context[["psis_weights"]]
   dffits_vec  <- .dffits_internal(fit_samples, weights)
   dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
   if (inherits(model, "brma.mv")) {

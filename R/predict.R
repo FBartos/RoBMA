@@ -38,10 +38,12 @@
 #'   effects (mu + gamma + theta). For existing normal data, returns posterior
 #'   draws of conditional BLUP means, not simulated latent-effect draws.
 #'   Existing \code{brma.mv()} random-formula models return conditional true
-#'   effects at fitted random-effect levels. For \code{brma.mv()}
-#'   random-formula models, explicit \code{newdata} conditions on existing
-#'   random-effect levels and samples unseen random-effect levels. Aggregated
-#'   random-formula predictions marginalize random effects and average across
+  #'   effects at fitted random-effect levels. \code{brma.mv()} response
+  #'   predictions marginalize random-formula effects so they are comparable to
+  #'   ordinary \code{brma()} response predictions. For \code{brma.mv()}
+  #'   random-formula models, explicit \code{newdata} conditions on existing
+  #'   random-effect levels and samples unseen random-effect levels. Aggregated
+  #'   random-formula predictions marginalize random effects and average across
 #'   rows.}
 #'   \item{\code{"response"} (alias: \code{"outcome"}): Predicted observed values (yi).
 #'   Incorporates both heterogeneity and sampling variability. For known-\code{V}
@@ -105,13 +107,14 @@
 #' posterior draw. It is therefore an empirical-Bayes summary, not a draw from
 #' the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
 #' \code{brma.mv()} random-formula models, fitted-level sampled random effects
-#' are added to the fixed location and the result is titled conditional true
-#' effects. Random-effect blocks compiled as marginalized contribute Gaussian
-#' BLUP means for existing-data predictions; existing-data response predictions
-#' then add only the known sampling covariance. For explicit new data, unseen
-#' random-effect levels are sampled from their model distribution. For aggregated
-#' random-formula predictions, random effects are sampled marginally before
-#' averaging over rows.
+  #' are added to the fixed location and the result is titled conditional true
+  #' effects. Random-effect blocks compiled as marginalized contribute Gaussian
+  #' BLUP means for existing-data estimate predictions. Existing-data response
+  #' predictions instead use the fixed-location mean and add the marginal
+  #' random-effect covariance to the known sampling covariance. For explicit new
+  #' data, unseen random-effect levels are sampled from their model distribution.
+  #' For aggregated random-formula predictions, random effects are sampled
+  #' marginally before averaging over rows.
 #'
 #' For RoBMA product-space objects, conditional posterior predictions subset
 #' posterior rows according to model indicators. This removes the original
@@ -132,12 +135,12 @@
 #' \code{sei / sqrt(weight)}.
 #'
 #' For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
-#' response prediction requires \code{V_new}. Non-random models draw from the
-#' new sampling covariance plus posterior heterogeneity. Random-formula models
-#' draw from a joint normal with fixed-location mean and covariance
-#' \code{V_new} plus the marginal random-effect covariance and any
-#' marginalized estimate-level variance. Cross-covariance with observed rows is
-#' not supported. Explicit \code{newdata} estimate/response predictions are not
+  #' response prediction requires \code{V_new}. Non-random models draw from the
+  #' new sampling covariance plus posterior heterogeneity. Random-formula models
+  #' draw from a joint normal with fixed-location mean and covariance
+  #' \code{V} or \code{V_new} plus the marginal random-effect covariance and any
+  #' marginalized estimate-level variance. Cross-covariance with observed rows is
+  #' not supported. Explicit \code{newdata} estimate/response predictions are not
 #' available for \code{brma.mv()} objects with marginalized known-\code{R}
 #' blocks, because their row multipliers are fitted-row metadata.
 #' \code{brma.mv()} prediction results carry a
@@ -590,7 +593,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     ))
   }
 
-  ### get fixed location samples and add conditional random-formula effects explicitly
+  ### get fixed location samples and add random-formula effects for true-effect targets
   mu_samples <- .evaluate.brma.mu(
     fit               = object[["fit"]],
     outcome_data      = outcome_data,
@@ -606,7 +609,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     posterior_samples = posterior_samples,
     priors            = priors
   )
-  if (random_mv && (type == "estimate" || (type == "response" && is.null(known_V_new)))) {
+  if (random_mv && type == "estimate") {
     mu_samples <- mu_samples + .evaluate.brma.random_effects(
       fit               = object[["fit"]],
       data              = new_data,
@@ -618,7 +621,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
       object            = object
     )
   }
-  if (random_mv && type == "estimate" && !same_data && !aggregate &&
+  if (random_mv && type == "estimate" && !same_data &&
       .is_data_known_v(object[["data"]]) &&
       .data_has_marginalized_random_effects(object[["data"]])) {
     mu_samples <- mu_samples + .predict_known_v_marginalized_random_draws(
@@ -712,7 +715,7 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
     mu_samples <- mu_samples + cluster_contribution
   }
 
-  if (random_mv && type %in% c("estimate", "response") &&
+  if (random_mv && type == "estimate" &&
       outcome_type == "norm" && same_data && is_known_v &&
       .data_has_marginalized_random_effects(new_data)) {
     marginalized_blup <- .evaluate.brma.mv_marginalized_random_blup.norm(
@@ -957,12 +960,21 @@ predict.brma <- function(object, newdata = NULL, V_new = NULL,
 
       if (bias_adjusted || !is_weightfunction) {
 
-        if (!is.null(known_V_new) && random_mv) {
-          covariance_samples <- .predict_known_v_newdata_response_covariance(
+        if (random_mv && is_known_v && (same_data || !is.null(known_V_new))) {
+          covariance_samples <- .predict_known_v_response_covariance(
             object            = object,
             data              = new_data,
-            known_V_new       = known_V_new,
-            posterior_samples = posterior_samples
+            known_V           = if (!is.null(known_V_new)) {
+              known_V_new
+            } else {
+              .data_known_v_data(new_data)
+            },
+            posterior_samples = posterior_samples,
+            caller            = if (!is.null(known_V_new)) {
+              "known-V newdata response prediction"
+            } else {
+              "known-V existing-data response prediction"
+            }
           )
           outcome_samples <- .outcome_rng.norm_known_v_covariance(
             mu_samples         = mu_samples,

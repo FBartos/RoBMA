@@ -53,8 +53,11 @@ cooks.distance.brma <- function(model, ...) {
 
   .check_fixed_location_influence_available(model, "cooks.distance")
 
+  psis_context <- .diagnostic_psis_context(model)
+  .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
+
   fit_samples <- .influence_fit_samples(model)
-  weights     <- .diagnostic_psis_weights(model)
+  weights     <- psis_context[["psis_weights"]]
   P           <- qr(.get_model_matrix(model))[["rank"]]
   d_vec       <- .cooks.distance_internal(fit_samples, weights, P)
   d_vec       <- .diagnostic_set_names(d_vec, model)

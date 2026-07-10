@@ -215,7 +215,8 @@
       log_lik[[s]] <- log_lik[[s]] + .marglik_mvn_log_density(
         y          = yi[idx],
         mean       = mu_samples[s, idx],
-        covariance = covariance
+        covariance = covariance,
+        context    = "joint likelihood"
       )
     }
   }

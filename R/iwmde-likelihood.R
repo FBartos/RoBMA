@@ -102,6 +102,11 @@
   }
 
   if (.iwmde_uses_known_v_joint_likelihood(context)) {
+    # Certified callers of this wrapper must pass mu_samples from the IWMDE
+    # evaluated-predictor path, where sampled random effects for known-V
+    # random-formula models are already included in the location predictor.
+    # `.log_lik_evaluated_setup()` asserts this contract before evaluating the
+    # joint known-V likelihood.
     random_effects_conditioning <- .iwmde_random_effects_conditioning_for_evaluated_mu(
       context
     )

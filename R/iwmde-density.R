@@ -148,6 +148,7 @@
   base_state[["baseline_focal_log_prior"]] <- baseline_focal_log_prior
   base_state[["use_focal_prior_delta"]]        <- is_primitive &&
     !.iwmde_parameter_is_eta(parameter) &&
+    !.iwmde_parameter_controls_sampled_random_sd(context, parameter) &&
     is.finite(baseline_focal_log_prior) &&
     .iwmde_can_use_focal_prior_delta(focal_prior)
   base_state[["baseline_log_q"]]               <- baseline_log_q

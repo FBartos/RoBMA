@@ -588,7 +588,7 @@
   data_weights        <- setup[["weights"]]
 
   if (.known_v_estimate_target_uses_backend(data)) {
-    return(rowSums(.log_lik_known_v_estimate_target_from_setup(setup)))
+    return(.log_lik_known_v_joint_sum_from_setup(setup))
   }
 
   if (is.null(selection_sei)) {

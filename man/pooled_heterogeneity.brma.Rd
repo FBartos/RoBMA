@@ -38,15 +38,15 @@ obtain the summary table directly. The samples can be converted to
 }
 \description{
 Computes the pooled (aggregated) heterogeneity estimate (tau)
-from a fitted brma object by averaging across the scale model matrix.
+from a fitted brma object by pooling heterogeneity variances across the
+scale model matrix.
 }
 \details{
-This function is a convenience wrapper around \code{predict.brma(...,
-type = "terms.scale", newdata = TRUE)}.
-
 For location-scale models (with scale regression), the pooled heterogeneity
-averages tau across the scale model matrix proportionately to the levels
-observed in the data.
+is the square root of the average observation-specific heterogeneity
+variance, \eqn{\sqrt{mean(\tau_i^2)}}. This differs from
+\code{predict(..., type = "terms.scale", newdata = TRUE)}, which reports the
+average predicted standard deviation.
 
 For models without scale regression, this returns the single tau parameter.
 

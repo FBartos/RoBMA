@@ -24,6 +24,71 @@ test_that("IWMDE predictor cache keys remain compact", {
 })
 
 
+test_that("IWMDE identifies sampled random SD focal parameters", {
+
+  dat <- data.frame(
+    yi    = c(.10, .20, .30),
+    x     = c(0, 1, 2),
+    study = c("s1", "s2", "s3")
+  )
+  object <- brma.mv(
+    yi                         = yi,
+    V                          = diag(rep(.04, 3L)),
+    random                     = ~ 1 | study,
+    scale                      = ~ x,
+    data                       = dat,
+    measure                    = "GEN",
+    prior_unit_information_sd  = 1,
+    marginalize_estimate_level = FALSE,
+    only_priors                = TRUE
+  )
+  prior <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+  context <- list(
+    object          = object,
+    data            = object[["data"]],
+    flat_prior_list = list(
+      tau               = prior,
+      log_tau_intercept = prior,
+      log_tau_x         = prior,
+      mu                = prior
+    )
+  )
+
+  expect_true(.iwmde_parameter_controls_sampled_random_sd(
+    context,
+    "log_tau_intercept"
+  ))
+  expect_true(.iwmde_parameter_controls_sampled_random_sd(context, "log_tau_x"))
+  expect_true(.iwmde_parameter_controls_sampled_random_sd(context, "tau[1]"))
+  expect_false(.iwmde_parameter_controls_sampled_random_sd(context, "mu"))
+  expect_null(.iwmde_predictor_column_basis(
+    context = context,
+    column  = "tau",
+    state   = list(active_setup = list())
+  ))
+})
+
+
+test_that("IWMDE disables focal prior delta for sampled random SD rows", {
+
+  .skip_if_missing_raw_fits("brma.mv_block_mvn_random_scale")
+
+  context   <- .iwmde_context(load_fit("brma.mv_block_mvn_random_scale", validate = FALSE))
+  parameter <- "log_tau_intercept"
+  if (!parameter %in% colnames(context[["posterior_samples"]])) {
+    skip("brma.mv random-scale fixture does not contain log_tau_intercept.")
+  }
+  rows <- which(is.finite(context[["posterior_samples"]][, parameter]))
+  rows <- head(rows, 3L)
+
+  expect_gt(length(rows), 0L)
+  for (row in rows) {
+    state <- .iwmde_row_state(context, row, parameter)
+    expect_false(state[["use_focal_prior_delta"]])
+  }
+})
+
+
 test_that("IWMDE density aggregation matches row-wise reference", {
 
   log_terms <- matrix(c(

@@ -121,6 +121,8 @@ test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
     ),
     class = "brma"
   )
+  attr(model[["data"]], "outcome_type") <- "norm"
+
   psis_weights <- matrix(
     c(
       0.2, 0.5, 0.3,
@@ -130,6 +132,16 @@ test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
   )
   samples <- matrix(c(0, 1, 2), ncol = 1)
   colnames(samples) <- "(mu) intercept"
+  fit_samples <- matrix(
+    c(
+      0, 1,
+      1, 2,
+      2, 3
+    ),
+    nrow = 3,
+    byrow = TRUE,
+    dimnames = list(NULL, c("a", "b"))
+  )
   checked       <- 0L
   context_calls <- 0L
 
@@ -157,6 +169,18 @@ test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
 
       samples
     },
+    .influence_fit_samples = function(model) {
+
+      fit_samples
+    },
+    .get_model_matrix = function(model) {
+
+      cbind(intercept = c(1, 1), slope = c(0, 1))
+    },
+    .get_estimate_labels = function(model) {
+
+      c("a", "b")
+    },
     .is_scale = function(model) {
 
       FALSE
@@ -170,13 +194,15 @@ test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
 
   expect_s3_class(dfbetas(model), "dfbetas.brma")
   expect_length(covratio(model), 2L)
-  expect_identical(checked, 2L)
-  expect_identical(context_calls, 2L)
+  expect_length(dffits(model), 2L)
+  expect_length(cooks.distance(model), 2L)
+  expect_identical(checked, 4L)
+  expect_identical(context_calls, 4L)
 
   dfbetas(model, .weights = psis_weights)
   covratio(model, .weights = psis_weights)
-  expect_identical(checked, 2L)
-  expect_identical(context_calls, 2L)
+  expect_identical(checked, 4L)
+  expect_identical(context_calls, 4L)
 })
 
 skip_if_no_fits()

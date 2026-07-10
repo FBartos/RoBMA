@@ -318,6 +318,30 @@ test_that("brma.mv aligns V after subset and missing rows", {
                c("Study 1", "Study 3", "Study 4"))
   expect_true(attr(object[["data"]], "slab"))
   expect_equal(as.character(object[["data"]][["location"]][["study"]]), c("a", "c", "d"))
+
+  expect_silent(
+    subset_object <- brma.mv(
+      yi                        = yi,
+      V                         = V,
+      mods                      = ~ x,
+      random                    = ~ 1 | study,
+      data                      = dat,
+      slab                      = label,
+      subset                    = c(TRUE, FALSE, TRUE, FALSE),
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_data                 = TRUE
+    )
+  )
+  expect_equal(
+    attr(subset_object[["data"]], "known_V_data")[["V"]],
+    V[c(1, 3), c(1, 3), drop = FALSE]
+  )
+  expect_equal(subset_object[["data"]][["outcome"]][["yi"]], c(0.10, 0.30))
+  expect_equal(subset_object[["data"]][["outcome"]][["slab"]],
+               c("Study 1", "Study 3"))
+  expect_equal(as.character(subset_object[["data"]][["location"]][["study"]]),
+               c("a", "c"))
 })
 
 
@@ -2839,6 +2863,34 @@ test_that("brma.mv rejects unsupported whitened known-V combinations", {
 })
 
 
+test_that("known-V preparation can suppress duplicate singular warnings", {
+
+  V <- matrix(0.04, nrow = 2L, ncol = 2L)
+
+  expect_warning(
+    .known_v_prepare(
+      V                                   = V,
+      keep_rows                           = c(TRUE, TRUE),
+      known_v_parameterization            = "whitened",
+      known_v_residual_fraction           = NULL,
+      known_v_residual_fraction_specified = FALSE,
+      warn_singular                       = TRUE
+    ),
+    "singular"
+  )
+  expect_silent(
+    .known_v_prepare(
+      V                                   = V,
+      keep_rows                           = c(TRUE, TRUE),
+      known_v_parameterization            = "whitened",
+      known_v_residual_fraction           = NULL,
+      known_v_residual_fraction_specified = FALSE,
+      warn_singular                       = FALSE
+    )
+  )
+})
+
+
 test_that("brma.mv known-V models pass bridge marginal likelihood availability", {
 
   object <- brma.mv(
@@ -2964,11 +3016,11 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     effect_direction  = "positive",
     posterior_samples = matrix(numeric(0), nrow = 1, ncol = 0L)
   )
-  expect_false(isTRUE(all.equal(
+  expect_equal(
     .log_lik_estimate_sum_from_setup(block_setup),
     block_expected,
     tolerance = 1e-8
-  )))
+  )
 
   whitened <- brma.mv(
     yi                        = c(0.10, 0.20),
@@ -3485,9 +3537,16 @@ test_that("brma.mv known-V estimate log-likelihood uses Schur conditional target
   }
 
   expect_equal(log_lik, expected, tolerance = 1e-12)
+  expected_joint <- vapply(seq_len(2), function(s) {
+    .marglik_mvn_log_density(
+      y          = setup[["yi"]],
+      mean       = mu[s, ],
+      covariance = V + diag(tau[s, ]^2, nrow = 2)
+    )
+  }, numeric(1))
   expect_equal(
     .log_lik_estimate_sum_from_setup(setup),
-    rowSums(log_lik),
+    expected_joint,
     tolerance = 1e-12
   )
 

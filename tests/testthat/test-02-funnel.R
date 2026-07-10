@@ -39,9 +39,9 @@ test_that("known-V funnel tau uses marginal covariance samples", {
   covariance_samples[1L, , ] <- V + diag(c(.01, .04), nrow = 2L)
   covariance_samples[2L, , ] <- V + diag(c(.09, .16), nrow = 2L)
   testthat::local_mocked_bindings(
-    .known_v_marginal_covariance_samples = function(object, ...) {
+    .known_v_marginal_variance_samples = function(object, ...) {
 
-      covariance_samples
+      .known_v_covariance_diagonal_samples(covariance_samples)
     },
     .package = "RoBMA"
   )
@@ -49,6 +49,50 @@ test_that("known-V funnel tau uses marginal covariance samples", {
   expected <- mean(sqrt(rowMeans(rbind(c(.01, .04), c(.09, .16)))))
 
   expect_equal(.get_funnel_tau(object), expected)
+})
+
+
+test_that("known-V marginal variance samples extract diagonals in chunks", {
+
+  V    <- matrix(c(.04, .01, .01, .09), nrow = 2L)
+  data <- list(outcome = data.frame(yi = c(.10, .20), sei = sqrt(diag(V))))
+  attr(data, "known_V")      <- TRUE
+  attr(data, "known_V_data") <- list(V = V)
+  object <- list(
+    data = data,
+    fit  = list()
+  )
+  class(object) <- c("brma.mv", "brma")
+  posterior_samples <- matrix(1:3, ncol = 1L, dimnames = list(NULL, "tau"))
+  covariances <- array(NA_real_, dim = c(3L, 2L, 2L))
+  for (s in seq_len(3L)) {
+    covariances[s, , ] <- V + diag(c(s, s + 1), nrow = 2L)
+  }
+
+  testthat::local_mocked_bindings(
+    .get_posterior_samples = function(fit, posterior_samples = NULL) {
+      posterior_samples
+    },
+    .known_v_marginal_covariance_samples_raw = function(object,
+                                                        posterior_samples,
+                                                        V,
+                                                        K) {
+      rows <- as.integer(posterior_samples[, "tau"])
+      covariances[rows, , , drop = FALSE]
+    },
+    .package = "RoBMA"
+  )
+
+  out <- .known_v_marginal_variance_samples(
+    object            = object,
+    posterior_samples = posterior_samples,
+    max_bytes         = .known_v_covariance_bytes(1L, 2L)
+  )
+  metadata <- attr(out, "known_v_diagnostic", exact = TRUE)
+
+  attr(out, "known_v_diagnostic") <- NULL
+  expect_equal(out, cbind(c(1.04, 2.04, 3.04), c(2.09, 3.09, 4.09)))
+  expect_equal(metadata[["n_chunks"]], 3L)
 })
 
 

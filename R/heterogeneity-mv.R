@@ -107,11 +107,7 @@
   }
 
   if (is.list(samples) && length(samples) > 0L) {
-    sample_name <- if ("tau" %in% names(samples)) {
-      "tau"
-    } else {
-      names(samples)[[1L]]
-    }
+    sample_name <- .pooled_brma_mv_heterogeneity_sample_name(samples)
     samples <- matrix(samples[[sample_name]], ncol = 1L)
     colnames(samples) <- "tau"
     return(samples)
@@ -119,6 +115,21 @@
 
   stop("Heterogeneity samples must be a posterior-draw matrix.",
        call. = FALSE)
+}
+
+
+.pooled_brma_mv_heterogeneity_sample_name <- function(samples) {
+
+  if ("tau" %in% names(samples)) {
+    return("tau")
+  }
+
+  total_names <- grep("^sd_total\\(", names(samples), value = TRUE)
+  if (length(total_names) > 0L) {
+    return(total_names[[1L]])
+  }
+
+  names(samples)[[1L]]
 }
 
 

@@ -7,7 +7,8 @@ test_that("known-V joint log-likelihood uses block MVN density", {
   attr(data, "known_V")      <- TRUE
   attr(data, "known_V_data") <- list(
     V             = V,
-    block_indices = list(1:2)
+    block_indices = list(1:2),
+    correlated    = TRUE
   )
   attr(data, "random")       <- FALSE
 
@@ -37,10 +38,22 @@ test_that("known-V joint log-likelihood uses block MVN density", {
   }, numeric(1))
 
   expect_equal(out, ref)
+  expect_equal(.log_lik_estimate_sum_from_setup(setup), ref)
   expect_false(isTRUE(all.equal(
     out,
     rowSums(.log_lik_known_v_estimate_target_from_setup(setup))
   )))
+
+  singular_setup <- setup
+  singular_setup[["data"]] <- data
+  singular_setup[["data"]][["outcome"]][["sei"]] <- c(1, 1)
+  attr(singular_setup[["data"]], "known_V_data")[["V"]] <-
+    matrix(1, nrow = 2L, ncol = 2L)
+  singular_setup[["tau_within"]] <- matrix(0, nrow = 2L, ncol = 2L)
+  expect_error(
+    .log_lik_known_v_joint_sum_from_setup(singular_setup),
+    "Known-V joint likelihood covariance"
+  )
 })
 
 

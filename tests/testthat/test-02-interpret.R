@@ -192,6 +192,57 @@ test_that("interpret.brma summarizes heterogeneity component lists separately", 
 })
 
 
+test_that("interpret.brma heterogeneity component plan orders do not collide", {
+
+  samples <- .new_brma_samples(
+    matrix(
+      c(0.10, 0.12, 0.14, 0.16),
+      ncol     = 1,
+      dimnames = list(NULL, "tau")
+    ),
+    n_chains = 1,
+    n_iter   = 4,
+    title    = "Test Heterogeneity:"
+  )
+  heterogeneity <- stats::setNames(
+    rep(list(samples), 10L),
+    paste0("component ", seq_len(10L))
+  )
+  sources <- .interpret_add_heterogeneity_sources(
+    sources       = list(
+      common_estimates = list(
+        rows = data.frame(
+          row          = "rho",
+          central      = 0.2,
+          central_name = "mean",
+          lower        = 0.1,
+          upper        = 0.3,
+          lower_prob   = .025,
+          upper_prob   = .975,
+          parameter    = "rho"
+        )
+      )
+    ),
+    heterogeneity = heterogeneity,
+    conditional   = FALSE,
+    probs         = c(.025, .975),
+    central       = "mean"
+  )
+  plan <- .interpret_brma_plan(
+    summary_object   = list(name = "model", inclusion_components = NULL),
+    effect_transform = NULL,
+    scope            = "estimates",
+    sources          = sources
+  )
+  orders <- vapply(plan, `[[`, numeric(1), "order")
+
+  expect_equal(length(orders), length(unique(orders)))
+  expect_true(any(vapply(plan, function(item) {
+    identical(item[["label"]], "Pooled heterogeneity (component 10)")
+  }, logical(1))))
+})
+
+
 test_that("interpret.brma printed output matches reference text", {
 
   cases <- list(

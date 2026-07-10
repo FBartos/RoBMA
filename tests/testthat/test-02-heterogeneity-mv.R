@@ -206,6 +206,22 @@ test_that("brma.mv pooled heterogeneity uses RMS row aggregation", {
 })
 
 
+test_that("brma.mv pooled allocation heterogeneity selects total SD by name", {
+
+  samples <- list(
+    "var_frac(allocation: first)" = c(.25, .50),
+    "sd_total(allocation)"        = c(2, 4),
+    "var_frac(allocation: second)" = c(.75, .50)
+  )
+  expected <- matrix(c(2, 4), ncol = 1, dimnames = list(NULL, "tau"))
+
+  expect_equal(
+    .pooled_brma_mv_heterogeneity_samples(samples),
+    expected
+  )
+})
+
+
 test_that("brma.mv summary heterogeneity reports shared allocation nodes", {
 
   object            <- .brma_mv_heterogeneity_nested_object()

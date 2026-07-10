@@ -149,7 +149,7 @@ test_that("known-R brma.mv rstandard and VIF track metafor references", {
   metafor_standard <- metafor::rstandard.rma.mv(fit_metafor)
 
   expect_residual_table(brma_standard, nobs(fit_brma), info = name)
-  expect_equal(nrow(brma_standard), nrow(metafor_standard), info = name)
+  expect_equal(nrow(brma_standard), length(metafor_standard[["z"]]), info = name)
   expect_true(
     stats::cor(brma_standard[["z"]], metafor_standard[["z"]],
                method = "spearman", use = "complete.obs") > 0.85,

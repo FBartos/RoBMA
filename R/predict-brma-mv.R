@@ -57,9 +57,9 @@
 }
 
 
-.predict_known_v_newdata_response_covariance <- function(object, data,
-                                                         known_V_new,
-                                                         posterior_samples) {
+.predict_known_v_response_covariance <- function(object, data, known_V,
+                                                 posterior_samples,
+                                                 caller = "known-V response prediction") {
 
   S <- nrow(posterior_samples)
   K <- nrow(data[["outcome"]])
@@ -67,7 +67,7 @@
   .known_v_check_full_covariance_allocation(
     S      = S,
     K      = K,
-    caller = "known-V newdata response prediction"
+    caller = caller
   )
 
   covariance_samples <- array(0, dim = c(S, K, K))
@@ -102,8 +102,8 @@
       ),
       error = function(e) {
         stop(
-          "Cannot compute random-effect covariance for known-V newdata ",
-          "response prediction: ", conditionMessage(e),
+          "Cannot compute random-effect covariance for ", caller, ": ",
+          conditionMessage(e),
           call. = FALSE
         )
       }
@@ -131,9 +131,23 @@
   }
 
   return(.known_v_add_base_covariance(
-    base_covariance    = known_V_new[["V"]],
+    base_covariance    = known_V[["V"]],
     covariance_samples = covariance_samples
   ))
+}
+
+
+.predict_known_v_newdata_response_covariance <- function(object, data,
+                                                         known_V_new,
+                                                         posterior_samples) {
+
+  .predict_known_v_response_covariance(
+    object            = object,
+    data              = data,
+    known_V           = known_V_new,
+    posterior_samples = posterior_samples,
+    caller            = "known-V newdata response prediction"
+  )
 }
 
 
@@ -163,18 +177,106 @@
 .predict_known_v_marginalized_random_draws <- function(object, data,
                                                        posterior_samples) {
 
-  variance <- .predict_known_v_newdata_marginalized_variance(
+  terms <- .data_marginalized_random_effects(object[["data"]])
+  S     <- nrow(posterior_samples)
+  K     <- nrow(data[["outcome"]])
+  if (length(terms) == 0L) {
+    return(matrix(0, nrow = S, ncol = K))
+  }
+
+  source_samples <- .predict_known_v_newdata_marginalized_source_samples(
     object            = object,
     data              = data,
     posterior_samples = posterior_samples
   )
-  sd <- sqrt(pmax(variance, 0))
+  draws    <- matrix(0, nrow = S, ncol = K)
+  fitted_K <- nrow(object[["data"]][["outcome"]])
 
-  matrix(
-    stats::rnorm(length(sd), mean = 0, sd = as.vector(sd)),
-    nrow = nrow(sd),
-    ncol = ncol(sd)
+  for (term in terms) {
+    sd_samples <- .marginalized_random_effect_sd_samples(
+      term              = term,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples,
+      fitted_K          = fitted_K
+    )
+    sd_samples <- .expand_brma_mv_heterogeneity_samples(
+      samples = sd_samples,
+      S       = S,
+      K       = K
+    )
+    draws <- draws + .predict_known_v_marginalized_random_term_draws(
+      term       = term,
+      data       = data,
+      sd_samples = sd_samples
+    )
+  }
+
+  return(draws)
+}
+
+
+.predict_known_v_marginalized_random_term_draws <- function(term, data,
+                                                            sd_samples) {
+
+  S          <- nrow(sd_samples)
+  K          <- ncol(sd_samples)
+  group_keys <- .predict_known_v_marginalized_random_group_keys(term, data, K)
+  if (is.null(group_keys)) {
+    return(matrix(
+      stats::rnorm(length(sd_samples), mean = 0, sd = as.vector(sd_samples)),
+      nrow = S,
+      ncol = K
+    ))
+  }
+
+  group_factor <- factor(group_keys, levels = unique(group_keys))
+  z <- matrix(
+    stats::rnorm(S * nlevels(group_factor)),
+    nrow = S,
+    ncol = nlevels(group_factor)
   )
+  out <- matrix(NA_real_, nrow = S, ncol = K)
+  for (level in seq_len(nlevels(group_factor))) {
+    rows <- which(group_factor == levels(group_factor)[[level]])
+    out[, rows] <- sd_samples[, rows, drop = FALSE] *
+      matrix(z[, level], nrow = S, ncol = length(rows))
+  }
+
+  return(out)
+}
+
+
+.predict_known_v_marginalized_random_group_keys <- function(term, data, K) {
+
+  location <- data[["location"]]
+  if (is.null(location) || nrow(location) != K) {
+    return(NULL)
+  }
+
+  group_label <- term[["group_label"]]
+  if (is.character(group_label) && length(group_label) == 1L &&
+      !is.na(group_label) && nzchar(group_label)) {
+    if (group_label %in% names(location)) {
+      return(as.character(location[[group_label]]))
+    }
+    variables <- strsplit(group_label, ":", fixed = TRUE)[[1L]]
+    if (length(variables) > 1L && all(variables %in% names(location))) {
+      parts <- lapply(variables, function(variable) {
+        as.character(location[[variable]])
+      })
+      return(do.call(paste, c(parts, sep = ":")))
+    }
+  }
+
+  grouping_factor <- attr(term, "grouping_factor", exact = TRUE)
+  if (is.character(grouping_factor) && length(grouping_factor) == 1L &&
+      !is.na(grouping_factor) && nzchar(grouping_factor) &&
+      grouping_factor %in% names(location)) {
+    return(as.character(location[[grouping_factor]]))
+  }
+
+  return(NULL)
 }
 
 
@@ -472,10 +574,8 @@
     } else {
       "fixed_plus_heterogeneity"
     },
-    "response"    = if (random_mv && !is.null(known_V_new)) {
+    "response"    = if (random_mv) {
       "fixed"
-    } else if (random_mv) {
-      "conditional"
     } else {
       "fixed_plus_heterogeneity"
     },
@@ -490,7 +590,7 @@
     formula_target
   }
   if (random_mv) {
-    if (type %in% c("estimate", "response") && is.null(known_V_new)) {
+    if (type == "estimate" && is.null(known_V_new)) {
       random_effect_target    <- if (aggregate) "marginal_sample" else "conditional_mean"
       random_effects_in_mean <- TRUE
       mean_target             <- if (aggregate) {
@@ -498,7 +598,7 @@
       } else {
         "fixed_plus_conditional_random_effects"
       }
-    } else if (type == "response" && !is.null(known_V_new)) {
+    } else if (type == "response") {
       random_effect_target <- "marginal_covariance"
     } else if (type == "terms") {
       random_effect_target <- "excluded"
@@ -512,7 +612,7 @@
     } else if (!is.null(known_V_new)) {
       "V_new_plus_heterogeneity"
     } else if (random_mv && .is_data_known_v(object[["data"]]) && same_data) {
-      "known_V_conditional_on_random_effects"
+      "known_V_plus_marginal_random_effect_covariance"
     } else if (random_mv && .data_has_marginalized_random_effects(object[["data"]])) {
       "known_V_plus_marginalized_estimate_level_variance"
     } else if (.is_data_known_v(object[["data"]])) {

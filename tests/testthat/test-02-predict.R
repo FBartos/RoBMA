@@ -315,10 +315,10 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   pooled_het_cond     <- expect_silent(
     pooled_heterogeneity(fit_brma, conditional = TRUE)
   )
-  pooled_het_predict  <- expect_silent(
+  scale_cond <- expect_silent(
     predict(
       fit_brma,
-      newdata     = TRUE,
+      newdata     = NULL,
       type        = "terms.scale",
       conditional = TRUE,
       quiet       = TRUE
@@ -342,8 +342,8 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   )
   expect_equal(
     unname(as.matrix(pooled_het_cond)),
-    unname(as.matrix(pooled_het_predict)),
-    info = "pooled_heterogeneity matches conditional predict"
+    unname(matrix(sqrt(rowMeans(as.matrix(scale_cond)^2)), ncol = 1L)),
+    info = "pooled_heterogeneity matches conditional RMS scale"
   )
   expect_equal(
     unname(summary(pooled_het_cond)["tau", "Mean"]),
@@ -395,14 +395,12 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
     expect_equal(unname(as.matrix(pooled)), unname(as.matrix(pooled_predict)))
 
     pooled_het <- pooled_heterogeneity(fit_brma)
-    pooled_het_predict <- predict(
-      fit_brma,
-      newdata = TRUE,
-      type    = "terms.scale",
-      quiet   = TRUE
+    pooled_het_expected <- matrix(
+      sqrt(rowMeans(as.matrix(scale)^2)),
+      ncol = 1L
     )
     expect_brma_samples_matrix(pooled_het, 1, paste(name, "pooled_heterogeneity"))
-    expect_equal(unname(as.matrix(pooled_het)), unname(as.matrix(pooled_het_predict)))
+    expect_equal(unname(as.matrix(pooled_het)), unname(pooled_het_expected))
 
     blup_samples <- blup(fit_brma)
     true_samples <- true_effects(fit_brma)

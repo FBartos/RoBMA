@@ -57,7 +57,9 @@ models.}
 effects (mu + gamma + theta). For existing normal data, returns posterior
 draws of conditional BLUP means, not simulated latent-effect draws.
 Existing \code{brma.mv()} random-formula models return conditional true
-effects at fitted random-effect levels. For \code{brma.mv()}
+effects at fitted random-effect levels. \code{brma.mv()} response
+predictions marginalize random-formula effects so they are comparable to
+ordinary \code{brma()} response predictions. For \code{brma.mv()}
 random-formula models, explicit \code{newdata} conditions on existing
 random-effect levels and samples unseen random-effect levels. Aggregated
 random-formula predictions marginalize random effects and average across
@@ -151,11 +153,12 @@ the full latent-effect posterior \eqn{\theta_i \mid y_i}. For
 \code{brma.mv()} random-formula models, fitted-level sampled random effects
 are added to the fixed location and the result is titled conditional true
 effects. Random-effect blocks compiled as marginalized contribute Gaussian
-BLUP means for existing-data predictions; existing-data response predictions
-then add only the known sampling covariance. For explicit new data, unseen
-random-effect levels are sampled from their model distribution. For aggregated
-random-formula predictions, random effects are sampled marginally before
-averaging over rows.
+BLUP means for existing-data estimate predictions. Existing-data response
+predictions instead use the fixed-location mean and add the marginal
+random-effect covariance to the known sampling covariance. For explicit new
+data, unseen random-effect levels are sampled from their model distribution.
+For aggregated random-formula predictions, random effects are sampled
+marginally before averaging over rows.
 
 For RoBMA product-space objects, conditional posterior predictions subset
 posterior rows according to model indicators. This removes the original
@@ -179,7 +182,7 @@ For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
 response prediction requires \code{V_new}. Non-random models draw from the
 new sampling covariance plus posterior heterogeneity. Random-formula models
 draw from a joint normal with fixed-location mean and covariance
-\code{V_new} plus the marginal random-effect covariance and any
+\code{V} or \code{V_new} plus the marginal random-effect covariance and any
 marginalized estimate-level variance. Cross-covariance with observed rows is
 not supported. Explicit \code{newdata} estimate/response predictions are not
 available for \code{brma.mv()} objects with marginalized known-\code{R}

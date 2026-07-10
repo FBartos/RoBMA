@@ -17,6 +17,9 @@ semantics do not need to be reconstructed from scratch.
   targets. They are not marginal covariance diagnostics.
 - `hatvalues()`, marginal `rstandard()`, Pearson residual SEs, and `vif()` use
   marginal GLS covariance targets.
+- same-data `predict.brma.mv(type = "response")` also uses a marginal
+  covariance target, so response predictions are comparable to `brma()`
+  predictions rather than conditional fitted-random-effect BLUPs.
 - `add_marglik()`/`bridge_sampler()` use the full joint fitted likelihood plus
   the fitted model prior density. They are not pointwise predictive scores.
 
@@ -173,6 +176,21 @@ For known `R`, BayesTools contributes the group-axis covariance inside
 `BayesTools::random_effects_marginal_vcov()` instead of duplicating matrix
 scaling, ordering, or definiteness logic.
 
+For same-data `brma.mv()` response predictions, the posterior mean is evaluated
+from fixed/location terms only and the covariance is `V + ZGZ'` plus any
+validated marginalized random-effect variance. Sampled fitted random effects
+are not added to the response mean in this target. This intentionally mirrors
+the univariate `brma()` response target, where between-study heterogeneity is
+represented through predictive variance rather than point BLUPs. `type =
+"estimate"` remains the fitted latent-effect target and conditions on sampled
+random effects when they are part of the fitted model.
+
+For aggregate predictions, RoBMA first adds BayesTools-backed sampled random
+effects and RoBMA marginalized-block draws at the row level, then averages rows.
+This keeps aggregate estimates on the same predictive scale as non-aggregate
+estimate predictions without reimplementing BayesTools random-effect
+covariance logic.
+
 Key files:
 
 - `R/known-v-gls.R`
@@ -181,6 +199,10 @@ Key files:
 - `R/vif.R`
 - `R/predict-brma-mv.R`
 - `R/heterogeneity-mv.R`
+
+Location-scale pooled heterogeneity uses posterior root-mean-square
+heterogeneity across fitted rows. The univariate and multivariate wrappers
+therefore both average variances first and take the square root afterward.
 
 ## Marginal Likelihood
 

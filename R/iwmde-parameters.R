@@ -640,6 +640,96 @@
 }
 
 
+.iwmde_parameter_controls_sampled_random_sd <- function(context, parameter) {
+
+  if (is.null(parameter) || length(parameter) != 1L ||
+      is.na(parameter) || !nzchar(parameter)) {
+    return(FALSE)
+  }
+
+  data <- context[["data"]]
+  if (is.null(data) || !.is_data_random(data)) {
+    return(FALSE)
+  }
+
+  terms <- .iwmde_sampled_random_effect_terms(context)
+  if (length(terms) == 0L) {
+    return(FALSE)
+  }
+
+  prior_name <- .iwmde_parameter_prior_name(context, parameter)
+  candidates <- unique(c(parameter, prior_name))
+  candidates <- candidates[!is.na(candidates) & nzchar(candidates)]
+
+  sd_columns <- unique(unlist(
+    lapply(terms, .iwmde_random_term_sd_columns),
+    use.names = FALSE
+  ))
+  sd_columns <- sd_columns[!is.na(sd_columns) & nzchar(sd_columns)]
+  if (length(intersect(candidates, sd_columns)) > 0L) {
+    return(TRUE)
+  }
+
+  if (.is_data_scale(data) &&
+      length(intersect(.data_scale_formula_sources(data), sd_columns)) > 0L) {
+    scale_parameters <- .data_scale_formula_parameters(data)
+    for (scale_parameter in scale_parameters) {
+      if (any(candidates == scale_parameter) ||
+          any(startsWith(candidates, paste0(scale_parameter, "_")))) {
+        return(TRUE)
+      }
+    }
+  }
+
+  return(FALSE)
+}
+
+
+.iwmde_sampled_random_effect_terms <- function(context) {
+
+  object <- context[["object"]]
+  design <- if (!is.null(object)) {
+    .fitted_formula_design(object, "mu", required = FALSE)
+  } else {
+    NULL
+  }
+
+  if (!is.null(design[["random_effects"]])) {
+    terms <- design[["random_effects"]]
+  } else {
+    terms <- .data_effective_sampled_random_effect_terms(context[["data"]])
+  }
+
+  if (length(terms) == 0L) {
+    return(list())
+  }
+
+  terms[vapply(terms, function(term) {
+    identical(.random_effect_term_compile_mode(term), "sampled")
+  }, logical(1))]
+}
+
+
+.iwmde_random_term_sd_columns <- function(term) {
+
+  columns <- term[["sd_parameter_names"]]
+
+  sources <- .predict_known_v_marginalized_sd_sources(term)
+  for (source in sources) {
+    columns <- c(columns, source[["name"]])
+  }
+
+  if (.marginalized_random_effect_has_allocation(term)) {
+    factors <- .marginalized_random_effect_allocation_factors(term)
+    columns <- c(columns, vapply(factors, function(factor) {
+      paste0(factor[["weight_name"]], "[", factor[["index"]], "]")
+    }, character(1)))
+  }
+
+  unique(columns[!is.na(columns) & nzchar(columns)])
+}
+
+
 .iwmde_indicator_name <- function(parameter) {
 
   if (identical(parameter, "bias")) {

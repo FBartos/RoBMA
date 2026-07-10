@@ -247,6 +247,37 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
 })
 
 
+test_that("marginal means qCMDE/IWMDE attach checks availability directly", {
+
+  emm <- list(inference = list(conditional = list()))
+  testthat::local_mocked_bindings(
+    .check_iwmde_available = function(object, caller) {
+      stop("not implemented for random-formula models yet.", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+
+  expect_error(
+    .marginal_means_attach_iwmde(
+      object                = structure(list(), class = "brma"),
+      marginal_means_object = emm,
+      n_points              = 20,
+      max_samples           = 20,
+      normalization_points  = 20,
+      normalization_prob    = .99,
+      density_method        = "qCMDE",
+      display_grid          = "support",
+      null_hypothesis       = 0,
+      parameter             = "alloc",
+      type                  = "averaged",
+      levels                = "alternate",
+      targeted              = TRUE
+    ),
+    "not implemented"
+  )
+})
+
+
 test_that("marginal_means plot defaults to KDE despite stored posterior density", {
 
   emm <- .marginal_means_test_object()
@@ -748,8 +779,8 @@ test_that("marginal_means supports brma.mv moderator fits", {
     mm <- marginal_means(fits[[name]], n_samples = 200)
     summary_mm <- summary(mm)
 
-    expect_s3_class(mm, "marginal_means.brma", info = name)
-    expect_s3_class(summary_mm, "summary.marginal_means.brma", info = name)
+    expect_true(inherits(mm, "marginal_means.brma"), info = name)
+    expect_true(inherits(summary_mm, "summary.marginal_means.brma"), info = name)
     expect_true(all(expected_terms[[name]] %in% mm[["term_map"]][["term"]]),
                 info = name)
     expect_true(all(mm[["parameters"]] %in% names(mm[["inference"]][["averaged"]])),

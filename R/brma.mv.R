@@ -33,6 +33,10 @@
 #' block-MVN threshold defaults to 128 rows per covariance block and can be
 #' changed with `options(RoBMA.known_v_block_mvn_max_block_size = value)`, where
 #' `value` is a positive integer or `Inf`.
+#' As a convenience for diagonal known-`V` inputs, `brma.mv()` also accepts
+#' hidden `vi` or `sei` arguments through `...` when `V` is omitted; these are
+#' converted to `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with
+#' `vi` or `sei`.
 #'
 #' The `random` argument uses BayesTools
 #' [random-effect formula structure tags][random_effect_formula_tags].

@@ -204,7 +204,8 @@
 .known_v_prepare <- function(V, keep_rows, known_v_parameterization,
                              known_v_residual_fraction,
                              known_v_residual_fraction_specified = FALSE,
-                             known_v_is_scale = FALSE) {
+                             known_v_is_scale = FALSE,
+                             warn_singular = TRUE) {
 
   known_v_parameterization <- match.arg(
     known_v_parameterization,
@@ -258,7 +259,7 @@
       call. = FALSE
     )
   }
-  if (isTRUE(singular)) {
+  if (isTRUE(singular) && isTRUE(warn_singular)) {
     .known_v_warn_singular()
   }
 

@@ -661,7 +661,7 @@ print.interpret.brma <- function(x, ...) {
         kind      = "estimate",
         section   = "estimates",
         item_id   = "rho",
-        order     = 120,
+        order     = 190,
         source    = "common_estimates",
         row       = "rho",
         label     = "cluster correlation",
@@ -940,6 +940,9 @@ print.interpret.brma <- function(x, ...) {
   }
   if (section == "estimates" && item_id == "heterogeneity") {
     return("Pooled heterogeneity")
+  }
+  if (section == "estimates" && startsWith(item_id, "heterogeneity.")) {
+    return(record[["label"]])
   }
   if (section == "estimates" && item_id == "rho") {
     return("Cluster correlation")

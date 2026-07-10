@@ -186,6 +186,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       call. = FALSE
     )
   }
+  .check_iwmde_available(source_object, "qCMDE/IWMDE marginal-means hypothesis()")
 
   density_control <- .hypothesis_marginal_means_density_control(
     object          = object,

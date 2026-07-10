@@ -25,8 +25,10 @@
 #' @param known_v_residual_fraction proportion of the diagonal of `V` left as
 #' conditional independent residual sampling variance in the latent `D + BB'`
 #' representation. Defaults to `0.10`; values are validated for all backends
-#' and explicitly supplied values are disregarded with a warning when
-#' `known_v_parameterization` is `"whitened"` or `"block_mvn"`.
+#' but affect only the latent backend. When `"auto"` selects `"whitened"` or
+#' `"block_mvn"`, explicitly supplied values are disregarded by the likelihood.
+#' Direct `"whitened"` or `"block_mvn"` requests warn when an explicit value is
+#' supplied.
 #' @param weights an optional vector of positive likelihood weights. For
 #' normal/effect-size models, each weight powers the estimate likelihood. For
 #' constructors with GLMM raw-count input, each weight powers the paired

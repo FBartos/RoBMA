@@ -475,7 +475,7 @@ test_that("random-formula brma.mv estimate and response predictions use cached f
   expect_equal(attr(estimate, "title"), "Conditional True Effects:")
 })
 
-test_that("random-formula brma.mv existing-data response conditions on random effects", {
+test_that("random-formula brma.mv existing-data response marginalizes random effects", {
 
   name <- "brma.mv_block_mvn_random_scale"
   skip_if_missing_fits(name)
@@ -484,25 +484,33 @@ test_that("random-formula brma.mv existing-data response conditions on random ef
   posterior_samples <- .get_posterior_samples(fit_brma[["fit"]])
   posterior_samples <- posterior_samples[seq_len(min(25L, nrow(posterior_samples))), , drop = FALSE]
   captured <- NULL
+  covariance <- array(0, dim = c(nrow(posterior_samples), nobs(fit_brma), nobs(fit_brma)))
+  for (s in seq_len(dim(covariance)[1L])) {
+    covariance[s, , ] <- diag(.2, nobs(fit_brma))
+  }
 
   testthat::local_mocked_bindings(
     .outcome_rng.norm_known_v = function(mu_samples, tau_within, known_V) {
-      captured <<- list(mu = mu_samples, tau = tau_within, known_V = known_V)
-      mu_samples
+      stop("Existing-data random-formula response should use full covariance RNG.",
+           call. = FALSE)
     },
     .outcome_rng.norm_known_v_covariance = function(mu_samples, covariance_samples) {
-      stop("Existing-data random-formula response should not use V_new covariance RNG.",
-           call. = FALSE)
+      captured <<- c(captured, list(mu = mu_samples, covariance = covariance_samples))
+      mu_samples
+    },
+    .predict_known_v_response_covariance = function(object, data, known_V,
+                                                    posterior_samples,
+                                                    caller = NULL) {
+      captured <<- c(captured, list(
+        data    = data,
+        known_V = known_V,
+        caller  = caller
+      ))
+      covariance
     },
     .package = "RoBMA"
   )
 
-  expected <- as.matrix(predict(
-    fit_brma,
-    type               = "estimate",
-    quiet              = TRUE,
-    .posterior_samples = posterior_samples
-  ))
   response_samples <- predict(
     fit_brma,
     type               = "response",
@@ -518,13 +526,13 @@ test_that("random-formula brma.mv existing-data response conditions on random ef
     .posterior_samples = posterior_samples
   ))
 
-  expect_equal(unname(response), unname(expected), tolerance = 1e-12)
-  expect_false(isTRUE(all.equal(unname(response), unname(fixed_only), tolerance = 1e-8)))
-  expect_equal(captured[["tau"]], captured[["tau"]] * 0)
+  expect_equal(unname(response), unname(fixed_only), tolerance = 1e-12)
+  expect_equal(captured[["covariance"]], covariance)
   expect_equal(captured[["known_V"]][["V"]], .data_known_v_data(fit_brma[["data"]])[["V"]])
+  expect_equal(captured[["caller"]], "known-V existing-data response prediction")
   expect_equal(
     attr(response_samples, "brma_mv_prediction_target")[["covariance_target"]],
-    "known_V_conditional_on_random_effects"
+    "known_V_plus_marginal_random_effect_covariance"
   )
 })
 
@@ -626,6 +634,173 @@ test_that("random-formula brma.mv newdata estimate includes marginalized random 
     unname(contribution),
     tolerance = 1e-12
   )
+})
+
+
+test_that("random-formula brma.mv aggregate estimate averages marginalized random draws", {
+
+  object <- .brma_mv_prior_object(random = TRUE)
+  sd_names <- .brma_mv_random_sd_names(object)
+  posterior_samples <- matrix(
+    0,
+    nrow = 2,
+    ncol = 1 + length(sd_names),
+    dimnames = list(NULL, c("mu", unname(sd_names)))
+  )
+  posterior_samples[, "mu"] <- c(.10, .20)
+  contribution <- matrix(
+    c(.10, .20, .30, .40,
+      .50, .60, .70, .80),
+    nrow = 2,
+    byrow = TRUE
+  )
+
+  testthat::local_mocked_bindings(
+    .evaluate.brma.random_effects = function(fit, data, priors,
+                                             posterior_samples = NULL,
+                                             same_data = TRUE,
+                                             required = FALSE,
+                                             formula_target = "conditional",
+                                             blocks = NULL,
+                                             object = NULL) {
+      matrix(0, nrow = nrow(posterior_samples), ncol = nrow(data[["outcome"]]))
+    },
+    .predict_known_v_marginalized_random_draws = function(object, data,
+                                                          posterior_samples) {
+      contribution
+    },
+    .package = "RoBMA"
+  )
+
+  estimate <- predict(
+    object,
+    newdata            = TRUE,
+    type               = "estimate",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  terms <- predict(
+    object,
+    newdata            = TRUE,
+    type               = "terms",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+
+  expect_equal(
+    unname(as.matrix(estimate) - as.matrix(terms)),
+    matrix(rowMeans(contribution), ncol = 1L),
+    tolerance = 1e-12
+  )
+})
+
+
+test_that("marginalized newdata random draws share repeated group levels", {
+
+  object <- .brma_mv_prior_object(random = TRUE)
+  term   <- .data_marginalized_random_effects(object[["data"]])[[1L]]
+  sd_name <- term[["sd_parameter_names"]][[1L]]
+  posterior_samples <- matrix(
+    c(2, 3),
+    ncol     = 1L,
+    dimnames = list(NULL, sd_name)
+  )
+  new_data <- object[["data"]]
+  new_data[["outcome"]] <- data.frame(
+    yi   = c(0, 0, 0),
+    sei  = c(0, 0, 0),
+    slab = paste0("new", 1:3)
+  )
+  new_data[["location"]] <- data.frame(
+    study  = c("s1", "s1", "s2"),
+    effect = c("a", "a", "b"),
+    x      = c(0, 0, 1)
+  )
+
+  set.seed(91)
+  draws <- .predict_known_v_marginalized_random_draws(
+    object            = object,
+    data              = new_data,
+    posterior_samples = posterior_samples
+  )
+
+  expect_equal(draws[, 1], draws[, 2], tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(draws[, 1], draws[, 3])))
+})
+
+
+test_that("marginalized newdata estimate draws match sampled random covariance", {
+
+  dat <- data.frame(
+    yi    = c(.10, .20),
+    study = c("s1", "s2")
+  )
+  V <- diag(rep(.04, 2L))
+  marginalized <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = ~ 1 | study,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  sampled <- brma.mv(
+    yi                         = yi,
+    V                          = V,
+    random                     = ~ 1 | study,
+    data                       = dat,
+    measure                    = "GEN",
+    prior_unit_information_sd  = 1,
+    marginalize_estimate_level = FALSE,
+    only_priors                = TRUE
+  )
+  sampled_design <- .fitted_formula_design(sampled, "mu", required = TRUE)
+  sd_name        <- sampled_design[["random_effects"]][[1L]][["sd_parameter_names"]][[1L]]
+  S              <- 20000L
+  posterior_samples <- matrix(
+    rep(.5, S),
+    ncol     = 1L,
+    dimnames = list(NULL, sd_name)
+  )
+  new_location <- data.frame(study = c("s1", "s1", "s2"))
+  new_data <- marginalized[["data"]]
+  new_data[["outcome"]] <- data.frame(
+    yi   = c(0, 0, 0),
+    sei  = c(0, 0, 0),
+    slab = paste0("new", 1:3)
+  )
+  new_data[["location"]] <- new_location
+
+  formula_fit <- .posterior_formula_fit(
+    fit               = sampled[["fit"]],
+    posterior_samples = posterior_samples,
+    formula_design    = TRUE
+  )
+  attr(formula_fit, "formula_design") <- list(mu = sampled_design)
+  location_priors <- attr(sampled[["fit"]], "prior_list")
+  if (is.null(location_priors)) {
+    location_priors <- sampled[["priors"]][["location"]]
+  }
+  sampled_vcov <- BayesTools::random_effects_marginal_vcov(
+    fit               = formula_fit,
+    parameter         = "mu",
+    data              = new_location,
+    posterior_samples = posterior_samples,
+    prior_list        = location_priors,
+    blocks            = "study",
+    new_levels        = "sample"
+  )[["samples"]]
+  expected <- apply(sampled_vcov, c(2L, 3L), mean)
+
+  set.seed(202)
+  draws <- .predict_known_v_marginalized_random_draws(
+    object            = marginalized,
+    data              = new_data,
+    posterior_samples = posterior_samples
+  )
+
+  expect_equal(unname(stats::cov(draws)), unname(expected), tolerance = .015)
 })
 
 

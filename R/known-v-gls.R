@@ -118,6 +118,82 @@
 }
 
 
+.known_v_marginal_variance_samples <- function(object,
+                                               posterior_samples = NULL,
+                                               max_samples = Inf,
+                                               max_bytes = NULL) {
+
+  if (!inherits(object, "brma.mv") || !.is_data_known_v(object[["data"]])) {
+    stop("Known-V marginal variance samples require a brma.mv known-V object.",
+         call. = FALSE)
+  }
+
+  known_V <- .data_known_v_data(object[["data"]])
+  V       <- known_V[["V"]]
+  K       <- nrow(object[["data"]][["outcome"]])
+
+  if (!is.matrix(V) || nrow(V) != K || ncol(V) != K) {
+    stop("Known-V covariance metadata is inconsistent with the outcome data.",
+         call. = FALSE)
+  }
+
+  sample_info <- .known_v_diagnostic_posterior_samples(
+    object            = object,
+    posterior_samples = posterior_samples,
+    max_samples       = max_samples,
+    caller            = ".known_v_marginal_variance_samples()",
+    warn              = FALSE
+  )
+  posterior_samples <- sample_info[["posterior_samples"]]
+  S                 <- nrow(posterior_samples)
+  marginal_variance <- matrix(NA_real_, nrow = S, ncol = K)
+
+  chunk_info <- .known_v_apply_marginal_covariance_chunks(
+    object            = object,
+    posterior_samples = posterior_samples,
+    max_bytes         = max_bytes,
+    FUN               = function(covariance_samples, rows) {
+      marginal_variance[rows, ] <<- .known_v_covariance_diagonal_samples(
+        covariance_samples
+      )
+    }
+  )
+
+  metadata <- .known_v_diagnostic_metadata(
+    sample_info = sample_info,
+    chunk_info  = chunk_info
+  )
+  attr(marginal_variance, "known_v_diagnostic") <- metadata
+
+  return(marginal_variance)
+}
+
+
+.known_v_covariance_diagonal_samples <- function(covariance_samples) {
+
+  dims <- dim(covariance_samples)
+  if (length(dims) != 3L || dims[[2L]] != dims[[3L]]) {
+    stop("Known-V covariance samples must be a draw x row x row array.",
+         call. = FALSE)
+  }
+
+  S <- dims[[1L]]
+  K <- dims[[2L]]
+  diagonal_index <- cbind(
+    rep(seq_len(S), each = K),
+    rep(seq_len(K), times = S),
+    rep(seq_len(K), times = S)
+  )
+
+  matrix(
+    covariance_samples[diagonal_index],
+    nrow  = S,
+    ncol  = K,
+    byrow = TRUE
+  )
+}
+
+
 .known_v_diagnostic_posterior_samples <- function(object,
                                                   posterior_samples = NULL,
                                                   max_samples = Inf,

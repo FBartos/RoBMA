@@ -264,6 +264,9 @@
   }
 
   if (column == "tau" && !.is_data_scale(data)) {
+    if (.is_data_random(data) && .is_data_known_v(data)) {
+      return(NULL)
+    }
     return(list(
       mu_basis      = NULL,
       log_tau_basis = NULL,

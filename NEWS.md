@@ -21,6 +21,16 @@
   routes instead of the removed normal-approximation switch.
 
 ### Fixes
+- aligns same-data `brma.mv()` response prediction with `brma()` semantics by
+  using fixed means and marginal known-`V` plus random-effect covariance instead
+  of conditioning on fitted random effects.
+- makes aggregate `brma.mv()` predictions include marginalized random-effect
+  draws before row averaging.
+- reports location-scale pooled heterogeneity as posterior RMS heterogeneity,
+  matching multivariate RMS semantics.
+- hardens known-`V` estimate log-likelihood sums, diagnostics, funnel variance
+  extraction, qCMDE/IWMDE random-SD handling, and `brma.mv()` target metadata
+  regressions.
 - separates qCMDE display, evaluation, and integration grids so plot ranges and
   boundary nulls no longer distort row-normalizer grids.
 - makes qCMDE BF diagnostics use final-vs-validation ordinate movement instead

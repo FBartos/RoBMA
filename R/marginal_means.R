@@ -149,6 +149,15 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     parameters        = terms,
     formula_parameter = "mu"
   )
+  parameter_setup  <- .marginal_means_drop_fixed_zero_intercept(
+    model      = object[["fit"]],
+    formula    = formula,
+    terms      = terms,
+    parameters = parameters
+  )
+  formula    <- parameter_setup[["formula"]]
+  terms      <- parameter_setup[["terms"]]
+  parameters <- parameter_setup[["parameters"]]
   conditional_list <- .marginal_means_conditional_list(
     terms      = terms,
     parameters = parameters
@@ -232,6 +241,54 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 }
 
 
+.marginal_means_drop_fixed_zero_intercept <- function(model, formula, terms,
+                                                      parameters) {
+
+  posterior_samples <- .get_posterior_samples(model)
+  posterior_names   <- colnames(posterior_samples)
+  prior_list        <- attr(model, "prior_list", exact = TRUE)
+  intercept_index   <- which(parameters == "mu_intercept")
+
+  if (length(intercept_index) != 1L ||
+      .marginal_means_parameter_in_samples("mu_intercept", posterior_names)) {
+    return(list(
+      formula    = formula,
+      terms      = terms,
+      parameters = parameters
+    ))
+  }
+
+  intercept_prior <- prior_list[["mu_intercept"]]
+  if (is.null(intercept_prior) ||
+      !BayesTools::is.prior.point(intercept_prior) ||
+      !isTRUE(all.equal(as.numeric(mean(intercept_prior)), 0))) {
+    return(list(
+      formula    = formula,
+      terms      = terms,
+      parameters = parameters
+    ))
+  }
+
+  keep <- seq_along(parameters) != intercept_index
+  if (!any(keep)) {
+    stop("No marginal means are available for this model.", call. = FALSE)
+  }
+
+  return(list(
+    formula    = stats::update.formula(formula, . ~ . - 1),
+    terms      = terms[keep],
+    parameters = parameters[keep]
+  ))
+}
+
+
+.marginal_means_parameter_in_samples <- function(parameter, posterior_names) {
+
+  parameter %in% posterior_names ||
+    any(startsWith(posterior_names, paste0(parameter, "[")))
+}
+
+
 .marginal_means_precompute_type <- function(type) {
 
   if (is.null(type)) {
@@ -264,6 +321,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
                                          display_grid, null_hypothesis,
                                          parameter, type, levels, targeted,
                                          include_ordinates = TRUE) {
+
+  .check_iwmde_available(object, "qCMDE/IWMDE marginal_means()")
 
   if (is.null(normalization_points)) {
     normalization_points <- max(50L, n_points)

@@ -116,7 +116,8 @@
     known_v_parameterization            = "auto",
     known_v_residual_fraction           = known_V[["residual_fraction_requested"]],
     known_v_residual_fraction_specified = known_v_residual_fraction_specified,
-    known_v_is_scale                    = TRUE
+    known_v_is_scale                    = TRUE,
+    warn_singular                       = FALSE
   )
   attr(data, "known_V_data") <- new_known_V
   data[["outcome"]][["sei"]] <- sqrt(diag(new_known_V[["V"]]))
@@ -200,6 +201,10 @@
 
 
 .known_r_marginal_variance_factors_unavailable_error <- function(error) {
+
+  if (inherits(error, "BayesTools_random_effects_marginal_variance_unavailable")) {
+    return(TRUE)
+  }
 
   error_message <- conditionMessage(error)
   expected <- c(
